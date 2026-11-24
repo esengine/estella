@@ -1,0 +1,197 @@
+---
+title: World UI & Advanced
+description: UI beyond a screen Canvas — ContentRect and RectAnchors for world content, UIWorldAnchor for markers over the world, UIPages for screens built on demand, CanvasEffect for a whole Canvas through a material, and frosted panels.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This chapter covers UI outside the screen-Canvas layout model: rectangles and anchoring for transform-placed world
+content, screen-space markers tracking world positions, on-demand page instantiation, and Canvas-wide material
+effects.
+
+| Requirement | Component |
+|---|---|
+| A rectangle (size + pivot) for something placed by its `Transform`, to clip to or hit-test | [`ContentRect`](#contentrect--a-rectangle-for-world-content) |
+| World content that keeps to an edge or the centre of its parent, or stretches with it | [`RectAnchors`](#rectanchors--world-content-that-follows-its-parent) |
+| A marker, a name or a health bar over a point in the world, flat on the screen | [`UIWorldAnchor`](#uiworldanchor--ui-over-a-point-in-the-world) |
+| Screens built from prefabs the first time they open | [`UIPages`](#uipages--pages-that-exist-only-while-wanted) |
+| A whole HUD bent, tinted or scan-lined | [`CanvasEffect`](#canvaseffect--a-canvas-drawn-through-a-material) |
+| A panel that blurs what is behind it | [Frosted panels](#frosted-panels--ui-that-reads-the-frame-under-it) |
+
+## `ContentRect` — a rectangle for world content
+
+`UINode` is the engine's box layout, and it is what UI is built from. Content placed in the
+world by its `Transform` — a HUD pinned to a camera, an imported scene — has no layout, and
+until now its extent lived in several places: a `Sprite` has a size and pivot, a `Text` a box,
+and an entity that draws nothing has no extent at all, so nothing could be clipped to it.
+
+`ContentRect` is that one rectangle: a `size` in local units and the `pivot` of it the entity's
+transform sits on (`(0.5, 0.5)` is the centre). Add it, and:
+
+- the `Sprite` and `Text` on the same entity take their size and pivot from it, so the
+  rectangle is written in one place;
+- a `UIMask` on the entity clips its descendants to it, with no `UINode` needed;
+- `contentRectContains(world, entity, x, y)` tests a world point against it, with the
+  entity's position, rotation and scale applied.
+
+An entity with both a `UINode` and a `ContentRect` keeps the layout's box for clipping.
+Adding a `Sprite` or `Text` to an entity that already has a rect: call `applyContentRect`
+once, or write the rect again; a changed rect is followed by itself.
+
+## `RectAnchors` — world content that follows its parent
+
+World content has no flexbox, but it often wants to stay at an edge or the centre of its parent,
+or stretch with it. `RectAnchors` pins an entity — placed by its `Transform`, sized by its
+`ContentRect` — to its parent's rectangle:
+
+- **Stretch**: pin both edges of an axis and the entity's size follows the parent.
+- **Pin to an edge**, or **centre with an offset**, on each axis independently.
+- Margins are in layout units, or a fraction of the parent's size (the `isAbs…` flags per margin).
+- With no parent `ContentRect`, the entity aligns to the **screen**, which is centred on the
+  world origin.
+
+`alignFlags` is a bit set of `AnchorFlag` (`TOP`, `MID`, `BOTTOM`, `LEFT`, `CENTER`, `RIGHT`); the default `0` pins nothing, so the component does nothing until a flag is set.
+
+`alignMode` says when it aligns: `ONCE`, `ON_RESIZE` (the default: when enabled, when its own
+settings change, and whenever the screen changes) or `ALWAYS` (every frame). Parents are
+aligned before the children that depend on their size, in the editor's edit mode as well as in
+play, so a scene shows laid out as it will run.
+
+```typescript
+import { RectAnchors, AnchorFlag } from 'esengine';
+
+// Stretch across the top of the screen, 40 units from the edges.
+world.insert(banner, RectAnchors, {
+  alignFlags: AnchorFlag.TOP | AnchorFlag.LEFT | AnchorFlag.RIGHT,
+  top: 0, left: 40, right: 40,
+});
+```
+
+![The Rect Anchors card on a world Sprite named Sign, below its Sprite and Content Rect cards](@/assets/guides/en/ui-rectanchors-details.png)
+
+*`RectAnchors` on a world entity: it is placed by its `Transform` and sized by its `ContentRect`, and the anchors keep
+it at an edge or the centre of its parent's rectangle.*
+
+## `UIWorldAnchor` — UI over a point in the world
+
+A HUD often marks something in the 3D world: an objective, a name over a head, a health bar. `UIWorldAnchor`
+puts its UI node at the screen position of an entity (plus `offset`) or of a world point, every frame. The node
+is placed Absolute by its left/top insets in its parent, which should cover the screen (a screen Canvas root or
+a full-screen panel); centre it on the point with negative margins of half its size.
+
+- `clampToEdges` keeps a marker that is off screen, or behind the camera, on the screen's edge in the point's
+  real direction — the usual objective marker. Without it, a point behind the camera hides the node.
+- `onScreen`, `behind` and `distance` (world units from the camera) read back, for a "34m" label.
+- The camera is the one on screen (the active camera that clears colour with the highest priority), or the one
+  `camera` names.
+
+It projects from the camera's pose at the end of Update, so a marker does not trail a first-person view that
+turned this frame. It only hides a node while the point is behind the camera, and shows again only a node it
+hid itself: a marker the game hides (an objective done) stays hidden.
+
+```typescript
+import { UIWorldAnchor, UINode } from 'esengine';
+
+world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30), marginTop: px(-20) });
+world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
+```
+
+## `UIPages` — pages that exist only while wanted
+
+A screen with many pages does not need all of them in the world at once. `UIPages` keeps each
+page as a prefab and builds it the first time it is opened:
+
+```typescript
+import { UIPages } from 'esengine';
+
+const pages = new UIPages(world, assets);
+pages.register('shop', { prefab: 'assets/ui/shop.esprefab', parent: canvas, onClose: 'destroy' });
+
+const shop = await pages.open('shop');   // builds on first open; callers asking at once share one build
+shop.find('buyButton');                   // a node by name, inside this page
+pages.close('shop');
+```
+
+- **`onClose`**: `'keep'` (default) switches the page off, so the next open is instant;
+  `'destroy'` takes its contents and assets out and the next open builds again.
+- **`parent`** adds the page as a new root under an entity. **`mount`** is an entity already in
+  the scene: the page is built under it, so it keeps the mount's place in the draw order.
+- `pages.preload(id)` fetches the prefab ahead of time; `pages.onBuilt(fn)` is where to wire a
+  page when it is built.
+- Pages can also come from [virtual prefab instances](/docs/world/prefabs/#virtual-instances):
+  `registerDeferred(entity)` and `registerDeferredAll(root?)` register them, named after the instance root.
+
+## `CanvasEffect` — a Canvas drawn through a material
+
+A HUD seen through a visor bends at its corners, splits its colours and carries scan lines. None of that can be
+drawn element by element: the whole display has to become one picture first. `CanvasEffect` on a screen Canvas
+does that. The screen UI on that Canvas's sorting layer (`Canvas.layer`) is drawn into a transparent picture of
+its own, and `material` lays that picture on the frame.
+
+The material's shader is a `PostProcess` shader, written as a post-process effect is. It reads the layer as
+`u_texture` at `v_texCoord`, has `u_time` and `u_viewport`, and takes its own `#pragma param` values from the
+material. The layer's colour is weighted by its alpha (premultiplied), as the display shows it, and what the
+shader returns is laid over the frame the same way: return the sample unchanged and the Canvas looks as it
+does without the component.
+
+```glsl
+#pragma shader "HUD Lens"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_curve float default(0.03) range(0,0.2)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+void main() {
+    vec2 p = v_texCoord * 2.0 - 1.0;
+    fragColor = texture(u_texture, p * (1.0 + u_curve * (dot(p, p) - 1.0)) * 0.5 + 0.5);
+}
+#pragma end
+```
+
+```typescript
+import { Canvas, CanvasEffect } from 'esengine';
+
+const lens = await assets.loadMaterial('assets/ui/lens.esmaterial');
+world.insert(hudCanvas, Canvas, { layer: 2 });
+world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
+```
+
+- **It is by layer.** Every screen Canvas on the same sorting layer goes through the material of the first one
+  that has a `CanvasEffect`. Layers without one are drawn first, straight onto the frame; then each layer with
+  one, over them, from the lowest layer number up. So what must not bend, such as markers that stand on things in the world
+  (`UIWorldAnchor`), goes on a Canvas of another layer.
+- **It moves pixels, not the pointer.** A click lands where an element was laid out. Keep what is clicked on a
+  layer without an effect, or keep the bend small.
+- A draw that only adds light (`BlendMode.Additive`) still only adds light through the layer. A draw that
+  darkens what is under it (`Multiply`, `Darken`) has only the empty layer under it there.
+- It needs post-processing in the build, and a shader for WebGPU needs its `#pragma fragment wgsl` twin. Until
+  the material's program is ready, the Canvas is drawn straight.
+
+## Frosted panels — UI that reads the frame under it
+
+A UI material can declare `#pragma param u_screenColor texture default(white)`, the same input a material in
+the scene declares. In the screen overlay it is the frame as it stands when that UI's layer starts to draw:
+every camera, the post chain, and the screen UI layers drawn before it. The copy has a full mip chain, so one
+`textureLod` is a wide blur: sample it at `gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0))`, a few taps
+at level 3 or 4, for a frosted panel.
+
+```glsl
+vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
+vec3 behind = textureLod(u_screenColor, uv, 3.5).rgb;
+```
+
+Its colours are the display's, as the frame shows them, in a linear project too. Its alpha is 0.5 where the
+frame took a copy; a shader handed the white default instead (alpha 1: a device that cannot copy its surface,
+or a build without post-processing) should draw its plain look. The UI of one layer does not see the elements
+under it in that same layer; put a frosted panel on a later layer to have it blur the UI under it.
+
+## See also
+
+- [Canvas](/docs/ui/canvas/) — screen Canvases, layers, and a Canvas placed in the world.
+- [Layout](/docs/ui/layout/) — anchors and boxes for nodes inside a Canvas.
+- [Post-processing](/docs/graphics/post-processing/) — the shader model `CanvasEffect` uses.

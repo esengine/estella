@@ -19,6 +19,10 @@ Both compose the same primitives: a Scissor [`UIMask`](#clipping--uimask)
 viewport, a content frame translated by a [`ScrollContainer`](#the-scrolling-model),
 and wheel / drag / kinetic-fling input routed by the UI plugin.
 
+![The ui-list example running: a virtualized contact list on the left and a four-column grid of numbered tiles on the right, each clipped to its viewport](@/assets/guides/en/ui-list-running.png)
+
+*`ui-list` example: 500 rows and 120 tiles; only items near the viewport are instantiated.*
+
 ## `createListView`
 
 One call composes a data source, a layout, item recycling, scrolling, and
@@ -411,6 +415,47 @@ factories always leave scrollbars on; opting out (`showScrollbar: false`) is a
 constructor takes `initialOffset`, `elastic` (default `false`: let a drag pull the
 content past either end, rubber-banded, and spring back) and `bounceTime`
 (seconds the spring takes to settle, default `0.5`).
+
+## Scroll areas in a scene — `UIScroll`
+
+`UIScroll` turns a clipped node into a **scroll viewport**: the wheel and drags move its
+content, and the node's `UIMask` is what hides the part hanging outside. Content that fits
+does not move, so the component is inert until there is something to scroll.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Switches the scroller off without removing the component. |
+| `content` | first child | The child that moves. |
+| `horizontal` / `vertical` | `false` / `true` | Which axes scroll. |
+| `movement` | `Clamped` | `Elastic` overshoots at the ends and springs back. |
+| `wheelSpeed` | `1` | Multiplier on wheel deltas. |
+| `dragScroll` | `true` | Drag/touch grabbing; the kinetic fling after release runs only with `Elastic`. |
+| `decelerationRate` | `0.135` | Fling velocity kept per second under `Elastic`; `0` stops on release. With `Clamped` the component always stops on release. |
+
+```ts
+// A list that scrolls vertically inside a fixed box.
+const viewport = spawnUIEntity({ world, parent: panel, node: { width: px(400), height: px(300) } });
+world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, alphaCutoff: 0 });
+world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
+
+const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
+world.insert(viewport, UIScroll, { vertical: true });   // content defaults to the first child
+```
+
+`Elastic` is opt-in per area (`Clamped` is the default). A drag past an end gets stiffer the
+further out it goes, letting go returns the content, and a flick that reaches an end bounces off it.
+The gesture model behind it, `ScrollMotion` (with `ScrollContainer.dragTo` and `getOverscroll`), is
+exported, so anything else — a world-space node scrolled by touch — can scroll the same way.
+
+The component is what a **scene** can say. Scrolling used to be reachable only by building
+the `ScrollView` widget in code, so a scroll area placed in the editor described all its
+parts — the clipped box, the oversized child — without the one fact that it scrolled.
+`UIScroll` is that fact, and the widget and the scene now drive the same container.
+
+<Aside type="note">
+  A viewport needs `UIMask` to clip and `Interactable` to receive the pointer. The editor's
+  **+ Add → Create entity… → ScrollView** gives you all three already assembled.
+</Aside>
 
 ## Clipping — `UIMask`
 

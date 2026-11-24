@@ -9,6 +9,10 @@ import { Aside } from '@astrojs/starlight/components';
 不带纹理的实心图元,有 **`ShapeRenderer`**。一切都经由 [相机](/docs/zh-cn/graphics/camera/) 绘制,
 而绘制顺序由**排序层**控制。
 
+<Aside type="caution" title="屏幕空间 UI">
+  `Sprite` 是世界空间渲染组件，用于经相机渲染的内容（角色、道具、瓦片、背景）。屏幕空间图像（图标、按钮、面板、进度条）使用画布下的 `UINode` + `UIVisual`，参与布局与屏幕适配。`UINode` 实体上的 `Sprite` 不会渲染。见[精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)。
+</Aside>
+
 ## 你的第一个精灵
 
 一个精灵需要 `Transform`(在哪)和 `Sprite`(画什么)。通过 [`Assets`](/docs/zh-cn/assets/overview/)

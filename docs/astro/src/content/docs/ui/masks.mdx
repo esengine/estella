@@ -1,0 +1,83 @@
+---
+title: Masks & Visibility
+description: UIMask reference (Scissor and Stencil modes, alpha cutoff) and subtree visibility controls — UIVisual.enabled, UINode.display, UINode.opacity, UINode.pointerEvents — with their effect on layout, rendering and hit-testing.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This chapter covers clipping (`UIMask`) and the visibility controls on `UINode` and `UIVisual`.
+
+## UIMask
+
+`UIMask` clips the descendants of its node.
+
+![Left: unmasked texture. Centre: the same texture clipped to a circle by a Stencil mask with alphaCutoff. Right: eight list rows clipped to the viewport box by a Scissor mask](@/assets/guides/en/ui-mask.png)
+
+![UI Mask card: Enabled, Mode Stencil, Alpha Cutoff 0.5](@/assets/guides/en/ui-mask-details.png)
+
+| Field | Default | Description |
+|---|---|---|
+| **Enabled** | `true` | Enables clipping. |
+| **Mode** | `Scissor` | `Scissor`: clip to the node's rectangle. `Stencil`: clip to the geometry the mask node renders. |
+| **Alpha Cutoff** | `0` | `Stencil` only. Above 0, clips to the mask texture's alpha (shape) instead of its rectangle. |
+
+### Scissor
+
+Rectangle clipping with the lowest cost; the mask node need not render anything. Used by list viewports and scroll
+areas ([Lists & Scrolling](/docs/ui/lists/)).
+
+### Stencil with alpha cutoff
+
+Shape clipping, e.g. circular portraits:
+
+1. Create a UI Image `Frame` with a circular texture.
+2. Add `UIMask` to `Frame`: `mode: Stencil`, `alphaCutoff: 0.5`.
+3. Parent the portrait under `Frame` at `100%` × `100%`.
+
+The cutoff tests the **texture** alpha, not the tinted output, so the mask node can be tinted to zero alpha and remain
+effective. With `alphaCutoff: 0`, a stencil mask clips to the node's rectangle.
+
+![Square texture under a circular mask: rectangle clip vs alphaCutoff > 0 shape clip](@/assets/guides/ui-mask.svg)
+
+<Aside type="note">
+  `UIMask` applies to UI nodes. World-space sprites use `SpriteMask` ([Sprites](/docs/graphics/sprites/)).
+</Aside>
+
+## Visibility
+
+| Control | Scope | Layout | Rendering | Hit-testing |
+|---|---|---|---|---|
+| `UIVisual.enabled = false` | This node's visual | Unchanged | Node visual hidden; descendants render | Unchanged |
+| `UINode.display = None` | Node and subtree | Removed; siblings reflow | Hidden | Excluded |
+| `UINode.opacity` (0–1) | Node and subtree, multiplied | Unchanged | Faded | Unchanged |
+| `UINode.pointerEvents = None` | Node and subtree, unless a descendant sets `Receive` | Unchanged | Unchanged | Excluded |
+| Entity inactive | Entity and subtree | Removed | Hidden | Excluded |
+
+### Opacity and click-through
+
+`opacity` and `pointerEvents` are resolved hierarchically in the same pass as `display`.
+
+| Field | Default | Behaviour |
+|---|---|---|
+| `opacity` | `1` | Multiplied down the tree (CSS `opacity` semantics). |
+| `pointerEvents` | `Auto` | `None` excludes the node and its subtree from hit-testing while still rendering them. A descendant with `Receive` re-enables hit-testing for itself and its subtree. |
+
+Opacity is applied per visual rather than by compositing the subtree offscreen; overlapping descendants of a
+semi-transparent node are therefore visible through each other. `Interactable.blockRaycast` is per entity and not
+inherited; use `pointerEvents` for subtree-wide pass-through.
+
+```typescript
+import { UINode, UIPointerEvents } from 'esengine';
+
+const node = world.get(dialog, UINode);
+world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
+```
+
+For switching between screens, a [controller](/docs/ui/controllers/) page that drives `display` is preferred over
+per-entity toggling.
+
+## See also
+
+- [Lists & Scrolling](/docs/ui/lists/)
+- [Images](/docs/ui/images/)
+- [Controllers](/docs/ui/controllers/)

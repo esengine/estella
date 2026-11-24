@@ -15,6 +15,10 @@ import { Aside } from '@astrojs/starlight/components';
 两者组合的是同一套原语:一个 Scissor 模式的 [`UIMask`](#裁剪--uimask) 视口、一个由
 [`ScrollContainer`](#滚动模型) 平移的内容框,以及由 UI 插件路由的滚轮 / 拖拽 / 惯性甩动输入。
 
+![运行中的 ui-list 示例：左边是虚拟化的联系人列表，右边是四列编号方块网格，各自裁剪在自己的视口里](@/assets/guides/zh/ui-list-running.png)
+
+*`ui-list` 示例：500 行与 120 个方块，仅视口附近的条目被实例化。*
+
 ## `createListView`
 
 一次调用组合出数据源、布局、条目回收、滚动与裁剪:
@@ -360,6 +364,44 @@ thumb 出现,静止约 0.8 秒后淡出。thumb 长度跟随视口/内容比例,
 的构造选项,供手动组合使用。同一构造函数还接受 `initialOffset`、`elastic`
 (默认 `false`:拖动可把内容拉过两端,带橡皮筋阻尼,松手后弹回)和 `bounceTime`
 (弹回稳定所需秒数,默认 `0.5`)。
+
+## 场景里的滚动区域 —— `UIScroll`
+
+`UIScroll` 把一个被裁剪的节点变成**滚动视口**:滚轮和拖拽移动它的内容,而节点上的 `UIMask`
+负责把露到外面的部分藏起来。内容装得下时不会动,所以在没有可滚内容之前这个组件是惰性的。
+
+| 字段 | 默认 | 含义 |
+|---|---|---|
+| `enabled` | `true` | 不移除组件而关掉滚动。 |
+| `content` | 第一个子节点 | 被移动的那个子节点。 |
+| `horizontal` / `vertical` | `false` / `true` | 哪些轴可滚。 |
+| `movement` | `Clamped` | `Elastic` 会在两端过冲再弹回。 |
+| `wheelSpeed` | `1` | 滚轮增量的倍率。 |
+| `dragScroll` | `true` | 拖拽/触摸抓取;松手后的惯性甩动只在 `Elastic` 下生效。 |
+| `decelerationRate` | `0.135` | `Elastic` 下甩动速度每秒保留的比例;`0` 表示松手即停。`Clamped` 下该组件松手即停。 |
+
+```ts
+// 一个在固定盒子里纵向滚动的列表。
+const viewport = spawnUIEntity({ world, parent: panel, node: { width: px(400), height: px(300) } });
+world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, alphaCutoff: 0 });
+world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
+
+const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
+world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第一个子节点
+```
+
+`Elastic` 按区域自行开启(默认是 `Clamped`)。拖过一端时越拉越紧,松手后内容回弹,甩动撞到一端会被弹回。
+它背后的手势模型 `ScrollMotion`(配合 `ScrollContainer.dragTo` 与 `getOverscroll`)已导出,
+所以别的东西——比如靠触摸滚动的世界空间节点——也能用同样的方式滚动。
+
+这个组件补的是**场景能说出口的话**。以前滚动只能靠在代码里构造 `ScrollView` widget,所以在
+编辑器里摆出来的滚动区能描述自己的每个零件——被裁剪的盒子、超长的子节点——唯独说不出「它会滚」
+这件事。`UIScroll` 就是这件事,现在 widget 和场景驱动的是同一个容器。
+
+<Aside type="note">
+  视口需要 `UIMask` 来裁剪、`Interactable` 来接收指针。编辑器的 **+ 添加 → 创建实体… → ScrollView**
+  已经把这三样装配好了。
+</Aside>
 
 ## 裁剪 —— `UIMask`
 

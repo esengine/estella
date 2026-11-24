@@ -1,0 +1,135 @@
+---
+title: 图片
+description: UIVisual 参考——显示模式（None、SolidColor、Image、NineSlice、Tiled、Filled）、适配模式、九宫格边界、平铺、线性与径向填充、着色、UV 子区域、自定义材质及对应代码。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`UINode` 只定义布局盒，本身不渲染。盒的渲染内容由 **`UIVisual`** 定义：纯色、纹理、九宫格、平铺或填充。文本由 `Text` 渲染（[文本](/docs/zh-cn/ui/text/)）。屏幕空间 UI 中的图像一律使用 `UIVisual`；`Sprite` 是世界空间渲染组件（[精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)）。
+
+![同一画布上的全部显示模式——SolidColor、Image、NineSlice、Tiled、横向 Filled、径向 Filled——其后为宽纹理在正方形盒中的三种适配模式，以及四种着色值](@/assets/guides/zh/ui-visual-modes.png)
+
+*第一行：`visualType`。第二行：`Image` 模式下的 `fit`。第三行：作为着色与透明度的 `color`。*
+
+## 检视器
+
+*创建 → UI → Image* 创建的 `UIVisual` 处于 `Image` 模式。其他 UI 节点可通过 *添加组件 → UI Visual* 添加。
+
+![UI Visual 卡片：Visual Type 为 Nine Slice，Texture 为 panel.png，以及 Color、Fit、UV Offset、UV Scale、Slice Border](@/assets/guides/zh/ui-image-details.png)
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| **Visual Type** | `UIVisualType` | 渲染模式，见下表。 |
+| **Texture** | 纹理 | 源纹理。模式为 `None` 时指定纹理会将模式设为 `Image`。 |
+| **Color** | 颜色 | 与纹理相乘（白色为不修改），alpha 控制不透明度。`SolidColor` 模式下为填充色。 |
+| **Fit** | `UIVisualFit` | `Image` 模式下的宽高比处理：`Fill`、`Contain`、`Cover`。 |
+| **UV Offset / UV Scale** | vec2 | 归一化坐标下的纹理子区域，默认为整张纹理。 |
+| **Slice Border** | vec4 | `NineSlice` 边界覆盖值，以纹理像素计（左、上、右、下）。 |
+| **Tile Size** | vec2 | `Tiled` 的重复尺寸，以设计像素计。 |
+| **Fill Method / Fill Origin / Fill Amount** | 枚举 / 枚举 / 0–1 | `Filled` 的裁切参数。 |
+| **Material** | 材质 | 自定义材质，替换内置 UI 着色器。 |
+| **Enabled** | bool | 仅禁用本节点的渲染，子孙节点照常渲染。 |
+
+## 显示模式
+
+| `UIVisualType` | 使用字段 | 典型用途 |
+|---|---|---|
+| `None` | — | 布局容器、点击区域。 |
+| `SolidColor` | `color` | 背景、分隔线、遮罩层。 |
+| `Image` | `texture`、`fit`、`uvOffset`、`uvScale` | 图标、头像、插图。 |
+| `NineSlice` | `texture`、`sliceBorder` | 可缩放的面板、按钮、边框。 |
+| `Tiled` | `texture`、`tileSize` | 重复图案。 |
+| `Filled` | `texture`、`fillMethod`、`fillOrigin`、`fillAmount` | 血条、进度条、冷却指示。 |
+
+### `SolidColor`
+
+以 `color` 填充整个盒。alpha 小于 1 时可作为模态内容后的遮罩层。
+
+### `Image` 与适配
+
+在盒上渲染纹理。`fit` 遵循 CSS `object-fit` 语义：
+
+| `UIVisualFit` | 行为 |
+|---|---|
+| `Fill`（默认） | 拉伸至盒尺寸，不保持宽高比。 |
+| `Contain` | 等比缩放至完全容纳于盒内，未覆盖区域留空。 |
+| `Cover` | 等比缩放至覆盖整个盒，超出部分经 UV 裁切。 |
+
+![宽纹理置于正方形盒中：Fill 变形，Contain 留边，Cover 裁切](@/assets/guides/object-fit.svg)
+
+`NineSlice` 与 `Tiled` 忽略 `fit`。在编辑器中拖放到画布上的图片按纹理像素尺寸创建。
+
+### `NineSlice`
+
+纹理按切片边界划分为 3×3 网格：四角按 1:1 渲染，四边沿单轴缩放，中心沿双轴缩放，因此同一纹理可用于任意尺寸而不使四角变形。
+
+![九宫格：拉伸导致四角变形；切片后四角保持 1:1，四边单轴缩放，中心双轴缩放](@/assets/guides/nine-slice.svg)
+
+切片边界属于纹理元数据，在纹理的资源检视器中拖动边界参考线设置，作用于所有引用该纹理的 `NineSlice`。`UIVisual.sliceBorder` 可按节点覆盖。
+
+![纹理资源检视器中的切片边界参考线](@/assets/guides/zh/nine-slice-drag.png)
+
+### `Tiled`
+
+按 `tileSize` 设计像素重复纹理，而不是拉伸。用于平铺的纹理应以 `repeat` 包裹模式导入。
+
+### `Filled`
+
+根据 `fillMethod`、`fillOrigin` 与 `fillAmount`（0–1）渲染纹理的一部分：
+
+| `FillMethod` | 几何形式 | `FillOrigin` |
+|---|---|---|
+| `Horizontal` | 沿 X 轴线性裁切 | 增长起始边：`Left` / `Right` |
+| `Vertical` | 沿 Y 轴线性裁切 | 增长起始边：`Bottom` / `Top` |
+| `Radial360` | 绕中心顺时针扫描，最大 360° | 起始方向：`Top`（12 点）、`Right`（3 点）、`Bottom`（6 点）、`Left`（9 点） |
+| `Radial180` | 顺时针扫描，最大 180° | 同上 |
+| `Radial90` | 顺时针扫描，最大 90° | 同上 |
+
+```typescript
+import { UIVisual } from 'esengine';
+
+const bar = world.get(healthBar, UIVisual);
+world.set(healthBar, UIVisual, { ...bar, fillAmount: hp / maxHp });
+```
+
+`fillAmount` 可由补间与控制器齿轮驱动（[动画](/docs/zh-cn/animation/overview/)）。`Progress` 控件即带数值绑定的 `Filled` 显示（[控件](/docs/zh-cn/ui/widgets/)）。
+
+## 着色与不透明度
+
+`color` 与纹理相乘，其 alpha 缩放不透明度。整棵子树的不透明度使用 `UINode.opacity`（[遮罩与显隐](/docs/zh-cn/ui/masks/)）。
+
+## 纹理子区域
+
+`uvOffset` 与 `uvScale` 选取归一化的子区域：offset `(0.5, 0)`、scale `(0.5, 1)` 选取右半部分。`Tiled` 与 `Filled` 在该区域内计算。见[纹理](/docs/zh-cn/assets/textures/)。
+
+## 自定义材质
+
+`material` 替换内置 UI 着色器（[材质](/docs/zh-cn/graphics/materials/)）。UI 材质可采样 UI 后方的画面（[世界中的 UI 与进阶](/docs/zh-cn/ui/world-ui/)）。
+
+## 代码
+
+```typescript
+import { spawnUIEntity, UIVisualType, UIVisualFit, FillMethod, FillOrigin, px } from 'esengine';
+
+spawnUIEntity({ world, parent, node: { width: px(200), height: px(120) },
+  visual: { texture: artTexture, fit: UIVisualFit.Contain } });
+
+spawnUIEntity({ world, parent, node: { width: px(420), height: px(260) },
+  visual: { visualType: UIVisualType.NineSlice, texture: panelTexture } });
+
+spawnUIEntity({ world, parent, node: { width: px(96), height: px(96) },
+  visual: { visualType: UIVisualType.Filled, texture: ringTexture,
+    fillMethod: FillMethod.Radial360, fillOrigin: FillOrigin.Top, fillAmount: 0.7 } });
+```
+
+`spawnUIEntity` / `buildUIVisual` 中 `visualType` 的默认解析：指定了 `texture` 时为 `Image`，否则为 `SolidColor`。
+
+<Aside type="tip">
+  UI 纹理按其在设计分辨率下的显示尺寸制作（高密度屏幕可用 2 倍），其他尺寸交由九宫格与 `fit` 处理。
+</Aside>
+
+## 另请参阅
+
+- [精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)
+- [遮罩与显隐](/docs/zh-cn/ui/masks/)
+- [布局](/docs/zh-cn/ui/layout/)

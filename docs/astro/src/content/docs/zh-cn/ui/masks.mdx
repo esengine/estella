@@ -1,0 +1,78 @@
+---
+title: 遮罩与显隐
+description: UIMask 参考（Scissor 与 Stencil 模式、alpha 阈值）以及子树显隐控制——UIVisual.enabled、UINode.display、UINode.opacity、UINode.pointerEvents——对布局、渲染与命中测试的影响。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+本章说明裁切（`UIMask`）以及 `UINode` 与 `UIVisual` 上的显隐控制。
+
+## UIMask
+
+`UIMask` 裁切其所在节点的子孙节点。
+
+![左：无遮罩的纹理。中：同一纹理被带 alphaCutoff 的 Stencil 遮罩裁为圆形。右：八行列表被 Scissor 遮罩裁切到视口矩形内](@/assets/guides/zh/ui-mask.png)
+
+![UI Mask 卡片：Enabled、Mode 为 Stencil、Alpha Cutoff 为 0.5](@/assets/guides/zh/ui-mask-details.png)
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| **Enabled** | `true` | 启用裁切。 |
+| **Mode** | `Scissor` | `Scissor`：裁切到节点矩形。`Stencil`：裁切到遮罩节点渲染的几何形状。 |
+| **Alpha Cutoff** | `0` | 仅 `Stencil` 模式。大于 0 时按遮罩纹理的 alpha（形状）裁切，而非其矩形。 |
+
+### Scissor
+
+矩形裁切，开销最低；遮罩节点本身无需渲染。用于列表视口与滚动区域（[列表与滚动](/docs/zh-cn/ui/lists/)）。
+
+### 带 alpha 阈值的 Stencil
+
+形状裁切，例如圆形头像：
+
+1. 创建 UI 图片 `Frame`，指定圆形纹理。
+2. 为 `Frame` 添加 `UIMask`：`mode: Stencil`，`alphaCutoff: 0.5`。
+3. 将头像挂在 `Frame` 下，尺寸 `100%` × `100%`。
+
+阈值检测的是**纹理**的 alpha 而非着色后的输出，因此遮罩节点可着色为完全透明而仍然有效。`alphaCutoff` 为 0 时，Stencil 遮罩裁切到节点矩形。
+
+![正方形纹理置于圆形遮罩下：矩形裁切与 alphaCutoff > 0 时的形状裁切](@/assets/guides/ui-mask.svg)
+
+<Aside type="note">
+  `UIMask` 作用于 UI 节点。世界空间的精灵使用 `SpriteMask`（[精灵](/docs/zh-cn/graphics/sprites/)）。
+</Aside>
+
+## 显隐
+
+| 控制 | 作用范围 | 布局 | 渲染 | 命中测试 |
+|---|---|---|---|---|
+| `UIVisual.enabled = false` | 本节点的显示 | 不变 | 隐藏本节点显示，子孙照常渲染 | 不变 |
+| `UINode.display = None` | 节点及子树 | 移除，兄弟节点重新排布 | 隐藏 | 排除 |
+| `UINode.opacity`（0–1） | 节点及子树，逐级相乘 | 不变 | 淡化 | 不变 |
+| `UINode.pointerEvents = None` | 节点及子树，除非子孙设为 `Receive` | 不变 | 不变 | 排除 |
+| 实体停用 | 实体及子树 | 移除 | 隐藏 | 排除 |
+
+### 不透明度与点击穿透
+
+`opacity` 与 `pointerEvents` 按层级解析，与 `display` 在同一遍中计算。
+
+| 字段 | 默认值 | 行为 |
+|---|---|---|
+| `opacity` | `1` | 沿树逐级相乘（CSS `opacity` 语义）。 |
+| `pointerEvents` | `Auto` | `None` 使节点及其子树不参与命中测试但仍然渲染。设为 `Receive` 的子孙节点为自身及其子树恢复命中测试。 |
+
+不透明度按每个显示单独相乘，而非先将子树合成到离屏缓冲；因此半透明节点中相互重叠的子孙会彼此透出。`Interactable.blockRaycast` 只作用于单个实体、不继承；整棵子树的点击穿透使用 `pointerEvents`。
+
+```typescript
+import { UINode, UIPointerEvents } from 'esengine';
+
+const node = world.get(dialog, UINode);
+world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
+```
+
+界面之间的切换建议使用驱动 `display` 的[控制器](/docs/zh-cn/ui/controllers/)页面，而非逐个实体切换。
+
+## 另请参阅
+
+- [列表与滚动](/docs/zh-cn/ui/lists/)
+- [图片](/docs/zh-cn/ui/images/)
+- [控制器](/docs/zh-cn/ui/controllers/)

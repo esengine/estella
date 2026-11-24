@@ -1,0 +1,69 @@
+---
+title: 画布
+description: Canvas 参考——作为屏幕空间布局根节点的作用、字段（设计分辨率、缩放模式、匹配系数、背景色、层、每单位像素数）、编辑器中的设计框、多画布、绘制顺序，以及挂在世界空间中的画布。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Canvas` 标记一棵 UI 树的根。子孙 `UINode` 以**设计分辨率**为参照布局，设计分辨率再由缩放模式适配到输出画面。没有画布祖先的 `UINode` 缺少布局参照，因此编辑器会在场景中的第一个 UI 元素之前创建画布。
+
+画布实体带有 `Transform`、`Canvas` 与 `UINode`（根布局盒）。
+
+## 字段
+
+![Canvas 卡片：Design Resolution 1280 × 720、Pixels Per Unit、Scale Mode 为 Expand、Match Width Or Height、Background Color、Layer](@/assets/guides/zh/ui-canvas-details.png)
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| **Design Resolution** | `1920 × 1080`（在编辑器中创建时取项目设置） | 布局参照矩形，单位为设计像素。 |
+| **Scale Mode** | `FixedHeight` | 不同宽高比下的适配策略：`FixedWidth`、`FixedHeight`、`Expand`、`Shrink`、`Match`。 |
+| **Match Width Or Height** | `0.5` | 仅 `Match` 模式：`0` 匹配宽度，`1` 匹配高度。 |
+| **Background Color** | 黑色 | 输出画面的清屏颜色。 |
+| **Layer** | `0` | 该画布 UI 所属的排序层，由 `Camera.cullingMask` 判定。 |
+| **Pixels Per Unit** | `100` | 物理缩放（每米像素数），不影响渲染。 |
+
+缩放模式与设计分辨率和相机适配共用同一规则，详细规格及数值示例见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。布局要点：
+
+- 尺寸与偏移以设计像素计，与输出分辨率无关。
+- 需要贴合屏幕边缘的元素使用锚点与 `percent` 尺寸（[布局](/docs/zh-cn/ui/layout/)）。
+- 用场景视图工具栏中的设备菜单和[屏幕预设](/docs/zh-cn/core-concepts/screen/)验证其他宽高比。
+
+## 设计框
+
+场景视图将画布绘制为标注设计分辨率的方框。**UI** 工作区会自动框选画布；其他工作区中选中画布后按 **F**。方框外的节点照常布局和渲染，但在设计宽高比下位于可见区域之外。
+
+## 多个画布
+
+多数项目使用一个画布即可，界面切换通过[控制器](/docs/zh-cn/ui/controllers/)或 `UINode.display` 完成。以下情况需要额外的画布：
+
+- **层隔离**：每个画布属于一个排序层，相机可据此包含或排除它（小地图相机、分屏 HUD）。
+- **画布特效**：`CanvasEffect` 作用于整个层，不应受影响的内容需要放在另一层的画布上（[世界中的 UI 与进阶](/docs/zh-cn/ui/world-ui/)）。
+
+## 绘制顺序
+
+画布内的绘制顺序即树的顺序：子节点在父节点之后渲染，后序兄弟节点在前序之后渲染。在大纲中调整顺序即可改变层叠关系。画布下的粒子发射器、普通 Sprite 以及 `Text` 共用该顺序。
+
+## 世界空间画布
+
+没有父节点的画布为**屏幕画布**：其根节点放置在输出画面上，与相机无关。挂在其他实体下的画布以相同方式布局，但位置由父实体的 `Transform` 决定（场景内的显示屏、标牌）。需要跟随世界坐标的屏幕空间元素，在屏幕画布上使用 `UIWorldAnchor`（[世界中的 UI 与进阶](/docs/zh-cn/ui/world-ui/)）。
+
+## 代码
+
+```typescript
+import { Canvas, UINode, Transform } from 'esengine';
+
+const hud = world.spawn();
+world.insert(hud, Transform, {});
+world.insert(hud, Canvas, { designResolution: { x: 1280, y: 720 } });
+world.insert(hud, UINode, {});
+```
+
+<Aside type="note">
+  未指定 `parent` 创建的节点是以屏幕为参照的独立布局根。将所有界面挂在同一画布下，可保证它们共用同一设计分辨率和同一绘制顺序树。
+</Aside>
+
+## 另请参阅
+
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)
+- [布局](/docs/zh-cn/ui/layout/)
+- [第一个界面](/docs/zh-cn/ui/first-screen/)

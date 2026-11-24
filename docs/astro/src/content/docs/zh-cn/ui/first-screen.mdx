@@ -1,0 +1,102 @@
+---
+title: 第一个界面
+description: 在编辑器中制作暂停面板的完整流程——创建画布、UI 图片、拖入纹理、带纵向布局的九宫格面板、Text 与 Button 子节点、运行——以及等价的启动系统代码。
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+本章在编辑器中制作一个暂停面板：画布、UI 图片、带纵向布局的九宫格面板（包含标题与按钮），并运行验证。最后一节用启动系统构建相同的层级。
+
+## 准备
+
+任意项目均可。切换到 **UI** 工作区（左侧活动栏）：场景视图框选画布，并打开 **UI 控件**面板。以下步骤也可通过 *大纲 → 添加 → 创建实体…* 完成，两种方式创建的实体相同。
+
+![创建实体弹窗的 UI 分类：Canvas、Text、Image、Container，其后为控件预制体](@/assets/guides/zh/ui-create-menu.png)
+
+*创建实体 → UI。Canvas、Text、Image、Container 为基础元素，其余为控件预制体。*
+
+## 步骤
+
+<Steps>
+
+1. **画布。** *创建 → UI → Canvas*。画布是界面的根节点：其子孙节点按项目设计分辨率布局，场景视图中显示为标注该分辨率的方框（此处为 `1280 × 720`）。见[画布](/docs/zh-cn/ui/canvas/)。
+
+   在没有画布的场景中创建 UI 元素时，编辑器会先创建画布并将元素挂在其下。
+
+2. **UI 图片。** *创建 → UI → Image*，或 UI 控件面板中的 **Image**。节点创建在画布中心，为 100 × 100 的白色矩形：一个 `UINode` 和一个未指定纹理、处于 `Image` 模式的 `UIVisual`。将其重命名为 `Panel`。
+
+   ![执行 创建 → UI → Image 后：画布中心的白色矩形，大纲中为 Canvas › Panel，细节面板显示 Transform、UI Node 与 UI Visual](@/assets/guides/zh/ui-step-image.png)
+
+   <Aside type="note">
+     Transform 卡片提示位置由布局决定。UI 节点由 `UINode`（锚点、尺寸、外边距）定位，而非 `Transform.position`。见[布局](/docs/zh-cn/ui/layout/)。
+   </Aside>
+
+3. **拖入纹理。** 将内容浏览器中的图片拖放到场景视图中的画布上，或大纲中的画布行上。结果是画布下一个按纹理像素尺寸创建、位于释放点的 UI 图片。
+
+   ![heart.png 拖放到画布上：画布下名为 heart 的 UI 图片，位于释放点](@/assets/guides/zh/ui-step-drop.png)
+
+   拖放到任何画布之外时创建的是世界空间的 `Sprite`。见[精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)。
+
+4. **面板外观。** 在 `Panel` 上将 `panel.png` 指定给 **UI Visual → Texture**，**Visual Type** 设为 `Nine Slice`，UI Node 的 **Width** / **Height** 设为 420 / 260。见[图片](/docs/zh-cn/ui/images/)。
+
+5. **纵向布局。** 为 `Panel` 添加 **Flex Container**：方向 `Column`，子节点在两个轴上居中，间距 24。见[布局](/docs/zh-cn/ui/layout/)。
+
+6. **子节点。** 选中 `Panel`，创建一个 **Text** 与一个 **Button**。在带 `FlexContainer` 的节点下创建的节点保持在其布局流中，不会被设为绝对定位。Text 内容设为 `游戏暂停`（字号 30），Button 文本设为 `继续`。
+
+   ![场景视图中的面板：九宫格边框、标题“游戏暂停”、“继续”按钮，旁边为红心图片](@/assets/guides/zh/ui-step-panel.png)
+
+7. **运行。** 画布渲染在游戏画面之上，并按画布的缩放模式适配窗口。
+
+   ![运行模式下，暂停面板与红心渲染在游戏画面之上](@/assets/guides/zh/ui-step-play.png)
+
+</Steps>
+
+## 处理点击
+
+Button 发出 `click` 事件：
+
+- **事件绑定**：在 Button 的 **事件** 一节添加 `click → <动作>`，例如切换控制器页面以隐藏面板。见[事件绑定](/docs/zh-cn/scripting/events/)。
+- **系统**：在代码中处理该事件。见[交互](/docs/zh-cn/ui/interaction/)。
+
+## 等价代码
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createButton, UIVisualType,
+  FlexContainer, FlexDirection, JustifyContent, AlignItems, px,
+} from 'esengine';
+
+const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const panel = spawnUIEntity({
+    world,
+    node: { width: px(420), height: px(260) },
+    visual: { visualType: UIVisualType.NineSlice, texture: panelTexture },
+  });
+
+  world.insert(panel, FlexContainer, {
+    direction: FlexDirection.Column,
+    justifyContent: JustifyContent.Center,
+    alignItems: AlignItems.Center,
+    gap: { x: 0, y: 24 },
+  });
+
+  spawnUIEntity({ world, parent: panel, text: { content: '游戏暂停', fontSize: 30 } });
+
+  createButton({
+    world, events, parent: panel, text: '继续',
+    node: { width: px(160), height: px(44) },
+    onClick: () => { /* 恢复游戏 */ },
+  });
+});
+
+addStartupSystem(buildPauseMenu);
+```
+
+`spawnUIEntity({ world, parent?, node?, visual?, text? })` 创建一个 UI 节点并返回其实体。`visual` 中指定了 `texture` 而未指定 `visualType` 时解析为 `Image`。未指定 `parent` 的节点是以屏幕为参照的布局根。其他控件工厂（`createToggle`、`createSlider`、`createProgress`、`createDialog`、`createDropdown`）用法相同，见[控件](/docs/zh-cn/ui/widgets/)。
+
+## 后续
+
+- [精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)
+- [布局](/docs/zh-cn/ui/layout/)
+- [图片](/docs/zh-cn/ui/images/)

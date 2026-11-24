@@ -1,0 +1,175 @@
+---
+title: 世界中的 UI 与进阶
+description: 屏幕画布之外的 UI——给世界内容用的 ContentRect 与 RectAnchors、悬浮在世界某点上的 UIWorldAnchor、打开时才构建的 UIPages、让整个画布经过材质绘制的 CanvasEffect，以及毛玻璃面板。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+本章说明屏幕画布布局模型之外的 UI：由 Transform 定位的世界内容所需的矩形与锚定、跟随世界坐标的屏幕空间标记、按需实例化的页面，以及作用于整个画布的材质特效。
+
+| 需求 | 组件 |
+|---|---|
+| 给由 `Transform` 摆放的东西一个矩形（尺寸 + 轴心），用于裁剪或命中测试 | `ContentRect` |
+| 世界内容贴住父物体的某条边或中心，或随它拉伸 | `RectAnchors` |
+| 世界中某点上方的标记、名字或血条，平贴在屏幕上 | `UIWorldAnchor` |
+| 第一次打开时才从预制体构建的页面 | `UIPages` |
+| 整个 HUD 弯曲、着色或带扫描线 | `CanvasEffect` |
+| 把身后内容模糊掉的面板 | 毛玻璃面板 |
+
+## `ContentRect` —— 世界内容的矩形
+
+`UINode` 是引擎的盒子布局,UI 由它构成。靠 `Transform` 摆在世界里的内容——钉在相机上的 HUD、
+导入的场景——没有布局,它的范围分散在好几处:`Sprite` 有尺寸和轴心,`Text` 有文本框,
+而不绘制任何东西的实体根本没有范围,于是没法对它做裁剪。
+
+`ContentRect` 就是那一个矩形:局部单位的 `size`,以及实体变换所在的那一点 `pivot`
+(`(0.5, 0.5)` 是中心)。加上它之后:
+
+- 同一实体上的 `Sprite` 和 `Text` 的尺寸与轴心都跟随它,矩形只在一处写;
+- 实体上的 `UIMask` 把后代裁剪到它,不需要 `UINode`;
+- `contentRectContains(world, entity, x, y)` 用实体的位置、旋转和缩放判断一个世界点是否在其中。
+
+同时有 `UINode` 和 `ContentRect` 的实体,裁剪仍用布局的盒子。给已有矩形的实体再加
+`Sprite` 或 `Text` 时:调用一次 `applyContentRect`,或者把矩形再写一遍;矩形变化时它们会自己跟随。
+
+## `RectAnchors` —— 跟随父级的世界内容
+
+世界内容没有 flexbox,但常常要贴着父级的某条边、居中,或随父级拉伸。`RectAnchors` 把一个
+用 `Transform` 摆放、用 `ContentRect` 定大小的实体钉到父级矩形上:
+
+- **拉伸**:同一轴的两条边都钉住,实体尺寸就跟随父级。
+- 每个轴可以独立地**钉到一条边**,或**居中并带偏移**。
+- 边距可以是布局单位,也可以是父级尺寸的比例(每个边距各有一个 `isAbs…` 开关)。
+- 父级没有 `ContentRect` 时,对齐到**屏幕**,屏幕以世界原点为中心。
+
+`alignFlags` 是 `AnchorFlag`(`TOP`、`MID`、`BOTTOM`、`LEFT`、`CENTER`、`RIGHT`)的位集合;默认 `0` 不钉任何边,设置标志之前这个组件什么都不做。
+
+`alignMode` 决定何时对齐:`ONCE`、`ON_RESIZE`(默认:启用时、自身设置变化时、屏幕变化时)
+或 `ALWAYS`(每帧)。父级总是先于依赖其尺寸的子级对齐,编辑器的编辑模式下和运行时一样,
+所以场景在编辑器里看到的就是运行时的布局。
+
+```typescript
+import { RectAnchors, AnchorFlag } from 'esengine';
+
+// 横贯屏幕顶部,距左右边缘各 40 单位。
+world.insert(banner, RectAnchors, {
+  alignFlags: AnchorFlag.TOP | AnchorFlag.LEFT | AnchorFlag.RIGHT,
+  top: 0, left: 40, right: 40,
+});
+```
+
+![名为 Sign 的世界精灵上的 Rect Anchors 卡片，位于 Sprite 与 Content Rect 卡片下方](@/assets/guides/zh/ui-rectanchors-details.png)
+
+*世界实体上的 `RectAnchors`：位置来自 `Transform`，尺寸来自 `ContentRect`，锚点让它停在父矩形的某条边或中心。*
+
+## `UIWorldAnchor` —— 立在世界某一点上的 UI
+
+HUD 常要标出 3D 世界里的东西：目标点、头顶的名字、血条。`UIWorldAnchor` 每帧把所在的 UI 节点放到一个实体
+（加 `offset`）或一个世界坐标点在屏幕上的位置。节点按 Absolute 定位，用左/上内边距放在父节点里，父节点应铺满
+屏幕（屏幕 Canvas 根或全屏面板）；用一半尺寸的负外边距让它以该点为中心。
+
+- `clampToEdges`：点在屏幕外或摄像机背后时，标记停在屏幕边缘、指向点的真实方向——常见的目标标记。不开时，
+  点在摄像机背后就隐藏节点。
+- `onScreen`、`behind`、`distance`（离摄像机的世界单位）可读回，用来显示“34m”。
+- 摄像机是屏幕上那台（清颜色、优先级最高的激活摄像机），或 `camera` 指定的那台。
+
+它在 Update 结束时按摄像机的位姿投影，所以第一人称视角本帧转动时标记不会滞后一帧。它只在点位于摄像机背后时
+隐藏节点，也只重新显示它自己隐藏的节点：游戏自己隐藏的标记（目标已完成）会保持隐藏。
+
+```typescript
+import { UIWorldAnchor, UINode } from 'esengine';
+
+world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30), marginTop: px(-20) });
+world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
+```
+
+## `UIPages` —— 用到才存在的页面
+
+一个有很多页面的界面不需要把它们同时放进世界。`UIPages` 把每个页面存成预制体,第一次打开时才构建:
+
+```typescript
+import { UIPages } from 'esengine';
+
+const pages = new UIPages(world, assets);
+pages.register('shop', { prefab: 'assets/ui/shop.esprefab', parent: canvas, onClose: 'destroy' });
+
+const shop = await pages.open('shop');   // 首次打开时构建;同时打开的调用共享一次构建
+shop.find('buyButton');                   // 按名字在本页内找节点
+pages.close('shop');
+```
+
+- **`onClose`**:`'keep'`(默认)只是把页面关掉,下次打开是即时的;`'destroy'` 把它的内容连同资源
+  一起移除,下次打开重新构建。
+- **`parent`** 把页面作为新根加到某个实体下;**`mount`** 是场景里已有的实体:页面构建在它下面,
+  因此保持挂载点在绘制顺序中的位置。
+- `pages.preload(id)` 提前拉取预制体;`pages.onBuilt(fn)` 是页面构建后接线的地方。
+- 页面也可以来自[虚拟预制体实例](/docs/zh-cn/world/prefabs/#虚拟实例):用 `registerDeferred(entity)`
+  和 `registerDeferredAll(root?)` 注册,页面名取实例根的名字。
+
+## `CanvasEffect` —— 经由一个材质画出的 Canvas
+
+隔着面罩看到的 HUD，四角会弯、颜色会分离、带扫描线。这些都没法逐个元素去画：得先把整块显示变成一张图。
+挂在屏幕 Canvas 上的 `CanvasEffect` 做的就是这件事：该 Canvas 所在排序层（`Canvas.layer`）上的屏幕 UI 先画进
+一张透明底的图，再由 `material` 把这张图铺到画面上。
+
+材质的着色器是 `PostProcess` 着色器，写法与后处理效果相同：在 `v_texCoord` 处读 `u_texture` 就是这一层，
+有 `u_time` 和 `u_viewport`，自己的 `#pragma param` 取材质上的值。这一层的颜色已乘过透明度（预乘），数值就是
+显示出来的样子；着色器返回的颜色也按同样的方式铺到画面上——原样返回采样值，Canvas 看起来就和没挂这个组件时
+一样。
+
+```glsl
+#pragma shader "HUD Lens"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_curve float default(0.03) range(0,0.2)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+void main() {
+    vec2 p = v_texCoord * 2.0 - 1.0;
+    fragColor = texture(u_texture, p * (1.0 + u_curve * (dot(p, p) - 1.0)) * 0.5 + 0.5);
+}
+#pragma end
+```
+
+```typescript
+import { Canvas, CanvasEffect } from 'esengine';
+
+const lens = await assets.loadMaterial('assets/ui/lens.esmaterial');
+world.insert(hudCanvas, Canvas, { layer: 2 });
+world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
+```
+
+- **按层生效。** 同一排序层上的所有屏幕 Canvas，都走该层第一个带 `CanvasEffect` 的 Canvas 的材质。没有效果的
+  层先直接画到画面上，带效果的层再按层号从小到大依次盖在上面。所以不该被弯曲的东西——比如立在世界物体上的标记
+  （`UIWorldAnchor`）——放到另一层的 Canvas 上。
+- **移动的是像素，不是指针。** 点击落在元素布局的位置。要点的东西放在没有效果的层上，或者把弯曲控制得很小。
+- 只加光的绘制（`BlendMode.Additive`）经过这一层后仍然只加光。会压暗下方的绘制（`Multiply`、`Darken`）在这一层里
+  下方只有空白。
+- 需要构建里带后处理；WebGPU 上着色器要写 `#pragma fragment wgsl` 孪生。材质的程序就绪之前，Canvas 直接画。
+
+## 毛玻璃面板 —— 读取下方画面的 UI
+
+UI 材质可以声明 `#pragma param u_screenColor texture default(white)`，与场景里的材质声明的是同一个输入。在屏幕
+叠加层里，它是这一层 UI 开始画时的画面：所有摄像机、后处理链，以及在它之前画完的屏幕 UI 层。这份拷贝带完整的
+多级渐远链，所以一次 `textureLod` 就是一次大范围模糊：在 `gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0))`
+处、第 3 到 4 级上采几个点，就是毛玻璃面板。
+
+```glsl
+vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
+vec3 behind = textureLod(u_screenColor, uv, 3.5).rgb;
+```
+
+它的颜色是显示出来的颜色，线性色彩空间的工程里也是。拿到拷贝时它的透明度是 0.5；拿到的若是白色默认图
+（透明度 1：设备无法拷贝自己的表面，或构建里没有后处理），着色器应当画回朴素的样子。同一层的 UI 看不到本层里
+压在它下面的元素；想让毛玻璃模糊下方的 UI，就把它放到更靠后的层上。
+
+## 另请参阅
+
+- [画布](/docs/zh-cn/ui/canvas/) —— 屏幕画布、层，以及放在世界里的画布。
+- [布局](/docs/zh-cn/ui/layout/) —— 画布内节点的锚点与盒子。
+- [后处理](/docs/zh-cn/graphics/post-processing/) —— `CanvasEffect` 使用的着色器模型。

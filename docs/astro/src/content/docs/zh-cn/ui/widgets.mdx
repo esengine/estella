@@ -347,7 +347,7 @@ const field = spawnUIEntity({
 world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign: TextAlign.Center });
 ```
 
-输入框不需要 `UINode`:`TextInput` 也能放在带 [`ContentRect`](/docs/zh-cn/ui/overview/#contentrect--世界内容的矩形) 的实体上,于是输入框可以直接立在世界里。
+输入框不需要 `UINode`:`TextInput` 也能放在带 [`ContentRect`](/docs/zh-cn/ui/world-ui/#contentrect--世界内容的矩形) 的实体上,于是输入框可以直接立在世界里。
 
 点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行框 **Enter** 触发 `submit`。
 超出盒宽的内容**裁剪到盒内并横向滚动**,输入时光标始终可见。

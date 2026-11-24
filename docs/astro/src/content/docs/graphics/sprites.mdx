@@ -10,6 +10,13 @@ draws a textured quad in the world. For solid primitives without a texture there
 **`ShapeRenderer`**. Everything is drawn through a [Camera](/docs/graphics/camera/), and
 draw order is controlled by **sorting layers**.
 
+<Aside type="caution" title="Screen-space UI">
+  `Sprite` is a world-space renderer for content drawn through the camera (characters, props, tiles, backgrounds).
+  Screen-space images (icons, buttons, panels, bars) are `UINode` + `UIVisual` under a Canvas and participate in layout
+  and screen adaptation. A `Sprite` on a `UINode` entity is not rendered. See
+  [Sprite or UI Image](/docs/ui/sprite-or-ui/).
+</Aside>
+
 ## Your first sprite
 
 A sprite needs a `Transform` (where it is) and a `Sprite` (what it draws). Load a

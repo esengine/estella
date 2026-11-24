@@ -1,0 +1,91 @@
+---
+title: Sprite or UI Image
+description: Choosing between Sprite (world-space 2D renderer) and UI Image (UINode + UIVisual in screen space) — coordinate space, placement, scaling, draw order and feature differences, the UINode + Sprite configuration that renders nothing, and how to convert between them.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` and the UI Image both render a texture, but they belong to different subsystems with different coordinate
+spaces, placement models and render passes. The choice is determined by the space the image belongs to, not by the
+fact that it is an image.
+
+![A running game: the hero, the coins, the ground and the sign are Sprites in world space; the hearts, the coin counter and the Pause button are UI Images on a screen Canvas](@/assets/guides/en/ui-sprite-vs-image.png)
+
+*World space: the hero, coins, ground and sign are `Sprite` entities rendered through the camera. Screen space: the
+hearts, coin counter and Pause button are UI Images on a screen Canvas and are unaffected by the camera.*
+
+## Selection
+
+| Content | Component | Composition |
+|---|---|---|
+| Characters, props, pickups, tiles, backgrounds, projectiles — world-space content rendered through the camera | **Sprite** | `Transform` + `Sprite` |
+| HUD elements, icons, buttons, panels, menu backgrounds, inventory slots — screen-space content | **UI Image** | `UINode` + `UIVisual` (`visualType: Image`) under a `Canvas` |
+| Screen-space elements that track a world position (name plates, overhead health bars) | UI Image with a world anchor | `UINode` + `UIVisual` + [`UIWorldAnchor`](/docs/ui/world-ui/#uiworldanchor--ui-over-a-point-in-the-world) |
+
+Editor entry points:
+
+- **Sprite** — *Create → Rendering → Sprite*, or an image dropped on empty space in the scene view.
+- **UI Image** — *Create → UI → Image*, the **Image** entry of the UI Widgets palette, or an image dropped on a
+  Canvas or a UI node, in the scene view or the Outliner. See [Your First Screen](/docs/ui/first-screen/).
+
+## Comparison
+
+| | Sprite | UI Image |
+|---|---|---|
+| Coordinate space | World units (1 unit = 1 design pixel) | Canvas design pixels |
+| Placement | `Transform.position` | Layout: `UINode` size, anchors, flex layout, margins, insets |
+| Size | `Sprite.size` | `UINode.width` / `height` in `px`, `percent` or `auto` |
+| Camera dependency | Rendered through the camera | Independent of the camera (screen Canvas) |
+| Screen adaptation | None; the camera fit determines the visible region | Anchors and relative sizes follow the screen ([Canvas](/docs/ui/canvas/)) |
+| Draw order | Sorting layer, then `order` ([Sprites](/docs/graphics/sprites/)) | Position in the UI tree; later siblings render on top |
+| 9-slice, tiling | Supported (`drawMode`) | Supported, plus linear and radial fill ([Images](/docs/ui/images/)) |
+| Clipping | `SpriteMask` | `UIMask` ([Masks & Visibility](/docs/ui/masks/)) |
+| Pointer input | `Interactable`, hit-tested on the sprite plane | `Interactable` with `UIEvents`, focus and widgets ([Interaction](/docs/ui/interaction/)) |
+| 2D lighting | Optional (`lit`) | Not supported |
+| Theming, controllers, data binding | Not supported | Supported ([Theming](/docs/ui/theming/), [Controllers](/docs/ui/controllers/)) |
+
+## UINode + Sprite renders nothing
+
+A `Sprite` on an entity that also carries a `UINode` is not rendered. The sprite pass skips UI nodes, and the UI pass
+renders the node's `UIVisual` only. The inspector reports this configuration on the Sprite card:
+
+![Details for an entity with UINode and Sprite: the Sprite card reports that the component is not rendered and names the replacement](@/assets/guides/en/ui-sprite-notice.png)
+
+Conversion to a UI Image:
+
+1. Remove the **Sprite** component (card menu → *Remove Component*).
+2. Add a **UI Visual** if the entity has none.
+3. Assign the texture to **UI Visual → Texture**. A `UIVisual` with `visualType: None` switches to `Image` when a
+   texture is assigned.
+
+Alternatively, delete the entity and drop the image on the Canvas again; this creates a UI Image sized to the texture.
+
+<Aside type="caution">
+  A `Sprite` parented under a Canvas without its own `UINode` is rendered in the Canvas draw order but does not
+  participate in layout: anchors, flex layout and relative sizes do not apply to it. Use UI Images for HUD and menu
+  content.
+</Aside>
+
+## Code
+
+```typescript
+import { spawnUIEntity, UIVisualType, Transform, Sprite, px } from 'esengine';
+
+// UI Image: 64×64 HUD icon.
+const icon = spawnUIEntity({
+  world, parent: hud,
+  node: { width: px(64), height: px(64) },
+  visual: { visualType: UIVisualType.Image, texture: heartTexture },
+});
+
+// Sprite: world-space pickup.
+const coin = world.spawn();
+world.insert(coin, Transform, { position: { x: 120, y: -40, z: 0 } });
+world.insert(coin, Sprite, { texture: coinTexture, size: { x: 40, y: 40 } });
+```
+
+## See also
+
+- [Your First Screen](/docs/ui/first-screen/) — authoring a Canvas, image, title and button in the editor.
+- [Images](/docs/ui/images/) — `UIVisual` modes, fit, 9-slice, tiling and fill.
+- [Sprites & Rendering](/docs/graphics/sprites/) — the `Sprite` component reference.

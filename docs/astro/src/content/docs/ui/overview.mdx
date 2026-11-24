@@ -1,439 +1,110 @@
 ---
 title: UI
-description: The UI system overview — the flexbox component model, a pause-menu quickstart, how layout/visuals/interaction/widgets fit together, and a map of the UI guides.
+description: UI system overview — component model (Canvas, UINode, FlexContainer, UIVisual, Text, UIMask, Interactable, controllers), layer architecture, editor and code authoring, and chapter index.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
-Estella's UI is a CSS-like flexbox system solved in the C++ core. You compose an
-interface from UI components — visually in the editor or in code — and handle
-interaction from your systems. There is **no `RectTransform`**: `UINode` is real
-flexbox, sized with `px` / `percent` / `auto` plus `Absolute` insets.
-
-This page is the overview: the component model, a quickstart, and a map of the
-detailed UI guides. Deep reference for each area lives in its own chapter.
-
-## The components
-
-| Component | Role | Guide |
-|---|---|---|
-| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). | [UI Layout](/docs/ui/layout/) |
-| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). | [UI Layout](/docs/ui/layout/) |
-| `Text` | Text via a dynamic glyph atlas (content, font, color, align, stroke, shadow, rich text). | [UI Text](/docs/ui/text/) |
-| `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. | below |
-| `UIMask` | Clips its children. | below |
-| `UIScroll` | Makes a clipped node a scroll viewport: the wheel and drags move its content. | below |
-| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. | [UI Interaction](/docs/ui/interaction/) |
-| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). | [UI Interaction](/docs/ui/interaction/) |
-
-## Quickstart: a pause menu
-
-A complete pause menu — a centered column panel with a title and a button — built
-once from a **startup system**:
-
-```typescript
-import {
-  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
-  spawnUIEntity, createButton,
-  FlexContainer, FlexDirection, JustifyContent, AlignItems, px,
-} from 'esengine';
-
-const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
-  // A panel: 320×220 with a dark translucent background.
-  const panel = spawnUIEntity({
-    world,
-    node: { width: px(320), height: px(220) },
-    visual: { color: { r: 0.08, g: 0.10, b: 0.16, a: 0.95 } },
-  });
-
-  // Lay its children out as a centered vertical column.
-  world.insert(panel, FlexContainer, {
-    direction: FlexDirection.Column,
-    justifyContent: JustifyContent.Center,
-    alignItems: AlignItems.Center,
-    gap: { x: 0, y: 16 },
-  });
-
-  // A title, parented to the panel.
-  spawnUIEntity({ world, parent: panel, text: { content: 'Paused', fontSize: 28 } });
-
-  // A button that resumes the game on click.
-  createButton({
-    world, events, parent: panel, text: 'Resume',
-    node: { width: px(160), height: px(44) },
-    states: {
-      normal:  { color: { r: 0.20, g: 0.55, b: 1.0, a: 1 } },
-      hover:   { color: { r: 0.30, g: 0.65, b: 1.0, a: 1 } },
-      pressed: { color: { r: 0.12, g: 0.45, b: 0.9, a: 1 } },
-    },
-    onClick: () => { /* unpause, switch scene, hide the menu… */ },
-  });
-});
-
-addStartupSystem(buildPauseMenu);
-```
-
-`spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity; pass
-`parent` to nest. Sizes use the dimension helpers `px`, `percent`, `auto` — all
-in **design pixels** (see [UI Layout](/docs/ui/layout/#units-design-pixels)).
-The other widget factories work the same way: `createToggle`, `createSlider`,
-`createProgress`, `createDialog`, `createDropdown` — see
-[UI Components](/docs/ui/widgets/).
-
-## How the pieces fit
-
-Each layer builds on the one before it:
-
-1. **Layout** — `UINode` boxes, solved by the flexbox engine; `FlexContainer`
-   arranges children, `Absolute` insets place overlays.
-   → [UI Layout](/docs/ui/layout/)
-2. **Visuals & text** — `UIVisual` fills the box, `UIMask` clips, `Text` draws
-   crisp glyphs. → [UI Text](/docs/ui/text/)
-3. **Interaction** — `Interactable` makes a box hit-testable; the engine writes
-   pointer state into `UIInteraction` and emits bubbling `UIEvents`; drag & drop
-   and keyboard focus sit on top. → [UI Interaction](/docs/ui/interaction/)
-4. **Widgets** — factories (`createButton`, `createSlider`, …) compose the three
-   layers into ready-made controls; `createListView` adds virtualized lists.
-   → [UI Components](/docs/ui/widgets/), [UI Lists](/docs/ui/lists/)
-5. **Controllers** — a named "page" state per UI root with per-page field
-   bindings (tabs, button states, show/hide) — no code.
-   → [UI Controllers](/docs/ui/controllers/)
-6. **Theme & binding** — design tokens skin every widget (live-switchable), and
-   reactive signals keep UI in sync with game state.
-   → [UI Theme](/docs/ui/theming/), [UI Binding](/docs/ui/data-binding/)
-
-### `UIVisual` and `UIMask`
-
-`UIVisual` draws the node's background; `visualType` selects the mode:
-
-| `UIVisualType` | Uses | Description |
-|---|---|---|
-| `None` | — | Invisible (layout/hit-test only). |
-| `SolidColor` | `color` | Tinted quad. |
-| `Image` | `texture`, `uvOffset`, `uvScale` | Textured quad / sprite region. |
-| `NineSlice` | `sliceBorder` | Scalable panel with fixed corners. |
-| `Tiled` | `tileSize` | Texture repeated across the box. |
-| `Filled` | `fillAmount`, `fillMethod`, `fillOrigin` | Cropped fill (health/progress bars, cooldown rings). |
-
-#### What 9-slice is for
-
-A button drawn at 100×112 and used at 450×130 is stretched 4.5× wide — and the border,
-the rounded corners and the highlight stretch with it. The frame looks melted, and you
-cannot fix it by drawing a second image for every button size in the game.
-
-9-slice cuts the image into a 3×3 grid and scales each piece differently:
-
-![A source button texture stretched wide smears its corners; cut into a 3×3 grid the corners stay 1:1, the edges stretch along one axis and only the middle stretches both ways](@/assets/guides/nine-slice.svg)
-
-`sliceBorder` is those four numbers: how far in from each edge the "do not stretch" band
-reaches. Corners keep their exact pixels at any size, so one 100×112 texture serves a tiny
-tooltip and a full-width banner. The border belongs to the **image**, not to the entity
-using it, so it is a texture import setting — set it once and every `NineSlice` that
-references the texture is sliced the same way. See
-[dragging the border](/docs/editor/content-browser/) in the asset inspector.
-
-#### What a mask is for
-
-A mask answers "show this content, but only inside that region". The classic cases are a
-square avatar photo that has to appear circular, and a scrolling list whose items must
-disappear at the edge of their viewport rather than spilling over the rest of the screen.
-
-Add `UIMask` to a node and its children are clipped to that node. By default the clip is
-the node's **box** — a rectangle. That is enough for a list viewport, but it is why a
-circular avatar frame used to still cut a square: the mask graphic was round, the clip
-was not. With `mode: MaskMode.Stencil`, `alphaCutoff` above 0 switches the clip to the shape the mask actually draws (the default mode, `Scissor`, is always the box).
-
-![A square photo under a circular mask: clipped to the box it stays square; with alphaCutoff above zero it is clipped to the circle](@/assets/guides/ui-mask.svg)
-
-`UIVisual.enabled` hides this entity's visual only; `UINode.display = None`
-removes the node **and its whole subtree** from layout, rendering, and
-hit-testing. Add `UIMask` to a node to clip its children to the box.
-
-**`UIVisual.fit` — CSS `object-fit`.** By default an image is *stretched* to its box, so
-art whose ratio differs from its slot is visibly squashed. `Contain` shrinks the quad
-until the whole image fits (the box keeps its layout size); `Cover` keeps the box and
-crops the UV instead. Neither ever distorts the artwork. `NineSlice` and `Tiled` ignore
-it — adapting to the box is their whole job.
-
-![Wide art in a square slot: Fill squashes it, Contain shrinks the whole image inside the box, Cover fills the box and crops the overflow](@/assets/guides/object-fit.svg)
-
-**`UIMask.alphaCutoff` — clip to the shape, not the box.** A stencil mask clips to the
-mask's *rectangle*, so a circular avatar frame still cut a square. Above `0` it clips to
-the shape the mask actually draws, testing the **sprite's** alpha (not the tinted result,
-because a mask graphic is routinely tinted to near-zero alpha so it masks without being
-seen). It only applies in `MaskMode.Stencil`; `Scissor` (the default mode) always clips to
-the rectangle. `0` stays the default, so scenes authored against box clipping are unchanged.
-
-### `ContentRect` — a rectangle for world content
-
-`UINode` is the engine's box layout, and it is what UI is built from. Content placed in the
-world by its `Transform` — a HUD pinned to a camera, an imported scene — has no layout, and
-until now its extent lived in several places: a `Sprite` has a size and pivot, a `Text` a box,
-and an entity that draws nothing has no extent at all, so nothing could be clipped to it.
-
-`ContentRect` is that one rectangle: a `size` in local units and the `pivot` of it the entity's
-transform sits on (`(0.5, 0.5)` is the centre). Add it, and:
-
-- the `Sprite` and `Text` on the same entity take their size and pivot from it, so the
-  rectangle is written in one place;
-- a `UIMask` on the entity clips its descendants to it, with no `UINode` needed;
-- `contentRectContains(world, entity, x, y)` tests a world point against it, with the
-  entity's position, rotation and scale applied.
-
-An entity with both a `UINode` and a `ContentRect` keeps the layout's box for clipping.
-Adding a `Sprite` or `Text` to an entity that already has a rect: call `applyContentRect`
-once, or write the rect again; a changed rect is followed by itself.
-
-### `RectAnchors` — world content that follows its parent
-
-World content has no flexbox, but it often wants to stay at an edge or the centre of its parent,
-or stretch with it. `RectAnchors` pins an entity — placed by its `Transform`, sized by its
-`ContentRect` — to its parent's rectangle:
-
-- **Stretch**: pin both edges of an axis and the entity's size follows the parent.
-- **Pin to an edge**, or **centre with an offset**, on each axis independently.
-- Margins are in layout units, or a fraction of the parent's size (the `isAbs…` flags per margin).
-- With no parent `ContentRect`, the entity aligns to the **screen**, which is centred on the
-  world origin.
-
-`alignFlags` is a bit set of `AnchorFlag` (`TOP`, `MID`, `BOTTOM`, `LEFT`, `CENTER`, `RIGHT`); the default `0` pins nothing, so the component does nothing until a flag is set.
-
-`alignMode` says when it aligns: `ONCE`, `ON_RESIZE` (the default: when enabled, when its own
-settings change, and whenever the screen changes) or `ALWAYS` (every frame). Parents are
-aligned before the children that depend on their size, in the editor's edit mode as well as in
-play, so a scene shows laid out as it will run.
-
-```typescript
-import { RectAnchors, AnchorFlag } from 'esengine';
-
-// Stretch across the top of the screen, 40 units from the edges.
-world.insert(banner, RectAnchors, {
-  alignFlags: AnchorFlag.TOP | AnchorFlag.LEFT | AnchorFlag.RIGHT,
-  top: 0, left: 40, right: 40,
-});
-```
-
-### `UIPages` — pages that exist only while wanted
-
-A screen with many pages does not need all of them in the world at once. `UIPages` keeps each
-page as a prefab and builds it the first time it is opened:
-
-```typescript
-import { UIPages } from 'esengine';
-
-const pages = new UIPages(world, assets);
-pages.register('shop', { prefab: 'assets/ui/shop.esprefab', parent: canvas, onClose: 'destroy' });
-
-const shop = await pages.open('shop');   // builds on first open; callers asking at once share one build
-shop.find('buyButton');                   // a node by name, inside this page
-pages.close('shop');
-```
-
-- **`onClose`**: `'keep'` (default) switches the page off, so the next open is instant;
-  `'destroy'` takes its contents and assets out and the next open builds again.
-- **`parent`** adds the page as a new root under an entity. **`mount`** is an entity already in
-  the scene: the page is built under it, so it keeps the mount's place in the draw order.
-- `pages.preload(id)` fetches the prefab ahead of time; `pages.onBuilt(fn)` is where to wire a
-  page when it is built.
-- Pages can also come from [virtual prefab instances](/docs/world/prefabs/#virtual-instances):
-  `registerDeferred(entity)` and `registerDeferredAll(root?)` register them, named after the instance root.
-
-### Subtree opacity and pointer gating
-
-`UINode` carries two fields that resolve **hierarchically**, in the same pass that already
-resolves `display`:
-
-| Field | Default | Effect |
-|---|---|---|
-| `opacity` | `1` | Multiplied down the tree like CSS `opacity`. Fades a whole panel with one value. |
-| `pointerEvents` | `Auto` | `None` makes the node **and its subtree** transparent to the pointer — still drawn, hits pass straight through. A child set to `Receive` takes the pointer back (and gives it to its own subtree) — CSS's `pointer-events: auto` written on the child: a click-through overlay whose close button still answers. |
-
-These are the "CanvasGroup" knobs: fading a panel used to mean touching every visual's
-`color.a`, and a decorative overlay had no way to stop eating clicks (`Interactable.blockRaycast`
-is per-entity, not inherited). `opacity` follows CSS semantics — it multiplies per visual
-rather than compositing the subtree offscreen, the same trade every UI toolkit makes.
-
-```ts
-// Fade a whole dialog out and let clicks through while it animates away.
-world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvents.None });
-```
-
-### Scrolling
-
-`UIScroll` turns a clipped node into a **scroll viewport**: the wheel and drags move its
-content, and the node's `UIMask` is what hides the part hanging outside. Content that fits
-does not move, so the component is inert until there is something to scroll.
-
-| Field | Default | Meaning |
-|---|---|---|
-| `enabled` | `true` | Switches the scroller off without removing the component. |
-| `content` | first child | The child that moves. |
-| `horizontal` / `vertical` | `false` / `true` | Which axes scroll. |
-| `movement` | `Clamped` | `Elastic` overshoots at the ends and springs back. |
-| `wheelSpeed` | `1` | Multiplier on wheel deltas. |
-| `dragScroll` | `true` | Drag/touch grabbing; the kinetic fling after release runs only with `Elastic`. |
-| `decelerationRate` | `0.135` | Fling velocity kept per second under `Elastic`; `0` stops on release. With `Clamped` the component always stops on release. |
-
-```ts
-// A list that scrolls vertically inside a fixed box.
-const viewport = spawnUIEntity({ world, parent: panel, node: { width: px(400), height: px(300) } });
-world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, alphaCutoff: 0 });
-world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
-
-const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
-world.insert(viewport, UIScroll, { vertical: true });   // content defaults to the first child
-```
-
-`Elastic` is opt-in per area (`Clamped` is the default). A drag past an end gets stiffer the
-further out it goes, letting go returns the content, and a flick that reaches an end bounces off it.
-The gesture model behind it, `ScrollMotion` (with `ScrollContainer.dragTo` and `getOverscroll`), is
-exported, so anything else — a world-space node scrolled by touch — can scroll the same way.
-
-The component is what a **scene** can say. Scrolling used to be reachable only by building
-the `ScrollView` widget in code, so a scroll area placed in the editor described all its
-parts — the clipped box, the oversized child — without the one fact that it scrolled.
-`UIScroll` is that fact, and the widget and the scene now drive the same container.
-
-<Aside type="note">
-  A viewport needs `UIMask` to clip and `Interactable` to receive the pointer. The editor's
-  **+ Add → Create entity… → ScrollView** gives you all three already assembled.
-</Aside>
-
-### `UIWorldAnchor` — UI over a point in the world
-
-A HUD often marks something in the 3D world: an objective, a name over a head, a health bar. `UIWorldAnchor`
-puts its UI node at the screen position of an entity (plus `offset`) or of a world point, every frame. The node
-is placed Absolute by its left/top insets in its parent, which should cover the screen (a screen Canvas root or
-a full-screen panel); centre it on the point with negative margins of half its size.
-
-- `clampToEdges` keeps a marker that is off screen, or behind the camera, on the screen's edge in the point's
-  real direction — the usual objective marker. Without it, a point behind the camera hides the node.
-- `onScreen`, `behind` and `distance` (world units from the camera) read back, for a "34m" label.
-- The camera is the one on screen (the active camera that clears colour with the highest priority), or the one
-  `camera` names.
-
-It projects from the camera's pose at the end of Update, so a marker does not trail a first-person view that
-turned this frame. It only hides a node while the point is behind the camera, and shows again only a node it
-hid itself: a marker the game hides (an objective done) stays hidden.
-
-```typescript
-import { UIWorldAnchor, UINode } from 'esengine';
-
-world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30), marginTop: px(-20) });
-world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
-```
-
-### `CanvasEffect` — a Canvas drawn through a material
-
-A HUD seen through a visor bends at its corners, splits its colours and carries scan lines. None of that can be
-drawn element by element: the whole display has to become one picture first. `CanvasEffect` on a screen Canvas
-does that. The screen UI on that Canvas's sorting layer (`Canvas.layer`) is drawn into a transparent picture of
-its own, and `material` lays that picture on the frame.
-
-The material's shader is a `PostProcess` shader, written as a post-process effect is. It reads the layer as
-`u_texture` at `v_texCoord`, has `u_time` and `u_viewport`, and takes its own `#pragma param` values from the
-material. The layer's colour is weighted by its alpha (premultiplied), as the display shows it, and what the
-shader returns is laid over the frame the same way: return the sample unchanged and the Canvas looks as it
-does without the component.
-
-```glsl
-#pragma shader "HUD Lens"
-#pragma version 300 es
-#pragma domain PostProcess
-#pragma param u_curve float default(0.03) range(0,0.2)
-
-#pragma fragment
-precision highp float;
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-void main() {
-    vec2 p = v_texCoord * 2.0 - 1.0;
-    fragColor = texture(u_texture, p * (1.0 + u_curve * (dot(p, p) - 1.0)) * 0.5 + 0.5);
-}
-#pragma end
-```
-
-```typescript
-import { Canvas, CanvasEffect } from 'esengine';
-
-const lens = await assets.loadMaterial('assets/ui/lens.esmaterial');
-world.insert(hudCanvas, Canvas, { layer: 2 });
-world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
-```
-
-- **It is by layer.** Every screen Canvas on the same sorting layer goes through the material of the first one
-  that has a `CanvasEffect`. Layers without one are drawn first, straight onto the frame; then each layer with
-  one, over them, from the lowest layer number up. So what must not bend, such as markers that stand on things in the world
-  (`UIWorldAnchor`), goes on a Canvas of another layer.
-- **It moves pixels, not the pointer.** A click lands where an element was laid out. Keep what is clicked on a
-  layer without an effect, or keep the bend small.
-- A draw that only adds light (`BlendMode.Additive`) still only adds light through the layer. A draw that
-  darkens what is under it (`Multiply`, `Darken`) has only the empty layer under it there.
-- It needs post-processing in the build, and a shader for WebGPU needs its `#pragma fragment wgsl` twin. Until
-  the material's program is ready, the Canvas is drawn straight.
-
-### Frosted panels — UI that reads the frame under it
-
-A UI material can declare `#pragma param u_screenColor texture default(white)`, the same input a material in
-the scene declares. In the screen overlay it is the frame as it stands when that UI's layer starts to draw:
-every camera, the post chain, and the screen UI layers drawn before it. The copy has a full mip chain, so one
-`textureLod` is a wide blur: sample it at `gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0))`, a few taps
-at level 3 or 4, for a frosted panel.
-
-```glsl
-vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
-vec3 behind = textureLod(u_screenColor, uv, 3.5).rgb;
-```
-
-Its colours are the display's, as the frame shows them, in a linear project too. Its alpha is 0.5 where the
-frame took a copy; a shader handed the white default instead (alpha 1: a device that cannot copy its surface,
-or a build without post-processing) should draw its plain look. The UI of one layer does not see the elements
-under it in that same layer; put a frosted panel on a later layer to have it blur the UI under it.
-
-## Editor or code
+import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Estella's UI is an ECS-based retained UI with a CSS flexbox layout engine in the C++ core. Screens are composed of
+entities and components, authored in the editor or in code against the same data model, laid out in design pixels,
+rendered in screen space, and driven by pointer, keyboard and touch input. There is no `RectTransform`: `UINode` is a
+flexbox box sized in `px`, `percent` or `auto` and positioned by anchors, flex layout or `Absolute` insets.
 
 ![A UI Canvas laid out in the editor viewport](@/assets/guides/en/ui-screen.png)
 
-*A UI Canvas in the editor — laid out against the design frame, with the selected node's gizmo. The same widgets author from code or the editor.*
+*Editor scene view: Canvas frame at the design resolution, laid-out nodes, and the selection gizmo.*
 
-Both author the **same components** — there is no separate editor format:
+## Getting started
 
-- **Editor** — *Create… → UI* drops widget prefabs (Button, Toggle, Slider,
-  Dialog, …); nest by dragging, edit every field in Details, place with the
-  per-axis anchor picker, and preview against the project's design resolution
-  and device presets. See [The Editor](/docs/editor/overview/).
-- **Code** — `spawnUIEntity` + the widget factories, from a startup system as
-  above. Anything the editor writes, code can write too.
+<CardGrid>
+  <LinkCard title="Your First Screen" description="Editor walkthrough: Canvas, UI Image, 9-slice panel with column layout, Text and Button; code equivalent." href="/docs/ui/first-screen/" />
+  <LinkCard title="Sprite or UI Image" description="World-space Sprite vs screen-space UIVisual: selection criteria, differences, and the UINode + Sprite configuration." href="/docs/ui/sprite-or-ui/" />
+</CardGrid>
 
-## Where to go next
+<Aside type="caution" title="Sprite is a world-space renderer">
+  `Sprite` renders through the camera in world space. Screen-space images (icons, buttons, panels, bars) are
+  `UINode` + `UIVisual` under a Canvas, created via *Create → UI → Image* or by dropping a texture on a Canvas. A
+  `Sprite` on a `UINode` entity is not rendered. See [Sprite or UI Image](/docs/ui/sprite-or-ui/).
+</Aside>
 
-| You want to… | Open |
+## Component model
+
+| Component | Role | Chapter |
+|---|---|---|
+| `Canvas` | The root of a screen: the design resolution and how it fits the real screen. | [Canvas](/docs/ui/canvas/) |
+| `UINode` | The box: size, margins, anchors, insets, display, opacity. Every UI element has one. | [Layout](/docs/ui/layout/) |
+| `FlexContainer` | Lays a node's children out — row or column, alignment, gap, padding, wrapping. | [Layout](/docs/ui/layout/) |
+| `UIVisual` | What the box draws: a colour, an image, a 9-slice frame, a tiled pattern, a filled bar. | [Images](/docs/ui/images/) |
+| `Text` | Text: font, size, colour, alignment, wrapping, outline, shadow, rich text. | [Text](/docs/ui/text/) |
+| `UIMask` | Clips its children to its box or to its shape. | [Masks & Visibility](/docs/ui/masks/) |
+| `UIScroll` | Turns a clipped node into a scroll area. | [Lists & Scrolling](/docs/ui/lists/) |
+| `Interactable` | Makes a node hoverable and clickable; the engine writes `UIInteraction` and sends `UIEvents`. | [Interaction](/docs/ui/interaction/) |
+| `UIController` + `UIGear` | Named states (tabs, button states, screens) and the fields each state sets — no code. | [Controllers](/docs/ui/controllers/) |
+
+Editor presets under *Create → UI*: **Canvas**; **Text** (`UINode` + `Text`); **Image** (`UINode` + `UIVisual`,
+`Image` mode); **Container** (`UINode`); and widget prefabs (Button, Toggle, Slider, Progress, Dialog, Dropdown,
+TextInput, ListView, ScrollView and others).
+
+## Architecture
+
+Each layer depends on the previous one:
+
+1. **Canvas** — the screen's root and its design resolution. → [Canvas](/docs/ui/canvas/)
+2. **Layout** — `UINode` boxes solved by the flexbox engine; `FlexContainer` arranges children, anchors and
+   `Absolute` insets place overlays. → [Layout](/docs/ui/layout/)
+3. **Visuals and text** — `UIVisual` fills the box, `Text` draws glyphs, `UIMask` clips.
+   → [Images](/docs/ui/images/), [Text](/docs/ui/text/), [Masks & Visibility](/docs/ui/masks/)
+4. **Interaction** — `Interactable` makes a box hit-testable; the engine writes pointer state into `UIInteraction` and
+   emits bubbling `UIEvents`; drag and drop and keyboard focus sit on top. → [Interaction](/docs/ui/interaction/)
+5. **Widgets** — `createButton`, `createSlider`, … and the editor's widget prefabs compose the layers above into
+   ready-made controls; `createListView` adds virtualized lists. → [Widgets](/docs/ui/widgets/),
+   [Lists & Scrolling](/docs/ui/lists/)
+6. **State** — controllers switch named pages with no code; signals keep UI in sync with game state; a theme skins
+   every widget. → [Controllers](/docs/ui/controllers/), [Data Binding](/docs/ui/data-binding/),
+   [Theming](/docs/ui/theming/)
+
+## Authoring
+
+The editor and code write the same components; there is no separate editor format.
+
+- **Editor** — UI workspace (Canvas framing, UI Widgets palette), *Create → UI*, hierarchy editing in the Outliner,
+  field editing and the anchor picker in Details, preview against design resolution and device presets.
+  See [Your First Screen](/docs/ui/first-screen/).
+- **Code** — `spawnUIEntity` and the widget factories from a startup system
+  ([Your First Screen → Code equivalent](/docs/ui/first-screen/#code-equivalent)).
+
+## Chapter index
+
+| Topic | Chapter |
 |---|---|
-| Size and place boxes — `px`/`percent`/`auto`, flexbox, absolute insets, anchors | [UI Layout](/docs/ui/layout/) |
-| Draw text — fonts, SDF/bitmap crispness, wrapping, rich text | [UI Text](/docs/ui/text/) |
-| React to pointer & keyboard — clicks, `UIEvents`, drag & drop, focus | [UI Interaction](/docs/ui/interaction/) |
-| Use ready-made controls — button, toggle, slider, dialog, dropdown, input | [UI Components](/docs/ui/widgets/) |
-| Show scrolling data — virtualized lists and grids | [UI Lists](/docs/ui/lists/) |
-| Skin everything — design tokens, project theme, live switching | [UI Theme](/docs/ui/theming/) |
-| Keep UI in sync with game state — signals, `bind`, two-way widget binding | [UI Binding](/docs/ui/data-binding/) |
-| Share state across elements — tabs, radio groups, page-driven visuals | [UI Controllers](/docs/ui/controllers/) |
+| Editor walkthrough and code equivalent | [Your First Screen](/docs/ui/first-screen/) |
+| World-space Sprite vs screen-space UIVisual | [Sprite or UI Image](/docs/ui/sprite-or-ui/) |
+| Design resolution, multiple Canvases, world-space Canvas, draw order | [Canvas](/docs/ui/canvas/) |
+| Units, flex layout, anchors, absolute positioning | [Layout](/docs/ui/layout/) |
+| `UIVisual` modes, fit, 9-slice, tiling, fill | [Images](/docs/ui/images/) |
+| Fonts, rendering modes, wrapping, rich text | [Text](/docs/ui/text/) |
+| Clipping, display, opacity, pointer pass-through | [Masks & Visibility](/docs/ui/masks/) |
+| Hit-testing, `UIEvents`, drag and drop, focus | [Interaction](/docs/ui/interaction/) |
+| Button, toggle, slider, dialog, dropdown, text input | [Widgets](/docs/ui/widgets/) |
+| Virtualized lists and grids, scroll areas | [Lists & Scrolling](/docs/ui/lists/) |
+| Design tokens, project theme, runtime theme switching | [Theming](/docs/ui/theming/) |
+| Signals and bindings | [Data Binding](/docs/ui/data-binding/) |
+| Page-based state without code | [Controllers](/docs/ui/controllers/) |
+| `ContentRect`, `RectAnchors`, `UIWorldAnchor`, `UIPages`, `CanvasEffect` | [World UI & Advanced](/docs/ui/world-ui/) |
+| Runtime inspection of the UI tree | [UI Debugger](/docs/ui/debugger/) |
 
-## Best practices
+## Guidelines
 
-- **Flex, not absolute** — lay out with `FlexContainer` + `flexGrow`; reserve
-  `Absolute` insets for overlays and badges.
-- **Size with `percent` / `auto`** for resolution independence; hard `px` only
-  where a fixed size is intended.
-- **Drive logic from `UIInteraction` or `UIEvents`**, never by mutating them.
-- **Reuse the widget factories** for consistent state visuals instead of wiring
-  hover/press by hand.
-- **9-slice panels** (`NineSlice`) keep borders crisp at any size.
+- Use `UIVisual` for screen-space images; `Sprite` is world-space only.
+- Prefer flex layout (`FlexContainer`, `flexGrow`); reserve `Absolute` insets for overlays and badges.
+- Use anchors and `percent` / `auto` sizes for aspect-ratio independence; use `px` for intentionally fixed sizes.
+- Use `NineSlice` for resizable framed elements.
+- Treat `UIInteraction` and `UIEvents` as read-only inputs to game logic.
+- Use the widget factories and prefabs for consistent interaction states.
 
 ## See also
 
-- [Input](/docs/scripting/input/) — raw keyboard/mouse/touch below the UI layer.
-- [Localization](/docs/assets/localization/) — bind `Text.content` to translated keys.
-- [Animation](/docs/animation/overview/) — tween UI color/position for juice.
-- [The Editor](/docs/editor/overview/) — visual authoring, prefabs, anchor picker.
+- [Screen & Design Resolution](/docs/core-concepts/screen/)
+- [Input](/docs/scripting/input/) — device input below the UI layer.
+- [Localization](/docs/assets/localization/) — localized `Text.content`.
+- [Animation](/docs/animation/overview/) — tweening UI properties.

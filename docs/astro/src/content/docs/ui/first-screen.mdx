@@ -1,0 +1,117 @@
+---
+title: Your First Screen
+description: Editor walkthrough for a pause panel — Canvas creation, UI Image, texture drop, 9-slice panel with a column layout, Text and Button children, Play — and the equivalent startup system in code.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+This walkthrough authors a pause panel in the editor: a Canvas, a UI Image, a 9-slice panel with a column layout
+containing a title and a button, and a Play run. The final section builds the same hierarchy from a startup system.
+
+## Prerequisites
+
+Any project. Switch to the **UI** workspace (activity bar, left): the scene view frames the Canvas and the **UI
+Widgets** palette opens. All steps can also be performed from *Outliner → Add → Create entity…*; both paths create
+identical entities.
+
+![The Create entity popover at its UI section: Canvas, Text, Image, Container, followed by the widget prefabs](@/assets/guides/en/ui-create-menu.png)
+
+*Create entity → UI. Canvas, Text, Image and Container are primitives; the remaining entries are widget prefabs.*
+
+## Steps
+
+<Steps>
+
+1. **Canvas.** *Create → UI → Canvas*. The Canvas is the screen root: descendants are laid out against the project's
+   design resolution, shown in the scene view as the labelled frame (`1280 × 720` here). See [Canvas](/docs/ui/canvas/).
+
+   Creating a UI element in a scene without a Canvas creates one and parents the element under it.
+
+2. **UI Image.** *Create → UI → Image*, or **Image** in the UI Widgets palette. The node is created at the Canvas
+   centre as a 100 × 100 white quad: a `UINode` and a `UIVisual` in `Image` mode with no texture. Rename it `Panel`.
+
+   ![Editor state after Create → UI → Image: a white quad at the Canvas centre, Canvas › Panel in the Outliner, Transform, UI Node and UI Visual in Details](@/assets/guides/en/ui-step-image.png)
+
+   <Aside type="note">
+     The Transform card reports that the position is owned by layout. UI nodes are placed by `UINode` (anchors,
+     size, margins), not by `Transform.position`. See [Layout](/docs/ui/layout/).
+   </Aside>
+
+3. **Texture drop.** Drop an image from the Content Browser on the Canvas in the scene view, or on the Canvas row in
+   the Outliner. The result is a UI Image under the Canvas at the texture's pixel size, positioned at the drop point.
+
+   ![heart.png dropped on the Canvas: a UI Image named heart under the Canvas at the drop point](@/assets/guides/en/ui-step-drop.png)
+
+   An image dropped outside any Canvas creates a world-space `Sprite`. See [Sprite or UI Image](/docs/ui/sprite-or-ui/).
+
+4. **Panel visual.** On `Panel`, assign `panel.png` to **UI Visual → Texture**, set **Visual Type** to `Nine Slice`,
+   and set the UI Node **Width** / **Height** to 420 / 260. See [Images](/docs/ui/images/).
+
+5. **Column layout.** Add **Flex Container** to `Panel`: direction `Column`, children centred on both axes, gap 24.
+   See [Layout](/docs/ui/layout/#flexcontainer--laying-out-children).
+
+6. **Children.** With `Panel` selected, create a **Text** and a **Button**. Nodes created under a `FlexContainer` stay
+   in its flow rather than being placed with absolute insets. Set the Text content to `Game Paused` (font size 30)
+   and the Button label to `Resume`.
+
+   ![The panel in the scene view: 9-slice frame, title Game Paused, Resume button; the heart image beside it](@/assets/guides/en/ui-step-panel.png)
+
+7. **Play.** The Canvas renders over the game, fitted to the window by the Canvas scale mode.
+
+   ![Play mode with the pause panel and heart rendered over the game](@/assets/guides/en/ui-step-play.png)
+
+</Steps>
+
+## Handling the click
+
+The Button emits `click`:
+
+- **Event binding** — in the Button's **Events** section, add `click → <action>`, e.g. a controller page change that
+  hides the panel. See [Event Binding](/docs/scripting/events/).
+- **System** — handle the event in code. See [Interaction](/docs/ui/interaction/#the-uievents-bus).
+
+## Code equivalent
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createButton, UIVisualType,
+  FlexContainer, FlexDirection, JustifyContent, AlignItems, px,
+} from 'esengine';
+
+const buildPauseMenu = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const panel = spawnUIEntity({
+    world,
+    node: { width: px(420), height: px(260) },
+    visual: { visualType: UIVisualType.NineSlice, texture: panelTexture },
+  });
+
+  world.insert(panel, FlexContainer, {
+    direction: FlexDirection.Column,
+    justifyContent: JustifyContent.Center,
+    alignItems: AlignItems.Center,
+    gap: { x: 0, y: 24 },
+  });
+
+  spawnUIEntity({ world, parent: panel, text: { content: 'Game Paused', fontSize: 30 } });
+
+  createButton({
+    world, events, parent: panel, text: 'Resume',
+    node: { width: px(160), height: px(44) },
+    onClick: () => { /* resume */ },
+  });
+});
+
+addStartupSystem(buildPauseMenu);
+```
+
+`spawnUIEntity({ world, parent?, node?, visual?, text? })` creates one UI node and returns its entity. A `visual`
+with `texture` and no `visualType` resolves to `Image`. A node without `parent` is a layout root against the screen.
+The other widget factories (`createToggle`, `createSlider`, `createProgress`, `createDialog`, `createDropdown`) take
+the same form; see [Widgets](/docs/ui/widgets/).
+
+## Next
+
+- [Sprite or UI Image](/docs/ui/sprite-or-ui/)
+- [Layout](/docs/ui/layout/)
+- [Images](/docs/ui/images/)

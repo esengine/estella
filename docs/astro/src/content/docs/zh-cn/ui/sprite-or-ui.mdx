@@ -1,0 +1,83 @@
+---
+title: 精灵还是 UI 图片
+description: Sprite（世界空间 2D 渲染组件）与 UI 图片（屏幕空间的 UINode + UIVisual）的选择依据——坐标空间、摆放方式、缩放、绘制顺序与功能差异，UINode + Sprite 不渲染的配置，以及两者之间的转换。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` 与 UI 图片都渲染纹理，但分属不同子系统：坐标空间、摆放模型和渲染通道各不相同。选用哪一个取决于图像所属的空间，而不是它是否为一张图片。
+
+![运行画面：主角、金币、地面与木牌是世界空间的 Sprite；红心、金币计数与暂停按钮是屏幕画布上的 UI 图片](@/assets/guides/zh/ui-sprite-vs-image.png)
+
+*世界空间：主角、金币、地面与木牌为 `Sprite` 实体，经相机渲染。屏幕空间：红心、金币计数与暂停按钮为屏幕画布上的 UI 图片，不受相机影响。*
+
+## 选择依据
+
+| 内容 | 组件 | 组成 |
+|---|---|---|
+| 角色、道具、拾取物、瓦片、背景、子弹——经相机渲染的世界空间内容 | **Sprite** | `Transform` + `Sprite` |
+| HUD 元素、图标、按钮、面板、菜单背景、背包格——屏幕空间内容 | **UI 图片** | `Canvas` 下的 `UINode` + `UIVisual`（`visualType: Image`） |
+| 跟随世界坐标的屏幕空间元素（名牌、头顶血条） | 带世界锚点的 UI 图片 | `UINode` + `UIVisual` + [`UIWorldAnchor`](/docs/zh-cn/ui/world-ui/) |
+
+编辑器入口：
+
+- **Sprite**：*创建 → Rendering → Sprite*，或将图片拖放到场景视图的空白区域。
+- **UI 图片**：*创建 → UI → Image*、UI 控件面板中的 **Image**，或将图片拖放到画布或 UI 节点上（场景视图或大纲均可）。见[第一个界面](/docs/zh-cn/ui/first-screen/)。
+
+## 对比
+
+| | Sprite | UI 图片 |
+|---|---|---|
+| 坐标空间 | 世界单位（1 单位 = 1 设计像素） | 画布设计像素 |
+| 摆放 | `Transform.position` | 布局：`UINode` 的尺寸、锚点、弹性布局、外边距、内偏移 |
+| 尺寸 | `Sprite.size` | `UINode.width` / `height`，单位 `px`、`percent` 或 `auto` |
+| 与相机的关系 | 经相机渲染 | 与相机无关（屏幕画布） |
+| 屏幕适配 | 无；可见区域由相机适配决定 | 锚点与相对尺寸随屏幕变化（[画布](/docs/zh-cn/ui/canvas/)） |
+| 绘制顺序 | 排序层，其次 `order`（[精灵](/docs/zh-cn/graphics/sprites/)） | UI 树中的顺序；后序兄弟节点在上层 |
+| 九宫格、平铺 | 支持（`drawMode`） | 支持，另有线性与径向填充（[图片](/docs/zh-cn/ui/images/)） |
+| 裁切 | `SpriteMask` | `UIMask`（[遮罩与显隐](/docs/zh-cn/ui/masks/)） |
+| 指针输入 | `Interactable`，在精灵所在平面上做命中测试 | `Interactable`，配合 `UIEvents`、焦点与控件（[交互](/docs/zh-cn/ui/interaction/)） |
+| 2D 光照 | 可选（`lit`） | 不支持 |
+| 主题、控制器、数据绑定 | 不支持 | 支持（[主题](/docs/zh-cn/ui/theming/)、[控制器](/docs/zh-cn/ui/controllers/)） |
+
+## UINode + Sprite 不渲染
+
+同时带有 `UINode` 的实体上的 `Sprite` 不会被渲染：精灵渲染通道跳过 UI 节点，UI 渲染通道只渲染节点的 `UIVisual`。检视器会在 Sprite 卡片上提示该配置：
+
+![同时带 UINode 与 Sprite 的实体：Sprite 卡片提示该组件不会渲染，并给出替代方式](@/assets/guides/zh/ui-sprite-notice.png)
+
+转换为 UI 图片：
+
+1. 移除 **Sprite** 组件（卡片菜单 → *移除组件*）。
+2. 若实体没有 **UI Visual**，添加一个。
+3. 将纹理指定给 **UI Visual → Texture**。`visualType` 为 `None` 的 `UIVisual` 在被指定纹理时会切换为 `Image`。
+
+也可以删除该实体，将图片重新拖放到画布上，得到一个按纹理尺寸创建的 UI 图片。
+
+<Aside type="caution">
+  挂在画布下、自身没有 `UINode` 的 `Sprite` 会按画布的绘制顺序渲染，但不参与布局：锚点、弹性布局和相对尺寸对其无效。HUD 与菜单内容应使用 UI 图片。
+</Aside>
+
+## 代码
+
+```typescript
+import { spawnUIEntity, UIVisualType, Transform, Sprite, px } from 'esengine';
+
+// UI 图片：64×64 的 HUD 图标。
+const icon = spawnUIEntity({
+  world, parent: hud,
+  node: { width: px(64), height: px(64) },
+  visual: { visualType: UIVisualType.Image, texture: heartTexture },
+});
+
+// Sprite：世界空间中的拾取物。
+const coin = world.spawn();
+world.insert(coin, Transform, { position: { x: 120, y: -40, z: 0 } });
+world.insert(coin, Sprite, { texture: coinTexture, size: { x: 40, y: 40 } });
+```
+
+## 另请参阅
+
+- [第一个界面](/docs/zh-cn/ui/first-screen/) —— 在编辑器中创建画布、图片、标题与按钮。
+- [图片](/docs/zh-cn/ui/images/) —— `UIVisual` 的显示模式、适配、九宫格、平铺与填充。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— `Sprite` 组件参考。

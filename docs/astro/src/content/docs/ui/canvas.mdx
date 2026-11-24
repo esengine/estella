@@ -1,0 +1,84 @@
+---
+title: Canvas
+description: Canvas reference — role as the screen-space layout root, fields (design resolution, scale mode, match factor, background colour, layer, pixels per unit), editor design frame, multiple Canvases, draw order, and Canvases parented in world space.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Canvas` marks the root of a UI tree. Descendant `UINode`s are laid out against the **design resolution**, which is
+fitted to the output surface by the scale mode. A `UINode` without a Canvas ancestor has no layout reference; the
+editor therefore creates a Canvas before the first UI element in a scene.
+
+A Canvas entity carries `Transform`, `Canvas` and `UINode` (the root layout box).
+
+## Fields
+
+![Canvas card: Design Resolution 1280 × 720, Pixels Per Unit, Scale Mode Expand, Match Width Or Height, Background Color, Layer](@/assets/guides/en/ui-canvas-details.png)
+
+| Field | Default | Description |
+|---|---|---|
+| **Design Resolution** | `1920 × 1080` (project setting when created in the editor) | Layout reference rectangle in design pixels. |
+| **Scale Mode** | `FixedHeight` | Fit policy for other aspect ratios: `FixedWidth`, `FixedHeight`, `Expand`, `Shrink`, `Match`. |
+| **Match Width Or Height** | `0.5` | `Match` only: `0` = width, `1` = height. |
+| **Background Color** | black | Clear colour of the output surface. |
+| **Layer** | `0` | Sorting layer of this Canvas's UI; evaluated by `Camera.cullingMask`. |
+| **Pixels Per Unit** | `100` | Physics scale (pixels per metre); no effect on rendering. |
+
+Scale modes and design resolution are shared with the camera fit and are specified with worked values in
+[Screen & Design Resolution](/docs/core-concepts/screen/). Layout guidelines:
+
+- Sizes and offsets are in design pixels and independent of the output resolution.
+- Use anchors and `percent` sizes for elements that must track screen edges ([Layout](/docs/ui/layout/)).
+- Validate other aspect ratios with the device menu in the scene view toolbar and with
+  [screen presets](/docs/core-concepts/screen/).
+
+## Design frame
+
+The scene view draws the Canvas as a frame labelled with its design resolution. The **UI** workspace frames it
+automatically; elsewhere, select the Canvas and press **F**. Nodes outside the frame are laid out and rendered, but
+are outside the visible area at the design aspect ratio.
+
+## Multiple Canvases
+
+A single Canvas is sufficient for most projects; screens are switched with [controllers](/docs/ui/controllers/) or
+`UINode.display`. Additional Canvases are required for:
+
+- **Layer separation** — each Canvas belongs to one sorting layer, so cameras can include or exclude it (minimap
+  cameras, split-screen HUDs).
+- **Canvas effects** — `CanvasEffect` processes an entire layer; content that must not be affected requires a Canvas
+  on another layer ([World UI & Advanced](/docs/ui/world-ui/#canvaseffect--a-canvas-drawn-through-a-material)).
+
+## Draw order
+
+Within a Canvas, draw order is tree order: children render after their parent and later siblings after earlier
+ones. Reorder in the Outliner to change it. Particle emitters and plain Sprites under a Canvas, and `Text`, share this
+order.
+
+## World-space Canvas
+
+A Canvas without a parent is a **screen Canvas**: its root is placed on the output surface and is independent of the
+camera. A Canvas parented under another entity is laid out identically but positioned by the parent's `Transform`
+(in-world displays, signage). For screen-space elements tracking a world position, use `UIWorldAnchor` on a screen
+Canvas ([World UI & Advanced](/docs/ui/world-ui/)).
+
+## Code
+
+```typescript
+import { Canvas, UINode, Transform } from 'esengine';
+
+const hud = world.spawn();
+world.insert(hud, Transform, {});
+world.insert(hud, Canvas, { designResolution: { x: 1280, y: 720 } });
+world.insert(hud, UINode, {});
+```
+
+<Aside type="note">
+  A node spawned without `parent` is an independent layout root against the screen. Parenting all screens under one
+  Canvas keeps them under one design resolution and one draw-order tree.
+</Aside>
+
+## See also
+
+- [Screen & Design Resolution](/docs/core-concepts/screen/)
+- [Layout](/docs/ui/layout/)
+- [Your First Screen](/docs/ui/first-screen/)

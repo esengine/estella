@@ -1,0 +1,147 @@
+---
+title: Images
+description: UIVisual reference — visual types (None, SolidColor, Image, NineSlice, Tiled, Filled), fit modes, slice borders, tiling, linear and radial fill, tint, UV sub-rectangles, custom materials, and the corresponding code.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`UINode` defines a layout box and renders nothing. Rendering of the box is defined by **`UIVisual`**: solid colour,
+texture, 9-slice, tiled or filled. Text is rendered by `Text` ([Text](/docs/ui/text/)). Images in screen-space UI are
+always `UIVisual`; `Sprite` is a world-space renderer ([Sprite or UI Image](/docs/ui/sprite-or-ui/)).
+
+![All visual types on one Canvas — SolidColor, Image, NineSlice, Tiled, horizontal Filled, radial Filled — followed by the three fit modes of a wide texture in a square box and four tint values](@/assets/guides/en/ui-visual-modes.png)
+
+*Row 1: `visualType`. Row 2: `fit` in `Image` mode. Row 3: `color` as tint and alpha.*
+
+## Inspector
+
+*Create → UI → Image* creates a `UIVisual` in `Image` mode. On other UI nodes, add it with *Add Component → UI Visual*.
+
+![UI Visual card: Visual Type Nine Slice, Texture panel.png, Color, Fit, UV Offset, UV Scale, Slice Border](@/assets/guides/en/ui-image-details.png)
+
+| Field | Type | Description |
+|---|---|---|
+| **Visual Type** | `UIVisualType` | Render mode; see below. |
+| **Texture** | texture | Source texture. Assigning a texture while the mode is `None` sets the mode to `Image`. |
+| **Color** | colour | Multiplied with the texture (white = unmodified); alpha controls opacity. The fill colour in `SolidColor`. |
+| **Fit** | `UIVisualFit` | Aspect handling in `Image` mode: `Fill`, `Contain`, `Cover`. |
+| **UV Offset / UV Scale** | vec2 | Texture sub-rectangle in normalized coordinates. Default: full texture. |
+| **Slice Border** | vec4 | `NineSlice` border override in texture pixels (left, top, right, bottom). |
+| **Tile Size** | vec2 | `Tiled` repeat size in design pixels. |
+| **Fill Method / Fill Origin / Fill Amount** | enum / enum / 0–1 | `Filled` crop parameters. |
+| **Material** | material | Custom material; replaces the built-in UI shader. |
+| **Enabled** | bool | Disables this node's visual only; descendants still render. |
+
+## Visual types
+
+| `UIVisualType` | Fields | Typical use |
+|---|---|---|
+| `None` | — | Layout containers, hit areas. |
+| `SolidColor` | `color` | Backgrounds, separators, scrims. |
+| `Image` | `texture`, `fit`, `uvOffset`, `uvScale` | Icons, portraits, illustrations. |
+| `NineSlice` | `texture`, `sliceBorder` | Resizable panels, buttons, frames. |
+| `Tiled` | `texture`, `tileSize` | Repeating patterns. |
+| `Filled` | `texture`, `fillMethod`, `fillOrigin`, `fillAmount` | Health and progress bars, cooldown indicators. |
+
+### `SolidColor`
+
+Fills the box with `color`. With alpha below 1 it serves as a scrim behind modal content.
+
+### `Image` and fit
+
+Renders the texture over the box. `fit` follows CSS `object-fit` semantics:
+
+| `UIVisualFit` | Behaviour |
+|---|---|
+| `Fill` (default) | Stretched to the box; aspect ratio not preserved. |
+| `Contain` | Uniformly scaled to fit inside the box; uncovered area stays empty. |
+| `Cover` | Uniformly scaled to cover the box; overflow is cropped via UV. |
+
+![Wide texture in a square box: Fill distorts, Contain letterboxes, Cover crops](@/assets/guides/object-fit.svg)
+
+`NineSlice` and `Tiled` ignore `fit`. Images dropped on a Canvas in the editor are created at the texture's pixel size.
+
+### `NineSlice`
+
+The texture is divided into a 3×3 grid by the slice border. Corners are rendered at 1:1, edges scale along one axis,
+and the centre scales along both, so one texture serves any box size without corner distortion.
+
+![9-slice: stretching distorts corners; slicing keeps corners 1:1, edges scale on one axis, the centre on both](@/assets/guides/nine-slice.svg)
+
+The border is texture metadata, set in the texture's asset inspector by dragging the border guides, and applies to
+every `NineSlice` that references the texture. `UIVisual.sliceBorder` overrides it per node.
+
+![Border guides in the texture asset inspector](@/assets/guides/en/nine-slice-drag.png)
+
+### `Tiled`
+
+Repeats the texture every `tileSize` design pixels instead of stretching it. Import tiling textures with wrap mode
+`repeat`.
+
+### `Filled`
+
+Renders a portion of the texture determined by `fillMethod`, `fillOrigin` and `fillAmount` (0–1):
+
+| `FillMethod` | Geometry | `FillOrigin` |
+|---|---|---|
+| `Horizontal` | Linear crop along X | Growth edge: `Left` / `Right` |
+| `Vertical` | Linear crop along Y | Growth edge: `Bottom` / `Top` |
+| `Radial360` | Clockwise sweep around the centre, up to 360° | Start direction: `Top` (12 o'clock), `Right` (3), `Bottom` (6), `Left` (9) |
+| `Radial180` | Clockwise sweep, up to 180° | As above |
+| `Radial90` | Clockwise sweep, up to 90° | As above |
+
+```typescript
+import { UIVisual } from 'esengine';
+
+const bar = world.get(healthBar, UIVisual);
+world.set(healthBar, UIVisual, { ...bar, fillAmount: hp / maxHp });
+```
+
+`fillAmount` is animatable by tweens and controller gears ([Animation](/docs/animation/overview/)). The `Progress`
+widget is a `Filled` visual with value binding ([Widgets](/docs/ui/widgets/)).
+
+## Tint and opacity
+
+`color` is multiplied with the texture; its alpha scales opacity. For subtree-wide opacity use `UINode.opacity`
+([Masks & Visibility](/docs/ui/masks/#opacity-and-click-through)).
+
+## Texture sub-rectangle
+
+`uvOffset` and `uvScale` select a normalized sub-rectangle: offset `(0.5, 0)` with scale `(0.5, 1)` selects the right
+half. `Tiled` and `Filled` operate within it. See
+[sub-rectangles and atlases](/docs/assets/textures/#sub-rectangles-and-atlases).
+
+## Custom material
+
+`material` replaces the built-in UI shader ([Materials](/docs/graphics/materials/)). UI materials can sample the frame
+behind the UI ([World UI & Advanced](/docs/ui/world-ui/#frosted-panels--ui-that-reads-the-frame-under-it)).
+
+## Code
+
+```typescript
+import { spawnUIEntity, UIVisualType, UIVisualFit, FillMethod, FillOrigin, px } from 'esengine';
+
+spawnUIEntity({ world, parent, node: { width: px(200), height: px(120) },
+  visual: { texture: artTexture, fit: UIVisualFit.Contain } });
+
+spawnUIEntity({ world, parent, node: { width: px(420), height: px(260) },
+  visual: { visualType: UIVisualType.NineSlice, texture: panelTexture } });
+
+spawnUIEntity({ world, parent, node: { width: px(96), height: px(96) },
+  visual: { visualType: UIVisualType.Filled, texture: ringTexture,
+    fillMethod: FillMethod.Radial360, fillOrigin: FillOrigin.Top, fillAmount: 0.7 } });
+```
+
+Default resolution of `visualType` in `spawnUIEntity` / `buildUIVisual`: `Image` when `texture` is set, otherwise
+`SolidColor`.
+
+<Aside type="tip">
+  Author UI textures at their display size at the design resolution (2× for high-density displays) and rely on
+  9-slice and `fit` for other sizes.
+</Aside>
+
+## See also
+
+- [Sprite or UI Image](/docs/ui/sprite-or-ui/)
+- [Masks & Visibility](/docs/ui/masks/)
+- [Layout](/docs/ui/layout/)
