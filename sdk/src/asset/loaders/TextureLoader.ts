@@ -134,15 +134,20 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     /** End this revision for browser image requests and pending residency publications. */
     invalidate(path: string): boolean {
-        this.imageRevisions_.set(path, ++nextImageRevision);
-        const flipped = this.sourcesByKey_.delete(textureResidencyKey(path, true));
-        const raw = this.sourcesByKey_.delete(textureResidencyKey(path, false));
-        if (flipped || raw) {
+        if (this.detachSource(path)) {
             for (const [handle, held] of this.held_) {
                 if (held.source.path === path) this.dropHold_(handle, held);
             }
         }
         return false;
+    }
+
+    /** @internal A retired file can still refill its held handles. A new owner of the path loads a fresh generation. */
+    detachSource(path: string): boolean {
+        this.imageRevisions_.set(path, ++nextImageRevision);
+        const flipped = this.sourcesByKey_.delete(textureResidencyKey(path, true));
+        const raw = this.sourcesByKey_.delete(textureResidencyKey(path, false));
+        return flipped || raw;
     }
     readonly type = 'texture';
     readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.ktx2'];

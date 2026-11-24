@@ -167,6 +167,9 @@ const checkForUpdates = defineSystem([Res(Assets)], (assets) => {
 
 当场景通过 `@uuid` 引用远端分组的资产时，`applyUpdate` 下载新字节、切换清单，内置的重新绑定器会在所有声明了纹理的运行中字段里替换旧纹理：内置字段（`Sprite.texture`、`MeshRenderer.texture` / `.normalMap`、`UIVisual.texture`、`TilemapLayer.tileset`、`ParticleEmitter.texture`、`TrailRenderer.texture`）以及在 `assetFields` 中声明的项目组件字段。
 
+材质文件改名后，`Sprite.material` 和 `MeshRenderer.material` 也会跟随清单中的同一条记录。
+更新移除纹理或材质时，已有字段继续使用当前句柄。后续更新恢复同一个 UUID 后，运行中的字段会切换到恢复的资产。
+
 替换资产按持有它的每个场景各获取一次，每个场景作为整体切换——该场景的绑定要么全部切换，要么全部不变。卸载一个场景不会从仍在使用它的另一个场景中释放更新后的纹理，卸载的场景也只释放自己持有的部分，无论它经历过多少次更新。
 
 重新绑定器未覆盖的内容——手动绑定的纹理、音频、自定义系统——可订阅 `onInvalidate` 自行重新绑定：
@@ -211,7 +214,7 @@ const unsub = assets.onInvalidate((event) => {
 | `hasUpdate` | `boolean` | 资产、分组设置或构建修订号发生变化时为 `true`。 |
 | `changedAssets` | `AssetChange[]` | 新增资产，以及主文件或交付位置发生变化的资产。 |
 | `reconfiguredAssets` | `AssetChange[]` | 可以沿用主文件、以新设置或新预览生效的资产。 |
-| `removedAssets` | `AssetChange[]` | 不再存在的资产（仅供参考，从不下载）。 |
+| `removedAssets` | `AssetChange[]` | 从清单移除的记录。移除无需下载文件，已有字段继续使用持有的版本。 |
 | `changedGroups` | `string[]` | 成员、设置或资产发生变化的分组。 |
 | `downloadFiles` | `UpdateFile[]` | 需要校验的实际文件。流式纹理可以同时包含原图和预览。同一交付位置的共享文件只计一次。 |
 | `totalBytes` | `number` | `downloadFiles` 的大小总和，即下载量估计。 |

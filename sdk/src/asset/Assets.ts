@@ -5,7 +5,7 @@ import type { Backend } from './Backend';
 import { packedBackend } from './packedBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
-import { diffManifests, type UpdatePlan, type UpdateFile } from './hotUpdate';
+import { diffManifests, type AssetChange, type UpdatePlan, type UpdateFile } from './hotUpdate';
 import { pathWithinRemoteRoot, physicalAssetFiles, remoteAssetUrl } from './physicalAssetFiles';
 import { contentHashHex } from './contentHash';
 import { encodeUtf8 } from '../util/utf8';
@@ -28,6 +28,7 @@ import type { TextureImportSettingsResolver } from './loaders/TextureLoader';
 import type { TextureFormatReport } from './textureFormatReport';
 import { logicalTextureKey, TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './AssetRefLedger';
+import { ManifestBindingHistory } from './ManifestBindingHistory';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
 import { leaseBinding, leaseDependencyKey, type BindingLease } from './leaseBindings';
@@ -157,6 +158,8 @@ export interface UpdateStatus {
     staged: { revision: string | null; assets: number; bytes: number } | null;
     applying: boolean;
 }
+
+interface ManifestBindingSource { type: string; ref: string; path: string }
 
 /** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
 interface PendingUpdate {
@@ -440,6 +443,7 @@ export class Assets {
 
     private module_: ESEngineModule | null;
     private manifestModel_: ManifestModel | null = null;
+    private readonly manifestBindings_ = new ManifestBindingHistory();
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
     private remoteRoot_?: string;
     /** Applies run one after another: two at once would each commit, and one that
@@ -1343,32 +1347,33 @@ export class Assets {
         // the old persisted manifest until the new one has been stored.
         const previousRollback = this.cacheRollback_;
         const changed = [...plan.changedAssets, ...plan.reconfiguredAssets];
-        const textures = new Map<string, { ref: string; path: string; handle?: number }>();
+        let previousSources: Map<string, ManifestBindingSource>;
         this.cacheRollback_ = rollback;
         try {
             await this.protectCacheVersions_(this.cacheVersion_(pending.model, root, 'current'));
-            for (const c of changed) {
-                if (c.type !== 'texture') continue;
-                const ref = extractUuid(c.key) ? `${UUID_REF_PREFIX}${c.key}` : c.key;
-                const texture = this.getTexture(ref) ?? this.getTexture(c.key);
-                textures.set(c.key, { ref, path: this.resolveLoadPath_(ref), handle: texture?.handle });
-            }
+            previousSources = this.rememberManifestBindings_([...changed, ...plan.removedAssets]);
             this.setManifest(pending.model);
         } catch (err) {
             this.cacheRollback_ = previousRollback;
             throw err;
         }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
-        // A new sampler or slice border can name the same file. End its cached
-        // GPU generation before listeners acquire the new one.
-        for (const { ref, path } of textures.values()) {
-            if (path !== this.resolveLoadPath_(ref)) continue;
-            this.invalidateTexturePath_(path);
-            this.textureLoader_.invalidate(path);
+        const outgoing = this.manifestBindings_.heldValues(changed, this.textureRefs_, this.genericRefs_);
+        const nextTypes = new Map(changed.map(c => [c.key, c.type]));
+        for (const [key, source] of previousSources) {
+            const sameFile = nextTypes.get(key) === source.type && this.resolveLoadPath_(source.ref) === source.path;
+            this.endManifestResidency_(source, sameFile);
         }
         // A newer check staged while this one downloaded stays staged.
         if (this.pendingUpdate_ === pending) this.pendingUpdate_ = null;
-        for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: textures.get(c.key)?.handle });
+        for (const c of changed) {
+            const values = outgoing.get(c.key);
+            if (values) {
+                for (const oldValue of values.values()) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue });
+            } else {
+                this.fireInvalidate_({ ref: c.key, type: c.type });
+            }
+        }
         for (const c of changed) this.fireSourceChanged_(c.key);
         if (changed.length) this.track_(this.rebuildChangedFiles_(changed.map(c => c.key)));
         // The update is applied when the asset graph agrees with the manifest —
@@ -1392,6 +1397,37 @@ export class Assets {
             ok: true, updated: changed.length, failed: [], revision: revision(), uncached,
             stages: { verified: true, applied: true, persisted, cached: cacheable ? uncached.length === 0 : null },
         };
+    }
+
+    private endManifestResidency_(source: ManifestBindingSource, sameFile: boolean): void {
+        const ended = this.endCachedEra_({ type: source.type, path: source.ref }, source.path);
+        if (!sameFile && !ended.dropped) return;
+        const loader = this.loaders_.get(source.type);
+        if (!sameFile && loader === this.textureLoader_) {
+            this.textureLoader_.detachSource(source.path);
+            return;
+        }
+        try { loader?.invalidate?.(ended.residencyPath); }
+        catch (error) { log.warn('asset', `could not invalidate loader residency for "${source.ref}"`, error); }
+    }
+
+    private rememberManifestBindings_(changes: readonly AssetChange[]): Map<string, ManifestBindingSource> {
+        const sources = new Map<string, ManifestBindingSource>();
+        for (const c of changes) {
+            const prior = this.manifestModel_?.assetByKey(c.key);
+            if (!prior && this.manifestModel_) continue;
+            const type = prior?.type ?? c.type;
+            if (!this.loaders_.get(type)?.load) continue;
+            const uuid = extractUuid(c.key);
+            const ref = uuid ? `${UUID_REF_PREFIX}${uuid}` : c.key;
+            const path = this.resolveLoadPath_(ref);
+            sources.set(c.key, { type, ref, path });
+            const generations = type === 'texture' && this.loaders_.get(type) === this.textureLoader_
+                ? this.textureRefs_.generations(this.textureCacheKey_(path, true))
+                : this.genericRefs_.generations(assetPairKey(type, this.currentPrepared_(type, ref)?.owner.key ?? path));
+            this.manifestBindings_.remember(type, c.key, generations);
+        }
+        return sources;
     }
 
     /** Which revision runs, which one the next launch starts on, and what is staged. */
@@ -2445,6 +2481,24 @@ export class Assets {
         // Handle-bound graph nodes already carry their cache key, including a skeleton/atlas pair.
         const cache = this.genericCache_.get(type);
         const path = fromGraph && cache ? asset.path : this.resolveLoadPath_(asset.path);
+        const ended = this.endCachedEra_(asset, path);
+        const published = this.republishSlot_(type, fromGraph ? asset.path : this.assetIdentity_(asset.path));
+        const dropped = this.loaders_.get(type)?.invalidate?.(ended.residencyPath) || ended.dropped;
+
+        const handlePaths = this.handlePaths_.get(type);
+        if (handlePaths) {
+            for (const [handle, held] of handlePaths) {
+                if (held === path) handlePaths.delete(handle);
+            }
+        }
+        if (dropped) this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue: ended.oldValue });
+        return { hit: dropped || published !== undefined, rebuilt: published };
+    }
+
+    /** End residency without spending the receipts that still own this preparation. */
+    private endCachedEra_(asset: AssetIdentity, path: string): { dropped: boolean; oldValue: unknown; residencyPath: string } {
+        const { type } = asset;
+        const cache = this.genericCache_.get(type);
         const loader = this.loaders_.get(type);
         let residencyPath = path;
         // Held by a cache or by a loader's own residency: what a listener is
@@ -2480,28 +2534,7 @@ export class Assets {
             this.genericRefs_.supersede(assetPairKey(type, path));
         }
 
-        // A registry-backed asset has no cache entry to drop and no handle to
-        // swap: the update IS a new era published under the same names.
-        const published = this.republishSlot_(type, fromGraph ? asset.path : this.assetIdentity_(asset.path));
-
-        // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive the
-        // Assets-level entry — sever it so a warm-cache revive can never serve
-        // stale bytes after a hot reload.
-        if (loader?.invalidate?.(residencyPath)) dropped = true;
-
-        // The reverse handle→path records of this kind are stale now: a reload
-        // mints new handles, and the old ones must stop naming the asset.
-        const handlePaths = this.handlePaths_.get(type);
-        if (handlePaths) {
-            for (const [handle, held] of handlePaths) {
-                if (held === path) handlePaths.delete(handle);
-            }
-        }
-
-        if (dropped) {
-            this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue });
-        }
-        return { hit: dropped || published !== undefined, rebuilt: published };
+        return { dropped, oldValue, residencyPath };
     }
 
     /**

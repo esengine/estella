@@ -193,6 +193,10 @@ and the built-in rebinder replaces the old texture in every live field that decl
 (`Sprite.texture`, `MeshRenderer.texture` / `.normalMap`, `UIVisual.texture`, `TilemapLayer.tileset`,
 `ParticleEmitter.texture`, `TrailRenderer.texture`) and fields of project components declared in `assetFields`.
 
+Live material fields, including `Sprite.material` and `MeshRenderer.material`, also follow their manifest record
+when the cooked file moves. If an update removes a texture or material, an existing field keeps its current
+handle. Restoring the same UUID in a later update moves that field to the replacement while the game is running.
+
 The replacement is acquired once per scene that holds the asset, and each scene moves to it as a unit — all of that
 scene's bindings or none. Unloading one scene never releases the updated texture from another scene still using it,
 and an unloading scene releases exactly what it holds, regardless of how many updates it received.
@@ -240,7 +244,7 @@ The hot-update API is on the `Assets` resource (`Res(Assets)`):
 | `hasUpdate` | `boolean` | `true` when assets, group settings or the build revision change. |
 | `changedAssets` | `AssetChange[]` | New assets or assets whose main file or delivery changed. |
 | `reconfiguredAssets` | `AssetChange[]` | Assets that reuse their main file with changed settings or previews. |
-| `removedAssets` | `AssetChange[]` | Assets no longer present (informational; never downloaded). |
+| `removedAssets` | `AssetChange[]` | Records leaving the manifest. Removal requires zero downloads. Existing fields keep the generation they hold. |
 | `changedGroups` | `string[]` | Groups with changes to their membership, settings or assets. |
 | `downloadFiles` | `UpdateFile[]` | Distinct files to verify. A streamed texture can have a full image and a small preview. Shared files count once at each delivery location. |
 | `totalBytes` | `number` | Total size of the files in `downloadFiles`. |

@@ -45,8 +45,7 @@ export interface UpdatePlan {
     changedAssets: AssetChange[];
     /** Assets whose main payload can be reused with changed settings or previews. */
     reconfiguredAssets: AssetChange[];
-    /** Assets present before but absent now — informational, for cache cleanup;
-     *  never downloaded. */
+    /** Records leaving the manifest. Existing holders may outlive the record. */
     removedAssets: AssetChange[];
     /** Distinct files to verify, including independently fetched texture previews. */
     downloadFiles: UpdateFile[];

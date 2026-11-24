@@ -27,7 +27,7 @@ import { ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
-import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
+import { AssetScope, ownedAssetLease, type AssetLease } from '../src/asset/AssetLease';
 import { Disabled, Sprite, MeshRenderer, ParticleEmitter, TrailRenderer } from '../src/ecs/component';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { componentsBindingAssetTypes, liveAssetBindings, visitEntityAssetBindings } from '../src/asset/liveAssetBindings';
@@ -956,6 +956,82 @@ describe('a live binding follows the asset, whatever kind it is', () => {
     /** A material on a built-in shader, binding no textures of its own. */
     const MATERIAL = JSON.stringify({
         type: 'material', shader: 'builtin:sprite-unlit', properties: {},
+    });
+
+    describe.each([['texture', 'png'], ['material', 'esmaterial']] as const)('%s in a shipped manifest', (type, ext) => {
+        it.each(['renamed', 'restored', 'reused locator', 'released'] as const)('handles a %s asset across 2D and 3D fields', async mode => {
+            const key = '4e032db1-5b38-47ee-8102-f2ba5536f727';
+            const ref = `@uuid:${key}`;
+            const original = `old.${ext}`, replacement = `new.${ext}`;
+            const manifest = (file?: string): AddressableManifest => ({
+                version: '2.0', revision: file ?? 'removed',
+                groups: { art: { labels: [], bundleMode: 'remote', assets: file ? {
+                    [key]: { type, labels: [], path: file, address: `art/hero.${ext}`, size: 8 },
+                } : {} } },
+            });
+            const absent = manifest(), nextManifest = manifest(replacement);
+            if (mode === 'reused locator') {
+                const other = { type, labels: [], path: original, size: 8, address: `art/other.${ext}` };
+                absent.groups.art.assets.other = other;
+                nextManifest.groups.art.assets.other = other;
+            }
+            const index = indexPackagedManifest(manifest(original));
+            const source = createPackagedAssetSource(index);
+            const assets = buildAssets({
+                'removed.json': JSON.stringify(absent), 'next.json': JSON.stringify(nextManifest),
+                [original]: MATERIAL, [replacement]: MATERIAL,
+            }, { manifest: index.model, activateManifest: source.activateManifest });
+            const app = App.new();
+            connectFakeCpp(app.world);
+            assets.setAssetRefResolver(source.resolveRef!);
+            assets.setRemoteRoot('https://cdn.test');
+            installHotUpdateRebind(app, assets);
+            const old = await assets.acquireTyped<{ handle: number }>(type, ref);
+            const sprite = app.world.spawn(), mesh = app.world.spawn();
+            app.world.insert(sprite, Sprite, { [type]: old.value.handle });
+            app.world.insert(mesh, MeshRenderer, { [type]: old.value.handle });
+            const checkFields = (handle: number) => {
+                expect(app.world.get(sprite, Sprite)[type]).toBe(handle);
+                expect(app.world.get(mesh, MeshRenderer)[type]).toBe(handle);
+            };
+            let unrelated: Entity | undefined;
+            let other: AssetLease<{ handle: number }> | undefined;
+            const events = vi.fn();
+            assets.onInvalidate(events);
+            try {
+                if (mode !== 'renamed') {
+                    const removal = await assets.checkForUpdate({ manifestUrl: 'removed.json' });
+                    expect(removal.downloadFiles).toEqual([]);
+                    expect((await assets.applyUpdate()).ok).toBe(true);
+                    await settle(app);
+                    checkFields(old.value.handle);
+                    expect(events).not.toHaveBeenCalledWith(expect.objectContaining({ ref: key }));
+                }
+                if (mode === 'released') old.release();
+                if (mode === 'reused locator') {
+                    other = await assets.acquireTyped<{ handle: number }>(type, 'other');
+                    unrelated = app.world.spawn();
+                    app.world.insert(unrelated, Sprite, { [type]: other.value.handle });
+                }
+                await assets.checkForUpdate({ manifestUrl: 'next.json' });
+                expect((await assets.applyUpdate()).ok).toBe(true);
+                await settle(app, 8);
+                const next = await assets.acquireTyped<{ handle: number }>(type, ref);
+                try {
+                    expect(next.value.handle).not.toBe(old.value.handle);
+                    if (mode === 'released') {
+                        checkFields(old.value.handle);
+                        expect(events).not.toHaveBeenCalledWith(expect.objectContaining({ oldValue: expect.anything() }));
+                    } else {
+                        checkFields(next.value.handle);
+                        const retained = old.retain()!;
+                        expect(retained.value).toBe(old.value);
+                        retained.release();
+                    }
+                    if (other && unrelated !== undefined) expect(app.world.get(unrelated, Sprite)[type]).toBe(other.value.handle);
+                } finally { next.release(); }
+            } finally { other?.release(); old.release(); assets.releaseAll(); }
+        });
     });
 
     it('a material field moves to the new generation, like a texture field', async () => {
