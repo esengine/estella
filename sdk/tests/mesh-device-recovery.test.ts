@@ -3,6 +3,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
+import { encodeMesh, decodeMesh } from '../src/asset/meshFormat';
 import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { MeshAssetLoader } from '../src/asset/loaders/MeshAssetLoader';
 import type { MeshResult } from '../src/asset/loaders/MeshAssetLoader';
@@ -23,8 +24,10 @@ it('rebuilds files and runtime geometry from their owner when another loader dri
     const mesh = builtinMeshTemplate('builtin:cube')!.build();
     vi.spyOn(a.loader, 'load').mockResolvedValue({ handle: 11 });
     vi.spyOn(b.loader, 'load').mockResolvedValue({ handle: 12 });
-    const aRead = vi.spyOn(a.loader, 'readSource').mockResolvedValue(mesh);
-    const bRead = vi.spyOn(b.loader, 'readSource').mockResolvedValue(mesh);
+    const bytes = Uint8Array.from(encodeMesh(mesh));
+    const fromFile = decodeMesh(bytes);
+    const aRead = vi.spyOn(a.assets.backend, 'fetchBinary').mockResolvedValue(bytes.buffer);
+    const bRead = vi.spyOn(b.assets.backend, 'fetchBinary').mockResolvedValue(bytes.buffer);
     const aUpload = vi.spyOn(a.loader, 'uploadData').mockImplementation((_mesh, target) => target || 13);
     const bUpload = vi.spyOn(b.loader, 'uploadData').mockImplementation((_mesh, target) => target || 0);
     const first = await a.assets.acquireTyped<MeshResult>('mesh', 'shared.esmesh');
@@ -33,10 +36,10 @@ it('rebuilds files and runtime geometry from their owner when another loader dri
     expect(built).toBe(13);
     try {
         expect(await driver.assets.rematerializeMeshesAfterDeviceLoss()).toBe(3);
-        expect(aRead.mock.calls.map(([path,ctx]) => ctx.backend.resolveUrl(path))).toEqual(['/a/shared.esmesh']);
-        expect(bRead.mock.calls.map(([path,ctx]) => ctx.backend.resolveUrl(path))).toEqual(['/b/shared.esmesh']);
-        expect(aUpload).toHaveBeenCalledWith(mesh, first.value.handle);
-        expect(bUpload).toHaveBeenCalledWith(mesh, second.value.handle);
+        expect(aRead).toHaveBeenCalledWith('/a/shared.esmesh');
+        expect(bRead).toHaveBeenCalledWith('/b/shared.esmesh');
+        expect(aUpload).toHaveBeenCalledWith(fromFile, first.value.handle);
+        expect(bUpload).toHaveBeenCalledWith(fromFile, second.value.handle);
         expect(aUpload).toHaveBeenCalledWith(mesh, built);
         first.release();
         a.assets.releaseBuiltMesh(built);

@@ -9,6 +9,7 @@ import { EntityAssetScopes } from '../src/asset/entityAssetScopes';
 import type { PrefabResult } from '../src/asset/AssetLoader';
 import { AudioAPI } from '../src/audio/Audio';
 import { AudioSource } from '../src/audio/AudioComponents';
+import { EmbeddedBackend } from '../src/asset/Backend';
 import { NullAudioBackend } from '../src/audio/NullAudioBackend';
 import { Breakable } from '../src/breakable/breakable';
 import { PrefabServer } from '../src/prefab/prefabServer';
@@ -186,7 +187,7 @@ it('loads data before graphics initialization and requires a pool only when a lo
 });
 
 it('keeps a source document’s data separate from native handles of the same loader type', async () => {
-    const assets = Assets.create({ module: null });
+    const assets = Assets.create({ module: null, backend: new EmbeddedBackend({}) });
     const scope = new AssetScope();
     try {
         assets.register({ type: 'project-file', extensions: [], fieldBinding: 'source', load: async () => ({ handle: 7 }) });
