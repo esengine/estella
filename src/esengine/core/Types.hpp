@@ -241,7 +241,14 @@ inline TypeId serviceTypeId() { return detail::domainTypeId<ServiceDomain, T>();
 template<typename T>
 using ConstSpan = std::span<const T>;
 
+inline std::ostream& operator<<(std::ostream& os, Entity e) {
+    return os << e.raw;
+}
+
 }  // namespace esengine
+
+// Keep the original qualified spelling available to existing callers.
+using esengine::operator<<;
 
 // =============================================================================
 // std::hash specialization
@@ -253,7 +260,3 @@ struct std::hash<esengine::Entity> {
         return std::hash<esengine::u32>{}(e.raw);
     }
 };
-
-inline std::ostream& operator<<(std::ostream& os, esengine::Entity e) {
-    return os << e.raw;
-}
