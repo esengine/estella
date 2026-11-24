@@ -14,10 +14,9 @@
  *            count    how many entities name this one
  *            depth    how many links lie between the entity and the root of its tree
  *
- *          Every edit is O(1) and allocates nothing once the arrays have grown to the entity count: linking, unlinking, and
- *          moving an entity within its siblings touch a constant number of slots. A walk over an entity's sources (its
- *          children) follows `next` through one array. The arrays are plain u32 in linear memory, so a script can read them
- *          where they lie instead of asking for a copy.
+ *          The sibling links take constant work to splice. When a move changes depth, the moved subtree is visited once
+ *          to update its depths. Walking an entity's sources follows `next` through one array. The arrays are plain u32
+ *          in linear memory, so a script can read them where they lie instead of asking for a copy.
  *
  *          Flecs stores a pair as part of an archetype's type, which suits its table storage; this engine stores components
  *          in sparse sets, where the answer to "the sources of this target, in order" is an intrusive list, and the answer to
@@ -76,10 +75,12 @@ public:
 
     /** @brief Whether @p ancestor is @p entity's target, or its target's, and so on up. Bounded: no cycle can form here. */
     bool isDescendantOf(Entity entity, Entity ancestor) const {
-        for (u32 at = read(target_, entity); at != NONE; at = read(target_, Entity::fromRaw(at))) {
-            if (at == ancestor.raw) return true;
-        }
-        return false;
+        if (!hasSources(ancestor)) return false;
+        const u32 ancestorDepth = depth(ancestor);
+        u32 level = depth(entity);
+        if (level <= ancestorDepth) return false;
+        for (; level > ancestorDepth; --level) entity = target(entity);
+        return entity == ancestor;
     }
 
     /** @brief The top of @p entity's tree (itself when it has no target). */
@@ -287,8 +288,20 @@ private:
     /** @brief The tree around @p entity changed shape, or it began or ended one. */
     void markTree(Entity entity) {
         if (all_dirty_ || !entity.isValid()) return;
-        if (dirty_roots_.size() >= DIRTY_ROOTS_CAP) { all_dirty_ = true; dirty_roots_.clear(); return; }
-        dirty_roots_.push_back(root(entity).raw);
+        // The snapshot names the tree to discard. Any new tree is queued when its root gains its first child
+        // or becomes parentless. Further edits under that root before refresh are therefore already covered.
+        const auto at = cascadeAt(entity);
+        const u32 snapshotRoot = at.tree == NONE ? NONE : trees_[at.tree].root.raw;
+        const u32 currentRoot = rootAt(entity.index());
+        for (const u32 raw : {snapshotRoot, currentRoot}) {
+            if (raw == NONE || (!dirty_roots_.empty() && dirty_roots_.back() == raw)) continue;
+            if (dirty_roots_.size() >= DIRTY_ROOTS_CAP) {
+                all_dirty_ = true;
+                dirty_roots_.clear();
+                return;
+            }
+            dirty_roots_.push_back(raw);
+        }
     }
 
     /** @brief The entity at @p index if it is the root of a tree now (no target, some sources), else NONE. */

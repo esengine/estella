@@ -94,11 +94,7 @@ TEST_CASE("subtree destruction is iterative and children precede their parents")
     for (usize i = 0; i < count; ++i) {
         const auto e = r.create();
         ids.push_back(e);
-        if (i != 0) {
-            // A valid chain linked directly so this test measures teardown,
-            // not the separate ancestry checks charged by setParent.
-            r.childOf().link(e, ids[i - 1]);
-        }
+        if (i != 0) REQUIRE(setParent(r, e, ids[i - 1]));
     }
     auto connection = r.onDestroy([&](Entity e) { events.push_back(e); });
     destroyWithChildren(r, ids.front());
@@ -249,4 +245,116 @@ TEST_CASE("the cascade lists every tree parent first, siblings in order, and fol
     r.destroy(a);
     // The destroyed parent's children are roots of their own trees now; a2 has no children, so only a1's tree remains.
     check({a1, b});
+}
+
+TEST_CASE("batched moves, splits and reused roots agree with a fresh walk of the forest") {
+    Registry r;
+    std::vector<Entity> ids(16);
+    for (auto& e : ids) e = r.create();
+    auto& rel = r.childOf();
+    const auto checkForest = [&] {
+        const auto& trees = rel.cascade();
+        usize roots = 0;
+        for (const auto e : ids) {
+            std::vector<Entity> ancestors;
+            for (Entity p = rel.target(e); p.isValid(); p = rel.target(p)) {
+                REQUIRE(ancestors.size() < ids.size());
+                ancestors.push_back(p);
+            }
+            CHECK(rel.depth(e) == ancestors.size());
+            for (const auto candidate : ids) {
+                const bool onPath = std::find(ancestors.begin(), ancestors.end(), candidate) != ancestors.end();
+                CHECK(rel.isDescendantOf(e, candidate) == onPath);
+            }
+            if (!ancestors.empty()) continue;
+            const auto at = rel.cascadeAt(e);
+            if (!rel.hasSources(e)) {
+                CHECK(at.tree == ExclusiveRelation::NONE);
+                continue;
+            }
+            ++roots;
+            REQUIRE(at.tree < trees.size());
+            const auto& tree = trees[at.tree];
+            REQUIRE(tree.alive);
+            REQUIRE(tree.root == e);
+            u32 cursor = 0;
+            const auto visit = [&](auto&& self, Entity child, u32 parent) -> void {
+                const u32 slot = cursor++;
+                REQUIRE(slot < tree.entries.size());
+                const auto& entry = tree.entries[slot];
+                CHECK(entry.entity == child);
+                CHECK(entry.parent == parent);
+                CHECK(rel.cascadeAt(child).tree == at.tree);
+                CHECK(rel.cascadeAt(child).slot == slot);
+                rel.eachSource(child, [&](Entity next) { self(self, next, slot); });
+                CHECK(entry.end == cursor);
+            };
+            visit(visit, e, ExclusiveRelation::NONE);
+            CHECK(cursor == tree.entries.size());
+        }
+        const auto alive = std::count_if(trees.begin(), trees.end(), [](const auto& tree) { return tree.alive; });
+        CHECK(static_cast<usize>(alive) == roots);
+    };
+    checkForest();
+    const auto link = [&](int child, int parent) { REQUIRE(setParent(r, ids[child], ids[parent])); };
+    link(1, 0); link(2, 1); link(3, 2);
+    link(5, 4); link(6, 5);
+    link(8, 7);
+    checkForest();
+
+    link(2, 5); link(5, 9); link(10, 2);
+    REQUIRE(setParent(r, ids[2], INVALID_ENTITY));
+    link(3, 11); link(2, 1);
+    const auto retired = ids[0];
+    r.destroy(retired);
+    ids[0] = r.create();
+    REQUIRE(ids[0].index() == retired.index());
+    link(12, 0); link(1, 12);
+    CHECK_FALSE(rel.isDescendantOf(ids[2], retired));
+    checkForest();
+
+    // Several edits between reads exercise both endpoints against the same old snapshot.
+    u32 seed = 85213;
+    const auto next = [&]() {
+        seed = seed * 1664525u + 1013904223u;
+        return (seed >> 8) % ids.size();
+    };
+    for (int batch = 0; batch < 32; ++batch) {
+        for (int edit = 0; edit < 9; ++edit) {
+            const auto i = next(), j = next();
+            if (edit == 0) {
+                r.destroy(ids[i]);
+                ids[i] = r.create();
+            } else if (edit == 1) {
+                REQUIRE(setParent(r, ids[i], INVALID_ENTITY));
+            } else {
+                // Reconstruct the cycle check independently, including rejected reparentings.
+                bool allowed = ids[i] != ids[j];
+                for (auto p = rel.target(ids[j]); p.isValid(); p = rel.target(p)) {
+                    if (p == ids[i]) allowed = false;
+                }
+                CHECK(setParent(r, ids[i], ids[j]) == allowed);
+            }
+        }
+        checkForest();
+    }
+}
+
+TEST_CASE("many newly rooted trees survive one cascade refresh") {
+    Registry r;
+    auto& rel = r.childOf();
+    rel.cascade();
+    std::vector<Entity> roots(1100);
+    for (auto& root : roots) {
+        root = r.create();
+        REQUIRE(setParent(r, r.create(), root));
+    }
+    const auto& trees = rel.cascade();
+    for (const auto root : roots) {
+        const auto t = rel.cascadeAt(root).tree;
+        REQUIRE(t < trees.size());
+        CHECK(trees[t].root == root);
+        REQUIRE(trees[t].entries.size() == 2);
+        CHECK(trees[t].entries[1].entity == rel.first(root));
+    }
 }
