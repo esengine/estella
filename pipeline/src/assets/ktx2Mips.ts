@@ -1,22 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  ktx2Mips.ts — a mip chain under an authored single-level UASTC KTX2,
- *        with its level 0 kept bit for bit.
- *
- * A KTX2 made elsewhere often carries one level, and a compressed level cannot
- * have a chain generated on the device. The cook encodes the levels below it
- * from a half-size image and splices them under the file's own level 0: every
- * level is stored (and supercompressed) on its own, so the base is never
- * decoded and re-encoded.
+ * @file KTX2 mip layout for the texture cook. Rebuilding a UASTC chain or extracting a
+ * streaming preview from UASTC or ETC1S keeps the selected mip payloads byte for byte.
  */
 
 const IDENTIFIER = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
 const HEADER_BYTES = 80;
 const LEVEL_ENTRY_BYTES = 24;
-const KHR_DF_MODEL_UASTC = 166;
+export const KHR_DF_MODEL_ETC1S = 163;
+export const KHR_DF_MODEL_UASTC = 166;
 const KHR_DF_TRANSFER_SRGB = 2;
 const SCHEME_NONE = 0;
+const SCHEME_BASIS_LZ = 1;
 /** UASTC is 4x4 blocks of 16 bytes: the plain layout aligns levels to them. */
 const UASTC_BLOCK_BYTES = 16;
 
@@ -25,12 +21,15 @@ export interface Ktx2Level { offset: number; length: number; uncompressed: numbe
 export interface Ktx2Layout {
     width: number;
     height: number;
+    /** One 2D texture, with no array layers, volume slices or cube faces. */
+    is2D: boolean;
     scheme: number;
     /** The data format descriptor's colour model; UASTC is 166. */
     colorModel: number;
     srgb: boolean;
     dfd: { offset: number; length: number };
     kvd: { offset: number; length: number };
+    sgdOffset: number;
     sgdLength: number;
     levels: Ktx2Level[];
 }
@@ -54,14 +53,17 @@ export function readKtx2Layout(bytes: Uint8Array): Ktx2Layout | null {
     // The basic descriptor block starts after the 4-byte total size: colour model
     // at +8 of the block, transfer function at +10.
     const hasDfd = dfd.length >= 16 && dfd.offset + 16 <= bytes.byteLength;
+    const width = v.getUint32(20, true), height = v.getUint32(24, true), depth = v.getUint32(28, true);
+    const layers = v.getUint32(32, true), faces = v.getUint32(36, true);
     return {
-        width: v.getUint32(20, true),
-        height: v.getUint32(24, true),
+        width, height,
+        is2D: width > 0 && height > 0 && depth === 0 && layers === 0 && faces === 1,
         scheme: v.getUint32(44, true),
         colorModel: hasDfd ? bytes[dfd.offset + 12] : -1,
         srgb: hasDfd && bytes[dfd.offset + 14] === KHR_DF_TRANSFER_SRGB,
         dfd,
         kvd: { offset: v.getUint32(56, true), length: v.getUint32(60, true) },
+        sgdOffset: Number(v.getBigUint64(64, true)),
         sgdLength: Number(v.getBigUint64(72, true)),
         levels,
     };
@@ -69,7 +71,7 @@ export function readKtx2Layout(bytes: Uint8Array): Ktx2Layout | null {
 
 /** Whether the cook can give this file a chain: one UASTC level, bigger than 1x1. */
 export function wantsMipChain(layout: Ktx2Layout | null): layout is Ktx2Layout {
-    return layout !== null && layout.levels.length === 1 && layout.colorModel === KHR_DF_MODEL_UASTC
+    return layout !== null && layout.is2D && layout.levels.length === 1 && layout.colorModel === KHR_DF_MODEL_UASTC
         && layout.sgdLength === 0 && Math.max(layout.width, layout.height) > 1;
 }
 
@@ -206,7 +208,7 @@ export function joinMipLevels(parts: Uint8Array[]): Uint8Array {
     if (layouts.some((l) => !l)) throw new Error('joinMipLevels: not a KTX2');
     const top = layouts[0]!;
     const base = parts[0]!;
-    const sources: Array<{ bytes: Uint8Array; level: Ktx2Level }> = [];
+    const sources: MipSource[] = [];
     let expect: [number, number] | null = null;
     layouts.forEach((layout, i) => {
         const l = layout!;
@@ -220,6 +222,48 @@ export function joinMipLevels(parts: Uint8Array[]): Uint8Array {
         const w = Math.max(1, l.width >> (l.levels.length - 1)), h = Math.max(1, l.height >> (l.levels.length - 1));
         expect = [Math.max(1, w >> 1), Math.max(1, h >> 1)];
     });
+    return writeMipLevels(base, top, top.width, top.height, sources);
+}
+
+/** Copy the largest stored mip that fits maxEdge, plus every level below it. */
+export function extractMipTail(bytes: Uint8Array, layout: Ktx2Layout, maxEdge: number) {
+    const uastc = layout.colorModel === KHR_DF_MODEL_UASTC && layout.sgdLength === 0;
+    const basisLz = layout.colorModel === KHR_DF_MODEL_ETC1S && layout.scheme === SCHEME_BASIS_LZ;
+    if (!layout.is2D || (!uastc && !basisLz)) return null;
+    let { width, height } = layout;
+    let first = 0;
+    while (Math.max(width, height) > maxEdge && first + 1 < layout.levels.length) {
+        width = Math.max(1, Math.floor(width / 2));
+        height = Math.max(1, Math.floor(height / 2));
+        first++;
+    }
+    if (first === 0 || Math.max(width, height) > maxEdge) return null;
+    const sources = layout.levels.slice(first).map(level => ({ bytes, level }));
+    const globalData = basisLz ? basisLzTail(bytes, layout, first) : undefined;
+    return { width, height, bytes: writeMipLevels(bytes, layout, width, height, sources, globalData) };
+}
+
+/** A single 2D image has one descriptor per mip, followed by codebooks shared by every mip (KTX 2, Appendix C). */
+function basisLzTail(bytes: Uint8Array, layout: Ktx2Layout, first: number): Uint8Array {
+    const headerBytes = 20, descriptorBytes = 20;
+    const { sgdOffset, sgdLength } = layout;
+    if (sgdOffset + sgdLength > bytes.byteLength || sgdLength < headerBytes + descriptorBytes * layout.levels.length) {
+        throw new Error('KTX2 BasisLZ image descriptors exceed the global data');
+    }
+    const skip = first * descriptorBytes;
+    const tail = new Uint8Array(sgdLength - skip);
+    tail.set(bytes.subarray(sgdOffset, sgdOffset + headerBytes));
+    tail.set(bytes.subarray(sgdOffset + headerBytes + skip, sgdOffset + sgdLength), headerBytes);
+    return tail;
+}
+
+interface MipSource { bytes: Uint8Array; level: Ktx2Level }
+
+function writeMipLevels(base: Uint8Array, top: Ktx2Layout, width: number, height: number, sources: MipSource[], globalData?: Uint8Array): Uint8Array {
+    if ([top.dfd, top.kvd].some(s => s.offset + s.length > base.byteLength)
+        || sources.some(({ bytes, level }) => level.offset + level.length > bytes.byteLength)) {
+        throw new Error('KTX2 descriptor or mip level exceeds the source length');
+    }
     const count = sources.length;
     const align = top.scheme === SCHEME_NONE ? UASTC_BLOCK_BYTES : 1;
     const round = (n: number) => Math.ceil(n / align) * align;
@@ -229,6 +273,8 @@ export function joinMipLevels(parts: Uint8Array[]): Uint8Array {
     cursor += top.dfd.length;
     const kvdAt = top.kvd.length ? cursor : 0;
     cursor += top.kvd.length;
+    const sgdAt = globalData ? Math.ceil(cursor / 8) * 8 : 0;
+    if (globalData) cursor = sgdAt + globalData.byteLength;
     // Smallest level first, as the format lays them out.
     const placed = new Array<number>(count);
     for (let i = count - 1; i >= 0; i--) {
@@ -240,12 +286,15 @@ export function joinMipLevels(parts: Uint8Array[]): Uint8Array {
     const out = new Uint8Array(cursor);
     const v = new DataView(out.buffer);
     out.set(base.subarray(0, 48), 0);
+    v.setUint32(20, width, true);
+    v.setUint32(24, height, true);
     v.setUint32(40, count, true);
     v.setUint32(48, dfdAt, true); v.setUint32(52, top.dfd.length, true);
     v.setUint32(56, kvdAt, true); v.setUint32(60, top.kvd.length, true);
-    v.setBigUint64(64, 0n, true); v.setBigUint64(72, 0n, true);
+    v.setBigUint64(64, BigInt(sgdAt), true); v.setBigUint64(72, BigInt(globalData?.byteLength ?? 0), true);
     out.set(base.subarray(top.dfd.offset, top.dfd.offset + top.dfd.length), dfdAt);
     if (top.kvd.length) out.set(base.subarray(top.kvd.offset, top.kvd.offset + top.kvd.length), kvdAt);
+    if (globalData) out.set(globalData, sgdAt);
     sources.forEach(({ bytes, level }, i) => {
         const at = HEADER_BYTES + i * LEVEL_ENTRY_BYTES;
         v.setBigUint64(at, BigInt(placed[i]), true);

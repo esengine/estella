@@ -15,7 +15,7 @@ import {
     readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage,
 } from '../src/assets/ktx2Mips';
 import { cookCached } from '../src/assets/cookCache';
-import { cookAssets } from '../src/assets/cookAssets';
+import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
 
 const SIDE = 64;
 const work = mkdtempSync(path.join(tmpdir(), 'ktx2-mips-'));
@@ -105,6 +105,31 @@ describe('cooking an authored single-level KTX2', () => {
         expect(readKtx2Layout(shipped)!.levels).toHaveLength(7);
         expect(readdirSync(path.join(r, '.esengine', 'cache', 'cook'))).toHaveLength(1);
     }, 60_000);
+});
+
+it('stages a streamed mesh preview for an authored KTX2 and keeps a sprite with the same bytes on its full texture', async () => {
+    const root = mkdtempSync(path.join(work, 'stream-'));
+    const meshTex = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', spriteTex = '99999999-9999-4999-8999-999999999999';
+    const data = await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: new Uint8Array(1024 * 64 * 4).fill(128), width: 1024, height: 64 },
+        { mode: 'uastc', mipmaps: true, supercompress: true });
+    for (const [file, uuid] of [['wall.ktx2', meshTex], ['sprite.ktx2', spriteTex]]) {
+        writeFileSync(path.join(root, file), data);
+        writeFileSync(path.join(root, file + '.meta'), JSON.stringify({ version: '2.0', type: 'texture', uuid }));
+    }
+    writeFileSync(path.join(root, 'main.esscene'), JSON.stringify({ version: '1.0', entities: [
+        { id: 1, components: [{ type: 'MeshRenderer', data: { texture: '@uuid:' + meshTex } }] },
+        { id: 2, components: [{ type: 'Sprite', data: { texture: '@uuid:' + spriteTex } }] },
+    ] }));
+    writeFileSync(path.join(root, 'main.esscene.meta'), JSON.stringify({ version: '2.0', type: 'scene', uuid: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }));
+    const cook = await cookAssets(root, { entryScenes: ['main.esscene'], outDir: 'out', contentAddressed: true, streamTails: true, compressTextures: false });
+    expect(cook.failed).toEqual([]);
+    const manifest: CookManifest = JSON.parse(readFileSync(cook.manifestPath!, 'utf8'));
+    const wall = manifest.entries.find(e => e.uuid === meshTex)!, sprite = manifest.entries.find(e => e.uuid === spriteTex)!;
+    expect(sprite.path).toBe(wall.path);
+    expect(sprite.streamTail).toBeUndefined();
+    expect(wall.streamTail).toMatchObject({ width: 256, height: 16, fullWidth: 1024, fullHeight: 64 });
+    expect(readKtx2Layout(readFileSync(path.join(cook.outDir, wall.streamTail!.path)))!.width).toBe(256);
+    expect(readFileSync(path.join(cook.outDir, wall.path))).toEqual(Buffer.from(data));
 });
 
 describe('a cutout\'s mips keep its coverage', () => {

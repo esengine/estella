@@ -930,13 +930,13 @@ export async function cookAssets(
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
         warnings.push(...t.warnings);
         if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
-        // After the payload is decided, from its bytes: the copy is the picture that ships, in the format it ships in.
-        if (streamTails && roles.get(entry.uuid)?.has('surface')) {
-          try {
-            tail = await makeStreamTail(data, ext, readTextureCookSettings(entry.importer, platform).srgb, textureEnc);
-          } catch (err) {
-            warnings.push(`${entry.path}: no small copy for streaming — ${err instanceof Error ? err.message : String(err)}`);
-          }
+      }
+      // Mesh previews use the shipped texture, whether imported as KTX2 or encoded by this cook.
+      if (!fromRecipe && streamTails && roles.get(entry.uuid)?.has('surface')) {
+        try {
+          tail = await makeStreamTail(data, ext, readTextureCookSettings(entry.importer, platform).srgb);
+        } catch (err) {
+          warnings.push(`${entry.path}: no small copy for streaming — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
