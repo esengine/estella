@@ -59,7 +59,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import { startDebugChannel, attachDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
-import type { AotManifest } from '../ecs/aot/AotSystems';
+import type { AotModuleConfig } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import type { SpineAssetInfo } from '../spine/loadSpineScene';
 import type { SceneAssetResult } from '../asset/Assets';
@@ -1114,7 +1114,7 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
      * before the first scene registers, the only moment where no component
      * exists yet to be left behind in the wrong memory.
      */
-    aot?: { module: string | BufferSource; manifest: AotManifest };
+    aot?: AotModuleConfig<string | BufferSource>;
     debugChannel?: DebugChannelConfig;
 }
 
@@ -1215,7 +1215,10 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // and before any exists (its rows must be in the memory the module reads).
     // A module that disagrees with this engine or project throws here.
     if (config.aot) {
-        const installed = await app.installCompiledSystems(config.aot.module, config.aot.manifest);
+        const { module, sharedModule, manifest } = config.aot;
+        const useShared = sharedModule !== undefined && typeof SharedArrayBuffer !== 'undefined'
+            && app.wasmModule?.wasmMemory?.buffer instanceof SharedArrayBuffer;
+        const installed = await app.installCompiledSystems(useShared ? sharedModule : module, manifest);
         life.throwIfAborted();
         log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
     }

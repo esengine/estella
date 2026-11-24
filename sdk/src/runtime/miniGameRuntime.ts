@@ -32,7 +32,6 @@ import {
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { SceneData } from '../scene/scene';
-import type { AotManifest } from '../ecs/aot/AotSystems';
 import { startDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import type { PackagedGameConfig } from './packagedRuntime';
@@ -110,7 +109,7 @@ export interface MiniGameRuntimeConfig extends RenderOptions, RuntimeProjectSett
      * the export staged them at. A path and never bytes: WXWebAssembly compiles
      * a package file and nothing else, which is also why the seam instantiates.
      */
-    aot?: { module: string; manifest: AotManifest };
+    aot?: PackagedGameConfig['aot'];
     debugChannel?: DebugChannelConfig;
     /** The CDN root remote groups resolve against, and the key an applied update
      *  is stored under — the same field every packaged runtime reads. */

@@ -3,11 +3,37 @@
 /**
  * @file  The runtime tuning a project can declare: what the parser keeps, and that the defaults it compares against are the engine's own.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { RUNTIME_BUILD_DEFAULTS, RuntimeConfig, applyBuildRuntimeConfig, parseRuntimeBuildConfig } from '../src/defaults';
 import { packagedRuntimeInit } from '../src/runtime/packagedRuntime';
+import { initRuntime } from '../src/runtime/runtimeLoader';
+import { EmbeddedBackend } from '../src/asset/Backend';
+import { App } from '../src/app/app';
+import { createMockModule } from './mocks/wasm';
 
 describe('packagedRuntimeInit', () => {
+    it.each([
+        { shared: true, carriesVariant: true, expected: 'shared.wasm' },
+        { shared: false, carriesVariant: true, expected: 'systems.wasm' },
+        { shared: true, carriesVariant: false, expected: 'systems.wasm' },
+        { shared: false, carriesVariant: false, expected: 'systems.wasm' },
+    ])('selects $expected with shared heap $shared and shared variant $carriesVariant', async test => {
+        const app = App.new(), module = createMockModule();
+        module.wasmMemory = new WebAssembly.Memory({ initial: 1, maximum: 2, shared: test.shared });
+        app.connectCpp(module.getRegistry(), module);
+        const stop = new Error('reached compiled installation');
+        const install = vi.spyOn(app, 'installCompiledSystems').mockRejectedValue(stop);
+        const manifest = { engineAbi: 'abi', projectShapes: 'shapes', systems: [] };
+        const aot = { module: 'systems.wasm', ...(test.carriesVariant ? { sharedModule: 'shared.wasm' } : {}), manifest };
+        try {
+            await expect(initRuntime({
+                app, module, scenes: [], firstScene: 'Main', ...packagedRuntimeInit({ aot }),
+                source: { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } },
+            })).rejects.toBe(stop);
+            expect(install).toHaveBeenCalledWith(test.expected, manifest);
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
     it('hands the declared tuning to initRuntime, which is where every host applies it', () => {
         const runtime = { assetLoadTimeout: 60000 };
         expect(packagedRuntimeInit({ runtime }).runtime).toBe(runtime);

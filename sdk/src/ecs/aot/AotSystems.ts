@@ -87,6 +87,14 @@ export interface AotManifest {
     readonly systems: readonly AotSystemDecl[];
 }
 
+/** Compiled system artifacts for the engine heaps a package supports. @experimental */
+export interface AotModuleConfig<Source = string> {
+    module: Source;
+    /** The same systems linked for a shared WebAssembly memory. */
+    sharedModule?: Source;
+    manifest: AotManifest;
+}
+
 /** A twin, resolved: its declaration and the function that runs it. */
 export interface AotTwin {
     readonly decl: AotSystemDecl;

@@ -58,6 +58,7 @@ import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { drawsOnlyThroughGL, glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, compilesUnmarkedSystems, type BuildMode } from '../bundle/buildCompiledSystems';
+import { AOT_SHARED_WASM, AOT_WASM } from '../bundle/aotArtifacts';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
@@ -1230,6 +1231,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   /** Android: each packaged ABI's build of the compiled systems, for lib/<abi>/ of the package. */
   let androidAotLibs: Record<string, string[]> | undefined;
   const aotTarget = compileTargetFor(platform);
+  const threadedWeb = platform === 'web' && runtime.threadedRendering === true;
   const foreignOs = aotTarget === 'native' && platform === 'desktop' ? foreignDesktopOses(opts.desktopTemplates) : [];
   // An Android package is cross-compiled, once per ABI it carries; with no template
   // there are no ABIs and nothing to package them into.
@@ -1255,6 +1257,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       mode: opts.aotMode ?? 'release',
       compileAll: opts.compileAllSystems,
       target: aotTarget,
+      includeSharedMemory: threadedWeb,
       cc: aotTarget === 'native' ? (platform === 'android' ? null : findHostCC()) : resolveEmcc(opts.emcc),
       run: runEmcc,
       ...(platform === 'android' ? {
@@ -1280,7 +1283,17 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
       await cp(built.modulePath, path.join(payloadDir, 'aot', name));
       aot = { module: `aot/${name}`, manifest: built.manifest };
+      const shared = built.modules?.[AOT_SHARED_WASM];
+      if (shared) {
+        aot.sharedModule = `aot/${AOT_SHARED_WASM}`;
+        await cp(shared, path.join(payloadDir, aot.sharedModule));
+      }
     }
+  }
+  if (platform === 'web') {
+    // Re-exporting into the same folder can turn off threading or compilation.
+    if (!aot?.sharedModule) await rm(path.join(payloadDir, 'aot', AOT_SHARED_WASM), { force: true });
+    if (!aot) await rm(path.join(payloadDir, 'aot', AOT_WASM), { force: true });
   }
 
   // 4. SDK (import-map target) + wasm runtime. A missing tree fails the export
@@ -1318,12 +1331,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       }
       const wasmOut = await resetRuntimeTree(payloadDir, 'wasm', [opts.sdkDistDir, opts.wasmDir]);
       const ships = shipsSideModule(files.map((f) => f.file));
-      const threaded = platform === 'web' && runtime.threadedRendering === true;
-      if (threaded && ['js', 'wasm'].some(ext => !existsSync(path.join(opts.wasmDir, `esengine-threaded.${ext}`)))) {
+      if (threadedWeb && ['js', 'wasm'].some(ext => !existsSync(path.join(opts.wasmDir, `esengine-threaded.${ext}`)))) {
         errors.push('Threaded rendering needs the web-threaded runtime. Build it with node build-tools/cli.js build -t web-threaded.');
       }
       await cp(opts.wasmDir, wasmOut, {
-        recursive: true, filter: src => ships(src) && (threaded || !path.basename(src).startsWith('esengine-threaded.')),
+        recursive: true, filter: src => ships(src) && (threadedWeb || !path.basename(src).startsWith('esengine-threaded.')),
       });
       // The plain-JavaScript engine is the web page's answer to a browser with no
       // WebAssembly; any other package has an engine of its own kind, or none.

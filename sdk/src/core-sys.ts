@@ -396,7 +396,7 @@ export { AppContext, getDefaultContext, setDefaultContext, type EditorBridge } f
  *
  *  @experimental */
 export type { AotHost } from './ecs/aot/installAot';
-export type { AotManifest, AotSystemDecl } from './ecs/aot/AotSystems';
+export type { AotManifest, AotModuleConfig, AotSystemDecl } from './ecs/aot/AotSystems';
 
 export { Device } from './device';
 export type { DeviceResult, DeviceRequestStatus, DeviceCapabilities, DeviceState, PowerState, MotionOptions, MotionSample, MotionRate, VibrationOptions, VibrationIntensity } from './device';

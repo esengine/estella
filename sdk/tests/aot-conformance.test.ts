@@ -301,6 +301,22 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         expect(interpreted.pop[FRAMES - 1]![0]).toBeLessThan(DOOMED.length);
     });
 
+    it.skipIf(!HAS_WASM)('refuses an emitted module paired with a different build manifest', async () => {
+        const engine = await loadWasmModule(), app = App.new(), reg = new engine.Registry();
+        app.connectCpp(reg, engine);
+        try {
+            const fixture = await installFixture(app);
+            const installed = app.compiledSystems.installed;
+            const other = { ...artifact.manifest, moduleContract: '0000000000000000' };
+            await expect(app.installCompiledSystems(Uint8Array.from(artifact.wasm), other))
+                .rejects.toThrow(/module was built as/);
+            expect(app.compiledSystems.installed).toEqual(installed);
+            app.addSystem(fixture.censusSystem);
+            await app.tick(DT);
+            expect(app.compiledSystems.calls).toBe(1);
+        } finally { app.quit({ keepRenderer: true }); reg.delete(); }
+    });
+
     it.skipIf(!HAS_WASM)('delivers events between compiled systems through the packaged installation', async () => {
         const engine = await loadWasmModule(), app = App.new(), reg = new engine.Registry();
         app.connectCpp(reg, engine);

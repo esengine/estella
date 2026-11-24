@@ -30,7 +30,7 @@ import type { RuntimeAssetSource } from './runtimeAssets';
 import type { RuntimeInitConfig } from './runtimeLoader';
 import type { SceneData } from '../scene/scene';
 import { registerSideModule } from '../sideModules/registry';
-import type { AotManifest } from '../ecs/aot/AotSystems';
+import type { AotModuleConfig } from '../ecs/aot/AotSystems';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 
 /** The package omits the default dark theme and encodes overrides as hex colors. */
@@ -114,12 +114,10 @@ export interface PackagedGameConfig extends PackagedProjectSettings {
      */
     sideModules?: Array<{ id: string; file: string; globalName?: string }>;
     /**
-     * The compiled twins this build produced (docs/REARCH_AOT.md). `wasm` is
-     * package-relative; the manifest rides here so there is not a second file to
-     * keep in step. Absent unless the project marked something `@compiled`, so a
-     * runtime reads presence and needs no mode flag.
+     * Package-relative paths to the compiled systems and their common ABI manifest.
+     * Present when the build compiled at least one system.
      */
-    aot?: { module: string; manifest: AotManifest };
+    aot?: AotModuleConfig;
     /** Where the editor that made this development build listens for it. Never
      *  written by a shipping export. */
     debugChannel?: DebugChannelConfig;

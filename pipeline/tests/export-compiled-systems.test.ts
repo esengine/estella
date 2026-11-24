@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PackagedGameConfig } from 'esengine';
 import { exportGame } from '../src/export/exportGame';
+import { DEFAULT_RUNTIME_CONFIG } from '../src/project/runtimeConfig';
 import { readSizeRecord } from '../src/export/sizeHistory';
 import { resolveEmcc } from '../src/bundle/emccPath';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
@@ -88,11 +89,12 @@ function project(source: string | null): { root: string; out: string } {
   return { root, out: path.join(root, 'dist') };
 }
 
-const run = (f: { root: string; out: string }) => exportGame({
+const run = (f: { root: string; out: string }, threadedRendering = false) => exportGame({
   root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,
+  runtime: { ...DEFAULT_RUNTIME_CONFIG, threadedRendering },
 });
 
 const config = (out: string): PackagedGameConfig =>
@@ -119,11 +121,46 @@ describe('what a package carries for a compiled system', () => {
       expect(res.errors).toEqual([]);
       const cfg = config(f.out);
       expect(cfg.aot?.module).toBe('aot/systems.wasm');
+      expect(cfg.aot?.sharedModule).toBeUndefined();
       // The path in the config is the path in the package, or the runtime 404s
       // at boot and falls back to interpreting with nothing to see.
       expect(existsSync(path.join(f.out, cfg.aot!.module))).toBe(true);
       expect(cfg.aot?.manifest.systems.map((s) => s.name)).toEqual(['ExportDriftSystem']);
       expect(cfg.aot?.manifest.engineAbi).toMatch(/^[0-9a-f]{16}$/);
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  }, 120_000);
+
+  it.skipIf(!EMCC)('stages matching compiled systems for both heaps in a threaded Web package', async () => {
+    const f = project(PROMISED);
+    try {
+      for (const ext of ['js', 'wasm']) {
+        writeFileSync(path.join(f.root, '_wasm', `esengine-threaded.${ext}`), 'threaded core');
+      }
+      expect((await run(f, true)).errors).toEqual([]);
+      const aot = config(f.out).aot!;
+      expect(aot.sharedModule).toBeTruthy();
+      for (const [file, shared] of [[aot.module, false], [aot.sharedModule!, true]] as const) {
+        const memory = new WebAssembly.Memory({ initial: 256, maximum: 32768, shared });
+        const bytes = new Uint8Array(memory.buffer);
+        bytes.fill(41);
+        const module = new WebAssembly.Module(Uint8Array.from(readFileSync(path.join(f.out, file))));
+        expect(WebAssembly.Module.imports(module)).toEqual([{ module: 'env', name: 'memory', kind: 'memory' }]);
+        const { exports } = new WebAssembly.Instance(module, { env: { memory } });
+        (exports._initialize as () => void)();
+        const word = (name: string) => ((exports[name] as () => number)() >>> 0).toString(16).padStart(8, '0');
+        expect(word('es_module_contract_hi') + word('es_module_contract_lo')).toBe(aot.manifest.moduleContract);
+        expect(typeof exports[aot.manifest.systems[0]!.symbol]).toBe('function');
+        expect(bytes.every(byte => byte === 41)).toBe(true);
+      }
+      const sharedPath = path.join(f.out, aot.sharedModule!);
+      expect((await run(f)).errors).toEqual([]);
+      expect(config(f.out).aot?.sharedModule).toBeUndefined();
+      expect(existsSync(sharedPath)).toBe(false);
+      expect(existsSync(path.join(f.out, aot.module))).toBe(true);
+      writeFileSync(path.join(f.root, 'src', 'main.ts'), 'export {};\n');
+      expect((await run(f)).errors).toEqual([]);
+      expect(config(f.out).aot).toBeUndefined();
+      expect(existsSync(path.join(f.out, aot.module))).toBe(false);
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 

@@ -28,9 +28,9 @@ import { verifySystem } from '../../../compiler/src/verify';
 import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout } from '../../../compiler/src/abi';
-import { CFLAGS, WASM_LINK_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
+import { CFLAGS, WASM_LINK_FLAGS, WASM_SHARED_MEMORY_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
 import { nativeLinkFlags, nativeModuleExt } from '../../../compiler/src/hostCC';
-import { AOT_MANIFEST, AOT_WASM } from './aotArtifacts';
+import { AOT_MANIFEST, AOT_SHARED_WASM, AOT_WASM } from './aotArtifacts';
 
 /** Where the C and the wasm land, beside the script bundle. */
 const CACHE_DIR = '.esengine/cache/aot';
@@ -143,7 +143,7 @@ export interface BuildCompiledResult {
   /** Absolute path to the built module, or null when there was nothing to
    *  build. Which KIND of module is the target the caller asked for. */
   modulePath: string | null;
-  /** With `outputs`: each output's module, by its id (the first is `modulePath`). */
+  /** Each requested variant by id. The default is also available at `modulePath`. */
   modules?: Record<string, string>;
   manifest: CompiledSystemsManifest | null;
   errors: string[];
@@ -207,6 +207,8 @@ export async function buildCompiledSystems(
     /** Which machine this build is for. Absent ⇒ wasm, the road every
      *  browser and mini-game host takes. */
     target?: CompileTarget;
+    /** Also link the Web systems for the shared heap alongside the ordinary fallback. */
+    includeSharedMemory?: boolean;
     /** Absolute path to the compiler FOR that target — emcc for wasm, the
      *  host's own cc for native — or null when this machine has none. */
     cc: string | null;
@@ -223,7 +225,8 @@ export async function buildCompiledSystems(
     missing?: string;
   },
 ): Promise<BuildCompiledResult> {
-  const plan = TARGETS[opts.target ?? 'wasm'];
+  const target = opts.target ?? 'wasm';
+  const plan = TARGETS[target];
   if (opts.mode === 'dev') {
     // Nothing is compiled and nothing is checked, so a marker costs a dev build
     // nothing at all — not a toolchain, not a second of build time, not a
@@ -318,13 +321,21 @@ export async function buildCompiledSystems(
   const jobs = opts.outputs
     ? opts.outputs.map((o) => ({ id: o.id, cc: o.cc, flags: [...o.flags], out: path.join(dir, o.id, o.module) }))
     : [{ id: plan.module, cc: opts.cc!, flags: plan.linkFlags(c.symbols), out: path.join(dir, plan.module) }];
+  if (opts.includeSharedMemory && target === 'wasm' && !opts.outputs) {
+    const standard = jobs[0];
+    jobs.push({
+      id: AOT_SHARED_WASM, cc: standard.cc, flags: [...standard.flags, ...WASM_SHARED_MEMORY_FLAGS],
+      out: path.join(dir, AOT_SHARED_WASM),
+    });
+  }
+  const namedOutputs = opts.outputs !== undefined || jobs.length > 1;
   const modules: Record<string, string> = {};
   for (const job of jobs) {
     mkdirSync(path.dirname(job.out), { recursive: true });
     const built = await opts.run(job.cc, [...CFLAGS, '-Wall', '-Wextra', ...job.flags, '-o', job.out, ...units], dir);
     if (built.code !== 0 || !existsSync(job.out)) {
       return { ok: false, modulePath: null, manifest: null, notes,
-        errors: [`${opts.outputs ? `${job.id}: ` : ''}${built.stderr.trim()}`] };
+        errors: [`${namedOutputs ? `${job.id}: ` : ''}${built.stderr.trim()}`] };
     }
     modules[job.id] = job.out;
   }
@@ -340,7 +351,7 @@ export async function buildCompiledSystems(
     systems: moduleDeclarations(lowered.module, inlined),
   };
   writeFileSync(path.join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-  return { ok: true, modulePath, ...(opts.outputs ? { modules } : {}), manifest, errors: [], notes };
+  return { ok: true, modulePath, ...(namedOutputs ? { modules } : {}), manifest, errors: [], notes };
 }
 
 /** Read back what a previous build wrote, or null. */

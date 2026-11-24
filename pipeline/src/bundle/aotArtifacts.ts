@@ -13,5 +13,7 @@
 
 /** The compiled systems, as a module importing the engine's memory. */
 export const AOT_WASM = 'systems.wasm';
+/** The same systems linked for the threaded Web engine's shared memory. */
+export const AOT_SHARED_WASM = 'systems-shared.wasm';
 /** How to call them: symbols, query order, and what the module baked in. */
 export const AOT_MANIFEST = 'systems.json';
