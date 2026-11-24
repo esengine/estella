@@ -6236,4 +6236,234 @@ export const NOTED = {
     { note: "A waterfall on its own is drawn, and ships." },
   "fix(scene): register pending operations before invoking scene callbacks":
     { note: "Scene callbacks can request the same scene while it is loading or unloading." },
+  "fix(runtime): bind streamed worlds to their active scenes":
+    { note: "Switching between 2D or 3D maps now streams the cells of the active map." },
+  "fix(animation): release sampled pose data when its entity leaves the world":
+    { note: "Removing an animated character or joint releases its sampled component data." },
+  "perf(ecs): reuse hierarchy validation across unchanged joint lookups":
+    { note: "Animation spends less time looking up joints in a stable hierarchy." },
+  "perf(animation): share pose track lookups across sampling, blending and IK":
+    { note: "Layered animations spend less CPU time looking up tracks." },
+  "feat(aot): release builds compile every system the compiler takes, not only those marked @compiled":
+    { note: "Release builds compile every system the compiler can take, without `@compiled`." },
+  "feat(settings): Packaging has a Compile all systems row":
+    { note: "Release builds compile every system the compiler can take, without `@compiled`." },
+  "feat(aot): a compiled system writes a vector field whole and reads constants made of constants, and never folds a module let":
+    { note: "A `@compiled` system can write a vector field whole and use constants built from other constants." },
+  "fix(aot): a system querying a component with no known shape stays interpreted instead of refusing the whole compiled module at boot":
+    { note: "A compiled system that queries a component with a text field no longer stops the game from starting." },
+  "fix(audio): preserve clip load settings across source aliases":
+    { note: "Clips that share a packaged audio file keep their own load mode and trim." },
+  "fix(events): honor subscriptions cancelled during dispatch":
+    { note: "A listener disconnected in the callback that registered it stays disconnected." },
+  "feat(editor): drag the edges between the Content Browser's columns to size them":
+    { note: "The Content Browser's columns can be sized." },
+  "fix(editor): use the active divider color for column resizing":
+    { note: "The Content Browser's columns can be sized." },
+  "perf(animation): bound keyframe searches on dense curves":
+    { note: "Dense animation clips take less CPU time to play and scrub." },
+  "fix(editor): a dock group's chevron collapses it after a collapsed group was moved beside the viewport":
+    { note: "A dock group's collapse chevron works after you rearrange the dock." },
+  "docs(editor): reference-style Editor chapters with screenshots":
+    { note: "The Editor chapters are rewritten as reference pages with screenshots, in English and Chinese." },
+  "docs(getting-started): reference-style chapters with editor screenshots":
+    { note: "Getting Started is rewritten with editor screenshots, in English and Chinese." },
+  "docs(graphics): split the graphics chapters into reference sub-chapters":
+    { note: "The graphics documentation is reorganised into sub-chapters and rewritten as reference pages, in English and Chinese." },
+  "fix(editor): a menu opened in the Content Drawer closes when you click elsewhere in it":
+    { note: "A menu opened in the Content Drawer closes when you click elsewhere." },
+  "fix(editor): preserve entity references across selection copies and undo":
+    { note: "Duplicating a selection keeps its internal links connected to the copies." },
+  "fix(editor): drain startup diagnostics before rejecting host calls":
+    { note: "Editor automation reports the reason a host failed to start." },
+  "fix(editor): report complete host startup errors":
+    { note: "Editor automation reports the reason a host failed to start." },
+  "fix(assets): retire entity resources with their registry and asset realm":
+    { note: "Replacing or disconnecting a registry now releases the resources owned by its entities." },
+  "fix(core): support entity IDs in generic stream output":
+    { note: "C++ formatters and test assertions can print entity IDs regardless of header order." },
+  "fix(editor): release failed viewport and play sessions":
+    { note: "A failed game start releases its input, scene and rendering resources." },
+  "fix(runtime): release games and report errors when startup fails":
+    { note: "A failed game start releases its input, scene and rendering resources." },
+  "fix(runtime): scope input and visibility listeners to their game":
+    { note: "A replacement game keeps its controls when the previous game quits." },
+  "fix(groom): a groom is an asset — picked in Details, registered with a uuid, shipped with its curves, and drawn in the edit viewport":
+    { note: "A Groom's groom is picked like any asset, and it ships." },
+  "feat(editor): a Groom's groom is picked or dropped from the Content Browser like any asset":
+    { note: "A Groom's groom is picked like any asset, and it ships." },
+  "feat(groom): a groom draws its cards in place of its strands where it is small in the view":
+    { note: "A groom switches to its cards by itself when it is small on screen." },
+  "feat(editor): Create Hair Cards names the cards in the groom, and the Groom editor sets the screen size they take over at":
+    { note: "A groom switches to its cards by itself when it is small on screen." },
+  "fix(groom): cards shade as the strands they stand in for, and a two-sided card's strands run one way on both faces":
+    { note: "A groom's cards look like its strands from every side." },
+  "fix(editor): a groom's textures are imported as data, and its group materials are read beside it as its curves are":
+    { note: "A groom's cards look like its strands from every side." },
+  "feat(groom): hair cards along a groom's guides, and the Hair material reads the strands textures baked onto them":
+    { note: "A groom makes its own hair cards." },
+  "feat(editor): Create Hair Cards on a groom makes the cards, bakes the strands onto them and writes the material that draws them":
+    { note: "A groom makes its own hair cards." },
+  "feat(groom): hair grows in the engine from parameters, a .esgroom with `grow` in place of a curves file":
+    { note: "Hair and fur grow in the engine from parameters." },
+  "fix(groom): strands thinner than a pixel keep their coverage as a share of pixels, so fine hair is drawn":
+    { note: "Hair and fur grow in the engine from parameters." },
+  "feat(editor): groom_write and groom_read grow hair from parameters, and the Groom editor shows hair grown from them":
+    { note: "Hair and fur grow in the engine from parameters." },
+  "feat(groom): a groom bakes a follicle mask and strands textures on the GPU":
+    { note: "A groom bakes a follicle mask and strands textures." },
+  "fix(render): a pass that draws data into a render target is left alone by the post chain":
+    { note: "A groom bakes a follicle mask and strands textures." },
+  "feat(editor): Create Follicle Texture and Create Strands Textures on a groom, with their options, and the agent tools that bake them":
+    { note: "A groom bakes a follicle mask and strands textures." },
+  "fix(editor): Project Health findings show in the editor's language":
+    { note: "Project Health speaks the editor's language." },
+  "perf(ecs): avoid root walks when editing scene hierarchies":
+    { note: "Deeply nested 2D sprites and 3D nodes take less time to link on native and web." },
+  "fix(assets): honor the latest live component asset write":
+    { note: "Changing a sprite or mesh texture while it is loading now displays the last texture assigned." },
+  "fix(assets): keep hot replacements with the scope holding the outgoing binding":
+    { note: "Hot updates preserve scene and entity ownership when both supply assets to one entity." },
+  "fix(assets): reconcile mixed-owner fields against their pre-update receipts":
+    { note: "Hot updates preserve scene and entity ownership when both supply assets to one entity." },
+  "fix(assets): retire unused entity bindings after live component edits":
+    { note: "Changing a sprite or mesh texture now releases the entity's unused texture acquisition." },
+  "feat(render): an LODMember group dissolves one level into the next over a third of a second, per view, and lodInspect reports the fade":
+    { note: "Levels of detail fade into each other instead of popping." },
+  "fix(editor): the groom check watches the cards dissolve into the strands when the camera comes near":
+    { note: "Levels of detail fade into each other instead of popping." },
+  "fix(aot): synchronize the engine digest with LODMember":
+    { note: "Native games can load precompiled systems built for the engine that introduced LODMember." },
+  "feat(render): LODMember makes levels of whole entities, chosen per view by an LODGroup, and a groom's strands and cards use it":
+    { note: "Levels of detail that are whole entities, chosen per view." },
+  "fix(editor): the groom check reads the level the renderer chose for the game camera's view":
+    { note: "Levels of detail that are whole entities, chosen per view." },
+  "fix(export): install the minigame host before project scripts run":
+    { note: "Mini-game project scripts can read the host during module initialization." },
+  "perf(animation): reuse native sprite and transform projection buffers":
+    { note: "Native timelines and animation controllers spend less time reading sprites and transforms." },
+  "fix(build): compile WebGL initialization only for web targets":
+    { note: "Headless C++ renderer tests build with the Windows system compiler." },
+  "test(ui): compare packed entity IDs in world pick assertions":
+    { note: "Headless C++ renderer tests build with the Windows system compiler." },
+  "perf(nav): narrow crowd searches and reuse steering geometry":
+    { note: "Crowds spend less time finding neighbours and steering around them." },
+  "fix(nav): preserve project-wide standing query overrides":
+    { note: "Crowds spend less time finding neighbours and steering around them." },
+  "fix(nav): steer overlapping agents out of contact":
+    { note: "Crowds spend less time finding neighbours and steering around them." },
+  "feat(editor): drag an image, mesh, flipbook or tileset onto the Outliner to create it there":
+    { note: "Drag assets into the Outliner to create entities." },
+  "fix(assets): ignore plugin dependency changes in project watchers":
+    { note: "Installing a project plugin's dependencies no longer triggers an editor reload." },
+  "fix(render): keep screen overlays with the presented camera's scenes":
+    { note: "Simultaneous worlds can draw their own HUDs and scene fades." },
+  "fix(net): correct quantized drift from each viewer's exact spawn":
+    { note: "Small movements after a multiplayer spawn now respect the configured position precision." },
+  "fix(ecs): retire scene state when a registry is cleared":
+    { note: "Clearing a world releases its tile layers, trails, particles and spring-bone poses before entity IDs are reused." },
+  "fix(render): support data passes in builds without post-processing":
+    { note: "Lightweight WeChat games can build the renderer with post-processing disabled." },
+  "fix(ci): preserve per-scene watchdogs and share the render display":
+    { internal: "This change covers the render verifier's software timeouts, virtual display and regression tests." },
+  "fix(net): reconcile received component baselines across joins and reconnects":
+    { note: "Joining or reconnecting a multiplayer game now restores the components the server actually sent." },
+  "fix(net): preserve entity reference lists on spawn, state updates and reconnect":
+    { note: "Replicated components keep ordered lists of entity references on every client." },
+  "fix(net): preserve visible hierarchies across replication changes":
+    { note: "Visible children keep their identities and attachments when a replicated parent leaves view." },
+  "fix(net): keep entity references current across visibility and replication changes":
+    { note: "Replicated entity references follow their targets in and out of each client's view." },
+  "fix(runtime): retain project registrations across packaged game starts":
+    { note: "A mini-game can start again with all its gameplay scripts." },
+  "fix(persist): keep restored entities and streamed cell saves independent":
+    { note: "The same save can be restored more than once without one copy changing the next." },
+  "fix(runtime): honor declared achievements in playables and minigames":
+    { note: "Single-file playables and minigames now enforce the project's achievement IDs." },
+  "fix(scene): track scene arrivals from request through publication":
+    { note: "Scene readiness includes loads queued behind an outgoing scene." },
+  "fix(scene): share asset discovery across preload and entity ownership":
+    { note: "Scene preparation now asks each component for its assets once." },
+  "fix(scene): share asset progress across authored and packaged loads":
+    { note: "Loading screens receive asset counts in authored and packaged scenes." },
+  "fix(scene): preserve render registrations across scene handoffs":
+    { note: "A scene can hand its HUD and camera effects to another scene during loading or unloading." },
+  "fix(scene): preserve stored script components and their saved entity references":
+    { note: "Saving a scene preserves script components that its entities still hold after a script reload." },
+  "fix(pipeline): record the effective system compilation setting in build size history":
+    { note: "Build size comparisons report changes to automatic system compilation." },
+  "fix(scene): account for active hierarchy work across load slices":
+    { note: "Scene load timings now include every entity creation and parent link across frames." },
+  "fix(assets): rebind stored fields across inactivity and script reloads":
+    { note: "Disabled sprites and meshes resume with the current assets after a hot update." },
+  "fix(textures): honor streaming size across runtime decoders":
+    { note: "Streamed image textures now honor their requested size in exported games." },
+  "fix(tilemap): preserve rows in partial Tiled chunks":
+    { note: "Finite Tiled maps retain tiles along their right edge." },
+  "fix(tilemap): preserve painted layers when a chunk import fails":
+    { note: "A damaged tilemap save preserves the tiles already on the layer." },
+  "fix(tilemap): keep layer data and rendered chunks in their owning world":
+    { note: "Tilemaps keep their own tiles when a scene and its preview share one engine." },
+  "fix(tilemap): use the edit world for painting and collision previews":
+    { note: "Tilemaps keep their own tiles when a scene and its preview share one engine." },
+  "perf(timeline): adopt decoded keyframes when loading animation files":
+    { note: "Opening or reloading animation files reuses their decoded keyframes." },
+  "perf(editor): pass animation file text directly to the shared loader":
+    { note: "Opening or reloading animation files reuses their decoded keyframes." },
+  "fix(timeline): release pooled poses with their world and preview binding":
+    { note: "Closing a world or rebinding its timeline preview releases cached animation data." },
+  "docs(ui): split the UI guide into chapters with editor screenshots":
+    { note: "The UI guide is reorganised into chapters with editor screenshots, in English and Chinese." },
+  "fix(editor): a UI node created under a FlexContainer stays in its layout":
+    { note: "UI elements created inside a layout container join its layout." },
+  "fix(editor): an image placed in the UI is a UI Image that shows, and a Sprite on a UI node says why it does not":
+    { note: "An image put in the UI shows up as a UI Image." },
+  "fix(ui): keep layout and picking with each world":
+    { note: "An editor preview can lay out its Canvas while another world keeps its HUD and click targets." },
+  "fix(sdk): a UIVisual built with a texture and no visual type draws the texture":
+    { note: "`spawnUIEntity` shows a texture given without a visual type." },
+  "fix(audio): keep video tracks resident until playback starts":
+    { note: "Videos keep their sound when several tracks start together under memory pressure." },
+  "fix(render): preserve custom camera effects when volumes retire":
+    { note: "A camera keeps its custom effect stack when a post-process volume stops contributing." },
+  "perf(water): a water zone is baked on a worker, and the first bake of a scene is shown even when the ground settling overtakes it":
+    { note: "Water appears seconds sooner, most of all in the editor." },
+  "fix(water): the scene camera's preview in the editor draws the whole water, not only what the editor's eye sees":
+    { note: "The camera preview in the editor shows all of the water." },
+  "perf(water): the ground under a water zone is read in one pass, a hundred times faster":
+    { note: "A water zone reads the ground under it in milliseconds rather than a second." },
+  "fix(water): a web package with water installs it, so its water material loads and the water is drawn":
+    { note: "Water is drawn in a web package again." },
+  "feat(water): the Water material shows what an author sets, in groups, and hides what the water writes each frame":
+    { note: "A water's look can be changed from Details." },
+  "feat(editor): a water zone or body makes and opens its own Water material from Details, and a material hides the parameters the engine writes":
+    { note: "A water's look can be changed from Details." },
+  "fix(water): cull fixed zones for a lone editor view":
+    { note: "A fixed water zone stops submitting near-surface triangles when the editor moves out of view in a scene without a camera." },
+  "fix(assets): distinguish scene and prefab reference counts by world":
+    { note: "Asset diagnostics now count each world's use of a shared texture, material or font." },
+  "fix(editor): qualify inspected asset users with the editing world":
+    { note: "Asset diagnostics now count each world's use of a shared texture, material or font." },
+  "fix(render): keep camera LOD decisions with their world":
+    { note: "Scenes that share a renderer now choose their own mesh detail levels." },
+  "fix(editor): inspect and preview LODs in the owning world":
+    { note: "Scenes that share a renderer now choose their own mesh detail levels." },
+  "fix(runtime): read cooked cell paths through the active world view":
+    { note: "Packaged web builds read mesh preparation inputs from the active world." },
+  "fix(render): upload and save inline mesh geometry in its owning world":
+    { note: "Each world loads and saves its own inline mesh geometry." },
+  "fix(particles): isolate simulation and rendering per world":
+    { note: "Particle effects stay with their scene when several worlds share an engine." },
+  "perf(ui): reuse sibling order for overlapping world picks":
+    { note: "Pointer picking is faster in scenes with many overlapping sprites, meshes or touch areas." },
+  "perf(residency): narrow per-frame cell reconciliation":
+    { note: "Streamed worlds spend less time checking distant, idle cells." },
+  "perf(residency): skip gaps between streaming sources":
+    { note: "Streamed worlds spend less time checking distant, idle cells." },
+  "fix(render): keep drawing callbacks and scene fades with their world":
+    { note: "Simultaneous worlds can draw their own HUDs and scene fades." },
+  "fix(editor): bind viewport guides to the active editing world":
+    { note: "Simultaneous worlds can draw their own HUDs and scene fades." },
+  "fix(fx): keep trails and spring bones in their owning world":
+    { note: "Trails and spring bones stay with their scene when several worlds share an engine." },
 };

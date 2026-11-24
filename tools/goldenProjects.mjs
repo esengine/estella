@@ -1665,6 +1665,22 @@ export const SHIPPED = {
     { notCertifiable: "The Groom editor is an editor panel no game act opens, and no editor check drives it yet. sdk/tests/groom.test.ts covers groupStats, the figures its Strands panel shows." },
   "Hair and fur can be strands, not only cards.":
     { notCertifiable: "Strand ribbons are a look, not a game act. sdk/tests/groom.test.ts covers the .esgroom format and groups, and fixtures/scenes/groom-strands.esscene renders strands under verify-render." },
+  "The Content Browser's columns can be sized.":
+    { notCertifiable: "Column widths are an editor-panel preference no game act reads. The editor check content-browser-views drags the Type|Size edge and asserts the widths, the rows following the header, the unchanged sort and the double-click reset." },
+  "A groom switches to its cards by itself when it is small on screen.":
+    { notCertifiable: "The switch is a per-view choice of look, not a game act. sdk/tests/groom.test.ts reads the cards' screen size from the .esgroom; LODMember selection is covered by tests/renderer/test_frame_lifecycle.cpp." },
+  "A groom makes its own hair cards.":
+    { notCertifiable: "Generated cards are geometry, not a game act. sdk/tests/groom.test.ts covers the cards built along each guide, their units and UV cells." },
+  "Hair and fur grow in the engine from parameters.":
+    { notCertifiable: "Growth is authoring, not a game act. sdk/tests/groom.test.ts covers determinism per seed, roots on the scalp, the part and the cut, and fixtures/scenes/groom-grown.esscene renders a grown groom under verify-render." },
+  "A groom bakes a follicle mask and strands textures.":
+    { notCertifiable: "Baked textures are an asset step, not a game act. sdk/tests/groom.test.ts covers laying strands onto the mesh's UVs at depth, and fixtures/scenes/hair-tips.esscene renders the baked textures under verify-render." },
+  "Levels of detail fade into each other instead of popping.":
+    { notCertifiable: "A fade is a transition between looks over a third of a second, not a state a game act can end on. tests/renderer/test_frame_lifecycle.cpp covers LODMember selection; the lod-*.esscene fixtures render under verify-render." },
+  "Levels of detail that are whole entities, chosen per view.":
+    { notCertifiable: "Which level draws is a per-view render choice, not a game act. tests/renderer/test_frame_lifecycle.cpp covers LODMember per-view selection, and fixtures/scenes/lod-multicam.esscene renders two views under verify-render." },
+  "Drag assets into the Outliner to create entities.":
+    { notCertifiable: "An editor gesture no game act makes. desktop/tests/outliner-drop-intent.test.ts covers every asset kind and refusal, and the editor check outliner-asset-drop drags an image onto a row and onto empty space." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
