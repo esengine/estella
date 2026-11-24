@@ -55,4 +55,16 @@ describe('atlasCatalogFields', () => {
         }
         expect(catalog.getAtlasFrame('page.png')).toBeNull();
     });
+
+    it('resolves clip siblings and preserves existing project refs, aliases and external URLs', () => {
+        const doc = 'assets/anims/hero.esanim';
+        const entry = { type: 'texture' };
+        const catalog = Catalog.fromJson({ version: 1, addresses: { badge: 'frames/badge.png' },
+            entries: { 'frames/badge.png': entry, 'assets/anims/frames/badge.png': entry, 'assets/anims/run.png': entry } });
+        for (const [ref, expected] of [
+            ['frames/badge.png', 'frames/badge.png'], ['badge', 'frames/badge.png'], ['run.png', 'assets/anims/run.png'],
+            ['../art/step.png', 'assets/art/step.png'], ['./new.png', 'assets/anims/new.png'],
+            ['legacy/image.png', 'legacy/image.png'], ['https://art.test/eye.png', 'https://art.test/eye.png'],
+        ]) expect(catalog.resolveDocumentRef(doc, ref)).toBe(expected);
+    });
 });

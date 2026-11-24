@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ManifestModel, StreamTailInfo } from './AddressableManifest';
 import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+import { findDocumentAsset, resolveDocumentRef } from './documentRef';
+import { uvRectFromPixels, type UvRect } from '../render/uvRect';
 
 export interface AtlasFrameInfo {
     atlas: string;
@@ -9,6 +11,16 @@ export interface AtlasFrameInfo {
     uvOffset: [number, number];
     uvScale: [number, number];
     trim?: { sourceW: number; sourceH: number; offsetX: number; offsetY: number };
+}
+
+/** Place an authored sprite, sheet cell or crop inside its packed image. */
+export function atlasFrameUv(frame: AtlasFrameInfo, inner?: Partial<UvRect>): UvRect {
+    const [x, y] = frame.uvOffset;
+    const [w, h] = frame.uvScale;
+    return {
+        uvOffset: { x: x + (inner?.uvOffset?.x ?? 0) * w, y: y + (inner?.uvOffset?.y ?? 0) * h },
+        uvScale: { x: (inner?.uvScale?.x ?? 1) * w, y: (inner?.uvScale?.y ?? 1) * h },
+    };
 }
 
 export interface CatalogEntry {
@@ -51,12 +63,13 @@ export function atlasCatalogFields(
     pagePath: string,
 ): Pick<CatalogEntry, 'atlas' | 'frame' | 'uv'> {
     const { frame, pageWidth, pageHeight } = atlas;
+    const { uvOffset, uvScale } = uvRectFromPixels(frame, pageWidth, pageHeight);
     return {
         atlas: pagePath,
         frame: { x: frame.x, y: frame.y, w: frame.width, h: frame.height },
         uv: {
-            offset: [frame.x / pageWidth, 1 - (frame.y + frame.height) / pageHeight],
-            scale: [frame.width / pageWidth, frame.height / pageHeight],
+            offset: [uvOffset.x, uvOffset.y],
+            scale: [uvScale.x, uvScale.y],
         },
     };
 }
@@ -107,6 +120,17 @@ export class Catalog {
         if (entry) return entry;
         const asset = this.manifest_?.recordForRef(path)?.asset;
         return asset?.labels?.length ? { type: asset.type, buildPath: asset.path } : null;
+    }
+
+    /** @internal Resolve authored file references in the same order as the cook's dependency scan. */
+    resolveDocumentRef(document: string, ref: string): string {
+        if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith('/')) return ref;
+        const known = findDocumentAsset(document, ref, path => {
+            const address = this.resolve(path);
+            return address !== path || this.entries_.has(path) || this.manifest_?.recordForRef(path) ? address : undefined;
+        });
+        // Without an index an explicit relative path names a sibling. Keep legacy unqualified refs for the host's resolver.
+        return known ?? (ref.startsWith('./') || ref.startsWith('../') ? resolveDocumentRef(document, ref) : ref);
     }
 
     getAtlasFrame(path: string): AtlasFrameInfo | null {

@@ -12,7 +12,7 @@
  *          the entry a hot update had just published under the same name.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Assets } from '../src/asset/Assets';
+import { Assets, type AssetsOptions } from '../src/asset/Assets';
 import { App } from '../src/app/app';
 import { SceneManager, SceneManagerState } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
@@ -31,6 +31,9 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { defineComponent, markEngineComponentBaseline, seedEngineComponents, Sprite } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { Backend } from '../src/asset/Backend';
+import { atlasCatalogFields, Catalog } from '../src/asset/Catalog';
+import type { AddressableManifest, AddressableManifestAsset } from '../src/asset/AddressableManifest';
+import { catalogForModel, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 
 function createPoolFake() {
     const byPath = new Map<string, number>();
@@ -55,6 +58,7 @@ vi.mock('../src/wasm/resourceManager', () => ({
 }));
 
 const platformFactory = vi.hoisted(() => () => ({
+    isPlatformInitialized: () => false,
     platformNow: () => performance.now(),
     platformCreateCanvas: () => ({
         width: 8, height: 8,
@@ -90,8 +94,9 @@ function clipDocument(revision: number): string {
     });
 }
 
-function buildAssets(sprites: SpriteAnimationAPI, doc: (path: string) => string) {
+function buildAssets(sprites: SpriteAnimationAPI, doc: (path: string) => string, options: Pick<AssetsOptions, 'catalog' | 'activateManifest'> = {}) {
     const assets = Assets.create({
+        ...options,
         backend: {
             fetchBinary: vi.fn(async () => new ArrayBuffer(8)),
             fetchText: vi.fn(async (path: string) => doc(path)),
@@ -457,6 +462,99 @@ describe('a registry-backed asset lives as long as it is held', () => {
         expect(saved.components.some(component => component.type === 'SpriteAnimator')).toBe(hasPlayer);
         app.world.despawn(actor);
         expect(assets.resolveRegistryAsset('anim-clip', nextRef)).toBeUndefined();
+    });
+
+    it('uses each clip’s authored directory and frame geometry when clips and textures share cooked files', async () => {
+        const record = (type: AddressableManifestAsset['type'], address: string, path: string): AddressableManifestAsset =>
+            ({ type, address, path, size: 8, labels: [] });
+        const records: Record<string, AddressableManifestAsset> = {};
+        for (const [i, dir] of ['red', 'blue'].entries()) {
+            records[dir] = record('anim-clip', `assets/${dir}/walk.esanim`, 'packed/clip.esanim');
+            records[`${dir}-grid`] = {
+                ...record('texture', `assets/${dir}/grid.png`, 'packed/page.png'),
+                metadata: { atlasFrame: { x: i * 4, y: 0, width: 4, height: 4 }, atlasPageWidth: 8, atlasPageHeight: 8 },
+            };
+        }
+        const manifest: AddressableManifest = { version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: records } } };
+        const index = indexPackagedManifest(manifest);
+        const doc = JSON.stringify({
+            frameSizing: 'frame', sheet: { texture: 'grid.png', cellWidth: 2, cellHeight: 2, pageWidth: 4, pageHeight: 4 },
+            frames: [{ cell: 3 }, { texture: './grid.png', offset: { x: 1, y: 0 } }, {
+                texture: 'grid.png', atlasFrame: { x: 2, y: 0, width: 2, height: 1, pageWidth: 4, pageHeight: 4 },
+            }],
+        });
+        const next = structuredClone(manifest);
+        next.groups.main.assets['blue-grid'].metadata!.atlasFrame!.y = 4;
+        const sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, path => path.endsWith('update.json') ? JSON.stringify(next) : doc, {
+            activateManifest: model => model && catalogForModel(model) || Catalog.empty(),
+        });
+        assets.setManifest(manifest);
+        assets.setAssetRefResolver(index.resolvePath);
+        try {
+            const leases = await Promise.all(['red', 'blue'].map(ref => assets.acquireTyped('anim-clip', ref)));
+            const expected = (x: number) => [
+                { size: { x: 2, y: 2 }, uvOffset: { x: x + 0.25, y: 0.5 }, uvScale: { x: 0.25, y: 0.25 } },
+                { size: { x: 4, y: 4 }, pivot: { x: 0.25, y: 0.5 }, uvOffset: { x, y: 0.5 }, uvScale: { x: 0.5, y: 0.5 } },
+                { size: { x: 2, y: 1 }, uvOffset: { x: x + 0.25, y: 0.875 }, uvScale: { x: 0.25, y: 0.125 } },
+            ];
+            expect(sprites.getClip('red')?.frames).toMatchObject(expected(0));
+            expect(sprites.getClip('blue')?.frames).toMatchObject(expected(0.5));
+            const page = sprites.getClip('red')!.frames[0].texture;
+            expect(page).toBeGreaterThan(0);
+            expect(sprites.getClip('blue')!.frames.every(f => f.texture === page)).toBe(true);
+            expect(pool.createTexture).toHaveBeenCalledTimes(1);
+            leases[0].release();
+            expect(sprites.getClip('red')).toBeUndefined();
+            expect(sprites.getClip('blue')?.frames[1].texture).toBe(page);
+            const plan = await assets.checkForUpdate({ manifestUrl: 'update.json' });
+            expect(plan.downloadFiles).toHaveLength(0);
+            expect((await assets.applyUpdate()).ok).toBe(true);
+            expect(sprites.getClip('blue')?.frames[1].uvOffset).toEqual({ x: 0.5, y: 0 });
+            leases[1].release();
+            expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0 });
+        } finally { assets.releaseAll(); }
+    });
+
+    it('loads a sibling by its project path when Play serves an uncooked clip over a URL', async () => {
+        const clip = 'assets/intro/hero.esanim', image = 'assets/intro/hero.png';
+        const manifest: AddressableManifest = { version: '2.0', groups: { main: {
+            bundleMode: 'local', labels: [], assets: {
+                clip: { type: 'anim-clip', path: clip, size: 0, labels: [] },
+                image: { type: 'texture', path: image, size: 0, labels: [] },
+            },
+        } } };
+        const index = indexPackagedManifest(manifest), sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, () => JSON.stringify({ frames: [{ texture: 'hero.png' }] }));
+        assets.setManifest(manifest);
+        assets.setAssetRefResolver(ref => ref.includes('://') ? ref : `https://play.test/${index.resolvePath(ref)}`);
+        const acquire = vi.spyOn(assets, 'acquireTexture');
+        try {
+            const lease = await assets.acquireTyped('anim-clip', 'clip');
+            expect(acquire).toHaveBeenCalledWith(image, true, 'imported');
+            expect(sprites.getClip('clip')?.frames[0].texture).toBeGreaterThan(0);
+            lease.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('uses the same atlas frame as a sprite when the host maps a UUID to a catalog path', async () => {
+        const image = 'assets/actor.png', ref = '@uuid:f55eb7b8-70c1-4e63-950a-9b6839250280';
+        const catalog = Catalog.fromJson({ version: 1, entries: { [image]: {
+            type: 'texture', buildPath: 'packed.png',
+            ...atlasCatalogFields({ frame: { x: 4, y: 0, width: 4, height: 2 }, pageWidth: 8, pageHeight: 8 }, 'packed.png'),
+        } } });
+        const sprites = new SpriteAnimationAPI(), doc = { frameSizing: 'frame', frames: [{ texture: ref }] };
+        const assets = buildAssets(sprites, () => JSON.stringify(doc), { catalog });
+        assets.setAssetRefResolver(name => name === ref ? image : name);
+        try {
+            const lease = await assets.acquireTyped('anim-clip', 'walk.esanim');
+            expect(assets.getAtlasFrame(ref)?.uvOffset).toEqual([0.5, 0.75]);
+            expect(sprites.getClip('walk.esanim')?.frames[0]).toMatchObject({
+                size: { x: 4, y: 2 }, uvOffset: { x: 0.5, y: 0.75 }, uvScale: { x: 0.5, y: 0.25 },
+            });
+            lease.release();
+        } finally { assets.releaseAll(); }
     });
 
     it('the last holder takes the clip and its frame textures with it', async () => {

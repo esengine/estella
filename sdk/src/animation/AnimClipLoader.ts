@@ -6,9 +6,10 @@
  *          per-frame anchor resolution
  */
 
-import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
+import type { SpriteAnimClip } from './SpriteAnimator';
 import { log } from '../util/logger';
 import { uvRectFromPixels } from '../render/uvRect';
+import { atlasFrameUv, type AtlasFrameInfo } from '../asset/Catalog';
 import {
     sheetCols, sheetRows, sheetCellRect, sheetCellUv, type SheetGrid,
 } from '../asset/sheetGrid';
@@ -405,12 +406,11 @@ export function extractAnimClipTexturePaths(data: AnimClipAssetData): string[] {
     return Array.from(paths);
 }
 
-function uvFromRect(
-    rect: { x: number; y: number; width: number; height: number },
-    pageWidth: number,
-    pageHeight: number,
-): Pick<SpriteAnimFrame, 'uvOffset' | 'uvScale'> {
-    return uvRectFromPixels(rect, pageWidth, pageHeight);
+/** @internal One source image can occupy a frame inside a shared GPU texture. */
+export interface AnimClipTexture {
+    handle: number;
+    size?: AnimClipVec2;
+    atlas?: AtlasFrameInfo | null;
 }
 
 /**
@@ -423,6 +423,16 @@ export function parseAnimClipData(
     data: AnimClipAssetData,
     textureHandles: Map<string, number>,
     textureSizes?: Map<string, AnimClipVec2>,
+): SpriteAnimClip {
+    return bakeAnimClip(clipPath, data, ref => ({
+        handle: textureHandles.get(ref) ?? 0, size: textureSizes?.get(ref),
+    }));
+}
+
+/** @internal Resolve frames in their authored image before placing them on the GPU texture. */
+export function bakeAnimClip(
+    clipPath: string, data: AnimClipAssetData,
+    textureFor: (ref: string) => AnimClipTexture | undefined,
 ): SpriteAnimClip {
     const sheet = data.sheet;
     const cellCount = sheet ? animClipSheetCols(sheet) * animClipSheetRows(sheet) : 0;
@@ -437,36 +447,26 @@ export function parseAnimClipData(
             // Resolved once at load: at runtime a frame either carries the size and
             // anchor it renders with, or the clip authors none and playback leaves
             // the entity's own standing.
-            const natural = sheet && f.cell !== undefined
-                ? { x: sheet.cellWidth, y: sheet.cellHeight }
-                : textureSizes?.get(f.texture ?? '');
+            const { cell, atlasFrame: crop } = f;
+            const isCell = sheet !== undefined && cell !== undefined;
+            const texture = textureFor(isCell ? sheet.texture : f.texture ?? '');
+            const natural = isCell ? { x: sheet.cellWidth, y: sheet.cellHeight }
+                : crop ? { x: crop.width, y: crop.height } : texture?.size;
             const size = animClipFrameSize(data, f, natural);
             if (drivesSize && !size) missingNatural++;
             const pivot = animClipFramePivot(data, f, size);
-            if (sheet && f.cell !== undefined) {
-                if (f.cell >= cellCount) {
-                    log.warn('asset', `${clipPath}: frame cell ${f.cell} outside the ${cellCount}-cell sheet grid; clamped`);
-                }
-                const frame: SpriteAnimFrame = {
-                    texture: textureHandles.get(sheet.texture) ?? 0,
-                    duration: f.duration,
-                    ...(pivot ? { pivot } : {}),
-                    ...(size ? { size } : {}),
-                    ...animClipCellUv(sheet, f.cell),
-                };
-                return frame;
+            if (isCell && cell >= cellCount) {
+                log.warn('asset', `${clipPath}: frame cell ${cell} outside the ${cellCount}-cell sheet grid; clamped`);
             }
-            const frame: SpriteAnimFrame = {
-                texture: textureHandles.get(f.texture ?? '') ?? 0,
+            const uv = isCell ? animClipCellUv(sheet, cell)
+                : crop ? uvRectFromPixels(crop, crop.pageWidth, crop.pageHeight) : undefined;
+            return {
+                texture: texture?.handle ?? 0,
                 duration: f.duration,
                 ...(pivot ? { pivot } : {}),
                 ...(size ? { size } : {}),
+                ...(texture?.atlas ? atlasFrameUv(texture.atlas, uv) : uv),
             };
-            if (f.atlasFrame) {
-                const af = f.atlasFrame;
-                Object.assign(frame, uvFromRect(af, af.pageWidth, af.pageHeight));
-            }
-            return frame;
         }),
     };
     if (missingNatural > 0) {

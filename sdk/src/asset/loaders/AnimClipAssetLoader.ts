@@ -11,7 +11,7 @@
  */
 import type { AssetLoader, LoadContext, AnimClipResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
+import { bakeAnimClip, extractAnimClipTexturePaths, parseAnimClipAsset, type AnimClipTexture } from '../../animation/AnimClipLoader';
 import { log } from '../../util/logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
@@ -22,25 +22,24 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimClipResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const data = parseAnimClipAsset(JSON.parse(text));
-            const textureHandles = new Map<string, number>();
-            // Pixel size travels with the handle: it is the natural size of a
-            // per-texture frame, and the only place it is free to know.
-            const textureSizes = new Map<string, { x: number; y: number }>();
+            const document = ctx.sourceAddressOf?.(path) ?? path;
+            const textures = new Map<string, AnimClipTexture>();
 
-            for (const texPath of extractAnimClipTexturePaths(data)) {
+            for (const ref of extractAnimClipTexturePaths(data)) {
+                const texPath = ctx.catalog.resolveDocumentRef(document, ref);
                 try {
                     const lease = await ctx.acquireTexture(texPath, true, 'imported');
-                    textureHandles.set(texPath, lease.value.handle);
-                    if (lease.value.width > 0 && lease.value.height > 0) {
-                        textureSizes.set(texPath, { x: lease.value.width, y: lease.value.height });
-                    }
+                    const atlas = ctx.getAtlasFrame ? ctx.getAtlasFrame(texPath) : ctx.catalog.getAtlasFrame(texPath);
+                    const width = atlas?.frame.w ?? lease.value.width;
+                    const height = atlas?.frame.h ?? lease.value.height;
+                    const size = width > 0 && height > 0 ? { x: width, y: height } : undefined;
+                    textures.set(ref, { handle: lease.value.handle, size, atlas });
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
-                    textureHandles.set(texPath, 0);
                 }
             }
             return {
-                published: parseAnimClipData(path, data, textureHandles, textureSizes),
+                published: bakeAnimClip(path, data, ref => textures.get(ref)),
                 value: { clipId: path },
             };
         },

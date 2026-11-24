@@ -2805,6 +2805,7 @@ v1: number
 
 ## Catalog — class @experimental
 ```
+@internal resolveDocumentRef: (document: string, ref: string) => string
 @internal withManifestLabels: (model: ManifestModel | null) => Catalog
 addressOf: (path: string) => string | null
 getAllLabels: () => string[]

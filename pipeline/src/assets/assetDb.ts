@@ -28,7 +28,7 @@ import { adoptOrphan } from './assetMeta';
 import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset, resolveRelativePath } from '../../../sdk/src/asset/documentRef';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
@@ -478,16 +478,7 @@ async function computeDeps(
         const candidates = await candidatesOf(entry.path, entry.type === 'prefab');
         const resolvePath = (ref: string): string | null => {
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
-          const direct = byPath.get(normalizeRefPath(ref));
-          if (direct) return direct.uuid;
-          // Fall back to a path RELATIVE to the referencing document, resolved the way
-          // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
-          // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
-          // the same asset the loader will request. (The old join left "../" uncollapsed,
-          // so tilemap tileset images never linked and the cook culled them → the
-          // single-file playable 404'd them.)
-          const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
-          return rel?.uuid ?? null;
+          return findDocumentAsset(entry.path, ref, file => byPath.get(file))?.uuid ?? null;
         };
         for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => uuids.has(id));
       }

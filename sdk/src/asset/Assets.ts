@@ -3,7 +3,7 @@
 import { RuntimeConfig } from '../defaults';
 import type { Backend } from './Backend';
 import { manifestBackend } from './manifestBackend';
-import { Catalog, type AtlasFrameInfo } from './Catalog';
+import { atlasFrameUv, Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, type AddressableManifest, type AddressableManifestAsset, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type AssetChange, type UpdatePlan, type UpdateFile } from './hotUpdate';
 import { pathWithinRemoteRoot, physicalAssetFiles, remoteAssetUrl } from './physicalAssetFiles';
@@ -1139,12 +1139,15 @@ export class Assets {
     // =========================================================================
 
     getAtlasFrame(ref: string): AtlasFrameInfo | null {
+        return this.atlasFrameIn_(this.catalog, ref);
+    }
+
+    private atlasFrameIn_(catalog: Catalog, ref: string, path?: string): AtlasFrameInfo | null {
         // Raw ref first: atlas frames register under every ref SPELLING
         // (`@uuid:…`, logical, "/"-rooted). The resolved path is the fallback —
         // for packed frames it is the shared PAGE path, which cannot key
         // per-frame data.
-        return this.catalog.getAtlasFrame(ref)
-            ?? this.catalog.getAtlasFrame(this.resolveLoadPath_(ref));
+        return catalog.getAtlasFrame(ref) ?? catalog.getAtlasFrame(path ?? this.resolveLoadPath_(ref));
     }
 
     // =========================================================================
@@ -1978,24 +1981,9 @@ export class Assets {
                     if (!this.handlePaths_.get(type)?.has(handle)) this.recordHandlePath_(type, handle, path);
 
                     if (type !== 'texture') continue;
-                    // Ref spelling first (per-frame keys); the resolved
-                    // path for packed frames is the shared page.
-                    const atlasInfo = this.catalog.getAtlasFrame(ref) ?? this.catalog.getAtlasFrame(path);
+                    const atlasInfo = this.atlasFrameIn_(this.catalog, ref, path);
                     if (atlasInfo) {
-                        // COMPOSE with any authored sub-region rather than
-                        // stomping it: the authored uv nests inside the frame.
-                        const aOff = comp.data['uvOffset'] as { x: number; y: number } | undefined;
-                        const aSc = comp.data['uvScale'] as { x: number; y: number } | undefined;
-                        const ox = aOff?.x ?? 0, oy = aOff?.y ?? 0;
-                        const sx = aSc?.x ?? 1, sy = aSc?.y ?? 1;
-                        comp.data['uvOffset'] = {
-                            x: atlasInfo.uvOffset[0] + ox * atlasInfo.uvScale[0],
-                            y: atlasInfo.uvOffset[1] + oy * atlasInfo.uvScale[1],
-                        };
-                        comp.data['uvScale'] = {
-                            x: sx * atlasInfo.uvScale[0],
-                            y: sy * atlasInfo.uvScale[1],
-                        };
+                        Object.assign(comp.data, atlasFrameUv(atlasInfo, comp.data));
                         if (atlasInfo.trim) {
                             comp.data['_trimOffsetX'] = atlasInfo.trim.offsetX;
                             comp.data['_trimOffsetY'] = atlasInfo.trim.offsetY;
@@ -3322,11 +3310,15 @@ export class Assets {
             ...base,
             get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
             recorder,
-            sourceAddressOf(ref) {
-                // A shared build path alone would identify the first record that shipped it.
-                const key = owner && bindingFile(owner) === ref ? bindingRecord(owner) : undefined;
-                return model?.recordForRef(key ?? pathWithinRemoteRoot(ref, root))?.asset.address
-                    ?? base.catalog.addressOf(ref) ?? ref;
+            sourceAddressOf: ref => {
+                // Registry slots own logical addresses and handle-backed loaders can own record keys.
+                // Two documents can ship identical bytes while naming different siblings.
+                const staged = this.stagedPaths_.get(ref) ?? pathWithinRemoteRoot(ref, root);
+                const own = owner ? model?.recordForRef(bindingRecord(owner) ?? owner) : undefined;
+                const record = owner && own && (own.asset.path === staged || bindingFile(owner) === ref)
+                    ? own : model?.recordForRef(staged);
+                return record?.asset.address ?? base.catalog.addressOf(staged) ?? base.catalog.addressOf(ref)
+                    ?? record?.asset.path ?? ref;
             },
             loadText: path => read(path, () => base.loadText(path)),
             loadBinary: path => read(path, () => base.loadBinary(path)),
@@ -3360,6 +3352,7 @@ export class Assets {
             readSharedFile,
             backend: this.backend,
             catalog,
+            getAtlasFrame: ref => self.atlasFrameIn_(catalog, ref),
             resolveStreamTail: path => {
                 const file = bindingFile(path);
                 const local = pathWithinRemoteRoot(file, root);

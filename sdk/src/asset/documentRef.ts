@@ -74,6 +74,13 @@ export function resolveDocumentRef(documentPath: string, ref: string): string {
 /** @deprecated Name it for the question, not for Tiled: {@link resolveDocumentRef}. */
 export const resolveTiledRef = resolveDocumentRef;
 
+/** Find a path in a project index. Older documents may name a project file or a sibling. */
+export function findDocumentAsset<T>(document: string, ref: string, lookup: (path: string) => T | undefined): T | undefined {
+    const normalized = ref.replace(/\\/g, '/');
+    const direct = normalized.replace(/^\.\//, '').replace(/^\//, '');
+    return lookup(direct) ?? lookup(resolveRelativePath(document, normalized));
+}
+
 export function resolveRelativePath(basePath: string, relativePath: string): string {
     // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
     // before normalizing: the "//" after the scheme must survive, but the segment

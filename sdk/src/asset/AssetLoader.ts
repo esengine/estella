@@ -5,7 +5,7 @@ import type { AssetLease } from './AssetLease';
 import type { ScriptGraphSignature } from '../logic/nodes';
 import type { PreparedPrefab } from '../prefab/preparedPrefab';
 import type { RegistryEra } from './registryAssets';
-import type { Catalog } from './Catalog';
+import type { AtlasFrameInfo, Catalog } from './Catalog';
 import type { StreamTailInfo } from './AddressableManifest';
 import type { TextureHandle, FontHandle } from '../types';
 import type { CppResourceManager } from '../wasm';
@@ -119,6 +119,8 @@ export interface LoadContext {
     sourceAddressOf?(ref: string): string;
     backend: Backend;
     catalog: Catalog;
+    /** The image's frame in this preparation's catalog, including aliases resolved by the host. */
+    getAtlasFrame?(ref: string): AtlasFrameInfo | null;
     /** Preview of a streamed texture, resolved against the delivery root of this load. */
     resolveStreamTail?(path: string): StreamTailInfo | null;
     /** @internal Concurrent preparations of distinct records may share the same immutable input. */

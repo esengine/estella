@@ -7,6 +7,8 @@ A sprite animation clip (`.esanim`) is an ordered list of frames, each a cell of
 with a frame rate, per-frame durations and optional events. The `SpriteAnimator` component plays a clip by changing
 the frame shown by the entity's `Sprite`.
 
+Automatic atlas packing preserves each frame's size and crop. Sheet cells use the source image's pixel coordinates, and frame offsets use the frame's own size. A clip can reference a texture by UUID, project path or a path relative to the `.esanim` file.
+
 ## Authoring a clip
 
 1. Right-click a sprite sheet in the Content Browser and choose **Create Sprite Animation**. The **Sprite Animation**
