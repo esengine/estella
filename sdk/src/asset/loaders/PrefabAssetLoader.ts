@@ -6,6 +6,7 @@ import { log } from '../../util/logger';
 
 export class PrefabAssetLoader implements AssetLoader<PrefabResult> {
     readonly type = 'prefab';
+    readonly fieldBinding = 'source';
     readonly extensions = ['.esprefab'];
 
     async load(path: string, ctx: LoadContext): Promise<PrefabResult> {

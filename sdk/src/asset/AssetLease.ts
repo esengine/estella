@@ -12,7 +12,7 @@
 
 import { disposeAll } from '../util/disposeAll';
 import {
-    bindingSlotOf, boundValueOf, firstBindingLease, hasBindingName, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease,
+    namedBindingOf, boundValueOf, firstBindingLease, hasBindingName, leaseBinding, LeaseBindings, sameAcquisition, type BindingLease,
 } from './leaseBindings';
 
 const releaseLease = (lease: AssetLease): void => lease.release();
@@ -24,7 +24,7 @@ export type FieldLeaseLookup = (scope: AssetScope, type: string, value: number |
 /** A standalone scope knows the live names on its own receipts. Assets also knows the realm's ref resolver. */
 export const scopeFieldLease: FieldLeaseLookup = (scope, type, value) => {
     if (typeof value === 'string') {
-        const named = scope.leases().find(lease => bindingSlotOf(lease)?.type === type && hasBindingName(lease, value));
+        const named = scope.leases().find(lease => namedBindingOf(lease)?.type === type && hasBindingName(lease, value));
         if (named) return named;
     }
     return scope.bindingLease(type, value);

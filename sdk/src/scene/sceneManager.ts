@@ -849,14 +849,8 @@ export class SceneManagerState {
         if (wasSleeping) this.restoreSleepState_(instance, entity);
     }
 
-    /**
-     * Split the scene's ownership of what this entity is bound to.
-     *
-     * `retain`, not a re-acquire: the era the fields hold is not the era their
-     * path resolves to once a hot update has passed this scene by. One per
-     * SOURCE receipt — a handle names its receipt by value, a ref names the
-     * slot that publishes it.
-     */
+    /** Retain each scene receipt still used by this entity. A handle identifies an acquired value.
+     *  A name resolves to the registry slot or file preparation its reader uses. */
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
         if (!instance.assetScope.size || !this.app_.hasResource(Assets)) return;
         const assets = this.app_.getResource(Assets);

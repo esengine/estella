@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('../src/wasm/resourceManager', () => ({ requireResourceManager: () => ({}), evictTextureDimensions: vi.fn() }));
 import { SoundEventAssetLoader } from '../src/asset/loaders/SoundEventAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { Assets } from '../src/asset/Assets';

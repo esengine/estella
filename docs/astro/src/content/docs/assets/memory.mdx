@@ -20,10 +20,14 @@ A scene owns the resources it acquires for its entities, including hot-reloaded 
 that leaves its scene keeps the resources its fields still use. Instances of prepared prefabs and entities loaded
 with `loadSceneWithAssets` without a scene collector also own their field resources.
 
-Clearing or replacing the last field on an entity that uses a texture handle, animation clip, or rig avatar releases
-that entity’s reference after the synchronous edits settle. A path and a UUID resolving to the same clip share
-ownership. Other entities keep their own references, and explicit `load*()` and `acquire*()` calls require matching
-releases.
+Clearing or replacing the last field on an entity that uses a texture, animation clip, rig avatar, audio clip, or prefab
+releases that entity’s reference after the synchronous edits settle. A path and a UUID resolving to the same animation
+clip or prefab share ownership. Other entities keep their own references, and explicit `load*()` and `acquire*()` calls
+require matching releases.
+
+A persistent `AudioSource` keeps its loaded clip across a scene change even with a zero-byte audio cache budget.
+A tooltip’s `stylePrefab` or a 3D breakable object’s `pieces` can instantiate the same parsed prefab after the scene
+unloads. Headless hosts can load prefab documents, JSON, and audio before initializing graphics.
 
 ## Warm cache
 

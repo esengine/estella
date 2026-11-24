@@ -6,7 +6,8 @@ import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene/scene';
 
-vi.mock('../src/wasm/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', async original => ({
+    ...await original<typeof import('../src/wasm/resourceManager')>(),
     requireResourceManager: () => ({
         createTexture: vi.fn(() => 1),
         registerExternalTexture: vi.fn(() => 1),

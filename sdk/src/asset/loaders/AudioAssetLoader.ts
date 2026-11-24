@@ -7,6 +7,7 @@ import { log } from '../../util/logger';
 export class AudioAssetLoader implements AssetLoader<AudioResult> {
     private readonly releases_ = new WeakMap<AudioResult, () => void>();
     readonly type = 'audio';
+    readonly fieldBinding = 'source';
     readonly extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm'];
 
     /** Same lazy audio accessor Assets uses — needed by unload/invalidate,

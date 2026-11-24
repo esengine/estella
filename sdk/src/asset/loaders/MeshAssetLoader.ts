@@ -8,6 +8,8 @@ import { decodeMesh, encodeChannelTable, MESH_CLUSTER_BOUNDS_FLOATS, type MeshCl
 import { builtinMeshTemplate, isBuiltinMeshRef } from '../builtinMeshes';
 import { extractPositions, registerMeshCollision, releaseMeshCollision } from '../meshCollision';
 
+type MeshReadContext = Pick<LoadContext, 'catalog' | 'loadBinary'>;
+
 /** One cluster as the engine takes it: first index, index count, ten floats of bounds (lod::Cluster). */
 const CLUSTER_RECORD_BYTES = 48;
 
@@ -52,13 +54,13 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
      * second `load` would mint a new one that nothing in the world points at. The
      * collision data is CPU-side and survived the loss, so it is not rebuilt.
      */
-    async rematerialize(handle: number, path: string, ctx: LoadContext, stillOwned?: () => boolean): Promise<boolean> {
+    async rematerialize(handle: number, path: string, ctx: MeshReadContext | LoadContext, stillOwned?: () => boolean): Promise<boolean> {
         const mesh = await this.readSource(path, ctx);
         return (!stillOwned || stillOwned()) && this.uploadData(mesh, handle) !== 0;
     }
 
     /** The decoded source behind a mesh path — what a tool that rebuilds geometry (a static batch) starts from. */
-    readSource(path: string, ctx: LoadContext): Promise<MeshData> {
+    readSource(path: string, ctx: MeshReadContext | LoadContext): Promise<MeshData> {
         return this.decode_(path, ctx);
     }
 
@@ -67,7 +69,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
         return this.upload_(mesh, target);
     }
 
-    private async decode_(path: string, ctx: LoadContext): Promise<MeshData> {
+    private async decode_(path: string, ctx: MeshReadContext): Promise<MeshData> {
         const builtin = isBuiltinMeshRef(path) ? builtinMeshTemplate(path) : undefined;
         return builtin
             ? builtin.build()

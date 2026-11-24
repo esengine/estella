@@ -13,9 +13,9 @@
  *          thing — a field that names an asset and follows what that name means
  *          now — and it is the only thing migrated here.
  *
- *          Which types are migrated is read, not listed: an asset a component
- *          holds by handle has a `load` door, and one it holds by ref has a slot
- *          that swaps under the name the field already carries.
+ *          Each loader declares how its fields bind. The coordinator migrates
+ *          stored handles. A field that reads a registry or file by name
+ *          keeps its authored reference.
  *
  *          It is a transaction coordinator, not an owner: which fields hold the
  *          asset comes from `component.assetFields` (liveAssetBindings.ts), and

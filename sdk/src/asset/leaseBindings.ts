@@ -2,22 +2,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLease } from './AssetLease';
 
-/** A handle's pool or the registry slot that answers a named lookup. */
+/** A handle's pool, or the slot or file preparation read through a name. */
 export const leaseBinding = Symbol('asset binding');
+/** Lookup for a file-addressed receipt held outside the owning realm's scope index. */
+export const leaseMatchesSource = Symbol('matches asset source');
 /** The dependency to record when the ref requested names only part of an acquired asset. */
 export const leaseDependencyKey = Symbol('asset dependency key');
 type BindingIdentity = string | { readonly type: string };
 export interface BindingLease<T = unknown> extends AssetLease<T> {
     readonly [leaseBinding]: BindingIdentity | undefined;
     readonly [leaseDependencyKey]?: string;
+    [leaseMatchesSource]?(ref: string): boolean;
 }
 
 function identityOf(lease: AssetLease): BindingLease[typeof leaseBinding] {
     return (lease as Partial<BindingLease>)[leaseBinding];
 }
 
-/** A registry slot can have several receipts under different authored names. */
-export function bindingSlotOf(lease: AssetLease): { readonly type: string } | undefined {
+/** Several authored names can read the same registry slot or file preparation. */
+export function namedBindingOf(lease: AssetLease): { readonly type: string } | undefined {
     const identity = identityOf(lease);
     return typeof identity === 'object' ? identity : undefined;
 }
@@ -33,7 +36,7 @@ export function boundValueIn(value: unknown): unknown {
 }
 
 export function boundValueOf(lease: AssetLease): unknown {
-    return boundValueIn(lease.value);
+    return (lease as Partial<BindingLease>)[leaseMatchesSource] ? undefined : boundValueIn(lease.value);
 }
 
 function poolOf(identity: BindingIdentity): string {
@@ -41,6 +44,8 @@ function poolOf(identity: BindingIdentity): string {
 }
 
 export function hasBindingName(lease: AssetLease, name: string): boolean {
+    const source = (lease as Partial<BindingLease>)[leaseMatchesSource];
+    if (source) return source(name);
     const names = (lease as { names?: readonly string[] }).names;
     return Array.isArray(names) && names.includes(name);
 }
@@ -58,26 +63,26 @@ function customBindingLease(leases: readonly AssetLease[], value: number | strin
 
 /** A single query can read the scene's receipts directly without allocating an index. */
 export function firstBindingLease(
-    leases: readonly AssetLease[], type: string, value: number | string, slot?: object,
+    leases: readonly AssetLease[], type: string, value: number | string, named?: object,
 ): AssetLease | undefined {
     let byHandle: AssetLease | undefined, hasCustom = false;
     for (const lease of leases) {
         const identity = identityOf(lease);
         if (identity === undefined) {
             hasCustom = true;
-        } else if (identity === slot) {
+        } else if (identity === named) {
             return lease;
         } else if (poolOf(identity) === type && boundValueOf(lease) === value) {
-            if (!slot) return lease;
+            if (!named) return lease;
             byHandle ??= lease;
         }
     }
     return byHandle ?? (hasCustom ? customBindingLease(leases, value) : undefined);
 }
 
-/** The first receipt a scope holds for each binding. Alias routing stays in the owning registry. */
+/** The first receipt a scope holds for each binding. The owning realm resolves aliases to a binding identity. */
 export class LeaseBindings {
-    private readonly slots_ = new Map<object, AssetLease>();
+    private readonly named_ = new Map<object, AssetLease>();
     private readonly handles_ = new Map<string, Map<number | string, AssetLease>>();
     private readonly custom_: AssetLease[] = [];
     private indexed_ = 0;
@@ -88,7 +93,7 @@ export class LeaseBindings {
             this.custom_.push(lease);
             return;
         }
-        if (typeof identity === 'object' && !this.slots_.has(identity)) this.slots_.set(identity, lease);
+        if (typeof identity === 'object' && !this.named_.has(identity)) this.named_.set(identity, lease);
         const handle = boundValueOf(lease);
         if (!handle || (typeof handle !== 'number' && typeof handle !== 'string')) return;
         const type = poolOf(identity);
@@ -100,9 +105,9 @@ export class LeaseBindings {
         if (!byHandle.has(handle)) byHandle.set(handle, lease);
     }
 
-    find(leases: readonly AssetLease[], type: string, value: number | string, slot?: object): AssetLease | undefined {
+    find(leases: readonly AssetLease[], type: string, value: number | string, named?: object): AssetLease | undefined {
         for (; this.indexed_ < leases.length; this.indexed_++) this.add_(leases[this.indexed_]);
-        const held = (slot && this.slots_.get(slot)) ?? this.handles_.get(type)?.get(value);
+        const held = (named && this.named_.get(named)) ?? this.handles_.get(type)?.get(value);
         if (held || this.custom_.length === 0) return held;
         // Project-provided receipts may implement only the original public contract.
         return customBindingLease(this.custom_, value);

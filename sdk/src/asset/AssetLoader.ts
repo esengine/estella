@@ -123,6 +123,7 @@ export interface LoadContext {
     resolveStreamTail?(path: string): StreamTailInfo | null;
     /** @internal Concurrent preparations of distinct records may share the same immutable input. */
     readSharedFile?<T>(path: string, variant: string, read: () => Promise<T>): Promise<T>;
+    /** Graphics pool, required when a loader first accesses it. */
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
     /**
@@ -225,13 +226,15 @@ export interface RegistryAssetLoader<T> {
 }
 
 /**
- * How one asset type is loaded. A loader implements EXACTLY ONE door: `load` +
- * `unload` for an asset a component holds by handle, or `registry` for one it
- * holds by ref. Two doors to the same asset is two answers about who owns it.
+ * A loader prepares a cached asset with `load` and `unload`, or publishes
+ * successive values under a stable name with `registry`.
  */
 export interface AssetLoader<T> {
     readonly type: string;
     readonly extensions: string[];
+    /** For cached files whose component field stores a source ref. The field resolves
+     *  to the current preparation, and its receipt retains that exact generation. */
+    readonly fieldBinding?: 'source';
     load?(path: string, ctx: LoadContext): Promise<T>;
     /** Destroy what `load` made. What it ACQUIRED is the preparation's and goes
      *  back with the era — a loader releasing it here would free it twice. */

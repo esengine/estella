@@ -138,6 +138,32 @@ it('finishes releasing the other built meshes when one native release fails', as
     expect(await a.assets.rematerializeMeshesAfterDeviceLoss()).toBe(0);
 });
 
+it('attributes an asynchronous mesh load to the device that started it', async () => {
+    const firstPool = { meshesAwaitingRemat: () => '7' } as CppResourceManager;
+    const secondPool = { meshesAwaitingRemat: () => '7' } as CppResourceManager;
+    initResourceManager(firstPool);
+    const a = realm('/a'), driver = realm('/driver');
+    let publish!: (result: MeshResult) => void, signal!: () => void;
+    const started = new Promise<void>(resolve => { signal = resolve; });
+    vi.spyOn(a.loader, 'load').mockImplementation(() => {
+        signal();
+        return new Promise(resolve => { publish = resolve; });
+    });
+    const restore = vi.spyOn(a.loader, 'rematerialize').mockResolvedValue(true);
+    try {
+        const loading = a.assets.acquireTyped('mesh', 'actor.esmesh');
+        await started;
+        initResourceManager(secondPool);
+        publish({ handle: 7 });
+        const mesh = await loading;
+        expect(await driver.assets.rematerializeMeshesAfterDeviceLoss()).toBe(0);
+        initResourceManager(firstPool);
+        expect(await driver.assets.rematerializeMeshesAfterDeviceLoss()).toBe(1);
+        expect(restore).toHaveBeenCalledOnce();
+        mesh.release();
+    } finally { a.assets.releaseAll(); driver.assets.releaseAll(); }
+});
+
 it('keeps the same numeric handle isolated between two resource managers', async () => {
     const pool = () => ({ meshesAwaitingRemat: () => '7' }) as CppResourceManager;
     const firstPool = pool(), secondPool = pool();

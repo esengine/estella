@@ -7,14 +7,6 @@
  *        the manifest, like every other asset.
  */
 import { describe, it, expect, vi } from 'vitest';
-
-// Constructing `Assets` builds a LoadContext, which wants the wasm resource
-// manager — nothing this file exercises touches it (see assets.test.ts).
-vi.mock('../src/wasm/resourceManager', () => ({
-    requireResourceManager: () => ({}),
-    evictTextureDimensions: vi.fn(),
-}));
-
 import { JsonAssetLoader } from '../src/asset/loaders/JsonAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 

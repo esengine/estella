@@ -42,7 +42,9 @@ export class ManifestBindingHistory {
             for (const row of rows) collect(row, row.value);
         }
         for (const rows of prepared.entries().values()) {
-            for (const row of rows) collect(row, row.value.value);
+            for (const row of rows) {
+                if (row.value.loader.fieldBinding !== 'source') collect(row, row.value.value);
+            }
         }
         return values;
     }

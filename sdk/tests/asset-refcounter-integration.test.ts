@@ -20,7 +20,8 @@ import { AssetScope } from '../src/asset/AssetLease';
 import { World } from '../src/ecs/world';
 import { loadSceneData, loadSceneWithAssets } from '../src/scene/scene';
 
-vi.mock('../src/wasm/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', async original => ({
+    ...await original<typeof import('../src/wasm/resourceManager')>(),
     requireResourceManager: () => ({ releaseTexture: vi.fn() }),
     evictTextureDimensions: vi.fn(),
 }));

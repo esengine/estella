@@ -27,13 +27,6 @@ import { getBt, clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 import { registerAiSupport } from '../src/ai/aiSupport';
 registerAiSupport();
 
-// The FSM/BT loaders don't touch the ResourceManager, but the shared LoadContext
-// materializes it eagerly — stub it so the load path runs headless.
-vi.mock('../src/wasm/resourceManager', () => ({
-    requireResourceManager: () => ({}),
-    evictTextureDimensions: vi.fn(),
-}));
-
 const FSM_PATH = 'assets/ai/enemy.esfsm';
 const BT_PATH = 'assets/ai/enemy.esbt';
 

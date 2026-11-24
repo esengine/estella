@@ -32,7 +32,7 @@ import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './Asset
 import { ManifestBindingHistory } from './ManifestBindingHistory';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
-import { leaseBinding, leaseDependencyKey, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseDependencyKey, leaseMatchesSource, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import {
@@ -356,6 +356,8 @@ function warnFailedLoads(failed: readonly MissingAsset[], where?: string): void 
     log.warn('asset', `${where ? `${where}: ` : ''}${failed.length} asset(s) failed to load`, failed);
 }
 
+type AssetLoadServices = Omit<LoadContext, 'resourceManager'> & { resourceManager: CppResourceManager | null };
+
 interface SceneAssetAcquisition {
     readonly type: string;
     readonly path: string;
@@ -519,7 +521,7 @@ export class Assets {
     private genericRefs_ = new AssetRefLedger<PreparedLoad<unknown>>();
     /** Propagations in flight — what {@link assetGraphSettled} waits on. */
     private settling_ = new Set<Promise<void>>();
-    private loadContext_: LoadContext | null = null;
+    private loadContext_: AssetLoadServices | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     /** File locations produced by a host resolver, keyed back to the staged manifest path. */
     private readonly stagedPaths_ = new Map<string, string>();
@@ -2091,8 +2093,10 @@ export class Assets {
     private typedLease_<T>(
         type: string, lease: AssetRefLease<PreparedLoad<unknown>>, value: T, unclaim?: () => void,
     ): BindingLease<T> {
+        const source = lease.value.loader.fieldBinding === 'source' ? lease.value.owner : undefined;
         return {
-            [leaseBinding]: type,
+            [leaseBinding]: source ?? type,
+            [leaseMatchesSource]: source && (ref => this.namedBinding_(type, ref) === source),
             [leaseDependencyKey]: lease.value.loader === this.spineLoader_ ? lease.value.owner.key : undefined,
             key: lease.key, generation: lease.generation, value,
             failedDependencies: lease.value.failedDependencies,
@@ -2275,7 +2279,7 @@ export class Assets {
         this.retire_(era);
     }
 
-    /** End one handle-bound era: its loader destroys what it made, then what its
+    /** End one cached era: its loader destroys what it made, then what its
      *  preparation acquired goes back — in that order, since the value is what
      *  is still using it. */
     private retire_(era: PreparedLoad<unknown>): void {
@@ -2283,7 +2287,7 @@ export class Assets {
         era.generation = null;
         const type = era.owner.type;
         const handle = (era.value as { handle?: unknown } | null)?.handle;
-        if (typeof handle === 'number') {
+        if (typeof handle === 'number' && era.loader.fieldBinding !== 'source') {
             this.handlePaths_.get(type)?.delete(handle);
             if (type === 'mesh') this.forgetMeshOwner_(handle);
         }
@@ -2977,7 +2981,7 @@ export class Assets {
     }
 
     /**
-     * One era of one handle-bound asset, under the KEY that identifies it — the
+     * One era of one cached asset, under the KEY that identifies it — the
      * path for everything whose identity is a path, and the PAIR for spine,
      * whose skeleton with another atlas is another asset. One ownership
      * algorithm, differing only in what it calls one asset.
@@ -3004,7 +3008,7 @@ export class Assets {
             }
             const result = era.value as T;
             const handle = (result as { handle?: unknown } | null)?.handle;
-            if (typeof handle === 'number') this.recordHandlePath_(type, handle, key, era.loader);
+            if (typeof handle === 'number' && era.loader.fieldBinding !== 'source') this.recordHandlePath_(type, handle, key, era.loader);
             return this.typedLease_(type, lease, result, unclaim);
         } catch (error) {
             unclaim?.();
@@ -3012,7 +3016,7 @@ export class Assets {
         }
     }
 
-    /** The cache of current eras for one handle-bound type. A load that lands
+    /** The cache of current eras for one loader type. A load that lands
      *  after its own deadline was never handed to anyone, so this is the last
      *  place that knows it and what it acquired. */
     private genericCacheFor_(type: string): PreparedAssetCache {
@@ -3044,11 +3048,16 @@ export class Assets {
         return identity === ref ? direct : this.registrySlots_.slot(type, identity);
     }
 
+    private namedBinding_(type: string, ref: string) {
+        const era = this.loaders_.get(type)?.registry ? undefined : this.currentPrepared_(type, ref);
+        return era?.loader.fieldBinding === 'source' ? era.owner : this.publishedSlot_(type, ref);
+    }
+
     /** @internal Resolve a live field through its loader type and the owning scope. */
     leaseForBinding(scope: AssetScope, type: string, value: unknown): AssetLease | undefined {
         if (typeof value === 'number') return scope.bindingLease(type, value);
-        if (typeof value === 'string' && value) return scope.bindingLease(type, value, this.publishedSlot_(type, value));
-        return undefined;
+        if (typeof value !== 'string' || !value) return undefined;
+        return scope.bindingLease(type, value, this.namedBinding_(type, value));
     }
 
     /** @internal Changes when a registry type publishes, replaces or withdraws an era. */
@@ -3084,16 +3093,15 @@ export class Assets {
     }
 
     /**
-     * The asset types a component holds BY HANDLE — the loaders with a `load`
-     * door. What a live rebind can migrate: a ref-bound asset's slot swaps
-     * under the name a field already holds, so there is nothing to move.
+     * Asset types whose stored handle a live rebind can replace. Fields that
+     * use registry names and file references keep their authored spelling.
      *
      * @internal
      */
     handleBoundTypes(): string[] {
         const types: string[] = [];
         for (const [type, loader] of this.loaders_) {
-            if (loader.load) types.push(type);
+            if (loader.load && loader.fieldBinding !== 'source') types.push(type);
         }
         return types;
     }
@@ -3133,7 +3141,7 @@ export class Assets {
         return matchingDependents(this.eras_(), edge => edge.kind === 'owned' && edge.type === asset.type && canonical(edge.path) === target);
     }
 
-    /** Every live era of this realm, published under a name or held by handle. */
+    /** Every live era of this realm, held by a registry slot or a prepared load. */
     private eras_(): AssetWithReceipts[] {
         const eras = this.registrySlots_.eras();
         const seen = new Set<PreparedLoad<unknown>>();
@@ -3246,6 +3254,7 @@ export class Assets {
             take(ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner), type);
         return {
             ...base,
+            get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
             recorder,
             sourceAddressOf(ref) {
                 // A shared build path alone would identify the first record that shipped it.
@@ -3274,7 +3283,7 @@ export class Assets {
         };
     }
 
-    private getLoadContext_(): LoadContext {
+    private getLoadContext_(): AssetLoadServices {
         if (this.loadContext_) return this.loadContext_;
         const self = this;
         const catalog = this.catalog;
@@ -3296,7 +3305,7 @@ export class Assets {
                 const tail = own ?? (shared ? null : catalog.getStreamTail(file) ?? catalog.getStreamTail(local));
                 return tail && root && model?.remoteAssetPath(ref) ? { ...tail, path: remoteAssetUrl(tail.path, root) } : tail;
             },
-            resourceManager: requireResourceManager() as CppResourceManager,
+            resourceManager: getResourceManager(),
             async loadTexture(path: string, flipY?: boolean): Promise<TextureResult> {
                 if (flipY === false) {
                     return self.loadTextureRaw(path);

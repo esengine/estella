@@ -4,7 +4,7 @@ import { AssetScope, type AssetLease, type FieldLeaseBinding } from '../asset/As
 import type { SceneAssetResult } from '../asset/Assets';
 import { indexSceneAssets, SceneAssetOwners, type RefResolver } from '../asset/discoverAssets';
 import type { EntityAssetScopes } from '../asset/entityAssetScopes';
-import { bindingSlotOf } from '../asset/leaseBindings';
+import { namedBindingOf } from '../asset/leaseBindings';
 import type { World } from '../ecs/world';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import type { Entity } from '../types';
@@ -34,7 +34,7 @@ export function prepareSpawnOwnership(
         const entities = entityIds ?? inferred;
         if (!entities) continue;
         const auxiliary = auxiliaryEntityIds === undefined ? fallback?.auxiliaryFor(type, path) : auxiliaryEntityIds;
-        const key = bindingSlotOf(lease) ?? lease;
+        const key = namedBindingOf(lease) ?? lease;
         for (const id of entities) {
             const independent = !!auxiliary?.has(id) || (auxiliaryEntityIds === undefined && !inferred?.has(id));
             let selected = sources.get(id);
@@ -91,8 +91,8 @@ export function prepareSpawnOwnership(
                     if (kept !== scope.size) {
                         for (const lease of scope.leases()) {
                             if (fields.has(lease)) continue;
-                            // A slot uniquely identifies a named field. Other acquisitions can share a native handle or be opaque.
-                            if (!bindingSlotOf(lease)) auxiliary.add(lease);
+                            // Named fields resolve to one source. Other acquisitions can share a native handle or be opaque.
+                            if (!namedBindingOf(lease)) auxiliary.add(lease);
                             if (auxiliary.has(lease)) kept++;
                         }
                     }

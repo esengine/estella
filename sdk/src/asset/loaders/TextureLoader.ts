@@ -219,11 +219,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private compressedSource_: TextureCompressedSource | null = null;
     setCompressedSource(source: TextureCompressedSource | null): void { this.compressedSource_ = source; }
 
-    load(path: string, ctx: LoadContext, options?: TextureLoadOptions): Promise<TextureResult> {
+    load(path: string, ctx: LoadContext | TextureReadContext, options?: TextureLoadOptions): Promise<TextureResult> {
         return this.loadWithFlip(path, ctx, true, options);
     }
 
-    loadRaw(path: string, ctx: LoadContext, options?: TextureLoadOptions): Promise<TextureResult> {
+    loadRaw(path: string, ctx: LoadContext | TextureReadContext, options?: TextureLoadOptions): Promise<TextureResult> {
         return this.loadWithFlip(path, ctx, false, options);
     }
 
@@ -267,7 +267,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * is swept up by the next loss with nobody able to re-upload it.
      */
     async loadDetached(
-        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
+        path: string, ctx: LoadContext | TextureReadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
         return (await this.decodeAndUpload_(path, ctx, flip, settings)).texture;
     }
@@ -346,7 +346,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private async loadWithFlip(
-        path: string, ctx: LoadContext, flip: boolean, options?: TextureLoadOptions,
+        path: string, ctx: TextureReadContext, flip: boolean, options?: TextureLoadOptions,
     ): Promise<TextureResult> {
         const revision = this.imageRevisions_.get(path);
         const { settings, startEdge = 0 } = options ?? this.pendingOptions_;

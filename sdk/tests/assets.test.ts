@@ -15,7 +15,8 @@ const mockModule = {
     FS: null,
 } as any;
 
-vi.mock('../src/wasm/resourceManager', () => ({
+vi.mock('../src/wasm/resourceManager', async original => ({
+    ...await original<typeof import('../src/wasm/resourceManager')>(),
     requireResourceManager: () => ({
         createTexture: vi.fn(() => 42),
         registerExternalTexture: vi.fn(() => 42),

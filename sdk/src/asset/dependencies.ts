@@ -55,7 +55,7 @@ export interface AssetIdentity {
     readonly path: string;
 }
 
-/** One ownership identity: a registry slot, or one generation of a handle-bound asset. */
+/** One ownership identity: a registry slot, or one generation of a cached asset. */
 export class AssetDependencyOwner {
     private claims_?: Set<{ target: AssetDependencyOwner }>;
 
@@ -234,7 +234,7 @@ export function rebuildPlan(
 }
 
 /**
- * What a handle-bound load produced, and what its preparation took — the same
+ * What a cached load produced, and what its preparation took — the same
  * sealing an era gets, for the asset kind whose current value lives in a cache
  * rather than under a slot's name.
  */
