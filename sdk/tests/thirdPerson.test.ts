@@ -482,3 +482,24 @@ describe('the speed a character that walks by its animation asks for', () => {
         expect(animator.getFloat(PLAYER, TPC_SPEED)).toBeCloseTo(4, 5);
     });
 });
+
+describe('a character that walks by its animation, asked to go another way', () => {
+    const asked = (stick: string[], seconds: number) => {
+        const world = scene(0, { rootMotion: true, moveSpeed: 4, acceleration: 1000, deceleration: 1000 });
+        asksToMove(world, { x: 0, y: 0, z: 0 }, 0, 0, false);
+        const animator = new AnimatorControllerAPI();
+        requestMotion(world, stubInput(stick), seconds);
+        observeMotion(world, null, 0);
+        requestMotion(world, stubInput(stick), seconds);
+        return (observeMotion(world, animator, 0), animator.getFloat(PLAYER, TPC_SPEED));
+    };
+
+    it('asks for its full speed along the way it faces', () => {
+        expect(asked(['KeyW'], 1)).toBeCloseTo(4, 5);
+    });
+
+    it('asks for half across it, and nothing straight back, so it slows while it comes round', () => {
+        expect(asked(['KeyD'], 1)).toBeCloseTo(2, 4);
+        expect(asked(['KeyS'], 1)).toBe(0);
+    });
+});

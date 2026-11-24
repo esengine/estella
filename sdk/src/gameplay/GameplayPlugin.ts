@@ -36,7 +36,7 @@ import type { Entity } from '../types';
 import { Playthrough } from '../runtime/playthrough';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
-    desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,
+    desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity, shortestAngleDelta,
     yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY,
     TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, TPC_JUMP, type MoveBasis,
 } from './ThirdPersonController';
@@ -111,7 +111,16 @@ export function requestMotion(
             // The speed asked of the animator comes up to the stick's at the controller's own rates, so a gait changes
             // over the time the character takes to reach it rather than in one frame.
             const amount = Math.min(1, Math.hypot(stick.x, stick.y));
-            const wanted = amount * data.moveSpeed;
+            // Asked to go some other way than she faces, she slows while she turns: the gait carries her along her
+            // facing, so at full speed a turn round would be a run that spins. Half speed across the stick, none
+            // straight back; she comes up to speed again as she comes round.
+            let along = 1;
+            if (amount > 0 && world.has(entity, Transform)) {
+                const facing = yawOfQuaternion((world.get(entity, Transform) as TransformData).rotation);
+                const error = shortestAngleDelta(facing, facingYaw(direction)) * Math.PI / 180;
+                along = (1 + Math.cos(error)) / 2;
+            }
+            const wanted = amount * data.moveSpeed * along;
             const was = wishes.get(entity)?.speed ?? 0;
             const rate = (wanted < was ? data.deceleration : data.acceleration) * dt;
             const speed = Math.abs(wanted - was) <= rate ? wanted : was + Math.sign(wanted - was) * rate;
