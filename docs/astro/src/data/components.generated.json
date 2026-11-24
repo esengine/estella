@@ -27,10 +27,19 @@
           "default": "empty"
         },
         {
+          "key": "rig",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The model this animator poses, when it is a child of this entity and not this entity itself. Empty poses the children of this one."
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
         }
+      ],
+      "animatable": [
+        "rig"
       ]
     },
     {
@@ -10086,6 +10095,12 @@
           "default": "8",
           "range": "≥ 0, step 0.05",
           "advanced": true
+        },
+        {
+          "key": "rootMotion",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Cover ground by the travel the animation itself states: the stick chooses the heading and the speed it asks the animator for, and the gait that answers moves the character. Needs an AnimatorRootMotion on this entity and states with Root Motion on."
         },
         {
           "key": "enabled",

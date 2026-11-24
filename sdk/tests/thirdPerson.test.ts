@@ -420,3 +420,51 @@ describe('asking for a dodge', () => {
         expect(press([])).toBe('Idle');
     });
 });
+
+describe('a character that walks by its animation', () => {
+    const walker = (yaw = 0) => {
+        const world = scene(yaw, { rootMotion: true });
+        asksToMove(world, { x: 0, y: 0, z: 0 }, 0, 0, false);
+        return world;
+    };
+
+    it('is not pushed by the stick while no gait is asking to move', () => {
+        const world = walker();
+        requestMotion(world, stubInput(['KeyW']), 1 / 60);
+        expect(askedVelocity(world).z).toBeCloseTo(0, 6);
+    });
+
+    it('tells the animator the speed asked for, since the gait is what makes the speed', () => {
+        const world = walker();
+        const animator = new AnimatorControllerAPI();
+        requestMotion(world, stubInput(['KeyW']), 1 / 60);
+        observeMotion(world, animator, 1 / 60);
+        expect(animator.getFloat(PLAYER, TPC_SPEED)).toBeCloseTo(4, 5);
+
+        requestMotion(world, stubInput([]), 1 / 60);
+        observeMotion(world, animator, 1 / 60);
+        expect(animator.getFloat(PLAYER, TPC_SPEED)).toBe(0);
+    });
+
+    it('turns to face the stick, which is how the stick steers a clip that travels straight ahead', () => {
+        const world = walker();
+        requestMotion(world, stubInput(['KeyD']), 1 / 60);
+        observeMotion(world, null, 1);
+        const facing = q.rotate((world.get(PLAYER, Transform) as TransformData).rotation, { x: 0, y: 0, z: -1 });
+        expect(facing.x).toBeCloseTo(1, 4);
+        expect(facing.z).toBeCloseTo(0, 4);
+    });
+
+    it('covers ground by what the gait asks once one does', () => {
+        const world = walker();
+        asksToMove(world, { x: 0, y: 0, z: -0.05 }, 1 / 60);
+        requestMotion(world, stubInput(['KeyW']), 1 / 60);
+        expect(askedVelocity(world).z).toBeCloseTo(-3, 5);
+    });
+
+    it('without an AnimatorRootMotion to read, the stick still moves it', () => {
+        const world = scene(0, { rootMotion: true });
+        requestMotion(world, stubInput(['KeyW']), 1 / 60);
+        expect(askedVelocity(world).z).toBeCloseTo(-4, 5);
+    });
+});

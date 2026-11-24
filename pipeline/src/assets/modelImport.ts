@@ -420,6 +420,33 @@ export function timelineDocument(duration: number,
     };
 }
 
+/**
+ * Start a clip at its first key. An animation exported from a timeline that begins on frame 1 has every channel's first
+ * key a frame in, and the stretch before it holds that key: played in a loop it stands still for a frame each lap, and
+ * a character moved by it stops and starts. Nothing is stated before the first key, so nothing is lost by beginning there.
+ * Returns the seconds taken off the front.
+ */
+export function trimClipLeadIn(document: Record<string, unknown>): number {
+    const tracks = (document.tracks ?? []) as { channels?: { keyframes?: { time: number }[] }[]; events?: { time: number }[] }[];
+    let first = Infinity;
+    for (const track of tracks) {
+        for (const channel of track.channels ?? []) {
+            for (const key of channel.keyframes ?? []) first = Math.min(first, key.time);
+        }
+        for (const event of track.events ?? []) first = Math.min(first, event.time);
+    }
+    const duration = document.duration as number;
+    if (!(first > 1e-6) || !Number.isFinite(first) || !(duration > first)) return 0;
+    for (const track of tracks) {
+        for (const channel of track.channels ?? []) {
+            for (const key of channel.keyframes ?? []) key.time -= first;
+        }
+        for (const event of track.events ?? []) event.time -= first;
+    }
+    document.duration = duration - first;
+    return first;
+}
+
 /** A source's animation name is whatever the tool wrote (spaces, dots, a slash),
  *  and it becomes a file name here. */
 export function animationProductName(stem: string, name: string): string {

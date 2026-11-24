@@ -58,6 +58,7 @@ controller: string
 currentState: string
 enabled: boolean
 layerStates: string[]
+rig: number | undefined
 ```
 
 ## GripHolder — const @experimental

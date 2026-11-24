@@ -19,7 +19,7 @@
 import { defineComponent, type ComponentDef } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
 import { isUuidRef } from '../asset/AssetRegistry';
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import {
     MotionRegistry, blend1DMotionDriver, blend2DMotionDriver,
@@ -585,7 +585,22 @@ export interface AnimatorData {
      *  minus one — the base layer's is {@link currentState}, for the same reason
      *  the base layer has no weight. */
     layerStates: string[];
+    /**
+     * The entity whose children the clips pose, when the skeleton is not this
+     * entity's own: a character that carries its model as a child, set down and
+     * scaled where the model was imported. Every path a clip names is then found
+     * under it, and a root track is that entity's, stated in its axes and its
+     * units. Empty for a rig that hangs directly from the animator.
+     */
+    rig?: Entity;
     enabled: boolean;
+}
+
+/** `v`, stated in `entity`'s own axes and units, as its parent sees it. */
+function inFrameOf(world: World, entity: Entity, v: Vec3): Vec3 {
+    if (!world.has(entity, Transform)) return v;
+    const t = world.get(entity, Transform) as TransformData;
+    return q.rotate(t.rotation, { x: v.x * t.scale.x, y: v.y * t.scale.y, z: v.z * t.scale.z });
 }
 
 /**
@@ -600,8 +615,13 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
     avatar: '',
     currentState: '',
     layerStates: [] as string[],
+    rig: 0 as Entity,
     enabled: true,
 }, {
+    entityFields: ['rig'],
+    fields: {
+        rig: { tooltip: 'The model this animator poses, when it is a child of this entity and not this entity itself. Empty poses the children of this one.' },
+    },
     assetFields: [
         { field: 'controller', type: 'animatorcontroller' },
         { field: 'avatar', type: 'avatar' },
@@ -850,7 +870,11 @@ export class AnimatorControllerAPI {
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
             const rig = this.avatarOf(a.avatar);
             const clips = this.avatarOf(def.avatar);
-            const joints = avatarResolver(world, rig);
+            const named = avatarResolver(world, rig);
+            // A rig carried as a child: every path a clip names is under it, the root's own included.
+            const rigRoot = this.rigRootOf(world, entity, a);
+            const joints: JointResolver = rigRoot === entity
+                ? named : (root, path) => named(root === entity ? rigRoot : root, path);
             const travel = travelRatio(clips, rig);
             const ctx = this.motions_.context(world, entity, params, joints);
             const rt = this.runtimeFor(entity, count, storage);
@@ -1105,10 +1129,15 @@ export class AnimatorControllerAPI {
         const stated = active && motion !== null && ctx.rootDelta(motion, span, out);
         const local = stated ? out.position : ZERO_VEC;
         const turn = stated ? out.rotation : IDENTITY_QUAT;
-        const rotation = world.has(entity, Transform)
-            ? (world.get(entity, Transform) as TransformData).rotation
-            : null;
-        const moved = rotation ? q.rotate(rotation, local) : local;
+        // A root track is stated in the frame of the entity it is the root of: that entity's turn and its size both
+        // apply, so a model imported at a scale, or made larger in a scene, covers ground in proportion. With the
+        // rig carried as a child the track is the child's, and the character's own frame applies after it.
+        let moved: Vec3 = local;
+        const rigRoot = this.rigRootOf(world, entity, world.get(entity, Animator) as AnimatorData);
+        if (stated) {
+            if (rigRoot !== entity) moved = inFrameOf(world, rigRoot, moved);
+            moved = inFrameOf(world, entity, moved);
+        }
 
         world.update(entity, AnimatorRootMotion, (data: AnimatorRootMotionData) => {
             data.active = active;
@@ -1123,6 +1152,12 @@ export class AnimatorControllerAPI {
             data.deltaRotation.z = turn.z;
             data.deltaTime = active ? span.to - span.from : 0;
         });
+    }
+
+    /** The entity a clip's paths start from: the rig the animator names, or the animator's own entity. */
+    private rigRootOf(world: World, entity: Entity, data: AnimatorData): Entity {
+        const rig = data.rig;
+        return rig && world.has(rig, Transform) ? rig : entity;
     }
 
     /**

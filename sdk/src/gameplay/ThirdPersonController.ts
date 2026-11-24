@@ -46,6 +46,14 @@ export interface ThirdPersonControllerData {
     camera: Entity;
     /** Speed under which the animator is told the character is standing still. */
     idleThreshold: number;
+    /**
+     * Walk by the animation's own travel. The stick then says which way to face
+     * and how fast it would like to go, the animator is told that speed and picks
+     * a gait for it, and the gait's root motion is what covers the ground: the
+     * feet land where the clip put them. Off, the stick sets the velocity and the
+     * animator is told what speed came of it.
+     */
+    rootMotion?: boolean;
     enabled: boolean;
 }
 
@@ -66,6 +74,7 @@ export const ThirdPersonController: ComponentDef<ThirdPersonControllerData> =
         cameraRelative: true,
         camera: 0 as Entity,
         idleThreshold: 8,
+        rootMotion: false,
         enabled: true,
     }, {
     // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
@@ -77,6 +86,7 @@ export const ThirdPersonController: ComponentDef<ThirdPersonControllerData> =
             airControl: { min: 0, max: 1, step: 0.05, advanced: true },
             idleThreshold: { min: 0, step: 0.05, advanced: true },
             jumpSpeed: { min: 0, tooltip: 'Upward speed a jump starts with. 0 = cannot jump.' },
+            rootMotion: { tooltip: 'Cover ground by the travel the animation itself states: the stick chooses the heading and the speed it asks the animator for, and the gait that answers moves the character. Needs an AnimatorRootMotion on this entity and states with Root Motion on.' },
         },
     });
 

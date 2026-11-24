@@ -333,6 +333,7 @@ enabled: boolean
 idleThreshold: number
 jumpSpeed: number
 moveSpeed: number
+rootMotion: boolean | undefined
 rotationSpeed: number
 ```
 

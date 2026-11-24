@@ -615,6 +615,7 @@ controller: string
 currentState: string
 enabled: boolean
 layerStates: string[]
+rig: number | undefined
 ```
 
 ## AnimatorEdge — type @experimental

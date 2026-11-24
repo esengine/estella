@@ -56,6 +56,9 @@ function rootMotionRequest(world: World, entity: Entity): AnimatorRootMotionData
     return data.active ? data : null;
 }
 
+/** What the stick last asked of each character that walks by its animation: a ground direction and how hard, 0..1. */
+const wishes = new Map<Entity, { x: number; z: number; amount: number }>();
+
 /** The stick, from the keys a keyboard stands in for one with. */
 function readStick(input: InputState): { x: number; y: number } {
     const x = (input.isKeyDown('KeyD') ? 1 : 0) - (input.isKeyDown('KeyA') ? 1 : 0);
@@ -99,11 +102,27 @@ export function requestMotion(
         // animation that declared itself in charge. Chosen HERE and not by the
         // animator, which states a request and never a position.
         const driven = rootMotionRequest(world, entity);
+        const stick = readStick(input);
+        const direction = desiredDirection(stick, basisFor(world, data));
+        // A character that walks by its animation: the stick is a wish, kept for
+        // the step that tells the animator and turns the character.
+        const byAnimation = data.rootMotion === true && world.has(entity, AnimatorRootMotion);
+        if (byAnimation) {
+            wishes.set(entity, { x: direction.x, z: direction.z, amount: Math.min(1, Math.hypot(stick.x, stick.y)) });
+        } else {
+            wishes.delete(entity);
+        }
         let next: { x: number; z: number };
         if (driven) {
             next = rootMotionVelocity(driven.deltaPosition, driven.deltaTime);
+        } else if (byAnimation && character.isOnFloor) {
+            // Standing, or between two gaits: no state is asking to move, and the
+            // stick does not get to push a character whose feet are not walking.
+            next = approachVelocity(
+                { x: character.velocity.x, z: character.velocity.z }, { x: 0, z: 0 },
+                data.acceleration, data.deceleration, dt,
+            );
         } else {
-            const direction = desiredDirection(readStick(input), basisFor(world, data));
             const target = {
                 x: direction.x * data.moveSpeed,
                 z: direction.z * data.moveSpeed,
@@ -150,13 +169,31 @@ export function observeMotion(world: World, animator: AnimatorControllerAPI | nu
         const character = world.get(entity, CharacterController3D) as CharacterController3DData;
         const moved = character.realVelocity;
         const speed = Math.hypot(moved.x, moved.z);
+        const wish = wishes.get(entity);
 
         if (animator && world.has(entity, Animator)) {
-            animator.setFloat(entity, TPC_SPEED, speed < data.idleThreshold ? 0 : speed);
+            // Walking by animation, the animator is told the speed ASKED for: the
+            // gait it picks is what makes the speed, so the speed reached cannot
+            // be what picks the gait.
+            const told = wish ? wish.amount * data.moveSpeed : speed;
+            animator.setFloat(entity, TPC_SPEED, told < data.idleThreshold ? 0 : told);
             animator.setBool(entity, TPC_GROUNDED, character.isOnFloor);
         }
 
         if (!world.has(entity, Transform)) continue;
+
+        // Walking by animation, the stick is the heading: the clip travels along
+        // the way the character faces, so turning it is how the stick steers.
+        if (wish) {
+            if (wish.amount <= 0) continue;
+            const wanted = facingYaw({ x: wish.x, y: 0, z: wish.z });
+            world.update(entity, Transform, (t: TransformData) => {
+                const turned = turnToward(yawOfQuaternion(t.rotation), wanted, data.rotationSpeed, dt);
+                const yaw = yawQuaternion(turned);
+                t.rotation.w = yaw.w; t.rotation.x = yaw.x; t.rotation.y = yaw.y; t.rotation.z = yaw.z;
+            });
+            continue;
+        }
 
         // While an animation is driving, the heading is the animation's too —
         // turning to face the motion as well would be a second author of the

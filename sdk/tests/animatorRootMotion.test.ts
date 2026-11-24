@@ -261,3 +261,30 @@ describe('publishing turned off', () => {
         expect(positionOf(setup.world).z).toBe(0);
     });
 });
+
+describe('the frame a root track is stated in', () => {
+    it('is the entity it is the root of: a rig twice the size covers twice the ground', () => {
+        const setup = seed(travelClip(300), true);
+        setup.world.update(E, Transform, (t: TransformData) => { t.scale.x = 2; t.scale.y = 2; t.scale.z = 2; });
+        const { asked } = drive(setup, 30);
+        expect(asked.z).toBeCloseTo(-600, 3);
+    });
+
+    it('is the rig the animator names, when the model is carried as a child', () => {
+        const RIG = 2;
+        const setup = seed(travelClip(300), true);
+        // The model as an import leaves it: three times the size, and facing the other way from its character.
+        setup.world.insert(RIG, Transform, {
+            position: { x: 0, y: -80, z: 0 }, rotation: q.axis('y', Math.PI), scale: { x: 3, y: 3, z: 3 },
+        } as unknown as TransformData);
+        setup.world.insert(RIG, probeDef(), { x: 0 });
+        setup.world.update(E, Animator, (a: AnimatorData) => { a.rig = RIG as never; });
+
+        const { asked } = drive(setup, 30);
+        expect(asked.z).toBeCloseTo(900, 3);
+        // What the clip poses lands on the rig, and the character it moves is not posed at all.
+        expect((setup.world.get(RIG, probeDef()) as { x: number }).x).toBe(5);
+        expect(probeX(setup.world)).toBe(0);
+        expect((setup.world.get(RIG, Transform) as TransformData).position.y).toBe(-80);
+    });
+});
