@@ -21,6 +21,7 @@ import type {
 import { AsyncCache } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
 import { assetPairKey } from './assetPairKey';
+import { bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
@@ -366,6 +367,8 @@ export interface SceneAssetResult {
     scope: AssetScope;
     /** @internal Projection of successful acquisitions; their scope/era remains the owner. */
     acquisitions?: readonly SceneAssetAcquisition[];
+    /** @internal The names used by this preload, including across an intervening manifest update. */
+    resolveRef?: AssetRefResolver;
     missing: MissingAsset[];
     /** Per asset type: how many loaded, the sum of their load times and the
      *  slowest one, in ms. Loads overlap, so the sums exceed the wall time. */
@@ -577,7 +580,7 @@ export class Assets {
      */
     texturesAwaitingReupload(): { handle: number; content: TextureContent; path: string }[] {
         return this.owedTextureEntries_().map(row => row.content === TextureContent.Asset
-            ? { ...row, path: logicalTextureKey(row.path) } : row);
+            ? { ...row, path: bindingFile(logicalTextureKey(row.path)) } : row);
     }
 
     private owedTextureEntries_(): { handle: number; content: TextureContent; path: string }[] {
@@ -675,8 +678,8 @@ export class Assets {
             const flip = cut < 0 || path.slice(cut + 1) === 'f';
             try {
                 const fresh = await this.textureLoader_.loadDetached(
-                    this.resolveLoadPath_(ref), this.getLoadContext_(), flip,
-                    this.textureImportResolver_?.(ref));
+                    bindingRecord(ref) === undefined ? this.resolveLoadPath_(ref) : ref, this.getLoadContext_(), flip,
+                    this.textureImportResolver_?.(bindingRecord(ref) ?? ref));
                 try { if (rm.adoptTextureContent(handle, fresh.handle)) restored++; }
                 finally { rm.releaseTexture(fresh.handle); }
             } catch (e) {
@@ -845,9 +848,10 @@ export class Assets {
         ref: string, flip: boolean,
     ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string }> {
         this.assertLoading_();
-        const path = this.resolveLoadPath_(ref);
+        const path = this.handleLoadKey_('texture', ref);
         const cacheKey = this.textureCacheKey_(path, flip);
-        const settings = this.textureImportResolver_?.(ref);
+        const record = bindingRecord(path);
+        const settings = this.textureImportResolver_?.(ref) ?? (record && record !== ref ? this.textureImportResolver_?.(record) : undefined);
         const epoch = this.resetEpoch_;
         const load = await this.textureCache_.getOrLoad(cacheKey, async () => {
             // Warm-cache hit: a texture whose last reference was released stays
@@ -926,7 +930,7 @@ export class Assets {
     }
 
     getTexture(ref: string): TextureResult | undefined {
-        const path = this.resolveLoadPath_(ref);
+        const path = this.handleLoadKey_('texture', ref);
         return this.textureCache_.get(this.textureCacheKey_(path, true))?.value;
     }
 
@@ -938,7 +942,8 @@ export class Assets {
      * slot is wearing (a raw handle number names nothing to a human).
      */
     pathForHandle(kind: string, handle: number): string | null {
-        return this.handlePaths_.get(kind)?.get(handle) ?? null;
+        const path = this.handlePaths_.get(kind)?.get(handle);
+        return path === undefined ? null : bindingFile(path);
     }
 
     /**
@@ -950,7 +955,7 @@ export class Assets {
         const rm = getResourceManager();
         if (!rm || renderId === 0) return null;
         for (const [handle, path] of this.handlePaths_.get('texture') ?? []) {
-            if (rm.getTextureGLId(handle) === renderId) return path;
+            if (rm.getTextureGLId(handle) === renderId) return bindingFile(path);
         }
         return null;
     }
@@ -1188,8 +1193,8 @@ export class Assets {
                  onProgress?.(++loadedCount, totalCount);
              });
 
-        for (const asset of model.assetsInGroup(groupName)) {
-            const path = this.groupAssetRef_(asset, mode === 'remote');
+        for (const [key, asset] of Object.entries(model.group(groupName)?.assets ?? {})) {
+            const path = this.groupAssetRef_(key, asset, mode === 'remote');
             const task = this.groupLoadTask_(path, asset.type, bundle);
             if (task) promises.push(track(task, path, asset.type));
         }
@@ -1217,11 +1222,11 @@ export class Assets {
             return;
         }
         const mode = model.bundleMode(groupName);
-        for (const asset of model.assetsInGroup(groupName)) {
+        for (const [key, asset] of Object.entries(model.group(groupName)?.assets ?? {})) {
             // The SAME path loadGroup acquired under. Resolving it a different
             // way here would release a key nobody holds, which is a leak that
             // looks exactly like a working release.
-            const path = this.groupAssetRef_(asset, mode === 'remote');
+            const path = this.groupAssetRef_(key, asset, mode === 'remote');
             GROUP_ASSET_CHANNELS[asset.type]?.release?.(this, path);
         }
     }
@@ -1252,7 +1257,8 @@ export class Assets {
         return isRemote && root ? remoteAssetUrl(path, root) : this.resolveLoadPath_(path);
     }
 
-    private groupAssetRef_(asset: AddressableManifestAsset, remote: boolean): string {
+    private groupAssetRef_(key: string, asset: AddressableManifestAsset, remote: boolean): string {
+        if (this.manifestModel_?.sharesFile(asset.path) && this.surfaceRecord_(key)) return key;
         if (asset.type === 'audio' && asset.address) return asset.address;
         return this.manifestAssetUrl_(asset.path, remote);
     }
@@ -1361,7 +1367,7 @@ export class Assets {
         const outgoing = this.manifestBindings_.heldValues(changed, this.textureRefs_, this.genericRefs_);
         const nextTypes = new Map(changed.map(c => [c.key, c.type]));
         for (const [key, source] of previousSources) {
-            const sameFile = nextTypes.get(key) === source.type && this.resolveLoadPath_(source.ref) === source.path;
+            const sameFile = nextTypes.get(key) === source.type && this.handleLoadKey_(source.type, source.ref) === source.path;
             this.endManifestResidency_(source, sameFile);
         }
         // A newer check staged while this one downloaded stays staged.
@@ -1420,7 +1426,7 @@ export class Assets {
             if (!this.loaders_.get(type)?.load) continue;
             const uuid = extractUuid(c.key);
             const ref = uuid ? `${UUID_REF_PREFIX}${uuid}` : c.key;
-            const path = this.resolveLoadPath_(ref);
+            const path = this.handleLoadKey_(type, ref);
             sources.set(c.key, { type, ref, path });
             const generations = type === 'texture' && this.loaders_.get(type) === this.textureLoader_
                 ? this.textureRefs_.generations(this.textureCacheKey_(path, true))
@@ -1645,13 +1651,13 @@ export class Assets {
 
         for (const ref of refs) {
             const path = this.resolveLoadPath_(ref);
-            const type = this.inferAssetType_(path);
+            const type = this.manifestRecord_(ref)?.asset.type ?? this.inferAssetType_(path);
             if (!type) {
                 log.warn('asset', `preload: cannot determine asset type for ${ref}`);
                 failed.push({ ref, reason: 'unresolved' });
                 continue;
             }
-            const load = this.typedLoadFor_(type === 'audio' ? ref : path, type);
+            const load = this.typedLoadFor_(type === 'audio' || this.surfaceRecord_(ref) ? ref : path, type);
             if (!load) {
                 log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
                 failed.push({ ref, type, reason: 'unresolved' });
@@ -1758,7 +1764,8 @@ export class Assets {
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
         const owners = options?.entityOwnership ? new SceneAssetOwners() : undefined;
-        const discovered = indexSceneAssets(sceneData, ref => this.resolveRef(ref), owners, options?.onDiscover);
+        const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
+        const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover);
         for (const p of discovered.meshTextures) this.meshTextures_.add(this.assetIdentity_(p));
         for (const p of discovered.meshMaterials) this.meshMaterials_.add(this.assetIdentity_(p));
         for (const ref of discovered.unresolved) {
@@ -1855,7 +1862,8 @@ export class Assets {
             textureHandles,
             p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
         );
-        pushAcquire('material', materialHandles);
+        pushAcquire('material', materialHandles,
+            p => this.acquireTypedLease_('material', discovered.rawFor.get(p) ?? p, recorder?.owner));
         pushAcquire('font', fontHandles);
         pushAcquire('mesh', meshHandles);
         pushAcquire('environment', environmentHandles);
@@ -1909,7 +1917,7 @@ export class Assets {
             warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
 
             return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                     probeVolumeHandles, releaseCallbacks, scope, acquisitions, missing, timings, wallMs };
+                     probeVolumeHandles, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs };
         } catch (error) {
             try { scope.releaseAll(); }
             catch (cleanupError) { log.warn('asset', 'Scene preload cleanup failed', cleanupError); }
@@ -1935,10 +1943,8 @@ export class Assets {
                     const ref = comp.data[field];
                     if (typeof ref !== 'string' || !ref) continue;
 
-                    // UUID refs resolve to their current path; plain paths
-                    // pass through. Unknown UUID → null, handle will be 0
-                    // (caller's getter returns 0 when the key is missing).
-                    const path = this.resolveRef(ref);
+                    // Use the name under which this preparation acquired the field, even after an update.
+                    const path = result.resolveRef ? result.resolveRef(ref) : this.resolveRef(ref);
                     if (path == null) {
                         comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? 0;
                         continue;
@@ -1948,13 +1954,13 @@ export class Assets {
                         // Read by their own component from the path (an image source, a groom's files).
                         case 'image':
                         case 'groom': {
-                            comp.data[field] = path;
+                            comp.data[field] = this.resolveRef(ref) ?? path;
                             break;
                         }
                         case 'texture': {
                             const handle = textureHandles.get(path) ?? 0;
                             comp.data[field] = handle;
-                            this.recordHandlePath_('texture', handle, path);
+                            if (!this.handlePaths_.get('texture')?.has(handle)) this.recordHandlePath_('texture', handle, path);
                             // Ref spelling first (per-frame keys); the resolved
                             // path for packed frames is the shared page.
                             const atlasInfo = this.catalog.getAtlasFrame(ref) ?? this.catalog.getAtlasFrame(path);
@@ -1985,13 +1991,13 @@ export class Assets {
                         case 'material': {
                             const handle = materialHandles.get(path) ?? 0;
                             comp.data[field] = handle;
-                            this.recordHandlePath_('material', handle, path);
+                            if (!this.handlePaths_.get('material')?.has(handle)) this.recordHandlePath_('material', handle, path);
                             break;
                         }
                         case 'font': {
                             const handle = fontHandles.get(path) ?? 0;
                             comp.data[field] = handle;
-                            this.recordHandlePath_('font', handle, path);
+                            if (!this.handlePaths_.get('font')?.has(handle)) this.recordHandlePath_('font', handle, path);
                             break;
                         }
                         case 'mesh': {
@@ -2146,7 +2152,7 @@ export class Assets {
     // =========================================================================
 
     releaseTexture(ref: string): void {
-        const path = this.resolveLoadPath_(ref);
+        const path = this.handleLoadKey_('texture', ref);
         for (const flip of [true, false]) this.releaseTextureVariant_(path, flip);
     }
 
@@ -2213,8 +2219,8 @@ export class Assets {
      * (bypassing this) would strand a dead handle in the material cache.
      */
     releaseMaterial(handle: number): void {
-        const path = this.pathForHandle('material', handle);
-        if (path !== null) this.releaseTyped('material', path);
+        const path = this.handlePaths_.get('material')?.get(handle);
+        if (path !== undefined) this.releaseTyped('material', path);
     }
 
     /**
@@ -2393,7 +2399,7 @@ export class Assets {
      *  happens to live at the changed file can still be what the chain reaches
      *  LAST, and dropping it there is the same erasure one level up. */
     private rebuildPlan_(refs: string | readonly string[]): AssetIdentity[][] {
-        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const canonical = cachedPaths(path => this.graphPath_(path));
         const changed = new Set((typeof refs === 'string' ? [refs] : refs).map(canonical));
         const eras = this.eras_();
         for (const preparation of this.preparations_) {
@@ -2480,7 +2486,7 @@ export class Assets {
         const { type } = asset;
         // Handle-bound graph nodes already carry their cache key, including a skeleton/atlas pair.
         const cache = this.genericCache_.get(type);
-        const path = fromGraph && cache ? asset.path : this.resolveLoadPath_(asset.path);
+        const path = fromGraph && cache ? asset.path : this.handleLoadKey_(type, asset.path);
         const ended = this.endCachedEra_(asset, path);
         const published = this.republishSlot_(type, fromGraph ? asset.path : this.assetIdentity_(asset.path));
         const dropped = this.loaders_.get(type)?.invalidate?.(ended.residencyPath) || ended.dropped;
@@ -2491,7 +2497,7 @@ export class Assets {
                 if (held === path) handlePaths.delete(handle);
             }
         }
-        if (dropped) this.fireInvalidate_({ ref: asset.path, type: type as AssetFieldType, oldValue: ended.oldValue });
+        if (dropped) this.fireInvalidate_({ ref: bindingRecord(asset.path) ?? asset.path, type: type as AssetFieldType, oldValue: ended.oldValue });
         return { hit: dropped || published !== undefined, rebuilt: published };
     }
 
@@ -2500,7 +2506,7 @@ export class Assets {
         const { type } = asset;
         const cache = this.genericCache_.get(type);
         const loader = this.loaders_.get(type);
-        let residencyPath = path;
+        let residencyPath = loader === this.textureLoader_ ? path : bindingFile(path);
         // Held by a cache or by a loader's own residency: what a listener is
         // told about. A slot swaps its era instead, and reports nothing.
         let dropped = false;
@@ -2784,7 +2790,7 @@ export class Assets {
      * @experimental
      */
     getAssetProblems(asset: string): readonly string[] {
-        return this.assetProblems_.get(asset) ?? [];
+        return this.assetProblems_.get(this.assetIdentity_(asset)) ?? [];
     }
 
     /** Hear every change to an asset's problems (the editor's diagnostics). One listener; null removes it. @experimental */
@@ -2819,6 +2825,31 @@ export class Assets {
         if (isBuiltinAssetRef(ref)) return ref;
         if (this.assetRefResolver_) return this.assetRefResolver_(ref);
         return ref;
+    }
+
+    /** @internal Key used for scene handle maps and their entity ownership. */
+    sceneAssetRef(ref: string): string | null {
+        const record = this.surfaceRecord_(ref);
+        return record && this.manifestModel_?.sharesFile(record.asset.path) ? record.key : this.resolveRef(ref);
+    }
+
+    private manifestRecord_(ref: string) {
+        const model = this.manifestModel_;
+        if (!model) return;
+        const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
+        return model.recordForRef(ref) ?? (path !== ref ? model.recordForRef(path) : undefined);
+    }
+
+    /** Atlas frames deliberately bind one page and select their own UV rectangle. */
+    private surfaceRecord_(ref: string) {
+        const record = this.manifestRecord_(ref);
+        if (record?.asset.type === 'material' || (record?.asset.type === 'texture' && !record.asset.metadata?.atlasFrame)) return record;
+        return undefined;
+    }
+
+    private graphPath_(ref: string): string {
+        const key = bindingRecord(ref) ?? this.surfaceRecord_(ref)?.key;
+        return key ?? this.resolveLoadPath_(ref);
     }
 
     /**
@@ -2862,7 +2893,7 @@ export class Assets {
         // Deliberately NOT assetIdentity_: for a remote-group asset that answers
         // with the ADDRESS, and the package carries the STAGED name. Where the
         // bytes are is the realm's question, so its resolver gets it.
-        const resolved = this.assetRefResolver_?.(ref) ?? ref;
+        const resolved = this.assetRefResolver_?.(ref) ?? this.surfaceRecord_(ref)?.asset.path ?? ref;
         return this.catalog.resolve(resolved);
     }
 
@@ -2888,6 +2919,8 @@ export class Assets {
         // A manifest names one asset three ways — record key, address, build
         // path — and only it knows they are the same asset. Folding them here is
         // what keeps a uuid ref and a path ref on ONE slot.
+        const record = this.surfaceRecord_(bindingRecord(ref) ?? ref);
+        if (record) return record.asset.address ?? record.key;
         const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
         const named = this.manifestModel_?.remoteAssetIdentity(ref)
             ?? (path === ref ? null : this.manifestModel_?.remoteAssetIdentity(path));
@@ -2965,7 +2998,12 @@ export class Assets {
         }
         const load = loader.load.bind(loader);
         const path = this.resolveLoadPath_(ref);
-        return this.acquirePrepared_<T>(loader, path, ref, (ctx) => load(path, ctx), owner);
+        const key = this.handleLoadKey_(type, ref, path);
+        if (loader instanceof MaterialAssetLoader && key !== path) {
+            const document = this.manifestRecord_(ref)?.asset.address ?? path;
+            return this.acquirePrepared_<T>(loader, key, ref, ctx => loader.load(document, ctx, ctx.catalog.getBuildPath(path)) as Promise<T>, owner);
+        }
+        return this.acquirePrepared_<T>(loader, key, ref, ctx => load(path, ctx), owner);
     }
 
     private audioFile_(ref: string): { path: string; address?: string } {
@@ -2974,8 +3012,11 @@ export class Assets {
         return { path: resolved === ref ? entry?.path ?? resolved : resolved, address: entry?.address };
     }
 
-    private handleLoadKey_(type: string, ref: string): string {
-        return this.loaders_.get(type) instanceof AudioAssetLoader ? ref : this.resolveLoadPath_(ref);
+    private handleLoadKey_(type: string, ref: string, file?: string): string {
+        if (bindingRecord(ref) !== undefined || this.loaders_.get(type) instanceof AudioAssetLoader) return ref;
+        const path = file ?? this.resolveLoadPath_(ref);
+        const record = this.surfaceRecord_(ref);
+        return record?.asset.type === type ? manifestBindingKey(record.key, path) : path;
     }
 
     /**
@@ -3116,7 +3157,7 @@ export class Assets {
      * @internal
      */
     dependentsOfSource(ref: string): AssetIdentity[] {
-        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const canonical = cachedPaths(path => this.graphPath_(path));
         const target = canonical(ref);
         return matchingDependents(this.eras_(), edge => isInvalidatable(edge) && canonical(edge.path) === target);
     }
@@ -3130,7 +3171,7 @@ export class Assets {
      * @internal
      */
     dependentsOfAsset(asset: AssetIdentity): AssetIdentity[] {
-        const canonical = cachedPaths(path => this.resolveLoadPath_(path));
+        const canonical = cachedPaths(path => this.graphPath_(path));
         const target = canonical(asset.path);
         return matchingDependents(this.eras_(), edge => edge.kind === 'owned' && edge.type === asset.type && canonical(edge.path) === target);
     }
@@ -3271,14 +3312,21 @@ export class Assets {
         const catalog = this.catalog;
         const model = this.manifestModel_;
         const root = this.remoteRoot_;
+        const readSharedFile = model ? manifestFileReads(model, root) : undefined;
         this.loadContext_ = {
+            readSharedFile,
             backend: this.backend,
             catalog,
             resolveStreamTail: path => {
-                const ref = pathWithinRemoteRoot(path, root);
-                const tail = catalog.getStreamTail(path) ?? (ref === path ? null : catalog.getStreamTail(ref));
-                return tail && root && (model?.remoteAssetPath(ref) ?? model?.remoteAssetPath(path))
-                    ? { ...tail, path: remoteAssetUrl(tail.path, root) } : tail;
+                const file = bindingFile(path);
+                const local = pathWithinRemoteRoot(file, root);
+                const ref = bindingRecord(path) ?? local;
+                const record = model?.recordForRef(ref);
+                const own = record && (catalog.getStreamTail(`${UUID_REF_PREFIX}${record.key}`)
+                    ?? catalog.getStreamTail(record.asset.address ?? record.key) ?? record.asset.streamTail);
+                const shared = record && model?.sharesFile(record.asset.path);
+                const tail = own ?? (shared ? null : catalog.getStreamTail(file) ?? catalog.getStreamTail(local));
+                return tail && root && model?.remoteAssetPath(ref) ? { ...tail, path: remoteAssetUrl(tail.path, root) } : tail;
             },
             resourceManager: requireResourceManager() as CppResourceManager,
             async loadTexture(path: string, flipY?: boolean): Promise<TextureResult> {
@@ -3289,7 +3337,7 @@ export class Assets {
             },
             acquireTexture: (path, flipY) => self.acquireTexture(path, flipY),
             noteAssetProblems(asset: string, problems: readonly string[]): void {
-                const path = self.resolveLoadPath_(asset);
+                const path = self.assetIdentity_(asset);
                 const same = (self.assetProblems_.get(path) ?? []).join('\n') === problems.join('\n');
                 if (problems.length === 0) self.assetProblems_.delete(path);
                 else self.assetProblems_.set(path, [...problems]);
@@ -3304,7 +3352,8 @@ export class Assets {
                 return self.acquireTyped<T>(type, ref);
             },
             async loadText(path: string): Promise<string> {
-                return self.backend.fetchText(self.backend.resolveUrl(path));
+                const read = () => self.backend.fetchText(self.backend.resolveUrl(path));
+                return readSharedFile ? readSharedFile(path, 'text', read) : read();
             },
             async loadBinary(path: string): Promise<ArrayBuffer> {
                 return self.backend.fetchBinary(self.backend.resolveUrl(path));

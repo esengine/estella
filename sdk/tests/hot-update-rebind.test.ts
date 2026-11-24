@@ -20,6 +20,7 @@ import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets, type AssetsOptions } from '../src/asset/Assets';
 import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
+import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
@@ -959,6 +960,55 @@ describe('a live binding follows the asset, whatever kind it is', () => {
     });
 
     describe.each([['texture', 'png'], ['material', 'esmaterial']] as const)('%s in a shipped manifest', (type, ext) => {
+        it.each(['local', 'remote'] as const)('keeps two %s records on the same file independently bound', async mode => {
+            const first = '45d141cb-38d9-4c51-ad93-c06a785471c1';
+            const second = '7727ca31-4df7-4d64-800c-7090ad6f5a94';
+            const shared = `blobs/shared.${ext}`, changed = `blobs/changed.${ext}`;
+            const record = (name: string) => ({ type, path: shared, address: `art/${name}.${ext}`, labels: [], size: 8 });
+            const shipped: AddressableManifest = { version: '2.0', groups: { art: { bundleMode: mode, labels: [], assets: {
+                [first]: record('first'), [second]: record('second'),
+            } } } };
+            const updated = structuredClone(shipped);
+            updated.groups.art.assets[first].path = changed;
+            const index = indexPackagedManifest(shipped), source = createPackagedAssetSource(index);
+            const assets = buildAssets({ [shared]: MATERIAL, [changed]: MATERIAL,
+                'split.json': JSON.stringify(updated), 'join.json': JSON.stringify(shipped),
+            }, { manifest: index.model, activateManifest: source.activateManifest });
+            assets.setAssetRefResolver(source.resolveRef!);
+            if (mode === 'remote') assets.setRemoteRoot('https://cdn.test');
+            const app = App.new(); connectFakeCpp(app.world); installHotUpdateRebind(app, assets);
+            const refs = [`@uuid:${first}`, `art/second.${ext}`, `/art/first.${ext}`];
+            const scene: SceneData = { version: SCENE_FORMAT_VERSION, name: 'shared', entities: refs.map((ref, id) => ({
+                id, name: String(id), parent: null, children: [], visible: true,
+                components: [{ type: id === 1 ? 'MeshRenderer' : 'Sprite', data: { [type]: ref } }],
+            })) };
+            const prepared = await assets.preloadSceneAssets(scene, undefined, { entityOwnership: true });
+            try {
+                expect(prepared.missing).toEqual([]);
+                assets.resolveSceneAssetPaths(scene, prepared);
+                const handles = scene.entities.map(e => Number(e.components[0].data[type]));
+                expect(handles[0]).toBeGreaterThan(0);
+                expect(handles[1]).toBeGreaterThan(0);
+                expect(handles[0]).not.toBe(handles[1]);
+                expect(handles[2]).toBe(handles[0]);
+                expect(prepared.acquisitions?.map(a => [...a.entityIds!])).toEqual(expect.arrayContaining([[0, 2], [1]]));
+                const sprite = app.world.spawn(), mesh = app.world.spawn();
+                app.world.insert(sprite, Sprite, { [type]: handles[0] });
+                app.world.insert(mesh, MeshRenderer, { [type]: handles[1] });
+                for (const url of ['split.json', 'join.json']) {
+                    await assets.checkForUpdate({ manifestUrl: url });
+                    expect((await assets.applyUpdate()).ok).toBe(true);
+                    await settle(app, 8);
+                    const current = await assets.acquireTyped<{ handle: number }>(type, first);
+                    try {
+                        expect(app.world.get(sprite, Sprite)[type]).toBe(current.value.handle);
+                        expect(current.value.handle).not.toBe(handles[1]);
+                        expect(app.world.get(mesh, MeshRenderer)[type]).toBe(handles[1]);
+                    } finally { current.release(); }
+                }
+            } finally { prepared.scope.releaseAll(); assets.releaseAll(); }
+        });
+
         it.each(['renamed', 'restored', 'reused locator', 'released'] as const)('handles a %s asset across 2D and 3D fields', async mode => {
             const key = '4e032db1-5b38-47ee-8102-f2ba5536f727';
             const ref = `@uuid:${key}`;
@@ -1032,6 +1082,97 @@ describe('a live binding follows the asset, whatever kind it is', () => {
                 } finally { next.release(); }
             } finally { other?.release(); old.release(); assets.releaseAll(); }
         });
+    });
+
+    it('shares a cold decode while keeping sampling, borders and warm handles on each texture record', async () => {
+        const file = 'blobs/shared.png';
+        const record = { type: 'texture' as const, path: file, contentHash: 'immutable', size: 4, labels: [] };
+        const index = indexPackagedManifest({ version: '2.0', groups: { art: { labels: [], bundleMode: 'remote', assets: {
+            'first:%': { ...record, address: 'art/first.png', textureImport: { filter: 'nearest', mipmaps: false } },
+            second: { ...record, address: 'art/second.png', textureImport: { filter: 'linear', mipmaps: false,
+                sliceBorder: { left: 1, right: 2, top: 3, bottom: 4 } } },
+        } } } });
+        const source = createPackagedAssetSource(index);
+        const assets = buildAssets({}, { manifest: index.model, activateManifest: source.activateManifest });
+        assets.setAssetRefResolver(source.resolveRef!);
+        assets.setTextureImportSettingsResolver(source.textureImportSettings!);
+        assets.setRemoteRoot('https://cdn.test');
+        const decode = vi.fn(async () => ({ width: 1, height: 1, pixels: new Uint8Array(4) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        const upload = vi.fn((..._args: unknown[]) => pool.createTexture());
+        Object.assign(pool, { createTextureEx: upload });
+        const bundle = await assets.loadGroup('art');
+        try {
+            const first = bundle.textures.get('first:%')!.handle, second = bundle.textures.get('second')!.handle;
+            expect(first).not.toBe(second);
+            expect(decode).toHaveBeenCalledTimes(1);
+            expect(decode).toHaveBeenCalledWith('https://cdn.test/' + file, true, 0);
+            expect(upload.mock.calls[0][6]).not.toBe(upload.mock.calls[1][6]);
+            expect(pool.setTextureMetadata.mock.calls).toEqual([[second, 1, 2, 3, 4]]);
+            expect(assets.getTexture(file)?.handle).toBe(first);
+            expect(assets.getTexture('/art/second.png')?.handle).toBe(second);
+            expect(assets.pathForHandle('texture', second)).toBe('https://cdn.test/' + file);
+            bundle.release();
+            const again = await assets.acquireTexture('art/second.png');
+            expect(again.value.handle).toBe(second);
+            expect(decode).toHaveBeenCalledTimes(1);
+            again.release();
+            const raw = await Promise.all(['first:%', 'second'].map(ref => assets.acquireTexture(ref, false)));
+            expect(decode).toHaveBeenCalledTimes(2);
+            expect(new Set([first, second, ...raw.map(r => r.value.handle)]).size).toBe(4);
+            for (const r of raw) r.release();
+        } finally { bundle.release(); assets.releaseAll(); }
+    });
+
+    it('reads shared material bytes once and resolves relative textures from each authored directory', async () => {
+        const file = 'blobs/shared.esmaterial', texture = (path: string) => ({ type: 'texture' as const, path, labels: [], size: 8 });
+        const record = { type: 'material' as const, path: file, labels: [], size: 8, contentHash: 'immutable' };
+        const index = indexPackagedManifest({ version: '2.0', groups: { art: { bundleMode: 'local', labels: [], assets: {
+            left: { ...record, address: 'art/left/paint.esmaterial' }, right: { ...record, address: 'art/right/paint.esmaterial' },
+            red: { ...texture('blobs/red.png'), address: 'art/left/color.png' },
+            blue: { ...texture('blobs/blue.png'), address: 'art/right/color.png' },
+        } } } });
+        const source = createPackagedAssetSource(index);
+        const assets = buildAssets({ [file]: JSON.stringify({ ...JSON.parse(MATERIAL), properties: { u_color: 'color.png' } }) },
+            { manifest: index.model, activateManifest: source.activateManifest });
+        assets.setAssetRefResolver(source.resolveRef!);
+        const fetched = vi.spyOn(assets.backend, 'fetchText');
+        const [left, right] = await Promise.all(['left', 'right'].map(ref => assets.acquireTyped<{ handle: number }>('material', ref)));
+        try {
+            expect(fetched).toHaveBeenCalledTimes(1);
+            expect(fetched).toHaveBeenCalledWith('http://test/' + file);
+            expect(left.value.handle).not.toBe(right.value.handle);
+            const red = assets.getTexture('red')!.handle, blue = assets.getTexture('blue')!.handle;
+            expect(red).not.toBe(blue);
+            expect(materialFake.Material.setUniform).toHaveBeenCalledWith(left.value.handle, 'u_color', { kind: 'tex', handle: red });
+            expect(materialFake.Material.setUniform).toHaveBeenCalledWith(right.value.handle, 'u_color', { kind: 'tex', handle: blue });
+        } finally { left.release(); right.release(); assets.releaseAll(); }
+    });
+
+    it('streams only the preview belonging to the record drawn on a mesh', async () => {
+        const file = 'blobs/large.png';
+        const record = { type: 'texture' as const, path: file, labels: [], size: 16, contentHash: 'immutable' };
+        const tail = { path: 'blobs/small.png', width: 8, height: 8, fullWidth: 128, fullHeight: 128, size: 4 };
+        const index = indexPackagedManifest({ version: '2.0', groups: { art: { bundleMode: 'remote', labels: [], assets: {
+            first: { ...record, address: 'art/preview.png', streamTail: tail }, second: { ...record, address: 'art/full.png' },
+        } } } });
+        const source = createPackagedAssetSource(index);
+        const assets = buildAssets({}, { manifest: index.model, activateManifest: source.activateManifest });
+        assets.setAssetRefResolver(source.resolveRef!);
+        assets.setRemoteRoot('https://cdn.test');
+        assets.setTextureStreamingStart(8);
+        Object.assign(pool, { adoptTextureContent: () => true });
+        const decode = vi.fn(async () => ({ width: 8, height: 8, pixels: new Uint8Array(8 * 8 * 4) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        for (const ref of ['first', 'second']) assets.noteMeshSurface({ texture: ref });
+        const [first, second] = await Promise.all(['first', 'second'].map(ref => assets.acquireTexture(ref)));
+        try {
+            expect(decode.mock.calls).toEqual(expect.arrayContaining([
+                ['https://cdn.test/' + tail.path, true, 8], ['https://cdn.test/' + file, true, 8],
+            ]));
+            expect(first.value.fullWidth).toBe(128);
+            expect(second.value.fullWidth).not.toBe(128);
+        } finally { first.release(); second.release(); assets.releaseAll(); }
     });
 
     it('a material field moves to the new generation, like a texture field', async () => {

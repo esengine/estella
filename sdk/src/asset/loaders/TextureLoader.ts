@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { bindingFile, bindingRecord } from '../manifestBinding';
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
@@ -96,7 +97,7 @@ export function textureResidencyKey(path: string, flip: boolean): string {
 /** @internal Project path and flip as displayed in diagnostics, including for secondary loaders on a device. */
 export function logicalTextureKey(poolKey: string): string { return poolKey.replace(/(:[fn]):\d+$/, '$1'); }
 
-type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog' | 'resolveStreamTail'>;
+type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog' | 'resolveStreamTail' | 'readSharedFile'>;
 const primaryTextureOwners = new WeakMap<CppResourceManager, number>();
 let nextTextureOwner = 0;
 
@@ -282,7 +283,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!held || !rm.adoptTextureContent) return null;
         const request = ++held.resize;
         const { source } = held;
-        const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, ctx, source.flip, source.settings, maxEdge);
+        const io = bindingRecord(source.path) === undefined ? ctx : source.io;
+        const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
         try {
             if (this.held_.get(handle) !== held || held.resize !== request) return null;
             if (!rm.adoptTextureContent(handle, fresh.handle)) return null;
@@ -340,7 +342,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private recordFormat_(source: TextureSource, decision: TextureUploadDecision): void {
-        if (this.sourcesByKey_.get(source.key) === source) this.formats_.record(source.key, decision);
+        if (this.sourcesByKey_.get(source.key) === source) this.formats_.record(source.key, decision, bindingFile(source.key));
     }
 
     private async loadWithFlip(
@@ -359,7 +361,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const key = textureResidencyKey(path, flip);
         const source: TextureSource = {
             handle: result.handle, key, path, flip, settings,
-            io: { backend: ctx.backend, catalog: ctx.catalog, resolveStreamTail: ctx.resolveStreamTail },
+            io: { backend: ctx.backend, catalog: ctx.catalog, resolveStreamTail: ctx.resolveStreamTail, readSharedFile: ctx.readSharedFile },
             edge: Math.max(result.width, result.height),
             fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height,
         };
@@ -382,8 +384,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
         const tail = maxEdge > 0 ? ctx.resolveStreamTail?.(path) ?? ctx.catalog.getStreamTail?.(path) : null;
         const useTail = tail != null && maxEdge <= Math.max(tail.width, tail.height);
-        const buildPath = useTail ? tail.path : ctx.catalog?.getBuildPath(path) ?? path;
-        const { decision = RAW_PAYLOAD_UPLOAD, ...texture } = await this.decodeFile_(path, buildPath, ctx, flip, settings, maxEdge, useTail);
+        const file = bindingFile(path);
+        const buildPath = useTail ? tail.path : ctx.catalog?.getBuildPath(file) ?? file;
+        const { decision = RAW_PAYLOAD_UPLOAD, ...texture } = await this.decodeFile_(file, buildPath, ctx, flip, settings, maxEdge, useTail, this.imageRevisions_.get(path));
         if (useTail) {
             texture.fullWidth = tail.fullWidth;
             texture.fullHeight = tail.fullHeight;
@@ -394,7 +397,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** Decode @p path (whose bytes are at @p buildPath; @p copy when that is its small copy) no larger than @p maxEdge, and upload it. */
     private async decodeFile_(
         path: string, buildPath: string, ctx: TextureReadContext, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number,
-        copy: boolean,
+        copy: boolean, revision?: number,
     ): Promise<TextureResult & { decision?: TextureUploadDecision }> {
         // A recipe is drawn here, from its source, and is then a texture like any decoded one.
         if (isTextureRecipePath(buildPath)) {
@@ -402,7 +405,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             return this.uploadPixels_(drawn, flip, settings, maxEdge);
         }
         if (isKtx2Path(buildPath)) {
-            const buf = await ctx.backend.fetchBinary(buildPath);
+            const read = () => ctx.backend.fetchBinary(buildPath);
+            const buf = await (ctx.readSharedFile?.(buildPath, 'ktx2', read) ?? read());
             return this.uploadKtx2_(path, new Uint8Array(buf), settings, maxEdge);
         }
         let preview = false;
@@ -422,12 +426,16 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
             // A decoder resolves a logical path itself; a copy is named by where it is.
-            const result = await this.pixelDecoder_(copy ? buildPath : path, flip, edge);
+            const file = copy ? buildPath : path;
+            const decoder = this.pixelDecoder_;
+            const read = () => decoder(file, flip, edge);
+            const variant = `pixels:${flip}:${edge}:${revision ?? 0}`;
+            const result = await (ctx.readSharedFile?.(file, variant, read) ?? read());
             return this.uploadPixels_(result, flip, settings, edge);
         }
         const url = ctx.backend.resolveUrl(buildPath);
         const full = { width: 0, height: 0 };
-        const img = await this.loadImage(url, flip, edge, copy ? undefined : this.imageRevisions_.get(path), full);
+        const img = await this.loadImage(url, flip, edge, copy ? undefined : revision, full);
         return this.uploadSizedImage_(img, full, flip, settings, edge);
     }
 

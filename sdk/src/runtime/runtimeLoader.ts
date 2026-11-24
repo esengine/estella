@@ -11,7 +11,7 @@ import { SceneAssetProgress } from '../scene/sceneAssetProgress';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
          updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
-         type SceneLoadProgressCallback } from '../scene/scene';
+         type SceneLoadProgressCallback, applySceneTextureMetadata } from '../scene/scene';
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, SceneLoadAttempt } from '../scene/sceneLoadAttempt';
@@ -55,7 +55,6 @@ import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
 import { flushPendingRegistrations, type Plugin } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
-import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import { startDebugChannel, attachDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
@@ -150,9 +149,9 @@ function ensureRuntimeAssets(
     //     carries its own `textureImporterSettings`.
     // Asset-level wins: a stale copy inside a scene must not override what the
     // asset actually says today.
-    const settings: Record<string, TextureImportSettings> = {};
+    const settings: Record<string, TextureImportSettings> = Object.create(null);
     assets.setTextureImportSettingsResolver(
-        (ref) => source.textureImportSettings?.(ref) ?? settings[ref],
+        (ref) => source.textureImportSettings?.(ref) ?? settings[ref] ?? settings[assets.sceneAssetRef(ref) ?? ref],
     );
     runtimeImportSettings.set(assets, settings);
 
@@ -163,14 +162,7 @@ function ensureRuntimeAssets(
     return assets;
 }
 
-/**
- * Merge a scene's stored per-texture import settings (filter/wrap) into the
- * runtime Assets' resolver map. Keys normalize through resolveRef so they match
- * the resolved path the TextureLoader sees; the stored {filterMode,wrapMode}
- * shape maps to the loader's {filter,wrap}. Merging (not replacing) keeps
- * settings from previously loaded scenes live — the same texture carries the
- * same .meta-derived settings in every scene, so last-wins is safe.
- */
+/** Keep scene-supplied sampling settings under the authored spelling and the key used for its handle. */
 function mergeSceneTextureImportSettings(
     assets: AssetsClass, sceneData: SceneData, resolveRef: (ref: string) => string,
 ): void {
@@ -179,30 +171,11 @@ function mergeSceneTextureImportSettings(
         .textureImporterSettings;
     if (!settings || !rawSettings) return;
     for (const [ref, s] of Object.entries(rawSettings)) {
-        settings[resolveRef(ref)] = {
+        settings[ref] = settings[resolveRef(ref)] = {
             filter: s.filterMode as TextureImportSettings['filter'],
             wrap: s.wrapMode as TextureImportSettings['wrap'],
             srgb: s.srgb,
         };
-    }
-}
-
-/** Apply 9-slice borders to loaded textures. `textureHandles` is keyed by the
- *  resolved build path (Assets discovery resolves refs), so the metadata's
- *  stored ref is resolved the same way before lookup. */
-function applyTextureMetadata(
-    sceneData: SceneData,
-    textureHandles: Map<string, number>,
-    resolveRef: (ref: string) => string,
-): void {
-    if (!sceneData.textureMetadata) return;
-    const rm = requireResourceManager();
-    for (const [ref, metadata] of Object.entries(sceneData.textureMetadata)) {
-        const handle = textureHandles.get(resolveRef(ref));
-        if (handle && metadata?.sliceBorder) {
-            const b = metadata.sliceBorder;
-            rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
-        }
     }
 }
 
@@ -463,7 +436,8 @@ async function readRuntimeScene(
         const backend = source.backend;
         videoSupport()?.setRefResolver(app, (ref) => backend.resolveUrl(resolveRef(ref)));
     }
-    mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
+    const sceneRef = (ref: string) => sceneAssets.sceneAssetRef(ref) ?? ref;
+    mergeSceneTextureImportSettings(sceneAssets, sceneData, sceneRef);
     const dragonBones = dragonBonesSupport();
     let discovered!: SceneAssetRefs;
     let pairCount = 0;
@@ -503,9 +477,9 @@ async function readRuntimeScene(
     await turn();
     attempt.assertCurrent();
     const retainEntityAssets = sceneOwned ? undefined
-        : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneAssets.resolveRef.bind(sceneAssets));
+        : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneRef);
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
-    applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
+    applySceneTextureMetadata(sceneData, assetResult);
 
     // KTX2 atlas pages transcode through the realm's basis module, acquired the
     // same lazy way the TextureLoader's provider does (AssetPlugin). Spine itself

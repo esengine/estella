@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AddressableAssetType } from '../assetTypes';
-import { indexTextureImportSettings, type ParsedTextureImportSettings } from './textureImportSettings';
+import type { ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
-import { UUID_REF_PREFIX } from './AssetRegistry';
+import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
-type RemoteAsset = { path: string; identity: string };
+interface ManifestRecord {
+    key: string;
+    asset: AddressableManifestAsset;
+    remote: boolean;
+}
 
 const warnedNotPackaged = new Set<string>();
 let probing = 0;
@@ -194,17 +198,6 @@ export function normalizeBundleMode(mode: string | undefined | null): BundleMode
  * / bundle-mode questions, so loaders and exporters never re-walk `groups` by
  * hand and never re-interpret the bare `bundleMode` string.
  */
-/** Every way a manifest entry can be named — the spellings a ref may arrive as. */
-function spellingsOf(key: string, path: string, address: string | undefined): string[] {
-    const out: string[] = [];
-    for (const spelling of [key, `@uuid:${key}`, path, address]) {
-        if (!spelling) continue;
-        out.push(spelling);
-        if (!spelling.startsWith('/')) out.push(`/${spelling}`);
-    }
-    return out;
-}
-
 export class ManifestModel {
     private constructor(private readonly manifest: AddressableManifest) {}
 
@@ -300,14 +293,7 @@ export class ManifestModel {
      * a shipped game samples and 9-slices exactly as the editor did.
      */
     textureImportLookup(): (ref: string) => ParsedTextureImportSettings | undefined {
-        return indexTextureImportSettings(
-            this.entries().map(({ key, asset }) => ({
-                uuid: key,
-                path: asset.path,
-                address: asset.address,
-                settings: asset.textureImport,
-            })),
-        );
+        return ref => this.recordForRef(ref)?.asset.textureImport;
     }
 
     /**
@@ -318,21 +304,9 @@ export class ManifestModel {
      * agree — so one the contract was not made against inherits nothing.
      */
     spineCullingLookup(): (skeleton: string, atlas: string) => SpineCullingRect | undefined {
-        const contracts = new Map<string, SpineManifestContract>();
-        const identity = new Map<string, string>();
-        for (const { key, asset } of this.entries()) {
-            for (const spelling of spellingsOf(key, asset.path, asset.address)) {
-                identity.set(spelling, key);
-                if (asset.spineImport) contracts.set(spelling, asset.spineImport);
-            }
-        }
-        if (contracts.size === 0) return () => undefined;
         return (skeleton, atlas) => {
-            const contract = contracts.get(skeleton);
-            if (!contract) return undefined;
-            // Identity settles it, and unknown is a no. `contract.atlas` is
-            // already a key, so only the ref in hand is canonicalised.
-            return identity.get(atlas) === contract.atlas ? contract.cullingBounds : undefined;
+            const contract = this.recordForRef(skeleton)?.asset.spineImport;
+            return contract && this.recordForRef(atlas)?.key === contract.atlas ? contract.cullingBounds : undefined;
         };
     }
 
@@ -367,45 +341,49 @@ export class ManifestModel {
     // Resolution (uuid/address key → asset → build path)
     // -------------------------------------------------------------------------
 
-    private keyIndex_: Map<string, AddressableManifestAsset> | null = null;
-    private pathIndex_: Map<string, AddressableManifestAsset> | null = null;
-    private remoteIndex_: Map<string, RemoteAsset> | null = null;
+    private index_?: { names: Map<string, ManifestRecord>; files: Map<string, ManifestRecord>; shared: Set<string> };
 
-    private indexes(): { byKey: Map<string, AddressableManifestAsset>; byPath: Map<string, AddressableManifestAsset> } {
-        if (!this.keyIndex_ || !this.pathIndex_) {
-            const byKey = new Map<string, AddressableManifestAsset>();
-            const byPath = new Map<string, AddressableManifestAsset>();
-            for (const g of Object.values(this.manifest.groups)) {
-                for (const [key, asset] of Object.entries(g.assets)) {
-                    // First write wins, mirroring the historical hand-built index
-                    // (a uuid/path appearing in two groups keeps its first entry).
-                    if (!byKey.has(key)) byKey.set(key, asset);
-                    if (!byPath.has(asset.path)) byPath.set(asset.path, asset);
-                    // The address (the asset's LOGICAL source path, kept when
-                    // content-addressed staging renames the physical file) is a
-                    // resolvable key too — path-style refs name it. Both the
-                    // bare and the "/"-rooted spellings the cook may emit.
-                    if (asset.address) {
-                        if (!byKey.has(asset.address)) byKey.set(asset.address, asset);
-                        const rooted = `/${asset.address}`;
-                        if (!byKey.has(rooted)) byKey.set(rooted, asset);
-                    }
+    private indexes() {
+        if (this.index_) return this.index_;
+        const names = new Map<string, ManifestRecord>(), files = new Map<string, ManifestRecord>();
+        const shared = new Set<string>();
+        for (const group of Object.values(this.manifest.groups)) {
+            const remote = normalizeBundleMode(group.bundleMode) === 'remote';
+            for (const [key, asset] of Object.entries(group.assets)) {
+                const record = { key, asset, remote };
+                if (!names.has(key)) names.set(key, record);
+                if (asset.address) {
+                    for (const name of [asset.address, `/${asset.address}`]) if (!names.has(name)) names.set(name, record);
                 }
+                const first = files.get(asset.path);
+                if (!first) files.set(asset.path, record);
+                else if (first.key !== key) shared.add(asset.path);
             }
-            this.keyIndex_ = byKey;
-            this.pathIndex_ = byPath;
         }
-        return { byKey: this.keyIndex_, byPath: this.pathIndex_ };
+        return this.index_ = { names, files, shared };
     }
+
+    /** @internal A staged file used by several records names the first one in manifest order. */
+    recordForRef(ref: string): ManifestRecord | undefined {
+        const { names, files } = this.indexes();
+        const direct = names.get(ref) ?? files.get(ref);
+        if (direct) return direct;
+        const bare = ref.startsWith('/') ? ref.slice(1) : ref;
+        const name = bare.startsWith(UUID_REF_PREFIX) ? bare.slice(UUID_REF_PREFIX.length) : bare;
+        return names.get(extractUuid(name) ?? name) ?? files.get(bare);
+    }
+
+    /** @internal Scene and group results need record names when the staged filename alone is ambiguous. */
+    sharesFile(path: string): boolean { return this.indexes().shared.has(path); }
 
     /** Asset by its group-record key (the uuid in editor/WeChat manifests). */
     assetByKey(key: string): AddressableManifestAsset | null {
-        return this.indexes().byKey.get(key) ?? null;
+        return this.indexes().names.get(key)?.asset ?? null;
     }
 
     /** Asset by its build path. */
     assetByPath(path: string): AddressableManifestAsset | null {
-        return this.indexes().byPath.get(path) ?? null;
+        return this.indexes().files.get(path)?.asset ?? null;
     }
 
     /**
@@ -416,7 +394,8 @@ export class ManifestModel {
      * manifest), while local / lazy assets keep their normal resolution.
      */
     remoteAssetPath(ref: string): string | null {
-        return this.remoteAsset_(ref)?.path ?? null;
+        const record = this.recordForRef(ref);
+        return record?.remote ? record.asset.path : null;
     }
 
     /**
@@ -426,32 +405,8 @@ export class ManifestModel {
      * one revision, while this is what every revision agrees on.
      */
     remoteAssetIdentity(ref: string): string | null {
-        return this.remoteAsset_(ref)?.identity ?? null;
-    }
-
-    /** Every spelling resolves to one record, for both the stable name and the current locator. */
-    private remoteAsset_(ref: string): RemoteAsset | undefined {
-        if (!this.remoteIndex_) {
-            const index = new Map<string, RemoteAsset>();
-            for (const group of Object.values(this.manifest.groups)) {
-                if (normalizeBundleMode(group.bundleMode) !== 'remote') continue;
-                for (const [key, asset] of Object.entries(group.assets)) {
-                    const record = { path: asset.path, identity: asset.address ?? key };
-                    index.set(key, record);
-                    index.set(asset.path, record);
-                    if (asset.address) {
-                        index.set(asset.address, record);
-                        index.set(`/${asset.address}`, record);
-                    }
-                }
-            }
-            this.remoteIndex_ = index;
-        }
-        if (ref.startsWith(UUID_REF_PREFIX)) {
-            const uuid = ref.slice(UUID_REF_PREFIX.length).toLowerCase();
-            return this.remoteIndex_.get(uuid) ?? this.remoteIndex_.get(ref);
-        }
-        return this.remoteIndex_.get(ref);
+        const record = this.recordForRef(ref);
+        return record?.remote ? record.asset.address ?? record.key : null;
     }
 
     /**
@@ -461,8 +416,7 @@ export class ManifestModel {
      * build path is whatever the cook staged the file as.
      */
     resolvePath(ref: string): string {
-        const { byKey, byPath } = this.indexes();
-        const entry = byKey.get(ref) ?? byPath.get(ref);
+        const entry = this.recordForRef(ref)?.asset;
         if (!entry) warnNotPackaged(ref);
         return entry ? entry.path : ref;
     }

@@ -119,6 +119,8 @@ export interface LoadContext {
     catalog: Catalog;
     /** Preview of a streamed texture, resolved against the delivery root of this load. */
     resolveStreamTail?(path: string): StreamTailInfo | null;
+    /** @internal Concurrent preparations of distinct records may share the same immutable input. */
+    readSharedFile?<T>(path: string, variant: string, read: () => Promise<T>): Promise<T>;
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
     /**

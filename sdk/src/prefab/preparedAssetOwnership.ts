@@ -25,7 +25,7 @@ export function prepareSpawnOwnership(
     let fallback: SceneAssetOwners | undefined;
     if (result.acquisitions.some(receipt => !receipt.entityIds)) {
         fallback = new SceneAssetOwners(true);
-        indexSceneAssets(scene, resolveRef, fallback);
+        indexSceneAssets(scene, result.resolveRef ?? resolveRef, fallback);
     }
     const sources = new Map<number, Set<AssetLease>>();
     for (const { type, path, lease, entityIds } of result.acquisitions) {

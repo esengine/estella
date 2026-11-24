@@ -1137,6 +1137,7 @@ ResourceDef<AssetsClass>
 @internal releaseTyped: (type: string, ref: string) => void
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
+@internal sceneAssetRef: (ref: string) => string | null
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 @internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
 @internal takeTrackedAsset: (type: string, ref: string, scope: AssetScope) => boolean
@@ -6902,6 +6903,8 @@ number
 
 ## ManifestModel — class @experimental
 ```
+@internal recordForRef: (ref: string) => ManifestRecord | undefined
+@internal sharesFile: (path: string) => boolean
 allAssets: () => AddressableManifestAsset[]
 assetByKey: (key: string) => AddressableManifestAsset | null
 assetByPath: (path: string) => AddressableManifestAsset | null

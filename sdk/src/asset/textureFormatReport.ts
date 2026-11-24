@@ -42,8 +42,8 @@ export interface TextureFormatReport {
 export class TextureFormatLog {
     private readonly rows_ = new Map<string, TextureFormatRecord>();
 
-    record(path: string, decision: TextureUploadDecision): void {
-        this.rows_.set(path, { path, ...decision });
+    record(key: string, decision: TextureUploadDecision, path = key): void {
+        this.rows_.set(key, { path, ...decision });
     }
 
     report(deviceFormats: readonly CompressedTextureFormat[], deviceProbed: boolean): TextureFormatReport {

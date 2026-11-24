@@ -124,8 +124,8 @@ export interface Preparation {
 export type AssetWithReceipts = AssetIdentity & Pick<Preparation, 'edges'>;
 
 /** Resolve aliases against the same manifest once per spelling for this walk. */
-export function cachedPaths(resolve: (path: string) => string): (path: string) => string {
-    const paths = new Map<string, string>();
+export function cachedPaths<T extends string | null>(resolve: (path: string) => T): (path: string) => T {
+    const paths = new Map<string, T>();
     return path => {
         let value = paths.get(path);
         if (value === undefined) {

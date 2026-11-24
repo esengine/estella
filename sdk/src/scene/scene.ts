@@ -18,6 +18,7 @@ import { mapEntityRefField } from '../ecs/entityRefField';
 import { deepClone } from '../util/deepClone';
 import { AssetScope } from '../asset/AssetLease';
 import type { PrefabResult } from '../asset/AssetLoader';
+import type { SceneAssetResult } from '../asset/Assets';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { validateComponentData, formatValidationErrors } from '../util/validation';
 import { log } from '../util/logger';
@@ -865,7 +866,7 @@ async function loadSceneAssetsAndSpawn(
                     throw new MissingAssetsError(result.missing);
                 }
                 assets.resolveSceneAssetPaths(data, result);
-                applyTextureMetadata(data, result.textureHandles);
+                applySceneTextureMetadata(data, result);
             }
             const entities = await timed('spawn', () =>
                 spawnAndLoadEntities(world, data, options?.externalEntities, onPhase, options?.assertCurrent, attempt));
@@ -887,12 +888,13 @@ async function loadSceneAssetsAndSpawn(
     });
 }
 
-function applyTextureMetadata(sceneData: SceneData, textureHandles: Map<string, number>): void {
+/** @internal Apply authored borders through the same handle map that bound this scene. */
+export function applySceneTextureMetadata(sceneData: SceneData, result: Pick<SceneAssetResult, 'textureHandles' | 'resolveRef'>): void {
     if (!sceneData.textureMetadata) return;
     const rm = requireResourceManager();
     for (const [path, metadata] of Object.entries(sceneData.textureMetadata)) {
-        const handle = textureHandles.get(path);
-        if (handle && metadata.sliceBorder) {
+        const handle = result.textureHandles.get(result.resolveRef?.(path) ?? path);
+        if (handle && metadata?.sliceBorder) {
             const b = metadata.sliceBorder;
             rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
         }

@@ -72,17 +72,20 @@ async function resolveAssetFields(
     try {
         if (!present()) return;
         const defaults = component._default as Record<string, unknown>;
-        const requests = component.assetFields.flatMap(({ field, type }) => {
+        const requested = component.assetFields.flatMap(({ field, type }) => {
             const ref = authored[field];
             if (!currentFields.has(field)) {
                 // An insertion observer can supersede just one path before the batch starts.
                 if (typeof ref === 'string') row.data[field] = defaults[field] ?? 0;
                 return [];
             }
-            return typeof ref === 'string' && ref ? [{ field, type, path: assets.resolveRef(ref) }] : [];
+            return typeof ref === 'string' && ref ? [{ field, type, ref }] : [];
         });
         const result = await assets.preloadSceneAssets(scene);
         try {
+            const requests = requested.map(({ field, type, ref }) => ({
+                field, type, path: result.resolveRef ? result.resolveRef(ref) : assets.resolveRef(ref),
+            }));
             if (!currentFields.size || !present()) return;
             for (const missing of result.missing) {
                 log.warn('asset', `${component._name} on entity ${entity}: could not load "${missing.ref}"`);

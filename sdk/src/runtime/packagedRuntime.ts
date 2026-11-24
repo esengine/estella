@@ -271,7 +271,7 @@ function catalogForModel(model: ManifestModel): Catalog | undefined {
             entries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
         }
         // A texture with a small copy is found by whatever spelling a load uses, the build path among them.
-        if (asset.streamTail) entries[asset.path] = { type: asset.type, buildPath: asset.path, ...tail };
+        if (asset.streamTail && model.assetByPath(asset.path) === asset) entries[asset.path] = { type: asset.type, buildPath: asset.path, ...tail };
         if (!asset.address || asset.address === asset.path) continue;
         entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
         entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
@@ -326,7 +326,7 @@ function packagedLookups(model: ManifestModel): Omit<PackagedAssetIndex, 'manife
         // address, or its staged (content-addressed) path. Lets a loader recover the
         // directory a sibling was authored in after the rename hid it.
         addressOf: (ref) => {
-            const asset = model.assetByKey(extractUuid(ref) ?? ref) ?? model.assetByPath(ref);
+            const asset = model.recordForRef(ref)?.asset;
             return asset ? (asset.address ?? asset.path) : null;
         },
         // The logical address where there is one (content-addressed packs rename

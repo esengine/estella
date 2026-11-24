@@ -133,6 +133,26 @@ function uuidManifest(): AddressableManifest {
 }
 
 describe('ManifestModel resolution', () => {
+    it('uses the same record for the delivery mode, settings and staged path of a shared file', () => {
+        const shared = { path: 'blobs/a.png', type: 'texture' as const, labels: [], size: 8 };
+        const m = ManifestModel.fromJson({ version: '2.0', groups: {
+            main: { bundleMode: 'local', labels: [], assets: { first: { ...shared, address: 'art/first.png' } } },
+            dlc: { bundleMode: 'remote', labels: [], assets: { second: { ...shared, address: 'art/second.png',
+                textureImport: { filter: 'nearest' } } } },
+        } });
+        const settings = m.textureImportLookup();
+        for (const ref of ['first', 'art/first.png', shared.path, '/' + shared.path]) {
+            expect(m.resolvePath(ref)).toBe(shared.path);
+            expect(m.remoteAssetPath(ref)).toBeNull();
+            expect(settings(ref)).toBeUndefined();
+        }
+        for (const ref of ['second', '@uuid:second', '/art/second.png']) {
+            expect(m.resolvePath(ref)).toBe(shared.path);
+            expect(m.remoteAssetIdentity(ref)).toBe('art/second.png');
+            expect(settings(ref)).toEqual({ filter: 'nearest' });
+        }
+    });
+
     const model = () => ManifestModel.fromJson(uuidManifest());
 
     it('looks up an asset by its record key (uuid) and by path', () => {
