@@ -82,8 +82,7 @@ const measurePlaced = defineSystem([Query(Sprite)], (q) => {
 
 导入设置属于**图像**本身，对所有使用该图像的实体生效。它们保存在图像的 `.meta` 文件中，在内容浏览器中选中图像即可编辑。
 
-{/* SHOT: assets-texture-import-settings | sprite-rendering example: assets/textures/ship_K.png selected in the Content Browser; the Details panel shows its Import Settings with advanced fields expanded (Use, Max Size, Compression, Mip Maps, Filter, Wrap, sRGB Color, Alpha Is Transparency, 9-Slice and Sheet categories) */}
-
+![sprite-rendering 示例中 ship_K.png 的细节面板：含 Use、Max Size、Compression、Mip Maps、Filter、Wrap 与 sRGB Color 的导入设置](@/assets/guides/zh/assets-texture-import-settings.png)
 | 设置 | 键 | 默认值 | 说明 |
 |---|---|---|---|
 | **Use** | `use` | `Colour` | **Colour**：图片；构建可按 Max Size 缩小、压缩，并填充透明纹素下的颜色。**Data**：每个纹素存数值（高度图、测量遮罩、查找表）；构建保留其位深（16 位 PNG 仍为 16 位），从不压缩、不按 sRGB 解码，只在显式设置 Max Size 时缩小。见[数据纹理](#数据纹理)。 |

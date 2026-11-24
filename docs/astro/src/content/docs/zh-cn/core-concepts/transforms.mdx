@@ -8,8 +8,7 @@ import { Aside } from '@astrojs/starlight/components';
 在世界中拥有位置的每个实体都带有 `Transform`：位置、旋转与缩放。本页定义 Transform 的各字段、单位制（世界单位即设计像素；
 物理使用米）、坐标约定，以及变换如何沿父子层级复合。
 
-{/* SHOT: core-transform-details | 打开 examples/platformer，在世界大纲中选中任一精灵实体；细节面板显示 Transform 卡片，包含 Position、Rotation（X/Y/Z，单位为度）与 Scale。 */}
-
+![platformer 示例中玩家的细节面板：含 Position、Rotation 与 Scale 的 Transform 卡片](@/assets/guides/zh/core-transform-details.png)
 ## `Transform` 组件
 
 `Transform` 保存创作的**局部**值，以及由引擎计算的**世界**值。局部字段相对于父实体；没有父实体时相对于世界原点。

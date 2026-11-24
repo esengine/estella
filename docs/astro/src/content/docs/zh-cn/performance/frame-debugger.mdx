@@ -6,9 +6,6 @@ description: 帧调试器参考——从视口、运行中的游戏或设备捕�
 **帧调试器**捕获单独一帧，按顺序列出每个 draw call，并说明每一个**为何开始新的批次**（着色器、混合模式、材质、纹理、裁剪矩形不同等）。它是[帧捕获 API](/docs/zh-cn/performance/profiling/frame-capture/) 的编辑器视图。
 
 通过 **Window → Frame Debugger** 打开，或在命令面板中搜索 **Frame Debugger**。它停靠在性能剖析器旁边。
-
-{/* SHOT: perf-frame-debugger | third-person-3d example running in Play: Frame Debugger after Capture frame with realm Running game, the pass list, the Break reason chips above the draw list, and one draw row selected with its details and entities */}
-
 ## 捕获一帧
 
 1. 选择**范围（realm）**：**Viewport**（编辑器视图）、**Running game**（Play 期间）或 **Device**（已连接的设备预览）。

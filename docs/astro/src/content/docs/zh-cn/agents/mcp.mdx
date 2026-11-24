@@ -14,9 +14,6 @@ Estella 编辑器是一个 **Model Context Protocol（MCP）** 服务器。支�
 ## 连接 AI 工具
 
 **窗口 → 连接 AI 工具…**（也可点击状态栏中的 AI 智能体标记，或设置中的 *连接 AI 工具…* 按钮）打开连接对话框。它列出本机安装的 Claude Code、Cursor、Claude Desktop 和 VS Code，每项带有 **连接** / **断开** 按钮。
-
-{/* SHOT: extend-connect-ai-tools | Connect AI Tools dialog opened from Window → Connect AI Tools…: the list of AI tools with Connect/Disconnect buttons, the Read only / Can edit permission switch, the editor's project/pid/port line, the "Last call" line and the Other tools section; any example project */}
-
 - **连接** 会在该工具自己的 MCP 配置中写入 `estella` 条目（文件中的其他条目保持不变），并开启 *允许 AI 代理连接*。该条目用编辑器自身的可执行文件（`ELECTRON_RUN_AS_NODE`）运行内置的 MCP 脚本，因此无需安装 Node.js，并附加到已打开的编辑器（`--attach`）。连接状态读取自配置文件，因此手动删除的条目会显示为未连接。无法解析的配置文件不会被修改。
 - **权限**——*只读* 或 *可修改*——在对话框中设置。它属于设置它的那个编辑器窗口，不会保存（每个编辑器都以只读启动），也不影响其他已打开的编辑器。编辑器在调用时决定权限，配置条目不携带任何权限，因此更改会立即作用于所有已连接的工具。
 - **最近一次调用**（例如“最近一次调用：Claude Code，12 秒前”）确认某个工具确实在使用该连接。

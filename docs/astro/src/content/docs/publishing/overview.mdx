@@ -85,8 +85,7 @@ Each kind of compression is a separate box under **Compression**. Every box is o
 the assets as they are, and a size budget never turns a box on. The parameters each box applies (a texture's format
 and Max Size, a clip's bitrate) are per-asset **Import Settings** in the Inspector, with a tab per platform.
 
-{/* SHOT: publish-compression | Package Project dialog with the Web target selected; the Build group visible with the Compression row showing the three boxes (Textures by import settings, Pack atlases, Audio to MP3) and the hint line below them; any example project */}
-
+![The Package Project dialog with the Web target, at the Build group: Configuration, the three Compression boxes and the hint under them](@/assets/guides/en/publish-compression.png)
 | Box | Targets | Effect |
 |---|---|---|
 | **Textures by import settings** | All | Applies each texture's Import Settings: the GPU format (KTX2) where the target ships one, and Max Size. A playable ships images, so only Max Size applies there. The viewport draws textures as the build will ship them while this box is ticked. |
@@ -150,8 +149,7 @@ Project-wide settings are in **Settings → Project → Build and modules → Pa
 | **Minify scripts** | Minifies game and engine JavaScript in Shipping builds. Default on. |
 | **Compile all systems** | Shipping builds compile every system the compiler accepts to machine code; off compiles only systems marked `@compiled`. Default on. |
 
-{/* SHOT: publish-packaging-settings | Settings dialog, Project category, Build and modules page scrolled to the Packaging section, showing Application ID, App Icon, Achievement IDs, Minify scripts and Compile all systems; any example project */}
-
+![Settings → Project → Build and modules, Packaging section](@/assets/guides/en/publish-packaging-settings.png)
 ### Screen orientation
 
 Orientation is one project-wide setting: **Settings → Project → Game → Display → Orientation** (portrait or

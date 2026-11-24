@@ -150,8 +150,7 @@ Snapping quantizes camera motion; it is intended for pixel-art games.
 
 **Settings → Project → Game → Display** fields, their manifest keys and their runtime effect:
 
-{/* SHOT: core-display-settings | Any example (e.g. examples/mobile-controls): open Settings → Project → Game → Display; the page shows Design width/height, Orientation, Camera fit, Camera fit match and Render resolution. */}
-
+![Settings → Project → Game, Display section: Width, Height, Orientation, Camera Fit, Match and Render resolution](@/assets/guides/en/core-display-settings.png)
 | Editor setting | Project manifest | Runtime effect |
 |---|---|---|
 | Design width / height | `designResolution.width` / `.height` | Seeds new scene `Canvas` components and editor cameras; fills `ScreenScaling.designWidth` / `designHeight` (through `createWebApp`'s `screenFit`). |

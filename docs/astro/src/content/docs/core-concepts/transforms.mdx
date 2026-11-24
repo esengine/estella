@@ -9,8 +9,7 @@ Every entity that has a position in the world carries a `Transform`: position, r
 the Transform fields, the unit system (world units are design pixels; physics uses metres), the coordinate
 conventions, and how transforms compose through the parent/child hierarchy.
 
-{/* SHOT: core-transform-details | examples/platformer, select any sprite entity in the World Outliner; Details shows the Transform card with Position, Rotation (X/Y/Z in degrees) and Scale. */}
-
+![Details of the player in the platformer example: the Transform card with Position, Rotation and Scale](@/assets/guides/en/core-transform-details.png)
 ## The `Transform` component
 
 `Transform` stores **local** values, which are authored, and **world** values, which the engine computes. Local

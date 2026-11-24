@@ -20,9 +20,6 @@ and saving is the toolbar Save. The agent's work is visible in the editor window
 **Window → Connect AI Tools…** (also the AI agent mark in the status bar, and the *Connect an AI tool* button in
 Settings) opens the connect dialog. It lists the installed Claude Code, Cursor, Claude Desktop and VS Code, each with a
 **Connect** / **Disconnect** button.
-
-{/* SHOT: extend-connect-ai-tools | Connect AI Tools dialog opened from Window → Connect AI Tools…: the list of AI tools with Connect/Disconnect buttons, the Read only / Can edit permission switch, the editor's project/pid/port line, the "Last call" line and the Other tools section; any example project */}
-
 - **Connect** writes an `estella` entry into the tool's own MCP config (other entries in the file are kept) and turns
   on *Allow AI agents to connect*. The entry runs the bundled MCP script with the editor's own executable
   (`ELECTRON_RUN_AS_NODE`), so Node.js need not be installed, and attaches to the open editor (`--attach`). The

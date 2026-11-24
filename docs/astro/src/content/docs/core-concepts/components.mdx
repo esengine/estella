@@ -16,9 +16,6 @@ const Health = defineComponent('Health', { current: 100, max: 100 });
 The defaults define the component's fields, their types and the initial values of a new instance. Components hold
 data only; behaviour belongs in [systems](/docs/core-concepts/systems/). The name is the component's identity: it is
 what scenes serialize and what [hot reload](/docs/scripting/script-modules/#hot-reload) matches on.
-
-{/* SHOT: core-component-details | Run examples/ecs-basics, pause Play, select one of the spawned entities that carries the Mover component; Details shows the Mover card (speed, directionX, directionY) below Transform. */}
-
 ## Field types
 
 A field's type is inferred from its default value. Structured values receive matching editor controls:

@@ -34,9 +34,6 @@ It is missing from the editor:
 - its fields are not shown in the Details panel (the component is preserved in scene files but shown as unknown);
 - it has no entry under **Scripts** in Add Component and in the Create-entity popover;
 - its `registerAction` / `registerCondition` names are absent from the behaviour-tree and event-binding palettes.
-
-{/* SHOT: script-add-component-scripts | examples/ecs-basics, select the Camera entity and open Details → Add Component; the Scripts category lists the project's components Mover, Lifetime, Spawner and Bouncer declared in src/components.ts. */}
-
 <Aside type="caution">
   The declaration entry and everything it imports must be **pure declarations**. The editor evaluates that module
   graph in an isolated context with no engine and no WebAssembly; systems are queued but never run. Startup side
@@ -52,9 +49,6 @@ problem.
 
 A `.ts` file created manually has no effect until an entry imports it. **Content Browser → create menu → New Script…**
 creates the module and the import together. The selected kind determines which entry the module is wired into:
-
-{/* SHOT: script-new-script-dialog | examples/ecs-basics, Content Browser opened on src/, create menu → New Script…; the dialog shows the Name field, the Component/System choice, the module path to be written and the line the entry will gain. */}
-
 | Kind | Module role | Wiring |
 |---|---|---|
 | **Component** | A declaration the editor reads without running the game. | Re-exported from the declaration entry: `export * from './Health';` |

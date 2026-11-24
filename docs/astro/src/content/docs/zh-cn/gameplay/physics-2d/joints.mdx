@@ -76,8 +76,7 @@ physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // reverse at run
 
 场景中创作的关节在视口中绘制 gizmo：两个锚点之间的虚线连线。锚点圆点可以拖动；拖动会在所属刚体的局部坐标系中写入 `anchorA` / `anchorB`。滑轨与车轮关节还显示其滑动轴，拖动轴端可重新调整方向。马达关节沿其目标线速度显示箭头。碰撞体、单向平台箭头与关节都由视口显示标记中的**物理**项统一切换。
 
-{/* SHOT: gameplay-wheel-joint-gizmo | physics-playground example, showcase scene: the CartWheelFront entity selected, viewport showing the wheel joint's dashed anchor link and slide axis, Details panel showing the Wheel Joint 2D card */}
-
+![physics-playground 示例 showcase 场景中选中的小车前轮，及细节面板中的 Wheel Joint 2D 卡片](@/assets/guides/zh/gameplay-wheel-joint-gizmo.png)
 ## 拖拽关节
 
 拖拽关节让玩家用指针拉动刚体。Box2D v3 没有专门的鼠标关节；拖拽关节是一根把刚体拉向移动目标的弹簧。在指针按下时创建，指针移动时更新目标，指针抬起时销毁：

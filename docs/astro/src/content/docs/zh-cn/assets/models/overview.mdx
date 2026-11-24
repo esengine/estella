@@ -40,9 +40,6 @@ import { Aside } from '@astrojs/starlight/components';
 ### 内容浏览器中的产物
 
 在内容浏览器中，模型的产物折叠在模型之下。模型显示为一个条目，缩略图边缘（列表视图中为行首）带展开箭头；展开后，其网格、材质、片段与预制体以底色条带紧随其后。搜索结果不折叠地列出匹配项；对折叠产物使用 **Browse to Asset** 会展开其模型并选中它。折叠不移动任何文件：产物仍在模型旁边，按 UUID 引用。
-
-{/* SHOT: assets-model-folded-products | model-import example: Content Browser at assets/models with robot.gltf expanded, its meshes, material and prefab shown folded under it on the shaded band */}
-
 每个产物的 `.meta` 在 `source` 中记录其来源模型（模型的 UUID），由导入写入。产物与模型位于同一文件夹时折叠在该模型下。在此字段出现之前导入的项目按导入的命名规则折叠（`<stem>.esprefab`，以及命名为 `<stem>_…` 的网格、材质、片段与烘焙数据）；模型旁边的图像从不按名称折叠。
 
 ### 把模型赋给资源字段
@@ -53,8 +50,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 在内容浏览器中选中源文件即可编辑其导入设置。保存后模型重新导入。
 
-{/* SHOT: assets-model-import-settings | model-import example: assets/models/robot.gltf selected in the Content Browser; Details shows its Import Settings with advanced fields expanded (Import and Skinning categories) */}
-
+![model-import 示例中 robot.gltf 的细节面板：含 Import 与 Skinning 分组的导入设置](@/assets/guides/zh/assets-model-import-settings.png)
 | 设置 | 键 | 默认值 | 说明 |
 |---|---|---|---|
 | **Scale** | `scale` | `1` | 预制体根节点的统一缩放（[Scale](#scale)）。 |

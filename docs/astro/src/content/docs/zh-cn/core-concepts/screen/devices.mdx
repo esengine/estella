@@ -42,8 +42,7 @@ feed();
 **绝对定位**的 `UINode` 上的 `SafeArea` 组件使该节点保持在设备安全区内：每当平台边距或屏幕变化时，引擎写入节点的四个边距。
 该系统属于标准 UI 插件（`safeAreaPlugin`，由 `uiPlugin` 构建），在常规 app 中无需安装。
 
-{/* SHOT: core-safe-area-details | 打开 examples/celestial-heights 中的 assets/scenes/hud.esscene，选中带 SafeArea 的 HUD 根节点；细节面板显示 Safe Area 卡片（Apply Top/Bottom/Left/Right、Avoid Host Menu），旁边是 Position Type 为 Absolute 的 UI Node 卡片。 */}
-
+![celestial-heights 示例 hud 场景中 HUD 根节点的细节面板：Safe Area 卡片](@/assets/guides/zh/core-safe-area-details.png)
 | 属性 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `applyTop` | boolean | `true` | 将节点的上边距下移安全区上边距的距离。 |

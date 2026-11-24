@@ -42,9 +42,6 @@ if (result.status !== 'complete') console.info(result.reason);
 - 结果是快照；门、障碍或目标变化后需再次按下按钮。周期性的检查器刷新不运行搜索。
 - 检查器描述的是已安装的表面，而非待处理的重建或代理缓存的移动路线。
 - 它需要本地 Play 会话；对已连接设备的检查不支持该查询。
-
-{/* SHOT: gameplay-nav-route-inspector | navigation-workshop example in Play with the gate closed: a courier entity selected, Details panel with the Nav Agent card expanded after pressing Inspect current route, showing status, reason, endpoints and planning-queue counts */}
-
 ## 重建基准测试
 
 导航重建基准测试在无头 Chromium 中运行，在 32、64 与 128 格的地图上改变门与建筑，并同时进行 64 次重新规划：

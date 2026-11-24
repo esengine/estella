@@ -132,8 +132,7 @@ const setupMinimap = defineSystem([GetWorld()], (world) => {
 
 **设置 → 项目 → 游戏 → 显示**中的字段、对应的 manifest 键及其运行时效果：
 
-{/* SHOT: core-display-settings | 任一示例（例如 examples/mobile-controls）：打开设置 → 项目 → 游戏 → 显示；页面显示设计宽度/高度、屏幕方向、相机适配、相机适配匹配与渲染分辨率。 */}
-
+![设置 → 项目 → 游戏的“显示”分节：宽度、高度、屏幕方向、相机适配、匹配与渲染分辨率](@/assets/guides/zh/core-display-settings.png)
 | 编辑器设置 | 项目 manifest | 运行时效果 |
 |---|---|---|
 | 设计宽度 / 高度 | `designResolution.width` / `.height` | 作为新场景 `Canvas` 组件与编辑器相机的初始值；填入 `ScreenScaling.designWidth` / `designHeight`（经由 `createWebApp` 的 `screenFit`）。 |

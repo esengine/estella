@@ -29,9 +29,6 @@ export * from './components/health';
 - 其字段不在细节面板中显示（组件在场景文件中保留，但显示为未知组件）；
 - 在添加组件和创建实体弹窗的 **Scripts** 下没有对应条目；
 - 其 `registerAction` / `registerCondition` 名称不出现在行为树与事件绑定的候选列表中。
-
-{/* SHOT: script-add-component-scripts | examples/ecs-basics，选中 Camera 实体并打开细节面板 → 添加组件；Scripts 类别列出 src/components.ts 中声明的项目组件 Mover、Lifetime、Spawner 与 Bouncer。 */}
-
 <Aside type="caution">
   声明入口及其导入的全部模块必须是**纯声明**。编辑器在一个没有引擎、没有 WebAssembly 的隔离上下文中求值该模块图；系统会入队但从不运行。启动副作用应放在启动入口中。`scripts.register` 不得指向启动入口。
 </Aside>
@@ -41,9 +38,6 @@ export * from './components/health';
 ## 新建脚本对话框
 
 手动创建的 `.ts` 文件在被某个入口导入之前不起作用。**内容浏览器 → 创建菜单 → 新建脚本…** 同时创建模块和导入。所选类型决定模块接入哪个入口：
-
-{/* SHOT: script-new-script-dialog | examples/ecs-basics，内容浏览器打开 src/，创建菜单 → 新建脚本…；对话框显示名称字段、Component/System 选项、将写入的模块路径以及入口将新增的那一行。 */}
-
 | 类型 | 模块职责 | 接入方式 |
 |---|---|---|
 | **Component** | 编辑器无需运行游戏即可读取的声明。 | 从声明入口重新导出：`export * from './Health';` |

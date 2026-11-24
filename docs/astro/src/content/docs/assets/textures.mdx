@@ -98,8 +98,7 @@ frame can receive `null`.
 Import settings belong to the **image** and apply to every entity that uses it. They are stored in the image's
 `.meta` file and edited by selecting the image in the Content Browser.
 
-{/* SHOT: assets-texture-import-settings | sprite-rendering example: assets/textures/ship_K.png selected in the Content Browser; the Details panel shows its Import Settings with advanced fields expanded (Use, Max Size, Compression, Mip Maps, Filter, Wrap, sRGB Color, Alpha Is Transparency, 9-Slice and Sheet categories) */}
-
+![Details of ship_K.png in the sprite-rendering example: Import Settings with Use, Max Size, Compression, Mip Maps, Filter, Wrap and sRGB Color](@/assets/guides/en/assets-texture-import-settings.png)
 | Setting | Key | Default | Description |
 |---|---|---|---|
 | **Use** | `use` | `Colour` | **Colour**: a picture; a build may shrink it to Max Size, compress it and fill the colour under clear texels. **Data**: numbers per texel (heightmap, measured mask, lookup table); a build keeps its bit depth (16-bit PNG stays 16-bit), never compresses it or decodes it as sRGB, and shrinks it only to an explicit Max Size. See [Data textures](#data-textures). |

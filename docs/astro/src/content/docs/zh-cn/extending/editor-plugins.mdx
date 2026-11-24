@@ -20,9 +20,6 @@ import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
 3. 在 **起始样例** 中勾选要包含的样例——命令、面板、检视器分区、视口 gizmo、视口工具——然后选择 **创建**。
 
 </Steps>
-
-{/* SHOT: extend-new-plugin | Plugins window (Window ▸ Plugins) with the New plugin dialog open from Add ▸ New Plugin…: Name, Id, Install to (project / user) and the Start from sample checkboxes, with the Create button; any example project */}
-
 编辑器写出一个可直接运行的插件并加载它：
 
 <FileTree>
@@ -116,8 +113,7 @@ API 的各部分会在已发布插件实际使用后逐个冻结。
 
 **贡献** 列出运行中的插件当前注册的所有内容——命令、面板、设置项、工具、gizmo、检视器分区、资产类型、导入器、实体模板、菜单项、侧栏按钮和 Agent 工具——各带其 id。编辑器中没有出现的贡献，要么不在列表中（`activate` 未执行到注册语句），要么以不同的 id 注册。
 
-{/* SHOT: extend-plugin-details | Plugins window with a built-in plugin's card expanded via Details, showing its state and the Contributes list with kinds and ids; any example project */}
-
+![插件窗口：展开“详情”的内置 Audio Mixer 插件，显示其声明的权限与三项贡献](@/assets/guides/zh/extend-plugin-details.png)
 ## 分享插件
 
 插件卡片上的 **打包** 将插件打包为一个 `.esplugin` 文件，即 ZIP 压缩包。`node_modules`、`dist` 和生成的类型定义不包含在内。

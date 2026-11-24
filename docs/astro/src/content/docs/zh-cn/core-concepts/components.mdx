@@ -14,9 +14,6 @@ const Health = defineComponent('Health', { current: 100, max: 100 });
 
 默认值定义组件的字段、字段类型以及新实例的初始值。组件只保存数据；行为属于[系统](/docs/zh-cn/core-concepts/systems/)。
 名称即组件的身份：场景按名称序列化组件，[热重载](/docs/zh-cn/scripting/script-modules/#热重载)也按名称匹配组件。
-
-{/* SHOT: core-component-details | 运行 examples/ecs-basics，暂停 Play，选中一个带 Mover 组件的生成实体；细节面板在 Transform 下方显示 Mover 卡片（speed、directionX、directionY）。 */}
-
 ## 字段类型
 
 字段类型由默认值推断。结构化值会获得对应的编辑器控件：

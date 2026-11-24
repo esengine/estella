@@ -49,9 +49,6 @@ A model's products are folded under it in the Content Browser. The model is one 
 its thumbnail (at the start of its row in list view); when expanded, its meshes, materials, clips and prefab follow it on
 a shaded band. A search lists matches unfolded, and **Browse to Asset** on a folded product expands its model and selects
 it. Folding moves no files: products remain next to the model and are referenced by UUID.
-
-{/* SHOT: assets-model-folded-products | model-import example: Content Browser at assets/models with robot.gltf expanded, its meshes, material and prefab shown folded under it on the shaded band */}
-
 Each product's `.meta` records the model it came from in `source` (the model's UUID), written by the import. A product
 folds under that model while both are in the same folder. Projects imported before this field existed fold by the import's
 naming (`<stem>.esprefab` and meshes, materials, clips and baked data named `<stem>_…`); an image next to the model is
@@ -69,8 +66,7 @@ Selected Asset** remains available.
 
 Select the source in the Content Browser to edit its Import Settings. Saving re-imports the model.
 
-{/* SHOT: assets-model-import-settings | model-import example: assets/models/robot.gltf selected in the Content Browser; Details shows its Import Settings with advanced fields expanded (Import and Skinning categories) */}
-
+![Details of robot.gltf in the model-import example: Import Settings with the Import and Skinning groups](@/assets/guides/en/assets-model-import-settings.png)
 | Setting | Key | Default | Description |
 |---|---|---|---|
 | **Scale** | `scale` | `1` | Uniform scale on the prefab root ([Scale](#scale)). |

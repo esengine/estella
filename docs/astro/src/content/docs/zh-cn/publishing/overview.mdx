@@ -65,8 +65,7 @@ Estella 项目从编辑器导出到 **Web**、**桌面**、**微信小游戏**�
 
 每种压缩在 **压缩** 一行中各有一个复选框。所有复选框默认关闭；未勾选时资源原样输出，体积预算也不会自动勾选任何一项。各项所用的参数（纹理的格式和 Max Size、音频的码率）位于检视器中每个资产的 **导入设置**，按平台分页。
 
-{/* SHOT: publish-compression | Package Project dialog with the Web target selected; the Build group visible with the Compression row showing the three boxes (Textures by import settings, Pack atlases, Audio to MP3) and the hint line below them; any example project */}
-
+![选中 Web 目标的打包项目对话框，构建分组：配置、三个压缩复选框及其下方提示](@/assets/guides/zh/publish-compression.png)
 | 复选框 | 目标 | 作用 |
 |---|---|---|
 | **纹理按导入设置压缩** | 全部 | 应用每张纹理的导入设置：目标支持时转为 GPU 格式（KTX2），并按 Max Size 缩小。Playable 只发布图片，因此只应用 Max Size。勾选期间，视口按本次构建的发布结果显示纹理。 |
@@ -120,8 +119,7 @@ which a block-compressed texture must be
 | **压缩脚本** | 在发行构建中压缩游戏与引擎的 JavaScript。默认开启。 |
 | **编译所有系统** | 发行构建将编译器能处理的所有系统编译为机器码；关闭时只编译标记了 `@compiled` 的系统。默认开启。 |
 
-{/* SHOT: publish-packaging-settings | Settings dialog, Project category, Build and modules page scrolled to the Packaging section, showing Application ID, App Icon, Achievement IDs, Minify scripts and Compile all systems; any example project */}
-
+![设置 → 项目 → 构建与模块的“打包”分节](@/assets/guides/zh/publish-packaging-settings.png)
 ### 屏幕方向
 
 屏幕方向是唯一的项目级设置：**设置 → 项目 → 游戏 → 显示 → 屏幕方向**（竖屏或横屏）。未设置时由设计分辨率推导（宽 ≥ 高为横屏，否则为竖屏）。各目标的应用方式：

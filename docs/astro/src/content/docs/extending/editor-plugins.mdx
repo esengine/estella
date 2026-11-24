@@ -27,9 +27,6 @@ with a tab, a close button and pop-out. The contribution points are described in
    tool — and choose **Create**.
 
 </Steps>
-
-{/* SHOT: extend-new-plugin | Plugins window (Window ▸ Plugins) with the New plugin dialog open from Add ▸ New Plugin…: Name, Id, Install to (project / user) and the Start from sample checkboxes, with the Create button; any example project */}
-
 The editor writes a working plugin and loads it:
 
 <FileTree>
@@ -136,8 +133,7 @@ Inspector sections, asset types, importers, entity templates, menu items, rail b
 id. A contribution that does not appear in the editor is either absent from the list (`activate` did not reach the
 registration) or registered under a different id.
 
-{/* SHOT: extend-plugin-details | Plugins window with a built-in plugin's card expanded via Details, showing its state and the Contributes list with kinds and ids; any example project */}
-
+![The Plugins window: the built-in Audio Mixer plugin expanded with Details, showing what it declares and its three contributions](@/assets/guides/en/extend-plugin-details.png)
 ## Sharing a plugin
 
 **Package** on a plugin's card packs it into one `.esplugin` file, a ZIP archive. `node_modules`, `dist` and the
