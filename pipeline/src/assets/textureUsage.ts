@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    textureUsage.ts
- * @brief   Which of a project's textures a mesh draws — what a texture's Auto
- *          compression resolves by.
+ * @brief   Mesh texture uses that determine compression, streaming and atlas eligibility.
  *
  * @details A texture on a mesh is sampled in full wherever the mesh is seen, and
  *          its decoded size is its cost in video memory; a sprite or UI image is
@@ -16,6 +15,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { ComponentData, PrefabOverride } from '../../../sdk/src/prefab/types';
 import type { AssetEntry } from './assetDb';
 import { addrType } from './addressableRecord';
 import { isBuiltinAssetRef, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
@@ -28,7 +28,34 @@ import type { MaterialAssetData } from '../../../sdk/src/render/material';
 export type MeshTextureRole = 'surface' | 'lightmap';
 
 interface Documented {
-  entities?: Array<{ components?: Array<{ type?: string; data?: Record<string, unknown> }> }>;
+  entities?: Array<{
+    components?: ComponentData[];
+    overrides?: PrefabOverride[];
+    added?: Array<{ components?: ComponentData[] }>;
+    nestedPrefab?: { overrides?: PrefabOverride[] };
+  }>;
+  overrides?: PrefabOverride[];
+}
+
+function visitComponentFields(doc: Documented, visit: (type: string, fields: Record<string, unknown>) => void): void {
+  const overrides = (items: readonly PrefabOverride[] = []) => {
+    for (const edit of items) {
+      if (edit.type === 'property' && edit.componentType && edit.propertyName) {
+        visit(edit.componentType, { [edit.propertyName]: edit.value });
+      } else if ((edit.type === 'component_added' || edit.type === 'component_replaced') && edit.componentData) {
+        visit(edit.componentData.type, edit.componentData.data);
+      }
+    }
+  };
+  overrides(doc.overrides);
+  for (const entity of doc.entities ?? []) {
+    for (const component of entity.components ?? []) visit(component.type, component.data);
+    for (const added of entity.added ?? []) {
+      for (const component of added.components ?? []) visit(component.type, component.data);
+    }
+    overrides(entity.overrides);
+    overrides(entity.nestedPrefab?.overrides);
+  }
 }
 
 type MaterialDocument = Partial<Pick<MaterialAssetData, 'instanceOf' | 'properties'>>;
@@ -76,22 +103,19 @@ export async function meshTextureRoles(
     } catch {
       return;
     }
-    for (const entity of parsed.entities ?? []) {
-      for (const component of entity.components ?? []) {
-        const type = component.type ?? '';
-        const data = component.data ?? {};
-        for (const field of COMPONENT_META[type]?.assetFields ?? []) {
-          // Baked lighting participates in compression but the renderer does not stream it by texel density.
-          const lightmap = type === 'MeshLightmap' && field.field === 'lightmap';
-          if (!field.measuresTextureDensity && !lightmap) continue;
-          const ref = data[field.field];
-          const target = typeof ref === 'string' ? resolve(ref, doc.path) : undefined;
-          if (!target || addrType(target.type) !== field.type) continue;
-          if (field.type === 'texture') draw(target.uuid, lightmap ? 'lightmap' : 'surface');
-          else if (field.type === 'material') materials.add(target);
-        }
+    if (!parsed) return;
+    visitComponentFields(parsed, (type, data) => {
+      for (const field of COMPONENT_META[type]?.assetFields ?? []) {
+        // Baked lighting participates in compression but the renderer does not stream it by texel density.
+        const lightmap = type === 'MeshLightmap' && field.field === 'lightmap';
+        if (!field.measuresTextureDensity && !lightmap) continue;
+        const ref = data?.[field.field];
+        const target = typeof ref === 'string' ? resolve(ref, doc.path) : undefined;
+        if (!target || addrType(target.type) !== field.type) continue;
+        if (field.type === 'texture') draw(target.uuid, lightmap ? 'lightmap' : 'surface');
+        else if (field.type === 'material') materials.add(target);
       }
-    }
+    });
   }));
 
   const files = new Map<AssetEntry, Promise<MaterialDocument | null>>();

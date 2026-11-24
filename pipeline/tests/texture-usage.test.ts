@@ -45,6 +45,27 @@ describe('texturesDrawnIn3D', () => {
     expect([...roles.get('albedo')!]).toEqual(['surface']);
   });
 
+  it('includes prefab variant, nested, instance and added-entity texture bindings', async () => {
+    const names = ['variant', 'nested', 'instance', 'added', 'baked', 'ignored'];
+    const entries = [entry('prefab', 'art/frame.esprefab', 'prefab'), entry('mat', 'art/panel.esmaterial', 'material'),
+      ...names.map(name => entry(name, `art/${name}.png`, 'imageSource'))];
+    const component = (type: string, field: string, value: string) => ({ type, data: { [field]: value } });
+    const property = (type: string, field: string, value: string) => ({ type: 'property', componentType: type, propertyName: field, value });
+    const doc = { overrides: [property('MeshRenderer', 'texture', 'variant.png')], entities: [{
+      overrides: [{ type: 'component_added', componentData: component('MeshRenderer', 'material', 'panel.esmaterial') }],
+      added: [{ components: [component('MeshRenderer', 'normalMap', 'added.png')] }],
+      nestedPrefab: { overrides: [
+        { type: 'component_replaced', componentData: component('MeshRenderer', 'texture', 'nested.png') },
+        property('MeshLightmap', 'lightmap', 'baked.png'),
+        property('Sprite', 'texture', 'ignored.png'),
+      ] },
+    }] };
+    const roles = await meshTextureRoles('/p', entries, async file => JSON.stringify(
+      file.endsWith('.esprefab') ? doc : { properties: { u_albedoMap: 'instance.png' } }));
+    expect([...roles.keys()].sort()).toEqual(['added', 'baked', 'instance', 'nested', 'variant']);
+    expect([...roles.get('baked')!]).toEqual(['lightmap']);
+  });
+
   it('cooks the textures each mesh material instance actually samples, relative to the declaring material', async () => {
     const mid = 'a5663b92-8e67-4d20-b8b0-a133368d8382', leaf = '0702200a-75ee-4b5a-91db-0dac0496f708';
     const entries = [

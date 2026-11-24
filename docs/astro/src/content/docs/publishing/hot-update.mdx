@@ -121,7 +121,7 @@ the same resolver.
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | Delivery mode. |
 | `groups.<name>.alwaysInclude` | `boolean` | Ship the group even when nothing in the build reaches it — for assets named only in code (a URL, a path, rich-text markup). Default `false`. See [Assets](/docs/assets/overview/#shipping-what-only-code-names). |
 | `atlases` | `Record<name, {folder}>` | Folders whose textures pack into one atlas page (with **Pack atlases** ticked). Independent of `groups`: an atlas may span two delivery groups and a group may hold two atlases. Absent, the `<name>.atlas/` folder convention applies. |
-| `atlases.<name>.folder` | `string` | Project-relative folder; every texture under it packs into this atlas. The longest matching prefix wins. |
+| `atlases.<name>.folder` | `string` | Project-relative folder; eligible PNGs under it pack into this atlas. Mesh textures keep their own files. The longest matching prefix wins. |
 | `activeProfile`, `profiles` | — | Legacy location of the CDN root, read only while the project sets no `packaging.remoteRoot`. |
 
 ## Shipped files

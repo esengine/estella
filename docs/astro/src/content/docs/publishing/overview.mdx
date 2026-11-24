@@ -89,7 +89,7 @@ and Max Size, a clip's bitrate) are per-asset **Import Settings** in the Inspect
 | Box | Targets | Effect |
 |---|---|---|
 | **Textures by import settings** | All | Applies each texture's Import Settings: the GPU format (KTX2) where the target ships one, and Max Size. A playable ships images, so only Max Size applies there. The viewport draws textures as the build will ship them while this box is ticked. |
-| **Pack atlases** | All | Packs each `<name>.atlas/` folder, or each [`atlases` entry](/docs/publishing/hot-update/#esengineasset-groupsjson) in `.esengine/asset-groups.json`, into atlas pages. |
+| **Pack atlases** | All | Packs each `<name>.atlas/` folder, or each [`atlases` entry](/docs/publishing/hot-update/#esengineasset-groupsjson) in `.esengine/asset-groups.json`, into atlas pages. Textures sampled by meshes keep their own files. |
 | **Audio to MP3** | All | Converts WAV clips to MP3 at each clip's Import Settings bitrate; a clip whose settings disable compression stays WAV. |
 | **Compress the engine binary** | Mini-games | Ships the engine `.wasm` (and side modules) Brotli-compressed where the host can load it. Same setting as *Compress wasm binaries* on the WeChat page. |
 | **Images as WebP** (Off / Lossless / Quality 90 / Quality 80) | Playable | Encodes PNGs as WebP — see [Playable Ads](/docs/publishing/playable-ads/#image-encoding). |

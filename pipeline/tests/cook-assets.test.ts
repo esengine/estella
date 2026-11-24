@@ -584,6 +584,25 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
     }
   });
 
+  it('preserves full mesh UVs when a texture is also used by a sprite in an atlas folder', async () => {
+    const r = makeAtlasProject();
+    try {
+      const scenePath = 'assets/scenes/main.esscene', file = path.join(r, scenePath);
+      const scene = JSON.parse(readFileSync(file, 'utf8'));
+      scene.entities[1].components.push({ type: 'MeshRenderer', data: { texture: `@uuid:${TEX_B}` } });
+      writeFileSync(file, JSON.stringify(scene));
+      const res = await cookAssets(r, { entryScenes: [scenePath], outDir: 'out', atlasTextures: true, contentAddressed: true });
+      expect(res.ok).toBe(true);
+      const { entries } = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as CookManifest;
+      const sprite = entries.find(e => e.uuid === TEX_A)!, shared = entries.find(e => e.uuid === TEX_B)!;
+      expect(sprite.atlas).toBeDefined();
+      expect(shared.atlas).toBeUndefined();
+      expect(shared.path).not.toBe(sprite.path);
+      const actual = readFileSync(path.join(r, 'out', shared.path));
+      expect(actual).toEqual(readFileSync(path.join(r, 'assets/sprites/heroes.atlas/b.png')));
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it('stages atlas-folder textures standalone when atlasTextures is off', async () => {
     const r = makeAtlasProject();
     try {

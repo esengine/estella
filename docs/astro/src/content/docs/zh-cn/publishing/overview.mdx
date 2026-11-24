@@ -69,7 +69,7 @@ Estella 项目从编辑器导出到 **Web**、**桌面**、**微信小游戏**�
 | 复选框 | 目标 | 作用 |
 |---|---|---|
 | **纹理按导入设置压缩** | 全部 | 应用每张纹理的导入设置：目标支持时转为 GPU 格式（KTX2），并按 Max Size 缩小。Playable 只发布图片，因此只应用 Max Size。勾选期间，视口按本次构建的发布结果显示纹理。 |
-| **打包图集** | 全部 | 将每个 `<name>.atlas/` 文件夹，或 `.esengine/asset-groups.json` 中的每个 [`atlases` 条目](/docs/zh-cn/publishing/hot-update/#esengineasset-groupsjson)，打包为图集页。 |
+| **打包图集** | 全部 | 将每个 `<name>.atlas/` 文件夹，或 `.esengine/asset-groups.json` 中的每个 [`atlases` 条目](/docs/zh-cn/publishing/hot-update/#esengineasset-groupsjson)，打包为图集页。 网格采样的纹理会单独导出。 |
 | **音频转 MP3** | 全部 | 按各音频导入设置中的码率将 WAV 转为 MP3；导入设置中关闭压缩的音频保持 WAV。 |
 | **压缩引擎二进制** | 小游戏 | 在宿主能够加载时，以 Brotli 压缩发布引擎 `.wasm`（及侧模块）。与微信目标页的 *压缩 wasm 二进制* 为同一设置。 |
 | **图片转 WebP**（不转 / 无损 / 质量 90 / 质量 80） | Playable | 将 PNG 编码为 WebP，见[试玩广告](/docs/zh-cn/publishing/playable-ads/#图片编码)。 |

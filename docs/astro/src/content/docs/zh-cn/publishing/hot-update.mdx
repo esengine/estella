@@ -103,7 +103,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
 | `groups.<name>.alwaysInclude` | `boolean` | 即使构建中没有任何内容到达该分组也打包——用于只在代码中引用的资产（URL、路径、富文本标记）。默认 `false`。见[资产](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
 | `atlases` | `Record<name, {folder}>` | 其中纹理打包到同一图集页的文件夹（需勾选 **打包图集**）。与 `groups` 相互独立：一个图集可以跨两个交付组，一个分组也可以包含两个图集。未设置时沿用 `<name>.atlas/` 文件夹约定。 |
-| `atlases.<name>.folder` | `string` | 项目相对的文件夹；其下所有纹理打包进该图集。最长匹配前缀优先。 |
+| `atlases.<name>.folder` | `string` | 项目相对的文件夹；其中符合条件的 PNG 打包进该图集，网格使用的纹理单独导出。最长匹配前缀优先。 |
 | `activeProfile`、`profiles` | — | CDN 根地址的旧存放位置，仅在项目未设置 `packaging.remoteRoot` 时读取。 |
 
 ## 随包发布的文件

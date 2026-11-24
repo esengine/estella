@@ -756,9 +756,8 @@ export async function cookAssets(
   const defeatedByFormat: string[] = [];
   // What Auto compression resolves by: whether a mesh anywhere in the project draws it.
   const roles = await meshTextureRoles(root, shippable);
-  const drawnIn3D = new Set(roles.keys());
   const pageCompressedBy = (frame: AssetEntry): boolean =>
-    textureAsksCompression(readTextureCookSettings(frame.importer, platform).compress, drawnIn3D.has(frame.uuid));
+    textureAsksCompression(readTextureCookSettings(frame.importer, platform).compress, roles.has(frame.uuid));
 
   // ---- Auto-atlas (`<name>.atlas/` folder convention) -----------------------
   // Pack the reachable PNGs of each atlas directory into pages BEFORE the
@@ -774,7 +773,8 @@ export async function cookAssets(
     const groups = new Map<string, AssetEntry[]>();
     for (const uuid of reachable) {
       const entry = byUuid.get(uuid);
-      if (!entry || entry.type === 'scene') continue;
+      // Mesh UVs, material samplers and baked lightmaps address the whole texture.
+      if (!entry || entry.type === 'scene' || roles.has(uuid)) continue;
       if (path.extname(entry.path).toLowerCase() !== '.png') continue;
       const dir = resolveAtlas(entry.path, groupsConfig)?.name ?? null;
       if (!dir) continue;
@@ -858,7 +858,7 @@ export async function cookAssets(
       const frameCook = decideTextureCook({
         compressTextures, atlasTextures, inAtlas: true, raster: true,
         atlasPageCompressed: framePlan.compressedFormats !== undefined,
-        compress: frameTex.compress, drawnIn3D: drawnIn3D.has(entry.uuid), format: frameTex.format, size: null,
+        compress: frameTex.compress, drawnIn3D: roles.has(entry.uuid), format: frameTex.format, size: null,
       });
       if (cookIntentDefeated(frameCook)) {
         warnings.push(`${entry.path}: ${explainTextureCook(frameCook)}`);
@@ -928,7 +928,7 @@ export async function cookAssets(
         const t = await cookTexture({
           root, path: entry.path, data, ext, importer: entry.importer, platform,
           encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
-          compressTextures, atlasTextures, drawnIn3D: drawnIn3D.has(entry.uuid),
+          compressTextures, atlasTextures, drawnIn3D: roles.has(entry.uuid),
           resizeTextures: opts.resizeTextures,
         });
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
