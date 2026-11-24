@@ -58,7 +58,7 @@ import { OPEN_DATA_DIR, isEsModule } from './miniGameExportProfile';
 import type { RpkSigningKey } from './rpk';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
-import { resolveEmcc, runEmcc } from '../bundle/emccPath';
+import { resolveEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
 import type { Physics3DBackend } from 'esengine';
@@ -538,7 +538,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // the target AOT exists for (docs/REARCH_AOT.md §1.1: iOS mini-games have no
   // JIT). A PATH, because WXWebAssembly cannot compile bytes.
   const built = await buildCompiledSystems(opts.root, {
-    mode: opts.aotMode ?? 'release', compileAll: opts.compileAllSystems, cc: resolveEmcc(opts.emcc), run: runEmcc,
+    mode: opts.aotMode ?? 'release', compileAll: opts.compileAllSystems, cc: resolveEmcc(opts.emcc),
   });
   if (!built.ok) {
     errors.push(...built.errors);

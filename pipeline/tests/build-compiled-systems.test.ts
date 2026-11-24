@@ -9,19 +9,21 @@
  *          it. Real emcc where emsdk is unpacked, and a loud skip where it is
  *          not — a gate that never saw its subject is worse than a missing one.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildCompiledSystems, readCompiledManifest } from '../src/bundle/buildCompiledSystems';
+import { cachedManifestPath } from '../src/bundle/compiledBuildCache';
+import { runSystemCompiler as run } from '../src/bundle/emccPath';
+import { compiledSystemModule } from './fixtures/compiledSystemModule';
 import { projectShapeDigest } from '../../sdk/src/ecs/aot/abiDigest';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { findHostCC, nativeModuleExt } from '../../compiler/src/hostCC';
 import { ANDROID_AOT_LIBRARY, androidAotCompilers } from '../src/export/androidAot';
 import { androidSdk, ndkTool, requireNdk } from '../../build-tools/utils/android.js';
-import { spawnSync } from 'node:child_process';
 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -39,6 +41,13 @@ const engineMemory = (): WebAssembly.Memory =>
 
 /** wasm section ids, by the numbers the format assigns them. */
 const DATA_SECTION = 11;
+
+/** A deterministic linker for tests of the cache layout that can run without a native toolchain. */
+const writeNamedModule: typeof run = async (_cc, args, cwd) => {
+  const file = path.resolve(cwd, args[args.indexOf('-o') + 1]!);
+  writeFileSync(file, path.basename(file));
+  return { code: 0, stderr: '' };
+};
 
 /** Section id -> byte length, read straight out of the binary. */
 function sectionSizes(buf: Buffer): Map<number, number> {
@@ -58,15 +67,6 @@ function sectionSizes(buf: Buffer): Map<number, number> {
   return out;
 }
 
-
-/** The toolchain's runner, in miniature: emcc is a .bat on Windows. */
-const run = (cmd: string, args: string[], cwd: string): Promise<{ code: number; stderr: string }> =>
-  new Promise((done) => {
-    const child = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
-    let stderr = '';
-    child.stderr.on('data', (d) => { stderr += String(d); });
-    child.on('close', (code) => done({ code: code ?? 1, stderr }));
-  });
 
 /** A project on disk: `src/` with whatever files the case needs. */
 function project(files: Record<string, string>): string {
@@ -135,6 +135,60 @@ export const idleSystem = defineSystem(
     { name: 'IdleSystem' },
 );
 `;
+
+describe.skipIf(!EMCC)('compiled artifacts from overlapping exports', () => {
+  it('keeps each linker on its own sources and preserves both results for packaging', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED,
+      'src/extra.ts': IDLE_COMMANDS.replace('@compiled', '') });
+    let resume!: () => void;
+    const waiting = new Promise<void>(resolve => { resume = resolve; });
+    const threaded = buildCompiledSystems(root, { mode: 'ship', compileAll: true, includeSharedMemory: true, cc: EMCC,
+      run: async (cc, args, dir) => { await waiting; return run(cc, args, dir); } });
+    const mini = await buildCompiledSystems(root, { mode: 'ship', compileAll: false, cc: EMCC, run }).finally(resume);
+    const web = await threaded;
+    expect(mini.errors).toEqual([]);
+    expect(web.errors).toEqual([]);
+    for (const [result, shared] of [[mini, false], [web, false], [web, true]] as const) {
+      const file = shared ? result.modules!['systems-shared.wasm'] : result.modulePath!;
+      expect(compiledSystemModule(file, shared)).toMatchObject({
+        contract: result.manifest!.moduleContract,
+        symbols: result.manifest!.systems.map(system => system.symbol).sort(),
+      });
+    }
+    expect(mini.manifest!.systems).toHaveLength(1);
+    expect(web.manifest!.systems).toHaveLength(2);
+    expect(readCompiledManifest(root)).toEqual(web.manifest);
+  }, 120_000);
+
+  it('keeps the original binary after a body-only edit with the same ABI', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const options = { mode: 'ship' as const, cc: EMCC, run };
+    const first = await buildCompiledSystems(root, options);
+    expect(first.errors).toEqual([]);
+    const original = readFileSync(first.modulePath!);
+    writeFileSync(path.join(root, 'src/systems.ts'), PROMISED.replace('mover.speed * time.delta', '7 * mover.speed * time.delta'));
+    const second = await buildCompiledSystems(root, options);
+    expect(second.errors).toEqual([]);
+    expect(second.manifest).toEqual(first.manifest);
+    expect(readFileSync(second.modulePath!)).not.toEqual(original);
+    expect(readFileSync(first.modulePath!)).toEqual(original);
+    expect(path.dirname(cachedManifestPath(root))).toBe(path.dirname(second.modulePath!));
+  }, 120_000);
+
+  it('keeps the last complete manifest and modules when a later variant fails', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const working = await buildCompiledSystems(root, { mode: 'ship', cc: EMCC, run });
+    expect(working.errors).toEqual([]);
+    const original = readFileSync(working.modulePath!);
+    const failed = await buildCompiledSystems(root, { mode: 'ship', cc: EMCC, includeSharedMemory: true,
+      run: async (cc, args, dir) => args.includes('-Wl,--shared-memory')
+        ? { code: 1, stderr: 'shared linker stopped' } : run(cc, args, dir) });
+    expect(failed).toMatchObject({ ok: false, modulePath: null, manifest: null });
+    expect(failed.errors.join(' ')).toContain('shared linker stopped');
+    expect(readCompiledManifest(root)).toEqual(working.manifest);
+    expect(readFileSync(working.modulePath!)).toEqual(original);
+  }, 120_000);
+});
 
 /** Promised, and outside the subset: trig is refused on purpose (§3.3). */
 const BROKEN = PROMISED
@@ -365,15 +419,59 @@ describe('the AOT build step', () => {
     });
   });
 
-  it.skipIf(!EMCC)('rebuilding is not additive: the cache is what this build made', async () => {
+  it('publishes only the requested variants and reuses identical completed builds', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
-    writeFileSync(path.join(root, '.esengine/cache/aot/stale.c'), 'int leftover;\n');
+    const options = { mode: 'release' as const, cc: 'test-cc', run: writeNamedModule };
+    const both = await buildCompiledSystems(root, { ...options, includeSharedMemory: true });
+    const [first, second] = await Promise.all([buildCompiledSystems(root, options), buildCompiledSystems(root, options)]);
+    for (const result of [both, first, second]) expect(result.errors).toEqual([]);
+    expect(first.modulePath).toBe(second.modulePath);
+    expect(path.dirname(cachedManifestPath(root))).toBe(path.dirname(first.modulePath!));
+    expect(existsSync(path.join(path.dirname(first.modulePath!), 'systems-shared.wasm'))).toBe(false);
+    expect(existsSync(both.modules!['systems-shared.wasm']!)).toBe(true);
+    const cache = path.join(root, '.esengine/cache/aot');
+    expect(readdirSync(path.join(cache, 'builds'))).toHaveLength(2);
+    expect(readdirSync(cache).filter(name => name.startsWith('.build-'))).toEqual([]);
+  });
 
-    await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
-    // A file from a previous shape of the project must not survive into the one
-    // the engine loads next.
-    expect(existsSync(path.join(root, '.esengine/cache/aot/stale.c'))).toBe(false);
+  it('reads legacy flat caches and keeps them when linking is interrupted', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const cache = path.join(root, '.esengine/cache/aot');
+    mkdirSync(cache, { recursive: true });
+    const manifest = { engineAbi: 'legacy', projectShapes: 'legacy', moduleContract: 'legacy', systems: [] };
+    writeFileSync(path.join(cache, 'systems.json'), JSON.stringify(manifest));
+    expect(readCompiledManifest(root)).toEqual(manifest);
+    const failed = await buildCompiledSystems(root, {
+      mode: 'ship', cc: 'test-cc', run: async () => { throw new Error('link interrupted'); },
+    });
+    expect(failed).toMatchObject({ ok: false, modulePath: null, errors: ['link interrupted'] });
+    expect(readCompiledManifest(root)).toEqual(manifest);
+    expect(readdirSync(cache).filter(name => name.startsWith('.build-'))).toEqual([]);
+  });
+
+  it('keeps nested library paths within their named compiler outputs', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const result = await buildCompiledSystems(root, {
+      mode: 'release', target: 'native', cc: null, run: writeNamedModule,
+      outputs: [{ id: 'arm64', cc: 'test-cc', flags: [], module: 'plugins/systems.so' }],
+    });
+    expect(result.errors).toEqual([]);
+    const file = path.join(path.dirname(cachedManifestPath(root)), 'arm64', 'plugins', 'systems.so');
+    expect(result.modulePath).toBe(file);
+    expect(result.modules).toEqual({ arm64: file });
+    expect(readFileSync(file, 'utf8')).toBe('systems.so');
+  });
+
+  it('passes a stable default build timestamp and honors the toolchain environment', async () => {
+    const root = project({ 'clock.cjs': "process.stderr.write(process.env.SOURCE_DATE_EPOCH ?? 'missing');" });
+    try {
+      vi.stubEnv('SOURCE_DATE_EPOCH', undefined);
+      expect(await run(process.execPath, ['clock.cjs'], root)).toEqual({ code: 0, stderr: '0' });
+      vi.stubEnv('SOURCE_DATE_EPOCH', '946684800');
+      expect(await run(process.execPath, ['clock.cjs'], root)).toEqual({ code: 0, stderr: '946684800' });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('a dev build never compiles, so a marker costs it nothing', async () => {
@@ -411,22 +509,26 @@ describe('the AOT build step, for a host that loads a library', () => {
     const out = await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });
 
     expect(out.ok, out.errors.join('; ')).toBe(true);
-    expect(out.modulePath).toBe(path.join(root, '.esengine/cache/aot', `systems${nativeModuleExt()}`));
+    expect(path.basename(out.modulePath!)).toBe(`systems${nativeModuleExt()}`);
+    expect(JSON.parse(readFileSync(path.join(path.dirname(out.modulePath!), 'systems.json'), 'utf8'))).toEqual(out.manifest);
     expect(existsSync(out.modulePath!)).toBe(true);
     expect(out.manifest?.systems.map((s) => s.name)).toEqual(['MoveSystem']);
   });
 
   it.skipIf(!HOST_CC)('compiles the declaration table, which the wasm module must not carry', async () => {
     const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-    await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });
-    expect(existsSync(path.join(root, '.esengine/cache/aot/systems_decl.c'))).toBe(true);
+    const native = await buildCompiledSystems(root, { mode: 'release', target: 'native', cc: HOST_CC, run });
+    expect(native.errors).toEqual([]);
+    const decl = path.join(path.dirname(native.modulePath!), 'systems_decl.c');
+    expect(existsSync(decl)).toBe(true);
 
     // And the wasm build of the SAME project does not write one: its data
     // section would land at an address the engine already owns.
     if (EMCC) {
-      const wasmRoot = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
-      await buildCompiledSystems(wasmRoot, { mode: 'release', cc: EMCC, run });
-      expect(existsSync(path.join(wasmRoot, '.esengine/cache/aot/systems_decl.c'))).toBe(false);
+      const wasm = await buildCompiledSystems(root, { mode: 'release', cc: EMCC, run });
+      expect(wasm.errors).toEqual([]);
+      expect(existsSync(path.join(path.dirname(wasm.modulePath!), 'systems_decl.c'))).toBe(false);
+      expect(existsSync(decl)).toBe(true);
     }
   });
 

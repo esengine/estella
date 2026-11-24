@@ -41,7 +41,7 @@ async function loadPipeline() {
     await esbuild.build({
         stdin: {
             contents: "export { buildCompiledSystems } from './bundle/buildCompiledSystems';\n"
-                + "export { resolveEmcc, runEmcc } from './bundle/emccPath';\n",
+                + "export { resolveEmcc } from './bundle/emccPath';\n",
             resolveDir: join(REPO, 'pipeline', 'src'),
             loader: 'ts',
             sourcefile: 'aot-entry.ts',
@@ -67,13 +67,13 @@ async function main() {
         if (!emcc) throw new Error('no emcc — run `pnpm emsdk:setup`, or set EMSDK');
         console.log(`emcc: ${emcc}`);
 
-        const built = await mod.buildCompiledSystems(PROJECT, { mode: 'release', emcc, run: mod.runEmcc });
+        const built = await mod.buildCompiledSystems(PROJECT, { mode: 'release', cc: emcc });
         if (!built.ok) throw new Error(`the AOT step refused:\n  ${built.errors.join('\n  ')}`);
-        if (!built.wasmPath) throw new Error('nothing was compiled — is the @compiled marker still there?');
+        if (!built.modulePath) throw new Error('nothing was compiled — is the @compiled marker still there?');
 
         rmSync(OUT, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         mkdirSync(OUT, { recursive: true });
-        copyFileSync(built.wasmPath, join(OUT, 'systems.wasm'));
+        copyFileSync(built.modulePath, join(OUT, 'systems.wasm'));
         writeFileSync(join(OUT, 'systems.json'), `${JSON.stringify(built.manifest, null, 2)}\n`);
         console.log(`compiled: ${built.manifest.systems.map((s) => s.name).join(', ')}`);
 

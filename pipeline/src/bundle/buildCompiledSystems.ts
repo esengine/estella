@@ -8,9 +8,8 @@
  * `packaging.compileAllSystems` off), built from the C `@estella/compiler` emits.
  * A system marked `@compiled` is one the author PROMISED would compile.
  *
- * It imports the engine's memory rather than owning one, which is what keeps
- * this cheap: the engine wasm stays prebuilt and only the game's own systems are
- * compiled here — a few hundred bytes, not a link.
+ * Web and minigame modules import the engine's WebAssembly memory. Native hosts
+ * load the same generated C as a shared library with a system declaration table.
  *
  * Never throws. An unmarked system that will not compile stays interpreted; a
  * marked one that will not IS a failure, because that is what the marker means.
@@ -21,21 +20,18 @@
  * cannot keep is an error rather than a quiet fallback — which is the difference
  * the marker exists to make.
  */
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { brokenPromises, lowerProgram } from '../../../compiler/src/frontend';
 import { verifySystem } from '../../../compiler/src/verify';
 import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout } from '../../../compiler/src/abi';
-import { CFLAGS, WASM_LINK_FLAGS, WASM_SHARED_MEMORY_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
+import { WASM_LINK_FLAGS, WASM_SHARED_MEMORY_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
 import { nativeLinkFlags, nativeModuleExt } from '../../../compiler/src/hostCC';
-import { AOT_MANIFEST, AOT_SHARED_WASM, AOT_WASM } from './aotArtifacts';
-
-/** Where the C and the wasm land, beside the script bundle. */
-const CACHE_DIR = '.esengine/cache/aot';
-const WASM = AOT_WASM;
-const MANIFEST = AOT_MANIFEST;
+import { AOT_SHARED_WASM, AOT_WASM } from './aotArtifacts';
+import { cachedManifestPath, linkCompiledModules, type CompiledLinkJob } from './compiledBuildCache';
+import type { runSystemCompiler } from './emccPath';
 
 /** What the runtime needs in order to call one compiled system. */
 export interface CompiledSystemInfo {
@@ -71,8 +67,7 @@ export interface CompiledSystemsManifest {
    */
   engineAbi: string;
   projectShapes: string;
-  /** Which BUILD this is: the artifact bakes the same number, so a loader can
-   *  refuse a module paired with another build's sidecar. */
+  /** Digest of the system call layouts embedded in the module. A body-only edit can retain it. */
   moduleContract: string;
   systems: CompiledSystemInfo[];
 }
@@ -117,7 +112,7 @@ interface TargetPlan {
 const TARGETS: Record<CompileTarget, TargetPlan> = {
   wasm: {
     addressBytes: 4,
-    module: WASM,
+    module: AOT_WASM,
     linkFlags: (symbols) => [
       // No entry point and no JS glue, so the module's only import is the memory
       // it is given. An empty import section is a property of this command line
@@ -140,8 +135,7 @@ const TARGETS: Record<CompileTarget, TargetPlan> = {
 
 export interface BuildCompiledResult {
   ok: boolean;
-  /** Absolute path to the built module, or null when there was nothing to
-   *  build. Which KIND of module is the target the caller asked for. */
+  /** Absolute module path, valid across exports until cache cleanup. Null when no module was built. */
   modulePath: string | null;
   /** Each requested variant by id. The default is also available at `modulePath`. */
   modules?: Record<string, string>;
@@ -212,8 +206,8 @@ export async function buildCompiledSystems(
     /** Absolute path to the compiler FOR that target — emcc for wasm, the
      *  host's own cc for native — or null when this machine has none. */
     cc: string | null;
-    /** Runs a command; the toolchain's own runner, so env and logging match. */
-    run: (cmd: string, args: string[], cwd: string) => Promise<{ code: number; stderr: string }>;
+    /** Optional process runner for hosts that supply their own toolchain environment. */
+    run?: typeof runSystemCompiler;
     /**
      * Native only: the machines to build the one C for, each with its own
      * compiler and flags — a cross-compiled package carries one module per ABI.
@@ -304,43 +298,23 @@ export async function buildCompiledSystems(
   const inlined = chosen.map((s) => inlineSystem(s, lowered.module.fns));
   const c = emitC(lowered.module, layout, inlined, plan.addressBytes);
 
-  const dir = path.join(root, CACHE_DIR);
-  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, 'estella_abi.h'), c.header);
-  writeFileSync(path.join(dir, 'estella_offsets.h'), c.offsets);
-  writeFileSync(path.join(dir, 'systems.c'), c.source);
-  const units = [path.join(dir, 'systems.c')];
-  if (plan.compilesDecls) {
-    writeFileSync(path.join(dir, 'systems_decl.c'), c.decls);
-    units.push(path.join(dir, 'systems_decl.c'));
-  }
+  const generated: Record<string, string> = {
+    'estella_abi.h': c.header, 'estella_offsets.h': c.offsets, 'systems.c': c.source,
+  };
+  if (plan.compilesDecls) generated['systems_decl.c'] = c.decls;
 
   // One C, as many machines as were asked for: the host's own by default, or one
   // module per output (a cross-compiled package's ABIs), each in its own folder.
-  const jobs = opts.outputs
-    ? opts.outputs.map((o) => ({ id: o.id, cc: o.cc, flags: [...o.flags], out: path.join(dir, o.id, o.module) }))
-    : [{ id: plan.module, cc: opts.cc!, flags: plan.linkFlags(c.symbols), out: path.join(dir, plan.module) }];
+  const jobs: CompiledLinkJob[] = opts.outputs
+    ? opts.outputs.map(o => ({ ...o, directory: o.id }))
+    : [{ id: plan.module, cc: opts.cc!, flags: plan.linkFlags(c.symbols), module: plan.module }];
   if (opts.includeSharedMemory && target === 'wasm' && !opts.outputs) {
     const standard = jobs[0];
     jobs.push({
       id: AOT_SHARED_WASM, cc: standard.cc, flags: [...standard.flags, ...WASM_SHARED_MEMORY_FLAGS],
-      out: path.join(dir, AOT_SHARED_WASM),
+      module: AOT_SHARED_WASM,
     });
   }
-  const namedOutputs = opts.outputs !== undefined || jobs.length > 1;
-  const modules: Record<string, string> = {};
-  for (const job of jobs) {
-    mkdirSync(path.dirname(job.out), { recursive: true });
-    const built = await opts.run(job.cc, [...CFLAGS, '-Wall', '-Wextra', ...job.flags, '-o', job.out, ...units], dir);
-    if (built.code !== 0 || !existsSync(job.out)) {
-      return { ok: false, modulePath: null, manifest: null, notes,
-        errors: [`${namedOutputs ? `${job.id}: ` : ''}${built.stderr.trim()}`] };
-    }
-    modules[job.id] = job.out;
-  }
-  const modulePath = jobs[0].out;
-
   const manifest: CompiledSystemsManifest = {
     engineAbi: c.handshake.engineAbi,
     projectShapes: c.handshake.projectShapes,
@@ -350,13 +324,19 @@ export async function buildCompiledSystems(
     // table the artifact carries.
     systems: moduleDeclarations(lowered.module, inlined),
   };
-  writeFileSync(path.join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-  return { ok: true, modulePath, ...(namedOutputs ? { modules } : {}), manifest, errors: [], notes };
+  try {
+    const modules = await linkCompiledModules(root, generated, `${JSON.stringify(manifest, null, 2)}\n`, jobs, opts.run);
+    const modulePath = modules[jobs[0].id]!;
+    const namedOutputs = opts.outputs !== undefined || jobs.length > 1;
+    return { ok: true, modulePath, ...(namedOutputs ? { modules } : {}), manifest, errors: [], notes };
+  } catch (err) {
+    return { ok: false, modulePath: null, manifest: null, notes, errors: [err instanceof Error ? err.message : String(err)] };
+  }
 }
 
-/** Read back what a previous build wrote, or null. */
+/** Read the last successfully published manifest, including projects with a legacy flat cache. */
 export function readCompiledManifest(root: string): CompiledSystemsManifest | null {
-  const at = path.join(root, CACHE_DIR, MANIFEST);
+  const at = cachedManifestPath(root);
   if (!existsSync(at)) return null;
   return JSON.parse(readFileSync(at, 'utf8')) as CompiledSystemsManifest;
 }

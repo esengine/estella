@@ -1,33 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Where emcc is, for the one build step that needs a C compiler.
- *
- * Only the AOT step asks (docs/REARCH_AOT.md): everything else the pipeline
- * builds is JavaScript, and this is the one place an export spawns a process. A
- * machine without emscripten still exports every project that promised nothing,
- * so this answers `null` rather than throwing — the refusal belongs to the step
- * that knows whether anything was promised.
- *
- * Three places, in the order they are authoritative: what the caller was told
- * (an editor that installed its own toolchain), the environment an emsdk shell
- * exports, and the repo's own submodule for anyone working in the tree.
+ * @file  Emscripten discovery and the process runner for Web and native system compilers.
  */
 import { existsSync } from 'node:fs';
 import { emccPath } from '../../../build-tools/utils/emscripten.js';
 import { spawnTool } from '../../../tools/lib/runTool.mjs';
 
-export function runEmcc(
+/** Run the system compiler with stable timestamps on toolchains that support reproducible builds. */
+export function runSystemCompiler(
     cmd: string, args: string[], cwd: string,
 ): Promise<{ code: number; stderr: string }> {
     return new Promise((done) => {
-        const child = spawnTool(cmd, args, { cwd });
+        const env = { ...process.env, SOURCE_DATE_EPOCH: process.env['SOURCE_DATE_EPOCH'] ?? '0' };
+        const child = spawnTool(cmd, args, { cwd, env });
         let stderr = '';
         child.stderr?.on('data', (d) => { stderr += String(d); });
         child.on('error', (e) => done({ code: 1, stderr: `${stderr}${e.message}` }));
         child.on('close', (code) => done({ code: code ?? 1, stderr }));
     });
 }
+
+export { runSystemCompiler as runEmcc };
 
 /**
  * An absolute path to emcc, or null where this machine has none.

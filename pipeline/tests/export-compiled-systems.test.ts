@@ -24,6 +24,7 @@ import { readSizeRecord } from '../src/export/sizeHistory';
 import { resolveEmcc } from '../src/bundle/emccPath';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
+import { compiledSystemModule } from './fixtures/compiledSystemModule';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
@@ -100,11 +101,11 @@ const run = (f: { root: string; out: string }, threadedRendering = false) => exp
 const config = (out: string): PackagedGameConfig =>
   JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')) as PackagedGameConfig;
 
-const runWeChat = (f: { root: string; out: string }) => exportGame({
+const runWeChat = (f: { root: string; out: string }, compileAllSystems?: boolean) => exportGame({
   root: f.root, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts', platform: 'wechat', miniGameAppid: 'wxTEST0123456789',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
-  outDir: f.out,
+  outDir: f.out, compileAllSystems,
 });
 
 describe('what a package carries for a compiled system', () => {
@@ -130,28 +131,33 @@ describe('what a package carries for a compiled system', () => {
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 120_000);
 
-  it.skipIf(!EMCC)('stages matching compiled systems for both heaps in a threaded Web package', async () => {
-    const f = project(PROMISED);
+  it.skipIf(!EMCC)('packages both Web heaps and the WeChat system selection during overlapping exports', async () => {
+    const f = project(PROMISED + `
+export const optional = defineSystem([Query(Mut(Drift))], query => {
+    for (const [, drift] of query) drift.x -= drift.step;
+}, { name: 'OptionalDrift' });
+`);
+    const mini = { root: f.root, out: path.join(f.root, 'wechat') };
     try {
+      miniGameStubs(f.root);
       for (const ext of ['js', 'wasm']) {
         writeFileSync(path.join(f.root, '_wasm', `esengine-threaded.${ext}`), 'threaded core');
       }
-      expect((await run(f, true)).errors).toEqual([]);
+      const packages = await Promise.all([run(f, true), runWeChat(mini, false)]);
+      for (const result of packages) expect(result.errors).toEqual([]);
       const aot = config(f.out).aot!;
+      expect(aot.manifest.systems.map(s => s.name).sort()).toEqual(['ExportDriftSystem', 'OptionalDrift']);
       expect(aot.sharedModule).toBeTruthy();
       for (const [file, shared] of [[aot.module, false], [aot.sharedModule!, true]] as const) {
-        const memory = new WebAssembly.Memory({ initial: 256, maximum: 32768, shared });
-        const bytes = new Uint8Array(memory.buffer);
-        bytes.fill(41);
-        const module = new WebAssembly.Module(Uint8Array.from(readFileSync(path.join(f.out, file))));
-        expect(WebAssembly.Module.imports(module)).toEqual([{ module: 'env', name: 'memory', kind: 'memory' }]);
-        const { exports } = new WebAssembly.Instance(module, { env: { memory } });
-        (exports._initialize as () => void)();
-        const word = (name: string) => ((exports[name] as () => number)() >>> 0).toString(16).padStart(8, '0');
-        expect(word('es_module_contract_hi') + word('es_module_contract_lo')).toBe(aot.manifest.moduleContract);
-        expect(typeof exports[aot.manifest.systems[0]!.symbol]).toBe('function');
-        expect(bytes.every(byte => byte === 41)).toBe(true);
+        expect(compiledSystemModule(path.join(f.out, file), shared)).toEqual({
+          imports: [{ module: 'env', name: 'memory', kind: 'memory' }], memoryUnchanged: true,
+          contract: aot.manifest.moduleContract, symbols: aot.manifest.systems.map(s => s.symbol).sort(),
+        });
       }
+      const miniModule = compiledSystemModule(path.join(mini.out, 'aot/systems.wasm'), false);
+      expect(miniModule.symbols).toEqual(['es_sys_ExportDriftSystem']);
+      expect(miniModule.contract).not.toBe(aot.manifest.moduleContract);
+      expect(readFileSync(path.join(mini.out, 'game-bundle.js'), 'utf8')).toContain(miniModule.contract);
       const sharedPath = path.join(f.out, aot.sharedModule!);
       expect((await run(f)).errors).toEqual([]);
       expect(config(f.out).aot?.sharedModule).toBeUndefined();

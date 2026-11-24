@@ -59,7 +59,7 @@ import { drawsOnlyThroughGL, glOnlyShadersPlugin } from '../bundle/glOnlyShaders
 import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, compilesUnmarkedSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { AOT_SHARED_WASM, AOT_WASM } from '../bundle/aotArtifacts';
-import { resolveEmcc, runEmcc } from '../bundle/emccPath';
+import { resolveEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { cspConnectSource, cspConnectSources } from './cspConnect';
@@ -1259,7 +1259,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       target: aotTarget,
       includeSharedMemory: threadedWeb,
       cc: aotTarget === 'native' ? (platform === 'android' ? null : findHostCC()) : resolveEmcc(opts.emcc),
-      run: runEmcc,
       ...(platform === 'android' ? {
         outputs: (androidCompilers?.compilers ?? []).map((c) => ({ id: c.abi, cc: c.cc, flags: c.flags, module: ANDROID_AOT_LIBRARY })),
         missing: androidCompilers?.missing
