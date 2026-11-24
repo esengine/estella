@@ -779,6 +779,9 @@ registerEffect({
         { name: 'u_followSun', label: 'Follow Scene Sun', min: 0, max: 1, step: 1, defaultValue: 1, neutralValue: 1 },
         { name: 'u_sunAzimuth', label: 'Sun Azimuth', min: 0, max: 360, step: 1, defaultValue: 40 },
         { name: 'u_sunElevation', label: 'Sun Elevation', min: -90, max: 90, step: 1, defaultValue: 35 },
+        // WORLD lengths from the eye: contact shadows are a detail of what is near, and fade out between these two.
+        { name: 'u_fadeStart', label: 'Fade Start', min: 0, max: 100000, step: 50, defaultValue: 1500, worldUnits: 1 },
+        { name: 'u_fadeEnd', label: 'Fade End', min: 0, max: 100000, step: 50, defaultValue: 3000, worldUnits: 1 },
     ],
 });
 

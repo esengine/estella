@@ -539,6 +539,8 @@ void main() {
 #pragma param u_followSun float default(1) range(0,1)
 #pragma param u_sunAzimuth float default(40) range(0,360)
 #pragma param u_sunElevation float default(35) range(-90,90)
+#pragma param u_fadeStart float default(1500) range(0,100000)
+#pragma param u_fadeEnd float default(3000) range(0,100000)
 ${qualityUniformParam('contactShadowSteps')}
 #pragma lights
 
@@ -587,6 +589,13 @@ void main() {
            : vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
 
     vec3 P = worldFromDepth(uvOfTexel(c, size), d);
+    // A contact shadow is a detail of what is near. Far off, the depth buffer is too coarse to tell a surface from the
+    // one behind it, and a ray skimming distant ground finds blockers in its own rounding: it fades out over distance.
+    float viewDepth = (u_projection * vec4(P, 1.0)).w;
+    float near = 1.0 - smoothstep(u_fadeStart, max(u_fadeEnd, u_fadeStart + 1.0), viewDepth);
+    if (near <= 0.0) { fragColor = src; return; }
+    // What the buffer can resolve grows with distance, so the test for being in front of a surface does too.
+    float slack = viewDepth * 0.002;
     // A surface that faces away from the sun is already dark, and a shadow on it is a second one: the term fades out before
     // the terminator instead of speckling the dark side. The normal is the depth buffer's own, from the nearer neighbour on
     // each axis (the same pick the occlusion passes make, so a silhouette does not average into a normal facing neither).
@@ -620,7 +629,7 @@ void main() {
         float t = (float(i) + jitter + 0.5) / steps * u_length;
         float behind = behindAt(P, L, t, size);
         if (behind == CONTACT_OFF_SCREEN) break;
-        bool front = behind <= u_thickness * 0.08 + t * 0.01;
+        bool front = behind <= u_thickness * 0.08 + t * 0.01 + slack;
         bool deep = behind >= u_thickness;
         // A step lands somewhere past where the blocker begins; the middle of the step is the even guess, and varies half as
         // much with the jittered start as the landing does.
@@ -632,7 +641,7 @@ void main() {
             for (int k = 0; k < 6; ++k) {
                 float mid = 0.5 * (lo + hi);
                 float b = behindAt(P, L, mid, size);
-                bool midFront = b <= u_thickness * 0.08 + mid * 0.01;
+                bool midFront = b <= u_thickness * 0.08 + mid * 0.01 + slack;
                 bool midDeep = b >= u_thickness;
                 if (!midFront && !midDeep) { blocked = true; break; }
                 if (midDeep == lastDeep) lo = mid; else hi = mid;
@@ -651,7 +660,7 @@ void main() {
         float reach = clamp(entered / u_length, 0.0, 1.0);
         occluded = 1.0 - reach * reach;
     }
-    fragColor = vec4(src.rgb * (1.0 - u_intensity * occluded * facing), src.a);
+    fragColor = vec4(src.rgb * (1.0 - u_intensity * occluded * facing * near), src.a);
 }
 #pragma end
 
