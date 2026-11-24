@@ -10,8 +10,8 @@ import {
     hostPlatform, installPlan, installTool, parseToolsIndex, removeTool, toolReady, toolSources, toolStatus, toolsManifest,
     type ToolsManifest,
 } from '../src/tools/externalTools';
-// @ts-expect-error — a plain script with no declarations
-import { manifestProblems } from '../../tools/sync-external-tools.mjs';
+// @ts-expect-error — the shared validator is a plain module with no declarations
+import { manifestProblems } from '../../tools/lib/externalToolsManifest.mjs';
 
 const sha = (b: Buffer | string) => createHash('sha256').update(b).digest('hex');
 
