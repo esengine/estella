@@ -295,6 +295,23 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
             old.delete(); next.delete();
         }
     });
+
+    it.skipIf(!HAS_WASM)('interprets the next run when the installed twin cannot address the replacement core', async () => {
+        const engine = await loadWasmModule(), app = App.new(), old = new engine.Registry();
+        const other = createMockModule();
+        app.connectCpp(old, engine);
+        try {
+            const fixture = await installFixture(app);
+            let interpreted = 0;
+            app.addSystem(defineSystem([], () => { interpreted++; }, { name: fixture.censusSystem._name }));
+            await app.tick(DT);
+            expect(app.compiledSystems.calls).toBe(1);
+            app.connectCpp(other.getRegistry(), other);
+            await app.tick(DT);
+            expect(interpreted).toBe(1);
+            expect(app.compiledSystems.calls).toBe(1);
+        } finally { app.quit({ keepRenderer: true }); old.delete(); }
+    });
 });
 
 /**

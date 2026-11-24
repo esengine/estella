@@ -20,10 +20,10 @@ describe.skipIf(!HAS_WASM)('scene publication owns its registry', () => {
     let core: ESEngineModule;
     beforeAll(async () => { core = await loadWasmModule(); });
 
-    function setup() {
+    function setup(module = core) {
         const app = App.new(), first = new core.Registry(), second = new core.Registry();
-        app.connectCpp(first, core);
-        const options = { app, module: core, sceneData: scene, source: {
+        app.connectCpp(first, module);
+        const options = { app, module, sceneData: scene, source: {
             backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected texture'); },
         } };
         function replace(quit: boolean) {
@@ -96,8 +96,10 @@ describe.skipIf(!HAS_WASM)('scene publication owns its registry', () => {
         } finally { dispose(); }
     });
 
-    it('honors a native population reset even when both the registry object and entity number match', async () => {
-        const { app, first, options, dispose } = setup();
+    it('honors a scalar reset binding when both the registry object and entity number match', async () => {
+        const module: ESEngineModule = Object.create(core);
+        module.registry_entityChangeResetEpochAddress = undefined;
+        const { app, first, options, dispose } = setup(module);
         const api = worldEngineApi(app.world)!;
         const original = api.registry_entityChangeResetEpoch!;
         let epoch = original(first);
@@ -112,7 +114,7 @@ describe.skipIf(!HAS_WASM)('scene publication owns its registry', () => {
             } })).rejects.toBeInstanceOf(SceneLoadCancelled);
             expect(first.entityCount()).toBe(1);
             expect(app.world.get(app.world.getAllEntities()[0]!, Name).value).toBe('after clear');
-        } finally { api.registry_entityChangeResetEpoch = original; dispose(); }
+        } finally { dispose(); }
     });
 
     it.each(['loading', 'running'])('reuses a registration after disconnecting its %s instance', async status => {

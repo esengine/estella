@@ -9779,6 +9779,7 @@ scanned: number
 @internal resetTick: (tick: number) => void
 @internal settleKeptRows: () => void
 @internal takeCost: () => QueryCost
+@internal takeIterationDepth: () => number
 [Symbol.iterator]: () => Iterator<QueryResult<C>>
 count: () => number
 forEach: (callback: (entity: Entity, ...components: ComponentsData<C>) => void) => void
@@ -10036,6 +10037,7 @@ keepTransform: boolean
 ```
 @internal activateRetention: () => void
 @internal dispose: () => void
+@internal forRun: (tick: number) => RemovedQueryInstance<T>
 @internal releaseThrough: (_lastRunTick: number) => void
 @internal resetTick: (tick: number) => void
 [Symbol.iterator]: () => Iterator<Entity>
@@ -15672,7 +15674,7 @@ Generator<number, T, void>
 @internal getCppRegistry: () => CppRegistry | null
 @internal getQueryCacheStats: () => QueryCacheStats
 @internal getRemovalSequence: () => number
-@internal getRemovedEntitiesForReader: (component: AnyComponentDef, readerId: number) => Entity[]
+@internal getRemovedEntitiesForReader: (component: AnyComponentDef, readerId: number, since?: number) => Entity[]
 @internal getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 @internal getStorageSizes: () => { entities: number; indexSlots: number; spawnCallbacks: number; despawnCallbacks: number; coreDisconnectCallbacks: number; names: ReturnType<NameIndex["sizes"]>; scripts: ReturnType<ScriptStorage["sizes"]>; changes: ReturnType<ChangeTracker["sizes"]>; queryCacheEntries: number; }
 @internal getStoredComponentEntities: (component: AnyComponentDef) => Iterable<Entity>
@@ -15715,7 +15717,7 @@ Generator<number, T, void>
 @internal releaseScriptPools: () => void
 @internal removedReaderCount: (component: AnyComponentDef) => number
 @internal reserveEntity: () => Entity
-@internal resetIterationDepth: () => void
+@internal resetIterationDepth: (depth?: number) => void
 @internal resetQueryCacheStats: () => void
 @internal resetQueryPool: () => void
 @internal resolveChangeSequenceMatcher: (component: AnyComponentDef, added: boolean) => (entity: Entity, after: number) => boolean

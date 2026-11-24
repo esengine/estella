@@ -46,13 +46,17 @@ export const DUTIES = [
         // Different owners, same duty: the wasm module shares the engine's
         // memory so this side writes the table, and a loading host packs its own
         // and is told where the script pools are.
-        web: ['runtime.addresses.componentNamed', 'runtime.ctx.build'],
-        native: ['world.scriptSpanOf', 'bindings.scriptRows', 'world.addressResolver', 'world.hasPortableScriptAssetRefs'],
+        web: ['runtime.addresses.componentNamed', 'runtime.ctx.build', 'plans.clear'],
+        native: ['world.scriptSpanOf', 'bindings.scriptRows', 'world.addressResolver', 'world.hasPortableScriptAssetRefs', 'assetQueries_.clear'],
         differential: {
-            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ }],
+            web: [
+                { path: 'sdk/tests/aot-conformance.test.ts', probe: /twins\.trace\[f\]/ },
+                { path: 'sdk/tests/aot-row-cache.test.ts', probe: /rebinds builtin address resolvers when the registry changes/ },
+            ],
             native: [
                 { path: 'tools/verify-native-conformance.mjs', probe: /disagrees at frame/ },
                 { path: 'sdk/tests/aot-native-install.test.ts', probe: /interprets every matching row with a portable asset ref/ },
+                { path: 'sdk/tests/native-aot-ownership.test.ts', probe: /keeps the host-bound registry with its installed module/ },
             ],
         },
     },
@@ -211,7 +215,6 @@ export const BOOKKEEPING = {
     'assetQueries_.set': 'refreshing query address resolvers when script layout metadata changes',
     'plans.get': 'the per-system plan cache, which only this road has',
     'plans.set': 'the per-system plan cache, which only this road has',
-    'plans.clear': 'dropping the plans on reset',
     'indexByName.get': "the host's index for a system name, resolved at install",
     'running_.has': 'so the "running compiled" line is said once per system',
     'running_.add': 'so the "running compiled" line is said once per system',

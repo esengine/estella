@@ -101,6 +101,13 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'> & {
     readonly beforeCommit?: () => void;
 }): Promise<AotRuntime> {
     const memory = new WasmPoolMemory(opts.host);
+    const installedModule = opts.world.getWasmModule();
+    const installedRegistry = opts.world.getCppRegistry();
+    const canAddress = (world: World): boolean => {
+        const module = world.getWasmModule();
+        if (module?.wasmMemory) return module.wasmMemory === opts.host.memory;
+        return module === installedModule && (module !== null || world.getCppRegistry() === installedRegistry);
+    };
 
     const { instance } = await platformInstantiateWasm(
         wasmSource(opts.wasm), { env: { memory: opts.host.memory } });
@@ -128,6 +135,7 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'> & {
     });
 
     opts.beforeCommit?.();
+    if (!canAddress(opts.world)) throw new Error('The engine memory changed while installing compiled systems');
     opts.world.useScriptPoolMemory(memory);
     const resources = new AotResources(memory, opts.resources, declaredLayouts(opts.manifest));
     const events = new AotEvents(memory, opts.events ?? (() => undefined));
@@ -146,7 +154,7 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'> & {
         // call takes their address.
         dispatcherFor: (world) => {
             const dispatch = new AotDispatch(world, runtime);
-            return { run: twin => !disposed && dispatch.run(twin) };
+            return { run: twin => !disposed && canAddress(world) && dispatch.run(twin) };
         },
     };
     return runtime;

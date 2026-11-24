@@ -1028,6 +1028,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("registry_unwatchEntityChanges", &esengine::registry_unwatchEntityChanges);
     emscripten::function("registry_entityChangeSequence", &esengine::registry_entityChangeSequence);
     emscripten::function("registry_entityChangeResetEpoch", &esengine::registry_entityChangeResetEpoch);
+    emscripten::function("registry_entityChangeResetEpochAddress", emscripten::optional_override([](const esengine::ecs::Registry& registry) -> uintptr_t {
+        return reinterpret_cast<uintptr_t>(registry.entityChangeResetEpochAddress());
+    }));
     emscripten::function("registry_componentMutationRevision", &esengine::registry_componentMutationRevision);
     emscripten::function("registry_readEntityChanges", &esengine::registry_readEntityChanges);
     emscripten::function("registry_markComponentsChanged", &esengine::registry_markComponentsChanged);

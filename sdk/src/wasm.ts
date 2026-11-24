@@ -857,6 +857,7 @@ export interface ESEngineModule extends TilemapBindings {
     registry_unwatchEntityChanges?(registry: CppRegistry, reader: number): void;
     registry_entityChangeSequence?(registry: CppRegistry): number;
     registry_entityChangeResetEpoch?(registry: CppRegistry): number;
+    registry_entityChangeResetEpochAddress?(registry: CppRegistry): number;
     registry_componentMutationRevision?(registry: CppRegistry, component: number, topology: boolean): number;
     registry_readEntityChanges?(registry: CppRegistry, after: number, outputPtr: number, capacity: number): number;
     registry_markComponentsChanged?(registry: CppRegistry, pairsPtr: number, count: number): void;

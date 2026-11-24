@@ -115,17 +115,22 @@ function resolverFor(world: World, def: AnyComponentDef): (entity: Entity) => nu
 
 export class AotDispatch {
     private readonly plans = new Map<AotTwin, Plan>();
+    private lifetime_: symbol | undefined;
 
     constructor(private readonly world: World, private readonly runtime: AotRuntime) {}
 
     run(twin: AotTwin): boolean {
         const lifetime = this.world.entityLifetime;
+        if (this.lifetime_ !== lifetime) {
+            this.plans.clear();
+            this.lifetime_ = lifetime;
+        }
         const plan = this.planFor_(twin);
         const writers = twin.decl.writers ?? [];
         let commands: AotCommand[];
         let events: typeof NO_RECORDS;
         try {
-            if (!this.packRows_(plan, this.world.layoutEpoch())) {
+            if (!this.packRows_(plan, this.world.layoutEpoch(), lifetime)) {
                 // Only the originating population may retry through the interpreter.
                 return this.world.entityLifetime !== lifetime;
             }
@@ -182,7 +187,7 @@ export class AotDispatch {
      * Every matching row must be addressable. If one is not, the interpreter
      * runs the whole system; skipping it would silently lose authored work.
      */
-    private packRows_(plan: Plan, epoch: number | null): boolean {
+    private packRows_(plan: Plan, epoch: number | null, lifetime: symbol): boolean {
         // The whole table or none of it: one query's rows moving says nothing
         // about another's, but a repack is a walk of both and this way there is
         // one condition to reason about rather than one per query.
@@ -209,6 +214,7 @@ export class AotDispatch {
             plan.packedFrom[k] = lists[k]!;
             if (q.reader) {
                 const payloads = this.runtime.addresses.payloadRows(q.reader.event, q.reader.fields);
+                if (this.world.entityLifetime !== lifetime) return false;
                 plan.scratch = grow(plan.scratch, at + payloads.length * q.width);
                 for (let i = 0; i < payloads.length; i++) {
                     const row = payloads[i]!;

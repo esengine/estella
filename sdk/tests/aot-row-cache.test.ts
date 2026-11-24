@@ -136,7 +136,7 @@ function harness(options: { epochBinding?: boolean } = {}) {
         world.insert(entity, Transform as unknown as AnyComponentDef, {});
         return entity;
     };
-    return { world, runner, system, state, seen, spawn, live };
+    return { world, runner, system, state, seen, spawn, live, module, provider };
 }
 
 /** The addresses in the first query's rows, read out of the arena. */
@@ -151,6 +151,26 @@ function rowsAt(heap: Heap, ctx: number): number[] {
 }
 
 describe('the rows a compiled system reads, kept across frames', () => {
+    it('rebinds builtin address resolvers when the registry changes in the same memory', () => {
+        const h = harness();
+        const first = h.spawn();
+        h.runner.run(h.system);
+        const replacement = { ...REGISTRY, create: () => first } as CppRegistry;
+        const freshAddress = 1 << 17;
+        h.world.connectCpp(replacement, h.module, { memory: {
+            resolveComponentHeap(name) {
+                const resolve = h.provider.resolveComponentHeap(name);
+                return resolve && ((entity, out) => {
+                    if (!resolve(entity, out)) return false;
+                    out.ptr = freshAddress;
+                    return true;
+                });
+            },
+        } });
+        expect(h.spawn()).toBe(first);
+        h.runner.run(h.system);
+        expect(h.seen).toEqual([[h.state.base + first * STRIDE], [freshAddress]]);
+    });
     it('resolves an address once, not once a frame', () => {
         const h = harness();
         for (let i = 0; i < N; i++) h.spawn();

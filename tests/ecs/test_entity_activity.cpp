@@ -183,10 +183,14 @@ TEST_CASE("registry history covers component lifetime and explicit native writes
     CHECK(rows[3].component == componentTypeId<Sample>());
     CHECK(rows[5].component == componentTypeId<JournalPosition>());
     const auto cursor = registry.entityChangeSequence();
+    const auto* reset = registry.entityChangeResetEpochAddress();
     registry.invalidateActivityHierarchy();
     CHECK(registry.entityChangeResetEpoch() == 0);
+    CHECK(*reset == 0);
     registry.clear();
     CHECK(registry.entityChangeResetEpoch() == 1);
+    CHECK(registry.entityChangeResetEpochAddress() == reset);
+    CHECK(*reset == 1);
     REQUIRE(registry.readEntityChanges(cursor, rows) == 2);
     CHECK(rows[0].flags == ENTITY_CHANGE_RESET);
     registry.unwatchEntityChanges(reader);

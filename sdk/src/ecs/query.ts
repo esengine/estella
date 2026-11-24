@@ -390,6 +390,13 @@ export interface QueryCost {
     filtered: number;
 }
 
+interface MutableSlot {
+    readonly index: number;
+    readonly component: AnyComponentDef;
+    readonly builtin: boolean;
+    readonly setter: ((entity: Entity, data: unknown) => void) | null;
+}
+
 /**
  * A live query, as a system body receives it. Iterate it — each step yields the
  * entity followed by its components — or use `forEach`, `single`, `toArray`,
@@ -400,17 +407,21 @@ export interface QueryCost {
  */
 export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<QueryResult<C>> {
     private readonly world_: World;
+    private readonly lifetime_: symbol;
     private readonly descriptor_: QueryDescriptor<C>;
     private readonly actualComponents_: AnyComponentDef[];
     private readonly allRequired_: AnyComponentDef[];
     private readonly result_: unknown[];
-    private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
+    private lending_ = false;
+    private iterationEpoch_ = 0;
+    private openIterations_ = 0;
+    private readonly mutations_: MutableSlot[];
     /**
      * Mut rows the iterator handed out and the caller may still be holding:
-     * entity, which Mut slot, and the very object it was given. Written once more
-     * when the system returns — see {@link settleKeptRows}.
+     * the very row it was given, in write-back order. Written once more when
+     * the system returns — see {@link settleKeptRows}.
      */
-    private kept_: Array<{ entity: Entity; slot: number; data: Record<string, unknown> }> = [];
+    private readonly kept_: unknown[][] = [];
     private readonly cacheKey_: string;
     // Static cache-dependency ids (required + with + without + filter deps),
     // precomputed like cacheKey_ so per-call query iteration allocates no array.
@@ -423,21 +434,16 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private filtered_ = 0;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly gettersRetained_: Array<((entity: Entity) => unknown) | null>;
-    private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
-    private readonly mutIsBuiltin_: boolean[];
     private readonly compiledFilter_: QueryFilter | null;
 
     constructor(world: World, descriptor: QueryDescriptor<C>, lastRunTick = -1) {
         this.world_ = world;
+        this.lifetime_ = world.entityLifetime;
         this.descriptor_ = descriptor;
         this.lastRunTick_ = lastRunTick;
         this.actualComponents_ = descriptor._components.map(unwrapComponent);
         this.allRequired_ = this.actualComponents_.concat(descriptor._with);
         this.result_ = new Array(this.actualComponents_.length + 1);
-        this.mutData_ = descriptor._mutIndices.map(idx => ({
-            component: this.actualComponents_[idx],
-            data: null as unknown as Record<string, unknown>
-        }));
         if (descriptor._filter) {
             const deps: AnyComponentDef[] = [];
             collectFilterComponents(descriptor._filter, deps);
@@ -460,12 +466,11 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         );
         this.getters_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'borrowed', descriptor._mutIndices.includes(i)));
         this.gettersRetained_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'retained', descriptor._mutIndices.includes(i)));
-        this.mutSetters_ = descriptor._mutIndices.map(idx =>
-            world.resolveSetter(this.actualComponents_[idx])
-        );
-        this.mutIsBuiltin_ = descriptor._mutIndices.map(idx =>
-            isBuiltinComponent(this.actualComponents_[idx])
-        );
+        this.mutations_ = descriptor._mutIndices.map(index => {
+            const component = this.actualComponents_[index];
+            const builtin = isBuiltinComponent(component);
+            return { index: index + 1, component, builtin, setter: builtin ? world.resolveSetter(component) : null };
+        });
         for (const f of descriptor._addedFilters) {
             world.enableChangeTracking(f.component);
         }
@@ -500,6 +505,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * before their individual change filters are applied.
      */
     private candidates_(): readonly Entity[] {
+        if (!this.current_()) return NO_CHANGE_CANDIDATES;
         if (this.lastChangeSequence_ !== null) {
             const after = this.lastChangeSequence_;
             let unchanged = false;
@@ -586,26 +592,57 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * self-gates on whether any query is actually tracking the component, so on
      * the hot path with nothing listening this is a Set.has() + return.
      */
-    private writeMutBack_(entity: Entity): void {
+    private writeMutBack_(entity: Entity, row: readonly unknown[]): void {
         const world = this.world_;
         if (!world.valid(entity)) return;
-        const mutData = this.mutData_;
-        const mutSetters = this.mutSetters_;
-        const mutIsBuiltin = this.mutIsBuiltin_;
-        for (let i = 0; i < mutData.length; i++) {
-            const mut = mutData[i];
-            if (mutIsBuiltin[i]) {
-                const setter = mutSetters[i];
-                if (setter) {
-                    setter(entity, mut.data);
-                    world.markChanged(entity, mut.component);
-                } else {
-                    world.set(entity, mut.component, mut.data);
+        for (let i = 0; i < this.mutations_.length; i++) {
+            if (i > 0 && !this.current_()) return;
+            const slot = this.mutations_[i];
+            if (slot.builtin) {
+                const data = row[slot.index];
+                if (!slot.setter) {
+                    world.set(entity, slot.component, data as Record<string, unknown>);
+                    continue;
                 }
-            } else {
-                world.markChanged(entity, mut.component);
+                slot.setter(entity, data);
+                if (!this.current_()) return;
             }
+            world.markChanged(entity, slot.component);
         }
+    }
+
+    private current_(): boolean { return this.lifetime_ === this.world_.entityLifetime; }
+
+    private beginIteration_(): number {
+        this.world_.beginIteration();
+        this.openIterations_++;
+        return this.iterationEpoch_;
+    }
+
+    private endIteration_(epoch: number): void {
+        if (epoch !== this.iterationEpoch_ || !this.current_()) return;
+        this.openIterations_--;
+        this.world_.endIteration();
+    }
+
+    /** @internal Detach this invocation's outstanding walks when it parks or finishes. */
+    takeIterationDepth(): number {
+        const depth = this.openIterations_;
+        if (depth) {
+            this.iterationEpoch_++;
+            this.openIterations_ = 0;
+        }
+        return depth;
+    }
+
+    private readRow_(entity: Entity, row: unknown[], getters: typeof this.getters_): boolean {
+        row[0] = entity;
+        for (let i = 0; i < getters.length; i++) {
+            const getter = getters[i];
+            row[i + 1] = getter ? getter(entity) : this.world_.get(entity, this.actualComponents_[i]);
+            if (!this.current_()) return false;
+        }
+        return true;
     }
 
     /**
@@ -624,20 +661,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     settleKeptRows(): void {
         const kept = this.kept_;
         if (kept.length === 0) return;
-        const world = this.world_;
-        const mutData = this.mutData_;
-        const mutSetters = this.mutSetters_;
-        const mutIsBuiltin = this.mutIsBuiltin_;
         try {
-            for (const { entity, slot, data } of kept) {
-                if (!world.valid(entity)) continue;
-                const component = mutData[slot].component;
-                if (mutIsBuiltin[slot]) {
-                    const setter = mutSetters[slot];
-                    if (setter) setter(entity, data);
-                    else world.set(entity, component, data);
-                }
-                world.markChanged(entity, component);
+            for (const row of kept) {
+                if (!this.current_()) break;
+                this.writeMutBack_(row[0] as Entity, row);
             }
         } finally {
             kept.length = 0;
@@ -651,39 +678,41 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * reads it once.
      */
     [Symbol.iterator](): Iterator<QueryResult<C>> {
-        const { _mutIndices } = this.descriptor_;
-        const actualComponents = this.actualComponents_;
         const entities = this.candidates_();
-        const compCount = actualComponents.length;
-        const hasMut = _mutIndices.length > 0;
+        const compCount = this.actualComponents_.length;
+        const mutations = this.mutations_;
+        const hasMut = mutations.length > 0;
         const hasChangeFilters = this.hasChangeFilters_();
-        const mutData = this.mutData_;
-        const mutCount = mutData.length;
-        const world = this.world_;
         const getters = this.gettersRetained_;
         const self = this;
         const kept = this.kept_;
 
         let idx = 0;
-        let prevEntity: Entity | null = null;
-        let started = false;
+        let previous: unknown[] | null = null;
+        let iteration: number | undefined;
         let done = false;
 
         // Takes the pending entity rather than reading it, so a write-back is
         // attempted exactly once. A failing one has still been tried, and finalize
         // must not retry it on the way out under the error it raised.
         const writeMut = () => {
-            const entity = prevEntity!;
-            prevEntity = null;
-            self.writeMutBack_(entity);
+            const row = previous!;
+            previous = null;
+            // An inner iterator can finish before the outer row it visited. Replay in that same order.
+            if (kept[kept.length - 1] !== row) {
+                const index = kept.indexOf(row);
+                if (index >= 0) { kept.splice(index, 1); kept.push(row); }
+            }
+            self.writeMutBack_(row[0] as Entity, row);
         };
 
         // endIteration first, so the depth balances even if the write-back throws.
         const finalize = (errorInFlight = false) => {
             if (done) return;
             done = true;
-            world.endIteration();
-            if (prevEntity === null || !hasMut) return;
+            if (iteration === undefined || !self.current_()) return;
+            self.endIteration_(iteration);
+            if (!previous) return;
             if (!errorInFlight) {
                 writeMut();
                 return;
@@ -696,10 +725,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
         return {
             next(): IteratorResult<QueryResult<C>> {
-                if (!started) {
-                    started = true;
-                    world.beginIteration();
-                }
+                if (done || !self.current_()) { finalize(); return doneResult; }
+                if (iteration === undefined) iteration = self.beginIteration_();
 
                 // for..of closes the iterator when its BODY throws, but nothing
                 // closes it when next() itself does — a getter over broken storage
@@ -712,24 +739,17 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                             continue;
                         }
 
-                        if (prevEntity !== null && hasMut) {
+                        if (previous) {
                             writeMut();
+                            if (!self.current_()) break;
                         }
 
                         const row: unknown[] = new Array(compCount + 1);
-                        row[0] = entity;
-                        for (let i = 0; i < compCount; i++) {
-                            const getter = getters[i];
-                            row[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
-                        }
+                        if (!self.readRow_(entity, row, getters)) break;
 
                         if (hasMut) {
-                            for (let i = 0; i < mutCount; i++) {
-                                const data = row[_mutIndices[i] + 1] as Record<string, unknown>;
-                                mutData[i].data = data;
-                                kept.push({ entity, slot: i, data });
-                            }
-                            prevEntity = entity;
+                            kept.push(row);
+                            previous = row;
                         }
 
                         iterResult.value = row as QueryResult<C>;
@@ -757,19 +777,18 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
      * (1.2x for script components, 1.7x for engine-backed ones).
      */
     forEach(callback: (entity: Entity, ...components: ComponentsData<C>) => void): void {
-        const { _mutIndices } = this.descriptor_;
         const entities = this.candidates_();
+        if (entities.length === 0) return;
         const compCount = this.actualComponents_.length;
-        const hasMut = _mutIndices.length > 0;
+        const hasMut = this.mutations_.length > 0;
         const hasChangeFilters = this.hasChangeFilters_();
-        const result = this.result_;
-        const mutData = this.mutData_;
-        const mutCount = mutData.length;
-        const world = this.world_;
-        const getters = this.getters_;
-        const actualComponents = this.actualComponents_;
+        // A nested walk cannot refill the values its caller is still borrowing.
+        const nested = this.lending_;
+        const result = nested ? new Array(compCount + 1) : this.result_;
+        const getters = nested ? this.gettersRetained_ : this.getters_;
 
-        world.beginIteration();
+        const iteration = this.beginIteration_();
+        this.lending_ = true;
         // Non-null means one entity's Mut edits are still owed a write-back and
         // none has been attempted. flushMut takes it, so a failing write-back is
         // not tried a second time by the finally below.
@@ -777,27 +796,19 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const flushMut = (): void => {
             const entity = prevEntity!;
             prevEntity = null;
-            this.writeMutBack_(entity);
+            this.writeMutBack_(entity, result);
         };
         try {
             for (let idx = 0; idx < entities.length; idx++) {
                 const entity = entities[idx];
                 if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
 
-                if (prevEntity !== null && hasMut) flushMut();
-
-                result[0] = entity;
-                for (let i = 0; i < compCount; i++) {
-                    const getter = getters[i];
-                    result[i + 1] = getter ? getter(entity) : world.get(entity, actualComponents[i]);
+                if (prevEntity !== null && hasMut) {
+                    flushMut();
+                    if (!this.current_()) return;
                 }
-
-                if (hasMut) {
-                    for (let i = 0; i < mutCount; i++) {
-                        mutData[i].data = result[_mutIndices[i] + 1] as Record<string, unknown>;
-                    }
-                    prevEntity = entity;
-                }
+                if (!this.readRow_(entity, result, getters)) return;
+                if (hasMut) prevEntity = entity;
 
                 // Fast path for 1–6 components (covers the vast majority of queries); 7+ falls back to .apply.
                 switch (compCount) {
@@ -809,17 +820,19 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
                     case 6: (callback as any)(entity, result[1], result[2], result[3], result[4], result[5], result[6]); break;
                     default: (callback as Function).apply(null, result); break;
                 }
+                if (!this.current_()) return;
             }
 
             if (prevEntity !== null && hasMut) flushMut();
         } finally {
-            if (prevEntity !== null && hasMut) {
+            this.lending_ = nested;
+            if (prevEntity !== null && hasMut && this.current_()) {
                 // The callback threw partway. Edits it already finished still go
                 // back, but a failure writing them must not replace the error on
                 // its way out — that error is the one worth reading.
                 try { flushMut(); } catch { /* the original error wins */ }
             }
-            world.endIteration();
+            this.endIteration_(iteration);
         }
     }
 
@@ -904,9 +917,16 @@ export function Removed<T extends AnyComponentDef>(component: T): RemovedQueryDe
 export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable<Entity> {
     private readonly world_: World;
     private readonly component_: T;
+    private readonly lifetime_: symbol;
     private lastRunTick_: number;
     private readerId_: number | null = null;
     private readThrough_ = 0;
+    private after_ = 0;
+    private acknowledged_ = 0;
+    private running_ = false;
+    private owner_?: RemovedQueryInstance<T>;
+    private overlaps_?: Set<RemovedQueryInstance<T>>;
+    private disconnect_?: () => void;
 
     /** Constructing one has NO side effect on the world: a runner that builds
      *  several params and throws on a later one would otherwise leave a claim
@@ -914,15 +934,31 @@ export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable
     constructor(world: World, component: T, lastRunTick: number) {
         this.world_ = world;
         this.component_ = component;
+        this.lifetime_ = world.entityLifetime;
         this.lastRunTick_ = lastRunTick;
     }
 
     /** @internal Claim the history, once the whole parameter set is committed. */
     activateRetention(): void {
-        if (this.readerId_ !== null) return;
+        if (this.readerId_ !== null || this.lifetime_ !== this.world_.entityLifetime) return;
         this.world_.enableChangeTracking(this.component_);
         this.readerId_ = this.world_.registerRemovedCursorReader(this.component_);
-        this.readThrough_ = this.world_.getRemovalSequence();
+        this.after_ = this.acknowledged_ = this.readThrough_ = this.world_.getRemovalSequence();
+        this.disconnect_ = this.world_.onCoreDisconnect(() => this.dispose());
+    }
+
+    /** @internal Each run reads from the last completed window and owns its own acknowledgement. */
+    forRun(tick: number): RemovedQueryInstance<T> {
+        let run: RemovedQueryInstance<T> = this;
+        if (this.running_) {
+            run = new RemovedQueryInstance(this.world_, this.component_, tick);
+            run.owner_ = this;
+            (this.overlaps_ ??= new Set()).add(run);
+        }
+        run.resetTick(tick);
+        run.after_ = this.acknowledged_;
+        run.running_ = true;
+        return run;
     }
 
     /**
@@ -932,13 +968,22 @@ export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable
      * take rows this one is still owed.
      */
     releaseThrough(_lastRunTick: number): void {
-        if (this.readerId_ === null) return;
-        this.world_.advanceRemovedCursorReader(this.component_, this.readerId_, this.readThrough_);
+        const owner = this.owner_ ?? this;
+        if (owner.readerId_ === null) return;
+        this.running_ = false;
+        owner.overlaps_?.delete(this);
+        this.after_ = owner.acknowledged_ = Math.max(owner.acknowledged_, this.readThrough_);
+        let through = owner.running_ ? owner.after_ : owner.acknowledged_;
+        if (owner.overlaps_) for (const run of owner.overlaps_) through = Math.min(through, run.after_);
+        this.world_.advanceRemovedCursorReader(this.component_, owner.readerId_, through);
     }
 
     /** @internal Give up the claim — the runner evicted or reset this system. */
     dispose(): void {
         if (this.readerId_ === null) return;
+        this.disconnect_?.();
+        this.disconnect_ = undefined;
+        this.overlaps_?.clear();
         this.world_.disposeRemovedReader(this.component_, this.readerId_);
         this.readerId_ = null;
     }
@@ -950,13 +995,18 @@ export class RemovedQueryInstance<T extends AnyComponentDef> implements Iterable
     }
 
     private read_(): Entity[] {
-        if (this.readerId_ === null) return this.world_.getRemovedEntitiesSince(this.component_, this.lastRunTick_);
+        if (this.lifetime_ !== this.world_.entityLifetime) return [];
+        const reader = this.owner_ ?? this;
+        if (reader.readerId_ === null) return this.world_.getRemovedEntitiesSince(this.component_, this.lastRunTick_);
         this.readThrough_ = this.world_.getRemovalSequence();
-        return this.world_.getRemovedEntitiesForReader(this.component_, this.readerId_);
+        return this.world_.getRemovedEntitiesForReader(this.component_, reader.readerId_, this.after_);
     }
 
     *[Symbol.iterator](): Iterator<Entity> {
-        yield* this.read_();
+        for (const entity of this.read_()) {
+            if (this.lifetime_ !== this.world_.entityLifetime) return;
+            yield entity;
+        }
     }
 
     isEmpty(): boolean {

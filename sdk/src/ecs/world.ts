@@ -229,6 +229,10 @@ export class World {
     private entityLifetime_ = Symbol();
     private lifetimeRegistry_: CppRegistry | null = null;
     private lifetimeReset_: number | undefined;
+    private resetEpochWord_ = -1;
+    private resetEpochHeap_?: Uint32Array;
+    private resetEpochLow_ = 0;
+    private resetEpochHigh_ = 0;
     /** Allocation order, updated on an explicit reorder. Generation is part of the entity handle. */
     private readonly entities_ = new Map<Entity, number>();
     private nextEntityRank_ = 0;
@@ -237,6 +241,7 @@ export class World {
     private tracksPopulation_ = false;
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
     private iterationDepth_ = 0;
+    private iterationLifetime_: symbol | undefined;
     private queryCostEnabled_ = false;
     private nextEntityIndex_ = 0;  // pure-JS fallback: monotonic index counter
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
@@ -292,12 +297,36 @@ export class World {
 
     /** @internal Packed entity handles can be reused after a disconnect or a native registry clear. */
     get entityLifetime(): symbol {
+        const heap = this.resetEpochHeap_;
+        const word = this.resetEpochWord_;
+        // Nonshared WASM growth detaches the old view, so its reads answer undefined.
+        // A shared heap grows in place across its old prefix. Both keep this check allocation-free.
+        if (heap && heap[word] === this.resetEpochLow_ && heap[word + 1] === this.resetEpochHigh_
+            && this.lifetimeReset_ !== -1) return this.entityLifetime_;
+        return this.refreshEntityLifetime_();
+    }
+
+    private refreshEntityLifetime_(): symbol {
         const registry = this.getCppRegistry();
-        const reset = registry ? worldEngineApi(this)?.registry_entityChangeResetEpoch?.(registry) : undefined;
+        if (registry !== this.lifetimeRegistry_) {
+            const address = registry && this.getWasmModule()?.registry_entityChangeResetEpochAddress?.(registry);
+            this.resetEpochWord_ = address ? address >>> 2 : -1;
+        }
+        const word = this.resetEpochWord_;
+        const heap = word >= 0 ? this.getWasmModule()?.HEAPU32 : undefined;
+        this.resetEpochHeap_ = heap;
+        let raw: number | undefined;
+        if (heap) {
+            this.resetEpochLow_ = heap[word];
+            this.resetEpochHigh_ = heap[word + 1];
+            raw = this.resetEpochLow_ + this.resetEpochHigh_ * 0x100000000;
+        } else if (registry) raw = worldEngineApi(this)?.registry_entityChangeResetEpoch?.(registry);
+        const reset = raw === Number.MAX_SAFE_INTEGER ? -1 : raw;
         if (this.lifetimeRegistry_ !== registry || this.lifetimeReset_ !== reset || reset === -1) {
             this.lifetimeRegistry_ = registry;
             this.lifetimeReset_ = reset;
             this.entityLifetime_ = Symbol();
+            this.iterationDepth_ = 0;
             // A native clear already returned these slots. Only their SDK rows are still ours.
             if (this.reservedSpawns_) this.releaseReservedSpawns_();
         }
@@ -339,8 +368,11 @@ export class World {
         } finally {
             // Disconnect listeners can still return entities to their original registry.
             this.entityLifetime_ = Symbol();
+            this.iterationDepth_ = 0;
             this.lifetimeRegistry_ = null;
             this.lifetimeReset_ = undefined;
+            this.resetEpochWord_ = -1;
+            this.resetEpochHeap_ = undefined;
             this.despawning_ = null;
             this.clearStampFlusher_?.();
             this.clearStampFlusher_ = undefined;
@@ -784,6 +816,7 @@ export class World {
 
     /** @internal Iteration depth is what makes spawn/despawn refuse mid-query. */
     beginIteration(): void {
+        this.iterationLifetime_ = this.entityLifetime;
         this.iterationDepth_++;
     }
 
@@ -796,9 +829,9 @@ export class World {
         }
     }
 
-    /** @internal Depth is reset rather than unwound when a frame aborts. */
-    resetIterationDepth(): void {
-        this.iterationDepth_ = 0;
+    /** @internal Release the walks owned by a finishing invocation, or all walks on a full reset. */
+    resetIterationDepth(depth = this.iterationDepth_): void {
+        this.iterationDepth_ = Math.max(0, this.iterationDepth_ - depth);
     }
 
     /**
@@ -817,12 +850,13 @@ export class World {
 
     /** @internal Pairs with {@link suspendIteration}. */
     resumeIteration(depth: number): void {
+        if (depth) this.iterationLifetime_ = this.entityLifetime;
         this.iterationDepth_ = depth;
     }
 
     /** @internal */
     isIterating(): boolean {
-        return this.iterationDepth_ > 0;
+        return this.iterationDepth_ > 0 && this.entityLifetime === this.iterationLifetime_;
     }
 
     /** Every entity, in storage order — which is the order queries walk and,
@@ -1447,8 +1481,7 @@ export class World {
                 write(entity, refs?.clean ?? raw);
                 const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, true, edited);
                 finishAssetDraft(raw, component, refs?.clean);
-                this.notifyAssetFields_(entity, component);
-                start?.();
+                if (this.notifyAssetFields_(entity, component)) start?.();
             };
         }
         // Through ScriptStorage, not into the map: a pooled component's stored
@@ -1975,8 +2008,8 @@ export class World {
     getRemovalSequence(): number { return this.changes_.getRemovalSequence(); }
 
     /** @internal Unacknowledged removals belonging to this cursor reader. */
-    getRemovedEntitiesForReader(component: AnyComponentDef, readerId: number): Entity[] {
-        return this.changes_.getRemovedEntitiesForReader(component, readerId);
+    getRemovedEntitiesForReader(component: AnyComponentDef, readerId: number, since?: number): Entity[] {
+        return this.changes_.getRemovedEntitiesForReader(component, readerId, since);
     }
 
     /** @internal Release only events this run observed, preserving later removals. */

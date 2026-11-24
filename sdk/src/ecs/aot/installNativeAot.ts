@@ -124,6 +124,8 @@ export function nativeAotBindings(
  * no `es_aot_*` at all — which is every host but a native one.
  */
 export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | null {
+    const installedRegistry = opts.world.getCppRegistry();
+    const installedModule = opts.world.getWasmModule();
     const bindings = opts.bindings ?? nativeAotBindings();
     if (bindings === null) return null;
 
@@ -226,7 +228,9 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
             ctx: null as unknown as AotRuntime['ctx'],
             dispatcherFor: (world) => {
                 const dispatch = new NativeAotDispatch(world, bindings, byName, pooled, resources, systems);
-                return { run: twin => !disposed && dispatch.run(twin) };
+                // The host's run(index, epoch) always addresses the registry it installed against.
+                return { run: twin => !disposed && world.getCppRegistry() === installedRegistry
+                    && world.getWasmModule() === installedModule && dispatch.run(twin) };
             },
         };
         lease.retire = () => runtime.dispose?.();
@@ -254,6 +258,7 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
  * number crossing the boundary.
  */
 class NativeAotDispatch implements AotDispatcher {
+    private lifetime_: symbol | undefined;
     /** The epoch the pools were last reported at. Null means never. */
     private reportedAt_: number | null | undefined = undefined;
     /** Systems the host has taken at least once, so it is said once. */
@@ -276,6 +281,12 @@ class NativeAotDispatch implements AotDispatcher {
     run(twin: AotTwin): boolean {
         const at = this.indexByName.get(twin.decl.name);
         if (at === undefined) return false;
+        const lifetime = this.world.entityLifetime;
+        if (this.lifetime_ !== lifetime) {
+            this.lifetime_ = lifetime;
+            this.reportedAt_ = undefined;
+            this.assetQueries_.clear();
+        }
         // A portable reference lives beside its numeric pool until resolved.
         // The host only sees numeric memory, so never let it run a partial
         // query while the interpreter can still see the authored string.
@@ -297,8 +308,9 @@ class NativeAotDispatch implements AotDispatcher {
                 }
             }
         }
-        this.reportPools_();
-        this.reportResources_(twin);
+        this.reportPools_(lifetime);
+        this.reportResources_(twin, lifetime);
+        if (this.world.entityLifetime !== lifetime) return true;
         // The epoch goes with the call: the host keeps last frame's row table
         // when nothing moved, and only this side can say whether a script pool
         // gained or lost a row.
@@ -306,7 +318,7 @@ class NativeAotDispatch implements AotDispatcher {
         // Negative means the host still cannot name everything this system
         // reads — a pool with no rows yet, a resource nothing has written.
         // The interpreter keeps it this frame and it is asked again next.
-        if (this.bindings.run(at, this.world.scriptLayoutEpoch()) < 0) return false;
+        if (this.bindings.run(at, this.world.scriptLayoutEpoch()) < 0) return this.world.entityLifetime !== lifetime;
         // The counter `App.compiledSystems` reports to say installed is not RAN.
         // It was web-only, so on the road whose fallback is by design the
         // instrument for spotting one answered 0 every frame.
@@ -318,23 +330,26 @@ class NativeAotDispatch implements AotDispatcher {
             this.running_.add(twin.decl.name);
             log.info('runtime', `AOT: ${twin.decl.name} is running compiled`);
         }
-        this.writeBackResources_(twin);
-        this.markChanged_(twin);
+        this.writeBackResources_(twin, lifetime);
+        if (this.world.entityLifetime === lifetime) this.markChanged_(twin, lifetime);
         return true;
     }
 
     /** Mirror each declared resource into the heap and say where it landed. */
-    private reportResources_(twin: AotTwin): void {
+    private reportResources_(twin: AotTwin, lifetime: symbol): void {
         for (const res of twin.decl.resources) {
+            if (this.world.entityLifetime !== lifetime) return;
             const at = this.resources.addressOf(res.name);
             if (at === undefined) continue;
+            if (this.world.entityLifetime !== lifetime) return;
             this.bindings.resource(res.name, at, this.resources.bytesOf(res.name));
         }
     }
 
     /** A `ResMut` the compiled code wrote is in the mirror, not in the world. */
-    private writeBackResources_(twin: AotTwin): void {
+    private writeBackResources_(twin: AotTwin, lifetime: symbol): void {
         for (const res of twin.decl.resources) {
+            if (this.world.entityLifetime !== lifetime) return;
             if (res.mut) this.resources.writeBack(res.name);
         }
     }
@@ -346,11 +361,12 @@ class NativeAotDispatch implements AotDispatcher {
      * bump when anything moved. Null means nobody could say, and then the answer
      * has to be "assume they moved" — the same rule the row cache follows.
      */
-    private reportPools_(): void {
+    private reportPools_(lifetime: symbol): void {
         const epoch = this.world.layoutEpoch();
         if (epoch !== null && epoch === this.reportedAt_) return;
         this.reportedAt_ = epoch;
         for (const name of this.pooled) {
+            if (this.world.entityLifetime !== lifetime) return;
             const def = getComponent(name);
             if (def === undefined || isBuiltinComponent(def)) continue;
             const span = this.world.scriptSpanOf(def);
@@ -369,7 +385,7 @@ class NativeAotDispatch implements AotDispatcher {
      * present — and a query is cheaper than marshalling the rows. Only when
      * something watches, because that walk is the whole cost.
      */
-    private markChanged_(twin: AotTwin): void {
+    private markChanged_(twin: AotTwin, lifetime: symbol): void {
         for (let k = 0; k < twin.decl.queries.length; k++) {
             // Before the tracking filter below: composition staleness is not an
             // observation and must not inherit its opt-in.
@@ -385,7 +401,10 @@ class NativeAotDispatch implements AotDispatcher {
                 .map((arg) => getComponent(arg.comp))
                 .filter((def): def is AnyComponentDef => def !== undefined);
             for (const entity of this.world.queryEntities(comps)) {
-                for (const def of mutated) this.world.markChanged(entity as Entity, def);
+                for (const def of mutated) {
+                    this.world.markChanged(entity as Entity, def);
+                    if (def.assetFields?.length && this.world.entityLifetime !== lifetime) return;
+                }
             }
         }
     }

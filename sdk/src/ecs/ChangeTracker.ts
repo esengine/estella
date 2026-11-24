@@ -56,9 +56,10 @@ class ReaderOwnedJournal {
         readers.set(readerId, this.sequence_);
     }
 
-    sinceCursor(componentId: symbol, readerId: number): Entity[] {
-        const after = this.cursorReaders_.get(componentId)?.get(readerId);
-        if (after === undefined) return [];
+    sinceCursor(componentId: symbol, readerId: number, since?: number): Entity[] {
+        const retained = this.cursorReaders_.get(componentId)?.get(readerId);
+        if (retained === undefined) return [];
+        const after = since === undefined ? retained : Math.max(retained, since);
         const rows = this.rows_.get(componentId);
         if (!rows) return [];
         // A parked reader may retain a large prefix. An up-to-date reader
@@ -399,8 +400,8 @@ export class ChangeTracker {
 
     getRemovalSequence(): number { return this.removals_.sequence(); }
 
-    getRemovedEntitiesForReader(component: AnyComponentDef, readerId: number): Entity[] {
-        return this.removals_.sinceCursor(component._id, readerId);
+    getRemovedEntitiesForReader(component: AnyComponentDef, readerId: number, since?: number): Entity[] {
+        return this.removals_.sinceCursor(component._id, readerId, since);
     }
 
     advanceRemovedCursorReader(component: AnyComponentDef, readerId: number, through: number): void {

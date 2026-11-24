@@ -79,6 +79,7 @@ function createMockWorld() {
         getRemovedEntitiesForReader: vi.fn(() => []),
         advanceRemovedCursorReader: vi.fn(),
         disposeRemovedReader: vi.fn(),
+        onCoreDisconnect: vi.fn(() => () => {}),
         resolveGetter: vi.fn(() => null),
     };
 

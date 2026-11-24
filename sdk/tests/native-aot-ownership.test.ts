@@ -10,6 +10,7 @@ import {installNativeAot,nativeAotBindings} from '../src/ecs/aot/installNativeAo
 import {engineAbiDigest,projectShapeDigest} from '../src/ecs/aot/abiDigest';
 import type {AotManifest} from '../src/ecs/aot/AotSystems';
 import type {ResourceReader} from '../src/ecs/aot/AotResources';
+import {createMockModule} from './mocks/wasm';
 afterEach(()=>vi.unstubAllGlobals());
 
 function fixture(){
@@ -24,6 +25,20 @@ function fixture(){
  return{Drift,world,runner,manifest,system,install,scope,live,setReject:(v:boolean)=>reject=v,setContract:(v:string)=>contract=v,counts:()=>({resets,installs,calls})};
 }
 describe('native compiled runtime ownership',()=>{
+ it('keeps the host-bound registry with its installed module',()=>{
+  const f=fixture(), first=createMockModule(), replacement=createMockModule();
+  f.world.connectCpp(first.getRegistry(),first);
+  const runtime=f.install()!;
+  try {
+   f.runner.run(f.system);
+   expect(f.counts().calls).toBe(1);
+   f.world.connectCpp(replacement.getRegistry(),replacement);
+   let fallback=0;
+   f.runner.run(defineSystem([],()=>{fallback++;},{name:'NativeLeaseMove'}));
+   expect(fallback).toBe(1);
+   expect(f.counts().calls).toBe(1);
+  } finally { runtime.dispose?.(); f.world.disconnectCpp(); }
+ });
  it('reuses the allocation domain with existing pooled rows and retires old dispatch',()=>{
   const f=fixture(),first=f.install()!,twin=first.systems.get('NativeLeaseMove')!;const entity=f.world.spawn();f.world.insert(entity,f.Drift,{x:7});const held=f.world.get(entity,f.Drift),address=f.world.addressResolver(f.Drift)(entity);
   const second=f.install()!;first.dispose?.();expect(f.counts().resets).toBe(0);

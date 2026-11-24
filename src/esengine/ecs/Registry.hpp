@@ -126,6 +126,8 @@ public:
     double entityChangeResetEpoch() const {
         return entity_reset_epoch_ == RESET_EPOCH_LIMIT ? -1 : static_cast<double>(entity_reset_epoch_);
     }
+    /** Stable for this registry's lifetime. WASM query walks read the counter directly between callbacks. */
+    const u64* entityChangeResetEpochAddress() const { return &entity_reset_epoch_; }
     double componentMutationRevision(u32 component, bool topology) const {
         return entity_changes_.componentRevision(component, topology);
     }

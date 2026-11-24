@@ -407,10 +407,12 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
  * its first run, which arguments are command buffers, and when it last ran. One record, found once per run.
  */
 interface SystemState {
+    readonly lifetime: symbol;
     args: unknown[] | null;
     /** Null until a first run has resolved every param: a setup that threw is not kept (see {@link SystemRunner.run}). */
     queries: QueryInstance<any>[] | null;
     removeds: RemovedQueryInstance<any>[];
+    removedSlots: number[];
     /** Where in `args` the command buffers are, so a flush goes to them without looking at every argument. */
     commandSlots: number[];
     lastRunTick: number;
@@ -422,7 +424,6 @@ export class SystemRunner {
     private readonly resources_: ResourceStorage;
     private readonly eventRegistry_: EventRegistry | null;
     private readonly states_ = new Map<symbol, SystemState>();
-    private currentLastRunTick_ = -1;
     private timings_: Map<string, number> | null = null;
     private queryCosts_: Map<string, QueryCost> | null = null;
 
@@ -490,11 +491,17 @@ export class SystemRunner {
     }
 
     private stateOf_(system: SystemDef): SystemState {
+        const lifetime = this.world_.entityLifetime;
         let state = this.states_.get(system._id);
+        if (state && state.lifetime !== lifetime) {
+            this.evict(system._id);
+            state = undefined;
+        }
         if (!state) {
             state = {
+                lifetime,
                 args: new Array(system._params.length),
-                queries: null, removeds: [], commandSlots: [],
+                queries: null, removeds: [], removedSlots: [], commandSlots: [],
                 lastRunTick: -1, lastChangeSequence: -1,
             };
             this.states_.set(system._id, state);
@@ -503,14 +510,15 @@ export class SystemRunner {
     }
 
     run(system: SystemDef): void | Promise<void> {
+        const state = this.stateOf_(system);
         const twin = this.aot_?.systems.get(system._name);
         // Falls through when the dispatcher could not take it, which is the
         // interpreter keeping the system rather than the system not running.
-        if (twin && this.runCompiled_(system, twin)) return;
-        const state = this.stateOf_(system);
+        if (twin && this.runCompiled_(system, twin, state)) return;
+        const overlapping = state.args === null;
         const args = state.args ?? new Array(system._params.length);
 
-        this.currentLastRunTick_ = state.lastRunTick;
+        const lastRunTick = state.lastRunTick;
         const lastChangeSequence = state.lastChangeSequence;
 
         // Published only once every param resolved. Building a system's first set
@@ -524,22 +532,23 @@ export class SystemRunner {
         // Commit at the end instead, so a failed setup is simply not cached and
         // the following frame re-raises the real one.
         const firstRun = state.queries === null;
-        const queries = state.queries ?? [];
+        const queries = overlapping ? [] : (state.queries ?? []);
         const removeds = firstRun ? [] : state.removeds;
+        const removedSlots = firstRun ? [] : state.removedSlots;
         const commandSlots = firstRun ? [] : state.commandSlots;
 
-        let qi = 0, ri = 0;
+        let qi = 0;
         for (let i = 0; i < system._params.length; i++) {
             const param = system._params[i];
             if (param._type === 'query') {
-                if (firstRun) {
-                    const inst = new QueryInstance(this.world_, param, this.currentLastRunTick_);
+                if (firstRun || overlapping) {
+                    const inst = new QueryInstance(this.world_, param, lastRunTick);
                     inst.resetChangeSequence(lastChangeSequence);
                     queries.push(inst);
                     args[i] = inst;
                 } else {
                     const inst = queries[qi];
-                    inst.resetTick(this.currentLastRunTick_);
+                    inst.resetTick(lastRunTick);
                     inst.resetChangeSequence(lastChangeSequence);
                     args[i] = inst;
                 }
@@ -547,28 +556,26 @@ export class SystemRunner {
             } else if (param._type === 'removed') {
                 if (firstRun) {
                     const desc = param as RemovedQueryDescriptor<AnyComponentDef>;
-                    const inst = new RemovedQueryInstance(this.world_, desc._component, this.currentLastRunTick_);
+                    const inst = new RemovedQueryInstance(this.world_, desc._component, lastRunTick);
                     removeds.push(inst);
-                    args[i] = inst;
-                } else {
-                    const inst = removeds[ri];
-                    inst.resetTick(this.currentLastRunTick_);
-                    args[i] = inst;
+                    removedSlots.push(i);
                 }
-                ri++;
             } else {
                 args[i] = this.resolveParam(param);
                 if (firstRun && param._type === 'commands') commandSlots.push(i);
             }
         }
+        if (state.lifetime !== this.world_.entityLifetime) return;
         if (firstRun) {
             state.queries = queries;
             state.removeds = removeds;
+            state.removedSlots = removedSlots;
             state.commandSlots = commandSlots;
             // After the commit, never during: a param that threw halfway would
             // otherwise leave a claim on history with no owner to release it.
             for (const removed of removeds) removed.activateRetention();
         }
+        for (let i = 0; i < removeds.length; i++) args[removedSlots[i]] = removeds[i].forRun(lastRunTick);
 
         const t0 = this.timings_ ? performance.now() : 0;
         let result: void | Promise<void>;
@@ -577,32 +584,27 @@ export class SystemRunner {
         try {
             result = (system._fn as (...args: unknown[]) => void | Promise<void>)(...args);
         } catch (e) {
-            this.flushSystem_(system, state, t0, args);
+            this.flushSystem_(system, state, t0, args, queries);
             throw e;
         }
 
         if (result instanceof Promise) {
-            // Parked here, another system may run. The iteration guard belongs to
-            // the world, so this one's share of it is set aside until it resumes.
-            const suspended = this.world_.suspendIteration();
-            const resume = (): void => {
-                this.world_.resumeIteration(suspended);
-                this.flushSystem_(system, state, t0, args);
-            };
+            if (state.lifetime === this.world_.entityLifetime) this.releaseIterations_(queries);
+            const resume = (): void => this.flushSystem_(system, state, t0, args, queries);
             return result.then(resume, (e) => {
                 resume();
                 throw e;
             });
         }
 
-        this.flushSystem_(system, state, t0, args);
+        this.flushSystem_(system, state, t0, args, queries);
     }
 
     /**
      * A compiled system's frame: the dispatcher does the contract, this keeps the
      * scheduler's own books — what it cost, and when it last ran.
      */
-    private runCompiled_(system: SystemDef, twin: AotTwin): boolean {
+    private runCompiled_(system: SystemDef, twin: AotTwin, state: SystemState): boolean {
         const t0 = this.timings_ ? performance.now() : 0;
         // A dispatcher that could not take this one has not failed: the system
         // is interpreted this frame, which is the fallback the whole design
@@ -612,27 +614,36 @@ export class SystemRunner {
             const name = system._name;
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
-        const state = this.stateOf_(system);
+        if (state.lifetime !== this.world_.entityLifetime) return true;
         state.lastRunTick = this.world_.getWorldTick();
         state.lastChangeSequence = this.world_.getChangeSequence();
         return true;
     }
 
-    private flushSystem_(system: SystemDef, state: SystemState, t0: number, args: unknown[]): void {
+    private flushSystem_(system: SystemDef, state: SystemState, t0: number, args: unknown[], queries: QueryInstance<any>[]): void {
         // Kept Mut rows first: the edits a system made to rows it held past the
         // loop belong to the entities as they stood, before its Commands despawn
         // or restructure any of them.
-        const queries = state.queries;
-        if (queries) {
-            for (let i = 0; i < queries.length; i++) queries[i].settleKeptRows();
+        let ranAt: number | undefined;
+        try {
+            for (const query of queries) query.settleKeptRows();
+            for (const slot of state.commandSlots) (args[slot] as CommandsInstance).flush();
+        } finally {
+            if (state.lifetime === this.world_.entityLifetime) {
+                this.releaseIterations_(queries);
+                // A parked run may still read its window. Release it only when this invocation ends,
+                // including when one of its writes throws while unwinding.
+                ranAt = this.world_.getWorldTick();
+                for (const slot of state.removedSlots) (args[slot] as RemovedQueryInstance<AnyComponentDef>).releaseThrough(ranAt);
+            } else if (this.states_.get(system._id) === state) this.evict(system._id);
         }
-        const commandSlots = state.commandSlots;
-        for (let i = 0; i < commandSlots.length; i++) {
-            (args[commandSlots[i]] as CommandsInstance).flush();
+        if (ranAt === undefined) return;
+        if (!state.args) {
+            state.args = args;
+            state.queries = queries;
         }
-        state.args ??= args;
         if (this.queryCosts_) {
-            this.harvestQueryCost_(system, state);
+            this.harvestQueryCost_(system, queries);
         }
         if (this.timings_) {
             // Accumulated, not assigned: a fixed schedule runs as many times in one
@@ -641,22 +652,20 @@ export class SystemRunner {
             const name = system._name;
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
-        this.world_.resetIterationDepth();
-        // The window closes here, not where it opened: a system that awaited
-        // mid-body reads its rows after `resetTick`, so releasing there would let
-        // another reader prune what this one is still owed.
-        const ranAt = this.world_.getWorldTick();
-        const removeds = state.removeds;
-        for (let i = 0; i < removeds.length; i++) removeds[i].releaseThrough(ranAt);
         state.lastRunTick = ranAt;
         // Closing at completion consumes this run's own writebacks too. Writes
         // after completion remain distinct even within the same world tick.
         state.lastChangeSequence = this.world_.getChangeSequence();
     }
 
-    private harvestQueryCost_(system: SystemDef, state: SystemState): void {
-        const queries = state.queries;
-        if (!queries || queries.length === 0) return;
+    private releaseIterations_(queries: QueryInstance<any>[]): void {
+        let depth = 0;
+        for (const query of queries) depth += query.takeIterationDepth();
+        this.world_.resetIterationDepth(depth);
+    }
+
+    private harvestQueryCost_(system: SystemDef, queries: QueryInstance<any>[]): void {
+        if (queries.length === 0) return;
         const name = system._name;
         const total = this.queryCosts_!.get(name) ?? { calls: 0, scanned: 0, filtered: 0 };
         for (const q of queries) {
