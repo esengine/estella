@@ -290,13 +290,14 @@ if(ES_ENABLE_BITMAP_TEXT)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_BITMAP_TEXT)
 endif()
 
-# THIS target is the Emscripten one (WebGL2 / GLES3 or WebGPU), shipped as wasm for
-# web, WeChat MiniGame and playable ads. The same sources also build ahead of time
-# for desktop / Android / iOS against an embedded Dawn — that is native/CMakeLists.txt,
-# a separate tree, and `tools/check-native-build.mjs` compiles this library through it
-# so a header reached only under `__EMSCRIPTEN__` cannot pass for portable.
-target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
-target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
+# Web, WeChat and playable builds use the Emscripten context entry point.
+# Headless CTest builds with both web targets disabled inject a GfxDevice.
+# The shipping desktop, Android and iOS hosts compile the same sources against
+# embedded Dawn in native/CMakeLists.txt (checked by tools/check-native-build.mjs).
+if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+    target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
+    target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
+endif()
 
 esengine_set_strict_warnings(esengine)
 
