@@ -3,24 +3,44 @@
 import type { ManifestModel } from './AddressableManifest';
 import { pathWithinRemoteRoot } from './physicalAssetFiles';
 import { assetPairKey } from './assetPairKey';
+import { atlasTextureSettingsKey, type ParsedTextureImportSettings } from './textureImportSettings';
 
 // Internal cache and native pool names. Keep both the record and the exact file
 // it acquired, so a held generation can still recover after either one moves.
 const PREFIX = '@manifest:';
+const ATLAS = '@atlas-page:';
 
 export function manifestBindingKey(record: string, file: string): string {
     return PREFIX + assetPairKey(record, file);
 }
 
+function bindingName(key: string, prefix: string): string | undefined {
+    if (!key.startsWith(prefix)) return;
+    const end = key.indexOf(':', prefix.length);
+    return end < 0 ? undefined : key.slice(prefix.length, end).replace(/%3A|%25/g, c => c === '%3A' ? ':' : '%');
+}
+
 export function bindingRecord(key: string): string | undefined {
-    if (!key.startsWith(PREFIX)) return;
-    const end = key.indexOf(':', PREFIX.length);
-    return end < 0 ? undefined : key.slice(PREFIX.length, end).replace(/%3A|%25/g, c => c === '%3A' ? ':' : '%');
+    return bindingName(key, PREFIX);
+}
+
+/** Default atlas pages keep the native pool's ordinary file key. Other uploads also identify their sampler and border. */
+export function atlasPageBinding(file: string, settings?: ParsedTextureImportSettings): string {
+    const profile = atlasTextureSettingsKey(settings);
+    return profile === '{}' ? file : ATLAS + assetPairKey(profile, file);
+}
+
+/** Recover the options of a held upload even after its original manifest has been replaced. */
+export function atlasBindingSettings(key: string): ParsedTextureImportSettings | undefined {
+    const profile = bindingName(key, ATLAS);
+    if (profile === undefined) return;
+    try { return JSON.parse(profile); } catch { return undefined; }
 }
 
 export function bindingFile(key: string): string {
-    if (!key.startsWith(PREFIX)) return key;
-    const end = key.indexOf(':', PREFIX.length);
+    const prefix = key.startsWith(PREFIX) ? PREFIX : key.startsWith(ATLAS) ? ATLAS : undefined;
+    if (!prefix) return key;
+    const end = key.indexOf(':', prefix.length);
     return end < 0 ? key : key.slice(end + 1);
 }
 

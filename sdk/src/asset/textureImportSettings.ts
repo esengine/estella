@@ -52,6 +52,18 @@ export function textureImportSettingsFrom(
         : undefined;
 }
 
+/** The settings one uploaded atlas page can share, in a stable order for the cook and the runtime. */
+export function atlasTextureSettingsKey(settings?: ParsedTextureImportSettings): string {
+    return JSON.stringify({
+        filter: settings?.filter === 'nearest' ? 'nearest' : undefined,
+        // An unspecified wrap belongs to the upload backend. Preserve an explicit choice across targets.
+        wrap: settings?.wrap,
+        mipmaps: settings?.mipmaps === false ? false : undefined,
+        srgb: settings?.srgb === false ? false : undefined,
+        sliceBorder: readSliceBorder(settings?.sliceBorder),
+    });
+}
+
 /**
  * Index settings by EVERY spelling a scene may name the asset with — its uuid
  * bare and `@uuid:`-prefixed, its authored path with and without a leading

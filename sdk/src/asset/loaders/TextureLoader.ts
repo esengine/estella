@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { bindingFile, bindingRecord } from '../manifestBinding';
+import { bindingFile } from '../manifestBinding';
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
@@ -304,7 +304,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (held.pending?.forSurface) return null;
         const request = ++held.resize;
         if (maxEdge > 0) this.mayHoldReducedTextures = true;
-        const io = bindingRecord(source.path) === undefined ? ctx : source.io;
+        const io = bindingFile(source.path) === source.path ? ctx : source.io;
         const work = Promise.resolve().then(async () => {
             const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
             try {

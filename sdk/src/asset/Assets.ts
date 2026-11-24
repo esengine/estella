@@ -22,7 +22,7 @@ import { AsyncCache, RetryableAssetError } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
 import { assetPairKey } from './assetPairKey';
 import { collectMaterialTextures, SurfaceTextureUses, type SurfaceAsset, type SurfaceClaim, type SurfaceUse } from './surfaceTextureUses';
-import { bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
+import { atlasBindingSettings, atlasPageBinding, bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
@@ -161,7 +161,7 @@ export interface UpdateStatus {
     applying: boolean;
 }
 
-interface ManifestBindingSource { type: string; ref: string; path: string }
+interface ManifestBindingSource { type: string; ref: string; path: string; page?: AddressableManifestAsset }
 
 /** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
 interface PendingUpdate {
@@ -716,9 +716,8 @@ export class Assets {
             const ref = cut < 0 ? path : path.slice(0, cut);
             const flip = cut < 0 || path.slice(cut + 1) === 'f';
             try {
-                const fresh = await this.textureLoader_.loadDetached(
-                    bindingRecord(ref) === undefined ? this.resolveLoadPath_(ref) : ref, this.getLoadContext_(), flip,
-                    this.textureImportResolver_?.(bindingRecord(ref) ?? ref));
+                const source = this.textureBinding_(ref);
+                const fresh = await this.textureLoader_.loadDetached(source.path, this.getLoadContext_(), flip, source.settings);
                 try { if (rm.adoptTextureContent(handle, fresh.handle)) restored++; }
                 finally { rm.releaseTexture(fresh.handle); }
             } catch (e) {
@@ -887,10 +886,8 @@ export class Assets {
         ref: string, flip: boolean, resolution?: 'imported',
     ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string; releaseSize?: () => void }> {
         this.assertLoading_();
-        const path = this.handleLoadKey_('texture', ref);
+        const { path, settings } = this.textureBinding_(ref);
         const cacheKey = this.textureCacheKey_(path, flip);
-        const record = bindingRecord(path);
-        const settings = this.textureImportResolver_?.(ref) ?? (record && record !== ref ? this.textureImportResolver_?.(record) : undefined);
         const epoch = this.resetEpoch_;
         const load = await this.textureCache_.getOrLoad(cacheKey, async () => {
             // Warm-cache hit: a texture whose last reference was released stays
@@ -1423,7 +1420,13 @@ export class Assets {
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
         const outgoing = this.manifestBindings_.heldValues(changed, this.textureRefs_, this.genericRefs_);
         const nextTypes = new Map(changed.map(c => [c.key, c.type]));
+        const metadataOnly = new Set(plan.reconfiguredAssets.map(c => c.key));
         for (const [key, source] of previousSources) {
+            // A frame can move or change sampler while siblings still use the previous upload.
+            // Its binding is refreshed below. Retire the GPU page only when its bytes actually leave.
+            const page = source.page;
+            if (page && (metadataOnly.has(key)
+                || (page.contentHash && pending.model.assetByPath(page.path)?.contentHash === page.contentHash))) continue;
             const sameFile = nextTypes.get(key) === source.type && this.handleLoadKey_(source.type, source.ref) === source.path;
             this.endManifestResidency_(source, sameFile);
         }
@@ -1484,7 +1487,7 @@ export class Assets {
             const uuid = extractUuid(c.key);
             const ref = uuid ? `${UUID_REF_PREFIX}${uuid}` : c.key;
             const path = this.handleLoadKey_(type, ref);
-            sources.set(c.key, { type, ref, path });
+            sources.set(c.key, { type, ref, path, page: prior?.metadata?.atlasFrame ? prior : undefined });
             const generations = type === 'texture' && this.loaders_.get(type) === this.textureLoader_
                 ? this.textureRefs_.generations(this.textureCacheKey_(path, true))
                 : this.genericRefs_.generations(assetPairKey(type, this.currentPrepared_(type, ref)?.owner.key ?? path));
@@ -2357,21 +2360,35 @@ export class Assets {
      * Returns true if any cache held `ref` itself.
      */
     invalidate(ref: string): boolean {
-        const plan = this.rebuildPlan_(ref);
+        const refs = this.invalidationRefs_(ref);
+        const plan = this.rebuildPlan_(refs);
         // A failed preparation has no live era, but its canonical cooldown
         // rejection still records why it failed. Clear it before rebuilding
         // holders reached by the restored source, rather than reusing failure.
-        const source = this.assetIdentity_(ref);
+        const sources = new Set(refs.map(path => this.assetIdentity_(path)));
         for (const cache of this.genericCache_.values()) {
             for (const [key, error] of cache.failures()) {
                 if (error instanceof PreparationFailure
-                    && error.sources.some(path => this.assetIdentity_(path) === source)) cache.invalidate(key);
+                    && error.sources.some(path => sources.has(this.assetIdentity_(path)))) cache.invalidate(key);
             }
         }
-        const { hit, rebuilt } = this.invalidateSource_(ref);
-        if (plan.length > 0) this.track_(rebuilt ? rebuilt.then(() => this.rebuildAssetGraph_(plan)) : this.rebuildAssetGraph_(plan));
-        this.fireSourceChanged_(ref);
-        return hit;
+        const ended = refs.map(path => this.invalidateSource_(path));
+        if (plan.length > 0) {
+            const pending = ended.flatMap(result => result.rebuilt ? [result.rebuilt] : []);
+            this.track_(pending.length ? Promise.all(pending).then(() => this.rebuildAssetGraph_(plan)) : this.rebuildAssetGraph_(plan));
+        }
+        for (const path of refs) this.fireSourceChanged_(path);
+        return ended.some(result => result.hit);
+    }
+
+    /** Editing a physical atlas page changes the pixels of every frame that reads it. */
+    private invalidationRefs_(ref: string): string[] {
+        const model = this.manifestModel_;
+        const path = this.stagedPaths_.get(ref) ?? pathWithinRemoteRoot(ref, this.remoteRoot_);
+        const file = model?.assetByPath(path) ?? (path.startsWith('/') ? model?.assetByPath(path.slice(1)) : undefined);
+        if (!file || !model?.sharesFile(file.path)) return [ref];
+        const records = model.entries().filter(record => record.asset.path === file.path);
+        return records.some(record => record.asset.metadata?.atlasFrame) ? records.map(record => record.key) : [ref];
     }
 
     /**
@@ -2840,12 +2857,9 @@ export class Assets {
         return model.recordForRef(ref) ?? (path !== ref ? model.recordForRef(path) : undefined);
     }
 
-    /** Atlas frames deliberately bind one page and select their own UV rectangle. */
     private sceneHandleRecord_(ref: string) {
         const record = this.manifestRecord_(ref);
-        if (record && isSceneHandleType(record.asset.type)
-            && !(record.asset.type === 'texture' && record.asset.metadata?.atlasFrame)) return record;
-        return undefined;
+        return record && isSceneHandleType(record.asset.type) ? record : undefined;
     }
 
     private graphPath_(ref: string): string {
@@ -3012,10 +3026,28 @@ export class Assets {
     }
 
     private handleLoadKey_(type: string, ref: string, file?: string): string {
+        if (type === 'texture') return this.textureBinding_(ref, file).path;
         if (bindingRecord(ref) !== undefined || this.loaders_.get(type) instanceof AudioAssetLoader) return ref;
         const path = file ?? this.resolveLoadPath_(ref);
         const record = this.sceneHandleRecord_(ref);
         return record?.asset.type === type ? manifestBindingKey(record.key, path) : path;
+    }
+
+    /** A frame owns its authored identity. Only frames with the same upload settings share the page handle. */
+    private textureBinding_(ref: string, file?: string) {
+        const held = atlasBindingSettings(ref);
+        if (held) return { path: ref, settings: held };
+        const name = bindingRecord(ref);
+        const record = this.manifestRecord_(name ?? ref);
+        const texture = record?.asset.type === 'texture' ? record : undefined;
+        const settings = this.textureImportResolver_?.(ref)
+            ?? (name ? this.textureImportResolver_?.(name) : undefined) ?? texture?.asset.textureImport;
+        if (name !== undefined) return { path: ref, settings };
+        const path = file ?? this.resolveLoadPath_(ref);
+        if (texture?.asset.metadata?.atlasFrame || this.atlasFrameIn_(this.catalog, ref, path)) {
+            return { path: atlasPageBinding(path, settings), settings };
+        }
+        return { path: texture ? manifestBindingKey(texture.key, path) : path, settings };
     }
 
     /**

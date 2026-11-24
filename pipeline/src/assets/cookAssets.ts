@@ -26,7 +26,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
 import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
-import { textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportSettings';
+import { atlasTextureSettingsKey, textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportSettings';
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
@@ -784,19 +784,22 @@ export async function cookAssets(
       list.push(entry);
     }
     for (const [dir, entries] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-      const images: AtlasInputImage[] = [];
+      const compatible = new Map<string, AtlasInputImage[]>();
       for (const entry of [...entries].sort((a, b) => a.path.localeCompare(b.path))) {
         try {
           const image = decodePngImage(entry.path, await readFile(path.join(root, entry.path)));
-          image.wrap = textureImportSettingsFrom(entry.importer)?.wrap;
+          const settings = textureImportSettingsFrom(entry.importer);
+          image.wrap = settings?.wrap;
           if (fillsClearTexels(entry.importer, platform)) image.rgba = fillClearTexels(image) ?? image.rgba;
+          const profile = atlasTextureSettingsKey(settings);
+          let images = compatible.get(profile);
+          if (!images) compatible.set(profile, images = []);
           images.push(image);
         } catch (err) {
           warnings.push(`${entry.path}: atlas decode failed, staging standalone — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      if (images.length === 0) continue;
-      const pages = packAtlas(images);
+      const pages = [...compatible.values()].flatMap(images => packAtlas(images));
       for (let n = 0; n < pages.length; n++) {
         const pagePng: Uint8Array = encodePagePng(pages[n]);
         let pageBytes: Uint8Array = pagePng;

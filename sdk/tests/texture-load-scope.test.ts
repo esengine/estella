@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { Assets as AssetsResource, assetPlugin } from '../src/asset/AssetPlugin';
 import { Assets } from '../src/asset/Assets';
+import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import { HttpBackend } from '../src/asset/Backend';
 import { indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import { setLinearColorSpace } from '../src/ecs/env';
@@ -49,6 +50,62 @@ function surfaceScene(...components: SceneData['entities'][number]['components']
 
 describe('the import settings of one texture request', () => {
     afterEach(() => { uploads.length = 0; setLinearColorSpace(false); });
+
+    it('keeps compatible legacy atlas frames on one upload when another frame changes sampler', async () => {
+        const assets = assetsWithPixels();
+        const path = 'cache/page%3A1.png', metadata = { atlasFrame: { x: 0, y: 0, width: 2, height: 1 } };
+        const image = { path, size: 16, contentHash: 'abc1', type: 'texture' as const, labels: [], metadata };
+        const manifest = (filter: 'linear' | 'nearest'): AddressableManifest => ({ version: '2.0', groups: { main: {
+            bundleMode: 'local', labels: [], assets: {
+                a: { ...image, address: 'sprites/a.png', textureImport: { filter } },
+                b: { ...image, address: 'sprites/b.png', textureImport: { filter: 'nearest' } },
+                c: { ...image, address: 'sprites/c.png', textureImport: { filter: 'nearest', mipmaps: true } },
+            },
+        } } });
+        const decode = vi.fn(async () => ({ width: 8, height: 1, pixels: new Uint8Array(32) }));
+        assets.getTextureLoader().setPixelDecoder(decode);
+        assets.setManifest(manifest('linear'));
+        try {
+            const [a, b, c] = await Promise.all(['a', 'sprites/b.png', '@uuid:c'].map(ref => assets.acquireTexture(ref)));
+            expect(decode).toHaveBeenCalledTimes(1);
+            expect(uploads).toHaveLength(2);
+            expect(uploads[a.value.handle - 1].filter).not.toBe(uploads[b.value.handle - 1].filter);
+            expect(b.value).toBe(c.value);
+            expect(assets.pathForHandle('texture', b.value.handle)).toBe(path);
+            vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify(manifest('nearest')));
+            const plan = await assets.checkForUpdate({ manifestUrl: 'next.json' });
+            expect(plan.downloadFiles).toHaveLength(0);
+            expect((await assets.applyUpdate()).ok).toBe(true);
+            const changed = await assets.acquireTexture('sprites/a.png');
+            expect(changed.value).toBe(b.value);
+            expect(assets.getTexture('c')).toBe(c.value);
+            expect(uploads).toHaveLength(2);
+            for (const receipt of [a, b, c, changed]) receipt.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('reloads every sampler variant when the physical atlas page is edited', async () => {
+        const assets = assetsWithPixels(), path = 'art/page.png';
+        const page = { path, type: 'texture' as const, size: 32, labels: [], metadata: { atlasFrame: { x: 0, y: 0, width: 2, height: 2 } } };
+        assets.setManifest({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+            smooth: { ...page, address: 'smooth.png' },
+            pixel: { ...page, address: 'pixel.png', textureImport: { filter: 'nearest' } },
+        } } } });
+        try {
+            const acquire = () => Promise.all(['smooth', 'pixel'].map(ref => assets.acquireTexture(ref)));
+            const before = await acquire();
+            expect(assets.invalidate('/' + path)).toBe(true);
+            const after = await acquire();
+            expect(uploads).toHaveLength(4);
+            for (let i = 0; i < 2; i++) {
+                expect(after[i].value.handle).not.toBe(before[i].value.handle);
+                before[i].release();
+                after[i].release();
+            }
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
 
     it('retains imported size on the exact generation and orientation that owns it', async () => {
         const assets = assetsWithPixels(), path = 'atlas.png';

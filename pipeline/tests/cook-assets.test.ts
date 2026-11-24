@@ -582,7 +582,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
     }
   });
 
-  it('applies each source image’s wrap and transparent colour settings on a shared page', async () => {
+  it('keeps each source’s transparent colour settings when repeat-wrapped images share a page', async () => {
     const r = makeAtlasProject();
     try {
       const dir = path.join(r, 'assets/sprites/heroes.atlas');
@@ -590,7 +590,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       const row = Uint8Array.from([...clear, ...red, ...blue]);
       for (const [name, uuid, importer] of [
         ['a', TEX_A, { wrapMode: 'repeat' }],
-        ['b', TEX_B, { alphaIsTransparency: false }],
+        ['b', TEX_B, { wrapMode: 'repeat', alphaIsTransparency: false }],
       ] as const) {
         const file = path.join(dir, name + '.png');
         writeFileSync(file, encodeRgbaPng(3, 1, row));
@@ -606,13 +606,36 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
         const offset = 4 * (frame.y * page.width + frame.x + dx);
         return [...page.rgba.subarray(offset, offset + 4)];
       };
-      const repeated = a.atlas!.frame, clamped = b.atlas!.frame;
+      const repeated = a.atlas!.frame, preserved = b.atlas!.frame;
       expect(at(repeated, 0)).toEqual([245, 10, 9, 0]);
       expect(at(repeated, -1)).toEqual(blue);
       expect(at(repeated, repeated.width)).toEqual(at(repeated, 0));
-      expect(at(clamped, 0)).toEqual(clear);
-      expect(at(clamped, -1)).toEqual(clear);
-      expect(at(clamped, clamped.width)).toEqual(blue);
+      expect(at(preserved, 0)).toEqual(clear);
+      expect(at(preserved, -1)).toEqual(blue);
+      expect(at(preserved, preserved.width)).toEqual(clear);
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
+  it.each([
+    ['explicit defaults', { filterMode: 'linear', sRGB: true, mipmaps: true }, true],
+    ['nearest filtering', { filterMode: 'nearest' }, false],
+    ['repeat wrapping', { wrapMode: 'repeat' }, false],
+    ['linear data', { sRGB: false }, false],
+    ['a single mip level', { mipmaps: false }, false],
+    ['nine-slice borders', { sliceBorder: { left: 1, right: 2 } }, false],
+  ] as const)('packs %s on a page compatible with its settings', async (_name, importer, shared) => {
+    const r = makeAtlasProject();
+    try {
+      const meta = path.join(r, 'assets/sprites/heroes.atlas/b.png.meta');
+      writeFileSync(meta, JSON.stringify({ ...JSON.parse(readFileSync(meta, 'utf8')), importer }));
+      const cooked = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out', atlasTextures: true });
+      expect(cooked.ok).toBe(true);
+      const { entries } = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as CookManifest;
+      const a = entries.find(e => e.uuid === TEX_A)!, b = entries.find(e => e.uuid === TEX_B)!;
+      expect(a.atlas?.page).toBe(0);
+      expect(b.atlas?.page).toBe(shared ? 0 : 1);
+      expect(a.path === b.path).toBe(shared);
+      for (const entry of [a, b]) expect(existsSync(path.join(cooked.outDir, entry.path))).toBe(true);
     } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   });
 
