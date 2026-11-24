@@ -1032,7 +1032,7 @@ PerceptionPlugin
 
 ## registerCondition — function @experimental
 ```
-(name: string, fn: AiCondition<AiContext>): void
+(name: string, fn: AiCondition<AiContext> | AiConditionSpec<AiContext>): void
 ```
 
 ## registerFsm — function @experimental

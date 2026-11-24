@@ -657,19 +657,24 @@ align: boolean | undefined
 axis: "x" | "y" | "z" | undefined
 kind: AnimatorIKKind
 layers: number | undefined
+lockHeight: number | undefined
 parameter: string | undefined
 pelvis: string | undefined
 pole: string | undefined
 reach: number | undefined
 smooth: number | undefined
+stepHeight: number | undefined
+stepTime: number | undefined
+stretch: number | undefined
 target: string
 tip: string
+twist: number | undefined
 weight: number | undefined
 ```
 
 ## AnimatorIKKind — type @experimental
 ```
-'two-bone' | 'look-at' | 'foot-plant'
+'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock'
 ```
 
 ## AnimatorLayer — interface @experimental
@@ -5806,6 +5811,7 @@ ResourceDef<GroomRes>
 ## GroundContext — interface @experimental
 ```
 dt: number
+locks: Map<string, FootLockState> | undefined
 memory: Map<string, { lift: number; normal: Vec3; }>
 probe: GroundProbe | null
 rest: Map<number, { position: Vec3; rotation: Quat; }> | undefined
@@ -19275,7 +19281,7 @@ PrefabsPlugin
 
 ## registerCondition — function @experimental
 ```
-(name: string, fn: AiCondition<AiContext>): void
+(name: string, fn: AiCondition<AiContext> | AiConditionSpec<AiContext>): void
 ```
 
 ## registerDrawCallback — function @experimental

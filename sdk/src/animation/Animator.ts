@@ -905,7 +905,8 @@ export class AnimatorControllerAPI {
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.
             if (wrote && def.ik?.length) {
-                solveAnimatorIK(world, entity, rt.composed, def.ik, params, joints,
+                // Measured in the rig's own space: with the model carried as a child, that is the child's.
+                solveAnimatorIK(world, rigRoot, rt.composed, def.ik, params, joints,
                                 this.groundFor(rt, dt));
             }
             // One write for the whole stack: a layer states values, and what the
