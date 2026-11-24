@@ -539,6 +539,8 @@ public:
 
     virtual void init(RenderFrameContext& ctx) { (void)ctx; }
     virtual void shutdown() {}
+    /** The preceding pass has released its draw list. Retired GPU buffers may be recycled. */
+    virtual void beginPass() {}
 
     /**
      * @brief Whether what this plugin draws belongs in a shadow map.

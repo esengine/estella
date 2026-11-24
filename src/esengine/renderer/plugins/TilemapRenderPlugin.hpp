@@ -12,14 +12,15 @@
 
 namespace esengine {
 
-namespace tilemap { class TilemapSystem; }
+namespace tilemap { class TilemapWorlds; }
 
 class TilemapRenderPlugin : public RenderTypePlugin {
 public:
     void init(RenderFrameContext& ctx) override;
     void shutdown() override;
+    void beginPass() override;
 
-    void setTilemapSystem(tilemap::TilemapSystem* system) { tilemap_system_ = system; }
+    void setTilemapWorlds(tilemap::TilemapWorlds* worlds) { worlds_ = worlds; }
 
     void collect(RenderCollectContext& ctx) override;
     const char* collectScope() const override { return "render.collect.tilemap"; }
@@ -159,25 +160,31 @@ private:
                       const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
                       const std::vector<tilemap::TilesetSlot>& slots,
                       const std::vector<ResolvedSlot>& resolved,
-                      Entity entity, ChunkCache& cache);
+                      ChunkCache& cache);
 
     /// The chunk's mesh, rebuilt first when what it was built from has moved on.
     ChunkCache& ensureChunk(const tilemap::TilemapSystem::LayerData& layer, const tilemap::ChunkData& chunkData,
                             tilemap::ChunkCoord coord, const std::vector<tilemap::TilesetSlot>& slots,
-                            const std::vector<ResolvedSlot>& resolved, Entity entity, ChunkMap& chunkCaches);
-    /// Gives a strip's buffers back (when they belong to the live device) and forgets them.
-    void releaseStrip(GfxDevice& device, Strip& strip);
+                            const std::vector<ResolvedSlot>& resolved, ChunkMap& chunkCaches);
+    /// Retire a strip's buffers after this pass finishes consuming them.
+    void releaseStrip(Strip& strip);
     void releaseLayer(LayerCache& layer);
     /// Gives back strips no recent collect drew, while the strips of every layer hold more than the budget.
-    void evictStrips(GfxDevice& device);
+    void evictStrips();
 
-    tilemap::TilemapSystem* tilemap_system_ = nullptr;
+    struct WorldCache {
+        Weak<tilemap::TilemapSystem> owner;
+        LayerChunkMap layers;
+    };
+
+    tilemap::TilemapWorlds* worlds_ = nullptr;
     u32 batch_shader_id_ = 0;
-    LayerChunkMap layer_caches_;
+    std::unordered_map<u64, WorldCache> world_caches_;
     GfxDevice* device_ = nullptr;
     u64 mesh_serial_ = 0;
     u64 collect_serial_ = 0;
     u64 strip_bytes_ = 0;
+    std::vector<BufferHandle> retired_buffers_;
     std::vector<BatchVertex> strip_vertices_scratch_;
     std::vector<u32> strip_indices_scratch_;
     std::vector<Strip*> visible_strips_scratch_;

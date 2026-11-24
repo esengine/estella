@@ -2,67 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { withMalloc } from '../wasm/wasmScratch';
 import { WasmBridge } from '../wasm/WasmBridge';
-import type { EngineApi } from '../ecs/bridge/engineApi';
+import { worldEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
+import type { World } from '../ecs/world';
+import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollisionChunks';
 import { defineResource } from '../ecs/resource';
 
-/**
- * The tilemap entry points as a core that HAS tilemaps answers them — the shape
- * this file drives, spelled once. Both cores answer these names (embind on the
- * web, EHT-generated QuickJS wrappers on a device), and both carry the heap the
- * tile arrays cross through, so the toolkit below is core-agnostic.
- */
-interface TilemapModule {
-    tilemap_initLayer(entity: number, width: number, height: number,
-                      tileWidth: number, tileHeight: number): void;
-    tilemap_destroyLayer(entity: number): void;
-    tilemap_setTile(entity: number, x: number, y: number, tileId: number): void;
-    tilemap_getTile(entity: number, x: number, y: number): number;
-    tilemap_fillRect(entity: number, x: number, y: number,
-                     w: number, h: number, tileId: number): void;
-    tilemap_setTiles(entity: number, tilesPtr: number, count: number): void;
-    tilemap_setTilesets(entity: number, dataPtr: number, count: number): void;
-    tilemap_hasLayer(entity: number): boolean;
-    tilemap_setRenderProps(entity: number, textureHandle: number, tilesetColumns: number,
-                           uvTileW: number, uvTileH: number,
-                           sortLayer: number, depth: number,
-                           parallaxX: number, parallaxY: number): void;
-    tilemap_setTint(entity: number, r: number, g: number, b: number, a: number,
-                    opacity: number): void;
-    tilemap_setVisible(entity: number, visible: boolean): void;
-    tilemap_setOriginEntity(layerKey: number, originEntity: number): void;
-
-    tilemap_setTileAnimation(entity: number, tileId: number,
-                              framesPtr: number, frameCount: number): void;
-    tilemap_clearTileAnimations(entity: number): void;
-    tilemap_advanceAnimations(entity: number, dtMs: number): void;
-    tilemap_setTileProperty(entity: number, tileId: number,
-                             key: string, value: string): void;
-    tilemap_getTileProperty(entity: number, x: number, y: number,
-                             key: string): string;
-    tilemap_flipTile(entity: number, x: number, y: number,
-                      flipH: boolean, flipV: boolean, flipD: boolean): void;
-    tilemap_rotateTile(entity: number, x: number, y: number, degrees: number): void;
-    tilemap_setGridType(entity: number, type: number): void;
-    tilemap_setHexParams(entity: number, sideLength: number, staggerAxisX: number, staggerIndexEven: number): void;
-    tilemap_initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void;
-    tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
-    tilemap_exportChunks?(entity: number): string;
-    tilemap_importChunks?(entity: number, encoded: string): boolean;
-    tilemap_setChunkTiles(entity: number, chunkX: number, chunkY: number,
-                           tilesPtr: number, width: number, height: number): void;
-    tilemap_removeChunk?(entity: number, chunkX: number, chunkY: number): void;
-    tilemap_tileToWorld(entity: number, tx: number, ty: number,
-                         originX: number, originY: number): number;
-    tilemap_worldToTile(entity: number, wx: number, wy: number,
-                         originX: number, originY: number): number;
-
-    HEAPF32: Float32Array;
-
-
-    HEAPU8: Uint8Array;
-    _malloc(size: number): number;
-    _free(ptr: number): void;
-}
+// The binding declarations supply the signatures on both hosts. Some older tilemap
+// cores only expose the original layer API and use a full chunk export for collision.
+type LayerCalls = Pick<EngineApi, Exclude<Extract<keyof EngineApi, `tilemap_${string}`>, `${string}InWorld`>>;
+type OptionalCall = 'tilemap_initInfinite' | 'tilemap_exportChunks' | 'tilemap_importChunks' | 'tilemap_removeChunk'
+    | 'tilemap_getGeneration' | 'tilemap_getEditRevision' | 'tilemap_readChunkIndex' | 'tilemap_readChunkTiles';
+type TilemapModule = Required<Omit<LayerCalls, OptionalCall>> & Pick<LayerCalls, OptionalCall>
+    & Required<Pick<EngineApi, 'HEAPU8' | '_malloc' | '_free'>>;
 
 /** Guarded view of the core: after a wasm abort a call throws instead of reaching
  *  a dead module. A native host's bindings pass through the same channel and
@@ -71,49 +22,66 @@ class TilemapBridge extends WasmBridge<NonNullable<EngineApi>> {
     protected readonly label = 'tilemap';
 }
 
-const bridge = new TilemapBridge();
-let module_: TilemapModule | null = null;
-const legacyOwner = {};
-const bindings: Array<{ owner: object; engine: NonNullable<EngineApi> }> = [];
+const worldCalls = [
+    'tilemap_initLayerInWorld', 'tilemap_initInfiniteInWorld', 'tilemap_initInfiniteLayerInWorld',
+    'tilemap_destroyLayerInWorld', 'tilemap_hasLayerInWorld', 'tilemap_getEditRevisionInWorld',
+    'tilemap_getGenerationInWorld', 'tilemap_readChunkIndexInWorld', 'tilemap_readChunkTilesInWorld',
+    'tilemap_setTileInWorld', 'tilemap_getTileInWorld', 'tilemap_fillRectInWorld',
+    'tilemap_setTilesInWorld', 'tilemap_setChunkTilesInWorld', 'tilemap_removeChunkInWorld',
+    'tilemap_flipTileInWorld', 'tilemap_rotateTileInWorld', 'tilemap_setTilesetsInWorld',
+    'tilemap_setRenderPropsInWorld', 'tilemap_setTintInWorld', 'tilemap_setVisibleInWorld',
+    'tilemap_setOriginEntityInWorld', 'tilemap_setGridTypeInWorld', 'tilemap_setHexParamsInWorld',
+    'tilemap_tileToWorldInWorld', 'tilemap_worldToTileInWorld', 'tilemap_setTileAnimationInWorld',
+    'tilemap_clearTileAnimationsInWorld', 'tilemap_advanceAnimationsInWorld',
+    'tilemap_setTilePropertyInWorld', 'tilemap_getTilePropertyInWorld', 'tilemap_exportChunksInWorld',
+    'tilemap_importChunksInWorld',
+] as const satisfies ReadonlyArray<keyof EngineApi>;
 
-/** @internal Wired by the engine plugins — not part of the public API.
- *  Takes whichever core is present (see ecs/engineApi.ts); the plugin only calls
- *  this once it has checked that the core compiles tilemaps, which is what makes
- *  the narrowing below sound. */
-export function initTilemapAPI(engine: NonNullable<EngineApi>, owner: object = legacyOwner): void {
-    const previous = bindings.findIndex(binding => binding.owner === owner);
-    if (previous >= 0) bindings.splice(previous, 1);
-    bindings.push({ owner, engine });
+function tilemapModule(engine: EngineApi, registry?: object | null): TilemapModule {
+    const bridge = new TilemapBridge();
     bridge.connect(engine);
-    module_ = bridge.module as unknown as TilemapModule;
+    const core = bridge.module;
+    if (!registry || !('tilemap_initLayerInWorld' in engine)) return core as TilemapModule;
+
+    // Inherit the live heap views and allocator. Bind each operation once, retaining the abort guard.
+    const scoped = Object.create(core) as TilemapModule;
+    for (const name of worldCalls) {
+        const operation: ((registry: object, ...args: never[]) => unknown) | undefined = core[name];
+        if (operation) Object.defineProperty(scoped, name.slice(0, -'InWorld'.length), {
+            value: operation.bind(core, registry),
+        });
+    }
+    return scoped;
 }
 
-/** @internal Wired by the engine plugins — not part of the public API. */
+const legacyOwner = {};
+const worldTools = new WeakMap<World, TilemapToolkit>();
+const bindings: Array<{ owner: object; world?: World; state: { module: TilemapModule | null } }> = [];
+let module_: TilemapModule | null = null;
+
+/** @internal Install this world's toolkit and make it available to host tools. */
+export function initTilemapAPI(engine: EngineApi, owner: object = legacyOwner, world?: World): TilemapToolkit {
+    shutdownTilemapAPI(owner);
+    const state = { module: tilemapModule(engine, world?.getCppRegistry?.()) };
+    bindings.push({ owner, world, state });
+    module_ = state.module;
+    const tiles = tilemapAPI(() => state.module);
+    if (world) worldTools.set(world, tiles);
+    return tiles;
+}
+
+/** @internal Release the retiring registry and restore the previous host toolkit. */
 export function shutdownTilemapAPI(owner?: object): void {
-    if (owner) {
-        const index = bindings.findIndex(binding => binding.owner === owner);
-        if (index < 0) return;
-        const wasCurrent = index === bindings.length - 1;
-        bindings.splice(index, 1);
-        if (!wasCurrent) return;
-        const current = bindings[bindings.length - 1];
-        if (current) {
-            bridge.connect(current.engine);
-            module_ = bridge.module as unknown as TilemapModule;
-            return;
-        }
-    } else bindings.length = 0;
-    bridge.disconnect();
-    module_ = null;
+    for (let i = bindings.length - 1; i >= 0; i--) {
+        const binding = bindings[i];
+        if (owner && binding.owner !== owner) continue;
+        if (binding.world) worldTools.delete(binding.world);
+        binding.state.module = null;
+        bindings.splice(i, 1);
+    }
+    module_ = bindings[bindings.length - 1]?.state.module ?? null;
 }
 
-/**
- * The static tilemap toolkit — chunk/tile accessors over the wasm module,
- * addressed by runtime layer handle. Contract: game code reads this as the
- * `Res(Tilemaps)` resource like every other subsystem; direct `TilemapAPI.*`
- * calls are the host/tooling surface (the editor's tile tools, tests) where no
- * App is in scope. Both names are the same object.
- */
 /**
  * u32s per slot in the `tilemap_setTilesets` buffer, in the order
  * [firstId, textureHandle, columns, margin, spacing, extrude]. Two files unpack
@@ -123,11 +91,7 @@ export function shutdownTilemapAPI(owner?: object): void {
 export const TILESET_SLOT_STRIDE = 6;
 
 /**
- * The tilemap toolkit over ONE engine core.
- *
- * A factory rather than a singleton: an editor world and a play world are two
- * apps with two cores, and a module-level `module_` answered both with whichever
- * initialised last — so one app's reads went to the other's engine.
+ * Tile editing, serialization and collision reads over the same bound layer store.
  */
 function tilemapAPI(moduleOf: () => TilemapModule | null) {
   return {
@@ -326,6 +290,21 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
         return { x: floats[0], y: floats[1] };
     },
 
+    /** Generation of the current layer, when the core tracks it. */
+    getGeneration(entity: number): number | undefined {
+        return moduleOf()?.tilemap_getGeneration?.(entity);
+    },
+
+    /** Content revision for incremental readers of this layer. */
+    getEditRevision(entity: number): number | undefined {
+        return moduleOf()?.tilemap_getEditRevision?.(entity);
+    },
+
+    /** Copy changed collision chunks from this world. */
+    readCollisionChunks(entity: number, previous: ReadonlyMap<string, CollisionChunkSnapshot> | null) {
+        return readCollisionChunks(moduleOf(), entity, previous);
+    },
+
     exportChunks(entity: number): string {
         return moduleOf()?.tilemap_exportChunks?.(entity) ?? '';
     },
@@ -346,12 +325,22 @@ export type TilemapToolkit = ReturnType<typeof tilemapAPI>;
  */
 export const TilemapAPI: TilemapToolkit = tilemapAPI(() => module_);
 
-/** @internal One toolkit per App, over that app's core. */
-export function createTilemapAPI(engine: NonNullable<EngineApi>): TilemapToolkit {
-    const own = new TilemapBridge();
-    own.connect(engine);
-    const module = own.module as unknown as TilemapModule;
+/** @internal Construct a toolkit without installing it as the current host. */
+export function createTilemapAPI(engine: EngineApi, registry?: object | null): TilemapToolkit {
+    const module = tilemapModule(engine, registry);
     return tilemapAPI(() => module);
+}
+
+/** Tile tools for the supplied world, including when several worlds share the same core.
+ * @experimental
+ */
+export function tilemapsForWorld(world: World): TilemapToolkit {
+    const installed = worldTools.get(world);
+    if (installed) return installed;
+    const registry = world.getCppRegistry?.();
+    if (!registry) return TilemapAPI;
+    const core = worldEngineApi(world);
+    return core?.tilemap_initLayer ? createTilemapAPI(core, registry) : tilemapAPI(() => null);
 }
 
 /**

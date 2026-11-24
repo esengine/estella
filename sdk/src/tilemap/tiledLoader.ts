@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { TilemapAPI } from './tilemapAPI';
+import { tilemapsForWorld, type TilemapToolkit } from './tilemapAPI';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
@@ -9,10 +9,10 @@ import { Transform, Marker, RuntimeOnly, type TilemapLayerData } from '../ecs/co
 // Matches TilemapSystem::CHUNK_SIZE on the C++ side.
 const TILEMAP_CHUNK_SIZE = 16;
 
-function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
+function uploadTiledLayerTiles(toolkit: TilemapToolkit, entity: Entity, layer: TiledLayerData): void {
     if (layer.infinite) {
         for (const chunk of layer.chunks) {
-            TilemapAPI.setChunkTiles(entity, chunk.x, chunk.y, chunk.tiles, chunk.width, chunk.height);
+            toolkit.setChunkTiles(entity, chunk.x, chunk.y, chunk.tiles, chunk.width, chunk.height);
         }
         return;
     }
@@ -33,7 +33,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
                     buf[ly * TILEMAP_CHUNK_SIZE + lx] = tiles[gy * width + gx];
                 }
             }
-            TilemapAPI.setChunkTiles(entity, cx, cy, buf, regionW, regionH);
+            toolkit.setChunkTiles(entity, cx, cy, buf, regionW, regionH);
         }
     }
 }
@@ -1225,6 +1225,7 @@ export function loadTiledMap(
     textureHandles: Map<string, number>,
     options: TilemapLoadOptions = {},
 ): Entity[] {
+    const toolkit = tilemapsForWorld(world);
     const entities: Entity[] = [];
     const firstTileset = mapData.tilesets[0];
     const layout = tiledGridLayout(mapData);
@@ -1247,11 +1248,11 @@ export function loadTiledMap(
             tilesetColumns: columns,
         });
 
-        TilemapAPI.initInfiniteLayer(entity, mapData.tileWidth, mapData.tileHeight);
-        TilemapAPI.setOriginEntity(entity, entity);
-        TilemapAPI.setGridType(entity, layout.orientation);
-        TilemapAPI.setHexParams(entity, layout.hexSideLength ?? 0, !!layout.staggerAxisX, !!layout.staggerIndexEven);
-        uploadTiledLayerTiles(entity, layer);
+        toolkit.initInfiniteLayer(entity, mapData.tileWidth, mapData.tileHeight);
+        toolkit.setOriginEntity(entity, entity);
+        toolkit.setGridType(entity, layout.orientation);
+        toolkit.setHexParams(entity, layout.hexSideLength ?? 0, !!layout.staggerAxisX, !!layout.staggerIndexEven);
+        uploadTiledLayerTiles(toolkit, entity, layer);
 
         entities.push(entity);
         layerIndex++;

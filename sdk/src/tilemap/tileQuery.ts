@@ -12,11 +12,12 @@
  * resolver at build; querying before the plugin runs (or a layer with no
  * collision data) returns null/false rather than throwing.
  */
-import { TilemapAPI } from './tilemapAPI';
+import { TilemapAPI, tilemapsForWorld } from './tilemapAPI';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { oneWayNormalWorld } from './tiledLoader';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import type { Entity } from '../types';
+import type { World } from '../ecs/world';
 
 /** A layer's resolved collision vocabulary: merge-eligible plain boxes + rich shapes. */
 export interface LayerCollisionTable {
@@ -27,22 +28,30 @@ export interface LayerCollisionTable {
 type CollisionLookup = (layer: number) => LayerCollisionTable | null;
 let lookup_: CollisionLookup | null = null;
 const legacyOwner = {};
-const lookups: Array<{ owner: object; fn: CollisionLookup }> = [];
+const lookups: Array<{ owner: object; fn: CollisionLookup; world?: World }> = [];
+const worldLookups = new WeakMap<World, CollisionLookup>();
 
 /** Plugin-internal: install (or clear, with null) the layer → collision-table resolver. */
 export function _bindTileCollisionLookup(
     fn: ((layer: number) => LayerCollisionTable | null) | null,
     owner: object = legacyOwner,
+    world?: World,
 ): void {
     const index = lookups.findIndex(entry => entry.owner === owner);
-    if (index >= 0) lookups.splice(index, 1);
-    if (fn) lookups.push({ owner, fn });
+    if (index >= 0) {
+        const previous = lookups.splice(index, 1)[0];
+        if (previous.world) worldLookups.delete(previous.world);
+    }
+    if (fn) {
+        lookups.push({ owner, fn, world });
+        if (world) worldLookups.set(world, fn);
+    }
     lookup_ = lookups[lookups.length - 1]?.fn ?? null;
 }
 
 /** @internal A layer's collision vocabulary, or null when it has none (yet). */
-export function tileCollisionTable(layer: number): LayerCollisionTable | null {
-    return lookup_?.(layer) ?? null;
+export function tileCollisionTable(layer: number, world?: World): LayerCollisionTable | null {
+    return (world ? worldLookups.get(world) : lookup_)?.(layer) ?? null;
 }
 
 const PLAIN_BOX: ResolvedTileCollision = { shape: { type: 'box' } };
@@ -86,10 +95,10 @@ function flipTileCollision(
  * solid box, a rich shape (polygon / circle / one-way / sensor / material), or
  * null when the cell is empty or its tile has no collision.
  */
-export function tileCollisionAt(layer: Entity | number, x: number, y: number): ResolvedTileCollision | null {
-    const table = lookup_?.(layer as number);
+export function tileCollisionAt(layer: Entity | number, x: number, y: number, world?: World): ResolvedTileCollision | null {
+    const table = tileCollisionTable(layer as number, world);
     if (!table) return null;
-    const raw = TilemapAPI.getTile(layer as Entity, x, y);
+    const raw = (world ? tilemapsForWorld(world) : TilemapAPI).getTile(layer as Entity, x, y);
     const id = tileIdOf(raw);
     if (id === 0) return null;
     if (table.boxIds.has(id)) return PLAIN_BOX; // a box is flip-symmetric
@@ -106,8 +115,8 @@ export function tileCollisionAt(layer: Entity | number, x: number, y: number): R
  * shape. One-way platforms count as solid (they block from their solid side);
  * check {@link tileCollisionAt}'s `.oneWay` to treat them specially.
  */
-export function isTileSolid(layer: Entity | number, x: number, y: number): boolean {
-    const c = tileCollisionAt(layer, x, y);
+export function isTileSolid(layer: Entity | number, x: number, y: number, world?: World): boolean {
+    const c = tileCollisionAt(layer, x, y, world);
     return c != null && !c.sensor;
 }
 
@@ -123,7 +132,8 @@ export function tileCollisionAtWorld(
     originX = 0,
     originY = 0,
     rotation = 0,
+    world?: World,
 ): ResolvedTileCollision | null {
-    const t = TilemapAPI.worldToTile(layer as Entity, worldX, worldY, originX, originY, rotation);
-    return tileCollisionAt(layer, Math.floor(t.x), Math.floor(t.y));
+    const t = (world ? tilemapsForWorld(world) : TilemapAPI).worldToTile(layer as Entity, worldX, worldY, originX, originY, rotation);
+    return tileCollisionAt(layer, Math.floor(t.x), Math.floor(t.y), world);
 }

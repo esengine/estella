@@ -23,6 +23,7 @@
 #include "esengine/renderer/plugins/TextPlugin.hpp"
 #include "esengine/renderer/plugins/SpritePlugin.hpp"
 #include "esengine/renderer/plugins/TilemapRenderPlugin.hpp"
+#include "esengine/tilemap/TilemapWorlds.hpp"
 #include "esengine/ecs/components/TilemapLayer.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
 #include "esengine/ecs/components/BitmapText.hpp"
@@ -167,7 +168,8 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
             auto& component = registry.emplace<ecs::TilemapLayer>(entity);
             component.tileset = texture; component.tilesetColumns = 1;
             component.cellSize = {16, 24}; component.originOffset = {3, -2};
-            tilemap::TilemapSystem system;
+            tilemap::TilemapWorlds worlds;
+            auto& system = *worlds.select(registry);
             if (infinite) system.initInfiniteLayer(entity, 16, 24);
             else system.initLayer(entity, 96, 16, 16, 24);
             system.setGridType(entity, grid); system.setHexParams(entity, 6, true, false);
@@ -184,7 +186,7 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
             for (f32 angle : {0.0f, .37f, glm::half_pi<f32>(), glm::pi<f32>(), -glm::half_pi<f32>()}) {
                 // A plugin per angle: a layer placed anew from one collect to the next is treated as moving and built per frame, which is
                 // another test's subject; here each angle is the first time the layer is seen at it.
-                TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+                TilemapRenderPlugin plugin; plugin.setTilemapWorlds(&worlds); plugin.init(frameContext);
                 const auto rotation = glm::angleAxis(angle, glm::vec3{0, 0, 1});
                 transform.worldPosition = origin; transform.worldRotation = rotation;
                 transform.cachedMatrix_ = glm::translate(glm::mat4{1}, origin) * glm::mat4_cast(rotation);
@@ -217,6 +219,68 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
     }
 }
 
+TEST_CASE("tilemaps: matching layers in queued worlds own different strips until the pass finishes") {
+    Harness h;
+    RenderContext context(h.device);
+    resource::ResourceManager resources;
+    resources.init(h.device);
+    const u8 pixels[16 * 16 * 4] = {};
+    const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16, pixels, TextureFormat::RGBA8);
+    RenderFrameContext frameContext{context, resources};
+    tilemap::TilemapWorlds worlds;
+    TilemapRenderPlugin plugin;
+    plugin.setTilemapWorlds(&worlds);
+    plugin.init(frameContext);
+    const auto makeLayer = [&](ecs::Registry& registry, i32 x) {
+        const auto e = registry.create();
+        auto& layer = registry.emplace<ecs::TilemapLayer>(e);
+        layer.tileset = texture; layer.tilesetColumns = 1; layer.cellSize = {16, 16};
+        auto tiles = worlds.select(registry);
+        tiles->initLayer(e, 16, 16, 16, 16);
+        tiles->setTile(e, x, 2, 1);
+        return e;
+    };
+    const auto projection = glm::ortho(0.0f, 256.0f, -256.0f, 0.0f);
+    Frustum frustum;
+    frustum.extractFromMatrix(projection);
+    const auto collect = [&](ecs::Registry& registry) {
+        RenderCollectContext pass{registry, frustum, h.clips, h.pool, h.list, frameContext, computeCameraView(projection)};
+        plugin.collect(pass);
+    };
+    ecs::Registry main;
+    auto preview = makeUnique<ecs::Registry>();
+    const auto a = makeLayer(main, 2);
+    REQUIRE(makeLayer(*preview, 9) == a);
+    h.pool.beginFrame();
+    collect(*preview);
+    REQUIRE(h.list.commandCount() == 1);
+    const auto previewBuffer = h.list.command(0).vertex_buffer;
+    const auto deleted = h.device.deleteBufferCalls;
+    preview.reset();
+    collect(main);
+    REQUIRE(h.list.commandCount() == 2);
+    const auto mainBuffer = h.list.command(1).vertex_buffer;
+    CHECK(mainBuffer != previewBuffer);
+    CHECK(h.device.deleteBufferCalls == deleted);
+
+    h.list.clear();
+    plugin.beginPass();
+    CHECK(h.device.deleteBufferCalls == deleted + 2);
+    collect(main);
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).vertex_buffer == mainBuffer);
+    main.destroy(a);
+    REQUIRE_FALSE(worlds.select(main)->hasLayer(a));
+    collect(main);
+    CHECK(h.list.commandCount() == 1);
+    CHECK(h.device.deleteBufferCalls == deleted + 2);
+    h.list.clear();
+    plugin.beginPass();
+    CHECK(h.device.deleteBufferCalls == deleted + 4);
+    plugin.shutdown();
+    resources.shutdown();
+}
+
 TEST_CASE("tilemaps: a layer that has not changed draws again without making or filling a buffer") {
     Harness h;
     RenderContext context(h.device);
@@ -229,13 +293,14 @@ TEST_CASE("tilemaps: a layer that has not changed draws again without making or 
     auto& transform = registry.emplace<ecs::Transform>(entity);
     auto& component = registry.emplace<ecs::TilemapLayer>(entity);
     component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
-    tilemap::TilemapSystem system;
+    tilemap::TilemapWorlds worlds;
+    auto& system = *worlds.select(registry);
     system.initLayer(entity, 64, 64, 16, 16);
     system.setTile(entity, 3, 3, 1);
     Frustum frustum;
     RenderFrameContext frameContext{context, resources};
     RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    TilemapRenderPlugin plugin; plugin.setTilemapWorlds(&worlds); plugin.init(frameContext);
     const auto projection = glm::ortho(0.0f, 200.0f, -200.0f, 0.0f);
     frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
     transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
@@ -284,13 +349,14 @@ TEST_CASE("tilemaps: a layer placed anew every frame is built per frame, and goe
     auto& transform = registry.emplace<ecs::Transform>(entity);
     auto& component = registry.emplace<ecs::TilemapLayer>(entity);
     component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
-    tilemap::TilemapSystem system;
+    tilemap::TilemapWorlds worlds;
+    auto& system = *worlds.select(registry);
     system.initLayer(entity, 64, 64, 16, 16);
     system.setTile(entity, 3, 3, 1);
     Frustum frustum;
     RenderFrameContext frameContext{context, resources};
     RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    TilemapRenderPlugin plugin; plugin.setTilemapWorlds(&worlds); plugin.init(frameContext);
     const auto projection = glm::ortho(0.0f, 200.0f, -200.0f, 0.0f);
     frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
     transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
@@ -333,7 +399,8 @@ TEST_CASE("tilemaps: rows of chunks are drawn from the top row down, each a draw
     auto& transform = registry.emplace<ecs::Transform>(entity);
     auto& component = registry.emplace<ecs::TilemapLayer>(entity);
     component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
-    tilemap::TilemapSystem system;
+    tilemap::TilemapWorlds worlds;
+    auto& system = *worlds.select(registry);
     system.initLayer(entity, 64, 64, 16, 16);
     // One tile in each of three chunk rows (a chunk is sixteen tiles tall), set last row first.
     system.setTile(entity, 1, 40, 1);
@@ -342,7 +409,7 @@ TEST_CASE("tilemaps: rows of chunks are drawn from the top row down, each a draw
     Frustum frustum;
     RenderFrameContext frameContext{context, resources};
     RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    TilemapRenderPlugin plugin; plugin.setTilemapWorlds(&worlds); plugin.init(frameContext);
     const auto projection = glm::ortho(0.0f, 1100.0f, -1100.0f, 0.0f);
     frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
     transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
@@ -376,14 +443,15 @@ TEST_CASE("tilemaps: a row being dug uploads the piece that changed, keeps its d
     auto& transform = registry.emplace<ecs::Transform>(entity);
     auto& component = registry.emplace<ecs::TilemapLayer>(entity);
     component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
-    tilemap::TilemapSystem system;
+    tilemap::TilemapWorlds worlds;
+    auto& system = *worlds.select(registry);
     constexpr u32 ROW_TILES = 32 * 16 * 16;
     system.initLayer(entity, 32 * 16, 16, 16, 16);
     system.fillRect(entity, 0, 0, 32 * 16, 16, 1);
     Frustum frustum;
     RenderFrameContext frameContext{context, resources};
     RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    TilemapRenderPlugin plugin; plugin.setTilemapWorlds(&worlds); plugin.init(frameContext);
     const auto projection = glm::ortho(0.0f, 8300.0f, -300.0f, 0.0f);
     frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
     transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};

@@ -13,7 +13,8 @@
 
 import type { Entity, Vec2 } from '../types';
 import { NavGrid } from '../ai/nav/NavGrid';
-import { TilemapAPI } from './tilemapAPI';
+import { TilemapAPI, tilemapsForWorld } from './tilemapAPI';
+import type { World } from '../ecs/world';
 import { TILE_ID_MASK } from './tileBits';
 
 export interface BuildNavGridOptions {
@@ -57,8 +58,9 @@ export function navGridFromTiles(
  * flipped here — no `origin` could correct that mirroring. `origin` keeps its
  * usual meaning: the world centre of the BOTTOM-left cell.
  */
-export function navGridFromTilemapLayer(entity: Entity, opts: BuildNavGridOptions): NavGrid {
-    return navGridFromTiles((x, y) => TilemapAPI.getTile(entity, x, opts.height - 1 - y), opts);
+export function navGridFromTilemapLayer(entity: Entity, opts: BuildNavGridOptions, world?: World): NavGrid {
+    const tiles = world ? tilemapsForWorld(world) : TilemapAPI;
+    return navGridFromTiles((x, y) => tiles.getTile(entity, x, opts.height - 1 - y), opts);
 }
 
 function resolveBlocked(opts: BuildNavGridOptions): (tileId: number) => boolean {

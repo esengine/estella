@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
-import { engineApi, worldEngineApi } from '../ecs/bridge/engineApi';
+import { engineApi } from '../ecs/bridge/engineApi';
 import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../ecs/component';
 import { Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import type { SystemDef } from '../ecs/system';
-import { initTilemapAPI, shutdownTilemapAPI, createTilemapAPI, Tilemaps } from './tilemapAPI';
+import { initTilemapAPI, shutdownTilemapAPI, type TilemapToolkit, Tilemaps } from './tilemapAPI';
 import { Tilemap } from './components';
 import { registerWorldSceneComponentCodec } from '../scene/scene';
 import { tilemapSource, resolvedTileset, type LoadedTilemapSource } from './tilesetCache';
@@ -19,7 +19,7 @@ import {
     spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, tiledLayerComponent, tiledGridLayout,
 } from './tiledLoader';
 import { decodeTilemapChunks, type DecodedChunk } from './chunkCodec';
-import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollisionChunks';
+import type { CollisionChunkSnapshot } from './nativeCollisionChunks';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { LazyTilesetLoads } from './lazyTilesetLoads';
@@ -54,7 +54,7 @@ interface CollisionInputs {
  * entities from 1, and a shared instance cannot tell them apart.
  */
 export class TilemapRuntime {
-    private toolkit_: ReturnType<typeof createTilemapAPI> | null = null;
+    private toolkit_: TilemapToolkit | null = null;
     private unregisterCodec_: (() => void) | null = null;
     private collisionInputs_ = new Map<number, CollisionInputs>();
     private applyTilesetRefs_: ((entity: number, refs: readonly string[]) => void) | null = null;
@@ -113,10 +113,7 @@ export class TilemapRuntime {
             log.warn('tilemap', 'this engine core has no tilemap support — layers will not render');
             return;
         }
-        initTilemapAPI(engine, this);
-        // And this app's own toolkit over its own core: `Res(Tilemaps)` must not
-        // answer with whichever engine initialised the module seam last.
-        const TilemapAPI = createTilemapAPI(engine);
+        const TilemapAPI = initTilemapAPI(engine, this, app.world);
         this.toolkit_ = TilemapAPI;
         app.insertResource(Tilemaps, TilemapAPI);
 
@@ -165,7 +162,7 @@ export class TilemapRuntime {
             const table: LayerCollisionTable = { boxIds: new Set(ids ?? []), shapes: shapes ?? new Map() };
             this.queryTableCache_.set(layer, { ids, shapes, table });
             return table;
-        }, this);
+        }, this, app.world);
 
         this.unregisterCodec_ = registerWorldSceneComponentCodec(app.world, 'TilemapLayer', {
             exportData: (entity, data) => {
@@ -662,7 +659,7 @@ export class TilemapRuntime {
     }
 
     /** The native store has no way to forget a property, and an empty value reads the same as none. */
-    private applyTileProperties_(tiles: ReturnType<typeof createTilemapAPI>, entity: number, next: Map<number, Record<string, string>>): void {
+    private applyTileProperties_(tiles: TilemapToolkit, entity: number, next: Map<number, Record<string, string>>): void {
         for (const [tileId, props] of this.appliedTileProperties_.get(entity) ?? []) {
             for (const key of Object.keys(props)) if (next.get(tileId)?.[key] === undefined) tiles.setTileProperty(entity, tileId, key, '');
         }
@@ -681,10 +678,10 @@ export class TilemapRuntime {
             this.clearLayerCollision_(world, entity);
             return;
         }
-        const engine = worldEngineApi(world), tiles = this.toolkit_;
-        if (!engine) return;
-        const generation = engine.tilemap_getGeneration?.(entity);
-        const revision = engine.tilemap_getEditRevision?.(entity);
+        const tiles = this.toolkit_;
+        if (!tiles) return;
+        const generation = tiles.getGeneration(entity);
+        const revision = tiles.getEditRevision(entity);
         const gridKey = `${layer.orientation ?? 0}|${layer.hexSideLength ?? 0}|${layer.staggerAxis ?? 0}|${layer.staggerIndex ?? 0}`;
         const originX = layer.originOffset?.x ?? 0, originY = layer.originOffset?.y ?? 0;
         const previous = this.collisionInputs_.get(entity);
@@ -697,7 +694,7 @@ export class TilemapRuntime {
         if (!rebuild && sameContent && !moved) return;
         const retained = previous && generation !== undefined && previous.generation === generation
             && revision !== undefined && previous.revision !== undefined && revision >= previous.revision ? previous.native : null;
-        const native = sameContent ? previous.native : readCollisionChunks(engine, entity, retained);
+        const native = sameContent ? previous.native : tiles.readCollisionChunks(entity, retained);
         const oldChunks = this.collisionChunks_.get(entity);
         const chunks = sameContent && oldChunks ? [...oldChunks.values()].map(value => value.chunk)
             : native ? [...native.values()].filter(chunk => chunk.tiles.length > 0) : decodeTilemapChunks(tiles.exportChunks(entity));

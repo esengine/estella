@@ -6,7 +6,7 @@
 
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
-#include "../tilemap/TilemapSystem.hpp"
+#include "../tilemap/TilemapWorlds.hpp"
 #include "../tilemap/ChunkBlob.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
@@ -23,76 +23,72 @@
 
 namespace esengine {
 
-static EstellaContext& ctx() { return activeCtx(); }
+namespace {
 
-static tilemap::TilemapSystem& getTilemapSystem() {
-    return ctx().require<tilemap::TilemapSystem>();
-}
-
-void tilemap_initLayer(u32 entity, u32 width, u32 height,
+void initLayer(tilemap::TilemapSystem& map, u32 entity, u32 width, u32 height,
                        f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().initLayer(e, width, height, tileWidth, tileHeight);
+    map.initLayer(e, width, height, tileWidth, tileHeight);
 }
 
-void tilemap_initInfinite(u32 entity, f32 tileWidth, f32 tileHeight) {
+void initInfinite(tilemap::TilemapSystem& map, u32 entity, f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
     // Idempotent for the chunk store, but always reconcile the tile size: the scene
     // loader's importChunks auto-creates the layer with a placeholder size before the
     // sync knows the component's cellSize, and the renderer derives UVs from tile_width.
-    if (auto* layer = getTilemapSystem().getLayerDataMut(e)) {
+    if (auto* layer = map.getLayerDataMut(e)) {
         layer->tile_width = tileWidth;
         layer->tile_height = tileHeight;
         layer->infinite = true;
         return;
     }
-    getTilemapSystem().initInfiniteLayer(e, tileWidth, tileHeight);
+    map.initInfiniteLayer(e, tileWidth, tileHeight);
 }
 
-void tilemap_destroyLayer(u32 entity) {
+void destroyLayer(tilemap::TilemapSystem& map, u32 entity) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().destroyLayer(e);
+    map.destroyLayer(e);
 }
 
-void tilemap_setTile(u32 entity, i32 x, i32 y, u32 tileId) {
+void setTile(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y, u32 tileId) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    getTilemapSystem().setTile(e, x, y, static_cast<u16>(tileId));
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
+    map.setTile(e, x, y, static_cast<u16>(tileId));
 }
 
-u32 tilemap_getTile(u32 entity, i32 x, i32 y) {
+u32 getTile(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return 0;
-    return getTilemapSystem().getTile(e, x, y);
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return 0;
+    return map.getTile(e, x, y);
 }
 
-void tilemap_fillRect(u32 entity, i32 x, i32 y,
+void fillRect(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y,
                       u32 w, u32 h, u32 tileId) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    getTilemapSystem().fillRect(e, x, y, w, h, static_cast<u16>(tileId));
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
+    map.fillRect(e, x, y, w, h, static_cast<u16>(tileId));
 }
 
-void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
+void setTiles(tilemap::TilemapSystem& map, u32 entity, uintptr_t tilesPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
     const auto* tiles = boundarySpan<u16>(tilesPtr, count, "tilemap_setTiles");
     if (!tiles) return;
-    getTilemapSystem().setTiles(e, tiles, count);
+    map.setTiles(e, tiles, count);
 }
 
 // Multi-tileset table: `count` slots, each SLOT_STRIDE packed u32
 // [first_id, textureHandle, columns, margin, spacing, extrude].
 // Empty table reverts the layer to its single tileset.
-void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
+void setTilesets(tilemap::TilemapSystem& map, u32 entity, uintptr_t dataPtr, u32 count) {
     // The SDK's TILESET_SLOT_STRIDE. No generator spans this boundary, so the
     // field list above is the contract and this number is the other half of it.
     constexpr u32 SLOT_STRIDE = 6;
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
     const auto* d = count
         ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * SLOT_STRIDE, "tilemap_setTilesets")
         : nullptr;
@@ -109,25 +105,25 @@ void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
         slot.extrude = d[i * SLOT_STRIDE + 5];
         slots.push_back(slot);
     }
-    getTilemapSystem().setTilesets(e, std::move(slots));
+    map.setTilesets(e, std::move(slots));
 }
 
-bool tilemap_hasLayer(u32 entity) {
-    return getTilemapSystem().hasLayer(Entity::fromRaw(entity));
+bool hasLayer(tilemap::TilemapSystem& map, u32 entity) {
+    return map.hasLayer(Entity::fromRaw(entity));
 }
 
-u32 tilemap_getEditRevision(u32 entity) {
-    const auto* layer = getTilemapSystem().getLayerData(Entity::fromRaw(entity));
+u32 getEditRevision(tilemap::TilemapSystem& map, u32 entity) {
+    const auto* layer = map.getLayerData(Entity::fromRaw(entity));
     return layer ? layer->edit_revision : 0;
 }
 
-u32 tilemap_getGeneration(u32 entity) {
-    const auto* layer = getTilemapSystem().getLayerData(Entity::fromRaw(entity));
+u32 getGeneration(tilemap::TilemapSystem& map, u32 entity) {
+    const auto* layer = map.getLayerData(Entity::fromRaw(entity));
     return layer ? layer->generation : 0;
 }
 
-u32 tilemap_readChunkIndex(u32 entity, uintptr_t rowsPtr, u32 capacity) {
-    const auto* layer = getTilemapSystem().getLayerData(Entity::fromRaw(entity));
+u32 readChunkIndex(tilemap::TilemapSystem& map, u32 entity, uintptr_t rowsPtr, u32 capacity) {
+    const auto* layer = map.getLayerData(Entity::fromRaw(entity));
     const u32 count = layer ? static_cast<u32>(layer->chunks.size()) : 0;
     if (count == 0 || capacity < count) return count;
     auto* out = boundarySpanMut<u8>(rowsPtr, static_cast<u64>(count) * 3 * sizeof(u32), "tilemap_readChunkIndex");
@@ -141,10 +137,10 @@ u32 tilemap_readChunkIndex(u32 entity, uintptr_t rowsPtr, u32 capacity) {
     return count;
 }
 
-bool tilemap_readChunkTiles(u32 entity, i32 chunkX, i32 chunkY, uintptr_t tilesPtr, u32 capacity) {
+bool readChunkTiles(tilemap::TilemapSystem& map, u32 entity, i32 chunkX, i32 chunkY, uintptr_t tilesPtr, u32 capacity) {
     constexpr u32 cells = tilemap::CHUNK_SIZE * tilemap::CHUNK_SIZE;
     if (capacity < cells) return false;
-    const auto* layer = getTilemapSystem().getLayerData(Entity::fromRaw(entity));
+    const auto* layer = map.getLayerData(Entity::fromRaw(entity));
     if (!layer) return false;
     const auto found = layer->chunks.find({chunkX, chunkY});
     if (found == layer->chunks.end()) return false;
@@ -154,31 +150,29 @@ bool tilemap_readChunkTiles(u32 entity, i32 chunkX, i32 chunkY, uintptr_t tilesP
     return true;
 }
 
-void tilemap_setRenderProps(u32 entity, u32 textureHandle, u32 tilesetColumns,
+void setRenderProps(tilemap::TilemapSystem& map, u32 entity, u32 textureHandle, u32 tilesetColumns,
                             f32 uvTileW, f32 uvTileH,
                             i32 sortLayer, f32 depth,
                             f32 parallaxX, f32 parallaxY) {
-    getTilemapSystem().setRenderProps(Entity::fromRaw(entity),
+    map.setRenderProps(Entity::fromRaw(entity),
         textureHandle, tilesetColumns, uvTileW, uvTileH,
         sortLayer, depth, parallaxX, parallaxY);
 }
 
-void tilemap_setTint(u32 entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
-    getTilemapSystem().setTint(Entity::fromRaw(entity), r, g, b, a, opacity);
+void setTint(tilemap::TilemapSystem& map, u32 entity, f32 r, f32 g, f32 b, f32 a, f32 opacity) {
+    map.setTint(Entity::fromRaw(entity), r, g, b, a, opacity);
 }
 
-void tilemap_setVisible(u32 entity, bool visible) {
-    getTilemapSystem().setVisible(Entity::fromRaw(entity), visible);
+void setVisible(tilemap::TilemapSystem& map, u32 entity, bool visible) {
+    map.setVisible(Entity::fromRaw(entity), visible);
 }
 
-void tilemap_setOriginEntity(u32 layerKey, u32 originEntity) {
-    getTilemapSystem().setOriginEntity(Entity::fromRaw(layerKey),
+void setOriginEntity(tilemap::TilemapSystem& map, u32 layerKey, u32 originEntity) {
+    map.setOriginEntity(Entity::fromRaw(layerKey),
                                     Entity::fromRaw(originEntity));
 }
 
 // --- Chunk serialization ---
-
-namespace {
 
 // Base64 encoding uses the URL-safe alphabet (`-` / `_` instead of `+` / `/`)
 // so the output embeds cleanly in JSON scene files without escaping and can
@@ -237,8 +231,6 @@ bool base64Decode(const std::string& in, std::vector<u8>& out) {
     return true;
 }
 
-}  // namespace
-
 // Exports every non-empty chunk of `entity` as a single base64-encoded
 // blob. Layout (all little-endian):
 //   u32 magic = 'TMAP'
@@ -248,9 +240,9 @@ bool base64Decode(const std::string& in, std::vector<u8>& out) {
 //     i32 chunkX, i32 chunkY
 //     u16 tiles[chunkSize * chunkSize]
 // Empty chunks are skipped to keep the payload compact for sparse maps.
-std::string tilemap_exportChunks(u32 entity) {
+std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
     auto e = Entity::fromRaw(entity);
-    const auto* layer = getTilemapSystem().getLayerData(e);
+    const auto* layer = map.getLayerData(e);
     if (!layer) return {};
 
     std::vector<std::pair<tilemap::ChunkCoord, const tilemap::ChunkData*>> nonEmpty;
@@ -285,15 +277,15 @@ std::string tilemap_exportChunks(u32 entity) {
     return out;
 }
 
-bool tilemap_importChunks(u32 entity, const std::string& encoded) {
+bool importChunks(tilemap::TilemapSystem& map, u32 entity, const std::string& encoded) {
     auto e = Entity::fromRaw(entity);
     // Auto-init as infinite if the caller didn't pre-create a layer — the
     // scene loader path inserts the TilemapLayer component first and then
     // expects the chunks to land, so we can't require a separate init call.
-    if (!getTilemapSystem().hasLayer(e)) {
-        getTilemapSystem().initInfiniteLayer(e, 32.0f, 32.0f);
+    if (!map.hasLayer(e)) {
+        map.initInfiniteLayer(e, 32.0f, 32.0f);
     }
-    auto* layer = getTilemapSystem().getLayerDataMut(e);
+    auto* layer = map.getLayerDataMut(e);
     if (!layer) return false;
 
     std::vector<u8> raw;
@@ -339,31 +331,31 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
     return true;
 }
 
-void tilemap_initInfiniteLayer(u32 entity, f32 tileWidth, f32 tileHeight) {
+void initInfiniteLayer(tilemap::TilemapSystem& map, u32 entity, f32 tileWidth, f32 tileHeight) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().initInfiniteLayer(e, tileWidth, tileHeight);
+    map.initInfiniteLayer(e, tileWidth, tileHeight);
 }
 
-void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
+void setChunkTiles(tilemap::TilemapSystem& map, u32 entity, i32 chunkX, i32 chunkY,
                             uintptr_t tilesPtr, u32 width, u32 height) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
     const auto* tiles = boundarySpan<u16>(tilesPtr, static_cast<u64>(width) * height, "tilemap_setChunkTiles");
     if (!tiles) return;
-    getTilemapSystem().setChunkTiles(e, chunkX, chunkY, tiles, width, height);
+    map.setChunkTiles(e, chunkX, chunkY, tiles, width, height);
 }
 
-void tilemap_removeChunk(u32 entity, i32 chunkX, i32 chunkY) {
+void removeChunk(tilemap::TilemapSystem& map, u32 entity, i32 chunkX, i32 chunkY) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    getTilemapSystem().removeChunk(e, chunkX, chunkY);
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
+    map.removeChunk(e, chunkX, chunkY);
 }
 
-void tilemap_setTileAnimation(u32 entity, u32 tileId,
+void setTileAnimation(tilemap::TilemapSystem& map, u32 entity, u32 tileId,
                                uintptr_t framesPtr, u32 frameCount) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
     const auto* data = boundarySpan<u32>(framesPtr, static_cast<u64>(frameCount) * 2, "tilemap_setTileAnimation");
     if (!data) return;
     std::vector<tilemap::AnimFrame> frames(frameCount);
@@ -371,83 +363,165 @@ void tilemap_setTileAnimation(u32 entity, u32 tileId,
         frames[i].tile_id = static_cast<u16>(data[i * 2]);
         frames[i].duration_ms = static_cast<u16>(data[i * 2 + 1]);
     }
-    getTilemapSystem().setTileAnimation(e, static_cast<u16>(tileId),
+    map.setTileAnimation(e, static_cast<u16>(tileId),
                                      frames.data(), frameCount);
 }
 
-void tilemap_clearTileAnimations(u32 entity) {
+void clearTileAnimations(tilemap::TilemapSystem& map, u32 entity) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    getTilemapSystem().clearTileAnimations(e);
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
+    map.clearTileAnimations(e);
 }
 
-void tilemap_advanceAnimations(u32 entity, f32 dtMs) {
+void advanceAnimations(tilemap::TilemapSystem& map, u32 entity, f32 dtMs) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().advanceAnimations(e, dtMs);
+    map.advanceAnimations(e, dtMs);
 }
 
-void tilemap_setTileProperty(u32 entity, u32 tileId,
+void setTileProperty(tilemap::TilemapSystem& map, u32 entity, u32 tileId,
                               const std::string& key, const std::string& value) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    getTilemapSystem().setTileProperty(e, static_cast<u16>(tileId), key, value);
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
+    map.setTileProperty(e, static_cast<u16>(tileId), key, value);
 }
 
-std::string tilemap_getTileProperty(u32 entity, i32 x, i32 y,
+std::string getTileProperty(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y,
                                      const std::string& key) {
     auto e = Entity::fromRaw(entity);
-    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return "";
-    u16 raw = getTilemapSystem().getTile(e, x, y);
+    if (e == INVALID_ENTITY || !map.hasLayer(e)) return "";
+    u16 raw = map.getTile(e, x, y);
     u16 tileId = raw & tilemap::TILE_ID_MASK;
     if (tileId == tilemap::EMPTY_TILE) return "";
-    return getTilemapSystem().getTileProperty(e, tileId, key);
+    return map.getTileProperty(e, tileId, key);
 }
 
-void tilemap_flipTile(u32 entity, i32 x, i32 y,
+void flipTile(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y,
                        bool flipH, bool flipV, bool flipD) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().flipTile(e, x, y, flipH, flipV, flipD);
+    map.flipTile(e, x, y, flipH, flipV, flipD);
 }
 
-void tilemap_rotateTile(u32 entity, i32 x, i32 y, i32 degrees) {
+void rotateTile(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y, i32 degrees) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().rotateTile(e, x, y, degrees);
+    map.rotateTile(e, x, y, degrees);
 }
 
-void tilemap_setGridType(u32 entity, u32 type) {
+void setGridType(tilemap::TilemapSystem& map, u32 entity, u32 type) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().setGridType(e, static_cast<tilemap::GridType>(type));
+    map.setGridType(e, static_cast<tilemap::GridType>(type));
 }
 
-void tilemap_setHexParams(u32 entity, f32 sideLength, u32 staggerAxisX, u32 staggerIndexEven) {
+void setHexParams(tilemap::TilemapSystem& map, u32 entity, f32 sideLength, u32 staggerAxisX, u32 staggerIndexEven) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
-    getTilemapSystem().setHexParams(e, sideLength, staggerAxisX != 0, staggerIndexEven != 0);
+    map.setHexParams(e, sideLength, staggerAxisX != 0, staggerIndexEven != 0);
 }
 
 static f32 s_coordBuffer[2] = {};
 
-uintptr_t tilemap_tileToWorld(u32 entity, i32 tx, i32 ty,
+uintptr_t tileToWorld(tilemap::TilemapSystem& map, u32 entity, i32 tx, i32 ty,
                                f32 originX, f32 originY) {
     auto e = Entity::fromRaw(entity);
-    getTilemapSystem().tileToWorld(e, tx, ty, originX, originY,
+    map.tileToWorld(e, tx, ty, originX, originY,
                                 s_coordBuffer[0], s_coordBuffer[1]);
     return reinterpret_cast<uintptr_t>(s_coordBuffer);
 }
 
-uintptr_t tilemap_worldToTile(u32 entity, f32 wx, f32 wy,
+uintptr_t worldToTile(tilemap::TilemapSystem& map, u32 entity, f32 wx, f32 wy,
                                f32 originX, f32 originY) {
     auto e = Entity::fromRaw(entity);
     i32 tx, ty;
-    getTilemapSystem().worldToTile(e, wx, wy, originX, originY, tx, ty);
+    map.worldToTile(e, wx, wy, originX, originY, tx, ty);
     s_coordBuffer[0] = static_cast<f32>(tx);
     s_coordBuffer[1] = static_cast<f32>(ty);
     return reinterpret_cast<uintptr_t>(s_coordBuffer);
 }
+
+}  // namespace
+
+// Both entry points run on the render owner and call the same operation.
+#define ES_TILEMAP_EXPAND(...) __VA_ARGS__
+#define ES_TILEMAP_CALL(Result, Name, Params, Args) \
+    Result tilemap_##Name Params { \
+        return Name(*activeCtx().require<tilemap::TilemapWorlds>().legacy(), ES_TILEMAP_EXPAND Args); \
+    } \
+    Result tilemap_##Name##InWorld(ecs::Registry& registry, ES_TILEMAP_EXPAND Params) { \
+        return Name(*activeCtx().require<tilemap::TilemapWorlds>().select(registry), ES_TILEMAP_EXPAND Args); \
+    }
+
+ES_TILEMAP_CALL(void, initLayer, (u32 entity, u32 width, u32 height, f32 tileWidth, f32 tileHeight),
+                (entity, width, height, tileWidth, tileHeight))
+ES_TILEMAP_CALL(void, initInfinite, (u32 entity, f32 tileWidth, f32 tileHeight),
+                (entity, tileWidth, tileHeight))
+ES_TILEMAP_CALL(void, initInfiniteLayer, (u32 entity, f32 tileWidth, f32 tileHeight),
+                (entity, tileWidth, tileHeight))
+ES_TILEMAP_CALL(void, destroyLayer, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(bool, hasLayer, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(u32, getEditRevision, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(u32, getGeneration, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(u32, readChunkIndex, (u32 entity, uintptr_t rowsPtr, u32 capacity),
+                (entity, rowsPtr, capacity))
+ES_TILEMAP_CALL(bool, readChunkTiles, (u32 entity, i32 chunkX, i32 chunkY, uintptr_t tilesPtr, u32 capacity),
+                (entity, chunkX, chunkY, tilesPtr, capacity))
+ES_TILEMAP_CALL(void, setTile, (u32 entity, i32 x, i32 y, u32 tileId),
+                (entity, x, y, tileId))
+ES_TILEMAP_CALL(u32, getTile, (u32 entity, i32 x, i32 y),
+                (entity, x, y))
+ES_TILEMAP_CALL(void, fillRect, (u32 entity, i32 x, i32 y, u32 w, u32 h, u32 tileId),
+                (entity, x, y, w, h, tileId))
+ES_TILEMAP_CALL(void, setTiles, (u32 entity, uintptr_t tilesPtr, u32 count),
+                (entity, tilesPtr, count))
+ES_TILEMAP_CALL(void, setChunkTiles, (u32 entity, i32 chunkX, i32 chunkY, uintptr_t tilesPtr, u32 width, u32 height),
+                (entity, chunkX, chunkY, tilesPtr, width, height))
+ES_TILEMAP_CALL(void, removeChunk, (u32 entity, i32 chunkX, i32 chunkY),
+                (entity, chunkX, chunkY))
+ES_TILEMAP_CALL(void, flipTile, (u32 entity, i32 x, i32 y, bool flipH, bool flipV, bool flipD),
+                (entity, x, y, flipH, flipV, flipD))
+ES_TILEMAP_CALL(void, rotateTile, (u32 entity, i32 x, i32 y, i32 degrees),
+                (entity, x, y, degrees))
+ES_TILEMAP_CALL(void, setTilesets, (u32 entity, uintptr_t dataPtr, u32 count),
+                (entity, dataPtr, count))
+ES_TILEMAP_CALL(void, setRenderProps, (u32 entity, u32 textureHandle, u32 tilesetColumns, f32 uvTileW, f32 uvTileH, i32 sortLayer, f32 depth, f32 parallaxX, f32 parallaxY),
+                (entity, textureHandle, tilesetColumns, uvTileW, uvTileH, sortLayer, depth, parallaxX, parallaxY))
+ES_TILEMAP_CALL(void, setTint, (u32 entity, f32 r, f32 g, f32 b, f32 a, f32 opacity),
+                (entity, r, g, b, a, opacity))
+ES_TILEMAP_CALL(void, setVisible, (u32 entity, bool visible),
+                (entity, visible))
+ES_TILEMAP_CALL(void, setOriginEntity, (u32 layerKey, u32 originEntity),
+                (layerKey, originEntity))
+ES_TILEMAP_CALL(void, setGridType, (u32 entity, u32 type),
+                (entity, type))
+ES_TILEMAP_CALL(void, setHexParams, (u32 entity, f32 sideLength, u32 staggerAxisX, u32 staggerIndexEven),
+                (entity, sideLength, staggerAxisX, staggerIndexEven))
+ES_TILEMAP_CALL(uintptr_t, tileToWorld, (u32 entity, i32 tx, i32 ty, f32 originX, f32 originY),
+                (entity, tx, ty, originX, originY))
+ES_TILEMAP_CALL(uintptr_t, worldToTile, (u32 entity, f32 wx, f32 wy, f32 originX, f32 originY),
+                (entity, wx, wy, originX, originY))
+ES_TILEMAP_CALL(void, setTileAnimation, (u32 entity, u32 tileId, uintptr_t framesPtr, u32 frameCount),
+                (entity, tileId, framesPtr, frameCount))
+ES_TILEMAP_CALL(void, clearTileAnimations, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(void, advanceAnimations, (u32 entity, f32 dtMs),
+                (entity, dtMs))
+ES_TILEMAP_CALL(void, setTileProperty, (u32 entity, u32 tileId, const std::string& key, const std::string& value),
+                (entity, tileId, key, value))
+ES_TILEMAP_CALL(std::string, getTileProperty, (u32 entity, i32 x, i32 y, const std::string& key),
+                (entity, x, y, key))
+ES_TILEMAP_CALL(std::string, exportChunks, (u32 entity),
+                (entity))
+ES_TILEMAP_CALL(bool, importChunks, (u32 entity, const std::string& encoded),
+                (entity, encoded))
+
+#undef ES_TILEMAP_CALL
+#undef ES_TILEMAP_EXPAND
 
 }  // namespace esengine
 

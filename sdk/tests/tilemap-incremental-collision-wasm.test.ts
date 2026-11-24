@@ -4,7 +4,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { Transform, TilemapLayer, Parent } from '../src/ecs/component';
 import { Schedule, defineSystem } from '../src/ecs/system';
-import { worldEngineApi } from '../src/ecs/bridge/engineApi';
 import { TilemapPlugin, TilemapRuntimeState } from '../src/tilemap/tilemapPlugin';
 import { Tilemaps } from '../src/tilemap/tilemapAPI';
 import { tileCellCenter } from '../src/tilemap/tileGeometry';
@@ -44,12 +43,15 @@ describe.skipIf(!HAS_WASM || !hasSideModule('physics'))('incremental tile collis
     beforeAll(async () => { core = await loadWasmModule(); });
 
     it.each([0, 1, 2, 3])('replaces only the edited chunk and keeps other physics bodies alive (layout=%s)', async orientation => {
+        vi.spyOn(core, 'tilemap_readChunkTilesInWorld');
+        const copies = vi.mocked(core.tilemap_readChunkTilesInWorld!);
         const { app, world, layer, tiles, module, bodies, at, hits } = await scene(orientation);
         for (const [x, y] of [[3, 2], [20, 2], [-17, -3]]) tiles.setTile(layer, x, y, 1);
         await app.tick(1 / 60); expect(module._physics_getBodyCount()).toBe(3);
         const original = bodies(), target = at(3, 2);
         const changed = original.find(id => Math.hypot(world.get(id, Transform).position.x - target.x, world.get(id, Transform).position.y - target.y) < .001)!;
-        const stable = original.filter(id => id !== changed), copies = vi.spyOn(core, 'tilemap_readChunkTiles'), exports = vi.spyOn(tiles, 'exportChunks');
+        const stable = original.filter(id => id !== changed), exports = vi.spyOn(tiles, 'exportChunks');
+        copies.mockClear();
         tiles.setTile(layer, 3, 2, 0); await app.tick(1 / 60);
         expect(world.valid(changed)).toBe(false);
         expect(bodies()).toEqual(stable); expect(module._physics_getBodyCount()).toBe(2);
@@ -62,17 +64,21 @@ describe.skipIf(!HAS_WASM || !hasSideModule('physics'))('incremental tile collis
     });
 
     it.each(['missing-stamps', 'failed-readback'] as const)('retains unchanged bodies through %s fallback', async mode => {
-        const { app, world, layer, tiles, bodies } = await scene();
+        vi.spyOn(core, 'tilemap_readChunkTilesInWorld');
+        const read = vi.mocked(core.tilemap_readChunkTilesInWorld!);
         if (mode === 'missing-stamps') {
-            vi.spyOn(core, 'tilemap_getGeneration'); vi.mocked(core.tilemap_getGeneration!).mockReturnValue(undefined as never);
-            vi.spyOn(core, 'tilemap_getEditRevision'); vi.mocked(core.tilemap_getEditRevision!).mockReturnValue(undefined as never);
+            vi.spyOn(core, 'tilemap_getGenerationInWorld');
+            vi.mocked(core.tilemap_getGenerationInWorld!).mockReturnValue(undefined as never);
+            vi.spyOn(core, 'tilemap_getEditRevisionInWorld');
+            vi.mocked(core.tilemap_getEditRevisionInWorld!).mockReturnValue(undefined as never);
         }
+        const { app, world, layer, tiles, bodies } = await scene();
         tiles.setTile(layer, 0, 0, 1); tiles.setTile(layer, 20, 0, 1); await app.tick(1 / 60);
         const stable = bodies().find(id => world.get(id, Transform).position.x > 100)!;
-        if (mode === 'failed-readback') {
-            vi.spyOn(core, 'tilemap_readChunkTiles'); vi.mocked(core.tilemap_readChunkTiles!).mockReturnValue(false);
-        }
+        read.mockClear();
+        if (mode === 'failed-readback') read.mockReturnValue(false);
         tiles.setTile(layer, 0, 0, 2); await app.tick(1 / 60);
+        expect(read).toHaveBeenCalled();
         expect(world.valid(stable)).toBe(true); expect(bodies()).toHaveLength(2);
         const current = bodies(); await app.stepFrames(3, 1 / 60); expect(bodies()).toEqual(current);
     });
@@ -104,14 +110,18 @@ describe.skipIf(!HAS_WASM || !hasSideModule('physics'))('incremental tile collis
     });
 
     it('advances native tile animation once while two fixed steps run', async () => {
+        vi.spyOn(core, 'tilemap_advanceAnimationsInWorld');
+        const advance = vi.mocked(core.tilemap_advanceAnimationsInWorld!);
         const { app, layer, tiles } = await scene(); await app.tick(1 / 60);
+        advance.mockClear();
         tiles.setTileAnimation(layer, 1, [{ tileId: 1, duration: 100 }, { tileId: 2, duration: 100 }]);
         (app.getResource(TilemapRuntimeState) as unknown as { animatedLayers_: Set<number> }).animatedLayers_.add(layer);
-        const engine = worldEngineApi(app.world)!;
-        vi.spyOn(engine, 'tilemap_advanceAnimations');
-        const advance = vi.mocked(engine.tilemap_advanceAnimations!);
         vi.spyOn(performance, 'now').mockReturnValue(0);
         await app.tick(1 / 30);
-        expect(advance).toHaveBeenCalledOnce(); expect(advance.mock.calls[0][1]).toBeCloseTo(1000 / 30, 5);
+        expect(advance).toHaveBeenCalledOnce();
+        const [registry, entity, dt] = advance.mock.calls[0];
+        expect(registry).toBe(app.world.getCppRegistry());
+        expect(entity).toBe(layer);
+        expect(dt).toBeCloseTo(1000 / 30, 5);
     });
 });

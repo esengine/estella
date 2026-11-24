@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { Tilemap, TilemapLayer, type TilemapData, type TilemapLayerData } from './components';
-export { TilemapAPI, Tilemaps } from './tilemapAPI';
+export { TilemapAPI, Tilemaps, tilemapsForWorld } from './tilemapAPI';
 export { TilemapLiveSync } from './tilemapLiveSync';
 export { TilemapPlugin, tilemapPlugin, TilemapRuntime } from './tilemapPlugin';
 export {

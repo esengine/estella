@@ -398,7 +398,7 @@ export class DestructibleTilemap {
     private defaultBlocked_(): (tileId: number) => boolean {
         return (id) => {
             if (id === 0) return false;
-            const table = tileCollisionTable(this.layer);
+            const table = tileCollisionTable(this.layer, this.app.world);
             if (!table) return true;
             return table.boxIds.has(id) || (table.shapes.has(id) && !table.shapes.get(id)!.sensor);
         };

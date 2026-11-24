@@ -38,7 +38,7 @@
 #include "../springbone/SpringBoneWorlds.hpp"
 #ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
-#include "../tilemap/TilemapSystem.hpp"
+#include "../tilemap/TilemapWorlds.hpp"
 #endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
@@ -84,7 +84,7 @@ void EstellaContext::registerLogicSystems() {
 #ifdef ES_ENABLE_TILEMAP
     // Chunk data and tile queries do not need a renderer. Register here once so
     // later renderer initialization also retains maps loaded by headless tooling.
-    services_.registerOwned<tilemap::TilemapSystem>(makeUnique<tilemap::TilemapSystem>());
+    services_.registerOwned<tilemap::TilemapWorlds>(makeUnique<tilemap::TilemapWorlds>());
 #endif
 }
 
@@ -193,7 +193,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 #ifdef ES_ENABLE_TILEMAP
     {
         auto tilemapPlugin = std::make_unique<TilemapRenderPlugin>();
-        tilemapPlugin->setTilemapSystem(services_.getService<tilemap::TilemapSystem>());
+        tilemapPlugin->setTilemapWorlds(services_.getService<tilemap::TilemapWorlds>());
         renderFrame->addPlugin(std::move(tilemapPlugin));
     }
 #endif

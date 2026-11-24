@@ -3,7 +3,7 @@
 #include "TilemapRenderPlugin.hpp"
 #include "../draw/BatchBuilder.hpp"
 
-#include "../../tilemap/TilemapSystem.hpp"
+#include "../../tilemap/TilemapWorlds.hpp"
 #include "../../tilemap/TileFlip.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/TilemapLayer.hpp"
@@ -23,7 +23,7 @@ void TilemapRenderPlugin::rebuildChunk(
     const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
     const std::vector<tilemap::TilesetSlot>& slots,
     const std::vector<ResolvedSlot>& resolved,
-    Entity entity, ChunkCache& cache
+    ChunkCache& cache
 ) {
     cache.slots.resize(slots.size());
     for (auto& mesh : cache.slots) { mesh.vertices.clear(); mesh.indices.clear(); }
@@ -52,7 +52,7 @@ void TilemapRenderPlugin::rebuildChunk(
             if (hasAnimations &&
                 layer.tile_animations.find(tileId) != layer.tile_animations.end()) {
                 cache.has_animated_tiles = true;
-                tileId = tilemap_system_->resolveAnimatedTile(entity, tileId);
+                tileId = layer.resolveAnimatedTile(tileId);
             }
 
             // Resolve which tileset (slot) this tile belongs to, then its local
@@ -120,14 +120,14 @@ void TilemapRenderPlugin::rebuildChunk(
 
 TilemapRenderPlugin::ChunkCache& TilemapRenderPlugin::ensureChunk(
     const tilemap::TilemapSystem::LayerData& layer, const tilemap::ChunkData& chunkData, tilemap::ChunkCoord coord,
-    const std::vector<tilemap::TilesetSlot>& slots, const std::vector<ResolvedSlot>& resolved, Entity entity, ChunkMap& chunkCaches
+    const std::vector<tilemap::TilesetSlot>& slots, const std::vector<ResolvedSlot>& resolved, ChunkMap& chunkCaches
 ) {
     auto& cache = chunkCaches[coord];
     if (chunkData.revision != cache.built_revision
         || layer.anim_table_revision != cache.built_anim_table_revision
         || (cache.has_animated_tiles && layer.anim_revision != cache.built_anim_revision)
         || cache.slots.size() != slots.size()) {
-        rebuildChunk(layer, chunkData, coord, slots, resolved, entity, cache);
+        rebuildChunk(layer, chunkData, coord, slots, resolved, cache);
         cache.built_revision = chunkData.revision;
         cache.built_anim_revision = layer.anim_revision;
         cache.built_anim_table_revision = layer.anim_table_revision;
@@ -136,46 +136,66 @@ TilemapRenderPlugin::ChunkCache& TilemapRenderPlugin::ensureChunk(
     return cache;
 }
 
-void TilemapRenderPlugin::releaseStrip(GfxDevice& device, Strip& strip) {
+void TilemapRenderPlugin::releaseStrip(Strip& strip) {
     // Deleted whatever device generation they were made on: a device that was lost keeps its buffers' records (it rebuilds them with their
     // contents gone), so the handles still name them, and leaving them would grow the device's table by a strip's buffers every recovery.
     for (StripSlot& slot : strip.slots) {
         const u64 bytes = static_cast<u64>(slot.vboBytes) + slot.iboBytes;
         strip_bytes_ = strip_bytes_ >= bytes ? strip_bytes_ - bytes : 0;
-        if (slot.vbo != BufferHandle::Invalid) device.deleteBuffer(slot.vbo);
-        if (slot.ibo != BufferHandle::Invalid) device.deleteBuffer(slot.ibo);
+        if (slot.vbo != BufferHandle::Invalid) retired_buffers_.push_back(slot.vbo);
+        if (slot.ibo != BufferHandle::Invalid) retired_buffers_.push_back(slot.ibo);
         slot = StripSlot{};
     }
-    for (Strip& piece : strip.pieces) releaseStrip(device, piece);
+    for (Strip& piece : strip.pieces) releaseStrip(piece);
     strip.pieces.clear();
     strip.built = false;
 }
 
 void TilemapRenderPlugin::releaseLayer(LayerCache& layer) {
     if (device_) {
-        for (auto& [key, strip] : layer.strips) releaseStrip(*device_, strip);
+        for (auto& [key, strip] : layer.strips) releaseStrip(strip);
     }
     layer.strips.clear();
 }
 
-void TilemapRenderPlugin::evictStrips(GfxDevice& device) {
+void TilemapRenderPlugin::evictStrips() {
     if (strip_bytes_ <= STRIP_BYTES_BUDGET) return;
     // Not drawn by the last two collects: a frame with several cameras collects once for each, and what an earlier one queued has not drawn yet.
-    for (auto& [entity, layer] : layer_caches_) {
-        for (auto it = layer.strips.begin(); it != layer.strips.end() && strip_bytes_ > STRIP_BYTES_BUDGET;) {
-            if (it->second.lastUsed + 2 <= collect_serial_) {
-                releaseStrip(device, it->second);
-                it = layer.strips.erase(it);
-            } else {
-                ++it;
+    for (auto& [id, world] : world_caches_) {
+        for (auto& [entity, layer] : world.layers) {
+            for (auto it = layer.strips.begin(); it != layer.strips.end() && strip_bytes_ > STRIP_BYTES_BUDGET;) {
+                if (it->second.lastUsed + 2 <= collect_serial_) {
+                    releaseStrip(it->second);
+                    it = layer.strips.erase(it);
+                } else {
+                    ++it;
+                }
             }
         }
     }
 }
 
+void TilemapRenderPlugin::beginPass() {
+    for (auto it = world_caches_.begin(); it != world_caches_.end();) {
+        if (it->second.owner.expired()) {
+            for (auto& [entity, layer] : it->second.layers) releaseLayer(layer);
+            it = world_caches_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    // Several registries can submit to one draw list. Buffers replaced by edits,
+    // despawns or eviction stay valid until the last queued command has finished.
+    for (BufferHandle buffer : retired_buffers_) device_->deleteBuffer(buffer);
+    retired_buffers_.clear();
+}
+
 void TilemapRenderPlugin::shutdown() {
-    for (auto& [entity, layer] : layer_caches_) releaseLayer(layer);
-    layer_caches_.clear();
+    for (auto& [id, world] : world_caches_) {
+        for (auto& [entity, layer] : world.layers) releaseLayer(layer);
+    }
+    world_caches_.clear();
+    beginPass();
 }
 
 void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
@@ -184,21 +204,26 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
-    if (!tilemap_system_) return;
+    if (!worlds_) return;
+
+    auto system = worlds_->forRender(registry);
+    if (!system) return;
+    const auto& layers = system->allLayers();
+    const u64 id = registry.instanceId();
+    if (layers.empty() && !world_caches_.contains(id)) return;
+    auto& world = world_caches_[id];
+    world.owner = system;
+    auto& layerCaches = world.layers;
     const ecs::GroupOpacityLookup groupOpacity(registry);
-
-    const auto& layers = tilemap_system_->allLayers();
-    if (layers.empty()) return;
-
     const CameraView& cam = collect_ctx.camera;
     ++collect_serial_;
 
     for (const auto& [entity, layer] : layers) {
-        auto cachedLayer = layer_caches_.find(entity);
-        if (cachedLayer != layer_caches_.end() && cachedLayer->second.generation != layer.generation) {
+        auto cachedLayer = layerCaches.find(entity);
+        if (cachedLayer != layerCaches.end() && cachedLayer->second.generation != layer.generation) {
             releaseLayer(cachedLayer->second);
-            layer_caches_.erase(cachedLayer);
-            cachedLayer = layer_caches_.end();
+            layerCaches.erase(cachedLayer);
+            cachedLayer = layerCaches.end();
         }
         if (registry.valid(entity) && !registry.isEntityActive(entity)) continue;
         // The TilemapLayer component is the single source of a layer's visual
@@ -338,10 +363,10 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         i32 cornerTx[4], cornerTy[4];
         const auto cornerToTile = [&](f32 x, f32 y, i32& tx, i32& ty) {
             if (angle == 0) {
-                tilemap_system_->worldToTile(entity, x, y, adjOriginX, adjOriginY, tx, ty);
+                system->worldToTile(entity, x, y, adjOriginX, adjOriginY, tx, ty);
             } else {
                 const f32 dx = x - originX - parallaxOffsetX, dy = y - originY - parallaxOffsetY;
-                tilemap_system_->worldToTile(entity, dx * cosAngle + dy * sinAngle,
+                system->worldToTile(entity, dx * cosAngle + dy * sinAngle,
                     -dx * sinAngle + dy * cosAngle, originOffset.x, originOffset.y, tx, ty);
             }
         };
@@ -373,7 +398,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
         if (minCX >= maxCX || minCY >= maxCY) continue;
 
-        auto& layerCache = cachedLayer != layer_caches_.end() ? cachedLayer->second : layer_caches_[entity];
+        auto& layerCache = cachedLayer != layerCaches.end() ? cachedLayer->second : layerCaches[entity];
         layerCache.generation = layer.generation;
         const LayoutInputs layout{layer.tile_width, layer.tile_height, layer.grid_type,
             layer.hex_side_length, layer.hex_stagger_axis_x, layer.hex_stagger_index_even};
@@ -423,7 +448,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                         const tilemap::ChunkCoord coord{cx, cy};
                         const auto chunkIt = layer.chunks.find(coord);
                         if (chunkIt == layer.chunks.end()) continue;
-                        stamp = std::max(stamp, ensureChunk(layer, chunkIt->second, coord, slots, resolved, entity, chunkCaches).mesh_serial);
+                        stamp = std::max(stamp, ensureChunk(layer, chunkIt->second, coord, slots, resolved, chunkCaches).mesh_serial);
                         ++chunkCount;
                     }
                 };
@@ -431,7 +456,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     const bool current = strip.built && strip.stamp == stamp && strip.chunkCount == chunkCount
                         && strip.placement == place && strip.deviceGeneration == generation && strip.slots.size() == slots.size();
                     if (!current) {
-                        releaseStrip(device, strip);
+                        releaseStrip(strip);
                         strip.slots.assign(slots.size(), StripSlot{});
                         for (usize si = 0; si < slots.size(); ++si) {
                             if (!resolved[si].valid) continue;
@@ -493,7 +518,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     if (chunkCount == 0 && !held) continue;
                     if (held && (strip.stamp != stamp || strip.chunkCount != chunkCount)) strip.piecesUntil = collect_serial_ + STRIP_PIECES_COLLECTS;
                     if (strip.piecesUntil > collect_serial_) {
-                        if (strip.built) releaseStrip(device, strip);
+                        if (strip.built) releaseStrip(strip);
                         if (strip.pieces.empty()) strip.pieces.resize(STRIP_CHUNKS / STRIP_PIECE_CHUNKS);
                         strip.stamp = stamp;
                         strip.chunkCount = chunkCount;
@@ -508,7 +533,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                         }
                         continue;
                     }
-                    if (!strip.pieces.empty()) releaseStrip(device, strip);
+                    if (!strip.pieces.empty()) releaseStrip(strip);
                     refresh(strip, cxBegin, STRIP_CHUNKS, stamp, chunkCount);
                 }
             }
@@ -558,7 +583,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (chunkIt == layer.chunks.end()) continue;
 
                 const auto& chunkData = chunkIt->second;
-                auto& cache = ensureChunk(layer, chunkData, coord, slots, resolved, entity, chunkCaches);
+                auto& cache = ensureChunk(layer, chunkData, coord, slots, resolved, chunkCaches);
 
                 for (usize si = 0; si < slots.size() && si < cache.slots.size(); ++si) {
                     const SlotMesh& mesh = cache.slots[si];
@@ -603,15 +628,15 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         }
     }
 
-    for (auto it = layer_caches_.begin(); it != layer_caches_.end(); ) {
+    for (auto it = layerCaches.begin(); it != layerCaches.end(); ) {
         if (layers.find(it->first) == layers.end()) {
             releaseLayer(it->second);
-            it = layer_caches_.erase(it);
+            it = layerCaches.erase(it);
         } else {
             ++it;
         }
     }
-    if (device_) evictStrips(*device_);
+    evictStrips();
 }
 
 }  // namespace esengine

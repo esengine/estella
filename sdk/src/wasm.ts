@@ -12,6 +12,7 @@
 * @brief   WASM module type definitions
 */
 import type { Entity } from './types';
+import type { NativeEngineApi } from './ecs/bridge/nativeEngineApi.generated';
 import type { Registry as GeneratedRegistry } from './wasm/wasm.generated';
 
 // =============================================================================
@@ -219,7 +220,14 @@ export interface EmscriptenFS {
     analyzePath(path: string): { exists: boolean; parentExists: boolean };
 }
 
-export interface ESEngineModule {
+type TilemapCalls = Extract<keyof NativeEngineApi, `tilemap_${string}`>;
+type ScopedTilemapCall = Extract<TilemapCalls, `${string}InWorld`>;
+type TilemapBindings = Pick<NativeEngineApi, Exclude<TilemapCalls, ScopedTilemapCall>> & {
+    [K in ScopedTilemapCall]?: NonNullable<NativeEngineApi[K]> extends (registry: unknown, ...args: infer A) => infer R
+        ? (registry: CppRegistry, ...args: A) => R : never;
+};
+
+export interface ESEngineModule extends TilemapBindings {
     Registry: new () => CppRegistry;
     /** JS-newable engine context. */
     EstellaContext: new () => CppEngineContext;
@@ -732,23 +740,6 @@ export interface ESEngineModule {
     springbone_snapshotCountInWorld?(registry: CppRegistry): number;
     springbone_snapshotDataInWorld?(registry: CppRegistry): number;
 
-    // Tilemap API
-    tilemap_initLayer?(entity: number, width: number, height: number,
-                       tileWidth: number, tileHeight: number): void;
-    tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
-    tilemap_destroyLayer?(entity: number): void;
-    tilemap_setTile?(entity: number, x: number, y: number, tileId: number): void;
-    tilemap_getTile?(entity: number, x: number, y: number): number;
-    tilemap_fillRect?(entity: number, x: number, y: number,
-                      w: number, h: number, tileId: number): void;
-    tilemap_setTiles?(entity: number, tilesPtr: number, count: number): void;
-    tilemap_hasLayer?(entity: number): boolean;
-    tilemap_getEditRevision?(entity: number): number;
-    tilemap_getGeneration?(entity: number): number;
-    tilemap_readChunkIndex?(entity: number, rowsPtr: number, capacity: number): number;
-    tilemap_readChunkTiles?(entity: number, chunkX: number, chunkY: number, tilesPtr: number, capacity: number): boolean;
-    tilemap_exportChunks?(entity: number): string;
-    tilemap_importChunks?(entity: number, encoded: string): boolean;
     renderer_setStage(stage: number): void;
     renderer_createTarget(width: number, height: number, flags: number): number;
     renderer_releaseTarget(handle: number): void;

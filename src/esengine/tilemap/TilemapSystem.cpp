@@ -316,13 +316,15 @@ void TilemapSystem::advanceAnimations(Entity entity, f32 dtMs) {
 
 u16 TilemapSystem::resolveAnimatedTile(Entity entity, u16 tileId) const {
     const auto* layer = getLayerData(entity);
-    if (!layer) return tileId;
+    return layer ? layer->resolveAnimatedTile(tileId) : tileId;
+}
 
-    auto it = layer->tile_animations.find(tileId);
-    if (it == layer->tile_animations.end()) return tileId;
+u16 TilemapSystem::LayerData::resolveAnimatedTile(u16 tileId) const {
+    auto it = tile_animations.find(tileId);
+    if (it == tile_animations.end()) return tileId;
 
     const auto& anim = it->second;
-    return anim.frames[frameIndexAt(anim, layer->elapsed_ms)].tile_id;
+    return anim.frames[frameIndexAt(anim, elapsed_ms)].tile_id;
 }
 
 void TilemapSystem::setTileProperty(Entity entity, u16 tileId,

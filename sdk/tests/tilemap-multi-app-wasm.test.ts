@@ -10,7 +10,8 @@ import { Transform, TilemapLayer } from '../src/ecs/component';
 import { TilemapPlugin, TilemapRuntimeState } from '../src/tilemap/tilemapPlugin';
 import { TilemapAPI, Tilemaps } from '../src/tilemap/tilemapAPI';
 import { isTileSolid } from '../src/tilemap/tileQuery';
-import { serializeEntityComponents } from '../src/scene/scene';
+import { loadSceneData, serializeEntityComponents } from '../src/scene/scene';
+import { loadTiledMap, parseTmjJson } from '../src/tilemap/tiledLoader';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { Assets } from '../src/asset/Assets';
 import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
@@ -112,6 +113,49 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
         for (let i = 0; i < 20; i++) await app.tick(1 / 60);
         expect(setTilesets).toHaveBeenCalledOnce();
         app.world.despawn(entity); await app.tick(1 / 60); held.release(); assets.releaseAll();
+    });
+
+    it.each(['main', 'preview'] as const)('isolates matching layer IDs on one engine when %s quits', async closing => {
+        const main = await scene(mainCore, 11), preview = await scene(mainCore, 29);
+        expect(main.entity).toBe(preview.entity);
+        const saved = (s: typeof main) => serializeEntityComponents(s.app.world, s.entity)
+            .find(component => component.type === 'TilemapLayer')?.data.chunks;
+        expect([main, preview].map(s => s.tiles.getTile(s.entity, 0, 0))).toEqual([11, 29]);
+        expect(saved(main)).toBe(main.tiles.exportChunks(main.entity));
+        expect(saved(preview)).toBe(preview.tiles.exportChunks(preview.entity));
+        expect(saved(main)).not.toBe(saved(preview));
+        main.tiles.setTile(main.entity, -1, -1, 1);
+        await main.app.tick(1 / 60);
+        expect(preview.tiles.getTile(preview.entity, -1, -1)).toBe(0);
+        expect(isTileSolid(main.entity, -1, -1, main.app.world)).toBe(true);
+        expect(isTileSolid(preview.entity, -1, -1, preview.app.world)).toBe(false);
+        expect(main.tiles.readCollisionChunks(main.entity, null)?.has('-1,-1')).toBe(true);
+        expect(preview.tiles.readCollisionChunks(preview.entity, null)?.has('-1,-1')).toBe(false);
+        expect(TilemapAPI.getTile(preview.entity, 0, 0)).toBe(29);
+        const [retiring, surviving] = closing === 'main' ? [main, preview] : [preview, main];
+        retiring.app.quit({ keepRenderer: true });
+        expect(retiring.tiles.hasLayer(retiring.entity)).toBe(false);
+        const expected = closing === 'main' ? 29 : 11;
+        expect(surviving.tiles.getTile(surviving.entity, 0, 0)).toBe(expected);
+        expect(TilemapAPI.getTile(surviving.entity, 0, 0)).toBe(expected);
+    });
+
+    it('loads Tiled and saved scene data into the requested world with a preview open', async () => {
+        const main = await scene(mainCore, 11), preview = await scene(mainCore, 29);
+        const map = parseTmjJson({
+            type: 'map', orientation: 'orthogonal', width: 1, height: 1, tilewidth: 16, tileheight: 16,
+            tilesets: [], layers: [{ type: 'tilelayer', name: 'Ground', visible: true, width: 1, height: 1, data: [7] }],
+        })!;
+        const [imported] = loadTiledMap(main.app.world, map, new Map());
+        expect(main.tiles.getTile(imported, 0, 0)).toBe(7);
+        expect(preview.tiles.hasLayer(imported)).toBe(false);
+        const copy = loadSceneData(main.app.world, {
+            version: '1.0', name: 'saved preview', entities: [{ id: 1, name: 'Ground', parent: null, children: [],
+                components: serializeEntityComponents(preview.app.world, preview.entity) }],
+        }).get(1)!;
+        expect(main.tiles.getTile(copy, 0, 0)).toBe(29);
+        main.tiles.setTile(copy, 0, 0, 5);
+        expect(preview.tiles.getTile(preview.entity, 0, 0)).toBe(29);
     });
 
     it('quitting the older app leaves the newer map and runtime alive', async () => {

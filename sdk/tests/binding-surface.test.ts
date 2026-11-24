@@ -33,6 +33,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import ts from 'typescript';
 import {
     DISPOSITIONS, TEST_PROBE_BINDINGS, PROBE_GUARD, PROBE_HEADER,
     type TestProbeBinding,
@@ -204,46 +205,42 @@ function parseExportedFunctions(cmakeSource: string, marker: string): Set<string
 // TS side: interface member parsing
 // =============================================================================
 
-/**
- * Call-signature members (`name(...)` / `name?(...)`) declared at the top
- * level of `interface <name> { ... }`, with their parameter counts. Property
- * members (`HEAPU8: ...`, `Registry: new () => ...`) and members of nested
- * object types (`GL: {...}`, inline return-type literals) are excluded: a
- * member must sit at brace depth 0 of the body and start after `;`/`{`/`}`.
- */
-function parseInterfaceMethodSigs(tsSource: string, interfaceName: string): Map<string, number> {
-    const src = stripComments(tsSource);
-    const head = new RegExp(`interface\\s+${interfaceName}\\s*\\{`).exec(src);
-    if (!head) throw new Error(`TS interface '${interfaceName}' not found`);
-    const start = head.index + head[0].length;
-    let depth = 1;
-    let end = -1;
-    for (let i = start; i < src.length; i++) {
-        const ch = src[i];
-        if (ch === '{') depth++;
-        else if (ch === '}' && --depth === 0) { end = i; break; }
-    }
-    if (end < 0) throw new Error(`TS interface '${interfaceName}': unterminated body`);
-    const body = src.slice(start, end);
-    const out = new Map<string, number>();
-    const memberRe = /(\w+)\s*\??\(/g;
-    for (let m = memberRe.exec(body); m; m = memberRe.exec(body)) {
-        let braces = 0;
-        for (let i = 0; i < m.index; i++) {
-            if (body[i] === '{') braces++;
-            else if (body[i] === '}') braces--;
-        }
-        if (braces !== 0) continue;
-        let j = m.index - 1;
-        while (j >= 0 && /\s/.test(body[j])) j--;
-        if (j >= 0 && !';{}'.includes(body[j])) continue;
-        out.set(m[1], countParams(body, m.index + m[0].length - 1));
-    }
-    return out;
-}
+const bindingFiles = {
+    wasm: 'wasm.ts',
+    tiles: 'tilemap/tilemapAPI.ts',
+    physics: 'physics/PhysicsModuleLoader.ts',
+    spine: 'spine/SpineModuleLoader.ts',
+    dragonBones: 'dragonbones/DragonBonesModuleLoader.ts',
+    basis: 'asset/basisTranscoder.ts',
+} as const;
+const program = ts.createProgram(Object.values(bindingFiles).map(file => resolve(SDK, file)), {
+    target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, types: [],
+});
+const checker = program.getTypeChecker();
 
-function parseInterfaceMethods(tsSource: string, interfaceName: string): Set<string> {
-    return new Set(parseInterfaceMethodSigs(tsSource, interfaceName).keys());
+/** Follow inherited and mapped members. A bound registry can prepend a fixed-length rest tuple. */
+function methodSignatures(file: keyof typeof bindingFiles, name: string): Map<string, number> {
+    const source = program.getSourceFile(resolve(SDK, bindingFiles[file]));
+    const declaration = source?.statements.find(node =>
+        (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) && node.name.text === name);
+    if (!declaration) throw new Error(`TS binding type '${name}' missing from ${bindingFiles[file]}`);
+
+    const methods = new Map<string, number>();
+    for (const member of checker.getTypeAtLocation(declaration).getProperties()) {
+        const type = checker.getNonNullableType(checker.getTypeOfSymbolAtLocation(member, declaration));
+        const signature = type.getCallSignatures()[0];
+        if (!signature) continue;
+        let arity = 0;
+        for (const parameter of signature.getParameters()) {
+            const node = parameter.valueDeclaration;
+            const paramType = checker.getTypeOfSymbolAtLocation(parameter, declaration);
+            arity += node && ts.isParameter(node) && node.dotDotDotToken && checker.isTupleType(paramType)
+                ? checker.getTypeArguments(paramType as ts.TypeReference).length : 1;
+        }
+        methods.set(member.name, arity);
+    }
+    return methods;
 }
 
 /**
@@ -291,11 +288,10 @@ const allRegistered = new Set([
     ...generatedCpp.flatMap((src) => [...parseFunctionRegistrations(src)]),
 ]);
 
-const wasmTs = read(resolve(SDK, 'wasm.ts'));
-const tilemapApiTs = read(resolve(SDK, 'tilemap/tilemapAPI.ts'));
-
-const moduleDeclared = parseInterfaceMethods(wasmTs, 'ESEngineModule');
-const tilemapDeclared = parseInterfaceMethods(tilemapApiTs, 'TilemapModule');
+const moduleSigs = methodSignatures('wasm', 'ESEngineModule');
+const tilemapSigs = methodSignatures('tiles', 'TilemapModule');
+const moduleDeclared = new Set(moduleSigs.keys());
+const tilemapDeclared = new Set(tilemapSigs.keys());
 const allDeclared = new Set([...moduleDeclared, ...tilemapDeclared]);
 
 // Emscripten-runtime exports declared for ergonomics; not embind registrations.
@@ -400,7 +396,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
         const cpp = new Set(
             PHYSICS_TUS.flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/physics', f)))]),
         );
-        const ts = parseInterfaceMethods(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
+        const ts = new Set(methodSignatures('physics', 'PhysicsWasmModule').keys());
         expectMirrored('physics', ts, cpp);
     });
 
@@ -446,7 +442,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
         );
         const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
         const declared = new Set([
-            ...parseInterfaceMethods(loaderTs, 'SpineWasmModule'),
+            ...methodSignatures('spine', 'SpineWasmModule').keys(),
             ...[...parseCwrapNames(loaderTs)].map((n) => `_${n}`),
         ]);
         expectMirrored('spine', declared, cpp);
@@ -478,9 +474,8 @@ describe('WASM binding surface: side modules (C exports)', () => {
     // and a `w(…)` with no member, so the two cannot drift.
     it('DragonBonesWrappedAPI mirrors the module exports exactly', () => {
         const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/modules/dragonbones/DragonBonesModuleEntry.cpp')));
-        const loaderTs = read(resolve(SDK, 'dragonbones/DragonBonesModuleLoader.ts'));
         const declared = new Set(
-            [...parseInterfaceMethods(loaderTs, 'DragonBonesWrappedAPI')].map((n) => `_db_${n}`),
+            [...methodSignatures('dragonBones', 'DragonBonesWrappedAPI').keys()].map((n) => `_db_${n}`),
         );
         expectMirrored('dragonbones', declared, cpp);
     });
@@ -510,7 +505,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
         exported.delete('_malloc');
         exported.delete('_free');
         const ts = new Set(
-            [...parseInterfaceMethods(read(resolve(SDK, 'asset/basisTranscoder.ts')), 'BasisWasmModule')]
+            [...methodSignatures('basis', 'BasisWasmModule').keys()]
                 .filter((n) => !SIDE_RUNTIME.has(n)),
         );
         const phantom = missingFrom(ts, exported);
@@ -523,7 +518,7 @@ describe('WASM binding surface: side modules (C exports)', () => {
 describe('WASM binding surface: embind class methods', () => {
     it('CppResourceManager mirrors class_<ResourceManager> exactly', () => {
         const cpp = parseClassRegistration(webSdkEntry, 'ResourceManager');
-        const ts = parseInterfaceMethods(wasmTs, 'CppResourceManager');
+        const ts = new Set(methodSignatures('wasm', 'CppResourceManager').keys());
         // Native (embedded-Dawn) byte-upload methods: no wasm heap to marshal into,
         // so they take the RGBA bytes directly and have NO embind counterpart on the
         // web ResourceManager. Optional + native-only by construction — exempt from
@@ -537,7 +532,7 @@ describe('WASM binding surface: embind class methods', () => {
 
     it('CppEngineContext mirrors class_<EstellaContext> exactly (embind-implicit delete aside)', () => {
         const cpp = parseClassRegistration(webSdkEntry, 'EstellaContext');
-        const ts = parseInterfaceMethods(wasmTs, 'CppEngineContext');
+        const ts = new Set(methodSignatures('wasm', 'CppEngineContext').keys());
         ts.delete('delete'); // added by embind on every class instance, never registered
         expect(sorted(ts)).toEqual(sorted(cpp.keys()));
     });
@@ -590,8 +585,10 @@ describe('WASM binding surface: signature arity handshake', () => {
     it('parser self-check: known signatures parse to their real arities', () => {
         // Guards the guard: if a parser regresses into returning empty/zero
         // sets, every comparison above it would pass vacuously.
-        expect(parseInterfaceMethodSigs(wasmTs, 'ESEngineModule').get('draw_line')).toBe(9);
-        expect(parseInterfaceMethodSigs(wasmTs, 'ESEngineModule').get('renderer_end')).toBe(0);
+        expect(moduleSigs.get('draw_line')).toBe(9);
+        expect(moduleSigs.get('renderer_end')).toBe(0);
+        expect(moduleSigs.get('tilemap_setTileInWorld')).toBe(5);
+        expect(tilemapSigs.get('tilemap_setTile')).toBe(4);
         expect(cppArities(pooledModuleCpp, 'draw_line')).toContain(9);
         expect(parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/physics/PhysicsModuleEntry.cpp'))).get('physics_step')).toBe(1);
         expect(parseCwrapSigs(read(resolve(SDK, 'spine/SpineModuleLoader.ts'))).get('spine_setSkin')).toBe(2);
@@ -603,8 +600,8 @@ describe('WASM binding surface: signature arity handshake', () => {
             ...parseRegistrationTargets(tilemapBindings),
         ];
         const declarations = [
-            ['wasm.ts', parseInterfaceMethodSigs(wasmTs, 'ESEngineModule')],
-            ['tilemapAPI.ts', parseInterfaceMethodSigs(tilemapApiTs, 'TilemapModule')],
+            ['wasm.ts', moduleSigs],
+            ['tilemapAPI.ts', tilemapSigs],
         ] as const;
         const problems: string[] = [];
         for (const reg of regs) {
@@ -628,9 +625,17 @@ describe('WASM binding surface: signature arity handshake', () => {
         expect(problems, problems.join('\n')).toEqual([]);
     });
 
+    it('matches every registered tilemap operation to its C++ prototype, including the registry parameter', () => {
+        const header = stripComments(read(resolve(CPP, 'bindings/TilemapBindings.hpp')));
+        for (const name of handRegistered) {
+            if (!name.startsWith('tilemap_')) continue;
+            expect(cppArities(header, name), name).toEqual(new Set([moduleSigs.get(name)]));
+        }
+    });
+
     it('CppResourceManager parameter counts match (embind drops the instance param)', () => {
         const chain = parseClassRegistration(webSdkEntry, 'ResourceManager');
-        const ts = parseInterfaceMethodSigs(wasmTs, 'CppResourceManager');
+        const ts = methodSignatures('wasm', 'CppResourceManager');
         const problems: string[] = [];
         for (const [name, sym] of chain) {
             const tsArity = ts.get(name);
@@ -652,20 +657,20 @@ describe('WASM binding surface: signature arity handshake', () => {
             ['PhysicsModuleEntry.cpp', 'PhysicsShapes.cpp', 'PhysicsJoints.cpp', 'PhysicsQueries.cpp']
                 .flatMap((f) => [...parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/physics', f)))]),
         );
-        const ts = parseInterfaceMethodSigs(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
+        const ts = methodSignatures('physics', 'PhysicsWasmModule');
         expectArities('physics', ts, cpp);
     });
 
     it('spine: raw members and the cwrap table both match', () => {
         const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
         const cpp = parseKeepaliveSigs(read(resolve(CPP, 'bindings/modules/spine/SpineModuleEntry.cpp')));
-        expectArities('spine raw members', parseInterfaceMethodSigs(loaderTs, 'SpineWasmModule'), cpp);
+        expectArities('spine raw members', methodSignatures('spine', 'SpineWasmModule'), cpp);
         expectArities('spine cwrap table', parseCwrapSigs(loaderTs), cpp);
     });
 
     it('basis: parameter counts match', () => {
         const src = stripComments(read(resolve(CPP, 'bindings/modules/basis/BasisModuleEntry.cpp')));
-        const ts = parseInterfaceMethodSigs(read(resolve(SDK, 'asset/basisTranscoder.ts')), 'BasisWasmModule');
+        const ts = methodSignatures('basis', 'BasisWasmModule');
         const problems: string[] = [];
         for (const [name, tsArity] of ts) {
             if (SIDE_RUNTIME.has(name)) continue;

@@ -520,6 +520,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     pool_.beginFrame();
     projected_bake_resources_.clear();
     draw_list_.clear();
+    for (auto& plugin : plugins_) plugin->beginPass();
     clip_state_.clear();
 
     // A lost device makes the whole frame meaningless, so it is refused here
