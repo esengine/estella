@@ -439,10 +439,12 @@ export interface NativeEngineApi {
     transform_copyFlatRenderMatrix?(registry: unknown, entity: number, outputPtr: number): boolean;
     transform_update?(registry: unknown): void;
     uiHitTest_getHitEntity?(): number;
+    uiHitTest_getHitEntityInWorld?(registry: unknown): number;
     uiHitTest_inputsChanged?(registry: unknown): boolean;
     uiHitTest_pick?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: unknown, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
+    uiHitTest_pickResultInWorld?(registry: unknown, index: number): number;
     uiHitTest_update?(registry: unknown, originX: number, originY: number, originZ: number, dirX: number, dirY: number, dirZ: number): void;
     uiHitTest_updateDomains?(registry: unknown, worldOriginX: number, worldOriginY: number, worldOriginZ: number, worldDirX: number, worldDirY: number, worldDirZ: number, screenOriginX: number, screenOriginY: number, screenOriginZ: number, screenDirX: number, screenDirY: number, screenDirZ: number): void;
     uiLayout_update?(registry: unknown, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): boolean;
@@ -893,10 +895,12 @@ export function createNativeEngineApi(
     bind('transform_copyFlatRenderMatrix', 'es_transform_copyFlatRenderMatrix', true);
     bind('transform_update', 'es_transform_update', true);
     bind('uiHitTest_getHitEntity', 'es_uiHitTest_getHitEntity', false);
+    bind('uiHitTest_getHitEntityInWorld', 'es_uiHitTest_getHitEntityInWorld', true);
     bind('uiHitTest_inputsChanged', 'es_uiHitTest_inputsChanged', true);
     bind('uiHitTest_pick', 'es_uiHitTest_pick', true);
     bind('uiHitTest_pickAll', 'es_uiHitTest_pickAll', true);
     bind('uiHitTest_pickResult', 'es_uiHitTest_pickResult', false);
+    bind('uiHitTest_pickResultInWorld', 'es_uiHitTest_pickResultInWorld', true);
     bind('uiHitTest_update', 'es_uiHitTest_update', true);
     bind('uiHitTest_updateDomains', 'es_uiHitTest_updateDomains', true);
     bind('uiLayout_update', 'es_uiLayout_update', true);

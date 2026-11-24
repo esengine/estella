@@ -1084,9 +1084,11 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiHitTest_updateDomains", ES_RENDER_BIND(uiHitTest_updateDomains));
     emscripten::function("uiHitTest_inputsChanged", ES_RENDER_BIND(uiHitTest_inputsChanged));
     emscripten::function("uiHitTest_getHitEntity", ES_RENDER_BIND(uiHitTest_getHitEntity));
+    emscripten::function("uiHitTest_getHitEntityInWorld", ES_RENDER_BIND(uiHitTest_getHitEntityInWorld));
     emscripten::function("uiHitTest_pick", ES_RENDER_BIND(uiHitTest_pick));
     emscripten::function("uiHitTest_pickAll", ES_RENDER_BIND(uiHitTest_pickAll));
     emscripten::function("uiHitTest_pickResult", ES_RENDER_BIND(uiHitTest_pickResult));
+    emscripten::function("uiHitTest_pickResultInWorld", ES_RENDER_BIND(uiHitTest_pickResultInWorld));
     emscripten::function("uiNode_computedWidth", &esengine::uiNode_computedWidth);
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
     emscripten::function("uiRenderOrder_update", ES_RENDER_BIND(uiRenderOrder_update));

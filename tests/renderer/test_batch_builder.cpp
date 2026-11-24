@@ -1867,6 +1867,55 @@ TEST_CASE("a rebuilt canvas solves again and its reused ID has no screen members
     CHECK(ui.isScreenDomain(registry, root.raw));
 }
 
+TEST_CASE("UI order and layout survive another world's pass and stay alive for the frame that collected them") {
+    ecs::Registry scene, preview;
+    ecs::UISystem ui;
+    const auto populate = [](ecs::Registry& registry, bool underCanvas) {
+        const auto root = registry.create(), sprite = registry.create();
+        registry.emplace<ecs::Transform>(root);
+        registry.emplace<ecs::UINode>(root);
+        registry.emplace<ecs::Canvas>(root);
+        registry.emplace<ecs::Transform>(sprite);
+        registry.emplace<ecs::Sprite>(sprite);
+        if (underCanvas) REQUIRE(ecs::setParent(registry, sprite, root));
+        return sprite;
+    };
+    const auto sprite = populate(scene, true), other = populate(preview, false);
+    REQUIRE(sprite == other);
+    REQUIRE(ui.layoutUpdate(scene, -20, -20, 20, 20, true));
+    ui.updateRenderOrder(scene, 200);
+    REQUIRE(ui.layoutUpdate(preview, -80, -80, 80, 80, true));
+    ui.updateRenderOrder(preview, 300);
+    REQUIRE(ui.isScreenDomain(scene, sprite.id()));
+    CHECK_FALSE(ui.isScreenDomain(preview, other.id()));
+    CHECK_FALSE(ui.layoutUpdate(scene, -20, -20, 20, 20, false));
+    CHECK_FALSE(ui.layoutUpdate(preview, -80, -80, 80, 80, false));
+    REQUIRE(ui.renderData(scene)->order.layers.at(sprite.id()) == 200);
+    REQUIRE(ui.renderData(preview)->order.layers.empty());
+
+    MockGfxDevice device;
+    RenderContext context(device);
+    resource::ResourceManager resources;
+    resources.init(device);
+    RenderFrame frame(device, context, resources);
+    frame.init(40, 40);
+    frame.beginFrame();
+    Weak<const ecs::UIRenderData> collected = ui.renderData(scene);
+    frame.setUIRenderData(ui.renderData(scene));
+    scene.clear();
+    REQUIRE(populate(scene, false) == sprite);
+    CHECK_FALSE(ui.renderData(scene));
+    CHECK(frame.uiTreeHolds(sprite));
+    CHECK_FALSE(collected.expired());
+    frame.endFrame();
+    CHECK(collected.expired());
+    CHECK_FALSE(frame.uiTreeHolds(sprite));
+    CHECK_FALSE(ui.layoutUpdate(preview, -80, -80, 80, 80, false));
+    CHECK(ui.layoutUpdate(scene, -20, -20, 20, 20, false));
+    frame.shutdown();
+    resources.shutdown();
+}
+
 TEST_CASE("pointer events: Receive takes the pointer back under a None ancestor, in and out of the layout tree") {
     for (bool inTree : {true, false}) {
         ecs::Registry registry;

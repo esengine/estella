@@ -120,7 +120,7 @@ export function uiHitTestWorld(
   world: PickableWorld, ray: WorldRay, screenRay?: WorldRay,
 ): Entity | null {
   const c = core(world);
-  if (!c?.engine.uiHitTest_getHitEntity) return null;
+  if (!c || !(c.engine.uiHitTest_getHitEntityInWorld || c.engine.uiHitTest_getHitEntity)) return null;
   // Two rays when the caller has a screen: each entity is tested through the
   // projection it was drawn with. One ray is the older core's only question, and
   // the right answer to it while the two domains coincide.
@@ -137,7 +137,9 @@ export function uiHitTestWorld(
   } else {
     return null;
   }
-  const hit = c.engine.uiHitTest_getHitEntity();
+  const hit = c.engine.uiHitTest_getHitEntityInWorld
+    ? c.engine.uiHitTest_getHitEntityInWorld(c.registry)
+    : c.engine.uiHitTest_getHitEntity!();
   return hit === NO_HIT ? null : hit;
 }
 
@@ -172,11 +174,13 @@ export function uiPickWorld(world: PickableWorld, worldX: number, worldY: number
 /** All editor-pickable UI entities under the point, most specific first. */
 export function uiPickAllWorld(world: PickableWorld, worldX: number, worldY: number): Entity[] {
   const c = core(world);
-  if (!c?.engine.uiHitTest_pickAll || !c.engine.uiHitTest_pickResult) return [];
+  if (!c?.engine.uiHitTest_pickAll || !(c.engine.uiHitTest_pickResultInWorld || c.engine.uiHitTest_pickResult)) return [];
   const count = c.engine.uiHitTest_pickAll(c.registry, worldX, worldY);
   const out: Entity[] = [];
   for (let i = 0; i < count; i++) {
-    const e = c.engine.uiHitTest_pickResult(i);
+    const e = c.engine.uiHitTest_pickResultInWorld
+      ? c.engine.uiHitTest_pickResultInWorld(c.registry, i)
+      : c.engine.uiHitTest_pickResult!(i);
     if (e !== NO_HIT) out.push(e);
   }
   return out;

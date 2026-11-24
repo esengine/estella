@@ -5,6 +5,7 @@ import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
+import { Interactable } from '../src/ui/input/interactable';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -40,8 +41,9 @@ describe.skipIf(!HAS_WASM)('screen domain ownership on real WASM', () => {
         expect(engine.ui_isScreenDomain!(first.registry, first.entity)).toBe(true);
         engine.uiLayout_update(second.registry, -50, -50, 50, 50, true);
         expect(engine.ui_isScreenDomain!(second.registry, second.entity)).toBe(false);
-        engine.uiLayout_update(first.registry, -50, -50, 50, 50, true);
         expect(engine.ui_isScreenDomain!(first.registry, first.entity)).toBe(true);
+        expect(engine.uiHitTest_pick!(first.registry, 0, 0)).toBe(first.entity);
+        expect(engine.uiLayout_update(first.registry, -50, -50, 50, 50, false)).toBe(false);
     });
     it('does not classify a despawned entity using the previous layout entry', () => {
         const { app, registry, entity } = make(true);
@@ -49,5 +51,30 @@ describe.skipIf(!HAS_WASM)('screen domain ownership on real WASM', () => {
         expect(engine.ui_isScreenDomain!(registry, entity)).toBe(true);
         app.world.despawn(entity);
         expect(engine.ui_isScreenDomain!(registry, entity)).toBe(false);
+    });
+    it('retains each world’s hit, pick list and input change cursor across interleaved queries', () => {
+        const hud = make(true), preview = make(true);
+        for (const view of [hud, preview]) {
+            view.app.world.insert(view.entity, Interactable);
+            engine.uiLayout_update(view.registry, -50, -50, 50, 50, true);
+            engine.transform_update(view.registry);
+            expect(engine.uiHitTest_inputsChanged!(view.registry)).toBe(true);
+        }
+        expect(engine.uiHitTest_inputsChanged!(hud.registry)).toBe(false);
+        const none = 0xffffffff;
+        engine.uiHitTest_update(hud.registry, 0, 0, 100, 0, 0, -1);
+        engine.uiHitTest_update(preview.registry, 500, 500, 100, 0, 0, -1);
+        expect(engine.uiHitTest_getHitEntityInWorld!(hud.registry)).toBe(hud.entity);
+        expect(engine.uiHitTest_getHitEntityInWorld!(preview.registry)).toBe(none);
+        expect(engine.uiHitTest_getHitEntity()).toBe(none);
+
+        expect(engine.uiHitTest_pickAll!(hud.registry, 0, 0)).toBe(1);
+        expect(engine.uiHitTest_pickAll!(preview.registry, 500, 500)).toBe(0);
+        expect(engine.uiHitTest_pickResultInWorld!(hud.registry, 0)).toBe(hud.entity);
+        expect(engine.uiHitTest_pickResultInWorld!(preview.registry, 0)).toBe(none);
+        expect(engine.uiHitTest_pickResult!(0)).toBe(none);
+        hud.app.world.despawn(hud.entity);
+        expect(engine.uiHitTest_getHitEntityInWorld!(hud.registry)).toBe(none);
+        expect(engine.uiHitTest_pickResultInWorld!(hud.registry, 0)).toBe(none);
     });
 });

@@ -11,6 +11,7 @@
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "CanvasRoots.hpp"
+#include "UIRenderData.hpp"
 
 #include <unordered_map>
 #include <vector>
@@ -22,12 +23,6 @@ namespace esengine::ecs {
  * @details They paint by their place in the tree like the controls round them, so one listed after a panel is over it and one listed
  *          before is under it. Written to this table and not to their `layer`, which stays what its author said.
  */
-struct UITreeOrder {
-    std::unordered_map<u32, i32> layers;
-    i32 base = 0;
-    u64 entitySet = 0;
-};
-
 inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32 cullBit, UITreeOrder* tree = nullptr) {
     struct Task { Entity entity; u32 cullBit; };
     std::vector<Task> pending{{entity, cullBit}};

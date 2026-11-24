@@ -5,6 +5,7 @@
  * @brief   Assemble and submit shared scene views, lighting and shadow passes.
  */
 #include "./RenderFrame.hpp"
+#include "../../ui/UIRenderData.hpp"
 #ifdef ES_ENABLE_GPU_PARTICLES
 #include "./GpuParticles.hpp"
 #endif
@@ -215,7 +216,16 @@ void RenderFrame::init(u32 width, u32 height) {
     }
 }
 
+void RenderFrame::setUIRenderData(Shared<const ecs::UIRenderData> data) {
+    ui_data_ = std::move(data);
+    const auto* layout = ui_data_ && ui_data_->laidOut ? ui_data_.get() : nullptr;
+    setScreenDomain(layout ? &layout->domain : nullptr);
+    setScreenRoots(layout ? &layout->roots : nullptr, layout ? &layout->rootByIndex : nullptr);
+    setUITreeLayers(ui_data_ && ui_data_->order.entitySet ? &ui_data_->order.layers : nullptr);
+}
+
 void RenderFrame::shutdown() {
+    if (ui_data_) setUIRenderData(nullptr);
     for (auto& plugin : plugins_) {
         plugin->shutdown();
     }
@@ -414,6 +424,7 @@ void RenderFrame::releaseFrameTargets() {
 }
 
 void RenderFrame::beginFrame() {
+    if (ui_data_) setUIRenderData(nullptr);
     ++planar_frame_;
     if (skin_cache_) skin_cache_->beginFrame(planar_frame_);
     // An overlay left open by a host that never closed it gives the frame its pool and list back.
@@ -743,6 +754,7 @@ void RenderFrame::endFrame() {
         }
     }
     frame_capture_.endFrame();
+    if (ui_data_) setUIRenderData(nullptr);
     device_.endFrame();
     stats_.gpu_draws = device_.takeDraws();
     publishFrameCounters();

@@ -16,6 +16,7 @@
 #include "../ecs/Entity.hpp"
 #include "../ecs/Registry.hpp"
 #include "./UITree.hpp"
+#include "./UIRenderData.hpp"
 #include "./UIHitTestSystem.hpp"
 
 #include <memory>
@@ -40,6 +41,54 @@ struct UIHitTestResult {
     Entity prev_hit_entity{INVALID_ENTITY};
 };
 
+/** Retained data for one registry. The active state is exposed by UISystem for
+ *  direct C++ tree access. Inactive registries keep their own state. */
+class UIWorldState {
+public:
+    UITree tree;
+    UIHitTestResult hitResult;
+    std::unique_ptr<LayoutCache> layoutCache_;
+
+private:
+    friend class UISystem;
+    UIWorldState();
+    ~UIWorldState();
+    UIWorldState& operator=(UIWorldState&&) noexcept;
+    UIWorldState(const UIWorldState&) = delete;
+    UIWorldState& operator=(const UIWorldState&) = delete;
+
+    struct InheritedState {
+        bool hidden = false;
+        f32 alpha = 1.0f;
+        bool blocked = false;
+    };
+    struct InheritedMemo {
+        u64 stamp = 0;
+        bool resolving = false;
+        InheritedState state;
+    };
+    std::unordered_map<Entity, InheritedMemo> inherited_cache_;
+    std::vector<Entity> inherited_path_;
+    u64 inherited_stamp_ = 0;
+    std::vector<Entity> pickResults_;
+
+    bool hit_inputs_read_{false};
+    u32 hit_activity_{0};
+    u32 hit_tick_{0};
+    u64 hit_meshes_{0};
+
+    // ---- Layout skip-when-clean gate (see layoutUpdate) ----
+    // Snapshot of the last solved frame; a pass whose inputs match all of these
+    // (and no tween activity) reuses the retained YGNodes and computed output.
+    u64 lastSig_{0};
+    // Size and center are tracked apart: a resized box needs a new solve, a moved
+    // box needs only the screen roots replaced (see layoutUpdate).
+    f32 lastBoxW_{0}, lastBoxH_{0}, lastBoxCX_{0}, lastBoxCY_{0};
+    bool lastAnimActive_{false};
+    bool layoutPrimed_{false};  // force a solve on the very first pass
+    Shared<UIRenderData> render_;
+};
+
 /**
  * @brief UI subsystem: owns layout tree + hit-test state
  *
@@ -48,24 +97,18 @@ struct UIHitTestResult {
  *
  * @code
  * auto& ui = ctx.require<ecs::UISystem>();
- * ui.layoutUpdate(registry, -960, -540, 960, 540);
+ * ui.layoutUpdate(registry, -960, -540, 960, 540, true);
  * ui.hitTestUpdate(registry, PickRay{cameraPos, pointerDir}, &resources);
  * auto hitEntity = ui.getHitEntity();
  * @endcode
  */
-class UISystem {
+class UISystem : public UIWorldState {
 public:
     UISystem();
-    ~UISystem();  // out-of-line: layoutCache_ holds an incomplete LayoutCache here.
+    ~UISystem();
 
     UISystem(const UISystem&) = delete;
     UISystem& operator=(const UISystem&) = delete;
-
-    // ---- State (public by design: thin wrapper over data) ----
-
-    UITree tree;
-    UIHitTestResult hitResult;
-    std::unique_ptr<LayoutCache> layoutCache_;
 
     // ---- Layout pass (defined in UILayoutSystem.cpp) ----
 
@@ -114,15 +157,17 @@ public:
     u32 pickAll(Registry& registry, f32 worldX, f32 worldY);
 
     /** @brief Entry `index` of the last pickAll (or INVALID_ENTITY). */
-    u32 pickResult(u32 index) const {
-        return index < pickResults_.size() ? pickResults_[index].id() : INVALID_ENTITY.id();
-    }
+    u32 pickResult(u32 index) const;
+    u32 pickResult(const Registry& registry, u32 index) const;
 
-    /** @brief Entity hit by the most recent hitTestUpdate (or INVALID_ENTITY) */
-    u32 getHitEntity() const { return hitResult.hit_entity.id(); }
+    /** The most recent hit of the selected registry, or of the last hit test. */
+    u32 getHitEntity(const Registry& registry) const;
+    u32 getHitEntity() const;
+    u32 getPrevHitEntity() const;
 
-    /** @brief Entity hit by the previous frame's hitTestUpdate */
-    u32 getPrevHitEntity() const { return hitResult.prev_hit_entity.id(); }
+    /** Published tables remain alive for the render pass that selected them. */
+    Shared<const UIRenderData> renderData(const Registry& registry) const;
+    void updateRenderOrder(Registry& registry, i32 base);
 
     /**
      * @brief Every entity that belongs to the SCREEN, as opposed to the world.
@@ -132,72 +177,37 @@ public:
      *          subtree, not just the laid-out nodes — what decides the domain is
      *          where a transform composes FROM. Rebuilt by every layout pass.
      */
-    const std::unordered_set<u32>& screenDomain() const { return screen_domain_; }
+    const std::unordered_set<u32>& screenDomain() const { return lastLayout().domain; }
 
     /** @brief The screen's root Canvases, in the order the UI tree draws them (each Canvas in its pool's order, as canvasRoots
      *         walks them). Rebuilt with the domain. */
-    const std::vector<u32>& screenRoots() const { return screen_roots_; }
+    const std::vector<u32>& screenRoots() const { return lastLayout().roots; }
     /** @brief screenRootOf for every entity at once, by entity index, for a reader that asks of many. */
-    const std::vector<u32>& screenRootByIndex() const { return screen_root_by_index_; }
+    const std::vector<u32>& screenRootByIndex() const { return lastLayout().rootByIndex; }
 
     /** @brief Which screen root @p entity (an id in screenDomain()) draws under; for one outside the domain, nothing it says. */
     u32 screenRootOf(u32 entity) const {
         const u32 index = Entity::fromRaw(entity).index();
-        return index < screen_root_by_index_.size() ? screen_root_by_index_[index] : 0;
+        const auto& roots = screenRootByIndex();
+        return index < roots.size() ? roots[index] : 0;
     }
 
-    bool hasLayoutFor(const Registry& registry) const { return layoutEntitySet_ == registry.entitySetId(); }
-
-    bool isScreenDomain(const Registry& registry, u32 entity) const {
-        // Resolved entries belong to the registry that last completed layout.
-        return hasLayoutFor(registry)
-            && registry.valid(Entity::fromRaw(entity))
-            && screen_domain_.count(entity) != 0;
-    }
+    bool hasLayoutFor(const Registry& registry) const;
+    bool isScreenDomain(const Registry& registry, u32 entity) const;
 
 private:
-    struct InheritedState {
-        bool hidden = false;
-        f32 alpha = 1.0f;
-        bool blocked = false;
-    };
-    struct InheritedMemo {
-        u64 stamp = 0;
-        bool resolving = false;
-        InheritedState state;
-    };
-    std::unordered_map<Entity, InheritedMemo> inherited_cache_;
-    std::vector<Entity> inherited_path_;
-    u64 inherited_stamp_ = 0;
+    struct Slot;
+    struct Worlds;
+    Unique<Worlds> worlds_;
+    Shared<Slot> select(Registry& registry);
+    UIRenderData& selectLayout(Registry& registry);
+    void selectHit(Registry& registry);
+    void selectPick(Registry& registry);
+    const UIRenderData& lastLayout() const;
     void propagateDetachedUIState(Registry& registry);
     /** @brief World-space pick for entities outside the layout tree (see .cpp) */
     void hitWorldContent(Registry& registry, const PickRay& ray,
                          const resource::ResourceManager* resources);
-
-    std::vector<Entity> pickResults_;
-
-    u64 hit_result_entity_set_{0};
-    u64 hit_entity_set_{0};
-    u32 hit_activity_{0};
-    u32 hit_tick_{0};
-    u64 hit_meshes_{0};
-
-    // ---- Layout skip-when-clean gate (see layoutUpdate) ----
-    // Snapshot of the last solved frame; a pass whose inputs match all of these
-    // (and no tween activity) reuses the retained YGNodes and computed output.
-    u64 lastSig_{0};
-    // Size and center are tracked apart: a resized box needs a new solve, a moved
-    // box needs only the screen roots replaced (see layoutUpdate).
-    f32 lastBoxW_{0}, lastBoxH_{0}, lastBoxCX_{0}, lastBoxCY_{0};
-    bool lastAnimActive_{false};
-    bool layoutPrimed_{false};  // force a solve on the very first pass
-    // Population whose entity IDs name the retained Yoga nodes.
-    u64 layoutEntitySet_{0};
-
-    std::unordered_set<u32> screen_domain_;
-    std::vector<u32> screen_roots_;
-    /// By entity index: the root of the subtree the entity was last collected under. Read only for ids in screen_domain_.
-    std::vector<u32> screen_root_by_index_;
 };
 
 }  // namespace esengine::ecs

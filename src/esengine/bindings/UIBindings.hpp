@@ -51,9 +51,11 @@ void uiHitTest_updateDomains(ecs::Registry& registry,
                              f32 screenDirX, f32 screenDirY, f32 screenDirZ);
 bool uiHitTest_inputsChanged(ecs::Registry& registry);
 u32 uiHitTest_getHitEntity();
+u32 uiHitTest_getHitEntityInWorld(ecs::Registry& registry);
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickResult(u32 index);
+u32 uiHitTest_pickResultInWorld(ecs::Registry& registry, u32 index);
 
 /** Resolved (Yoga-pass) pixel size of a UI node, for the editor's selection
  *  outline. The node's world box is this size, pivot-centered on its Transform. */

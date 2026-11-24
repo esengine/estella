@@ -54,6 +54,7 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/animation/TweenSystem.cpp
     ${ESENGINE_ROOT}/src/esengine/ui/UILayoutSystem.cpp
     ${ESENGINE_ROOT}/src/esengine/ui/UISystem.cpp
+    ${ESENGINE_ROOT}/src/esengine/ui/UISystemWorlds.cpp
 )
 
 # WebGL2 (GLES3) backend — the web/WeChat platform only. A native build renders

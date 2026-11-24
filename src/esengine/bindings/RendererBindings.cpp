@@ -80,6 +80,11 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_glErrorCheckEnabled (ctx().state().gl_error_check_enabled)
 #define g_viewportWidth (ctx().state().viewport_width)
 #define g_viewportHeight (ctx().state().viewport_height)
+
+static void bindUILayout(const ecs::Registry& registry) {
+    const auto* ui = ctx().tryGet<ecs::UISystem>();
+    g_renderFrame->setUIRenderData(ui ? ui->renderData(registry) : nullptr);
+}
 #ifdef ES_ENABLE_PARTICLES
 static particle::ParticleWorlds* particleWorlds() { return ctx().tryGet<particle::ParticleWorlds>(); }
 static Shared<particle::ParticleSystem> particlesIn(ecs::Registry& registry) {
@@ -165,6 +170,7 @@ void renderer_submitSkeletalBatchByEntityEx(
     // and the culling bit of the Canvas that holds it.
     f32 treeAlpha = 1.0f;
     u32 cullBit = 0;
+    bindUILayout(registry);
     if (g_renderFrame->uiTreeHolds(ent)) {
         bool alphaFound = false;
         Entity at = ent;
@@ -277,7 +283,8 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
     if (!g_initialized || !g_renderFrame || capacity <= 0) return 0;
     auto* out = boundarySpanMut<u32>(outPtr, static_cast<u64>(capacity), "renderer_retainedTextStale.out");
     if (!out) return 0;
-    auto* ui = ctx().tryGet<ecs::UISystem>();
+    const auto* ui = ctx().tryGet<ecs::UISystem>();
+    const auto layout = ui ? ui->renderData(registry) : nullptr;
     auto& entries = g_renderFrame->retainedText().entries();
     i32 written = 0;
     for (auto it = entries.begin(); it != entries.end();) {
@@ -290,7 +297,7 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
         const auto* node = registry.tryGet<ecs::UINode>(entity);
         const f32 width = node ? node->computed_size_.x : 0.0f;
         const f32 height = node ? node->computed_size_.y : 0.0f;
-        const bool screen = ui && ui->isScreenDomain(registry, it->first);
+        const bool screen = layout && layout->domain.contains(it->first);
         bool stale = width != text.boxWidth || height != text.boxHeight || screen != text.screen;
         if (!stale && text.autoKind) {
             // The pipeline was chosen from the world scale: the script no longer reads the transform every frame to see whether it moved.
@@ -936,14 +943,6 @@ void renderer_setEntityDrawOrder(ecs::Registry& registry, uintptr_t entitiesPtr,
     order.reserve(count);
     for (u32 i = 0; i < count; ++i) order.push_back(Entity::fromRaw(raw[i]));
     ecs::applySceneEntityOrder(registry, order.data(), order.size());
-}
-
-static void bindUILayout(const ecs::Registry& registry) {
-    auto* ui = ctx().tryGet<ecs::UISystem>();
-    const bool current = ui && ui->hasLayoutFor(registry);
-    g_renderFrame->setScreenDomain(current ? &ui->screenDomain() : nullptr);
-    g_renderFrame->setScreenRoots(current ? &ui->screenRoots() : nullptr, current ? &ui->screenRootByIndex() : nullptr);
-    g_renderFrame->setUITreeLayers(uiTreeLayers(registry));
 }
 
 void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH) {

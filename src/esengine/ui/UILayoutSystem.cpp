@@ -586,16 +586,7 @@ bool UISystem::layoutUpdate(
     f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
     bool tsPropertyDirty
 ) {
-    // The retained nodes are keyed by entity, and entity ids restart with each
-    // registry — so a scene reload or an editor play/stop would otherwise hand
-    // the new world the previous world's layout. This is only load-bearing now
-    // that styles persist between frames: the old pass reset every node it
-    // touched, which hid the aliasing by throwing the stale state away.
-    if (layoutEntitySet_ != registry.entitySetId()) {
-        layoutCache_.reset();
-        inherited_cache_.clear();
-    }
-    layoutEntitySet_ = registry.entitySetId();
+    auto& tables = selectLayout(registry);
     if (!layoutCache_) {
         layoutCache_ = std::make_unique<LayoutCache>();
         layoutPrimed_ = false;  // a fresh cache has no hierarchy to reuse
@@ -609,7 +600,8 @@ bool UISystem::layoutUpdate(
     // Beside the rebuild and never behind the skip gate below: a frame that needs
     // no re-solve can still have reparented something, and a renderer reading a
     // stale set would draw it in the wrong domain rather than in the wrong place.
-    collectScreenDomain(registry, screen_domain_, screen_roots_, screen_root_by_index_);
+    collectScreenDomain(registry, tables.domain, tables.roots, tables.rootByIndex);
+    tables.laidOut = true;
 
     // Layout belongs to Canvas; visibility and input inheritance belong to the
     // whole UI hierarchy, including nodes that just left their Canvas.
@@ -687,8 +679,9 @@ bool UISystem::layoutUpdate(
 // Out-of-line so LayoutCache is complete here (it holds Yoga types kept out of
 // the header). Defaulted — the unique_ptr frees the cache, whose destructor
 // frees the retained YGNodes.
-UISystem::UISystem() = default;
-UISystem::~UISystem() = default;
+UIWorldState::UIWorldState() = default;
+UIWorldState::~UIWorldState() = default;
+UIWorldState& UIWorldState::operator=(UIWorldState&&) noexcept = default;
 
 
 }  // namespace esengine::ecs

@@ -17,6 +17,12 @@ const rayAt = (x: number, y: number) =>
   ({ origin: { x, y, z: 1000 }, dir: { x: 0, y: 0, z: -1 } });
 
 describe('uiHitTestWorld', () => {
+  it('reads the result for the registry that cast the ray', () => {
+    const get = vi.fn(() => 41);
+    const engine = { uiHitTest_update: vi.fn(), uiHitTest_getHitEntityInWorld: get, uiHitTest_getHitEntity: () => 99 };
+    expect(uiHitTestWorld(world(engine), rayAt(0, 0))).toBe(41);
+    expect(get).toHaveBeenCalledWith(REGISTRY);
+  });
   it('returns the hit entity', () => {
     const engine = hitTester(42);
     expect(uiHitTestWorld(world(engine), rayAt(10, 20))).toBe(42);
@@ -54,6 +60,12 @@ describe('uiPickWorld', () => {
 });
 
 describe('uiPickAllWorld', () => {
+  it('reads each entry from the registry that produced the list', () => {
+    const get = vi.fn((_registry: unknown, index: number) => 40 + index);
+    const engine = { uiHitTest_pickAll: () => 2, uiHitTest_pickResultInWorld: get, uiHitTest_pickResult: () => 99 };
+    expect(uiPickAllWorld(world(engine), 0, 0)).toEqual([40, 41]);
+    expect(get.mock.calls).toEqual([[REGISTRY, 0], [REGISTRY, 1]]);
+  });
   it('collects the results, dropping the sentinel', () => {
     const results = [5, 0xffffffff, 6];
     const engine = {

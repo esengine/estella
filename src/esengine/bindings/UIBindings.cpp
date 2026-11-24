@@ -19,7 +19,6 @@
 #include "../ecs/Registry.hpp"
 #include "../ui/UISystem.hpp"
 #include "../resource/ResourceManager.hpp"
-#include "../ui/UIRenderOrderSystem.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UINode.hpp"
@@ -66,6 +65,10 @@ u32 uiHitTest_getHitEntity() {
     return ctx().require<ecs::UISystem>().getHitEntity();
 }
 
+u32 uiHitTest_getHitEntityInWorld(ecs::Registry& registry) {
+    return ctx().require<ecs::UISystem>().getHitEntity(registry);
+}
+
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY) {
     return ctx().require<ecs::UISystem>().pick(registry, worldX, worldY);
 }
@@ -76,6 +79,10 @@ u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY) {
 
 u32 uiHitTest_pickResult(u32 index) {
     return ctx().require<ecs::UISystem>().pickResult(index);
+}
+
+u32 uiHitTest_pickResultInWorld(ecs::Registry& registry, u32 index) {
+    return ctx().require<ecs::UISystem>().pickResult(registry, index);
 }
 
 // Resolved (Yoga-pass) pixel size of a UI node, for the editor's selection outline.
@@ -89,16 +96,13 @@ f32 uiNode_computedHeight(ecs::Registry& r, u32 e) {
     return n ? n->computed_size_.y : 0.0f;
 }
 
-// What the Canvases hold with no uiOrder of its own; the frame borrows it. One table: the order pass and every collect it serves run in turn.
-static ecs::UITreeOrder g_uiTreeOrder;
-
 const std::unordered_map<u32, i32>* uiTreeLayers(const ecs::Registry& registry) {
-    return g_uiTreeOrder.entitySet == registry.entitySetId() ? &g_uiTreeOrder.layers : nullptr;
+    auto data = ctx().require<ecs::UISystem>().renderData(registry);
+    return data && data->order.entitySet == registry.entitySetId() ? &data->order.layers : nullptr;
 }
 
 void uiRenderOrder_update(ecs::Registry& registry) {
-    g_uiTreeOrder.base = UIElementPlugin::UI_BASE_LAYER;
-    ecs::uiRenderOrderUpdate(registry, &g_uiTreeOrder);
+    ctx().require<ecs::UISystem>().updateRenderOrder(registry, UIElementPlugin::UI_BASE_LAYER);
 }
 
 // The SDF text path (TS) reads an entity's UI

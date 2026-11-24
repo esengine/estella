@@ -49,7 +49,7 @@ namespace esengine {
 
 class GpuParticleWorlds;
 
-namespace ecs { struct Light; }
+namespace ecs { struct Light; struct UIRenderData; }
 class ImmediateDraw;
 
 /// The one shadow texture every map a frame renders shares. One size for every
@@ -240,6 +240,8 @@ public:
     // One pass a frame, after every camera and after post. The frame's, not a
     // camera's: the projection comes from the layout domain.
 
+    /** Keep the selected population's tables alive through submission and frame completion. */
+    void setUIRenderData(Shared<const ecs::UIRenderData> data);
     /** @brief The screen's entities (UISystem::screenDomain), borrowed for the
      *         frame. Null partitions nothing — every collect is a world one. */
     void setScreenDomain(const std::unordered_set<u32>* domain) { screen_domain_ = domain; }
@@ -1478,6 +1480,7 @@ private:
     void collectSky(RenderCollectContext& ctx);
 
     /// Borrowed from the UI system for the frame (see setScreenDomain).
+    Shared<const ecs::UIRenderData> ui_data_;
     const std::unordered_set<u32>* screen_domain_ = nullptr;
     const std::unordered_map<u32, i32>* ui_tree_layers_ = nullptr;
     bool overlay_active_ = false;

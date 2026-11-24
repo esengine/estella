@@ -943,9 +943,11 @@ export interface ESEngineModule extends TilemapBindings {
                              screenDirX: number, screenDirY: number, screenDirZ: number): void;
     uiHitTest_inputsChanged?(registry: CppRegistry): boolean;
     uiHitTest_getHitEntity(): number;
+    uiHitTest_getHitEntityInWorld?(registry: CppRegistry): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickResult?(index: number): number;
+    uiHitTest_pickResultInWorld?(registry: CppRegistry, index: number): number;
     uiNode_computedWidth(registry: CppRegistry, entity: number): number;
     uiNode_computedHeight(registry: CppRegistry, entity: number): number;
     uiRenderOrder_update(registry: CppRegistry): void;
