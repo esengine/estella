@@ -39,9 +39,6 @@ import { Aside } from '@astrojs/starlight/components';
 | 仅显示被覆盖字段的过滤器 | 细节面板 |
 
 字段上的 ↺ 将该字段恢复为预制体的值。
-
-{/* SHOT: world-prefab-overrides | Details of a prefab instance with one overridden field: the reset arrow on the field, the amber dot on its component, and the tinted instance root visible in the Outliner beside it (a project with a placed prefab instance, e.g. the Coin prefab, with its Transform position changed) */}
-
 预制体变化时，打开场景中的实例立即更新。这适用于从预制体模式保存、从另一个实例*应用到预制体*、磁盘上的改写（版本控制拉取或其他工具），以及从其来源的 2D 骨骼重新烘焙。每个实例保留其覆盖以及场景中挂在其内部的实体。预制体中仍存在的实体保持身份不变，因此选中状态与其他实体对它的引用依然有效。场景不会被标记为已修改，因为场景文件只存储覆盖。
 
 ## 预制体操作
@@ -58,9 +55,6 @@ import { Aside } from '@astrojs/starlight/components';
 | **解包预制体** | 脱离子树：其实体成为不带预制体链接的普通场景实体。可撤销。 |
 
 *应用到预制体*是唯一会改写共享资源的操作。它先显示逐项差异（*将改动应用到预制体？*）：修改为琥珀色，新增为绿色，删除为红色，结构性改动标为破坏性。
-
-{/* SHOT: world-prefab-apply-diff | The Apply changes to prefab? dialog listing an edited field, an added component and a removed child, opened from Apply to Prefab on a modified prefab instance */}
-
 <Aside type="caution">
   删除 `.esprefab` 不会删除其实例。编辑器列出引用它的文档，并将文件移入回收站（可用撤销恢复）。剩余实例将无法解析，并在其场景下次加载时被丢弃。需要保留实体时，先执行**解包预制体**。
 </Aside>

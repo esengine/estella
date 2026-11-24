@@ -76,9 +76,6 @@ description: "头发、尾巴、绳索等骨骼链的次级运动——SpringBon
 | `SpringBoneCollider` | 其形状及六个方形尺寸手柄。球体上六个手柄都设置半径；胶囊体上围绕中部的四个设置半径，两端的两个设置高度。远侧的手柄淡化显示。 |
 
 拖动手柄为一个撤销步骤，并在指针旁显示数值；Preview FX 打开时骨骼链实时跟随。手柄只调整碰撞体尺寸，不改变其位置；`offset` 在细节面板中输入，或通过移动实体设置。
-
-{/* SHOT: anim-spring-bone-gizmo | A hair chain root selected in the viewport with Preview FX on: amber chain lines with joint rings (the simulated chain solid over the dashed animated pose), and green wireframe sphere and capsule colliders on the head and shoulders; the SpringBone card in Details showing the Motion, Wind, Chain and Collision groups and the bone-count line. Needs a model imported with Spring Bones = From File Data and Names and Hair_ bones; none of the bundled examples has spring bones. */}
-
 ### 预览
 
 **View → Preview FX**（新编辑器中默认打开；与粒子和拖尾使用同一开关）在编辑视口中运行骨骼链：移动头部或修改字段会使头发摆动。打开时，模拟的骨骼链以实线绘制在以虚线绘制的动画姿势之上。关闭后模拟结束，骨骼恢复为场景中保存的状态。编辑器的模拟从不写入场景文件。

@@ -106,8 +106,7 @@ function onJumpPressed(anim: AnimatorControllerAPI, entity: Entity) {
 | `layerStates` | string[] | `[]` | 基础层之上各图层的活动状态，按图层顺序排列。 |
 | `enabled` | boolean | `true` | 为 false 时冻结状态机。 |
 
-{/* SHOT: anim-animator-component-details | Details panel of the player character in the third-person-3d example during Play, showing the Animator component with Controller set to locomotion.esanimator and Current State filled in */}
-
+![third-person-3d 示例中玩家的细节面板：组件列表，以及 Controller 为 locomotion.esanimator、含 Avatar 与 Current State 的 Animator 卡片](@/assets/guides/zh/anim-animator-component-details.png)
 ## AnimatorController 资源
 
 | 方法 | 说明 |
@@ -198,9 +197,6 @@ const setup = defineSystem([Res(AnimatorController)], (anim) => {
 | `blend2d` | `{ kind: 'blend2d', parameterX, parameterY, points: [{ position: { x, y }, motion }] }` |
 
 档位的 `motion` 本身也可以是另一个混合。`blend2d` 将采样点放在两个参数构成的平面上，并混合采样位置周围的点；采样位置正落在某点上时只播放该点的动作，落在凸包之外时取最近的边。状态检视器的**类型**提供**一维混合**与**二维混合**，分别带有**驱动参数**（或 **X 轴** / **Y 轴**）以及**停靠点**或**采样点**列表。混合需要一个浮点参数。嵌套在另一个混合中的档位需在文件中编辑。
-
-{/* SHOT: anim-animator-blend2d | Controller editor with locomotion.esanimator from the character-rig example open, the state using Blend 2D selected, the inspector showing Kind Blend 2D, the X axis and Y axis parameters and the list of Points */}
-
 ## 子状态机
 
 带有 `stateMachine`（`AnimatorSubMachine`）的状态是容器，自身不播放动作。进入时状态机下行到子状态机的 `initialState`。容器自身的 `transitions` 是退出边，从其内部每个叶子状态求值。子状态机可声明 `anyStateTransitions`，对其所有状态生效。`Animator.currentState` 保存以 `STATE_PATH_SEP`（`/`）分隔的完整路径，例如 `locomotion/run`。

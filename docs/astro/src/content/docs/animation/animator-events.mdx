@@ -116,9 +116,6 @@ trigger waits until a transition uses it.
 
 In the controller editor, the buffer is the **Buffer (s)** field beside a trigger parameter, and a condition whose
 **Op** is **in window** takes the window's name instead of a parameter.
-
-{/* SHOT: anim-animator-combo-window | Controller editor with locomotion.esanimator from the third-person-3d example open, a transition selected whose Conditions list contains a trigger condition and an "in window" condition with the window name typed in, and a trigger parameter showing its Buffer (s) value */}
-
 Any-state transitions are evaluated before the current state's transitions, so an attack trigger used by an
 any-state transition takes precedence over the combo. Keep the attack trigger off the any-state list and place it on
 the states from which an attack may start.

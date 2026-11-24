@@ -96,9 +96,6 @@ for (const w of animator.windowsOf(entity)) console.log(w.name, w.id);
 再次按下会重新开始计时。`buffer` 为 `0` 时触发器仅在下一次更新中有效。未设置 `buffer` 时，触发器一直等待到被转换使用。
 
 在控制器编辑器中，缓冲时间是触发器参数旁的**缓冲（秒）**字段；**运算**为**窗口内**的条件填写窗口名而不是参数。
-
-{/* SHOT: anim-animator-combo-window | Controller editor with locomotion.esanimator from the third-person-3d example open, a transition selected whose Conditions list contains a trigger condition and an "in window" condition with the window name typed in, and a trigger parameter showing its Buffer (s) value */}
-
 任意状态转换先于当前状态的转换求值，因此任意状态转换所使用的攻击触发器会优先于连招。不要将攻击触发器放在任意状态转换中，而应放在允许发起攻击的状态上。
 
 ## 参见

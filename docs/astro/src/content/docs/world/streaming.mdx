@@ -43,8 +43,7 @@ construction.
 
 In the editor, **World Settings → Enable Streaming** adds the `StreamedWorld` component to the world settings entity.
 
-{/* SHOT: world-streaming-settings | World Settings panel of examples/world-streaming-3d with Enable Streaming on and the StreamedWorld fields (Cell Size, Plane, Far Proxies) visible */}
-
+![Details of the streamed world in the world-streaming-3d example: the Streamed World card](@/assets/guides/en/world-streaming-settings.png)
 <Aside type="note">
 `WorldPersistent` is not scene persistence. `SceneContext.setPersistent` decides whether an entity survives a scene
 switch; `WorldPersistent` decides which cooked scene an entity is written into, and therefore whether residency can
@@ -218,9 +217,6 @@ Measured in the `far-proxy-town` example (144 cells, 3.1 million triangles of st
 
 The editor's **World** panel has an **HLOD** view, beside **Map** and **List**, that lists each cell's proxy with its
 original and reduced triangle counts and its build state.
-
-{/* SHOT: world-streaming-far-proxies | World panel of examples/far-proxy-town switched to the HLOD view, listing clusters with Tri Original, Tri Reduced, % Retained and State columns */}
-
 ## Rules for streamed content
 
 **A subtree is the unit of residency.** Only top-level entities are placed, so a door is never separated from its house
@@ -330,9 +326,6 @@ its cells are not loaded. The **World** panel shows the cells as a map or a list
 or all at once; the viewport marks the loaded cells, and the next session opens with the same cells loaded. During Play
 the panel shows each cell's runtime state (Resident, Prepared, Loading, Unloading, Unloaded). The scene document always
 holds every entity: an unloaded cell is saved unchanged, and Play and export see the whole world.
-
-{/* SHOT: world-streaming-world-panel | World panel of examples/world-streaming-3d in its Map view with a few cells selected and loaded, and the viewport showing the loaded cells marked */}
-
 ## Clearing or replacing a world
 
 Disable or remove the streaming sources, then await `streamer.clear()`. It releases prepared assets and waits for

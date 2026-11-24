@@ -23,8 +23,7 @@ the frame shown by the entity's `Sprite`.
 
 ![A four-frame walk cycle and its playback preview in the Sprite Animation panel](@/assets/guides/en/flipbook.png)
 
-{/* SHOT: anim-sprite-animator-details | Details panel of the player entity in the sprite-animation example, showing the Sprite and Sprite Animator components with Clip set to walk.esanim, Speed, Playing and Loop visible */}
-
+![Details of the player in the sprite-animation example: the Sprite Animator card with its clip, speed, playing and loop fields](@/assets/guides/en/anim-sprite-animator-details.png)
 ## SpriteAnimator component
 
 | Property | Type | Default | Description |
@@ -91,8 +90,7 @@ app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, 
 }));
 ```
 
-{/* SHOT: anim-flipbook-events | Sprite Animation panel with walk.esanim from the sprite-animation example open, the Events row showing a flag on one frame and its Name field set to footstep in Details */}
-
+![The Sprite Animation editor open on walk.esanim: the frame preview, the transport bar with FPS and Loop, the Events and Frames rows, and the selected frame's duration in Details](@/assets/guides/en/anim-flipbook-events.png)
 Delivery rules:
 
 - Events crossed in one update are delivered in playback order, including across loop boundaries.
@@ -161,9 +159,6 @@ Tick **Anchor** in the Sprite Animation panel's preview bar to show a crosshair 
 enter X / Y beside it, to anchor that frame. The crosshair lines span the preview stage, so with onion skin enabled
 each frame can be aligned against its neighbours. A frame with its own anchor shows an amber dot in the frame strip;
 **×** clears the override and the frame falls back to the clip's anchor, shown in Details as **Default Anchor**.
-
-{/* SHOT: anim-flipbook-anchor | Sprite Animation panel with walk.esanim from the sprite-animation example, Anchor ticked in the preview bar, onion skin on, the crosshair at the feet of the current frame and an amber dot on an overridden frame in the strip */}
-
 Resolution order: the frame's anchor, then the clip's anchor, then the centre. A clip that declares no anchor leaves
 `Sprite.pivot` as the entity sets it. Unticking **Anchor** clears the clip anchor and every frame override.
 

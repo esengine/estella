@@ -51,9 +51,6 @@ description: 时间轴轨道参考——属性通道与关键帧、淡入淡出�
   { "time": 1, "clip": "@uuid:…", "volume": 0.8, "duration": 4, "clipIn": 0.5, "fadeIn": 0.5, "fadeOut": 1 }
 ] }
 ```
-
-{/* SHOT: anim-seq-audio-clip | Sequencer with an audio track on the cutscene example's intro.estimeline, one item with a Length of 4 s drawn as a bar with fade-in and fade-out ramps, and its Details showing Sound, Volume, Length, Clip In, Fade in and Fade out */}
-
 ## 动画轨道
 
 动画轨道在骨架上播放骨骼动画。每个片段在轨道对应的实体上播放一段动画（由关节曲线组成的 `.estimeline`，导入模型时写出）。
@@ -91,9 +88,6 @@ description: 时间轴轨道参考——属性通道与关键帧、淡入淡出�
 - 后外推延续运动：`loop` 继续行走，`pingPong` 来回行走，`continue` 按动画继续播放，`hold` 原地站立。
 - 位移随骨架朝向旋转，朝向其他方向的角色向该方向行走。
 - 位置在每个时间点由片段直接计算，而非逐帧累加，因此拖动、跳转和循环得到的位置一致。场景自身的位置保持不变。
-
-{/* SHOT: anim-seq-animation-track | Sequencer with a timeline whose Animation track targets the hero of the character-rig example, holding two overlapping clips (hero_Walk_Loop and hero_Jog_Fwd_Loop) with an ease ramp, crossfade hatching and a dashed extrapolation band; the track row selected so Details shows the Blending group */}
-
 ## 相机轨道
 
 相机轨道保存镜头；每根条是一台相机，在其区间内用作视图。首尾相接的条为硬切。将一根条拖到与前一根重叠，重叠部分成为混合，由后一个镜头的混合曲线决定形状。没有镜头的区间将视图交还给场景自身的相机。每条时间轴只有一条相机轨道，其相机必须位于时间轴根实体之下。

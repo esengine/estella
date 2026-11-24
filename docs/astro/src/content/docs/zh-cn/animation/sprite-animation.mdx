@@ -13,8 +13,7 @@ description: 逐帧精灵动画——在精灵动画面板中创作 .esanim 剪�
 
 ![精灵动画面板里的四帧行走动作和播放预览](@/assets/guides/zh/flipbook.png)
 
-{/* SHOT: anim-sprite-animator-details | Details panel of the player entity in the sprite-animation example, showing the Sprite and Sprite Animator components with Clip set to walk.esanim, Speed, Playing and Loop visible */}
-
+![sprite-animation 示例中玩家的细节面板：Sprite Animator 卡片，含剪辑、速度、播放与循环字段](@/assets/guides/zh/anim-sprite-animator-details.png)
 ## SpriteAnimator 组件
 
 | 属性 | 类型 | 默认值 | 说明 |
@@ -79,8 +78,7 @@ app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, 
 }));
 ```
 
-{/* SHOT: anim-flipbook-events | Sprite Animation panel with walk.esanim from the sprite-animation example open, the Events row showing a flag on one frame and its Name field set to footstep in Details */}
-
+![在精灵动画编辑器中打开的 walk.esanim：帧预览、带 FPS 与循环的播放条、Events 与 Frames 两行，以及细节面板中所选帧的时长](@/assets/guides/zh/anim-flipbook-events.png)
 触发规则：
 
 - 一次更新中经过的事件按播放顺序发出，包括跨越循环边界的事件。
@@ -130,9 +128,6 @@ app.addStartupSystem(defineSystem([Res(SpriteAnimation), Res(Audio)], (sprites, 
 锚点即 `Sprite.pivot`：精灵定位、旋转与缩放所围绕的点，在帧内归一化，`(0,0)` 为左下角，`(0.5,0.5)` 为中心。当画面在格子内逐帧移动时，逐帧锚点可使选定的点保持不动，例如脚踩在地面上。
 
 在精灵动画面板的预览条中勾选**锚点**，当前帧上显示十字准星。拖动准星，或在旁边输入 X / Y，即可为该帧设置锚点。准星辅助线横贯预览区，开启洋葱皮后可将各帧与相邻帧对齐。设有自身锚点的帧在帧条上显示琥珀色圆点；**×** 清除该覆盖，帧回落到剪辑锚点，即细节中的**默认锚点**。
-
-{/* SHOT: anim-flipbook-anchor | Sprite Animation panel with walk.esanim from the sprite-animation example, Anchor ticked in the preview bar, onion skin on, the crosshair at the feet of the current frame and an amber dot on an overridden frame in the strip */}
-
 解析顺序：帧锚点、剪辑锚点、中心。未声明锚点的剪辑不改动实体设置的 `Sprite.pivot`。取消勾选**锚点**会清除剪辑锚点和所有逐帧覆盖。
 
 ```jsonc

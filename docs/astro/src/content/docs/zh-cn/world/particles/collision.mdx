@@ -161,8 +161,7 @@ world.insert(ball, ParticleCollider, { shape: ParticleColliderShape.Sphere, radi
 Particle Emitter 的 Details 显示这些计数，并可绘制临时的命中法线。法线显示仅供编辑器使用，不保存到场景。示例场景
 `particle-demo/assets/scenes/scene-collisions.esscene` 展示了 2D 与 3D 墙面、撞击爆发和由项目处理的事件计数。
 
-{/* SHOT: world-particles-collision-stats | Details of an emitter in examples/particle-demo, scene scene-collisions, during Play: the Collision group expanded with Physics2D or Physics3D mode, the collision counters filled in and hit normals shown in the viewport */}
-
+![运行中的 particle-demo 示例 scene-collisions 场景：粒子撞上 2D 与 3D 物理墙，两侧各显示接触数](@/assets/guides/zh/world-particles-collision-stats.png)
 ## 子发射器
 
 子发射器在粒子出生、消亡或碰撞时，于该粒子位置触发另一个发射器的爆发：升空后炸开的烟花弹、拖着烟团的火箭、裂成火星的火花。无需逐帧代码。

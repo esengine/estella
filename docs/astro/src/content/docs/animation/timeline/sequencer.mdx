@@ -130,8 +130,7 @@ Each track row has a **mute** toggle (the eye) and a **lock**; both are saved wi
 
 In the file these are `muted`, `locked` and `group` on a track and `muted` on a channel, written only when set.
 
-{/* SHOT: anim-seq-track-menu | Sequencer with intro.estimeline from the cutscene example open, the context menu of a track row showing mute, lock, Move to group, rename and delete, with one track already inside a folder */}
-
+![The Sequencer open on intro.estimeline in the cutscene example: the Hero transform tracks with their keys, the BarTop activation track, and the Director's Timeline Player card in Details](@/assets/guides/en/anim-seq-track-menu.png)
 ## Preview root
 
 The link button names the **preview root**: the entity whose name paths the tracks resolve against. Tracks can
@@ -158,9 +157,6 @@ game canvas. The output is therefore identical on every run, independent of mach
 `renders/<timeline>-<time>/frame_00000.png` in the project and the video to `renders/<timeline>-<time>.mp4`, encoded
 with the ffmpeg bundled with the editor. Play mode is restored afterwards; **Cancel** stops between frames. The render
 requires a `TimelinePlayer` on the preview root that plays the timeline.
-
-{/* SHOT: anim-seq-render-dialog | Sequencer with intro.estimeline from the cutscene example open and the Render dialog shown, with Frame rate 30, Format MP4 and the From / To range filled in */}
-
 ## Editing through an agent
 
 An agent driving the editor over [MCP](/docs/agents/mcp/) edits timelines with the Sequencer's own commands in the

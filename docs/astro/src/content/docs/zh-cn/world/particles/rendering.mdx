@@ -36,8 +36,7 @@ description: 粒子如何绘制——随生命的尺寸与颜色（渐变、曲�
 { keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
 ```
 
-{/* SHOT: world-particles-gradient-editor | Details of the Smoke emitter in examples/vfx-showcase with the Color group expanded and the Color Gradient editor showing three or more stops (add them if the emitter has none), and the Size Curve editor of the Size group visible */}
-
+![vfx-showcase 示例中某个粒子发射器的细节面板，滚动到 Color 分组](@/assets/guides/zh/world-particles-gradient-editor.png)
 运行时修改曲线时，通过 `Particle` 资源上传预烘焙的查找表：颜色为 `N×4` 的 RGBA `Float32Array`，尺寸为 `N` 个元素的数组。
 传入 `null` 清除查找表，恢复起止值加缓动。
 

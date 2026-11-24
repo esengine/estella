@@ -48,8 +48,7 @@ referenced from the WorldGen's `rules` field.
 - The file is the JSON accepted by `registerWorldRules` and is validated on load. A file that references a recipe or
   layer it does not define, or omits required content, fails the WorldGen with the location of the error.
 
-{/* SHOT: world-generation-rules-editor | World Rules editor of examples/worldgen with assets/worlds/wilds.esworld open: the biome, recipe and layer lists, one recipe's form expanded, and the validation line below */}
-
+![The World Rules editor open on wilds.esworld in the worldgen example: biomes, recipes and layers on the left, and the grove recipe's form](@/assets/guides/en/world-generation-rules-editor.png)
 Rules can also be registered from code, which is how a game adds its own fields (functions are not data):
 
 ```ts

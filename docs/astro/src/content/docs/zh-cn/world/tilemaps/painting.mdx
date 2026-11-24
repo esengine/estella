@@ -60,9 +60,6 @@ description: 瓦片地图模式参考——绘制工具及其快捷键、图章�
 ### 批量替换图块
 
 **批量替换图块…** 在当前选区内或整个图层中，将某个瓦片 id 的所有出现替换为另一个。受影响的格子先在视口中预览并在对话框中计数，再由**替换**作为单个撤销步骤提交。对话框打开期间图层发生变化时，替换会被拒绝，直到重新计算预览。
-
-{/* SHOT: world-tilemap-replace-tiles | The Replace tiles dialog over the viewport with source tile 1 and target tile 2, Entire layer ticked, and the affected cells highlighted on the map (examples/tilemap-workflows, Ground layer selected) */}
-
 ### 缺失的地形规则
 
 **高亮缺少匹配规则的单元**以橙色标记地形组合在瓦片集中没有精确对应瓦片、由回退规则解析的每个格子；菜单显示使用回退规则的格子数。`examples/tilemap-workflows` 包含一个 48 × 32 的图层，其边、角与 Wang 规则特意不完整，用于此用途。

@@ -42,8 +42,7 @@ description: 生成世界参考——WorldGen 组件、.esworld 规则中的环�
 - 保存文件后，打开的世界会重新布置，编辑器中和运行中的游戏均如此。
 - 文件内容即 `registerWorldRules` 接受的 JSON，加载时会校验。引用了文件中未定义的配方或布置层、或缺少必需内容时，WorldGen 失败并指出出错位置。
 
-{/* SHOT: world-generation-rules-editor | World Rules editor of examples/worldgen with assets/worlds/wilds.esworld open: the biome, recipe and layer lists, one recipe's form expanded, and the validation line below */}
-
+![在 worldgen 示例中打开 wilds.esworld 的世界规则编辑器：左侧为群落、配方与布置层，右侧为 grove 配方的表单](@/assets/guides/zh/world-generation-rules-editor.png)
 规则也可以从代码注册，游戏自定义的环境场即通过这种方式加入（函数不是数据）：
 
 ```ts

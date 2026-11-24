@@ -40,8 +40,7 @@ world.insert(sun, WorldPersistent, {});
 
 在编辑器中，**世界设置 → 启用流送**会把 `StreamedWorld` 组件添加到世界设置实体上。
 
-{/* SHOT: world-streaming-settings | World Settings panel of examples/world-streaming-3d with Enable Streaming on and the StreamedWorld fields (Cell Size, Plane, Far Proxies) visible */}
-
+![world-streaming-3d 示例中流送世界的细节面板：Streamed World 卡片](@/assets/guides/zh/world-streaming-settings.png)
 <Aside type="note">
 `WorldPersistent` 不是场景持久化。`SceneContext.setPersistent` 决定实体能否在场景切换后保留；`WorldPersistent`
 决定实体被写入哪一个 cook 后的场景，因而决定常驻系统能否移除它。
@@ -187,9 +186,6 @@ Play 用与构建相同的格子和相同的简化代码生成同样的代理，
 | Play 中生成一个代理 | 约 30 ms，最多 190 ms |
 
 编辑器**世界**面板在**地图**和**列表**之外还有 **HLOD** 视图，列出每个格子的代理及其原始面数、减面后面数和构建状态。
-
-{/* SHOT: world-streaming-far-proxies | World panel of examples/far-proxy-town switched to the HLOD view, listing clusters with Tri Original, Tri Reduced, % Retained and State columns */}
-
 ## 流送内容的规则
 
 **子树是常驻的单位。** 只有顶层实体参与定位，因此即使门的世界坐标落在相邻格子中，门也不会与其所属的房屋分开。格子的包围盒会扩展以
@@ -279,9 +275,6 @@ report.loadCount;            // 启动以来带进来过多少个地方
 带 `StreamedWorld` 的场景打开时，视图中只有 `WorldPersistent` 实体，其格子的贴图和网格不加载。**世界**面板以地图或列表显示格子，
 可逐个或全部加载、卸载；视口标出已加载的格子，下次会话打开时保持相同的加载状态。Play 期间面板显示每个格子的运行时状态（已驻留、
 已备好、加载中、卸载中、未加载）。场景文档始终包含全部实体：未加载的格子照常保存，Play 和导出看到的是完整世界。
-
-{/* SHOT: world-streaming-world-panel | World panel of examples/world-streaming-3d in its Map view with a few cells selected and loaded, and the viewport showing the loaded cells marked */}
-
 ## 清空或替换世界
 
 先禁用或移除流送源，再等待 `streamer.clear()`。它释放已准备的资源，并等待尚未完成的准备、发布和卸载结束。注册信息保留可用：

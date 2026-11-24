@@ -74,9 +74,6 @@ import { Aside } from '@astrojs/starlight/components';
 | `layers` | 脚踩地面 | 视为地面的物理层。默认为全部。 |
 
 `foot-plant` 从剪辑放置脚的位置通过 3D 物理向下检测，并弯曲腿使脚落在检测到的表面上，同时保留剪辑给出的抬脚高度。角色自身带有碰撞体时需设置 `layers`，否则射线会停在角色自己身上。骨架应以脚在高度 0、根节点位于地面上的姿态站立。脚踩地面约束先于其他约束运行；游戏中没有 3D 物理时不改变剪辑。
-
-{/* SHOT: anim-animator-constraints | Controller editor with locomotion.esanimator from the character-rig example open and a Foot on ground constraint added under Constraints, showing Joint, Pelvis, Weight and Faded by fields */}
-
 ## 骨架映射
 
 剪辑按导出时写入的名称引用关节，因此关节名不同的骨架之间无法共用剪辑。骨架映射（`.esavatar`，**添加 → 新建骨架映射**）记录骨架对这些名称的转换及其绑定姿势。

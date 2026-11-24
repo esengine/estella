@@ -37,8 +37,7 @@ multiplies the particle's start size. The authored data has this form:
 { keys: [{ t: 0, v: 0.2 }, { t: 0.3, v: 1 }, { t: 1, v: 0 }] }
 ```
 
-{/* SHOT: world-particles-gradient-editor | Details of the Smoke emitter in examples/vfx-showcase with the Color group expanded and the Color Gradient editor showing three or more stops (add them if the emitter has none), and the Size Curve editor of the Size group visible */}
-
+![Details of a particle emitter in the vfx-showcase example, scrolled to its Color group](@/assets/guides/en/world-particles-gradient-editor.png)
 To change a ramp at runtime, upload a pre-baked lookup table through the `Particle` resource: an `N×4` RGBA
 `Float32Array` for colour, an `N`-element array for size. `null` clears the table and restores start/end with easing.
 

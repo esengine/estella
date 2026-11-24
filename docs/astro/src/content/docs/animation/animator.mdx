@@ -129,8 +129,7 @@ first), the leaf state's own transitions, then container exit edges (innermost f
 | `layerStates` | string[] | `[]` | The active state of each layer above the base layer, in layer order. |
 | `enabled` | boolean | `true` | When false, the state machine is frozen. |
 
-{/* SHOT: anim-animator-component-details | Details panel of the player character in the third-person-3d example during Play, showing the Animator component with Controller set to locomotion.esanimator and Current State filled in */}
-
+![Details of the player in the third-person-3d example: its component list and the Animator card with Controller locomotion.esanimator, Avatar and Current State](@/assets/guides/en/anim-animator-component-details.png)
 ## AnimatorController resource
 
 | Method | Description |
@@ -237,9 +236,6 @@ the points around the sample; a sample on a point plays that point's motion alon
 held by its nearest edge. The state inspector's **Kind** offers **Blend 1D** and **Blend 2D**, each with a
 **Driven by** parameter (or **X axis** / **Y axis**) and a list of **Stops** or **Points**. A blend requires a float
 parameter. Stops nested inside another blend are edited in the file.
-
-{/* SHOT: anim-animator-blend2d | Controller editor with locomotion.esanimator from the character-rig example open, the state using Blend 2D selected, the inspector showing Kind Blend 2D, the X axis and Y axis parameters and the list of Points */}
-
 ## Sub-state machines
 
 A state with a `stateMachine` (`AnimatorSubMachine`) is a container and plays no motion. On entry the machine

@@ -118,9 +118,6 @@ import { GripHolder, GripPlacement, GripProfile } from 'esengine';
 world.insert(rifle, GripProfile, { mainAnchor: gripAnchor, supportAnchor: foregripAnchor, mainPose: 'pistol', supportPose: 'support' });
 world.insert(hero, GripHolder, { held: rifle, placement: GripPlacement.Object });
 ```
-
-{/* SHOT: anim-grip-profile-editor | A held object with a GripProfile selected: the Details panel's grip section with a character chosen for Preview, both anchors assigned and the finger editor open; the viewport showing the palm frames (amber leading hand, blue supporting hand) and green GripSurface wireframes on the object. Needs a character with named finger bones (for example a Mixamo-named rig); none of the bundled examples has finger bones. Preview FX on. */}
-
 ### `GripHolder`
 
 放在骨架的根实体上。

@@ -64,9 +64,6 @@ excerpt at the playhead while scrubbing.
   { "time": 1, "clip": "@uuid:…", "volume": 0.8, "duration": 4, "clipIn": 0.5, "fadeIn": 0.5, "fadeOut": 1 }
 ] }
 ```
-
-{/* SHOT: anim-seq-audio-clip | Sequencer with an audio track on the cutscene example's intro.estimeline, one item with a Length of 4 s drawn as a bar with fade-in and fade-out ramps, and its Details showing Sound, Volume, Length, Clip In, Fade in and Fade out */}
-
 ## Animation tracks
 
 An animation track plays skeletal animation on a rig. Each clip plays an animation (an `.estimeline` of joint curves,
@@ -125,9 +122,6 @@ clip began, starting from where the rig stood.
 - The travel is rotated with the rig, so a character facing another direction walks in that direction.
 - The position is computed from the clips at every time, not accumulated frame by frame, so scrubbing, seeking and
   looping place the rig identically. The scene's own position is unchanged.
-
-{/* SHOT: anim-seq-animation-track | Sequencer with a timeline whose Animation track targets the hero of the character-rig example, holding two overlapping clips (hero_Walk_Loop and hero_Jog_Fwd_Loop) with an ease ramp, crossfade hatching and a dashed extrapolation band; the track row selected so Details shows the Blending group */}
-
 ## Camera tracks
 
 A camera track holds shots; each bar is a camera used as the view for its span. Touching bars cut. Dragging a bar to

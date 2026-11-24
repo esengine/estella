@@ -154,9 +154,6 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 项目场景文件夹中的每个场景都会被导出，并注册为 `switchTo` 目标。场景的**名称**是其相对场景文件夹的路径，不含 `.esscene` 扩展名：`assets/scenes/levels/boss.esscene` 对应 `switchTo('levels/boss')`。启动场景预先加载；其他场景在首次加载时才获取，不增加初始下载量。编辑器中的播放注册同一组场景：入口场景，以及按路径延迟加载的其余所有场景文件。
 
 在打包对话框的**构建场景**列表中取消勾选的场景不会被导出，但仍可在编辑器中编辑与播放。试玩广告构建只包含启动场景。见[构建与导出](/docs/zh-cn/publishing/overview/)。
-
-{/* SHOT: world-scenes-in-build | The Package dialog with the Scenes in build list expanded, examples/tilemap-demo open so the list shows its six scenes (tiled-map marked as the startup scene) with one scene unticked */}
-
 ## `SceneManager` 参考
 
 | 方法 | 说明 |

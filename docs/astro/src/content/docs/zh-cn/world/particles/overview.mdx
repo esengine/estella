@@ -34,8 +34,7 @@ import { Aside } from '@astrojs/starlight/components';
 - 开启**预览特效**时，所有发射器从 t = 0 重新播放；关闭时清除存活粒子和拖尾。
 - 在 Details 中编辑周期时序字段（`duration`、`looping`、`playOnStart`、`burstCount`、`burstInterval`）会重启该发射器。其他字段直接作用于正在运行的模拟。
 
-{/* SHOT: world-particles-preview-fx | Viewport of examples/particle-demo, scene static-emitters, in edit mode with the viewport Show menu open and the Preview FX entry checked, the ConeFountain, CircleBurst and RectRain emitters running behind the menu */}
-
+![particle-demo 示例的 static-emitters 场景：编辑时锥形、圆形与矩形发射器都在运行，选中的是 ConeFountain](@/assets/guides/zh/world-particles-preview-fx.png)
 ## 安装
 
 粒子系统在主包中。编辑器和 Web 运行时会自动安装插件。自定义 `App` 需添加一次：

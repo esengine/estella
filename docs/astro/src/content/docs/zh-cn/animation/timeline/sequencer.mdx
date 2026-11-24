@@ -92,8 +92,7 @@ import { Steps } from '@astrojs/starlight/components';
 
 在文件中，它们是轨道上的 `muted`、`locked`、`group` 和通道上的 `muted`，仅在设置时写入。
 
-{/* SHOT: anim-seq-track-menu | Sequencer with intro.estimeline from the cutscene example open, the context menu of a track row showing mute, lock, Move to group, rename and delete, with one track already inside a folder */}
-
+![cutscene 示例中在序列器里打开的 intro.estimeline：Hero 的变换轨道及其关键帧、BarTop 的激活轨道，以及细节面板中 Director 的 Timeline Player 卡片](@/assets/guides/zh/anim-seq-track-menu.png)
 ## 预览根实体
 
 链接按钮显示**预览根实体**：轨道名称路径据以解析的实体。轨道可以驱动根实体本身、其子孙实体，以及通过播放器绑定的其他场景实体（[绑定](/docs/zh-cn/animation/timeline/tracks/#绑定)）。
@@ -107,9 +106,6 @@ import { Steps } from '@astrojs/starlight/components';
 序列器标题栏中的**渲染**将时间轴渲染为图像。对话框设置帧率（24、30 或 60）、格式（**MP4**、**WebM** 或 **PNG 序列**）以及范围（**从**、**到**）。
 
 渲染播放的是游戏而不是预览：预览根实体上的 `TimelinePlayer` 在运行模式下播放，游戏的所有系统都在运行；游戏被暂停，并每次精确步进渲染的一帧，每帧都从游戏画布读回。因此每次渲染的结果一致，与机器速度无关。帧写入项目中的 `renders/<时间轴>-<时间>/frame_00000.png`，视频写入 `renders/<时间轴>-<时间>.mp4`，使用编辑器自带的 ffmpeg 编码。渲染结束后恢复原来的运行状态；**取消**在帧之间停止。渲染要求预览根实体上有播放该时间轴的 `TimelinePlayer`。
-
-{/* SHOT: anim-seq-render-dialog | Sequencer with intro.estimeline from the cutscene example open and the Render dialog shown, with Frame rate 30, Format MP4 and the From / To range filled in */}
-
 ## 通过代理编辑
 
 通过 [MCP](/docs/zh-cn/agents/mcp/) 操作编辑器的代理，使用序列器自身的命令编辑时间轴，这些命令位于 `timeline` 工具组：

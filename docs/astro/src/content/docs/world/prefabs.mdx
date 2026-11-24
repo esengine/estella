@@ -52,9 +52,6 @@ per-instance value layered over the prefab's value. The editor marks overrides:
 | Filter that shows only overridden fields | Details |
 
 ↺ on a field reverts that field to the prefab's value.
-
-{/* SHOT: world-prefab-overrides | Details of a prefab instance with one overridden field: the reset arrow on the field, the amber dot on its component, and the tinted instance root visible in the Outliner beside it (a project with a placed prefab instance, e.g. the Coin prefab, with its Transform position changed) */}
-
 When the prefab changes, instances in the open scene update immediately. This applies to a save from Prefab Mode,
 *Apply to Prefab* from another instance, a rewrite on disk (a version-control pull or another tool), and a re-bake
 from the 2D rig the prefab came from. Each instance keeps its overrides and any entities the scene parented inside it.
@@ -77,9 +74,6 @@ Right-clicking an instance in the Outliner, or the prefab bar at the top of Deta
 *Apply to Prefab* is the only action that rewrites the shared asset. It first shows an itemized diff
 (*Apply changes to prefab?*): edits in amber, additions in green, removals in red, with structural changes marked as
 destructive.
-
-{/* SHOT: world-prefab-apply-diff | The Apply changes to prefab? dialog listing an edited field, an added component and a removed child, opened from Apply to Prefab on a modified prefab instance */}
-
 <Aside type="caution">
   Deleting an `.esprefab` does not delete its instances. The editor lists the documents that reference it and moves the
   file to the trash (recoverable with Undo). Remaining instances can no longer be resolved and are dropped the next
