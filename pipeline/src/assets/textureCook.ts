@@ -116,10 +116,8 @@ export function pngDimensions(png: Uint8Array): { width: number; height: number 
 }
 
 /**
- * A colour image's clear texels filled from their solid neighbours — the rule
- * every cooked image follows (a texture on its own, and an atlas page whose gaps
- * between frames are clear too). `null` when there is nothing to do: no clear
- * texel, or premultiplied art (see {@link looksPremultiplied}).
+ * Fill a source image's clear texels from its own solid neighbours before
+ * staging or packing. Returns `null` for opaque or premultiplied images.
  */
 export function fillClearTexels(image: { rgba: Uint8Array; width: number; height: number }): Uint8Array | null {
   if (!hasClearTexel(image.rgba) || looksPremultiplied(image.rgba)) return null;

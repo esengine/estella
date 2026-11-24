@@ -139,7 +139,9 @@ const { failed } = await assets.preload(
 
 - **压缩纹理。** PNG 源连同 mip 链编码为 **KTX2**（Basis Universal）；运行时转码为设备支持的最佳格式（依次为 ASTC、ETC2、S3TC，最后回退到 RGBA8）。是否编码由每张纹理的 **Compression** 导入设置决定（[纹理](/docs/zh-cn/assets/textures/#导入设置)）；打包对话框只决定是否应用这些设置。
 - **内容寻址。** 每个发布文件以其字节的哈希命名，URL 不可变，相同文件只存一份。Web 与桌面端默认开启。哈希基于暂存后的字节计算（KTX2 编码之后），因此标识的是实际发布的文件。
-- **打包自动图集**（可选构建选项）。`<name>.atlas/` 文件夹中的零散 PNG 被打包成图集页，帧 UV 写入清单，这些精灵作为一张纹理发布，并合批为一次 draw call。 网格、网格材质和烘焙光照贴图用到的纹理会整张导出，以保留原有 UV。使用同一纹理的精灵会共享这张图片。
+- **打包自动图集**（可选构建选项）。`<name>.atlas/` 文件夹中的零散 PNG 被打包成图集页，帧 UV 写入清单，这些精灵作为一张纹理发布，并合批为一次 draw call。
+  每张图片按自己的环绕模式填充四周的留白，线性过滤时能保留原图的边缘透明度。全透明像素的颜色由该图的 **Alpha Is Transparency** 设置决定。
+  网格、网格材质和烘焙光照贴图用到的纹理会整张导出，以保留原有 UV。使用同一纹理的精灵会共享这张图片。
 
 ![检视器中的平台覆盖条——每个平台一个页签，选中 Android，显示 Max Size、Compress 与 Format](@/assets/guides/zh/import-platform-overrides.png)
 

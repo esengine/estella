@@ -168,6 +168,8 @@ build** list), excludes everything unreachable, stages the reachable files and w
   encoding), so it identifies the shipped file.
 - **Packs auto-atlases** (opt-in build option). Loose PNGs in a `<name>.atlas/` folder are packed into atlas pages and
   the frame UVs are written into the manifest, so the sprites ship as one texture and batch into one draw call.
+  The padding around each image uses its wrap mode and preserves its edge opacity under linear filtering.
+  Each image’s **Alpha Is Transparency** setting governs the colour in its fully transparent pixels.
   Textures used by meshes, their materials or baked lightmaps ship whole to preserve their UVs. Sprites using those textures share the same images.
 
 ![The Inspector's Platform Overrides strip — a tab per platform, Android selected with Max Size, Compress and Format](@/assets/guides/en/import-platform-overrides.png)

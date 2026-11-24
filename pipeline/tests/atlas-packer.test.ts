@@ -84,8 +84,22 @@ describe('packAtlas', () => {
       const want = p.key === 'red' ? [255, 0, 0, 255] : [0, 0, 255, 255];
       expect([...page.rgba.subarray(px, px + 4)]).toEqual(want);
     }
-    // Padding gutters stay transparent.
-    expect(page.rgba[3]).toBe(0);
+    // The first image's corner fills its own one-texel gutter.
+    expect([...page.rgba.subarray(0, 4)]).toEqual([0, 0, 255, 255]);
+  });
+
+  it.each([
+    ['clamp', [0, 0, 0, 1, 1, 1]],
+    ['repeat', [0, 1, 0, 1, 0, 1]],
+    ['mirror', [1, 0, 0, 1, 1, 0]],
+  ] as const)('copies the RGBA samples for %s along every edge and corner', (wrap, axis) => {
+    const pixels = [[18, 19, 20, 0], [200, 10, 13, 81], [7, 195, 9, 143], [8, 10, 222, 255]];
+    const [page] = packAtlas([{ key: 'quad', width: 2, height: 2, rgba: Uint8Array.from(pixels.flat()), wrap }], { padding: 2 });
+    const get = (x: number, y: number) => [...page.rgba.subarray((y * page.width + x) * 4, (y * page.width + x + 1) * 4)];
+    for (const [y, sy] of axis.entries()) for (const [x, sx] of axis.entries()) {
+      expect(get(x, y)).toEqual(pixels[sy * 2 + sx]);
+    }
+    expect(get(7, 7)).toEqual([0, 0, 0, 0]);
   });
 
   it('round-trips through PNG encode/decode', () => {

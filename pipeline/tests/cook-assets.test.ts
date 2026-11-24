@@ -12,6 +12,7 @@ import path from 'node:path';
 import { cookAssets } from '../src/assets/cookAssets';
 import type { TextureCookDecision } from '../src/assets/textureCookDecision';
 import { decodePngImage } from '../src/assets/atlasPacker';
+import { encodeRgbaPng } from '../src/assets/png';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 import { noisePng } from './fixtures/solidPng.mjs';
 
@@ -574,14 +575,45 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       const at = (f: { x: number; y: number }) => [...page.data.subarray((f.y * page.width + f.x) * 4, (f.y * page.width + f.x) * 4 + 4)];
       expect(at(a.atlas!.frame)).toEqual([255, 0, 0, 255]);
       expect(at(b.atlas!.frame)).toEqual([0, 255, 0, 255]);
-      // The clear gap beside a frame took a frame's colour, not black: a frame's
-      // edge samples it, and black there is a dark fringe.
-      const gap = { x: a.atlas!.frame.x + a.atlas!.frame.width, y: a.atlas!.frame.y };
-      const texel = at(gap);
-      if (texel[3] === 0) expect(texel.slice(0, 3)).not.toEqual([0, 0, 0]);
+      const frame = a.atlas!.frame;
+      expect(at({ x: frame.x + frame.width, y: frame.y })).toEqual([255, 0, 0, 255]);
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
+  });
+
+  it('applies each source image’s wrap and transparent colour settings on a shared page', async () => {
+    const r = makeAtlasProject();
+    try {
+      const dir = path.join(r, 'assets/sprites/heroes.atlas');
+      const red = [245, 10, 9, 255], blue = [4, 5, 250, 255], clear = [17, 22, 99, 0];
+      const row = Uint8Array.from([...clear, ...red, ...blue]);
+      for (const [name, uuid, importer] of [
+        ['a', TEX_A, { wrapMode: 'repeat' }],
+        ['b', TEX_B, { alphaIsTransparency: false }],
+      ] as const) {
+        const file = path.join(dir, name + '.png');
+        writeFileSync(file, encodeRgbaPng(3, 1, row));
+        writeFileSync(file + '.meta', JSON.stringify({ uuid, version: '2.0', type: 'texture', importer }));
+      }
+      const res = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out', atlasTextures: true });
+      expect(res.ok).toBe(true);
+      const { entries } = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as CookManifest;
+      const a = entries.find(e => e.uuid === TEX_A)!, b = entries.find(e => e.uuid === TEX_B)!;
+      expect(a.path).toBe(b.path);
+      const page = decodePngImage(a.path, readFileSync(path.join(res.outDir, a.path)));
+      const at = (frame: { x: number; y: number }, dx: number) => {
+        const offset = 4 * (frame.y * page.width + frame.x + dx);
+        return [...page.rgba.subarray(offset, offset + 4)];
+      };
+      const repeated = a.atlas!.frame, clamped = b.atlas!.frame;
+      expect(at(repeated, 0)).toEqual([245, 10, 9, 0]);
+      expect(at(repeated, -1)).toEqual(blue);
+      expect(at(repeated, repeated.width)).toEqual(at(repeated, 0));
+      expect(at(clamped, 0)).toEqual(clear);
+      expect(at(clamped, -1)).toEqual(clear);
+      expect(at(clamped, clamped.width)).toEqual(blue);
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   });
 
   it('preserves full mesh UVs when a texture is also used by a sprite in an atlas folder', async () => {

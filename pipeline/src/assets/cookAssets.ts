@@ -26,6 +26,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
 import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
+import { textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportSettings';
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
@@ -786,7 +787,10 @@ export async function cookAssets(
       const images: AtlasInputImage[] = [];
       for (const entry of [...entries].sort((a, b) => a.path.localeCompare(b.path))) {
         try {
-          images.push(decodePngImage(entry.path, await readFile(path.join(root, entry.path))));
+          const image = decodePngImage(entry.path, await readFile(path.join(root, entry.path)));
+          image.wrap = textureImportSettingsFrom(entry.importer)?.wrap;
+          if (fillsClearTexels(entry.importer, platform)) image.rgba = fillClearTexels(image) ?? image.rgba;
+          images.push(image);
         } catch (err) {
           warnings.push(`${entry.path}: atlas decode failed, staging standalone — ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -794,14 +798,6 @@ export async function cookAssets(
       if (images.length === 0) continue;
       const pages = packAtlas(images);
       for (let n = 0; n < pages.length; n++) {
-        // A page is one image: its frames' clear texels and the clear gaps between
-        // them are filled as a lone texture's are, or the frame edge samples the
-        // gap's black. Only where every frame on it allows (see fillsClearTexels).
-        const onPage = pages[n].placements.map((p) => byPath.get(p.key)).filter((e): e is AssetEntry => !!e);
-        if (onPage.length > 0 && onPage.every((e) => fillsClearTexels(e.importer, platform))) {
-          const filled = fillClearTexels(pages[n]);
-          if (filled) pages[n] = { ...pages[n], rgba: filled };
-        }
         const pagePng: Uint8Array = encodePagePng(pages[n]);
         let pageBytes: Uint8Array = pagePng;
         let pageExt = '.png';

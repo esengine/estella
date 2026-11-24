@@ -12,14 +12,9 @@
  */
 import { PNG } from 'pngjs';
 import { atlasCells } from '../../../sdk/src/tilemap/tilesetResolve';
+import { copyPaddedRgba, type RgbaImage } from './atlasPixels';
 
-/** Raw RGBA8, row 0 = image top. Structurally an `AtlasInputImage` without the key. */
-export interface RgbaImage {
-    width: number;
-    height: number;
-    /** RGBA8, width*height*4 bytes. */
-    rgba: Uint8Array;
-}
+export type { RgbaImage } from './atlasPixels';
 
 /** Where an atlas's cells are, in the source image's own pixels (Tiled's model). */
 export interface TilesetGrid {
@@ -90,7 +85,7 @@ export function extrudeTileset(
     const cellH = grid.tileHeight + 2 * e;
     const outW = columns * cellW;
     const outH = rows * cellH;
-    const out = new Uint8Array(outW * outH * 4);
+    const page = { width: outW, height: outH, rgba: new Uint8Array(outW * outH * 4) };
 
     for (let row = 0; row < rows; row++) {
         const srcY0 = grid.margin + row * (grid.tileHeight + grid.spacing);
@@ -98,28 +93,14 @@ export function extrudeTileset(
         for (let col = 0; col < columns; col++) {
             const srcX0 = grid.margin + col * (grid.tileWidth + grid.spacing);
             const dstX0 = col * cellW;
-            for (let oy = 0; oy < cellH; oy++) {
-                const sy = srcY0 + clamp(oy - e, 0, grid.tileHeight - 1);
-                for (let ox = 0; ox < cellW; ox++) {
-                    const sx = srcX0 + clamp(ox - e, 0, grid.tileWidth - 1);
-                    const s = (sy * img.width + sx) * 4;
-                    const d = ((dstY0 + oy) * outW + dstX0 + ox) * 4;
-                    out[d] = img.rgba[s]!;
-                    out[d + 1] = img.rgba[s + 1]!;
-                    out[d + 2] = img.rgba[s + 2]!;
-                    out[d + 3] = img.rgba[s + 3]!;
-                }
-            }
+            copyPaddedRgba(img, { x: srcX0, y: srcY0, width: grid.tileWidth, height: grid.tileHeight },
+                page, dstX0 + e, dstY0 + e, e);
         }
     }
 
     // margin = e, spacing = 2e is the only layout that works: every cell needs its
     // own e-px border, and two neighbours contribute one each to the gap.
-    return { width: outW, height: outH, rgba: out, margin: e, spacing: 2 * e, extrude: e, columns, rows };
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-    return v < lo ? lo : v > hi ? hi : v;
+    return { ...page, margin: e, spacing: 2 * e, extrude: e, columns, rows };
 }
 
 /** Decode a PNG into the extruder's input shape. */

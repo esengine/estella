@@ -15,14 +15,13 @@ import { ShelfPacker } from '../../../sdk/src/util/shelfPack';
 import { nextPowerOf2 } from '../../../sdk/src/math/scalar';
 import { downscaledSize } from './textureCookDecision';
 import { encodeRgbaPng } from './png';
+import { copyPaddedRgba, type RgbaImage, type TextureWrap } from './atlasPixels';
 
-export interface AtlasInputImage {
+export interface AtlasInputImage extends RgbaImage {
     /** Stable identity (the project-relative texture path). */
     key: string;
-    width: number;
-    height: number;
-    /** RGBA8, width*height*4 bytes, row 0 = image top. */
-    rgba: Uint8Array;
+    /** How a filter samples beyond this image's outermost texel. */
+    wrap?: TextureWrap;
 }
 
 export interface AtlasPlacement {
@@ -45,7 +44,7 @@ export interface AtlasPage {
 export interface PackOptions {
     /** Page dimension cap (default 2048). */
     maxSize?: number;
-    /** Transparent gutter around each image, defends linear-filter bleed (default 2). */
+    /** Gutter filled from each image's edges for texture filtering (default 2). */
     padding?: number;
 }
 
@@ -76,18 +75,13 @@ function tryPackPage(
     return placements;
 }
 
-
-function composePage(images: Map<string, AtlasInputImage>, placements: AtlasPlacement[], width: number, height: number): AtlasPage {
-    const rgba = new Uint8Array(width * height * 4);
+function composePage(images: Map<string, AtlasInputImage>, placements: AtlasPlacement[], size: number, padding: number): AtlasPage {
+    const page = { width: size, height: size, placements, rgba: new Uint8Array(size * size * 4) };
     for (const p of placements) {
         const img = images.get(p.key)!;
-        for (let row = 0; row < p.height; row++) {
-            const src = row * img.width * 4;
-            const dst = ((p.y + row) * width + p.x) * 4;
-            rgba.set(img.rgba.subarray(src, src + p.width * 4), dst);
-        }
+        copyPaddedRgba(img, { x: 0, y: 0, width: img.width, height: img.height }, page, p.x, p.y, padding, img.wrap);
     }
-    return { width, height, placements, rgba };
+    return page;
 }
 
 /**
@@ -126,7 +120,7 @@ export function packAtlas(images: AtlasInputImage[], options: PackOptions = {}):
             size *= 2;
         }
         if (placements) {
-            pages.push(composePage(byKey, placements, size, size));
+            pages.push(composePage(byKey, placements, size, padding));
             remaining = [];
             break;
         }
@@ -139,7 +133,7 @@ export function packAtlas(images: AtlasInputImage[], options: PackOptions = {}):
             if (attempt) taken.push(img);
             else spill.push(img);
         }
-        pages.push(composePage(byKey, tryPackPage(taken, maxSize, maxSize, padding)!, maxSize, maxSize));
+        pages.push(composePage(byKey, tryPackPage(taken, maxSize, maxSize, padding)!, maxSize, padding));
         remaining = spill;
     }
     return pages;
@@ -202,5 +196,5 @@ export function downscaleRgba(img: AtlasInputImage, maxDim: number): AtlasInputI
             out[o + 3] = Math.round(a / n);
         }
     }
-    return { key: img.key, width: nw, height: nh, rgba: out };
+    return { ...img, width: nw, height: nh, rgba: out };
 }
