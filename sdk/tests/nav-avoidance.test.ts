@@ -47,6 +47,15 @@ describe('avoidVelocity', () => {
         expect(away.z).toBeCloseTo(0, 1);
     });
 
+    it('checks the whole legal move and skips ground probes for losing velocities', () => {
+        const probes: number[][] = [];
+        const chosen = avoidVelocity(me(), { x: 100, z: 0 }, [other({ vx: 100 })], {
+            ...OPTS, deferSurfaceCheck: true, canStand: (x, z) => { probes.push([x, z]); return true; },
+        });
+        expect(chosen).toEqual({ x: 100, z: 0 });
+        expect(probes).toEqual([[10, 0], [20, 0], [30, 0], [40, 0]]);
+    });
+
     // Head on, straight ahead is exactly what neither of them may keep doing.
     it('turns away from a body it is about to walk into', () => {
         const v = avoidVelocity(me(), { x: 100, z: 0 }, [other()], OPTS);

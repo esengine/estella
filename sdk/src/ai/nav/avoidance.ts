@@ -37,6 +37,8 @@ export interface AvoidanceOptions {
     /** Whether the agent may stand somewhere. A candidate that leaves the
      *  navigable world is refused however clear of other bodies it is. */
     canStand?: (x: number, z: number) => boolean;
+    /** A stable surface predicate can wait until the sample could improve the choice. */
+    deferSurfaceCheck?: boolean;
 }
 
 /** How far ahead a rejected sample is tested for leaving the world, in seconds. */
@@ -44,6 +46,10 @@ const LOOKAHEAD = 0.4;
 /** Rings of candidate velocities around the desired one, and samples per ring. */
 const RINGS = 2;
 const DIVISIONS = 8;
+const DIRECTIONS = Array.from({ length: DIVISIONS }, (_, i) => {
+    const angle = (i / DIVISIONS) * Math.PI * 2;
+    return { x: Math.cos(angle), z: Math.sin(angle) };
+});
 /** How much a candidate is penalised for not being the velocity that was wanted. */
 const WEIGHT_DESIRED = 2;
 /** …for turning away from the direction already being travelled. */
@@ -72,7 +78,9 @@ export function avoidVelocity(
     if (opts.maxSpeed <= 0) return { x: 0, z: 0 };
     const clear = (vx: number, vz: number): boolean => {
         if (!opts.canStand) return true;
-        for(let i=1;i<=4;i++) if(!opts.canStand(self.x+vx*LOOKAHEAD*i/4,self.z+vz*LOOKAHEAD*i/4))return false;
+        for (let i = 1; i <= 4; i++) {
+            if (!opts.canStand(self.x + vx * LOOKAHEAD * i / 4, self.z + vz * LOOKAHEAD * i / 4)) return false;
+        }
         return true;
     };
     if (neighbours.length === 0 && clear(desired.x, desired.z)) return { x: desired.x, z: desired.z };
@@ -81,25 +89,28 @@ export function avoidVelocity(
     let bestZ = 0;
     let bestPenalty = Infinity;
     const speed = Math.max(opts.maxSpeed, 1e-3);
+    const score = velocityScorer(self, desired, neighbours, opts.horizon, speed);
 
     const consider = (cx: number, cz: number): void => {
         const length = Math.hypot(cx, cz);
         const scale = length > speed ? speed / length : 1;
         const vx = cx * scale, vz = cz * scale;
-        if (!clear(vx,vz)) return;
-        const penalty = score(self, desired, vx, vz, neighbours, opts, speed);
-        if (penalty >= bestPenalty) return;
+        // Until there is a legal choice, reject blocked samples before scoring.
+        // Once there is one, only a better score needs a surface query.
+        const checkAfterScore = opts.deferSurfaceCheck && bestPenalty < Infinity;
+        if (!checkAfterScore && !clear(vx, vz)) return;
+        const scaledLength = scale === 1 ? length : Math.hypot(vx, vz);
+        const penalty = score(vx, vz, scaledLength);
+        if (penalty >= bestPenalty || (checkAfterScore && !clear(vx, vz))) return;
         bestPenalty = penalty; bestX = vx; bestZ = vz;
     };
     consider(desired.x, desired.z);
     consider(0, 0);
 
     for (let ring = 1; ring <= RINGS; ring++) {
-        const count = DIVISIONS;
         const spread = (ring / RINGS) * speed;
-        for (let i = 0; i < count; i++) {
-            const angle = (i / count) * Math.PI * 2;
-            const dx = Math.cos(angle) * spread, dz = Math.sin(angle) * spread;
+        for (const dir of DIRECTIONS) {
+            const dx = dir.x * spread, dz = dir.z * spread;
             consider(desired.x + dx, desired.z + dz);
             // Desired-centred rings cannot step sideways/back when a parked
             // body is directly ahead. Sample the velocity disk itself as well.
@@ -109,45 +120,54 @@ export function avoidVelocity(
     return { x: bestX, z: bestZ };
 }
 
-function score(
-    self: { x: number; z: number; vx: number; vz: number; radius: number },
+function velocityScorer(
+    self: AvoidanceNeighbour,
     desired: { x: number; z: number },
-    vx: number, vz: number,
     neighbours: readonly AvoidanceNeighbour[],
-    opts: AvoidanceOptions,
+    horizon: number,
     speed: number,
-): number {
-    let earliest = opts.horizon;
-    let side = 0;
-    const length = Math.hypot(vx, vz);
-    for (const other of neighbours) {
-        // Each side takes half the avoidance, so the closing velocity is read as
-        // twice this candidate less what the two are already doing.
-        const rvx = vx * 2 - self.vx - other.vx;
-        const rvz = vz * 2 - self.vz - other.vz;
-        const hit = sweep(self.x, self.z, self.radius + other.radius,
-            rvx, rvz, other.x, other.z);
-        if (hit !== null && hit < earliest) earliest = hit;
-
-        const dx = other.x - self.x;
-        const dz = other.z - self.z;
+): (vx: number, vz: number, length: number) => number {
+    const wantsMotion = Math.hypot(desired.x, desired.z) > 1e-6;
+    // The velocity samples all see the same circles. Their separation and
+    // right-hand direction only need to be computed once per neighbour.
+    const bodies = neighbours.map(other => {
+        const dx = other.x - self.x, dz = other.z - self.z;
+        const radius = self.radius + other.radius;
         const toward = Math.hypot(dx, dz);
-        if (toward < 1e-6 || length < 1e-6) continue;
-        // Right of the line to them, in the ground plane. Which of the two is
-        // "right" is a convention; that both agents use the SAME one is the point.
-        const rightX = dz / toward;
-        const rightZ = -dx / toward;
-        side += 0.5 - (vx * rightX + vz * rightZ) / (length * 2);
-    }
-    const deviation = Math.hypot(vx - desired.x, vz - desired.z) / speed;
-    const turn = Math.hypot(vx - self.vx, vz - self.vz) / speed;
-    // The nearer the impact, the sharper the cost — a collision a long way off is
-    // not worth walking round.
-    const impact = 1 / (0.1 + earliest / opts.horizon);
-    const stopping = Math.hypot(desired.x, desired.z) > 1e-6
-        ? WEIGHT_STOP * Math.max(0, 1 - length / speed) : 0;
-    return WEIGHT_DESIRED * deviation + WEIGHT_CURRENT * turn + WEIGHT_IMPACT * impact
-        + WEIGHT_SIDE * (side / Math.max(1,neighbours.length)) + stopping;
+        return {
+            dx, dz, distanceSqMinusRadiusSq: dx * dx + dz * dz - radius * radius,
+            vx: other.vx, vz: other.vz, toward,
+            rightX: toward < 1e-6 ? 0 : dz / toward,
+            rightZ: toward < 1e-6 ? 0 : -dx / toward,
+        };
+    });
+
+    return (vx, vz, length) => {
+        let earliest = horizon;
+        let side = 0;
+        for (const other of bodies) {
+            // Each side takes half the avoidance, so the closing velocity is read as
+            // twice this candidate less what the two are already doing.
+            const rvx = vx * 2 - self.vx - other.vx;
+            const rvz = vz * 2 - self.vz - other.vz;
+            const hit = sweep(other.dx, other.dz, other.distanceSqMinusRadiusSq, rvx, rvz);
+            if (hit !== null && hit < earliest) earliest = hit;
+
+            if (other.toward < 1e-6 || length < 1e-6) continue;
+            // Right of the line to them, in the ground plane. Which of the two is
+            // "right" is a convention; that both agents use the SAME one is the point.
+            side += 0.5 - (vx * other.rightX + vz * other.rightZ) / (length * 2);
+        }
+        const deviation = Math.hypot(vx - desired.x, vz - desired.z) / speed;
+        const turn = Math.hypot(vx - self.vx, vz - self.vz) / speed;
+        // The nearer the impact, the sharper the cost — a collision a long way off is
+        // not worth walking round.
+        const impact = 1 / (0.1 + earliest / horizon);
+        const stopping = wantsMotion
+            ? WEIGHT_STOP * Math.max(0, 1 - length / speed) : 0;
+        return WEIGHT_DESIRED * deviation + WEIGHT_CURRENT * turn + WEIGHT_IMPACT * impact
+            + WEIGHT_SIDE * (side / Math.max(1, bodies.length)) + stopping;
+    };
 }
 
 /**
@@ -156,14 +176,7 @@ function score(
  * it, made positive, is what such a pair scores with, so the way out that leaves
  * fastest reads as the safest.
  */
-function sweep(
-    ax: number, az: number, radius: number,
-    rvx: number, rvz: number,
-    bx: number, bz: number,
-): number | null {
-    const dx = bx - ax;
-    const dz = bz - az;
-    const c = dx * dx + dz * dz - radius * radius;
+function sweep(dx: number, dz: number, c: number, rvx: number, rvz: number): number | null {
     const a = rvx * rvx + rvz * rvz;
     if (a < 1e-8) return c <= 0 ? 0 : null;
     const b = dx * rvx + dz * rvz;

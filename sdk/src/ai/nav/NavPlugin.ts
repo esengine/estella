@@ -47,6 +47,7 @@ import { setupNavDebugDraw } from './NavDebugDraw';
 import { PluginInstallations } from '../../app/pluginInstallations';
 import { advanceAlongPath } from './follow';
 import { avoidVelocity, type AvoidanceNeighbour } from './avoidance';
+import { NavCrowd, type CrowdBody } from './navCrowd';
 import { planNavigation } from './navPlanning';
 
 /** Per-entity runtime path state, owned by the driving system (not serialized). */
@@ -273,9 +274,9 @@ export function stepNavigation(
     // Agents awaiting a valid route must not retain old steering velocity. Keep
     // vertical velocity: gravity and the character solver still own that axis.
     for (const entity of entities) {
-        const active = world.get(entity, NavAgent).hasTarget;
-        if (!blocked.has(entity) && (!active || runtimes.get(entity)?.reachable)) continue;
-        clearNavigationVelocity(world, entity, runtimes);
+        if (blocked.has(entity) || (!runtimes.get(entity)?.reachable && world.get(entity, NavAgent).hasTarget)) {
+            clearNavigationVelocity(world, entity, runtimes);
+        }
     }
     const crowd = gatherCrowd(world, entities, runtimes, flat);
 
@@ -283,7 +284,6 @@ export function stepNavigation(
         const agent = world.get(entity, NavAgent);
         if (!agent.hasTarget || blocked.has(entity)) continue;
 
-        const tf = world.get(entity, Transform);
         const rt = runtimes.get(entity);
 
         // Keep an unreachable agent's runtime for throttled retry (next target
@@ -291,13 +291,14 @@ export function stepNavigation(
         if (!rt?.reachable) continue;
         if (rt.partial && rt.index >= rt.waypoints.length) continue;
 
+        const tf = world.get(entity, Transform);
         // A body walks; anything else is moved, and which one an entity is, is
         // what it CARRIES. A character has a solver that collides, steps up and
         // falls; a follower writing the Transform would fight all three.
         const character = world.has(entity, CharacterController3D)
             ? world.get(entity, CharacterController3D) : null;
         const steering = agent.radius > 0
-            ? neighboursOf(crowd, entity, tf.position, flat, agent.radius)
+            ? crowd.neighbours(entity, tf.position.x, flat ? tf.position.y : tf.position.z, agent.radius)
             : null;
         const done = character && character.enabled !== false
             ? steerCharacter(world, entity, agent, rt, character, dt, flat, steering, nav)
@@ -335,8 +336,8 @@ function clearNavigationVelocity(world: NavWorldView, entity: Entity, runtimes: 
 function gatherCrowd(
     world: NavWorldView, entities: readonly Entity[],
     runtimes: Map<Entity, AgentRuntime>, flat: boolean,
-): Array<AvoidanceNeighbour & { entity: Entity }> {
-    const out: Array<AvoidanceNeighbour & { entity: Entity }> = [];
+): NavCrowd {
+    const out: CrowdBody[] = [];
     for (const entity of entities) {
         const agent = world.get(entity, NavAgent);
         if (agent.radius <= 0) continue;
@@ -344,6 +345,7 @@ function gatherCrowd(
         const rt = runtimes.get(entity);
         out.push({
             entity,
+            order: out.length,
             x: at.x,
             z: flat ? at.y : at.z,
             vx: rt?.velocityA ?? 0,
@@ -351,27 +353,7 @@ function gatherCrowd(
             radius: agent.radius,
         });
     }
-    return out;
-}
-
-/** How far away another body is worth steering round, as a multiple of the two
- *  radii — past this the two cannot meet inside the horizon anyway. */
-const NEIGHBOUR_REACH = 6;
-
-function neighboursOf(
-    crowd: ReadonlyArray<AvoidanceNeighbour & { entity: Entity }>,
-    self: Entity, at: Vec3, flat: boolean, radius: number,
-): AvoidanceNeighbour[] | null {
-    const x = at.x;
-    const z = flat ? at.y : at.z;
-    const out: AvoidanceNeighbour[] = [];
-    for (const other of crowd) {
-        if (other.entity === self) continue;
-        const reach = (radius + other.radius) * NEIGHBOUR_REACH;
-        if (Math.hypot(other.x - x, other.z - z) > reach) continue;
-        out.push(other);
-    }
-    return out.length > 0 ? out : null;
+    return new NavCrowd(out);
 }
 
 /**
@@ -403,6 +385,9 @@ function steerTo(
         {
             horizon: AVOID_HORIZON,
             maxSpeed: speed,
+            // Overridden and custom surface queries keep their original visit order.
+            deferSurfaceCheck: surface?.isNavigable === NavGrid.prototype.isNavigable
+                || surface?.isNavigable === NavMesh.prototype.isNavigable,
             canStand: surface
                 ? (px, pz) => surface.isNavigable(
                     flat ? { x: px, y: pz, z: height } : { x: px, y: height, z: pz }, { radius: agent.radius })

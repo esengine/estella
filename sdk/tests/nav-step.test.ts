@@ -559,6 +559,23 @@ describe('agents that are bodies', () => {
         expect(world.pos(b).x).toBeGreaterThan(90);
     });
 
+    it('keeps the original ground probe order for a custom surface', () => {
+        const nav = new Navigation();
+        const probes: number[] = [];
+        nav.setSurface({
+            up: { x: 0, y: 0, z: 1 },
+            findWorldPath: (_from, to) => [{ x: to.x, y: to.y, z: to.z ?? 0 }],
+            isNavigable: p => { probes.push(p.x); return true; },
+            describe() {},
+        });
+        const world = new FakeWorld();
+        world.spawnAgent(0, 0, { radius: 1, speed: 10, arriveRadius: 0, hasTarget: true, targetX: 100 });
+        world.spawnAgent(-5, 0, { radius: 1 });
+        stepNavigation(world, nav, 1 / 60, new Map());
+        expect(probes).toHaveLength(34 * 4);
+        expect(probes.slice(0, 8)).toEqual([1, 2, 3, 4, 0, 0, 0, 0]);
+    });
+
     it('are not slowed by an empty room', () => {
         const world = new FakeWorld();
         const alone = world.spawnAgent(20, 150, {
