@@ -43,7 +43,7 @@
         },
         "quickjs": {
             "repo": "https://github.com/quickjs-ng/quickjs",
-            "commit": "3d3cf3d86b66551403745a5b06acbed2b0f31dfd"
+            "commit": "d06a85c11f3cb8827be25414bcfe14eca40faf4e"
         },
         "sdl": {
             "$comment": [

@@ -36,7 +36,7 @@
  *            it does not, they are not doing the same work and no timing from
  *            the run means anything.
  */
-#include "quickjs.h"
+#include "QuickJsArrayBuffer.hpp"
 
 #include "esengine/ecs/components/Transform.hpp"
 #include "esengine/ecs/components/Velocity.hpp"
@@ -281,12 +281,6 @@ void reportException(JSContext* ctx) {
     JS_FreeValue(ctx, e);
 }
 
-// An ArrayBuffer aliasing memory we own. free_func = nullptr, so QuickJS never
-// frees it — the same trick es_<Component>_buffer uses to hand the SDK the pool.
-JSValue aliasBuffer(JSContext* ctx, void* p, size_t bytes) {
-    return JS_NewArrayBuffer(ctx, static_cast<uint8_t*>(p), bytes, nullptr, nullptr, false);
-}
-
 }  // namespace
 
 int main() {
@@ -331,11 +325,11 @@ int main() {
         JSValue setup = JS_GetPropertyStr(ctx, global, "setup");
         JSValue args[8] = {
             JS_NewInt32(ctx, ENTITIES),
-            aliasBuffer(ctx, w.ents.data(), w.ents.size() * sizeof(uint32_t)),
-            aliasBuffer(ctx, w.sparse.data(), w.sparse.size() * sizeof(uint32_t)),
-            aliasBuffer(ctx, w.transforms.data(), w.transforms.size() * sizeof(Transform)),
-            aliasBuffer(ctx, w.velocities.data(), w.velocities.size() * sizeof(Velocity)),
-            aliasBuffer(ctx, w.changed.data(), w.changed.size()),
+            esjs::wrapBorrowedArrayBuffer(ctx, w.ents.data(), w.ents.size() * sizeof(uint32_t)),
+            esjs::wrapBorrowedArrayBuffer(ctx, w.sparse.data(), w.sparse.size() * sizeof(uint32_t)),
+            esjs::wrapBorrowedArrayBuffer(ctx, w.transforms.data(), w.transforms.size() * sizeof(Transform)),
+            esjs::wrapBorrowedArrayBuffer(ctx, w.velocities.data(), w.velocities.size() * sizeof(Velocity)),
+            esjs::wrapBorrowedArrayBuffer(ctx, w.changed.data(), w.changed.size()),
             JS_NewInt32(ctx, static_cast<int32_t>(sizeof(Transform))),
             JS_NewInt32(ctx, static_cast<int32_t>(sizeof(Velocity))),
         };

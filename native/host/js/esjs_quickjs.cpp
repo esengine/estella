@@ -22,9 +22,7 @@
  */
 #include "esjs.hpp"
 
-extern "C" {
-#include "quickjs.h"
-}
+#include "QuickJsArrayBuffer.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -161,7 +159,7 @@ Val arrayBufferCopy(const void* data, size_t size) {
 }
 
 Val arrayBufferWrap(void* data, size_t size) {
-    return local(JS_NewArrayBuffer(g_ctx, static_cast<uint8_t*>(data), size, nullptr, nullptr, false));
+    return local(wrapBorrowedArrayBuffer(g_ctx, data, size));
 }
 
 Val throwTypeError(const char* message) { return borrowed(JS_ThrowTypeError(g_ctx, "%s", message)); }
@@ -407,7 +405,7 @@ bool run(std::string_view source, const char* name) {
 }
 
 bool runCached(std::string_view source, const char* name, const uint8_t* cache, size_t cacheSize,
-               CacheUse* use, std::string* why, std::vector<uint8_t>* fresh) {
+               CacheFallback fallback, CacheUse* use, std::string* why, std::vector<uint8_t>* fresh) {
     if (use) *use = CacheUse::None;
     JSValue fn = JS_UNDEFINED;
     if (cache && cacheSize) {
@@ -417,6 +415,7 @@ bool runCached(std::string_view source, const char* name, const uint8_t* cache, 
             if (why) *why = describe(e);
             JS_FreeValue(g_ctx, e);
             if (use) *use = CacheUse::Rejected;
+            if (fallback == CacheFallback::TryNext) return false;
             fn = JS_UNDEFINED;
         } else if (use) {
             *use = CacheUse::Used;

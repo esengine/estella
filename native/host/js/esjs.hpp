@@ -247,16 +247,17 @@ bool run(std::string_view source, const char* name);
 
 /** How {@link runCached} treated the cache it was handed. */
 enum class CacheUse { None, Used, Rejected };
+enum class CacheFallback { TryNext, CompileSource };
 
 /**
  * Evaluate a global script through a compile cache. @p cache (may be empty) is a
  * blob an earlier {@link runCached} produced for the SAME source on the SAME
- * engine build; one the engine declines is reported, with @p why, and the script
- * is compiled instead. @p fresh, when given and the cache was not used, receives a
- * new blob to store for next time.
+ * engine build. If the engine rejects a supplied blob, TryNext returns false
+ * before executing the script. CompileSource runs the source and, when requested,
+ * returns a replacement blob in @p fresh. Execution errors are never retried.
  */
 bool runCached(std::string_view source, const char* name,
-               const uint8_t* cache, size_t cacheSize,
+               const uint8_t* cache, size_t cacheSize, CacheFallback fallback,
                CacheUse* use, std::string* why, std::vector<uint8_t>* fresh);
 
 /** What a cache blob is called on disk, so caches from different engines (or

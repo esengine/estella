@@ -979,6 +979,9 @@ jobs:
       - name: Build the Linux host and its runtime template
         run: node build-tools/cli.js native --target linux
 
+      - name: Validate a scene with sequential and sparse entity IDs
+        run: xvfb-run -a node bench/scene-validation.mjs build/cmake/native-linux/estella_desktop
+
       - name: Run native renderer regressions
         run: |
           cmake --build build/cmake/native-linux --target test_native_renderer test_render_thread --parallel 4

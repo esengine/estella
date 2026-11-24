@@ -488,7 +488,7 @@ void pumpEngine() {
 namespace {
 
 bool compileAndRun(std::string_view source, const char* name, v8::ScriptCompiler::CachedData* cache,
-                   CacheUse* use, std::vector<uint8_t>* fresh) {
+                   CacheFallback fallback, CacheUse* use, std::vector<uint8_t>* fresh) {
     v8::TryCatch tc(g_iso);
     v8::Local<v8::String> code;
     if (!v8::String::NewFromUtf8(g_iso, source.data(), v8::NewStringType::kNormal,
@@ -505,7 +505,11 @@ bool compileAndRun(std::string_view source, const char* name, v8::ScriptCompiler
         report(tc, name);
         return false;
     }
-    if (cache && use) *use = src.GetCachedData()->rejected ? CacheUse::Rejected : CacheUse::Used;
+    if (cache) {
+        const bool rejected = src.GetCachedData()->rejected;
+        if (use) *use = rejected ? CacheUse::Rejected : CacheUse::Used;
+        if (rejected && fallback == CacheFallback::TryNext) return false;
+    }
     v8::Local<v8::Value> result;
     if (!script->Run(ctx()).ToLocal(&result)) {
         report(tc, name);
@@ -523,18 +527,18 @@ bool compileAndRun(std::string_view source, const char* name, v8::ScriptCompiler
 }  // namespace
 
 bool run(std::string_view source, const char* name) {
-    return compileAndRun(source, name, nullptr, nullptr, nullptr);
+    return compileAndRun(source, name, nullptr, CacheFallback::CompileSource, nullptr, nullptr);
 }
 
 bool runCached(std::string_view source, const char* name, const uint8_t* cache, size_t cacheSize,
-               CacheUse* use, std::string* why, std::vector<uint8_t>* fresh) {
+               CacheFallback fallback, CacheUse* use, std::string* why, std::vector<uint8_t>* fresh) {
     if (use) *use = CacheUse::None;
     v8::ScriptCompiler::CachedData* data = nullptr;
     if (cache && cacheSize) {
         data = new v8::ScriptCompiler::CachedData(cache, static_cast<int>(cacheSize),
                                                   v8::ScriptCompiler::CachedData::BufferNotOwned);
     }
-    const bool ok = compileAndRun(source, name, data, use, fresh);
+    const bool ok = compileAndRun(source, name, data, fallback, use, fresh);
     if (use && *use == CacheUse::Rejected && why) {
         *why = "built by a different V8 build, flag set or source";
     }

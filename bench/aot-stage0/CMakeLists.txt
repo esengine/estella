@@ -54,6 +54,7 @@ endif()
 add_executable(bench_aot_stage0 bench.cpp)
 target_link_libraries(bench_aot_stage0 PRIVATE qjs)
 target_include_directories(bench_aot_stage0 PRIVATE
+    "${ESTELLA_ROOT}/native/host/js"
     "${ESTELLA_ROOT}/src"
     "${ESTELLA_ROOT}/third_party/glm")
 target_compile_definitions(bench_aot_stage0 PRIVATE _CRT_SECURE_NO_WARNINGS)

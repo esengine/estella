@@ -308,30 +308,35 @@ std::vector<u8> readFile(const std::string& path) {
 bool evalCachedScript(HostState& h, const char* src, size_t srcLen, const char* filename,
                       const std::string& cachePath, const std::string& shippedAsset) {
     const uint64_t want = hashBytes(src, srcLen);
-    const u8* data = nullptr;
-    size_t size = 0;
-    const char* origin = nullptr;
-
-    const std::vector<u8> shipped = readAsset(h, shippedAsset.c_str());
-    const std::vector<u8> cached = readFile(cachePath);
-    if (cachePayload(shipped, want, "the cache shipped with the app", &data, &size)) {
-        origin = "the cache shipped with the app";
-    } else if (cachePayload(cached, want, "the cache this device wrote", &data, &size)) {
-        origin = "the cache this device wrote";
-    }
-
-    if (!origin) bootNote("bundle: no compile cache — compiling on device, expect a slower first launch");
-    esjs::CacheUse use = esjs::CacheUse::None;
-    std::string why;
+    const std::string_view source(src, srcLen);
     std::vector<u8> fresh;
-    const bool ok = esjs::runCached(std::string_view(src, srcLen), filename, data, size,
-                                    &use, &why, cachePath.empty() ? nullptr : &fresh);
-    if (use == esjs::CacheUse::Used) {
-        ESHOST_LOGI("SDK bundle: loaded from %s", origin);
-        bootNote("bundle: %s", origin);
-    } else if (use == esjs::CacheUse::Rejected) {
-        ESHOST_LOGE("SDK bundle: %s did not load (%s) — compiled instead", origin, why.c_str());
-        bootNote("bundle: %s rejected — compiled on device", origin);
+    bool ok = false;
+    // Release each blob before opening the next. A usable packaged cache is
+    // enough to boot without ever reading the device's copy.
+    for (const auto fallback : {esjs::CacheFallback::TryNext, esjs::CacheFallback::CompileSource}) {
+        const bool packaged = fallback == esjs::CacheFallback::TryNext;
+        const char* origin = packaged ? "the cache shipped with the app" : "the cache this device wrote";
+        const std::vector<u8> blob = packaged ? readAsset(h, shippedAsset.c_str()) : readFile(cachePath);
+        const u8* data = nullptr;
+        size_t size = 0;
+        if (!cachePayload(blob, want, origin, &data, &size)) {
+            if (packaged) continue;
+            bootNote("bundle: no compile cache — compiling on device, expect a slower first launch");
+        }
+
+        esjs::CacheUse use = esjs::CacheUse::None;
+        std::string why;
+        ok = esjs::runCached(source, filename, data, size, fallback, &use, &why,
+                             packaged || cachePath.empty() ? nullptr : &fresh);
+        if (use == esjs::CacheUse::Used) {
+            ESHOST_LOGI("SDK bundle: loaded from %s", origin);
+            bootNote("bundle: %s", origin);
+        } else if (use == esjs::CacheUse::Rejected) {
+            ESHOST_LOGI("SDK bundle: %s did not load (%s)", origin, why.c_str());
+            if (packaged) continue;
+            bootNote("bundle: %s rejected — compiled on device", origin);
+        }
+        break;
     }
     if (!fresh.empty()) {
         if (FILE* f = fopen(cachePath.c_str(), "wb")) {
