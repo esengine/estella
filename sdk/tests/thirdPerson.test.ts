@@ -534,3 +534,9 @@ describe('a character running by its animation, turned round', () => {
         expect(v.z).toBeCloseTo(-1.5, 4);
     });
 });
+
+describe('a third-person camera as it comes', () => {
+    it('holds rigidly on its character: nothing trails a character moved on the fixed step', () => {
+        expect(ThirdPersonCamera._default.followDamping).toBe(0);
+    });
+});

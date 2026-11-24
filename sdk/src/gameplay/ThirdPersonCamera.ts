@@ -33,7 +33,11 @@ export interface ThirdPersonCameraData {
     maxPitch: number;
     /** Degrees per pixel of pointer travel. */
     sensitivity: number;
-    /** How fast position catches up, per second. 0 = rigid. */
+    /**
+     * How fast position catches up, per second; 0 holds the camera rigidly on the character. Rigid by default: a camera
+     * that trails a character moved on the fixed step sees the character jolt against the world every frame the step
+     * does not run, which on a fast display is most of them.
+     */
     followDamping: number;
     /** Lifted off the target's origin, so the eye frames the chest not the feet. */
     targetOffset: Vec3;
@@ -60,7 +64,7 @@ export const ThirdPersonCamera: ComponentDef<ThirdPersonCameraData> =
         minPitch: -30,
         maxPitch: 70,
         sensitivity: 0.2,
-        followDamping: 12,
+        followDamping: 0,
         targetOffset: { x: 0, y: 90, z: 0 },
         obstruction: true,
         obstructionRadius: 15,
@@ -78,7 +82,7 @@ export const ThirdPersonCamera: ComponentDef<ThirdPersonCameraData> =
             pitch: { unit: '°' },
             obstructionRadius: { min: 0, advanced: true },
             obstructionLayers: { min: 0, max: 15, step: 1, advanced: true },
-            followDamping: { min: 0, advanced: true },
+            followDamping: { min: 0, tooltip: 'How fast the camera catches up with the character, per second. 0 holds it rigidly on the character.' },
         },
     });
 

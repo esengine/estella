@@ -9990,9 +9990,9 @@
         {
           "key": "followDamping",
           "type": "number",
-          "default": "12",
-          "range": "≥ 0",
-          "advanced": true
+          "default": "0",
+          "doc": "How fast the camera catches up with the character, per second. 0 holds it rigidly on the character.",
+          "range": "≥ 0"
         },
         {
           "key": "targetOffset",

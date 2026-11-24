@@ -1258,9 +1258,24 @@ export class AnimatorControllerAPI {
         const t = world.get(entity, Transform) as TransformData;
         const at = world.has(entity, Parent) ? t.worldPosition : t.position;
         const last = rt.lastAt;
-        rt.lastAt = { x: at.x, z: at.z };
-        if (!last) return;
-        const vx = (at.x - last.x) / dt, vz = (at.z - last.z) / dt;
+        if (!last) { rt.lastAt = { x: at.x, z: at.z }; rt.sinceMoved = 0; return; }
+        // A character moved on the fixed step does not move on every frame of a display faster than the step: its speed
+        // is what it covered since it last moved, not this frame's nothing and the next frame's double.
+        const since = (rt.sinceMoved ?? 0) + dt;
+        const dx = at.x - last.x, dz = at.z - last.z;
+        let vx: number, vz: number;
+        if (dx * dx + dz * dz > 1e-12) {
+            vx = dx / since; vz = dz / since;
+            rt.lastAt = { x: at.x, z: at.z };
+            rt.sinceMoved = 0;
+            rt.lastVelocity = { x: vx, z: vz };
+        } else if (since < STILL_AFTER) {
+            rt.sinceMoved = since;
+            vx = rt.lastVelocity?.x ?? 0; vz = rt.lastVelocity?.z ?? 0;
+        } else {
+            rt.sinceMoved = since;
+            vx = 0; vz = 0;
+        }
         const went = Math.hypot(vx, vz);
         const goes = rt.motionSpeed ?? 0;
         // A motion that travels nowhere has no stride to fit. One that does while the character comes to a halt has its
@@ -1497,6 +1512,8 @@ export class AnimatorControllerAPI {
 const ZERO_VEC = { x: 0, y: 0, z: 0 };
 /** Seconds a stride or orientation warp's measure eases over, where none says. */
 const STRIDE_EASE = 0.1;
+/** Seconds without moving after which a character is taken to be standing, not between two fixed steps. */
+const STILL_AFTER = 0.1;
 
 /** The ease the controller's warps ask for: the first that states one. */
 function strideEaseOf(ik: readonly AnimatorIK[] | undefined): number {
@@ -1523,8 +1540,10 @@ interface AnimatorRuntime {
     inertiaRequest?: number;
     /** Which way it travels over the ground, in the world; the last way it did while it stands. */
     motionDirection?: { x: number; z: number };
-    /** Where the character stood last frame, over the ground. */
+    /** Where the character stood when it last moved, over the ground, the seconds since, and how fast it went then. */
     lastAt?: { x: number; z: number };
+    sinceMoved?: number;
+    lastVelocity?: { x: number; z: number };
     /** One per layer, the base layer at 0. */
     layers: LayerRuntime[];
     /** What the whole stack came to, written to the world once. */
