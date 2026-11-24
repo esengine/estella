@@ -142,12 +142,15 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
 
     it('loads Tiled and saved scene data into the requested world with a preview open', async () => {
         const main = await scene(mainCore, 11), preview = await scene(mainCore, 29);
+        const width = 19, height = 18;
+        const data = Array.from({ length: width * height }, (_, i) => i + 1);
         const map = parseTmjJson({
-            type: 'map', orientation: 'orthogonal', width: 1, height: 1, tilewidth: 16, tileheight: 16,
-            tilesets: [], layers: [{ type: 'tilelayer', name: 'Ground', visible: true, width: 1, height: 1, data: [7] }],
+            type: 'map', orientation: 'orthogonal', width, height, tilewidth: 16, tileheight: 16,
+            tilesets: [], layers: [{ type: 'tilelayer', name: 'Ground', visible: true, width, height, data }],
         })!;
         const [imported] = loadTiledMap(main.app.world, map, new Map());
-        expect(main.tiles.getTile(imported, 0, 0)).toBe(7);
+        const cells = data.map((_, i) => main.tiles.getTile(imported, i % width, Math.floor(i / width)));
+        expect(cells).toEqual(data);
         expect(preview.tiles.hasLayer(imported)).toBe(false);
         const copy = loadSceneData(main.app.world, {
             version: '1.0', name: 'saved preview', entities: [{ id: 1, name: 'Ground', parent: null, children: [],

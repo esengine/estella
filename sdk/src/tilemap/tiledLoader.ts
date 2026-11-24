@@ -6,9 +6,6 @@ import type { Entity } from '../types';
 import { TilemapLayer } from './components';
 import { Transform, Marker, RuntimeOnly, type TilemapLayerData } from '../ecs/component';
 
-// Matches TilemapSystem::CHUNK_SIZE on the C++ side.
-const TILEMAP_CHUNK_SIZE = 16;
-
 function uploadTiledLayerTiles(toolkit: TilemapToolkit, entity: Entity, layer: TiledLayerData): void {
     if (layer.infinite) {
         for (const chunk of layer.chunks) {
@@ -18,22 +15,18 @@ function uploadTiledLayerTiles(toolkit: TilemapToolkit, entity: Entity, layer: T
     }
     const { width, height, tiles } = layer;
     if (width <= 0 || height <= 0 || tiles.length === 0) return;
-    const chunksX = Math.ceil(width / TILEMAP_CHUNK_SIZE);
-    const chunksY = Math.ceil(height / TILEMAP_CHUNK_SIZE);
-    const buf = new Uint16Array(TILEMAP_CHUNK_SIZE * TILEMAP_CHUNK_SIZE);
-    for (let cy = 0; cy < chunksY; cy++) {
-        for (let cx = 0; cx < chunksX; cx++) {
-            buf.fill(0);
-            const regionW = Math.min(TILEMAP_CHUNK_SIZE, width - cx * TILEMAP_CHUNK_SIZE);
-            const regionH = Math.min(TILEMAP_CHUNK_SIZE, height - cy * TILEMAP_CHUNK_SIZE);
-            for (let ly = 0; ly < regionH; ly++) {
-                const gy = cy * TILEMAP_CHUNK_SIZE + ly;
-                for (let lx = 0; lx < regionW; lx++) {
-                    const gx = cx * TILEMAP_CHUNK_SIZE + lx;
-                    buf[ly * TILEMAP_CHUNK_SIZE + lx] = tiles[gy * width + gx];
-                }
+    const scratch = new Uint16Array(CHUNK_SIZE * CHUNK_SIZE);
+    for (let y = 0; y < height; y += CHUNK_SIZE) {
+        const rows = Math.min(CHUNK_SIZE, height - y);
+        for (let x = 0; x < width; x += CHUNK_SIZE) {
+            const columns = Math.min(CHUNK_SIZE, width - x);
+            const chunk = scratch.subarray(0, rows * columns);
+            chunk.fill(0);
+            for (let row = 0; row < rows; row++) {
+                const start = (y + row) * width + x;
+                chunk.set(tiles.subarray(start, start + columns), row * columns);
             }
-            toolkit.setChunkTiles(entity, cx, cy, buf, regionW, regionH);
+            toolkit.setChunkTiles(entity, x / CHUNK_SIZE, y / CHUNK_SIZE, chunk, columns, rows);
         }
     }
 }
