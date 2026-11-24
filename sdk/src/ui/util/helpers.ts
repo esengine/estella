@@ -7,7 +7,7 @@ import type { World } from '../../ecs/world';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
 import { UINode, UIPointerEvents } from '../core/ui-node';
 import type { CppRegistry } from '../../wasm';
-import type { EngineApi } from '../../ecs/bridge/engineApi';
+import { worldEngineApi, type EngineApi } from '../../ecs/bridge/engineApi';
 import { WasmBridge } from '../../wasm/WasmBridge';
 
 /** The helpers' view of the engine, guarded: after a wasm abort a call throws
@@ -17,19 +17,27 @@ class UIHelpersBridge extends WasmBridge<NonNullable<EngineApi>> {
     protected readonly label = 'uiHelpers';
 }
 
-const bridge = new UIHelpersBridge();
+const guardedEngines = new WeakMap<EngineApi, EngineApi>();
+
+function guardedEngine(engine: EngineApi | null): EngineApi | null {
+    if (!engine) return null;
+    let guarded = guardedEngines.get(engine);
+    if (!guarded) {
+        const bridge = new UIHelpersBridge();
+        bridge.connect(engine);
+        guarded = bridge.module;
+        guardedEngines.set(engine, guarded);
+    }
+    return guarded;
+}
+
 let engine_: EngineApi | null = null;
 let nativeRegistry_: CppRegistry | null = null;
 
 /** Bind the helpers to this app's engine core (the wasm module on the web, the
  *  native host's bindings on a device) — see ecs/engineApi.ts. */
 export function initUIHelpers(engine: EngineApi | null, registry: CppRegistry): void {
-    if (engine) {
-        bridge.connect(engine);
-        engine_ = bridge.module;
-    } else {
-        engine_ = null;
-    }
+    engine_ = guardedEngine(engine);
     nativeRegistry_ = registry;
 }
 
@@ -68,19 +76,19 @@ export function getEntityDepth(world: World, entity: Entity): number {
 }
 
 /** Resolved px width of a UINode (its Yoga-computed size). 0 if unresolved. */
-export function getUINodeWidth(entity: Entity): number {
-    if (engine_ && nativeRegistry_ && engine_.getUINodeComputedWidth) {
-        return engine_.getUINodeComputedWidth(nativeRegistry_, entity);
-    }
-    return 0;
+export function getUINodeWidth(entity: Entity, world?: World): number {
+    return computedSize('getUINodeComputedWidth', entity, world);
 }
 
 /** Resolved px height of a UINode. 0 if unresolved. */
-export function getUINodeHeight(entity: Entity): number {
-    if (engine_ && nativeRegistry_ && engine_.getUINodeComputedHeight) {
-        return engine_.getUINodeComputedHeight(nativeRegistry_, entity);
-    }
-    return 0;
+export function getUINodeHeight(entity: Entity, world?: World): number {
+    return computedSize('getUINodeComputedHeight', entity, world);
+}
+
+function computedSize(read: 'getUINodeComputedWidth' | 'getUINodeComputedHeight', entity: Entity, world?: World): number {
+    const registry = world ? world.getCppRegistry() : nativeRegistry_;
+    const engine = world ? guardedEngine(worldEngineApi(world)) : engine_;
+    return registry ? engine?.[read]?.(registry, entity) ?? 0 : 0;
 }
 
 

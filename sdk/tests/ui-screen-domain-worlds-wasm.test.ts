@@ -5,6 +5,9 @@ import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
+import { px } from '../src/ui/core/dimension';
+import { Text } from '../src/ui/core/text';
+import { textFrame } from '../src/ui/text/plugin';
 import { Interactable } from '../src/ui/input/interactable';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -31,6 +34,22 @@ describe.skipIf(!HAS_WASM)('screen domain ownership on real WASM', () => {
         if (screen) app.world.insert(entity, Canvas);
         return { app, registry, entity };
     };
+    it('lays glyphs in the owning label’s resolved box after both Canvases have run', () => {
+        const label = (w: number, h: number) => {
+            const { app, registry, entity: canvas } = make(true);
+            const world = app.world, entity = world.spawn();
+            world.insert(entity, Transform);
+            world.insert(entity, UINode, { width: px(w), height: px(h) });
+            world.insert(entity, Text, { content: 'Label' });
+            world.setParent(entity, canvas);
+            engine.uiLayout_update(registry, -200, -100, 200, 100, true);
+            return { entity, measure: () => textFrame(world, entity, world.get(entity, Text)) };
+        };
+        const hud = label(120, 32), preview = label(75, 18);
+        expect(hud.entity).toBe(preview.entity);
+        expect(hud.measure()).toMatchObject({ w: 120, h: 32, ui: true });
+        expect(preview.measure()).toMatchObject({ w: 75, h: 18, ui: true });
+    });
     it('does not borrow a screen-domain entry from another registry with the same entity ID', () => {
         const first = make(true);
         engine.uiLayout_update(first.registry, -50, -50, 50, 50, true);

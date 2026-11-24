@@ -142,7 +142,7 @@ export interface TextFrame {
  * Pure over what it is given, apart from reading the node's computed size.
  */
 export function textFrame(world: World, entity: Entity, t: TextData): TextFrame {
-    if (world.has(entity, UINode)) return { w: getUINodeWidth(entity), h: getUINodeHeight(entity), px: 0.5, py: 0.5, ui: true };
+    if (world.has(entity, UINode)) return { w: getUINodeWidth(entity, world), h: getUINodeHeight(entity, world), px: 0.5, py: 0.5, ui: true };
     return { w: t.boxWidth || 0, h: t.boxHeight || 0, px: t.boxPivot?.x ?? 0.5, py: t.boxPivot?.y ?? 0.5, ui: false };
 }
 
@@ -234,6 +234,8 @@ export class TextPlugin implements Plugin {
         matrix: Float32Array;
         matrixHeap: Float32Array | null;
         retained: Map<number, RetainedLabel>;
+        resetEpoch: number | null;
+        releaseDisconnect: () => void;
         preloads: PreloadRun[];
         screenInputs: ScreenTextInputs | null;
         /** The engine draws the retained labels in its own collects; this plugin only lays them out (TextLayoutSystem). */
@@ -253,6 +255,8 @@ export class TextPlugin implements Plugin {
                 screen: { bitmap: null, sdf: null, large: null },
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
+                resetEpoch: null,
+                releaseDisconnect: app.world.onCoreDisconnect(() => this.cleanup(app)),
                 preloads: [],
                 screenInputs: null,
                 collected: false,
@@ -268,13 +272,19 @@ export class TextPlugin implements Plugin {
         const state = this.states_.get(app);
         if (!state) return;
         this.states_.delete(app);
+        state.releaseDisconnect();
         for (const run of state.preloads) run.job.finish();
         const errors: unknown[] = [];
-        // The engine keeps these by entity number and may outlive this app: a replay in the same realm numbers its entities afresh,
-        // and a label left behind would draw on whichever one has its number now, from an atlas released below.
         const api = engineApi(app);
-        for (const entity of state.retained.keys()) {
-            try { api?.renderer_retainedTextClear?.(entity); } catch (error) { errors.push(error); }
+        const registry = app.world.getCppRegistry();
+        if (registry) {
+            // A borrowed registry can outlive the plugin and its atlas pages.
+            for (const entity of state.retained.keys()) {
+                try { api?.renderer_retainedTextClearInWorld?.(registry, entity); } catch (error) { errors.push(error); }
+            }
+            if (state.collected) {
+                try { api?.renderer_setRetainedTextCollectedInWorld?.(registry, false); } catch (error) { errors.push(error); }
+            }
         }
         for (const renderer of [state.world.bitmap, state.world.sdf, state.world.large, state.screen.bitmap, state.screen.sdf, state.screen.large]) {
             try { renderer?.dispose(); } catch (error) { errors.push(error); }
@@ -338,10 +348,11 @@ export class TextPlugin implements Plugin {
         // cannot (an older native host) keeps the two callbacks below, which lay out and submit each domain as it is drawn.
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
             const api = engineApi(app);
-            if (!this.canRetain(api) || !api!.renderer_setRetainedTextCollected) return;
+            const registry = world.getCppRegistry();
+            if (!registry || !this.canRetain(api) || !api!.renderer_setRetainedTextCollectedInWorld) return;
             const state = this.stateFor(app);
             if (!state.collected) {
-                api!.renderer_setRetainedTextCollected(true);
+                api!.renderer_setRetainedTextCollectedInWorld(registry, true);
                 state.collected = true;
             }
             app.measureFrameScope('render.textLayout', () => this.layoutAll(app, api!));
@@ -349,11 +360,15 @@ export class TextPlugin implements Plugin {
 
         // Two passes, because there are two lists: the world's glyphs go into the
         // camera being collected, the screen's into the frame's overlay.
-        pipeline.addPreFlushCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, false, projection)));
-        pipeline.addScreenOverlayCallback(
-            (_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, true, projection)),
-            () => this.screenStill(app),
+        const draw = (registry: { _cpp: CppRegistry }, screen: boolean, projection?: Float32Array) => {
+            if (registry._cpp === world.getCppRegistry()) app.measureFrameScope('render.text', () => this.drawDomain(app, screen, projection));
+        };
+        const removeWorld = pipeline.addPreFlushCallback((registry, projection) => draw(registry, false, projection));
+        const removeScreen = pipeline.addScreenOverlayCallback(
+            (registry, projection) => draw(registry, true, projection),
+            registry => registry._cpp !== world.getCppRegistry() || this.screenStill(app),
         );
+        app.signal.addEventListener('abort', () => { removeWorld(); removeScreen(); }, { once: true });
     }
 
     /**
@@ -421,11 +436,10 @@ export class TextPlugin implements Plugin {
     }
 
     /**
-     * Whether the engine can keep a label's glyph quads and submit them itself. A core without the entry points (an older native host) takes the
-     * path that hands every label over every frame.
+     * Older cores with one process-wide glyph store use the app's cached batches in the draw callbacks.
      */
     private canRetain(api: EngineApi | null): boolean {
-        return !!api && !!api.renderer_retainedTextBegin && !!api.renderer_retainedTextBatch && !!api.renderer_retainedTextClear
+        return !!api && !!api.renderer_retainedTextBeginInWorld && !!api.renderer_retainedTextBatchInWorld && !!api.renderer_retainedTextClearInWorld
             && !!api.renderer_retainedTextStale && !!api.renderer_retainedTextSubmit && !!api.ui_isScreenDomain
             && !!api.HEAPU8 && !!api._malloc && !!api._free;
     }
@@ -474,7 +488,7 @@ export class TextPlugin implements Plugin {
         }
         for (const [entity, label] of retained) {
             if (label.screen !== screen || seen.has(entity)) continue;
-            api.renderer_retainedTextClear!(entity);
+            api.renderer_retainedTextClearInWorld!(registry, entity);
             label.renderer.forget(entity);
             retained.delete(entity);
         }
@@ -544,7 +558,7 @@ export class TextPlugin implements Plugin {
         }
         for (const [entity, label] of retained) {
             if (seen.has(entity)) continue;
-            api.renderer_retainedTextClear!(entity);
+            api.renderer_retainedTextClearInWorld!(registry, entity);
             label.renderer.forget(entity);
             retained.delete(entity);
         }
@@ -556,6 +570,15 @@ export class TextPlugin implements Plugin {
     private rebuildStale(app: App, api: EngineApi, registry: CppRegistry): number {
         const appState = this.stateFor(app);
         const world = app.world;
+        const epoch = api.registry_entityChangeResetEpoch?.(registry) ?? 0;
+        if (epoch !== appState.resetEpoch || epoch < 0) {
+            // A bulk clear can reuse the same entity number and text style. Its native geometry is gone.
+            for (const [entity, label] of appState.retained) label.renderer.forget(entity);
+            appState.retained.clear();
+            appState.laidOut = '';
+            appState.screenInputs = null;
+            appState.resetEpoch = epoch;
+        }
         const CAPACITY = 256;
         let handled = 0;
         for (let round = 0; round < 8; round++) {
@@ -571,7 +594,7 @@ export class TextPlugin implements Plugin {
                 const alive = world.valid(entity as Entity) && world.has(entity as Entity, Text);
                 const t = alive ? world.get(entity as Entity, Text) as TextData : null;
                 if (!t || !t.content || t.enabled === false) {
-                    api.renderer_retainedTextClear!(entity);
+                    api.renderer_retainedTextClearInWorld!(registry, entity);
                     label?.renderer.forget(entity);
                     appState.retained.delete(entity);
                     continue;
@@ -610,7 +633,7 @@ export class TextPlugin implements Plugin {
             // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
             // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
-            chosenByScale(t, family, view), kind === 'sdf',
+            chosenByScale(t, family, view), kind === 'sdf', world.getCppRegistry()!,
         );
         appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer, kind, perspective: view.perspective });
         // A box that grows to its text: the rectangle the entity occupies takes the height the lines laid out to. The sprite and text follow the

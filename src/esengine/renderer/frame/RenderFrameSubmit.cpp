@@ -49,12 +49,14 @@ void RenderFrame::submitTileQuad(
 }
 
 void RenderFrame::submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection, u32 onlyRoot) {
+    const auto store = retained_text_.forRender(registry);
+    if (!store || !store->size()) return;
     // Scratch that outlives the call: a frame of labels would otherwise allocate them each time.
     static RetainedTextClip clip;
     static std::vector<f32> faded;
     double planes[36];
     const ecs::GroupOpacityLookup groupOpacity(registry);
-    for (auto& [raw, text] : retained_text_.entries()) {
+    for (const auto& [raw, text] : store->entries()) {
         if (text.screen != screen) continue;
         if (onlyRoot != 0 && screenRootAt(raw) != onlyRoot) continue;
         const Entity entity = Entity::fromRaw(raw);

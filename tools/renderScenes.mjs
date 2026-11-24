@@ -915,10 +915,17 @@ export const SCENES = [
   // against the wrong edge moves one onto the black behind it. The probes avoid
   // the labels — what this proves is where a box lands, not how a glyph looks.
   { id: "ui-anchor-layout", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-layout.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-layout.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.08,\"y\":0.08,\"rgb\":[41,82,143],\"tol\":25},{\"x\":0.78,\"y\":0.08,\"rgb\":[143,41,82],\"tol\":25},{\"x\":0.5,\"y\":0.92,\"rgb\":[41,122,62],\"tol\":25},{\"x\":0.36,\"y\":0.78,\"rgb\":[102,41,122],\"tol\":25}]" } },
-  // A Text sized by its UINode box: the box is what is checked, across its width
-  // and just outside it, so a box that collapsed or grew is caught without
-  // asking a glyph to land on a given pixel.
-  { id: "ui-text-box", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ui-text-uinode.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-uinode.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.36,\"y\":0.36,\"rgb\":[46,51,71],\"tol\":20},{\"x\":0.64,\"y\":0.36,\"rgb\":[46,51,71],\"tol\":20},{\"x\":0.5,\"y\":0.7,\"rgb\":[0,0,0],\"tol\":15}]" } },
+  // The two inside samples can land on white text or its antialiased edge with the host's fallback font.
+  // Accept panel-to-white there, check the panel colour by area, and keep the outside sample black.
+  { id: "ui-text-box", tier: "pr", webgpu: true, env: {
+    ESTELLA_VERIFY_SCENE: "/scenes/ui-text-uinode.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-text-uinode.textures.json",
+    ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4",
+    ESTELLA_VERIFY_EXPECT: JSON.stringify([
+      { x: 0.36, y: 0.36, rgb: [151, 156, 176], tol: 105 }, { x: 0.64, y: 0.36, rgb: [151, 156, 176], tol: 105 },
+      { x: 0.5, y: 0.7, rgb: [0, 0, 0], tol: 15 },
+    ]),
+    ESTELLA_VERIFY_COUNT: JSON.stringify([{ rgb: [46, 51, 71], tol: 4, atLeast: 3000 }]),
+  } },
   // Red at the centre exists only if a camera rendered into a texture: the fill
   // sits on a layer the screen camera culls, and the screen sprite wears that
   // target. webgl2 only — on WebGPU the frame readback returns nothing when one

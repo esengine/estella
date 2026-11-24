@@ -3521,7 +3521,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
         plugin->collect(collectCtx);
     }
     // After every plugin, so a label draws over what shares its layer: the world's labels, culled in world space (the view is rebased).
-    if (retained_text_collected_) {
+    if (retainedTextCollected(registry)) {
         ES_PROFILE_SCOPE("render.collect.text");
         const glm::mat4 world = view_projection_ * glm::translate(glm::mat4(1.0f), -glm::vec3(renderOrigin()));
         submitRetainedText(registry, false, glm::value_ptr(world));

@@ -11,7 +11,7 @@
  * engine page store + submitTextBatch.
  */
 import { createTextCullGeometry, textClipPlanes, clipTextGeometry, type TextCullGeometry } from './text-culling';
-import type { ESEngineModule } from '../../wasm';
+import type { CppRegistry, ESEngineModule } from '../../wasm';
 import { platformHasGlyphRasterizer } from '../../platform';
 import { GlyphAtlas, type GlyphShadow } from './glyph-atlas';
 import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyph-rasterizer';
@@ -605,13 +605,17 @@ export class SdfTextRenderer {
         api: EngineApi, p: DrawTextParams, entity: number,
         screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number, autoKind: boolean,
         scaleChoseSdf: boolean = this.sdf,
+        registry?: CppRegistry,
     ): number {
         if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
+        const begin = registry ? api.renderer_retainedTextBeginInWorld?.bind(api, registry) : api.renderer_retainedTextBegin?.bind(api);
+        const append = registry ? api.renderer_retainedTextBatchInWorld?.bind(api, registry) : api.renderer_retainedTextBatch?.bind(api);
+        if (!begin || !append) throw new Error('This engine cannot retain glyphs for the requested text owner.');
         const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number; mode?: TextGlyphMode }> = [];
         const blockHeight = drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
             batches.push({ vertices, indices, pageId, ...(mode !== undefined ? { mode } : {}) });
         }, { ...p, opacity: 1 });
-        api.renderer_retainedTextBegin!(entity, scaleChoseSdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
+        begin(entity, scaleChoseSdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
         for (const b of batches) {
             const vertexCount = (b.vertices.length / TEXT_VERTEX_FLOATS) | 0;
             if (vertexCount <= 0 || b.indices.length <= 0) continue;
@@ -622,7 +626,7 @@ export class SdfTextRenderer {
                 const iPtr = alloc(iBytes.byteLength);
                 api.HEAPU8!.set(vBytes, vPtr);
                 api.HEAPU8!.set(iBytes, iPtr);
-                api.renderer_retainedTextBatch!(entity, vPtr, vertexCount, iPtr, b.indices.length, b.pageId, b.mode ?? this.defaultMode);
+                append(entity, vPtr, vertexCount, iPtr, b.indices.length, b.pageId, b.mode ?? this.defaultMode);
             });
         }
         this.retainedPages_.set(entity, batches.map(b => b.pageId));

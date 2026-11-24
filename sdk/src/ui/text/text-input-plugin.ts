@@ -121,7 +121,7 @@ export class TextInputPlugin implements Plugin {
             world: boolean;
         }
         function boxOf(entity: Entity): FieldBox | null {
-            if (world.has(entity, UINode)) return { w: getUINodeWidth(entity), h: getUINodeHeight(entity), px: 0.5, py: 0.5, world: false };
+            if (world.has(entity, UINode)) return { w: getUINodeWidth(entity, world), h: getUINodeHeight(entity, world), px: 0.5, py: 0.5, world: false };
             const rect = world.tryGet(entity, ContentRect);
             return rect ? { w: rect.size.x, h: rect.size.y, px: rect.pivot.x, py: rect.pivot.y, world: true } : null;
         }

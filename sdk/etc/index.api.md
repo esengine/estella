@@ -10077,8 +10077,8 @@ width: number
 
 ## RenderPipeline — class @experimental
 ```
-addPreFlushCallback: (cb: (registry: { _cpp: CppRegistry; }, viewProjection?: Float32Array) => void) => void
-addScreenOverlayCallback: (cb: (registry: { _cpp: CppRegistry; }, viewProjection?: Float32Array) => void, still?: () => boolean) => void
+addPreFlushCallback: (cb: PassCallback) => () => void
+addScreenOverlayCallback: (cb: PassCallback, still?: PassStill) => () => void
 beginFrame: (elapsedSec?: number) => void
 beginScreenCapture: () => void
 demand: RenderDemand

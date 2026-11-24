@@ -83,6 +83,7 @@ void renderer_submitScreenOverlay(ecs::Registry& registry);
 bool renderer_keepScreenOverlay(ecs::Registry& registry, bool hostStill);
 /// The frame draws the retained labels in its own collects from now on, and renderer_retainedTextSubmit draws nothing.
 void renderer_setRetainedTextCollected(bool collected);
+void renderer_setRetainedTextCollectedInWorld(ecs::Registry& registry, bool collected);
 void renderer_setScreenOverlayEffect(u32 material);
 void renderer_endScreenOverlay(u32 targetHandle);
 /// Draws what Draw collected after the screen overlay over the whole frame, its UI
@@ -130,14 +131,22 @@ void renderer_submitTextBatch(
 void renderer_retainedTextBegin(
     u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
 );
+void renderer_retainedTextBeginInWorld(
+    ecs::Registry& registry, u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
+);
 /// One batch of glyph quads of the entity begun last: TEXT_VERTEX_FLOATS floats a vertex, whole quads, drawn from atlas page @p pageId and
 /// read as @p glyphMode says (TextGlyphMode; 0 is a plain RGBA page, 1 a distance field).
 void renderer_retainedTextBatch(
     u32 entity, uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
 );
+void renderer_retainedTextBatchInWorld(
+    ecs::Registry& registry, u32 entity, uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
+);
 /// Forgets an entity's retained text.
 void renderer_retainedTextClear(u32 entity);
+void renderer_retainedTextClearInWorld(ecs::Registry& registry, u32 entity);
 /**
  * @brief The entities whose retained text no longer matches the world, written to @p outPtr as u32s.
  * @details Stale means the entity's domain or box is not the one it was laid out for, or its world scale now picks the other glyph pipeline. An entity that is gone is dropped here and not reported.

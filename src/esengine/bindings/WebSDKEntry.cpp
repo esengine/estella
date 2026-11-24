@@ -625,8 +625,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_entityVisibleToCamera", ES_RENDER_BIND(renderer_entityVisibleToCamera));
     emscripten::function("renderer_submitTextBatch", ES_RENDER_BIND(renderer_submitTextBatch));
     emscripten::function("renderer_retainedTextBegin", ES_RENDER_BIND(renderer_retainedTextBegin));
+    emscripten::function("renderer_retainedTextBeginInWorld", ES_RENDER_BIND(renderer_retainedTextBeginInWorld));
     emscripten::function("renderer_retainedTextBatch", ES_RENDER_BIND(renderer_retainedTextBatch));
+    emscripten::function("renderer_retainedTextBatchInWorld", ES_RENDER_BIND(renderer_retainedTextBatchInWorld));
     emscripten::function("renderer_retainedTextClear", ES_RENDER_BIND(renderer_retainedTextClear));
+    emscripten::function("renderer_retainedTextClearInWorld", ES_RENDER_BIND(renderer_retainedTextClearInWorld));
     emscripten::function("renderer_retainedTextStale", ES_RENDER_BIND(renderer_retainedTextStale));
     emscripten::function("renderer_retainedTextSubmit", ES_RENDER_BIND(renderer_retainedTextSubmit));
     emscripten::function("meshRenderer_setGeometry", ES_RENDER_BIND(meshRenderer_setGeometry));
@@ -830,6 +833,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitScreenOverlay", ES_RENDER_BIND(renderer_submitScreenOverlay));
     emscripten::function("renderer_keepScreenOverlay", ES_RENDER_BIND(renderer_keepScreenOverlay));
     emscripten::function("renderer_setRetainedTextCollected", ES_RENDER_BIND(renderer_setRetainedTextCollected));
+    emscripten::function("renderer_setRetainedTextCollectedInWorld", ES_RENDER_BIND(renderer_setRetainedTextCollectedInWorld));
     emscripten::function("renderer_setScreenOverlayEffect", ES_RENDER_BIND(renderer_setScreenOverlayEffect));
     emscripten::function("renderer_endScreenOverlay", ES_RENDER_BIND(renderer_endScreenOverlay));
     emscripten::function("renderer_drawOverScreen", ES_RENDER_BIND(renderer_drawOverScreen));

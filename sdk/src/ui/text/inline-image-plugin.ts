@@ -111,8 +111,8 @@ export class InlineImagePlugin implements Plugin {
                 // lays out here, so it costs one substring scan and nothing more.
                 if (!t.richText || t.enabled === false || !t.content || !t.content.includes('<img')) continue;
 
-                const w = getUINodeWidth(e);
-                const h = getUINodeHeight(e);
+                const w = getUINodeWidth(e, world);
+                const h = getUINodeHeight(e, world);
                 if (w <= 0 || h <= 0) continue; // inline images need a laid-out box
 
                 const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);

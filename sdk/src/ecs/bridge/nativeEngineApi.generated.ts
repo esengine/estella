@@ -264,8 +264,11 @@ export interface NativeEngineApi {
     renderer_requestProbeCapture?(x: number, y: number, z: number, face: number): void;
     renderer_resize?(width: number, height: number): void;
     renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number, glyphMode: number): void;
+    renderer_retainedTextBatchInWorld?(registry: unknown, entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number, glyphMode: number): void;
     renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number): void;
+    renderer_retainedTextBeginInWorld?(registry: unknown, entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number): void;
     renderer_retainedTextClear?(entity: number): void;
+    renderer_retainedTextClearInWorld?(registry: unknown, entity: number): void;
     renderer_retainedTextStale?(registry: unknown, outPtr: number, capacity: number): number;
     renderer_retainedTextSubmit?(registry: unknown, screen: number, projectionPtr: number): void;
     renderer_setAsyncComputeEnabled?(enabled: boolean): void;
@@ -295,6 +298,7 @@ export interface NativeEngineApi {
     renderer_setQualityConstants?(x: number, y: number, z: number, w: number): void;
     renderer_setQualityValue?(name: string, value: number): boolean;
     renderer_setRetainedTextCollected?(collected: boolean): void;
+    renderer_setRetainedTextCollectedInWorld?(registry: unknown, collected: boolean): void;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
@@ -720,8 +724,11 @@ export function createNativeEngineApi(
     bind('renderer_requestProbeCapture', 'es_renderer_requestProbeCapture', false);
     bind('renderer_resize', 'es_renderer_resize', false);
     bind('renderer_retainedTextBatch', 'es_renderer_retainedTextBatch', false);
+    bind('renderer_retainedTextBatchInWorld', 'es_renderer_retainedTextBatchInWorld', true);
     bind('renderer_retainedTextBegin', 'es_renderer_retainedTextBegin', false);
+    bind('renderer_retainedTextBeginInWorld', 'es_renderer_retainedTextBeginInWorld', true);
     bind('renderer_retainedTextClear', 'es_renderer_retainedTextClear', false);
+    bind('renderer_retainedTextClearInWorld', 'es_renderer_retainedTextClearInWorld', true);
     bind('renderer_retainedTextStale', 'es_renderer_retainedTextStale', true);
     bind('renderer_retainedTextSubmit', 'es_renderer_retainedTextSubmit', true);
     bind('renderer_setAsyncComputeEnabled', 'es_renderer_setAsyncComputeEnabled', false);
@@ -751,6 +758,7 @@ export function createNativeEngineApi(
     bind('renderer_setQualityConstants', 'es_renderer_setQualityConstants', false);
     bind('renderer_setQualityValue', 'es_renderer_setQualityValue', false);
     bind('renderer_setRetainedTextCollected', 'es_renderer_setRetainedTextCollected', false);
+    bind('renderer_setRetainedTextCollectedInWorld', 'es_renderer_setRetainedTextCollectedInWorld', true);
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);

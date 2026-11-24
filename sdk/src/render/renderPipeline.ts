@@ -17,6 +17,27 @@ import { planPresent, RenderResolution } from '../camera/presentPlan';
 import type { QualityController } from './quality';
 import { RenderDemand } from './renderDemand';
 
+type PassCallback = (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void;
+type PassStill = (registry: { _cpp: CppRegistry }) => boolean;
+
+class PassCallbacks {
+    entries: ReadonlyArray<{ draw: PassCallback; still?: PassStill; active: boolean }> = [];
+    revision = 0;
+
+    add(draw: PassCallback, still?: PassStill): () => void {
+        const entry = { draw, still, active: true };
+        // The pass in progress keeps its list. Removal takes effect immediately, additions on the next pass.
+        this.entries = [...this.entries, entry];
+        ++this.revision;
+        return () => {
+            if (!entry.active) return;
+            entry.active = false;
+            this.entries = this.entries.filter(candidate => candidate !== entry);
+            ++this.revision;
+        };
+    }
+}
+
 export interface Viewport {
     x: number;
     y: number;
@@ -70,10 +91,9 @@ export class RenderPipeline {
     private lastWidth_ = 0;
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
-    private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void)[] = [];
-    private screenOverlayCallbacks_: ((registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void)[] = [];
-    /** One per overlay callback: whether what it adds is what it added last pass. Null for one that cannot say. */
-    private screenOverlayStill_: ((() => boolean) | null)[] = [];
+    private readonly preFlushCallbacks_ = new PassCallbacks();
+    private readonly screenOverlayCallbacks_ = new PassCallbacks();
+    private renderedOverlayRevision_: number | null = null;
     private postProcess_: PostProcessAPI | null = null;
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
@@ -111,8 +131,8 @@ export class RenderPipeline {
     }
 
     /** The optional projection is the current pass; legacy manual hosts may omit it. */
-    addPreFlushCallback(cb: (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void): void {
-        this.preFlushCallbacks_.push(cb);
+    addPreFlushCallback(cb: PassCallback): () => void {
+        return this.preFlushCallbacks_.add(cb);
     }
 
     /**
@@ -122,17 +142,10 @@ export class RenderPipeline {
      * glyph in each list. Runs between the overlay's collect and its pass.
      */
     addScreenOverlayCallback(
-        cb: (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void,
-        still?: () => boolean,
-    ): void {
-        this.screenOverlayCallbacks_.push(cb);
-        this.screenOverlayStill_.push(still ?? null);
-    }
-
-    /** Whether every overlay callback says it would add what it added last pass (the engine decides the rest). */
-    private screenOverlayHostStill(): boolean {
-        for (const still of this.screenOverlayStill_) if (!still || !still()) return false;
-        return true;
+        cb: PassCallback,
+        still?: PassStill,
+    ): () => void {
+        return this.screenOverlayCallbacks_.add(cb, still);
     }
 
     /**
@@ -143,7 +156,7 @@ export class RenderPipeline {
      * so text lands in the same frame either way.
      */
     runPreFlushCallbacks(registry: { _cpp: CppRegistry }, viewProjection?: Float32Array): void {
-        for (const cb of this.preFlushCallbacks_) cb(registry, viewProjection);
+        for (const entry of this.preFlushCallbacks_.entries) if (entry.active) entry.draw(registry, viewProjection);
     }
 
     beginFrame(elapsedSec = 0): void {
@@ -201,10 +214,14 @@ export class RenderPipeline {
         Renderer.setCullingMask(layers);
         if (effect !== 0) Renderer.setScreenOverlayEffect(effect);
         // A pass nothing it draws has changed since is the one the engine holds: it draws that, and nothing is submitted.
-        if (!Renderer.keepScreenOverlay(registry, this.screenOverlayHostStill())) {
+        const { entries, revision } = this.screenOverlayCallbacks_;
+        const sameCallbacks = this.renderedOverlayRevision_ === null || this.renderedOverlayRevision_ === revision;
+        const hostStill = sameCallbacks && entries.every(entry => !entry.active || entry.still?.(registry));
+        if (!Renderer.keepScreenOverlay(registry, hostStill)) {
             Renderer.submitScreenOverlay(registry);
-            for (const cb of this.screenOverlayCallbacks_) cb(registry, overlay.projection);
+            for (const entry of entries) if (entry.active) entry.draw(registry, overlay.projection);
         }
+        this.renderedOverlayRevision_ = revision;
         Renderer.endScreenOverlay(target);
     }
 

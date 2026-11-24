@@ -33,6 +33,7 @@
 #include "../draw/ClipState.hpp"
 #include "../draw/SpriteMaskRange.hpp"
 #include "../../ecs/Registry.hpp"
+#include "../../ecs/RegistryStoreSelection.hpp"
 #include "../../resource/ResourceManager.hpp"
 
 #include <glm/glm.hpp>
@@ -42,6 +43,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -267,6 +269,11 @@ public:
      *         than submitted by the host: a host turns it on when it stops calling renderer_retainedTextSubmit. */
     void setRetainedTextCollected(bool collected) { retained_text_collected_ = collected; }
     bool retainedTextCollected() const { return retained_text_collected_; }
+    void setRetainedTextCollected(ecs::Registry& registry, bool collected) { retained_text_.select(registry)->collected = collected; }
+    bool retainedTextCollected(const ecs::Registry& registry) const {
+        const auto store = retained_text_.find(registry);
+        return store ? store->collected.value_or(retained_text_collected_) : retained_text_collected_;
+    }
     /** @brief Every retained label laid out for one domain into the open list, culled against @p projection (world, not rebased). */
     void submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection, u32 onlyRoot = 0);
 
@@ -317,7 +324,8 @@ public:
     );
 
     /// The glyph quads of every label the text system laid out and handed over once, which the engine submits itself each frame.
-    RetainedTextStore& retainedText() { return retained_text_; }
+    RetainedTextStore& retainedText(ecs::Registry& registry) { return *retained_text_.select(registry); }
+    RetainedTextStore& retainedText() { return *retained_text_.legacy(); }
 
     /**
      * @brief One offscreen render's resources, correct only together.
@@ -1250,7 +1258,12 @@ private:
         u32 vboBytes = 0;
     };
     Shadow2DMask shadow_2d_masks_[2];
-    RetainedTextStore retained_text_;
+    struct TextStore : RetainedTextStore, ecs::RegistrySystem {
+        std::optional<bool> collected;
+        void onEntityDestroyed(Entity entity) override { clear(entity.id()); }
+        void onRegistryCleared() override { clearAll(); }
+    };
+    ecs::RegistryStoreSelection<TextStore> retained_text_;
     VertexLayoutHandle shadow_2d_layout_ = VertexLayoutHandle::Invalid;
     resource::ShaderHandle shadow_2d_shader_{};
     bool shadow_2d_shader_tried_ = false;

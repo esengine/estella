@@ -3,7 +3,7 @@
 #pragma once
 
 #include "TilemapSystem.hpp"
-#include "../ecs/RegistrySystems.hpp"
+#include "../ecs/RegistryStoreSelection.hpp"
 
 namespace esengine::tilemap {
 
@@ -11,23 +11,16 @@ namespace esengine::tilemap {
 class TilemapWorlds {
 public:
     Shared<TilemapSystem> select(ecs::Registry& registry) {
-        auto system = worlds_.forRegistry(registry, [this] {
-            return pending_ ? std::move(pending_) : makeShared<Store>();
-        });
-        last_ = system;
-        return system;
+        return worlds_.select(registry);
     }
 
     Shared<TilemapSystem> forRender(ecs::Registry& registry) {
-        if (auto system = worlds_.find(registry)) return system;
-        return pending_ ? select(registry) : nullptr;
+        return worlds_.forRender(registry);
     }
 
     // Older hosts can paint before creating the first registry or starting the renderer.
     Shared<TilemapSystem> legacy() {
-        if (auto system = last_.lock()) return system;
-        if (!pending_) pending_ = makeShared<Store>();
-        return pending_;
+        return worlds_.legacy();
     }
 
 private:
@@ -36,9 +29,7 @@ private:
         void onRegistryCleared() override { clearLayers(); }
     };
 
-    ecs::RegistrySystems<Store> worlds_;
-    Weak<TilemapSystem> last_;
-    Shared<Store> pending_;
+    ecs::RegistryStoreSelection<Store> worlds_;
 };
 
 }  // namespace esengine::tilemap

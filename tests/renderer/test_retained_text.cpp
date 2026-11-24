@@ -58,6 +58,15 @@ static void checkGlyphModes() {
 
 int main(int argc, char** argv) {
     checkGlyphModes();
+    {
+        RetainedTextStore store;
+        for (u32 i = 0; i < 8192; ++i) store.begin(i % 2, false, false, false, 0, 0, 0);
+        CHECK(!store.takeChanged([](u32) {}), "a long interval without an overlay requests a full rebuild");
+        store.clear(1);
+        std::vector<u32> changed;
+        CHECK(store.takeChanged([&](u32 id) { changed.push_back(id); }) && changed == std::vector<u32>{1},
+              "a reader resumes individual glyph invalidation after overflow");
+    }
     const std::string path = argc > 1 ? argv[1] : "tests/renderer/data/retained_text_cases.txt";
     std::ifstream file(path);
     if (!file) {

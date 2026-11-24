@@ -1916,6 +1916,50 @@ TEST_CASE("UI order and layout survive another world's pass and stay alive for t
     resources.shutdown();
 }
 
+TEST_CASE("retained glyph batches, overlay invalidation and collection mode belong to the label's registry") {
+    MockGfxDevice device;
+    RenderContext context(device);
+    resource::ResourceManager resources;
+    resources.init(device);
+    RenderFrame frame(device, context, resources);
+    frame.init(40, 40);
+    ecs::Registry scene, preview;
+    const auto label = scene.create(), other = preview.create();
+    REQUIRE(label == other);
+    // An older author can upload before the first collect supplies its registry.
+    frame.retainedText().begin(label.id(), false, false, false, 3, 0, 0);
+    frame.submitRetainedText(scene, false, nullptr);
+    auto& first = frame.retainedText(scene);
+    auto& second = frame.retainedText(preview);
+    REQUIRE(first.size() == 1);
+    REQUIRE(second.size() == 0);
+    frame.setRetainedTextCollected(scene, true);
+    CHECK(frame.retainedTextCollected(scene));
+    CHECK_FALSE(frame.retainedTextCollected(preview));
+    second.begin(other.id(), true, true, true, 8, 24, 12);
+    const std::vector<f32> quad(RETAINED_TEXT_QUAD_FLOATS, 0);
+    const u16 indices[] = {0, 1, 2, 2, 3, 0};
+    REQUIRE(first.add(label.id(), quad.data(), 4, indices, 6, 11));
+    REQUIRE(second.add(other.id(), quad.data(), 4, indices, 6, 22));
+    CHECK(first.entries().at(label.id()).batches.front().pageId == 11);
+    CHECK(second.entries().at(other.id()).batches.front().pageId == 22);
+    const auto revision = second.revision();
+    CHECK(second.takeChanged([](u32) {}));
+    scene.destroy(label);
+    CHECK(first.size() == 0);
+    CHECK(second.revision() == revision);
+    int changed = 0;
+    CHECK(second.takeChanged([&](u32) { ++changed; }));
+    CHECK(changed == 0);
+    scene.clear();
+    REQUIRE(scene.create() == label);
+    CHECK(frame.retainedText(scene).size() == 0);
+    CHECK(frame.retainedTextCollected(scene));
+    CHECK(second.entries().at(other.id()).boxWidth == 24);
+    frame.shutdown();
+    resources.shutdown();
+}
+
 TEST_CASE("pointer events: Receive takes the pointer back under a None ancestor, in and out of the layout tree") {
     for (bool inTree : {true, false}) {
         ecs::Registry registry;

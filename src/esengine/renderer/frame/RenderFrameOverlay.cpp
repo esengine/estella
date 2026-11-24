@@ -105,7 +105,8 @@ u64 RenderFrame::overlayInputs(ecs::Registry& registry, bool whole) const {
     // A segment answers for its own labels and its own share of the domain (keepSegments); the whole overlay, for all of them.
     if (!whole) return h;
     // The labels it draws from the store, when it draws them itself.
-    mix(retained_text_collected_ ? retained_text_.revision() : 0);
+    const auto text = retained_text_.find(registry);
+    mix(text && retainedTextCollected(registry) ? text->revision() : 0);
     // The domain itself, order-free: an entity that left it (or was destroyed in it) leaves nothing stamped behind.
     u64 domain = 0;
     if (screen_domain_) {
@@ -139,12 +140,13 @@ bool RenderFrame::keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
         overlay_valid_ = false;
     }
     overlay_registry_ = &registry;
-    const bool segmentable = hostStill && retained_text_collected_ && overlay_passes_ == 1 && overlay_effect_ == 0
+    const auto text = retained_text_.forRender(registry);
+    const bool segmentable = hostStill && retainedTextCollected(registry) && overlay_passes_ == 1 && overlay_effect_ == 0
         && screen_roots_ && screen_root_by_index_ && !screen_roots_->empty()
         && !(segments_refused_ && segments_refused_roots_ == screenRootsHash());
     if (segmentable) return keepSegments(registry);
     segments_trusted_ = false;
-    retained_text_.takeChanged([](u32) {});
+    if (text) text->takeChanged([](u32) {});
 
     u32 why = 0;
     const u64 key = overlayInputs(registry, true);
@@ -240,7 +242,7 @@ void RenderFrame::collectScreenOverlayInto(ecs::Registry& registry, u32 onlyRoot
     for (auto& plugin : plugins_) {
         if (plugin->drawsScreenUI()) plugin->collect(collectCtx);
     }
-    if (retained_text_collected_) submitRetainedText(registry, true, glm::value_ptr(overlay_projection_), onlyRoot);
+    if (retainedTextCollected(registry)) submitRetainedText(registry, true, glm::value_ptr(overlay_projection_), onlyRoot);
     stats_.culled += collectCtx.culled;
 }
 
@@ -575,7 +577,7 @@ bool RenderFrame::keepSegments(ecs::Registry& registry) {
             else mark(row.entity);
         }
     }
-    if (!retained_text_.takeChanged(mark)) every = true;
+    if (auto text = retained_text_.find(registry); text && !text->takeChanged(mark)) every = true;
     if (screen_domain_ && !screen_domain_->empty()) {
         registry.each<ecs::ParticleEmitter>([&](Entity e, ecs::ParticleEmitter&) { mark(e.id()); });
     }

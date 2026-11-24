@@ -50,8 +50,7 @@ class RetainedTextStore {
 public:
     /// Replaces any geometry the entity held, with none yet: batches follow through add().
     void begin(u32 entity, bool sdf, bool screen, bool hasBox, i32 layer, f32 boxWidth, f32 boxHeight, bool autoKind = false) {
-        ++revision_;
-        changed_.push_back(entity);
+        recordChange(entity);
         RetainedText& text = entries_[entity];
         text = RetainedText{};
         text.sdf = sdf;
@@ -68,8 +67,7 @@ public:
              TextGlyphMode mode = TextGlyphMode::Color) {
         const auto found = entries_.find(entity);
         if (found == entries_.end() || vertexCount <= 0 || indexCount <= 0 || vertexCount % 4 != 0 || indexCount != vertexCount / 4 * 6) return false;
-        ++revision_;
-        changed_.push_back(entity);
+        recordChange(entity);
         RetainedTextBatch& batch = found->second.batches.emplace_back();
         batch.vertices.assign(vertices, vertices + static_cast<usize>(vertexCount) * TEXT_VERTEX_FLOATS);
         batch.indices.assign(indices, indices + indexCount);
@@ -97,16 +95,15 @@ public:
 
     void clear(u32 entity) {
         if (!entries_.erase(entity)) return;
-        ++revision_;
-        changed_.push_back(entity);
+        recordChange(entity);
     }
     void clearAll() {
         entries_.clear();
+        changed_.clear();
         ++revision_;
         all_changed_ = true;
     }
-    /** @brief Hands @p visit every label laid out, given glyphs or let go since the last call, and forgets them; false when they
-     *         were all let go at once (clearAll), which names none. */
+    /** Names labels changed since the last read. A reset or an overflow asks the overlay to rebuild all its roots. */
     template<typename Visit>
     bool takeChanged(Visit&& visit) {
         const bool named = !all_changed_;
@@ -121,6 +118,19 @@ public:
     std::map<u32, RetainedText>& entries() { return entries_; }
 
 private:
+    void recordChange(u32 entity) {
+        ++revision_;
+        if (all_changed_ || (!changed_.empty() && changed_.back() == entity)) return;
+        // A world can keep rendering text for arbitrarily long without opening a screen overlay.
+        constexpr usize maxChanges = 4096;
+        if (changed_.size() == maxChanges) {
+            changed_.clear();
+            all_changed_ = true;
+        } else {
+            changed_.push_back(entity);
+        }
+    }
+
     std::map<u32, RetainedText> entries_;
     u64 revision_ = 0;
     std::vector<u32> changed_;

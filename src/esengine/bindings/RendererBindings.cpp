@@ -262,21 +262,46 @@ void renderer_retainedTextBegin(
     g_renderFrame->retainedText().begin(entity, sdf != 0, screen != 0, hasBox != 0, layer, boxWidth, boxHeight, autoKind != 0);
 }
 
-void renderer_retainedTextBatch(
-    u32 entity, uintptr_t verticesPtr, i32 vertexCount,
+void renderer_retainedTextBeginInWorld(
+    ecs::Registry& registry, u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
+) {
+    if (!g_initialized || !g_renderFrame || !registry.valid(Entity::fromRaw(entity))) return;
+    g_renderFrame->retainedText(registry).begin(entity, sdf != 0, screen != 0, hasBox != 0, layer, boxWidth, boxHeight, autoKind != 0);
+}
+
+static void addRetainedTextBatch(
+    RetainedTextStore& store, u32 entity, uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
 ) {
-    if (!g_initialized || !g_renderFrame) return;
     if (vertexCount < 0 || indexCount < 0) return;
     auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * TEXT_VERTEX_FLOATS, "renderer_retainedTextBatch.vertices");
     auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_retainedTextBatch.indices");
     if (!vertices || !indices) return;
-    g_renderFrame->retainedText().add(entity, vertices, vertexCount, indices, indexCount, pageId, textGlyphModeFromRaw(glyphMode));
+    store.add(entity, vertices, vertexCount, indices, indexCount, pageId, textGlyphModeFromRaw(glyphMode));
+}
+
+void renderer_retainedTextBatch(
+    u32 entity, uintptr_t verticesPtr, i32 vertexCount, uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
+) {
+    if (!g_initialized || !g_renderFrame) return;
+    addRetainedTextBatch(g_renderFrame->retainedText(), entity, verticesPtr, vertexCount, indicesPtr, indexCount, pageId, glyphMode);
+}
+
+void renderer_retainedTextBatchInWorld(
+    ecs::Registry& registry, u32 entity, uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
+) {
+    if (!g_initialized || !g_renderFrame || !registry.valid(Entity::fromRaw(entity))) return;
+    addRetainedTextBatch(g_renderFrame->retainedText(registry), entity, verticesPtr, vertexCount, indicesPtr, indexCount, pageId, glyphMode);
 }
 
 void renderer_retainedTextClear(u32 entity) {
     if (!g_initialized || !g_renderFrame) return;
     g_renderFrame->retainedText().clear(entity);
+}
+
+void renderer_retainedTextClearInWorld(ecs::Registry& registry, u32 entity) {
+    if (g_initialized && g_renderFrame) g_renderFrame->retainedText(registry).clear(entity);
 }
 
 i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 capacity) {
@@ -285,12 +310,14 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
     if (!out) return 0;
     const auto* ui = ctx().tryGet<ecs::UISystem>();
     const auto layout = ui ? ui->renderData(registry) : nullptr;
-    auto& entries = g_renderFrame->retainedText().entries();
+    auto& store = g_renderFrame->retainedText(registry);
+    auto& entries = store.entries();
     i32 written = 0;
     for (auto it = entries.begin(); it != entries.end();) {
         const Entity entity = Entity::fromRaw(it->first);
         if (!registry.valid(entity)) {
-            it = entries.erase(it);
+            ++it;
+            store.clear(entity.id());
             continue;
         }
         const RetainedText& text = it->second;
@@ -314,13 +341,17 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
 
 void renderer_retainedTextSubmit(ecs::Registry& registry, i32 screen, uintptr_t projectionPtr) {
     // A frame that draws the labels in its own collect has them already: submitting them again would draw them twice.
-    if (!g_initialized || !g_renderFrame || g_renderFrame->retainedTextCollected()) return;
+    if (!g_initialized || !g_renderFrame || g_renderFrame->retainedTextCollected(registry)) return;
     const f32* projection = projectionPtr ? boundarySpan<f32>(projectionPtr, 16, "renderer_retainedTextSubmit.projection") : nullptr;
     g_renderFrame->submitRetainedText(registry, screen != 0, projection);
 }
 
 void renderer_setRetainedTextCollected(bool collected) {
     if (g_renderFrame) g_renderFrame->setRetainedTextCollected(collected);
+}
+
+void renderer_setRetainedTextCollectedInWorld(ecs::Registry& registry, bool collected) {
+    if (g_renderFrame) g_renderFrame->setRetainedTextCollected(registry, collected);
 }
 
 // MeshRenderer geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8

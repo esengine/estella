@@ -270,6 +270,48 @@ describe('RenderPipeline', () => {
         expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
     });
 
+    it('asks about the registry being drawn and releases each registration independently', () => {
+        const screen = vi.fn(), world = vi.fn();
+        const other = { _cpp: {} as typeof registry._cpp };
+        const still = vi.fn(owner => owner === other);
+        const removeWorld = pipeline.addPreFlushCallback(world);
+        const removeScreen = pipeline.addScreenOverlayCallback(screen, still);
+        pipeline.addScreenOverlayCallback(screen, () => true);
+        const overlay = defaultScreenOverlay();
+        overlay.active = true; overlay.vpW = 80; overlay.vpH = 60;
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
+        pipeline.renderScreenOverlay(other, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(other, true);
+        removeWorld();
+        removeScreen();
+        removeScreen();
+        screen.mockClear();
+        pipeline.runPreFlushCallbacks(registry);
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(world).not.toHaveBeenCalled();
+        expect(screen).toHaveBeenCalledOnce();
+        expect(still).toHaveBeenCalledTimes(2);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, true);
+    });
+
+    it('applies pass removals immediately and starts replacements on the next pass', () => {
+        const skipped = vi.fn(), replacement = vi.fn();
+        const removeFirst = pipeline.addPreFlushCallback(() => {
+            removeFirst();
+            removeNext();
+            pipeline.addPreFlushCallback(replacement);
+        });
+        const removeNext = pipeline.addPreFlushCallback(skipped);
+        pipeline.runPreFlushCallbacks(registry);
+        expect(skipped).not.toHaveBeenCalled();
+        expect(replacement).not.toHaveBeenCalled();
+        pipeline.runPreFlushCallbacks(registry);
+        expect(replacement).toHaveBeenCalledOnce();
+    });
+
     describe('render() call sequence', () => {
         it('calls rendering methods in correct order', () => {
             const callOrder: string[] = [];

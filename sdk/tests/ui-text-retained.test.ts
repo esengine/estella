@@ -12,6 +12,7 @@ import { chosenByScale, resolveTextRenderMode, sameSnapshot, snapshotOf } from '
 import { rectTextBox } from '../src/ui/text/text-transform';
 import { Text, TextRenderMode, type TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
+import type { CppRegistry } from '../src/wasm';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 
 vi.mock('../src/platform', () => ({
@@ -179,6 +180,19 @@ describe('handing a label to the engine', () => {
         renderer.beginFrame();
         const afterForget = (retain.mock.calls.at(-1)![0] as Set<number>);
         expect([...pages].some(p => afterForget.has(p))).toBe(false);
+    });
+
+    it('addresses both the label and every atlas batch to its registry', () => {
+        const { api, calls } = engine();
+        api.renderer_retainedTextBeginInWorld = vi.fn();
+        api.renderer_retainedTextBatchInWorld = vi.fn();
+        const registry = {} as CppRegistry;
+        rendererWith(makeAtlas()).retain(api, params, 7, true, false, 0, 0, 0, false, false, registry);
+        expect(api.renderer_retainedTextBeginInWorld).toHaveBeenCalledWith(registry, 7, 0, 1, 0, 0, 0, 0, 0);
+        const batches = vi.mocked(api.renderer_retainedTextBatchInWorld).mock.calls;
+        expect(batches.length).toBeGreaterThan(0);
+        expect(batches.every(([owner, entity]) => owner === registry && entity === 7)).toBe(true);
+        expect(calls).toEqual([]);
     });
 });
 
