@@ -468,3 +468,17 @@ describe('a character that walks by its animation', () => {
         expect(askedVelocity(world).z).toBeCloseTo(-4, 5);
     });
 });
+
+describe('the speed a character that walks by its animation asks for', () => {
+    it('comes up to the stick at the controller\'s acceleration, not in one frame', () => {
+        const world = scene(0, { rootMotion: true, moveSpeed: 4, acceleration: 8 });
+        asksToMove(world, { x: 0, y: 0, z: 0 }, 0, 0, false);
+        const animator = new AnimatorControllerAPI();
+        requestMotion(world, stubInput(['KeyW']), 0.125);
+        observeMotion(world, animator, 0.125);
+        expect(animator.getFloat(PLAYER, TPC_SPEED)).toBeCloseTo(1, 5);
+        for (let i = 0; i < 8; i++) requestMotion(world, stubInput(['KeyW']), 0.125);
+        observeMotion(world, animator, 0.125);
+        expect(animator.getFloat(PLAYER, TPC_SPEED)).toBeCloseTo(4, 5);
+    });
+});

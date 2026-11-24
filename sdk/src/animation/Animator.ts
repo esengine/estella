@@ -945,8 +945,18 @@ export class AnimatorControllerAPI {
         // Advance BEFORE asking whether the motion ran out: judging the clip
         // on the previous frame's clock holds every exit-time transition one
         // frame past the clip it was waiting for.
-        this.advance(lrt, dt * stateTimeScale(leaf, params));
         const leafMotion = motionOf(leaf);
+        // A motion whose length moves while it plays (a blend whose weights shift) is played by PHASE: the clock is
+        // restated in the new length before it advances, so how far through its cycle the motion is stays where it
+        // was. Read at the old length, the same seconds would be another point of the cycle, and the legs would jump.
+        const length = leafMotion !== null ? ctx.duration(leafMotion) : 0;
+        if (lrt.span > 0 && length > 0 && length !== lrt.span) {
+            const k = length / lrt.span;
+            lrt.time *= k;
+            lrt.prevTime *= k;
+        }
+        lrt.span = length;
+        this.advance(lrt, dt * stateTimeScale(leaf, params));
         // A newly seeded layer has yet to play its initial motion. A previous
         // controller or standalone player may have finished that very clip.
         const clipFinished = fromPath === layerState(a, index) && leafMotion !== null
@@ -1184,6 +1194,7 @@ export class AnimatorControllerAPI {
         }
         rt.time = 0;
         rt.prevTime = 0;
+        rt.span = 0;
         rt.entered = true;
     }
 
@@ -1276,7 +1287,7 @@ export class AnimatorControllerAPI {
         }
         while (rt.layers.length < layers) {
             rt.layers.push({
-                time: 0, prevTime: 0, entered: true,
+                time: 0, prevTime: 0, span: 0, entered: true,
                 fadeFrom: null, fadeFromRoot: false,
                 fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
                 poseFrom: new Pose(storage), poseTo: new Pose(storage), mixed: new Pose(storage),
@@ -1357,6 +1368,8 @@ interface LayerRuntime {
     prevTime: number;
     /** Whether this frame is the one the state was entered on. */
     entered: boolean;
+    /** How long one pass of the current state's motion was when {@link time} was last advanced; 0 before it first is. */
+    span: number;
     /** The motion being faded out, or null when nothing is. */
     fadeFrom: AnimatorMotion | null;
     /** Whether the state being faded out was itself driving the character, so its

@@ -45,6 +45,12 @@ export interface AnimatorClipMotion {
 export interface AnimatorBlendStop {
     value: number;
     motion: AnimatorMotion;
+    /**
+     * Where in its own cycle this motion is when the blend's cycle starts, 0..1: the blend's sync point. Two gaits blend
+     * cleanly only when the same foot is down at the same moment in both; a walk that starts on the left foot and a run
+     * that starts on the right are half a stride apart, and a mix of the two crosses the legs. Default 0.
+     */
+    phase?: number;
 }
 
 /**
@@ -63,6 +69,12 @@ export interface AnimatorBlend1DMotion {
 export interface AnimatorBlendPoint {
     position: { x: number; y: number };
     motion: AnimatorMotion;
+    /**
+     * Where in its own cycle this motion is when the blend's cycle starts, 0..1: the blend's sync point. Two gaits blend
+     * cleanly only when the same foot is down at the same moment in both; a walk that starts on the left foot and a run
+     * that starts on the right are half a stride apart, and a mix of the two crosses the legs. Default 0.
+     */
+    phase?: number;
 }
 
 /**
@@ -462,13 +474,14 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     sample(ctx, blend, time, pose) {
         const { lower, upper, t } = blend1DPair(blend, blendValue(ctx, blend));
         if (!lower) return false;
-        if (!upper) return ctx.sample(lower.motion, time, pose);
+        // One stop alone is still read from its sync point, or reaching the end of the blend moves the legs.
+        if (!upper) return ctx.sample(lower.motion, time + (lower.phase ?? 0) * ctx.duration(lower.motion), pose);
 
         const da = ctx.duration(lower.motion);
         const db = ctx.duration(upper.motion);
         const whole = da > 0 && db > 0 ? da + (db - da) * t : 0;
-        const ta = whole > 0 ? time * (da / whole) : time;
-        const tb = whole > 0 ? time * (db / whole) : time;
+        const ta = whole > 0 ? (time / whole + (lower.phase ?? 0)) * da : time;
+        const tb = whole > 0 ? (time / whole + (upper.phase ?? 0)) * db : time;
 
         const from = ctx.borrowPose();
         const to = ctx.borrowPose();
@@ -531,12 +544,18 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     rootMotion(ctx, blend, span, out) {
         const { lower, upper, t } = blend1DPair(blend, blendValue(ctx, blend));
         if (!lower) return false;
-        if (!upper) return ctx.rootDelta(lower.motion, span, out);
+        if (!upper) return ctx.rootDelta(lower.motion, scaledSpan(span, 1, (lower.phase ?? 0) * ctx.duration(lower.motion)), out);
 
+        // Over the stretch of each clip the pose was read from, by the same phase rule: the clip's own seconds, not
+        // the blend's. Read over the blend's seconds, a clip shorter than the blend would travel further than its
+        // legs had stepped, and the feet would slide.
+        const da = ctx.duration(lower.motion);
+        const db = ctx.duration(upper.motion);
+        const whole = da > 0 && db > 0 ? da + (db - da) * t : 0;
         const other = ctx.borrowDelta();
         try {
-            const from = ctx.rootDelta(lower.motion, span, out);
-            const to = ctx.rootDelta(upper.motion, span, other);
+            const from = ctx.rootDelta(lower.motion, whole > 0 ? scaledSpan(span, da / whole, (lower.phase ?? 0) * da) : span, out);
+            const to = ctx.rootDelta(upper.motion, whole > 0 ? scaledSpan(span, db / whole, (upper.phase ?? 0) * db) : span, other);
             if (from && to) { leanDelta(out, other, t); return true; }
             if (from) { scaleDelta(out, 1 - t); return true; }
             if (to) { copyDelta(out, other); scaleDelta(out, t); return true; }
@@ -546,6 +565,11 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
         }
     },
 };
+
+/** `span` read at `k` times the rate and `shift` seconds on: the stretch of a clip a blend plays at its own share of the blend's length, from its sync point. */
+function scaledSpan(span: MotionSpan, k: number, shift = 0): MotionSpan {
+    return { from: span.from * k + shift, to: span.to * k + shift, inclusiveStart: span.inclusiveStart };
+}
 
 /** Displacement arithmetic. A rotation is not scaled linearly, so a share of one
  *  is the identity leaned toward it — the same rule the layer stack uses. */
@@ -678,7 +702,7 @@ export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
     sample(ctx, blend, time, pose) {
         const points = blend.points;
         if (points.length === 0) return false;
-        if (points.length === 1) return ctx.sample(points[0]!.motion, time, pose);
+        if (points.length === 1) return ctx.sample(points[0]!.motion, time + (points[0]!.phase ?? 0) * ctx.duration(points[0]!.motion), pose);
 
         const mix = ctx.borrowMix();
         let sampled = 0;
@@ -704,7 +728,8 @@ export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
                 const weight = mix[i]!.weight;
                 if (weight <= 0) continue;
                 const motion = points[i]!.motion;
-                const at = whole > 0 ? time * (ctx.duration(motion) / whole) : time;
+                const length = ctx.duration(motion);
+                const at = whole > 0 ? (time / whole + (points[i]!.phase ?? 0)) * length : time;
                 const scratch = ctx.borrowPose();
                 scratch.reset();
                 if (!ctx.sample(motion, at, scratch)) { ctx.releasePose(scratch); continue; }
@@ -774,11 +799,22 @@ export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
             const { x, y } = blend2DAt(ctx, blend);
             blend2DWeights(blend, x, y, mix);
             zeroDelta(out);
+            // Each point over the stretch of its own clip the pose was read from: the 1D blend's rule.
+            let whole = 0;
+            for (let i = 0; i < points.length; i++) {
+                if (mix[i]!.weight <= 0) continue;
+                const length = ctx.duration(points[i]!.motion);
+                if (length <= 0) { whole = 0; break; }
+                whole += mix[i]!.weight * length;
+            }
             let stated = false;
             for (let i = 0; i < points.length; i++) {
                 const weight = mix[i]!.weight;
                 if (weight <= 0) continue;
-                if (!ctx.rootDelta(points[i]!.motion, span, part)) continue;
+                const motion = points[i]!.motion;
+                const length = ctx.duration(motion);
+                const own = whole > 0 ? scaledSpan(span, length / whole, (points[i]!.phase ?? 0) * length) : span;
+                if (!ctx.rootDelta(motion, own, part)) continue;
                 addDelta(out, part, weight);
                 stated = true;
             }

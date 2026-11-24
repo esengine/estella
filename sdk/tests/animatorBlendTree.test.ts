@@ -490,3 +490,51 @@ describe('a blend’s displacement', () => {
         }
     });
 });
+
+describe('a blend whose weights move while it plays', () => {
+    const ramps = (phase?: number): AnimatorBlend1DMotion => ({
+        kind: 'blend1d', parameter: 'speed',
+        thresholds: [
+            { value: 0, motion: clip('slow.estimeline') },
+            { value: 1, motion: clip('fast.estimeline'), ...(phase === undefined ? {} : { phase }) },
+        ],
+    });
+
+    it('keeps its place in the cycle when the mix changes: the legs do not jump', () => {
+        // A 2s and a 1s ramp. A quarter of the way through on the slow one alone, then the mix goes to the fast one in
+        // a single frame: the fast one picks up a quarter of the way through its own cycle, not at the same second.
+        const world = seedWorld();
+        const ctrl = controllerOf(ramps(), { 'slow.estimeline': ramp(2), 'fast.estimeline': ramp(1) }, ['speed']);
+        attach(world);
+        ctrl.setFloat(E, 'speed', 0);
+        ctrl.update(world, 0);
+        ctrl.update(world, 0.5);
+        expect(liftOf(world)).toBeCloseTo(25, 3);
+
+        ctrl.setFloat(E, 'speed', 1);
+        ctrl.update(world, 0);
+        expect(liftOf(world)).toBeCloseTo(25, 3);
+    });
+
+    it('reads a stop from its sync point', () => {
+        const world = seedWorld();
+        const ctrl = controllerOf(ramps(0.5), { 'slow.estimeline': ramp(2), 'fast.estimeline': ramp(1) }, ['speed']);
+        attach(world);
+        ctrl.setFloat(E, 'speed', 1);
+        ctrl.update(world, 0);
+        ctrl.update(world, 0.25);
+        // A quarter of the way through the cycle, from a stop whose cycle starts halfway: three quarters of its ramp.
+        expect(liftOf(world)).toBeCloseTo(75, 3);
+    });
+
+    it('and mixes two stops at their sync points', () => {
+        const world = seedWorld();
+        const ctrl = controllerOf(ramps(0.5), { 'slow.estimeline': ramp(2), 'fast.estimeline': ramp(1) }, ['speed']);
+        attach(world);
+        ctrl.setFloat(E, 'speed', 0.5);
+        ctrl.update(world, 0);
+        ctrl.update(world, 0.375);
+        // A quarter through the 1.5s blend: the slow stop at 25, the fast one from halfway at 75; half of each.
+        expect(liftOf(world)).toBeCloseTo(50, 3);
+    });
+});

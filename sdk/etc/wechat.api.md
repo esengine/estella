@@ -529,12 +529,14 @@ points: AnimatorBlendPoint[]
 ## AnimatorBlendPoint — interface @experimental
 ```
 motion: AnimatorMotion
+phase: number | undefined
 position: { x: number; y: number; }
 ```
 
 ## AnimatorBlendStop — interface @experimental
 ```
 motion: AnimatorMotion
+phase: number | undefined
 value: number
 ```
 

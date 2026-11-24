@@ -56,8 +56,8 @@ function rootMotionRequest(world: World, entity: Entity): AnimatorRootMotionData
     return data.active ? data : null;
 }
 
-/** What the stick last asked of each character that walks by its animation: a ground direction and how hard, 0..1. */
-const wishes = new Map<Entity, { x: number; z: number; amount: number }>();
+/** What the stick last asked of each character that walks by its animation: a ground direction, how hard (0..1), and the speed the animator is told, which follows it at the controller's rates. */
+const wishes = new Map<Entity, { x: number; z: number; amount: number; speed: number }>();
 
 /** The stick, from the keys a keyboard stands in for one with. */
 function readStick(input: InputState): { x: number; y: number } {
@@ -108,7 +108,14 @@ export function requestMotion(
         // the step that tells the animator and turns the character.
         const byAnimation = data.rootMotion === true && world.has(entity, AnimatorRootMotion);
         if (byAnimation) {
-            wishes.set(entity, { x: direction.x, z: direction.z, amount: Math.min(1, Math.hypot(stick.x, stick.y)) });
+            // The speed asked of the animator comes up to the stick's at the controller's own rates, so a gait changes
+            // over the time the character takes to reach it rather than in one frame.
+            const amount = Math.min(1, Math.hypot(stick.x, stick.y));
+            const wanted = amount * data.moveSpeed;
+            const was = wishes.get(entity)?.speed ?? 0;
+            const rate = (wanted < was ? data.deceleration : data.acceleration) * dt;
+            const speed = Math.abs(wanted - was) <= rate ? wanted : was + Math.sign(wanted - was) * rate;
+            wishes.set(entity, { x: direction.x, z: direction.z, amount, speed });
         } else {
             wishes.delete(entity);
         }
@@ -175,7 +182,7 @@ export function observeMotion(world: World, animator: AnimatorControllerAPI | nu
             // Walking by animation, the animator is told the speed ASKED for: the
             // gait it picks is what makes the speed, so the speed reached cannot
             // be what picks the gait.
-            const told = wish ? wish.amount * data.moveSpeed : speed;
+            const told = wish ? wish.speed : speed;
             animator.setFloat(entity, TPC_SPEED, told < data.idleThreshold ? 0 : told);
             animator.setBool(entity, TPC_GROUNDED, character.isOnFloor);
         }
