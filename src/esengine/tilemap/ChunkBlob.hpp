@@ -147,8 +147,8 @@ inline bool recodeCell(u16 word, const CellEncoding& from, const CellEncoding& t
 template <class Fn>
 inline bool walkBlobCells(const u8* raw, usize size, const BlobHeader& header, Fn&& emit) {
     const u32 side = header.wrote.chunkSize;
-    const usize perChunk = sizeof(i32) * 2 + static_cast<usize>(side) * side * sizeof(u16);
-    if (size < header.payloadAt + static_cast<usize>(header.chunkCount) * perChunk) return false;
+    const u64 perChunk = sizeof(i32) * 2 + static_cast<u64>(side) * side * sizeof(u16);
+    if (header.payloadAt > size || header.chunkCount > (size - header.payloadAt) / perChunk) return false;
 
     usize at = header.payloadAt;
     for (u32 c = 0; c < header.chunkCount; ++c) {
@@ -163,7 +163,7 @@ inline bool walkBlobCells(const u8* raw, usize size, const BlobHeader& header, F
             emit(static_cast<i32>(cx * static_cast<i32>(side) + static_cast<i32>(i % side)),
                  static_cast<i32>(cy * static_cast<i32>(side) + static_cast<i32>(i / side)), word);
         }
-        at += perChunk;
+        at += static_cast<usize>(perChunk);
     }
     return true;
 }

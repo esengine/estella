@@ -278,15 +278,8 @@ std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
 }
 
 bool importChunks(tilemap::TilemapSystem& map, u32 entity, const std::string& encoded) {
-    auto e = Entity::fromRaw(entity);
-    // Auto-init as infinite if the caller didn't pre-create a layer — the
-    // scene loader path inserts the TilemapLayer component first and then
-    // expects the chunks to land, so we can't require a separate init call.
-    if (!map.hasLayer(e)) {
-        map.initInfiniteLayer(e, 32.0f, 32.0f);
-    }
-    auto* layer = map.getLayerDataMut(e);
-    if (!layer) return false;
+    const auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY) return false;
 
     std::vector<u8> raw;
     if (!base64Decode(encoded, raw)) return false;
@@ -299,35 +292,38 @@ bool importChunks(tilemap::TilemapSystem& map, u32 entity, const std::string& en
     // case that runs every day is the case the migration is tested on.
     const tilemap::CellEncoding running = tilemap::runningEncoding();
     const i32 side = static_cast<i32>(tilemap::CHUNK_SIZE);
+    tilemap::TilemapSystem::ChunkMap incoming;
     tilemap::ChunkData* into = nullptr;
-    tilemap::ChunkCoord at{ 0, 0 };
-    bool first = true;
+    tilemap::ChunkCoord at{};
     bool lost = false;
-
-    if (!layer->chunks.empty()) ++layer->edit_revision;
-    layer->chunks.clear();
     const bool walked = tilemap::walkBlobCells(raw.data(), raw.size(), header,
         [&](i32 x, i32 y, u16 word) {
+            if (lost) return;
             u16 cell = 0;
             // A narrowed id mask cannot carry the tile, and putting SOME other
             // tile there is the failure this whole header exists to stop.
             if (!tilemap::recodeCell(word, header.wrote, running, cell)) { lost = true; return; }
             const tilemap::ChunkCoord coord{ tilemap::floorDiv(x, side), tilemap::floorDiv(y, side) };
             // Cells arrive along a row, so the chunk they land in changes rarely.
-            if (first || coord.x != at.x || coord.y != at.y) {
-                auto& chunk = layer->chunks[coord];
-                chunk.revision = ++layer->edit_revision;
-                into = &chunk;
+            if (!into || coord != at) {
+                into = &incoming[coord];
                 at = coord;
-                first = false;
             }
             into->tiles[static_cast<usize>(tilemap::floorMod(y, side)) * tilemap::CHUNK_SIZE
                 + static_cast<usize>(tilemap::floorMod(x, side))] = cell;
         });
-    if (!walked || lost) {
-        layer->chunks.clear();
-        return false;
+    if (!walked || lost) return false;
+
+    // A scene can load before the first tilemap sync. Create its placeholder only
+    // after every saved cell has been decoded into the running grid.
+    auto* layer = map.getLayerDataMut(e);
+    if (!layer) {
+        map.initInfiniteLayer(e, 32.0f, 32.0f);
+        layer = map.getLayerDataMut(e);
     }
+    layer->clearChunks();
+    for (auto& [coord, chunk] : incoming) chunk.revision = ++layer->edit_revision;
+    layer->chunks.swap(incoming);
     return true;
 }
 

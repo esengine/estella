@@ -164,6 +164,17 @@ TEST_CASE("tilemap_set_tiles_bulk") {
     CHECK_EQ(sys.getTile(E(0), 3, 1), 8);
     CHECK_EQ(sys.getTile(E(0), 0, 2), 9);
     CHECK_EQ(sys.getTile(E(0), 3, 2), 12);
+
+    const auto* layer = sys.getLayerData(E(0));
+    const auto revision = layer->edit_revision;
+    const std::vector<u16> empty(tiles.size(), EMPTY_TILE);
+    sys.setTiles(E(0), empty.data(), static_cast<u32>(empty.size()));
+    CHECK(layer->chunks.empty());
+    CHECK(layer->chunks_erased == 1);
+    CHECK(layer->edit_revision == revision + 1);
+    sys.setTiles(E(0), empty.data(), static_cast<u32>(empty.size()));
+    CHECK(layer->chunks_erased == 1);
+    CHECK(layer->edit_revision == revision + 1);
 }
 
 TEST_CASE("tilemap_set_tiles_partial") {

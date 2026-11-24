@@ -110,6 +110,8 @@ public:
     /// staggerindex); only read when the layer's grid type is Hexagonal.
     void setHexParams(Entity entity, f32 sideLength, bool staggerAxisX, bool staggerIndexEven);
 
+    using ChunkMap = std::unordered_map<ChunkCoord, ChunkData, ChunkCoordHash>;
+
     struct LayerData {
         u32 generation = 0;
         u32 width = 0;   // finite-layer bounds (0 = infinite); tiles live in `chunks`.
@@ -149,7 +151,8 @@ public:
                 hex_stagger_axis_x, hex_stagger_index_even};
         }
 
-        std::unordered_map<ChunkCoord, ChunkData, ChunkCoordHash> chunks;
+        void clearChunks();
+        ChunkMap chunks;
         bool infinite = false;
 
         // Monotonic counter bumped on every chunk edit; stamped into

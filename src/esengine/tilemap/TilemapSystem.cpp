@@ -75,8 +75,7 @@ inline void writeTile(TilemapSystem::LayerData& layer, i32 x, i32 y, u16 value) 
 // Tiled finite-layer load: chunk a flat row-major array, storing only non-empty chunks.
 void buildChunksFromFlat(TilemapSystem::LayerData& layer,
                          const u16* tiles, u32 width, u32 height, u32 count) {
-    if (!layer.chunks.empty()) ++layer.edit_revision;
-    layer.chunks.clear();
+    layer.clearChunks();
     const u32 chunksX = (width + CHUNK_SIZE - 1) / CHUNK_SIZE;
     const u32 chunksY = (height + CHUNK_SIZE - 1) / CHUNK_SIZE;
     for (u32 cy = 0; cy < chunksY; ++cy) {
@@ -104,6 +103,13 @@ void buildChunksFromFlat(TilemapSystem::LayerData& layer,
 }
 
 }  // namespace
+
+void TilemapSystem::LayerData::clearChunks() {
+    if (chunks.empty()) return;
+    chunks.clear();
+    ++edit_revision;
+    ++chunks_erased;
+}
 
 void TilemapSystem::initLayer(Entity entity, u32 width, u32 height,
                                f32 tileWidth, f32 tileHeight) {

@@ -63,6 +63,43 @@ describe.skipIf(!HAS_WASM)('live native tile collision', () => {
         await app.tick(1 / 60);
         expect(colliders() ?? []).toHaveLength(0);
     });
+    it.each(['incomplete payload', 'unrepresentable tile'] as const)(
+        'preserves painted tiles, stamps and colliders after an import with an %s', async reason => {
+            const { app, entity, tiles, colliders, emptyBlob } = await scene();
+            const fresh = app.world.spawn();
+            const saved = tiles.exportChunks(entity);
+            const original = Buffer.from(saved, 'base64');
+            let partial = original.subarray(0, -1);
+            if (reason === 'unrepresentable tile') {
+                // A wider saved id mask. The first tile fits and the last one cannot migrate.
+                original.writeUInt16LE(0x3fff, 6);
+                original.writeUInt16LE(0x4000, 8);
+                original.writeUInt16LE(0x8000, 10);
+                original.writeUInt16LE(0, 12);
+                original.writeUInt16LE(0x2001, original.length - 2);
+                partial = original;
+            }
+            const bad = partial.toString('base64');
+            const revision = tiles.getEditRevision(entity);
+            const generation = tiles.getGeneration(entity);
+            const bodies = colliders();
+
+            expect(tiles.importChunks(entity, bad)).toBe(false);
+            expect(tiles.importChunks(fresh, bad)).toBe(false);
+            expect.soft(tiles.hasLayer(fresh)).toBe(false);
+            expect.soft(tiles.exportChunks(entity)).toBe(saved);
+            expect.soft(tiles.getEditRevision(entity)).toBe(revision);
+            expect(tiles.getGeneration(entity)).toBe(generation);
+            await app.tick(1 / 60);
+            expect.soft(colliders()).toEqual(bodies);
+
+            expect(tiles.importChunks(fresh, saved)).toBe(true);
+            expect(tiles.getTile(fresh, 0, 0)).toBe(1);
+            expect(tiles.importChunks(entity, emptyBlob)).toBe(true);
+            await app.tick(1 / 60);
+            expect(colliders()).toHaveLength(0);
+        },
+    );
     it('removes old collision when importing an empty map', async () => {
         const { app, entity, tiles, colliders, emptyBlob } = await scene();
         expect(colliders().length).toBeGreaterThan(0);
