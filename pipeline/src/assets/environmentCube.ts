@@ -83,13 +83,37 @@ function faceOf(x: number, y: number, z: number): { face: CubeFaceName; a: numbe
     let face: CubeFaceName, sc: number, tc: number, ma: number;
     if (ax >= ay && ax >= az) {
         ma = ax;
-        if (x > 0) { face = 'px'; sc = z; tc = -y; } else { face = 'nx'; sc = -z; tc = -y; }
+        if (x > 0) {
+            face = 'px';
+            sc = z;
+            tc = -y;
+        } else {
+            face = 'nx';
+            sc = -z;
+            tc = -y;
+        }
     } else if (ay >= az) {
         ma = ay;
-        if (y > 0) { face = 'py'; sc = x; tc = z; } else { face = 'ny'; sc = -x; tc = -z; }
+        if (y > 0) {
+            face = 'py';
+            sc = x;
+            tc = z;
+        } else {
+            face = 'ny';
+            sc = -x;
+            tc = -z;
+        }
     } else {
         ma = az;
-        if (z > 0) { face = 'pz'; sc = -x; tc = -y; } else { face = 'nz'; sc = x; tc = -y; }
+        if (z > 0) {
+            face = 'pz';
+            sc = -x;
+            tc = -y;
+        } else {
+            face = 'nz';
+            sc = x;
+            tc = -y;
+        }
     }
     return { face, a: (sc / ma + 1) / 2, b: (tc / ma + 1) / 2 };
 }

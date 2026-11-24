@@ -43,9 +43,9 @@ export class ParticlePlugin implements Plugin {
         cleanups.push(registerWorldDrawCallback(Particle._id, app.world, () => {
             if (!api.debugNormals) return;
             for (const hit of api.collisionContacts) {
-                Draw.line3D({x:hit.x,y:hit.y,z:hit.z},
-                    {x:hit.x+hit.normalX*20,y:hit.y+hit.normalY*20,z:hit.z+hit.normalZ*20},
-                    {r:.2,g:.9,b:.7,a:1},1);
+                Draw.line3D({ x: hit.x, y: hit.y, z: hit.z },
+                    { x: hit.x + hit.normalX * 20, y: hit.y + hit.normalY * 20, z: hit.z + hit.normalZ * 20 },
+                    { r: .2, g: .9, b: .7, a: 1 }, 1);
             }
         }));
 

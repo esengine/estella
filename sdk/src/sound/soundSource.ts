@@ -290,7 +290,12 @@ const SOURCE_FIELDS = ['version', 'duration', 'rate', 'loop', 'variants', 'vary'
 /** The recordings a sound's layers play, each once. */
 export function soundSampleFiles(source: Pick<SoundSource, 'layers'>): string[] {
     const files = new Set<string>();
-    const walk = (layers: readonly SoundLayer[]): void => { for (const l of layers) { if (l.source === 'sample' && l.file) files.add(l.file); if (l.layers) walk(l.layers); } };
+    const walk = (layers: readonly SoundLayer[]): void => {
+        for (const l of layers) {
+            if (l.source === 'sample' && l.file) files.add(l.file);
+            if (l.layers) walk(l.layers);
+        }
+    };
     walk(source.layers);
     return [...files];
 }

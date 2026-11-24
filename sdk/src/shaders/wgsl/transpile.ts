@@ -990,7 +990,12 @@ function assignedNames(body: Node, writtenArgs: (name: string) => Set<number>): 
         if (node.k === 'assign' || node.k === 'preinc' || node.k === 'postinc') { const r = root(node.lhs ?? node.e); if (r) out.add(r); }
         if (node.k === 'call') {
             const writes = writtenArgs(node.name);
-            (node.args as Node[]).forEach((a, i) => { if (writes.has(i)) { const r = root(a); if (r) out.add(r); } });
+            (node.args as Node[]).forEach((a, i) => {
+                if (writes.has(i)) {
+                    const r = root(a);
+                    if (r) out.add(r);
+                }
+            });
         }
         for (const v of Object.values(node)) if (v && typeof v === 'object') visit(v);
     };
@@ -1045,7 +1050,12 @@ function isAtom(code: string): boolean {
         if (c === '(' || c === '[') {
             const close = c === '(' ? ')' : ']';
             let d = 0, j = i;
-            for (; j < code.length; j++) { if (code[j] === c) d++; else if (code[j] === close) { d--; if (d === 0) break; } }
+            for (; j < code.length; j++) {
+                if (code[j] === c) d++; else if (code[j] === close) {
+                    d--;
+                    if (d === 0) break;
+                }
+            }
             if (j === code.length) return false;
             i = j + 1;
             continue;

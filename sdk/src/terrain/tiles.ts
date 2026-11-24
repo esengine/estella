@@ -299,7 +299,7 @@ export class TiledSource implements TerrainSource {
 
     /** Where (x, z) falls: its tile's key, and its place in that tile in samples. */
     /** Whether this local position belongs to a currently loaded terrain tile. */
-    residentAt(x: number, z: number): boolean { return this.tiles_.has(this.locate(x,z).key); }
+    residentAt(x: number, z: number): boolean { return this.tiles_.has(this.locate(x, z).key); }
 
     private locate(x: number, z: number): { key: string; lx: number; lz: number } {
         const n = this.doc.tileSamples - 1;

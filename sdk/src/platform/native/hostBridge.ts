@@ -515,7 +515,12 @@ function hostLifecycle(
     const signal = (install: (fire: () => void) => void): ((cb: () => void) => () => void) => {
         let subs: (() => void)[] = [];
         install(() => { for (const cb of subs) cb(); });
-        return (cb) => { subs.push(cb); return () => { subs = subs.filter((c) => c !== cb); }; };
+        return (cb) => {
+            subs.push(cb);
+            return () => {
+                subs = subs.filter((c) => c !== cb);
+            };
+        };
     };
 
     let onShow: (() => void) | undefined;

@@ -48,7 +48,7 @@ export class ScriptStorage {
         if (this.releasingPools_) return;
         this.releasingPools_ = true;
         const pools = [...this.pools_.values()];
-        this.pools_.clear();this.notPooled_.clear();this.poolMemory_ = HEAP_MEMORY;
+        this.pools_.clear(); this.notPooled_.clear(); this.poolMemory_ = HEAP_MEMORY;
         this.layoutEpoch_++;
         try { disposeAll(pools, pool => pool.dispose()); }
         finally { this.releasingPools_ = false; }

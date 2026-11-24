@@ -175,7 +175,11 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
     const growth = Math.max(...instances.map((inst) => inst.sdf.inflate), 0);
     const bias = options.bias ?? Math.max(cell * 1.6, growth * 1.8, 0.5);
     const tolerance = Math.max(cell * 3, growth * 3.5);
-    const set = (i: number, ...v: number[]) => { v.forEach((x, k) => { header[i + k] = x; }); };
+    const set = (i: number, ...v: number[]) => {
+        v.forEach((x, k) => {
+            header[i + k] = x;
+        });
+    };
     set(0, level.dim, cell, level.origin[0]!, level.origin[1]!, level.origin[2]!, cell * GlobalSdf.REACH_CELLS, instances.length, pixelTotal);
     set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, tolerance);
     set(18, ...(options.sky ?? [0, 0, 0]), 0.25);

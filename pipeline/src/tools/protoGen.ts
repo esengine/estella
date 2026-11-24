@@ -127,8 +127,26 @@ function readMessage(buf: Uint8Array): MessageInfo {
         if (n === 2) { m.fields.push(readField(r.bytes())); return; }
         if (n === 3) { m.nested.push(readMessage(r.bytes())); return; }
         if (n === 4) { m.enums.push(readEnum(r.bytes())); return; }
-        if (n === 7) { fields(r.bytes(), (g, w, rr) => { if (g === 7 && w === 0) { m.mapEntry = rr.varint() !== 0; return; } return false; }); return; }
-        if (n === 8) { fields(r.bytes(), (g, w, rr) => { if (g === 1 && w === 2) { m.oneofs.push(text(rr.bytes())); return; } return false; }); return; }
+        if (n === 7) {
+            fields(r.bytes(), (g, w, rr) => {
+                if (g === 7 && w === 0) {
+                    m.mapEntry = rr.varint() !== 0;
+                    return;
+                }
+                return false;
+            });
+            return;
+        }
+        if (n === 8) {
+            fields(r.bytes(), (g, w, rr) => {
+                if (g === 1 && w === 2) {
+                    m.oneofs.push(text(rr.bytes()));
+                    return;
+                }
+                return false;
+            });
+            return;
+        }
         return false;
     });
     return m;

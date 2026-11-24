@@ -266,11 +266,22 @@ export function hairRig(mesh: PolyMesh, sway: HairSway): { joints: RigJoint[]; s
     for (let pass = 0; pass < 6; pass++) {
         roots.forEach((q, i) => {
             let best = Infinity;
-            centres.forEach((c, k) => { const d = dot(sub(q, c), sub(q, c)); if (d < best) { best = d; owner[i] = k; } });
+            centres.forEach((c, k) => {
+                const d = dot(sub(q, c), sub(q, c));
+                if (d < best) {
+                    best = d;
+                    owner[i] = k;
+                }
+            });
         });
         centres.forEach((_, k) => {
             let sum: Vec3 = [0, 0, 0], n = 0;
-            roots.forEach((q, i) => { if (owner[i] === k) { sum = add(sum, q); n++; } });
+            roots.forEach((q, i) => {
+                if (owner[i] === k) {
+                    sum = add(sum, q);
+                    n++;
+                }
+            });
             if (n) centres[k] = scale(sum, 1 / n);
         });
     }

@@ -174,9 +174,9 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
 }, {
     assetFields: [{ field: 'heightmap', type: 'image' }, { field: 'splatmap', type: 'image' }, { field: 'splatmap2', type: 'image' }, { field: 'colorMap', type: 'texture' }, { field: 'occlusionMap', type: 'texture' }, { field: 'material', type: 'material' }],
     discoverAssets: (data) => {
-        const refs = Terrain.assetFields.flatMap(({field, type}) => {
+        const refs = Terrain.assetFields.flatMap(({ field, type }) => {
             const path = data[field];
-            return typeof path === 'string' && path ? [{type, path}] : [];
+            return typeof path === 'string' && path ? [{ type, path }] : [];
         });
         for (const path of (data.layers ?? []) as string[]) if (path) refs.push({ type: 'terrain-layer', path });
         for (const b of (data.paintLayers ?? []) as TerrainPaintBinding[]) {
@@ -185,8 +185,8 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
         }
         const graph = data.landscapeSpline as LandscapeSpline | undefined;
         for (const entry of [...(graph?.points ?? []), ...(graph?.segments ?? []).flatMap(s => s.meshes)]) {
-            if (entry.mesh) refs.push({type: 'mesh', path: entry.mesh});
-            if (entry.material) refs.push({type: 'material', path: entry.material});
+            if (entry.mesh) refs.push({ type: 'mesh', path: entry.mesh });
+            if (entry.material) refs.push({ type: 'material', path: entry.material });
         }
         return refs;
     },

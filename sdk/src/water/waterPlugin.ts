@@ -636,7 +636,7 @@ function commonOf(d: WaterBodyData, scale: number): ZoneBodyCommon {
 
 /** What the zone is baked from of {@link commonOf}, for knowing when to bake it again. */
 function commonKey(d: WaterBodyData): unknown[] {
-    return [d.waterMaterial,d.riverToLakeMaterial,d.riverToOceanMaterial,d.waveAttenuationDepth, d.shapeDilation, d.overlapPriority, d.underwaterLook, d.underwaterCaustics, d.underwaterEnabled, d.underwaterBlendWeight, d.underwaterPriority];
+    return [d.waterMaterial, d.riverToLakeMaterial, d.riverToOceanMaterial, d.waveAttenuationDepth, d.shapeDilation, d.overlapPriority, d.underwaterLook, d.underwaterCaustics, d.underwaterEnabled, d.underwaterBlendWeight, d.underwaterPriority];
 }
 
 /** A lake's or a river's Curve Channel, in world units, or null where it keeps the built-in cut. */
@@ -758,7 +758,7 @@ interface Surface {
     mesh: number;
     meshKey: string;
     layout: TileLayout;
-    groups: Map<number, {entity:Entity; instance:number; mesh:number}>;
+    groups: Map<number, { entity: Entity; instance: number; mesh: number }>;
     visibleTiles?: string;
     coverage?: ReturnType<typeof waterCoverage>;
     instance: number;
@@ -1148,7 +1148,7 @@ export class WaterPlugin implements Plugin {
                 mesh: 0, material: instance, lit: true, opaque: false, cullBackfaces: false, castShadows: false, color: { r: 1, g: 1, b: 1, a: 1 },
             } as Partial<MeshRendererData>);
             s.entity = entity;
-            const farData = far ? buildWaterApron(s.layout, far.extent, Math.min(s.layout.tile*.002, worldUnitScale()*2), true) : null;
+            const farData = far ? buildWaterApron(s.layout, far.extent, Math.min(s.layout.tile * .002, worldUnitScale() * 2), true) : null;
             if (far && farData) {
                 const farMesh = assets.createMesh(farData);
                 // An instance of its own, of its own material or the rings': one instance drawn by two meshes drew neither with the Water shader.
@@ -1156,8 +1156,8 @@ export class WaterPlugin implements Plugin {
                 if (farMesh !== 0) {
                     s.farMesh = farMesh;
                     s.farInstance = farInstance;
-                    if (!far.material && farInstance && materialDeclaresUniform(farInstance,'u_farSurface'))
-                        Material.setUniform(farInstance,'u_farSurface',1);
+                    if (!far.material && farInstance && materialDeclaresUniform(farInstance, 'u_farSurface'))
+                        Material.setUniform(farInstance, 'u_farSurface', 1);
                     const farEntity = app.world.spawn('Water Far');
                     app.world.insert(farEntity, Transform, { position: { x: 0, y: 0, z: 0 } });
                     app.world.insert(farEntity, MeshRenderer, {
@@ -1194,13 +1194,13 @@ export class WaterPlugin implements Plugin {
             s.groups.delete(source);
         }
         for (const source of field.materials) {
-            if (source===s.material || s.groups.has(source)) continue;
-            const instance=Material.createInstance(source);
+            if (source === s.material || s.groups.has(source)) continue;
+            const instance = Material.createInstance(source);
             if (!instance) continue;
-            const entity=app.world.spawn('Water surface material');
-            app.world.insert(entity,Transform,{position:{x:0,y:0,z:0}});
-            app.world.insert(entity,MeshRenderer,{...app.world.get(s.entity,MeshRenderer),mesh:0,material:instance,enabled:false});
-            s.groups.set(source,{entity,instance,mesh:0});
+            const entity = app.world.spawn('Water surface material');
+            app.world.insert(entity, Transform, { position: { x: 0, y: 0, z: 0 } });
+            app.world.insert(entity, MeshRenderer, { ...app.world.get(s.entity, MeshRenderer), mesh: 0, material: instance, enabled: false });
+            s.groups.set(source, { entity, instance, mesh: 0 });
         }
         const uses = (name: string): boolean => drawnWith(s).some(i => materialDeclaresUniform(i, name));
         // Older custom water shaders still receive their independent field and colour maps.
@@ -1258,44 +1258,44 @@ export class WaterPlugin implements Plugin {
         if (s.baked !== field) this.upload(app, s, field);
         const { layout } = s;
         // Explicit extents are fixed to the zone. Legacy unbounded seas can still follow a travelling ship.
-        const cx = field.grid.minX + field.grid.sizeX/2, cz = field.grid.minZ + field.grid.sizeZ/2;
+        const cx = field.grid.minX + field.grid.sizeX / 2, cz = field.grid.minZ + field.grid.sizeZ / 2;
         const follow = !!field.ocean && !(zone.tileSize > 0) && !zone.extentInTiles?.x && !zone.extentInTiles?.y;
-        const ox = (follow ? Math.round(eye[0]/layout.tile)*layout.tile : cx) - layout.halfX*layout.tile;
-        const oz = (follow ? Math.round(eye[2]/layout.tile)*layout.tile : cz) - layout.halfZ*layout.tile;
+        const ox = (follow ? Math.round(eye[0] / layout.tile) * layout.tile : cx) - layout.halfX * layout.tile;
+        const oz = (follow ? Math.round(eye[2] / layout.tile) * layout.tile : cz) - layout.halfZ * layout.tile;
         const range = field.ranges();
         const waves = waveParamsOf(zone);
         const rise = (2 + Math.max(zone.surf, 0)) * Math.max(range.amp, field.ocean?.waveHeight ?? 0) * Math.max(1, waves.height);
-        const lowY = Math.min(range.heightMin,field.ocean?.level ?? range.heightMin)-rise;
-        const highY = Math.max(range.heightMin+range.heightSpan,field.ocean?.level ?? lowY)+rise;
+        const lowY = Math.min(range.heightMin, field.ocean?.level ?? range.heightMin) - rise;
+        const highY = Math.max(range.heightMin + range.heightSpan, field.ocean?.level ?? lowY) + rise;
         const camera = app.hasResource(UICameraInfo) ? app.getResource(UICameraInfo) : null;
         const single = waterHasSingleView(app);
         const planes = single && camera?.valid ? waterViewPlanes(camera.viewProjection) : [];
-        const tiles = selectWaterTiles(layout,ox,oz,eye,lowY,highY,s.coverage!,planes);
-        const selection = [ox,oz,Number(this.waters_.meshView>0),...tiles.map(t=>(t.level*1024+t.z)*1024+t.x)].join(',');
+        const tiles = selectWaterTiles(layout, ox, oz, eye, lowY, highY, s.coverage!, planes);
+        const selection = [ox, oz, Number(this.waters_.meshView > 0), ...tiles.map(t => (t.level * 1024 + t.z) * 1024 + t.x)].join(',');
         if (selection !== s.visibleTiles) {
             const assets = app.getResource(Assets);
-            const data = tiles.length ? buildWaterTiles(layout,tiles,this.waters_.meshView>0,!!s.farMesh) : null;
-            if (data) { data.aabbMin[1]=lowY; data.aabbMax[1]=highY; }
-            const meshes = data && s.groups.size ? waterMaterialMeshes(data,(x,z)=>{
-                const source=field.materialAt(x+ox,z+oz);
+            const data = tiles.length ? buildWaterTiles(layout, tiles, this.waters_.meshView > 0, !!s.farMesh) : null;
+            if (data) { data.aabbMin[1] = lowY; data.aabbMax[1] = highY; }
+            const meshes = data && s.groups.size ? waterMaterialMeshes(data, (x, z) => {
+                const source = field.materialAt(x + ox, z + oz);
                 return s.groups.has(source) ? source : 0;
-            }) : new Map(data ? [[0,data]] : []);
+            }) : new Map(data ? [[0, data]] : []);
             const pending = new Map<number,number>();
             for (const [id,piece] of meshes) {
-                const handle=assets.createMesh(piece);
+                const handle = assets.createMesh(piece);
                 if (!handle) break;
-                pending.set(id,handle);
+                pending.set(id, handle);
             }
-            if (pending.size===meshes.size) {
-                for (const [source,group] of [[0,s] as const,...s.groups]) {
-                    const mesh=pending.get(source) ?? 0;
-                    app.world.insert(group.entity,MeshRenderer,{...app.world.get(group.entity,MeshRenderer),mesh,enabled:!!mesh});
+            if (pending.size === meshes.size) {
+                for (const [source,group] of [[0, s] as const, ...s.groups]) {
+                    const mesh = pending.get(source) ?? 0;
+                    app.world.insert(group.entity, MeshRenderer, { ...app.world.get(group.entity, MeshRenderer), mesh, enabled: !!mesh });
                     if (group.mesh) assets.releaseBuiltMesh(group.mesh);
-                    group.mesh=mesh;
-                    if (source) app.world.insert(group.entity,Transform,{...app.world.get(group.entity,Transform),position:{x:ox,y:0,z:oz}});
+                    group.mesh = mesh;
+                    if (source) app.world.insert(group.entity, Transform, { ...app.world.get(group.entity, Transform), position: { x: ox, y: 0, z: oz } });
                 }
-                s.visibleTiles=selection;
-                this.waters_.meshStats={tiles:tiles.length, triangles:(data?.indices.length ?? 0)/3};
+                s.visibleTiles = selection;
+                this.waters_.meshStats = { tiles: tiles.length, triangles: (data?.indices.length ?? 0) / 3 };
             } else for (const handle of pending.values()) assets.releaseBuiltMesh(handle);
         }
         const t = app.world.get(s.entity, Transform) as TransformData;
@@ -1316,11 +1316,11 @@ export class WaterPlugin implements Plugin {
         set('u_causticLayers', q.causticLayers);
         set('u_waveSpace', 1);
         set('u_origin', { x: ox, y: oz });
-        set('u_cellSize', layout.tile/layout.divisions);
-        set('u_tileEye', { x: eye[0]-ox, y: eye[2]-oz });
+        set('u_cellSize', layout.tile / layout.divisions);
+        set('u_tileEye', { x: eye[0] - ox, y: eye[2] - oz });
         for (const i of materials) {
-            Material.setUniform(i,'u_tileMorph',{x:layout.divisions, y:layout.lodScale, z:Math.max(lowY-eye[1],0,eye[1]-highY), w:0});
-            Material.setUniform(i,'u_waterMeshView',this.waters_.meshView);
+            Material.setUniform(i, 'u_tileMorph', { x: layout.divisions, y: layout.lodScale, z: Math.max(lowY - eye[1], 0, eye[1] - highY), w: 0 });
+            Material.setUniform(i, 'u_waterMeshView', this.waters_.meshView);
         }
         set('u_geoWaves', q.displacement ? 1 : 0);
         set('u_waveHeight', waves.height);
@@ -1483,7 +1483,7 @@ export class WaterPlugin implements Plugin {
         this.opticalField.release();
         this.waters_.opticalField_ = null;
         this.waters_.instance_ = 0;
-        this.waters_.meshStats = {tiles:0,triangles:0};
+        this.waters_.meshStats = { tiles: 0, triangles: 0 };
     }
 }
 
@@ -1498,7 +1498,7 @@ function farOf(zone: WaterZoneData, ocean: boolean): FarMesh | null {
 
 /** Material instances sharing world-space wave, view and optical parameters across the tiled and far surfaces. */
 function drawnWith(s: Surface): number[] {
-    return [s.instance, s.farInstance,...Array.from(s.groups.values(), g=>g.instance)].filter((i) => i !== 0);
+    return [s.instance, s.farInstance, ...Array.from(s.groups.values(), g => g.instance)].filter((i) => i !== 0);
 }
 
 /** A region from (minX, minZ), `sizeX` by `sizeZ`, with `resolution` texels along its longer side. */

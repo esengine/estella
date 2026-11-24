@@ -23,7 +23,13 @@ export function initializeYouTube(sdk: YouTubeSdk | undefined, warn: (message: s
     const waiters = new Set<{ resolve(): void; reject(error: Error): void }>(), cleanup: Array<() => void> = [];
     const requireActive = () => { if (!active || disposed) throw new Error('YouTube host service unavailable; no local fallback was written'); };
     const notify = <T>(listeners: Set<(value: T) => void>, value: T) => {
-        for (const callback of [...listeners]) { try { callback(value); } catch (error) { warn('[YouTube] Host policy listener failed', error); } }
+        for (const callback of [...listeners]) {
+            try {
+                callback(value);
+            } catch (error) {
+                warn('[YouTube] Host policy listener failed', error);
+            }
+        }
     };
     const waitActive = (): Promise<void> => {
         if (disposed) return Promise.reject(new Error('YouTube session disposed'));
@@ -49,7 +55,12 @@ export function initializeYouTube(sdk: YouTubeSdk | undefined, warn: (message: s
     if (!active) warn('[YouTube] Outside Playables environment; host ads, scores and cloud saving disabled');
     else {
         try { muted = !sdk!.system.isAudioEnabled(); } catch (error) { warn('[YouTube] Initial audio policy unavailable; muted', error); }
-        cleanup.push(sdk!.system.onAudioEnabledChange(enabled => { if (!disposed) { muted = !enabled; emitMute(); } }));
+        cleanup.push(sdk!.system.onAudioEnabledChange(enabled => {
+            if (!disposed) {
+                muted = !enabled;
+                emitMute();
+            }
+        }));
         cleanup.push(sdk!.system.onPause(() => {
             if (disposed || paused) return; paused = true;
             emitMute(); notify(pauseListeners, true);
@@ -75,9 +86,28 @@ export function initializeYouTube(sdk: YouTubeSdk | undefined, warn: (message: s
     } : null;
     return {
         provider, storage: storage.adapter, waitActive,
-        async load() { try { await storage.load(); } catch (error) { warn('[YouTube] Load failed; existing progress was preserved', error); } await waitActive(); },
-        onAudioMute(callback: (muted: boolean) => void) { muteListeners.add(callback); callback(active && (muted || paused)); return () => { muteListeners.delete(callback); }; },
-        onPause(callback: (paused: boolean) => void) { pauseListeners.add(callback); callback(paused); return () => { pauseListeners.delete(callback); }; },
+        async load() {
+            try {
+                await storage.load();
+            } catch (error) {
+                warn('[YouTube] Load failed; existing progress was preserved', error);
+            }
+            await waitActive();
+        },
+        onAudioMute(callback: (muted: boolean) => void) {
+            muteListeners.add(callback);
+            callback(active && (muted || paused));
+            return () => {
+                muteListeners.delete(callback);
+            };
+        },
+        onPause(callback: (paused: boolean) => void) {
+            pauseListeners.add(callback);
+            callback(paused);
+            return () => {
+                pauseListeners.delete(callback);
+            };
+        },
         submitScore: active ? async (score: number) => {
             if (!Number.isSafeInteger(score)) throw new Error('YouTube scores must be safe integers');
             await waitActive(); requireActive(); await sdk!.engagement.sendScore({ value: score });

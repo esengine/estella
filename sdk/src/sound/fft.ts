@@ -10,7 +10,14 @@ export function fft(re: Float64Array, im: Float64Array): void {
         let bit = n >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
-        if (i < j) { const r = re[i]!; re[i] = re[j]!; re[j] = r; const m = im[i]!; im[i] = im[j]!; im[j] = m; }
+        if (i < j) {
+            const r = re[i]!;
+            re[i] = re[j]!;
+            re[j] = r;
+            const m = im[i]!;
+            im[i] = im[j]!;
+            im[j] = m;
+        }
     }
     for (let size = 2; size <= n; size <<= 1) {
         const angle = (-2 * Math.PI) / size;

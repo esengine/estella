@@ -235,26 +235,26 @@ export class NavGrid implements NavSurface {
         const half = this.cellSize / 2;
         const v = this.planeV(p);
         const originV = this.originV;
-        if (p.x-radius < this.originX-half || v-radius < originV-half
-            || p.x+radius > this.originX+(this.width-1)*this.cellSize+half
-            || v+radius > originV+(this.height-1)*this.cellSize+half) return false;
-        const x0=Math.max(0,Math.ceil((p.x-radius-half-this.originX)/this.cellSize));
-        const x1=Math.min(this.width-1,Math.floor((p.x+radius+half-this.originX)/this.cellSize));
-        const y0=Math.max(0,Math.ceil((v-radius-half-originV)/this.cellSize));
-        const y1=Math.min(this.height-1,Math.floor((v+radius+half-originV)/this.cellSize));
-        for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) {
-            if(this.isWalkable(x,y))continue;
-            const dx=Math.max(0,Math.abs(p.x-(this.originX+x*this.cellSize))-half);
-            const dy=Math.max(0,Math.abs(v-(originV+y*this.cellSize))-half);
-            if(dx*dx+dy*dy < radius*radius-1e-8)return false;
+        if (p.x - radius < this.originX - half || v - radius < originV - half
+            || p.x + radius > this.originX + (this.width - 1) * this.cellSize + half
+            || v + radius > originV + (this.height - 1) * this.cellSize + half) return false;
+        const x0 = Math.max(0, Math.ceil((p.x - radius - half - this.originX) / this.cellSize));
+        const x1 = Math.min(this.width - 1, Math.floor((p.x + radius + half - this.originX) / this.cellSize));
+        const y0 = Math.max(0, Math.ceil((v - radius - half - originV) / this.cellSize));
+        const y1 = Math.min(this.height - 1, Math.floor((v + radius + half - originV) / this.cellSize));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+            if (this.isWalkable(x, y)) continue;
+            const dx = Math.max(0, Math.abs(p.x - (this.originX + x * this.cellSize)) - half);
+            const dy = Math.max(0, Math.abs(v - (originV + y * this.cellSize)) - half);
+            if (dx * dx + dy * dy < radius * radius - 1e-8) return false;
         }
         return true;
     }
 
     /** Diagnose a route without treating a best-effort partial path as arrival. */
     queryWorldPath(from: NavPoint, to: NavPoint, opts?: NavQueryOptions): NavPathResult {
-        const radius=opts?.radius??0;
-        const clearance = radius>0 ? Math.ceil(radius/this.cellSize+0.5) : 0;
+        const radius = opts?.radius ?? 0;
+        const clearance = radius > 0 ? Math.ceil(radius / this.cellSize + 0.5) : 0;
         const start = resolveEndpoint(this, this.worldToCell(from), 8, clearance);
         if (!start) return { path: null, status: 'unavailable', reason: 'start-unavailable' };
         const target = resolveEndpoint(this, this.worldToCell(to), 8, clearance);

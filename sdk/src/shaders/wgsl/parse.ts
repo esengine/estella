@@ -96,7 +96,16 @@ export function parse(tokens: Token[], knownStructs: Iterable<string> = [], opts
     const is = (v: string, o = 0): boolean => peek(o).v === v && peek(o).t !== 'num';
     const expect = (v: string): Token => { const t = next(); if (t.v !== v) throw new GlslError(`expected '${v}', found '${t.v}'`, t.line); return t; };
     const isType = (t: Token): boolean => t.t === 'id' && (BASIC_TYPES.has(t.v) || structs.has(t.v));
-    const skipLayout = (o: number): number => { let d = 0; o++; do { if (peek(o).v === '(') d++; if (peek(o).v === ')') d--; o++; } while (d > 0); return o; };
+    const skipLayout = (o: number): number => {
+        let d = 0;
+        o++;
+        do {
+            if (peek(o).v === '(') d++;
+            if (peek(o).v === ')') d--;
+            o++;
+        } while (d > 0);
+        return o;
+    };
 
     function typeSpec(): TypeSpec {
         const quals: string[] = [];
@@ -201,7 +210,16 @@ export function parse(tokens: Token[], knownStructs: Iterable<string> = [], opts
             expect(']');
             const line = expect('(').line;
             const args: Node[] = [];
-            if (!is(')')) { for (;;) { args.push(assignment()); if (is(',')) { next(); continue; } break; } }
+            if (!is(')')) {
+                for (;;) {
+                    args.push(assignment());
+                    if (is(',')) {
+                        next();
+                        continue;
+                    }
+                    break;
+                }
+            }
             expect(')');
             e = { k: 'arrayctor', type: e.name, size, args, line };
         }
@@ -210,7 +228,16 @@ export function parse(tokens: Token[], knownStructs: Iterable<string> = [], opts
             if (t.t === 'p' && t.v === '(' && (e.k === 'id' || e.k === 'type')) {
                 next();
                 const args: Node[] = [];
-                if (!is(')')) { for (;;) { args.push(assignment()); if (is(',')) { next(); continue; } break; } }
+                if (!is(')')) {
+                    for (;;) {
+                        args.push(assignment());
+                        if (is(',')) {
+                            next();
+                            continue;
+                        }
+                        break;
+                    }
+                }
                 expect(')');
                 e = { k: 'call', name: e.name, args, line: t.line };
                 continue;

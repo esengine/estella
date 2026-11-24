@@ -864,7 +864,12 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
         const hit = find(id);
         if (hit) return hit;
         allIds.length = 0;
-        const walk = (list: Row[]): void => { for (const l of list) { if (l.id) allIds.push(l.id); if (l.layers) walk(l.layers as Row[]); } };
+        const walk = (list: Row[]): void => {
+            for (const l of list) {
+                if (l.id) allIds.push(l.id);
+                if (l.layers) walk(l.layers as Row[]);
+            }
+        };
         walk(clone.layers);
         throw new Error(`no layer "${id}"; ids: ${allIds.join(', ') || '(none: give layers an id to edit them)'}`);
     };

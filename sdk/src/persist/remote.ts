@@ -73,7 +73,12 @@ export class StoreHub {
         let open = true;
         let admitted = this.options_.secret === undefined;
         const maxFrame = this.options_.maxFrameBytes ?? 4 * 1024 * 1024;
-        const drop = (): void => { if (open) { open = false; this.connections_--; } };
+        const drop = (): void => {
+            if (open) {
+                open = false;
+                this.connections_--;
+            }
+        };
         socket.on('close', drop);
         socket.on('error', drop);
         const reply = (res: StoreResponse): void => {

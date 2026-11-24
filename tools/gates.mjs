@@ -314,6 +314,8 @@ export const GATES = [
   // build: so each one cites the vendor or says what it is assumed from.
   { id: 'minigame-profile-claims', run: 'node tools/check-minigame-profile-claims.mjs' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
+  // Code that reads as minified (unspaced operators, a loop and its body on one line) fails here; `--fix` spaces it.
+  { id: 'code-spacing', run: 'node tools/check-code-spacing.mjs' },
   // A comment, a string or a path says what Estella does, not whose engine does it that way.
   { id: 'engine-names', run: 'node tools/check-engine-names.mjs' },
   { id: 'silent-writes', run: 'node tools/mutation-census.mjs --gate' },

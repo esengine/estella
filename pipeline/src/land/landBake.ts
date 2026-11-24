@@ -509,7 +509,13 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                 }
                 for (let s = from + 1; s < to; s++) {
                     let sum = 0, got = 0;
-                    for (let o = -4; o <= 4; o++) { const q = s + o; if (q >= 0 && q < count) { sum += ground[q]!; got++; } }
+                    for (let o = -4; o <= 4; o++) {
+                        const q = s + o;
+                        if (q >= 0 && q < count) {
+                            sum += ground[q]!;
+                            got++;
+                        }
+                    }
                     const lo = Math.max(y[from]! - most * (s - from), y[to]! - most * (to - s)), hi = Math.min(y[from]! + most * (s - from), y[to]! + most * (to - s));
                     y[s] = clamp(sum / got, lo, hi);
                 }
@@ -517,7 +523,13 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                 for (let s = to - 1; s > from; s--) y[s] = clamp(y[s]!, y[s + 1]! - most, y[s + 1]! + most);
             }
             let steep = 0, steepAt = 0, cutMost = 0, fillMost = 0;
-            for (let s = 0; s + 1 < count; s++) { const gr = Math.abs(y[s + 1]! - y[s]!) / step1; if (gr > steep) { steep = gr; steepAt = s; } }
+            for (let s = 0; s + 1 < count; s++) {
+                const gr = Math.abs(y[s + 1]! - y[s]!) / step1;
+                if (gr > steep) {
+                    steep = gr;
+                    steepAt = s;
+                }
+            }
             for (let s = 0; s < count; s++) { cutMost = Math.max(cutMost, ground[s]! - y[s]!); fillMost = Math.max(fillMost, y[s]! - ground[s]!); }
             const fine: Line = { xs: px, zs: pz, at: Float64Array.from({ length: count }, (_, s) => s * step1), length: coarse.length };
             const side = Math.max(step.side ?? 0.7, 0.05), half = step.width / 2;

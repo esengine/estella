@@ -462,7 +462,12 @@ export class SpineRuntime {
                 pendingDt = 0;
                 owed = true;
             },
-            setSkin: (skin) => { if (open) { controller.setSkin(instanceId, skin); owed = true; } },
+            setSkin: (skin) => {
+                if (open) {
+                    controller.setSkin(instanceId, skin);
+                    owed = true;
+                }
+            },
             advance: (dt) => {
                 if (!open) return;
                 controller.advanceAndApply(instanceId, dt);

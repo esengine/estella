@@ -101,7 +101,11 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
   }
   for (const e of flat.entries) {
     let size = e.size ?? 0;
-    if (e.size == null) { try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing → 0 */ } }
+    if (e.size == null) {
+      try {
+        size = (await stat(path.join(absOut, e.path))).size;
+      } catch { /* missing → 0 */ }
+    }
     const groupName = e.group ?? 'main';
     const group = (groups[groupName] ??= {
       bundleMode: bundleModeFor(groupName, e.groupMode), labels: [], assets: {},

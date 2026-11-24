@@ -370,7 +370,7 @@ function steerTo(
     const da = target.x - a;
     const db = (flat ? target.y : target.z) - b;
     const length = Math.hypot(da, db);
-    const speed=Math.min(agent.speed,length/Math.max(dt,1e-6));
+    const speed = Math.min(agent.speed, length / Math.max(dt, 1e-6));
     const want = {
         x: length > 0 ? (da / length) * speed : 0,
         z: length > 0 ? (db / length) * speed : 0,
@@ -398,10 +398,10 @@ function steerTo(
 }
 
 function gridMoveFits(nav: Navigation, from: Vec3, to: Vec3, radius: number): boolean {
-    if(radius<=0 || !(nav.surface instanceof NavGrid) || (from.x===to.x && from.y===to.y && from.z===to.z))return true;
-    const count=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y,to.z-from.z)/(nav.surface.cellSize/4)));
-    if(count>512)return false;
-    for(let i=1;i<=count;i++)if(!nav.surface.isNavigable({x:from.x+(to.x-from.x)*i/count,y:from.y+(to.y-from.y)*i/count,z:from.z+(to.z-from.z)*i/count},{radius}))return false;
+    if (radius <= 0 || !(nav.surface instanceof NavGrid) || (from.x === to.x && from.y === to.y && from.z === to.z)) return true;
+    const count = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z) / (nav.surface.cellSize / 4)));
+    if (count > 512) return false;
+    for (let i = 1; i <= count; i++) if (!nav.surface.isNavigable({ x: from.x + (to.x - from.x) * i / count, y: from.y + (to.y - from.y) * i / count, z: from.z + (to.z - from.z) * i / count }, { radius })) return false;
     return true;
 }
 
@@ -417,8 +417,8 @@ function walkTransform(
     if (neighbours) return walkAmongBodies(world, entity, agent, rt, tf, dt, flat, neighbours, nav);
     const pos = { x: tf.position.x, y: tf.position.y, z: tf.position.z };
     const index = advanceAlongPath(pos, rt.waypoints, rt.index, agent.speed * dt);
-    if(!gridMoveFits(nav,tf.position,pos,agent.radius)){rt.needsReplan=true;rt.velocityA=0;rt.velocityB=0;return false;}
-    rt.index=index;
+    if (!gridMoveFits(nav, tf.position, pos, agent.radius)) { rt.needsReplan = true; rt.velocityA = 0; rt.velocityB = 0; return false; }
+    rt.index = index;
     rt.velocityA = 0;
     rt.velocityB = 0;
     tf.position.x = pos.x;
@@ -448,12 +448,12 @@ function walkAmongBodies(
     const pos = tf.position;
     // Intermediate cell centres may be occupied by a parked body. Join the
     // following segment only if the whole body fits; never skip the final goal.
-    const waypoint=rt.waypoints[rt.index];
-    if(waypoint && rt.index+1<rt.waypoints.length
-        && neighbours.some(n=>Math.hypot(n.x-waypoint.x,n.z-(flat?waypoint.y:waypoint.z))<agent.radius+n.radius)
-        && nav.surface instanceof NavGrid && nav.surface.isNavigable(pos,{radius:agent.radius})
-        && gridMoveFits(nav,pos,rt.waypoints[rt.index+1]!,agent.radius)) {
-        rt.index++;rt.recoveringStart=false;
+    const waypoint = rt.waypoints[rt.index];
+    if (waypoint && rt.index + 1 < rt.waypoints.length
+        && neighbours.some(n => Math.hypot(n.x - waypoint.x, n.z - (flat ? waypoint.y : waypoint.z)) < agent.radius + n.radius)
+        && nav.surface instanceof NavGrid && nav.surface.isNavigable(pos, { radius: agent.radius })
+        && gridMoveFits(nav, pos, rt.waypoints[rt.index + 1]!, agent.radius)) {
+        rt.index++; rt.recoveringStart = false;
     }
     while (rt.index < rt.waypoints.length) {
         const wp = rt.waypoints[rt.index]!;
@@ -464,7 +464,7 @@ function walkAmongBodies(
         if (planeDistance(wp, pos, flat) > reach
             && !(final && agent.arriveRadius <= 0 && sameGroundPoint(wp, pos, flat))) break;
         rt.index++;
-        rt.recoveringStart=false;
+        rt.recoveringStart = false;
     }
 
     const goal = rt.waypoints[rt.waypoints.length - 1];
@@ -478,10 +478,10 @@ function walkAmongBodies(
     }
 
     const v = steerTo(target, pos, agent, rt, flat, neighbours, nav, dt);
-    const next={x:pos.x+v.a*dt,y:flat?pos.y+v.b*dt:pos.y,z:flat?pos.z:pos.z+v.b*dt};
-    if(!gridMoveFits(nav,pos,next,agent.radius)){rt.needsReplan=true;rt.velocityA=0;rt.velocityB=0;return false;}
-    rt.stallTime=Math.hypot(v.a,v.b)<0.01 && agent.speed>0 ? (rt.stallTime??0)+dt : 0;
-    if(rt.stallTime>0.25 && nav.surface instanceof NavGrid)rt.needsReplan=true;
+    const next = { x: pos.x + v.a * dt, y: flat ? pos.y + v.b * dt : pos.y, z: flat ? pos.z : pos.z + v.b * dt };
+    if (!gridMoveFits(nav, pos, next, agent.radius)) { rt.needsReplan = true; rt.velocityA = 0; rt.velocityB = 0; return false; }
+    rt.stallTime = Math.hypot(v.a, v.b) < 0.01 && agent.speed > 0 ? (rt.stallTime ?? 0) + dt : 0;
+    if (rt.stallTime > 0.25 && nav.surface instanceof NavGrid) rt.needsReplan = true;
     rt.velocityA = v.a;
     rt.velocityB = v.b;
     pos.x += v.a * dt;

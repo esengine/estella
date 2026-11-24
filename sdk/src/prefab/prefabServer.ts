@@ -99,7 +99,12 @@ export class PrefabServer {
         const prepared = await this.getAssets_().preparePrefab(pathOrAddress);
         let held = true;
         return {
-            release: () => { if (held) { held = false; prepared.release(); } },
+            release: () => {
+                if (held) {
+                    held = false;
+                    prepared.release();
+                }
+            },
             spawn: (options) => {
                 if (!held) throw new Error(`prefab "${pathOrAddress}" was released before this spawn`);
                 const made = spawnPrepared(this.world_, prepared, options?.parent !== undefined ? { parent: options.parent } : undefined);

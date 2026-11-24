@@ -66,7 +66,13 @@ export function createAsyncStorage(source: SerializedStorage, options: AsyncStor
             if (typeof value !== 'string') throw new Error('Storage values must be strings');
             mutate(next => { if (next[key] === value) return false; next[key] = value; return true; });
         },
-        removeStorageItem(key) { mutate(next => { if (!Object.hasOwn(next, key)) return false; delete next[key]; return true; }); },
+        removeStorageItem(key) {
+            mutate(next => {
+                if (!Object.hasOwn(next, key)) return false;
+                delete next[key];
+                return true;
+            });
+        },
         clearStorage(prefix) { mutate(next => {
             let changed = false;
             for (const key of Object.keys(next)) if (key.startsWith(prefix)) { delete next[key]; changed = true; }

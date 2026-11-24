@@ -55,7 +55,13 @@ export function capturePanorama(rgba: Uint8Array, face: number, sky: Panorama | 
         for (let x = 0; x < width; x++) {
             const d = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
             let f = 0, best = -Infinity;
-            for (let i = 0; i < 6; i++) { const c = dot(d, FACE_DIR[i]!); if (c > best) { best = c; f = i; } }
+            for (let i = 0; i < 6; i++) {
+                const c = dot(d, FACE_DIR[i]!);
+                if (c > best) {
+                    best = c;
+                    f = i;
+                }
+            }
             const b = FACE_BASIS[f]!;
             const z = dot(d, b.forward);
             const u = dot(d, b.right) / z * 0.5 + 0.5, v = dot(d, b.up) / z * 0.5 + 0.5;

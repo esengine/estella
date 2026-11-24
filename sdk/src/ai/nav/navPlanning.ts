@@ -77,7 +77,7 @@ export function planNavigation(
                 rt.plannedX = agent.targetX; rt.plannedY = agent.targetY; rt.plannedZ = agent.targetZ;
                 rt.plannedRadius = agent.radius; rt.repathTimer = agent.repathInterval;
             } else {
-                const recoveringStart=!!rt?.needsReplan && agent.radius>0;
+                const recoveringStart = !!rt?.needsReplan && agent.radius > 0;
                 rt = { waypoints: path ?? [], index: recoveringStart ? 0 : path && path.length > 1 ? 1 : 0,
                     plannedX: agent.targetX, plannedY: agent.targetY, plannedZ: agent.targetZ,
                     plannedRadius: agent.radius, repathTimer: agent.repathInterval,

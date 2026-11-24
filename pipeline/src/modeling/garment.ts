@@ -81,7 +81,13 @@ export function garment(mesh: PolyMesh, p: GarmentParams): PolyMesh {
     }
     // Relaxed: each point toward the mean of its neighbours, and the piece's open edge left where it is, or it would draw in from there.
     const onEdge = new Uint8Array(positions.length);
-    for (const loop of loops) loop.forEach((a, i) => { const b = loop[(i + 1) % loop.length]!; if (edgeUses.get(edgeKey(a, b)) === 1) { onEdge[a] = 1; onEdge[b] = 1; } });
+    for (const loop of loops) loop.forEach((a, i) => {
+        const b = loop[(i + 1) % loop.length]!;
+        if (edgeUses.get(edgeKey(a, b)) === 1) {
+            onEdge[a] = 1;
+            onEdge[b] = 1;
+        }
+    });
     let current = positions;
     for (let pass = 0; pass < relax; pass++) {
         const next = current.map((q, v): Vec3 => {
@@ -168,7 +174,13 @@ export function garment(mesh: PolyMesh, p: GarmentParams): PolyMesh {
     for (const loop of kept) loop.forEach((a, i) => { const b = loop[(i + 1) % loop.length]!; uses.set(edgeKey(a, b), (uses.get(edgeKey(a, b)) ?? 0) + 1); });
     // The inside is only seen a little way in from a hem, and the rest of it would be half the model's triangles spent on nothing.
     const nearHem = new Uint8Array(count);
-    for (const loop of kept) loop.forEach((a, i) => { const b = loop[(i + 1) % loop.length]!; if (uses.get(edgeKey(a, b)) === 1) { nearHem[a] = 1; nearHem[b] = 1; } });
+    for (const loop of kept) loop.forEach((a, i) => {
+        const b = loop[(i + 1) % loop.length]!;
+        if (uses.get(edgeKey(a, b)) === 1) {
+            nearHem[a] = 1;
+            nearHem[b] = 1;
+        }
+    });
     for (let ring = 0; ring < INSIDE_RINGS; ring++) {
         const more: number[] = [];
         nearHem.forEach((on, v) => { if (on) for (const n of links[v]!) more.push(n); });
@@ -189,7 +201,13 @@ export function garment(mesh: PolyMesh, p: GarmentParams): PolyMesh {
         const reverse = new Map<number, number>();
         local.forEach((to, from) => reverse.set(from, to));
         const edge = new Uint8Array(count);
-        for (const loop of kept) loop.forEach((a, i) => { const b = loop[(i + 1) % loop.length]!; if (uses.get(edgeKey(a, b)) === 1) { edge[a] = 1; edge[b] = 1; } });
+        for (const loop of kept) loop.forEach((a, i) => {
+            const b = loop[(i + 1) % loop.length]!;
+            if (uses.get(edgeKey(a, b)) === 1) {
+                edge[a] = 1;
+                edge[b] = 1;
+            }
+        });
         for (let grow = 0; grow < 4; grow++) {
             const more: number[] = [];
             edge.forEach((on, v) => { if (on) for (const n of links[v]!) more.push(n); });

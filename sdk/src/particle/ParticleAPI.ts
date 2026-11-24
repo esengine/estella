@@ -9,7 +9,7 @@ import { ParticleCollisionBridge, type ParticleQueryResolver } from './ParticleC
 import type { ParticleCollisionBudget, ParticleCollisionEventPayload, ParticleCollisionStats } from './collision';
 
 function collisionCap(key: keyof ParticleCollisionBudget, value: number): number {
-    return Number.isFinite(value)?Math.max(0,Math.min(key==='queries'?65536:16384,Math.floor(value))):0;
+    return Number.isFinite(value) ? Math.max(0, Math.min(key === 'queries' ? 65536 : 16384, Math.floor(value))) : 0;
 }
 
 /**
@@ -47,21 +47,21 @@ export class ParticleAPI {
     get collisionError(): string | null { return this.collisions_.error; }
     /** Global App caps, independent of each emitter's smaller limits. */
     setCollisionBudget(budget: Partial<ParticleCollisionBudget>): void {
-        for (const key of ['queries','events'] as const) {
-            const value=budget[key];
-            if (value===undefined) continue;
-            this.collisions_.budget[key]=collisionCap(key,value);
+        for (const key of ['queries', 'events'] as const) {
+            const value = budget[key];
+            if (value === undefined) continue;
+            this.collisions_.budget[key] = collisionCap(key, value);
             this.collisions_.explicit.add(key);
         }
     }
     /** @internal */
     setLevelCollisionBudget(budget: ParticleCollisionBudget | null): void {
-        this.collisions_.level=budget?{queries:collisionCap('queries',budget.queries),events:collisionCap('events',budget.events)}:null;
+        this.collisions_.level = budget ? { queries: collisionCap('queries', budget.queries), events: collisionCap('events', budget.events) } : null;
     }
     get collisionBudget(): Readonly<ParticleCollisionBudget> { return this.collisions_.effectiveBudget(); }
     /** Draw bounded hit normals without enabling gameplay collision events. */
     get debugNormals(): boolean { return this.collisions_.debug; }
-    set debugNormals(enabled: boolean) { this.collisions_.debug=enabled; }
+    set debugNormals(enabled: boolean) { this.collisions_.debug = enabled; }
     /** @internal */
     get collisionContacts(): readonly ParticleCollisionEventPayload[] { return this.collisions_.contacts; }
 

@@ -122,7 +122,15 @@ export class TerrainSurface {
                     return { distance: hit.t, point: [ox + dx * hit.t, oy + dy * hit.t, oz + dz * hit.t], normal: hit.n };
                 }
             }
-            if (ti < tk) { t = ti; ti += tdi; i += si; } else { t = tk; tk += tdk; k += sk; }
+            if (ti < tk) {
+                t = ti;
+                ti += tdi;
+                i += si;
+            } else {
+                t = tk;
+                tk += tdk;
+                k += sk;
+            }
             if (dx === 0 && dz === 0) break;
         }
         return null;

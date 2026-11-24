@@ -124,13 +124,13 @@ bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float tim
     bool wantFar = surface && depth > 0.0;
     float planeDepth = u_causticElevation.z - receiver.y;
     float stepDepth = u_causticElevation.w;
-    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES-1}.0 * stepDepth) {
+    if (planeDepth < -stepDepth || planeDepth >= ${CAUSTIC_SLICES - 1}.0 * stepDepth) {
         if (wantFar) focus = causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers);
         return true;
     }
     vec2 uv = (receiver.xz + meanRay.xz * (planeDepth/max(meanRay.y,0.08)) - u_causticRect.xy) / u_causticRect.z;
     vec2 edge = min(uv, 1.0-uv);
-    float fade = smoothstep(0.025,0.09,min(edge.x,edge.y)) * (1.0-smoothstep(${CAUSTIC_SLICES-2}.0,${CAUSTIC_SLICES-1}.0,planeDepth/stepDepth));
+    float fade = smoothstep(0.025,0.09,min(edge.x,edge.y)) * (1.0-smoothstep(${CAUSTIC_SLICES - 2}.0,${CAUSTIC_SLICES - 1}.0,planeDepth/stepDepth));
     float far = wantFar && fade < 1.0 ? causticPattern(entry / max(u_causticScale,1e-4), time*u_causticSpeed, u_causticLayers) : 0.0;
     focus = far;
     if (fade <= 0.0) return true;
@@ -146,8 +146,8 @@ bool waterSunBundle(vec3 receiver, float depth, vec3 up, vec3 meanRay, float tim
         m = textureLod(u_causticField, vec2(uv.x/3.0,uv.y), 0.0) * (255.0/32.0);
     } else {
         // The water between the wave and its first solid hit samples a coarser 3D field.
-        float layer = clamp(planeDepth/stepDepth,0.0,${CAUSTIC_SLICES-1}.0);
-        float base = floor(layer), nextLayer = min(base+1.0,${CAUSTIC_SLICES-1}.0), part = fract(layer);
+        float layer = clamp(planeDepth/stepDepth,0.0,${CAUSTIC_SLICES - 1}.0);
+        float base = floor(layer), nextLayer = min(base+1.0,${CAUSTIC_SLICES - 1}.0), part = fract(layer);
         m = mix(waterMoment(uv,base), waterMoment(uv,nextLayer), part);
         // The coordinates remove the flat sun ray's drift. A bent bundle still moves sideways
         // between slices. Follow its measured direction to the two footprints that reach this depth.

@@ -347,11 +347,23 @@ export class WorldPlan {
         if (weights.length === 0) return { ok: false, reason: 'noBiome' };
         // A biome by its weight here, so where two meet their recipes mix rather than stopping on a line.
         let u = h(3), biome = weights[weights.length - 1]!.biome;
-        for (const w of weights) { if (u < w.weight) { biome = w.biome; break; } u -= w.weight; }
+        for (const w of weights) {
+          if (u < w.weight) {
+            biome = w.biome;
+            break;
+          }
+          u -= w.weight;
+        }
         const def = this.rules.biomes.find((b) => b.id === biome);
         const choices = (def?.recipes ?? []).filter((br) => br.layer === layer.def.id && this.recipes_.has(br.recipe));
         let v = h(4), recipe: Recipe | null = null;
-        for (const br of choices) { if (v < br.density) { recipe = this.recipes_.get(br.recipe)!; break; } v -= br.density; }
+        for (const br of choices) {
+          if (v < br.density) {
+            recipe = this.recipes_.get(br.recipe)!;
+            break;
+          }
+          v -= br.density;
+        }
         if (!recipe) return { ok: false, reason: 'density' };
         const f = this.env.sample(x, z);
         const groupId = `${layer.def.id}@${layer.def.version ?? 1}:${gx},${gz}`;

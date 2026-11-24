@@ -77,9 +77,9 @@ export function applyUnderwaterToEffects(effects: Map<string, BlendedEffect>, st
         effect.shader = Material.getShader(state.material);
         for (const [name,value] of Material.getUniforms(state.material)) {
             if (effect.uniforms.has(name) || effect.colors.has(name) || effect.textures.has(name)) continue;
-            if (typeof value === 'number') effect.uniforms.set(name,value);
-            else if ('__textureRef' in value) effect.textures.set(name,runtimeTextureRef(name,value.textureId));
-            else if ('x' in value) effect.colors.set(name,{r:value.x,g:value.y,b:'z' in value ? value.z : 0,a:'w' in value ? value.w : 0});
+            if (typeof value === 'number') effect.uniforms.set(name, value);
+            else if ('__textureRef' in value) effect.textures.set(name, runtimeTextureRef(name, value.textureId));
+            else if ('x' in value) effect.colors.set(name, { r: value.x, g: value.y, b: 'z' in value ? value.z : 0, a: 'w' in value ? value.w : 0 });
         }
     }
     if (!effect.colors.has('u_absorption')) effect.colors.set('u_absorption', colour(state.absorption));

@@ -5,7 +5,12 @@ export function disposeAll<T>(items: readonly T[], dispose: (item: T) => void, r
     let failed = false, reason: unknown;
     for (let n = 0; n < items.length; n++) {
         try { dispose(items[reverse ? items.length - 1 - n : n]!); }
-        catch (error) { if (!failed) { failed = true; reason = error; } }
+        catch (error) {
+            if (!failed) {
+                failed = true;
+                reason = error;
+            }
+        }
     }
     if (failed) throw reason;
 }

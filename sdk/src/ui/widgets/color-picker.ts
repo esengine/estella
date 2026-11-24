@@ -75,6 +75,10 @@ export function createColorPicker(opts: ColorPickerOptions): ColorPickerHandle {
     const off = opts.onChange ? events.on(entity, UIEventType.Change, event => opts.onChange!({ ...(event.data as { color: Color }).color })) : undefined;
     const offHistory = opts.onHistoryChange ? events.on(entity, 'history_change', event => opts.onHistoryChange!((event.data as { colors: Color[] }).colors.map(value => ({ ...value })))) : undefined;
     return { entity, getColor: () => ({ ...world.get(entity, UIColorPicker).color }),
-        setColor(next) { world.update(entity, UIColorPicker, data => { data.color = { ...next }; }); },
+        setColor(next) {
+            world.update(entity, UIColorPicker, data => {
+                data.color = { ...next };
+            });
+        },
         dispose() { off?.(); offHistory?.(); if (world.valid(entity)) world.despawn(entity); } };
 }

@@ -198,7 +198,11 @@ export async function startSocketWorker(options: SocketWorkerOptions): Promise<S
         if (!c || !c.open) return;
         c.open = false;
         conns.delete(id);
-        for (const h of [...c.closeHandlers]) { try { h(code); } catch { /* one does not stop the rest */ } }
+        for (const h of [...c.closeHandlers]) {
+            try {
+                h(code);
+            } catch { /* one does not stop the rest */ }
+        }
     };
 
     let port = 0;

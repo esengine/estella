@@ -129,7 +129,13 @@ export class Environment {
             let done = false, value = 0;
             Object.defineProperty(at, name, {
                 enumerable: true, configurable: true,
-                get: () => { if (!done) { value = compute(); done = true; } return value; },
+                get: () => {
+                    if (!done) {
+                        value = compute();
+                        done = true;
+                    }
+                    return value;
+                },
                 set: (v: number) => { value = v; done = true; },
             });
         };

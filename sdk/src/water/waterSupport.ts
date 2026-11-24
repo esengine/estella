@@ -15,7 +15,7 @@ import { UNDERWATER_SHADER, UnderwaterPlugin, registerUnderwaterEffect } from '.
 
 export function registerWaterSupport(): void {
     registerBuiltinShaderTemplate(WATER_SHADER_TEMPLATE);
-    registerBuiltinShaderTemplate(makeBuiltinShaderTemplate('underwater','Underwater','Submerged lens, scattering and wave caustics.',UNDERWATER_SHADER));
+    registerBuiltinShaderTemplate(makeBuiltinShaderTemplate('underwater', 'Underwater', 'Submerged lens, scattering and wave caustics.', UNDERWATER_SHADER));
     registerBuiltinShaderTemplate(WATERFALL_SHADER_TEMPLATE);
     addEntryPlugin('water', () => new WaterPlugin());
     addEntryPlugin('floating', () => new FloatingPlugin());

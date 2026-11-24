@@ -44,7 +44,7 @@ const READ_RECEIVER_GLSL = `vec4 readReceiver(vec2 uv) {
 }`;
 
 const RECEIVER_WGSL = `fn receiverPlaneDepth(record: vec4f) -> f32 {
-    let reach = mc.u_levels.w * ${CAUSTIC_SLICES-1}.0;
+    let reach = mc.u_levels.w * ${CAUSTIC_SLICES - 1}.0;
     let head = max(mc.u_levels.x + mc.u_levels.y - mc.u_levels.z, 0.0) + reach * 0.01;
     let z = 2.0 * dot(record.rgb, vec3f(1.0, 1.0/255.0, 1.0/65025.0)) - 1.0;
     return z * (head + reach) - head;
@@ -155,7 +155,7 @@ void main() {
         float start = u_levels.z - height;
         vec2 flatSlope = levelRay.xz / max(levelRay.y,0.08);
         vec2 drift = (flatSlope - ray.xz / max(ray.y,0.08)) / u_window.z;
-        depth = firstHit(uv + flatSlope * (start / u_window.z), drift, start, ${CAUSTIC_SLICES-1}.0 * u_levels.w);
+        depth = firstHit(uv + flatSlope * (start / u_window.z), drift, start, ${CAUSTIC_SLICES - 1}.0 * u_levels.w);
     }
     if (hit) v_hit = vec2(1.0, depth);
     float path = max(height-u_levels.z+depth, 0.0) / max(ray.y, 0.08);
@@ -297,7 +297,7 @@ fn beamDrift(uv: vec2f, depth: f32, centre: vec2f) -> vec2f {
     if (hit && c>0.0 && ray.y>0.0 && sun.y>0.0 && mc.u_bakeSun.w>0.0 && dot(h,h)<=1.001) {
         let start=mc.u_levels.z-height;
         let flatSlope=levelRay.xz/max(levelRay.y,0.08);
-        depth=firstHit(uv+flatSlope*(start/mc.u_window.z),(flatSlope-ray.xz/max(ray.y,0.08))/mc.u_window.z,start,${CAUSTIC_SLICES-1}.0*mc.u_levels.w);
+        depth=firstHit(uv+flatSlope*(start/mc.u_window.z),(flatSlope-ray.xz/max(ray.y,0.08))/mc.u_window.z,start,${CAUSTIC_SLICES - 1}.0*mc.u_levels.w);
     }
     if (hit) { out.hit=vec2f(1.0,depth); }
     let path=max(height-mc.u_levels.z+depth,0.0)/max(ray.y,0.08);

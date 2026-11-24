@@ -150,9 +150,9 @@ export class ScriptPool {
             () => this.rebuild_(),
             () => disposeAll(views, view => view.detach()),
             () => {
-                this.slotOf_.clear();this.views_.clear();this.refs_?.clear();
-                this.free_.length = 0;this.next_ = 0;
-                this.slots_ = EMPTY_F64;this.sparse_ = EMPTY_U32;this.owners_ = EMPTY_U32;
+                this.slotOf_.clear(); this.views_.clear(); this.refs_?.clear();
+                this.free_.length = 0; this.next_ = 0;
+                this.slots_ = EMPTY_F64; this.sparse_ = EMPTY_U32; this.owners_ = EMPTY_U32;
                 this.rows_ = this.sparseBlock_ = this.ownersBlock_ = EMPTY_BLOCK;
             },
             () => disposeAll(blocks, block => this.memory_.release(block)),
@@ -177,10 +177,10 @@ export class ScriptPool {
         // this constructor had, and the reason every view is built in one place.
         const allocated: PoolBlock[] = [];
         try {
-            this.rows_ = memory_.alloc(this.capacity_ * this.stride);allocated.push(this.rows_);
-            this.sparseBlock_ = memory_.alloc(this.capacity_ * 4);allocated.push(this.sparseBlock_);
+            this.rows_ = memory_.alloc(this.capacity_ * this.stride); allocated.push(this.rows_);
+            this.sparseBlock_ = memory_.alloc(this.capacity_ * 4); allocated.push(this.sparseBlock_);
             this.sparseLen_ = this.capacity_;
-            this.ownersBlock_ = memory_.alloc(this.capacity_ * 4);allocated.push(this.ownersBlock_);
+            this.ownersBlock_ = memory_.alloc(this.capacity_ * 4); allocated.push(this.ownersBlock_);
             this.slots_ = EMPTY_F64;
             this.sparse_ = EMPTY_U32;
             this.owners_ = EMPTY_U32;

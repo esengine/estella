@@ -340,7 +340,14 @@ function growGroup(r: Resolved, seed: number): CurveGroup {
     guideRoots.forEach((root, gi) => { walk(r, root, walked); walked.forEach((q, k) => guides.set(q, (gi * n + k) * 3)); });
     const gx = new Float64Array(G), gy = new Float64Array(G), gz = new Float64Array(G);
     const fx = new Float64Array(G), fy = new Float64Array(G), fz = new Float64Array(G);
-    guideRoots.forEach((g, i) => { gx[i] = g.p[0]; gy[i] = g.p[1]; gz[i] = g.p[2]; fx[i] = g.flow[0]; fy[i] = g.flow[1]; fz[i] = g.flow[2]; });
+    guideRoots.forEach((g, i) => {
+        gx[i] = g.p[0];
+        gy[i] = g.p[1];
+        gz[i] = g.p[2];
+        fx[i] = g.flow[0];
+        fy[i] = g.flow[1];
+        fz[i] = g.flow[2];
+    });
     // The guide roots in a grid of cells about two guides across, so a strand looks at the guides round it and not at all of them.
     let area = 0;
     { const [a, b, c] = r.scalp.radii; area = 4 * Math.PI * Math.pow((Math.pow(a * b, 1.6) + Math.pow(a * c, 1.6) + Math.pow(b * c, 1.6)) / 3, 1 / 1.6); }
@@ -434,7 +441,15 @@ function growGroup(r: Resolved, seed: number): CurveGroup {
                 // Across the strand: along x outward (outward lies flat).
                 let sx = ay * oz, sy = az * ox - ax * oz, sz = -ay * ox;
                 const sl = Math.sqrt(sx * sx + sy * sy + sz * sz);
-                if (sl > 1e-9) { sx /= sl; sy /= sl; sz /= sl; } else { sx = 1; sy = 0; sz = 0; }
+                if (sl > 1e-9) {
+                    sx /= sl;
+                    sy /= sl;
+                    sz /= sl;
+                } else {
+                    sx = 1;
+                    sy = 0;
+                    sz = 0;
+                }
                 const ph = waveK * s + myPhase, sn = a * Math.sin(ph), cs = 0.35 * a * Math.cos(ph);
                 pts[i] += sx * sn + ox * cs; pts[i + 1] += sy * sn; pts[i + 2] += sz * sn + oz * cs;
             }

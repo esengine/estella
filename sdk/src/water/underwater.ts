@@ -334,7 +334,7 @@ export class UnderwaterPlugin implements Plugin {
                 causticScale: single(instance, 'u_causticScale', WATER_CAUSTICS.scale.value * worldUnitScale()),
                 causticSpeed: single(instance, 'u_causticSpeed', WATER_CAUSTICS.speed.value),
                 level: waters.depthAt(eye[0], eye[2], 0) ?? sample.surface[1],
-                material: layers[layers.length-1]!.material,
+                material: layers[layers.length - 1]!.material,
                 opticalField: waters.opticalField_,
                 waveCaustics: !!waters.quality.causticFieldSize,
                 light: waters.quality.caustics });

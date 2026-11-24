@@ -23,7 +23,11 @@ export class DeviceEvents {
     update(patch: Partial<DeviceState>): void {
         if (!Object.entries(patch).some(([k, v]) => this.state[k as keyof DeviceState] !== v)) return;
         Object.assign(this.state, patch);
-        for (const handler of this.stateHandlers) { try { handler({ ...this.state }); } catch { /* subscriber isolation */ } }
+        for (const handler of this.stateHandlers) {
+            try {
+                handler({ ...this.state });
+            } catch { /* subscriber isolation */ }
+        }
     }
     reset(): void { this.gravity = null; this.orientation = null; }
     emit(raw: MotionSample): void {
@@ -36,7 +40,11 @@ export class DeviceEvents {
         }
         if (raw.orientation) this.orientation = filter(this.orientation, raw.orientation, true);
         const sample = { ...raw, gravity: this.gravity && { ...this.gravity }, orientation: this.orientation && { ...this.orientation } };
-        for (const handler of this.motionHandlers) { try { handler(sample); } catch { /* subscriber isolation */ } }
+        for (const handler of this.motionHandlers) {
+            try {
+                handler(sample);
+            } catch { /* subscriber isolation */ }
+        }
     }
     dispose(): void { this.motionHandlers.clear(); this.stateHandlers.clear(); this.reset(); }
 }

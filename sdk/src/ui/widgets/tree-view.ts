@@ -311,7 +311,12 @@ export function installTreeViews(app: App, host: ListViewHost): () => void {
                     if (current.selectionSnapshot !== selection) { current.selectionSnapshot = selection; if (playing()) events.emit(root, UIEventType.Change, { ids: model.selectedIds }); }
                 };
                 runtime.unsubs.push(model.subscribe(syncState)); syncState();
-                if (data.emptyPrefab) { world.update(empty, Text, text => { text.content = ''; }); style(data.emptyPrefab, empty, runtime); }
+                if (data.emptyPrefab) {
+                    world.update(empty, Text, text => {
+                        text.content = '';
+                    });
+                    style(data.emptyPrefab, empty, runtime);
+                }
             }
             if (!runtime.binding.options.data && runtime.nodes !== data.nodes) { runtime.nodes = data.nodes; runtime.model.refresh(); }
             const snapshot = JSON.stringify([data.expandedIds, data.selectedIds]);

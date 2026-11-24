@@ -37,7 +37,12 @@ export function crazyGamesAdProvider(sdk: CrazyGamesSdk): AdProvider {
                 try {
                     sdk.ad.requestAd(type, {
                         adStarted() {}, // The existing Ads service already holds the takeover.
-                        adFinished() { if (!settled) { settled = true; resolve(finish()); } },
+                        adFinished() {
+                            if (!settled) {
+                                settled = true;
+                                resolve(finish());
+                            }
+                        },
                         adError: fail,
                     });
                 } catch (error) { fail(error); }

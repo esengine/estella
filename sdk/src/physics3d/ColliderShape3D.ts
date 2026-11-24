@@ -69,7 +69,7 @@ export function rotateVec3ByQuat(rot: Quat, v: Vec3): Vec3 {
 }
 
 /** Local AABB of a loaded mesh's collision triangles, or null when nothing loaded them. */
-function meshBounds(handle: number, scale: Vec3 = { x:1, y:1, z:1 }): { center: Vec3; halfExtents: Vec3 } | null {
+function meshBounds(handle: number, scale: Vec3 = { x: 1, y: 1, z: 1 }): { center: Vec3; halfExtents: Vec3 } | null {
     const data = handle !== 0 ? getMeshCollision(handle) : null;
     if (!data || data.positions.length < 3) return null;
     const p = data.positions;

@@ -163,7 +163,12 @@ function pair(members: number[][], adjacency: Map<number, number>[]): { members:
         into[a] = into[b] = merged.length;
         merged.push([...members[a]!, ...members[b]!]);
     }
-    members.forEach((m, a) => { if (into[a]! < 0) { into[a] = merged.length; merged.push(m); } });
+    members.forEach((m, a) => {
+        if (into[a]! < 0) {
+            into[a] = merged.length;
+            merged.push(m);
+        }
+    });
     const next: Map<number, number>[] = merged.map(() => new Map());
     adjacency.forEach((near, a) => {
         for (const [b, w] of near) {

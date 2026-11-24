@@ -285,7 +285,14 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
             const x = p3[0]! * plant.scale * wide;
             let y = p3[1]! * plant.scale, z = p3[2]! * plant.scale * wide;
             // A normal turns the other way from what stretches its surface.
-            if (wide !== 1) { n3[0] = n3[0]! / wide; n3[2] = n3[2]! / wide; const l = Math.hypot(n3[0]!, n3[1]!, n3[2]!) || 1; n3[0] /= l; n3[1] = n3[1]! / l; n3[2] /= l; }
+            if (wide !== 1) {
+                n3[0] = n3[0]! / wide;
+                n3[2] = n3[2]! / wide;
+                const l = Math.hypot(n3[0]!, n3[1]!, n3[2]!) || 1;
+                n3[0] /= l;
+                n3[1] = n3[1]! / l;
+                n3[2] /= l;
+            }
             // The top is tipped about the plant's own highest point, and what is under it stays: a stem does not lean, its flower does.
             if (tilt !== 0 && t > TIP_FROM) {
                 const a = tilt * Math.min((t - TIP_FROM) / (TIP_WHOLE - TIP_FROM), 1), c = Math.cos(a), sn = Math.sin(a);

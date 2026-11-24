@@ -50,7 +50,11 @@ export class WebDevice implements DeviceBackend {
     private startPower(): void {
         if (this.powerStarted || this.disposed) return;
         this.powerStarted = true;
-        try { void this.nav.getBattery?.().then((battery) => { if (!this.disposed) this.battery = battery; }, () => undefined); } catch { /* no battery to read */ }
+        try {
+            void this.nav.getBattery?.().then((battery) => {
+                if (!this.disposed) this.battery = battery;
+            }, () => undefined);
+        } catch { /* no battery to read */ }
         try {
             const Observer = (this.win as unknown as { PressureObserver?: new (callback: (records: PressureRecord[]) => void) => PressureObserverLike }).PressureObserver;
             if (Observer) {

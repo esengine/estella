@@ -256,7 +256,7 @@ export class DragPlugin implements Plugin {
                     const prevX = dragState.currentWorldPos.x;
                     const prevY = dragState.currentWorldPos.y;
                     const localDelta = worldToLocalDelta(world, activeEntity, newWorldX - prevX, newWorldY - prevY, readParentDelta);
-                    if (!localDelta) { stopCapture();return; }
+                    if (!localDelta) { stopCapture(); return; }
                     world.update(activeEntity, DragState, (d) => {
                         d.deltaWorld = { x: newWorldX - prevX, y: newWorldY - prevY };
                         d.currentWorldPos = { x: newWorldX, y: newWorldY };

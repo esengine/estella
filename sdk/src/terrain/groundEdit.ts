@@ -191,7 +191,7 @@ export class GroundEdit {
     /** Lays a patch's `before` or its `after` back over the ground. */
     apply(patch: GroundPatch, side: 'before' | 'after'): void {
         const { a, b } = this.source.splats();
-        const restore = <T extends Texels>(piece: Piece<T> | null, pixels: T, grid: {width: number; height: number}, stride: number) => {
+        const restore = <T extends Texels>(piece: Piece<T> | null, pixels: T, grid: { width: number; height: number }, stride: number) => {
             if (!piece) return;
             put(pixels, piece, side, stride);
             const r = piece.rect, dx = this.sizeX / Math.max(1, grid.width - 1), dz = this.sizeZ / Math.max(1, grid.height - 1);

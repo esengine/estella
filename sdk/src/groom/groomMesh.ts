@@ -63,7 +63,15 @@ export function buildStrandMesh(set: CurveSet, scale: number, halfWidth = 0): St
             const prev = (k > 0 ? i - 1 : i) * 3, next = (k < n - 1 ? i + 1 : i) * 3;
             let dx = p[next]! - p[prev]!, dy = p[next + 1]! - p[prev + 1]!, dz = p[next + 2]! - p[prev + 2]!;
             const len = Math.hypot(dx, dy, dz);
-            if (len > 0) { dx /= len; dy /= len; dz /= len; } else { dx = 0; dy = 1; dz = 0; }
+            if (len > 0) {
+                dx /= len;
+                dy /= len;
+                dz /= len;
+            } else {
+                dx = 0;
+                dy = 1;
+                dz = 0;
+            }
             const x = p[i * 3]! * scale, y = p[i * 3 + 1]! * scale, z = p[i * 3 + 2]! * scale;
             if (x < min[0]) min[0] = x; if (y < min[1]) min[1] = y; if (z < min[2]) min[2] = z;
             if (x > max[0]) max[0] = x; if (y > max[1]) max[1] = y; if (z > max[2]) max[2] = z;

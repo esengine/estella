@@ -156,7 +156,12 @@ export function rigBoneId(bones: readonly RigBone[], index: number): string {
  */
 export function ensureRigBoneIds(rig: RigSource): void {
     // A rig with no ids yet is one saved before them: its bones keep the names its prefab already gave their entities.
-    if (rig.bones.every(b => !b.id)) { rig.bones.forEach((b, i) => { b.id = `b${i}`; }); return; }
+    if (rig.bones.every(b => !b.id)) {
+        rig.bones.forEach((b, i) => {
+            b.id = `b${i}`;
+        });
+        return;
+    }
     let next = rig.bones.length;
     for (const b of rig.bones) next = Math.max(next, Number(ID_PATTERN.exec(b.id ?? '')?.[1] ?? -1) + 1);
     const used = new Set(rig.bones.flatMap(b => (b.id ? [b.id] : [])));

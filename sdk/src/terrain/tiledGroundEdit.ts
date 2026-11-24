@@ -139,7 +139,7 @@ export class TiledGroundEdit {
             }
             const { a, b } = s.overviewSplats(false, false), overview = clear(slot < 4 ? a : b);
             if (!tiles.size && !overview[field]) return null;
-            const bounds: TiledGroundPatch['bounds'] = [-this.sizeX/2, -this.sizeZ/2, this.sizeX/2, this.sizeZ/2];
+            const bounds: TiledGroundPatch['bounds'] = [-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2];
             const patch = { tiles, overview, bounds };
             this.apply(patch, 'after');
             return patch;

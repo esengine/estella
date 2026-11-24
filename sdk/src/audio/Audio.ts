@@ -1125,7 +1125,13 @@ export class AudioAPI {
         const api = this;
         const managed: AudioHandle = {
             get id() { return handle.id; },
-            stop() { if (!voice.retired) { voice.retired = true; voice.paused = false; handle.stop(); } },
+            stop() {
+                if (!voice.retired) {
+                    voice.retired = true;
+                    voice.paused = false;
+                    handle.stop();
+                }
+            },
             pause() {
                 if (!handle.isPlaying) return;
                 handle.pause();
@@ -1272,7 +1278,11 @@ export class AudioAPI {
         // and a different backend may require explicit stops before disposal.
         disposeAll([() => this.stopAll(), () => this.playbackStops_.clear(), () => {
             this.loadingBuffers_.clear();
-            try { disposeAll([...this.bufferCache_], ([url, entry]) => { this.freeBuffer_(url, entry); }); }
+            try {
+                disposeAll([...this.bufferCache_], ([url, entry]) => {
+                    this.freeBuffer_(url, entry);
+                });
+            }
             finally {
                 this.bufferCache_.clear();
                 this.bufferSources_.clear();
@@ -1368,13 +1378,48 @@ export class AudioAPI {
         return {
             get id() { return real?.id ?? -1; },
             get cancelled() { return stopped; },
-            stop() { if (!stopped) { stopped = true; real?.stop(); } },
-            pause() { if (!stopped) { paused = true; real?.pause(); } },
-            resume() { if (!stopped) { paused = false; real?.resume(); } },
-            setVolume(v) { if (!stopped) { overrides.volume = v; real?.setVolume(v); } },
-            setPan(p) { if (!stopped) { overrides.pan = p; real?.setPan(p); } },
-            setLoop(l) { if (!stopped) { overrides.loop = l; real?.setLoop(l); } },
-            setPlaybackRate(r) { if (!stopped) { overrides.playbackRate = r; real?.setPlaybackRate(r); } },
+            stop() {
+                if (!stopped) {
+                    stopped = true;
+                    real?.stop();
+                }
+            },
+            pause() {
+                if (!stopped) {
+                    paused = true;
+                    real?.pause();
+                }
+            },
+            resume() {
+                if (!stopped) {
+                    paused = false;
+                    real?.resume();
+                }
+            },
+            setVolume(v) {
+                if (!stopped) {
+                    overrides.volume = v;
+                    real?.setVolume(v);
+                }
+            },
+            setPan(p) {
+                if (!stopped) {
+                    overrides.pan = p;
+                    real?.setPan(p);
+                }
+            },
+            setLoop(l) {
+                if (!stopped) {
+                    overrides.loop = l;
+                    real?.setLoop(l);
+                }
+            },
+            setPlaybackRate(r) {
+                if (!stopped) {
+                    overrides.playbackRate = r;
+                    real?.setPlaybackRate(r);
+                }
+            },
             get isPlaying() { return real?.isPlaying ?? false; },
             get currentTime() { return real?.currentTime ?? 0; },
             get duration() { return real?.duration ?? 0; },

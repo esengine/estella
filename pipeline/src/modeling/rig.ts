@@ -114,7 +114,14 @@ export function computeWornWeights(mesh: PolyMesh, joints: readonly RigJoint[], 
     for (const face of mesh.faces) if (bodyTags.has(face.tag)) for (const v of face.v) isBody[v] = 1;
     // Whole pieces: an eye is body, and so is a stretch of skin with a tag that was not asked for, if it is joined on.
     const parent = Array.from({ length: mesh.positions.length }, (_, i) => i);
-    const find = (i: number): number => { let at = i; while (parent[at] !== at) { parent[at] = parent[parent[at]!]!; at = parent[at]!; } return at; };
+    const find = (i: number): number => {
+        let at = i;
+        while (parent[at] !== at) {
+            parent[at] = parent[parent[at]!]!;
+            at = parent[at]!;
+        }
+        return at;
+    };
     for (const face of mesh.faces) for (const v of face.v) parent[find(v)] = find(face.v[0]!);
     const bodyRoots = new Set<number>();
     isBody.forEach((on, v) => { if (on) bodyRoots.add(find(v)); });

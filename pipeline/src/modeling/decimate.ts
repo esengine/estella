@@ -114,7 +114,13 @@ export function decimate(mesh: PolyMesh, p: DecimateParams): PolyMesh {
         // those: each takes what any old face held for it there.
         const corner = <K extends 'cornerUvs' | 'cornerNormals'>(key: K): Pick<Face, K> | Record<string, never> => {
             if (!from![key]) return {};
-            const held = [a, b, c].map((v) => { for (const face of around.get(v)!) { const i = face.v.indexOf(v); if (face[key]?.[i]) return face[key]![i]!; } return from![key]![0]!; });
+            const held = [a, b, c].map((v) => {
+                for (const face of around.get(v)!) {
+                    const i = face.v.indexOf(v);
+                    if (face[key]?.[i]) return face[key]![i]!;
+                }
+                return from![key]![0]!;
+            });
             return { [key]: held } as unknown as Pick<Face, K>;
         };
         made.push({ ...from!, v: [a, b, c], ...corner('cornerUvs'), ...corner('cornerNormals') });

@@ -73,7 +73,15 @@ export function generateTangents(
         let len = Math.hypot(tx, ty, tz);
         if (!(len > 1e-8)) {
             // No usable direction (no UV area here): any axis square to the normal keeps the frame well-formed.
-            if (Math.abs(nx) < 0.9) { tx = 0; ty = -nz; tz = ny; } else { tx = nz; ty = 0; tz = -nx; }
+            if (Math.abs(nx) < 0.9) {
+                tx = 0;
+                ty = -nz;
+                tz = ny;
+            } else {
+                tx = nz;
+                ty = 0;
+                tz = -nx;
+            }
             len = Math.hypot(tx, ty, tz) || 1;
         }
         tx /= len; ty /= len; tz /= len;

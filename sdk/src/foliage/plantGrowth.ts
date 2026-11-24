@@ -105,9 +105,21 @@ export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind
         try { mesh = await handleOf(part.mesh, part.soft ?? 0); } catch { mesh = 0; }
         if (mesh === 0) { log.warn('foliage', `the geometry of ${part.mesh} cannot be read, so its plants are left out`); return null; }
         let lod1 = 0;
-        if (withLod && part.lod1Mesh) { try { lod1 = await handleOf(part.lod1Mesh, part.soft ?? 0); } catch { lod1 = 0; } }
+        if (withLod && part.lod1Mesh) {
+            try {
+                lod1 = await handleOf(part.lod1Mesh, part.soft ?? 0);
+            } catch {
+                lod1 = 0;
+            }
+        }
         let lod2 = 0;
-        if (withLod && part.lod2Mesh) { try { lod2 = await handleOf(part.lod2Mesh, part.soft ?? 0); } catch { lod2 = 0; } }
+        if (withLod && part.lod2Mesh) {
+            try {
+                lod2 = await handleOf(part.lod2Mesh, part.soft ?? 0);
+            } catch {
+                lod2 = 0;
+            }
+        }
         return {
             part, mesh, lod1, ...(lod2 ? { lod2 } : {}),
             material: part.material ? await load('material', part.material) : 0,

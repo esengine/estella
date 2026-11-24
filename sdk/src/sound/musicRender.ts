@@ -95,7 +95,12 @@ export function compileMusic(source: MusicSource): CompiledMusic {
     const parts: CompiledMusic['parts'] = [];
     const notes: string[] = [];
     const said = new Set<string>();
-    const say = (text: string): void => { if (!said.has(text)) { said.add(text); notes.push(text); } };
+    const say = (text: string): void => {
+        if (!said.has(text)) {
+            said.add(text);
+            notes.push(text);
+        }
+    };
     const played = new Set<string>();
     const used = new Set<string>();
     let at = 0;

@@ -79,7 +79,7 @@ const TYPE_SCALE: ThemeType = { label: 14, body: 15, title: 20 };
 export const DARK_TOKENS: ThemeTokens = {
     colors: {
         surface:        { r: 0.16, g: 0.16, b: 0.18, a: 1 },
-        surfaceElevated:{ r: 0.14, g: 0.14, b: 0.16, a: 1 },
+        surfaceElevated: { r: 0.14, g: 0.14, b: 0.16, a: 1 },
         control:        { r: 0.22, g: 0.22, b: 0.26, a: 1 },
         controlHover:   { r: 0.28, g: 0.28, b: 0.32, a: 1 },
         controlActive:  { r: 0.18, g: 0.18, b: 0.22, a: 1 },
@@ -101,7 +101,7 @@ export const DARK_TOKENS: ThemeTokens = {
 export const LIGHT_TOKENS: ThemeTokens = {
     colors: {
         surface:        { r: 0.96, g: 0.96, b: 0.97, a: 1 },
-        surfaceElevated:{ r: 1,    g: 1,    b: 1,    a: 1 },
+        surfaceElevated: { r: 1,    g: 1,    b: 1,    a: 1 },
         control:        { r: 0.90, g: 0.90, b: 0.92, a: 1 },
         controlHover:   { r: 0.84, g: 0.84, b: 0.87, a: 1 },
         controlActive:  { r: 0.78, g: 0.78, b: 0.82, a: 1 },

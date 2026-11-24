@@ -473,7 +473,13 @@ export class World {
         for (const cb of this.despawnCallbacks_) {
             try { cb(entity); } catch (e) {
                 // A module that has aborted fails every callback the same way, and one report says so for all of them.
-                if (e instanceof WasmModuleAborted) { if (!this.abortedReported_) { this.abortedReported_ = true; log.warn('world', 'Despawn callbacks stopped: the engine module has aborted', e); } continue; }
+                if (e instanceof WasmModuleAborted) {
+                    if (!this.abortedReported_) {
+                        this.abortedReported_ = true;
+                        log.warn('world', 'Despawn callbacks stopped: the engine module has aborted', e);
+                    }
+                    continue;
+                }
                 log.warn('world', 'Despawn callback error', e);
             }
         }

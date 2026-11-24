@@ -206,7 +206,19 @@ function anchorOn(world: World, object: Entity, anchor: Entity): Pose3 | null {
 /** An anchor's pose on its object, mirrored in the plane square to one of the object's axes: what the other hand's palm takes there. */
 function mirrored(a: Pose3, axis: number): Pose3 {
     const p = { ...a.p }, r = { ...a.r };
-    if (axis === 1) { p.y = -p.y; r.x = -r.x; r.z = -r.z; } else if (axis === 2) { p.z = -p.z; r.x = -r.x; r.y = -r.y; } else { p.x = -p.x; r.y = -r.y; r.z = -r.z; }
+    if (axis === 1) {
+        p.y = -p.y;
+        r.x = -r.x;
+        r.z = -r.z;
+    } else if (axis === 2) {
+        p.z = -p.z;
+        r.x = -r.x;
+        r.y = -r.y;
+    } else {
+        p.x = -p.x;
+        r.y = -r.y;
+        r.z = -r.z;
+    }
     return { p, r, s: a.s };
 }
 
@@ -344,7 +356,12 @@ export function installGripHold(app: App): void {
                 if (!world.valid(joint) || !world.has(joint, Transform)) continue;
                 const now = (world.get(joint, Transform) as TransformData).rotation;
                 const base = state.base.get(joint);
-                if (base && same(now, written)) { world.update(joint, Transform, (t: TransformData) => { t.rotation = { ...base }; }); restored = true; }
+                if (base && same(now, written)) {
+                    world.update(joint, Transform, (t: TransformData) => {
+                        t.rotation = { ...base };
+                    });
+                    restored = true;
+                }
             }
         }
         if (restored) world.ensureTransformsComposed();

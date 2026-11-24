@@ -907,7 +907,7 @@ function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
         const camera = node.camera === undefined ? undefined : readCamera(json.cameras?.[node.camera]);
         return { index, name, ...nodeTrs(node), meshes, children,
                  particle: readGltfParticle(node.extras, name, warnings),
-                 ...([0,1].includes((node.extras as any)?.estella?.billboard) ? { billboard: (node.extras as any).estella.billboard } : {}),
+                 ...([0, 1].includes((node.extras as any)?.estella?.billboard) ? { billboard: (node.extras as any).estella.billboard } : {}),
                  ...(node.extensions?.KHR_node_visibility ? { visibility: node.extensions.KHR_node_visibility.visible !== false } : {}),
                  ...(light ? { light } : {}), ...(camera ? { camera } : {}), ...(spring.get(index) ?? {}) };
     };
@@ -1198,7 +1198,7 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
                 warnings.push(`${name}: particle track target ${track.node} has no imported emitter`);
                 return [];
             }
-            const events = track.events.filter(e => e && Number.isFinite(e.time) && e.time >= 0 && ['play','stop','reset'].includes(e.action))
+            const events = track.events.filter(e => e && Number.isFinite(e.time) && e.time >= 0 && ['play', 'stop', 'reset'].includes(e.action))
                 .map(e => ({ time: e.time, action: e.action }));
             if (events.length !== track.events.length) warnings.push(`${name}: invalid particle events were skipped`);
             if (!events.length) return [];

@@ -233,12 +233,46 @@ export class SoundEventPlayback {
             get selection() { return request.selection; }, get isPlaying() { refresh(); return request.status === 'playing'; },
             get duration() { return request.native?.duration ?? 0; }, get currentTime() { return request.native?.currentTime ?? 0; },
             stop: () => this.finish(request, 'stopped', true),
-            pause: () => { refresh(); if (this.live(request)) { request.paused = true; request.native?.pause(); refresh(); } },
-            resume: () => { refresh(); if (this.live(request)) { request.paused = false; request.native?.resume(); refresh(); } },
-            setVolume: volume => { if (this.live(request)) { request.volume = volume; this.applySpatial(request); } },
-            setPan: pan => { if (this.live(request)) { request.pan = pan; this.applySpatial(request); } },
-            setLoop: loop => { if (this.live(request)) { request.loop = loop; request.native?.setLoop(loop); } },
-            setPlaybackRate: rate => { if (this.live(request)) { request.rate = rate; request.native?.setPlaybackRate(rate); } },
+            pause: () => {
+                refresh();
+                if (this.live(request)) {
+                    request.paused = true;
+                    request.native?.pause();
+                    refresh();
+                }
+            },
+            resume: () => {
+                refresh();
+                if (this.live(request)) {
+                    request.paused = false;
+                    request.native?.resume();
+                    refresh();
+                }
+            },
+            setVolume: volume => {
+                if (this.live(request)) {
+                    request.volume = volume;
+                    this.applySpatial(request);
+                }
+            },
+            setPan: pan => {
+                if (this.live(request)) {
+                    request.pan = pan;
+                    this.applySpatial(request);
+                }
+            },
+            setLoop: loop => {
+                if (this.live(request)) {
+                    request.loop = loop;
+                    request.native?.setLoop(loop);
+                }
+            },
+            setPlaybackRate: rate => {
+                if (this.live(request)) {
+                    request.rate = rate;
+                    request.native?.setPlaybackRate(rate);
+                }
+            },
             get onEnd() { return request.onEnd; }, set onEnd(callback) { request.onEnd = callback; },
         };
         const refresh = () => this.refresh(request);

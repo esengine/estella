@@ -379,7 +379,14 @@ export class WaterField {
                     if (weight <= 0) continue;
                     held = Math.max(held, weight);
                     if (bounded[b]!.kind === 'river') riverW += weight;
-                    w += weight; h += say.height * weight; a += say.amp * weight; c += say.calm * weight; sw += bounded[b]!.waveHeight * weight; fx += say.fx * weight; fz += say.fz * weight; au += say.audio * weight;
+                    w += weight;
+                    h += say.height * weight;
+                    a += say.amp * weight;
+                    c += say.calm * weight;
+                    sw += bounded[b]!.waveHeight * weight;
+                    fx += say.fx * weight;
+                    fz += say.fz * weight;
+                    au += say.audio * weight;
                     const own = bounded[b]!.color;
                     looks.push(weight, bounded[b]!.priority ?? 0, own ? own[0] : Number.NaN, own?.[1] ?? 0, own?.[2] ?? 0, bounded[b]!.caustics?.strength ?? 0, bounded[b]!.caustics?.weight ?? 0, bounded[b]!.caustics?.priority ?? 0);
                     ex += (bounded[b]!.exposure ?? 1) * weight;
@@ -509,10 +516,10 @@ export class WaterField {
     /** Material for one triangle on the shared surface. */
     materialAt(x: number, z: number): number {
         const g = this.grid;
-        if (!this.materialTable || x<g.minX || z<g.minZ || x>g.minX+g.sizeX || z>g.minZ+g.sizeZ)
+        if (!this.materialTable || x < g.minX || z < g.minZ || x > g.minX + g.sizeX || z > g.minZ + g.sizeZ)
             return this.ocean?.material ?? 0;
-        const i=Math.round((x-g.minX)/g.sizeX*(g.nx-1)), j=Math.round((z-g.minZ)/g.sizeZ*(g.nz-1));
-        return this.materialTable[j*g.nx+i]!;
+        const i = Math.round((x - g.minX) / g.sizeX * (g.nx - 1)), j = Math.round((z - g.minZ) / g.sizeZ * (g.nz - 1));
+        return this.materialTable[j * g.nx + i]!;
     }
 
     /** The part of the field a world is laid out by (how deep water stands over a height, how far a point is from the shore), as a query over this field's own arrays. */
@@ -634,7 +641,12 @@ function* openSea(grid: ZoneGrid, grounds: Float64Array, level: number, at: numb
     const sea = new Uint8Array(nx * nz);
     const low = (k: number): boolean => { const g = grounds[k]!; return Number.isNaN(g) || g < level; };
     const queue: number[] = [];
-    const reach = (k: number): void => { if (!sea[k] && low(k)) { sea[k] = 1; queue.push(k); } };
+    const reach = (k: number): void => {
+        if (!sea[k] && low(k)) {
+            sea[k] = 1;
+            queue.push(k);
+        }
+    };
     for (let i = 0; i < nx; i++) { reach(i); reach((nz - 1) * nx + i); }
     for (let j = 0; j < nz; j++) { reach(j * nx); reach(j * nx + nx - 1); }
     for (let q = 0; q < queue.length; q++) {
