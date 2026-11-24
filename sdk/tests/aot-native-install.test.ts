@@ -161,6 +161,60 @@ function eventFixture() {
 }
 
 describe('installing compiled systems on a host that loads a library', () => {
+    it('declines a missing resource or a rejected mirror instead of reusing a previous report', () => {
+        declareDrift();
+        const world = new World(), runner = new SystemRunner(world, new ResourceStorage());
+        const host = fakeHost(['DriftSystem']);
+        const manifest = { ...MANIFEST, systems: [
+            { ...MANIFEST.systems[0]!, resources: [{ name: 'Time', mut: false }] },
+        ] };
+        let present = true, accepted = true, interpreted = 0;
+        const runtime = installNativeAot({ world, runner, modulePath: 'systems.dll', manifest, heap: fakeHeap(),
+            bindings: { ...host.bindings, resource: () => accepted },
+            resources: () => present ? { delta: 1 } : undefined,
+        })!;
+        const system = defineSystem([], () => { interpreted++; }, { name: 'DriftSystem' });
+        try {
+            runner.run(system);
+            present = false; runner.run(system);
+            present = true; accepted = false; runner.run(system);
+            accepted = true; runner.run(system);
+            expect(host.calls).toEqual([0, 0]);
+            expect(interpreted).toBe(2);
+        } finally { runtime.dispose?.(); world.releaseScriptPools(); }
+    });
+
+    it('reports a script column after a resource read grows it', () => {
+        const Drift = declareDrift(), world = new World(), runner = new SystemRunner(world, new ResourceStorage());
+        const host = fakeHost(['DriftSystem']);
+        const system = defineSystem([], () => {}, { name: 'DriftSystem' });
+        const manifest = { ...MANIFEST, systems: [
+            { ...MANIFEST.systems[0]!, resources: [{ name: 'Time', mut: false }] },
+        ] };
+        let grow = false;
+        const runtime = installNativeAot({
+            world, runner, modulePath: 'systems.dll', manifest, heap: fakeHeap(), bindings: host.bindings,
+            resources: () => {
+                if (grow) {
+                    grow = false;
+                    for (let i = 0; i < 80; i++) world.insert(world.spawn(), Drift, { x: i });
+                }
+                return { delta: 1 };
+            },
+        })!;
+        try {
+            world.insert(world.spawn(), Drift);
+            runner.run(system);
+            const original = world.scriptSpanOf(Drift)!.rows;
+            grow = true;
+            runner.run(system);
+            const next = world.scriptSpanOf(Drift)!.rows;
+            expect(next).not.toBe(original);
+            expect(host.reported.at(-1)?.rows).toBe(next);
+            expect(host.calls).toHaveLength(2);
+        } finally { runtime.dispose?.(); world.releaseScriptPools(); }
+    });
+
     it('a retired runtime refuses saved and runner-owned native dispatchers',()=>{
         const f=fixture(['DriftSystem']),entity=f.world.spawn();f.world.insert(entity,f.Drift,{x:7});
         let interpreted=0;const system=defineSystem([Query(Mut(f.Drift))],()=>{interpreted++;},{name:'DriftSystem'});

@@ -72,7 +72,7 @@ const REGISTRY = {
  * A world whose `Transform` addresses this test can move, and whose engine can
  * be asked — or not asked — for its layout epoch.
  */
-function harness(options: { epochBinding?: boolean } = {}) {
+function harness(options: { epochBinding?: boolean; readTime?: () => number | undefined } = {}) {
     const heap = new Heap();
     const memory = new WasmPoolMemory(heap);
     const world = new World();
@@ -114,7 +114,7 @@ function harness(options: { epochBinding?: boolean } = {}) {
             projectShapes: projectShapeDigest([]),
             systems: [{
                 name: 'Move', symbol: 'es_sys_Move',
-                queries: [[{ comp: 'Transform', mut: false }]], resources: [],
+                queries: [[{ comp: 'Transform', mut: false }]], resources: options.readTime ? [{ name: 'Time', mut: false }] : [],
             }],
         } satisfies AotManifest,
         { es_sys_Move: (at: number) => seen.push(rowsAt(heap, at)) },
@@ -122,7 +122,11 @@ function harness(options: { epochBinding?: boolean } = {}) {
     );
     const runtime: AotRuntime = {
         systems,
-        addresses: { componentNamed: () => Transform as unknown as AnyComponentDef, resourceAt: () => undefined },
+        addresses: {
+            componentNamed: () => Transform as unknown as AnyComponentDef,
+            resourceAt: () => options.readTime?.(),
+            resourceWriteBack() {}, payloadRows: () => [], sendEvent() {}, releasePayloads() {},
+        },
         ctx,
         // The wasm side of the contract: the rows go in the memory the module
         // shares, which is what this file is about.
@@ -151,6 +155,29 @@ function rowsAt(heap: Heap, ctx: number): number[] {
 }
 
 describe('the rows a compiled system reads, kept across frames', () => {
+    it('packs the current component address when a resource read relocates the pool', () => {
+        let relocate: (() => void) | undefined;
+        const h = harness({ readTime: () => { relocate?.(); return 8; } });
+        const entity = h.spawn();
+        h.runner.run(h.system);
+        relocate = () => { h.state.base += STRIDE * 32; h.state.epoch++; };
+        h.runner.run(h.system);
+        expect(h.seen[1]).toEqual([h.state.base + entity * STRIDE]);
+    });
+
+    it('declines a frame whose resource has disappeared and resumes when it returns', () => {
+        let address: number | undefined = 8;
+        const h = harness({ readTime: () => address });
+        let fallback = 0;
+        const system = defineSystem([], () => { fallback++; }, { name: 'Move' });
+        h.spawn(); h.runner.run(system);
+        address = undefined; h.runner.run(system);
+        expect(h.seen).toHaveLength(1);
+        expect(fallback).toBe(1);
+        address = 16; h.runner.run(system);
+        expect(h.seen).toHaveLength(2);
+    });
+
     it('rebinds builtin address resolvers when the registry changes in the same memory', () => {
         const h = harness();
         const first = h.spawn();

@@ -88,14 +88,7 @@ export const DUTIES = [
             // keeping last frame's table walks a slot nothing owns. Freezing the
             // epoch handed to it is red at frame 2: 45 against the author's 36.
             native: [{ path: 'tools/verify-native-conformance.mjs', probe: /about the resource/ }],
-        },
-        owed: {
-            // The suite's world answers an epoch now, so the cached table IS
-            // reused — it never was before. What is left unsampled is narrower:
-            web: 'membership is caught by the query cache on its own (`entities !== '
-                + 'packedFrom[k]`), so what the epoch ALONE guards is a pool that '
-                + 'relocated under a matched set that did not change — which takes a '
-                + 'two-component query grown by entities it does not match',
+            web: [{ path: 'sdk/tests/aot-conformance.test.ts', probe: /follows a relocated Transform pool with unchanged matching sprites and meshes/ }],
         },
     },
     {
@@ -164,7 +157,7 @@ export const DUTIES = [
     {
         id: 'event-payloads-released',
         what: 'the payload blocks a call was given are handed back after it',
-        web: ['runtime.addresses.releasePayloads'],
+        web: ['runtime.addresses.beginPayloads', 'runtime.addresses.releasePayloads'],
         native: null,
         excusedBy: 'eventRead',
         differential: {

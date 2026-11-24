@@ -25,7 +25,7 @@ import type { SystemRunner } from '../system';
 import { ENTITY_INDEX_MASK, type Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotSystems, type AotManifest, type AotTwin } from './AotSystems';
-import { AotResources, type ResourceReader } from './AotResources';
+import { AotResources, declaredResourceLayouts, resourceFieldNames, type ResourceReader } from './AotResources';
 import type { AotDispatcher, AotRuntime } from './AotRuntime';
 import { missingCapabilities, whyInterpreted, NATIVE_AOT } from './executorCapabilities';
 import { disposeAll } from '../../util/disposeAll';
@@ -69,16 +69,6 @@ export interface InstallNativeAotOptions {
     readonly resources?: ResourceReader;
     /** The host calls, for a test to stand in for. Absent ⇒ read off globalThis. */
     readonly bindings?: NativeAotBindings;
-}
-
-/** A project resource's field order, as the build compiled it. The engine's own
- *  come from `resourceShapes`; a project's cannot, and only the build knows. */
-function declaredResourceLayouts(manifest: AotManifest): Map<string, readonly string[]> {
-    const out = new Map<string, readonly string[]>();
-    for (const decl of manifest.systems) {
-        for (const res of decl.resources) if (res.fields) out.set(res.name, res.fields);
-    }
-    return out;
 }
 
 /**
@@ -136,10 +126,7 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
             throw new Error(`AOT: ${decl.name} is the host's to call, not this runtime's`);
         };
     }
-    const resourceFields = (name: string) => {
-        const value = opts.resources?.(name);
-        return value === undefined ? undefined : Object.keys(value);
-    };
+    const resourceFields = (name: string) => resourceFieldNames(opts.resources?.(name));
     // Reject runtime shape/ABI mismatches before the host changes its module.
     systems.install(opts.manifest, exports, getComponent, {
         addressBytes: NATIVE_ADDRESS_BYTES, runs: () => false, resourceFields,
@@ -287,6 +274,10 @@ class NativeAotDispatch implements AotDispatcher {
             this.reportedAt_ = undefined;
             this.assetQueries_.clear();
         }
+        // Mirroring a resource can run project code. Publish component spans
+        // and check whether rows are addressable after those callbacks return.
+        if (!this.reportResources_(twin, lifetime)) return this.world.entityLifetime !== lifetime;
+        if (this.world.entityLifetime !== lifetime) return true;
         // A portable reference lives beside its numeric pool until resolved.
         // The host only sees numeric memory, so never let it run a partial
         // query while the interpreter can still see the authored string.
@@ -309,7 +300,6 @@ class NativeAotDispatch implements AotDispatcher {
             }
         }
         this.reportPools_(lifetime);
-        this.reportResources_(twin, lifetime);
         if (this.world.entityLifetime !== lifetime) return true;
         // The epoch goes with the call: the host keeps last frame's row table
         // when nothing moved, and only this side can say whether a script pool
@@ -336,14 +326,14 @@ class NativeAotDispatch implements AotDispatcher {
     }
 
     /** Mirror each declared resource into the heap and say where it landed. */
-    private reportResources_(twin: AotTwin, lifetime: symbol): void {
+    private reportResources_(twin: AotTwin, lifetime: symbol): boolean {
         for (const res of twin.decl.resources) {
-            if (this.world.entityLifetime !== lifetime) return;
+            if (this.world.entityLifetime !== lifetime) return false;
             const at = this.resources.addressOf(res.name);
-            if (at === undefined) continue;
-            if (this.world.entityLifetime !== lifetime) return;
-            this.bindings.resource(res.name, at, this.resources.bytesOf(res.name));
+            if (!at || this.world.entityLifetime !== lifetime) return false;
+            if (!this.bindings.resource(res.name, at, this.resources.bytesOf(res.name))) return false;
         }
+        return true;
     }
 
     /** A `ResMut` the compiled code wrote is in the mirror, not in the world. */

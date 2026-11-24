@@ -49,6 +49,7 @@ const NO_FILTERS: AnyComponentDef[] = [];
 const NO_RECORDS: readonly { slot: number; fields: readonly number[] }[] = [];
 /** What a query that named an unknown component matches. */
 const EMPTY_ENTITIES: readonly Entity[] = [];
+type PayloadRows = ReturnType<AotRuntime['addresses']['payloadRows']>;
 
 /** What one declared Query needs, resolved once. */
 interface QueryPlan {
@@ -129,15 +130,31 @@ export class AotDispatch {
         const writers = twin.decl.writers ?? [];
         let commands: AotCommand[];
         let events: typeof NO_RECORDS;
+        const payloadStart = plan.reads && this.runtime.addresses.beginPayloads
+            ? this.runtime.addresses.beginPayloads() : undefined;
         try {
-            if (!this.packRows_(plan, this.world.layoutEpoch(), lifetime)) {
-                // Only the originating population may retry through the interpreter.
-                return this.world.entityLifetime !== lifetime;
-            }
             const resources: number[] = [];
             for (const r of plan.resources) {
                 if (this.world.entityLifetime !== lifetime) return true;
-                resources.push(this.runtime.addresses.resourceAt(r.name) ?? 0);
+                const address = this.runtime.addresses.resourceAt(r.name);
+                if (!address) return this.world.entityLifetime !== lifetime;
+                resources.push(address);
+            }
+            if (this.world.entityLifetime !== lifetime) return true;
+            // Resolve host values before component addresses. A resource getter or
+            // event reader can grow a pool or change which entities match.
+            const payloads: PayloadRows[] | undefined = plan.reads ? [] : undefined;
+            if (payloads) {
+                for (let i = 0; i < plan.queries.length; i++) {
+                    const reader = plan.queries[i].reader;
+                    if (!reader) continue;
+                    payloads[i] = this.runtime.addresses.payloadRows(reader.event, reader.fields);
+                    if (this.world.entityLifetime !== lifetime) return true;
+                }
+            }
+            if (!this.packRows_(plan, this.world.layoutEpoch(), payloads)) {
+                // Only the originating population may retry through the interpreter.
+                return this.world.entityLifetime !== lifetime;
             }
             if (this.world.entityLifetime !== lifetime) return true;
             this.runtime.ctx.setRecordLengths(writers.map((wr) => wr.fields.length));
@@ -148,7 +165,7 @@ export class AotDispatch {
             commands = this.runtime.ctx.commands();
             events = writers.length > 0 ? this.runtime.ctx.events() : NO_RECORDS;
         } finally {
-            if (plan.reads) this.runtime.addresses.releasePayloads();
+            if (plan.reads) this.runtime.addresses.releasePayloads(payloadStart);
         }
 
         // A resource is a MIRROR: a `ResMut` write lands in the block and nowhere
@@ -187,7 +204,7 @@ export class AotDispatch {
      * Every matching row must be addressable. If one is not, the interpreter
      * runs the whole system; skipping it would silently lose authored work.
      */
-    private packRows_(plan: Plan, epoch: number | null, lifetime: symbol): boolean {
+    private packRows_(plan: Plan, epoch: number | null, eventRows?: readonly PayloadRows[]): boolean {
         // The whole table or none of it: one query's rows moving says nothing
         // about another's, but a repack is a walk of both and this way there is
         // one condition to reason about rather than one per query.
@@ -213,8 +230,7 @@ export class AotDispatch {
             plan.offsets[k] = at;
             plan.packedFrom[k] = lists[k]!;
             if (q.reader) {
-                const payloads = this.runtime.addresses.payloadRows(q.reader.event, q.reader.fields);
-                if (this.world.entityLifetime !== lifetime) return false;
+                const payloads = eventRows![k];
                 plan.scratch = grow(plan.scratch, at + payloads.length * q.width);
                 for (let i = 0; i < payloads.length; i++) {
                     const row = payloads[i]!;

@@ -26,7 +26,7 @@ import { emitC, moduleDeclarations } from '../../compiler/src/codegen';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 
 import { App } from '../src/app/app';
-import { registerComponent } from '../src/ecs/component';
+import { MeshRenderer, registerComponent, Sprite, Transform } from '../src/ecs/component';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
@@ -35,6 +35,7 @@ import { buildAotModule, useBytesPlatform } from './helpers/aotFade';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { Query, Changed } from '../src/ecs/query';
+import type { EventRegistry } from '../src/ecs/event';
 import { Time } from '../src/ecs/resource';
 import type { AotManifest } from '../src/ecs/aot/AotSystems';
 import type { Entity } from '../src/types';
@@ -62,8 +63,8 @@ const PROJECT_DIR = path.resolve(__dirname, '../../fixtures/aot-conformance/src'
 const WRITE = process.env['ESTELLA_AOT_WRITE'] === '1';
 
 /** The artifact a build makes of the fixture: the module, and what it declares. */
-function compileFixture(emcc: string): { wasm: Uint8Array; manifest: AotManifest } {
-    const lowered = lowerProgram([FIXTURE], builtinShapes());
+function compileFixture(emcc: string, source = FIXTURE): { wasm: Uint8Array; manifest: AotManifest } {
+    const lowered = lowerProgram([source], builtinShapes());
     expect(brokenPromises(lowered), 'the fixture must compile').toEqual([]);
     const inlined = lowered.module.systems.map((s) => inlineSystem(s, lowered.module.fns));
     const c = emitC(lowered.module, packLayout(lowered.module.comps), inlined, 4);
@@ -181,9 +182,77 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
     return { trace, resource, ticks, pop, calls: runtime?.systems.calls ?? 0, delta: time.delta };
 }
 
+describe.skipIf(!EMCC || !HAS_WASM)('compiled rows in a growing registry', () => {
+    let artifact: ReturnType<typeof compileFixture>;
+    beforeAll(() => {
+        artifact = compileFixture(EMCC!, path.resolve(__dirname, 'fixtures/relocated-rows.ts'));
+    }, 60_000);
+
+    it('follows a relocated Transform pool with unchanged matching sprites and meshes', async () => {
+        const { move, eventMove, Step, Travel, Pulse } = await import('./fixtures/relocated-rows');
+        const core = await loadWasmModule();
+        useBytesPlatform();
+
+        async function trace(compiled: boolean, when: 'between' | 'resource' | 'event') {
+            const app = App.new(), reg = new core.Registry(), world = app.world;
+            app.connectCpp(reg, core);
+            try {
+                let onRead: (() => void) | undefined;
+                function step() {
+                    const action = onRead;
+                    onRead = undefined;
+                    action?.();
+                    return 2;
+                }
+                app.insertResource(Step, { get delta() { return step(); } });
+                const bus = (app as unknown as { eventRegistry_: EventRegistry }).eventRegistry_.getBus(Pulse);
+                const send = () => { if (when === 'event') bus.send({ get distance() { return step(); } }); };
+                if (compiled) await app.installCompiledSystems(Uint8Array.from(artifact.wasm), artifact.manifest);
+                app.addSystem(when === 'event' ? eventMove : move);
+                const sprite = world.spawn(), mesh = world.spawn();
+                world.insert(sprite, Sprite); world.insert(mesh, MeshRenderer);
+                world.insert(sprite, Transform, { position: { x: 10, y: 0, z: 0 } });
+                world.insert(mesh, Transform, { position: { x: -10, y: 0, z: 2 } });
+                world.insert(sprite, Travel, { units: 3 }); world.insert(mesh, Travel, { units: -4 });
+                const xs = () => [reg.getTransform(sprite).position.x, reg.getTransform(mesh).position.x];
+                const matches = world.queryEntities([Transform, Travel]);
+                send();
+                await app.tick(DT);
+                const first = xs(), layout = world.layoutEpoch(), address = world.addressResolver(Transform);
+                const previous = address(sprite);
+                expect(previous).toBeGreaterThan(0);
+                const transform = reg.getTransform(sprite);
+                let bystander = sprite;
+                const relocate = () => {
+                    for (let i = 0; i < 512 && address(sprite) === previous; i++) {
+                        bystander = reg.create();
+                        reg.addTransform(bystander, transform);
+                    }
+                };
+                if (when === 'between') relocate();
+                else onRead = relocate;
+                send();
+                await app.tick(DT);
+                expect(address(sprite), when).not.toBe(previous);
+                expect(world.layoutEpoch()).not.toBe(layout);
+                expect(world.queryEntities([Transform, Travel])).toBe(matches);
+                expect(reg.getTransform(bystander).position.x).toBe(first[0]);
+                expect(app.compiledSystems.calls).toBe(compiled ? 2 : 0);
+                return [first, xs()];
+            } finally { app.quit({ keepRenderer: true }); reg.delete(); }
+        }
+
+        for (const when of ['between', 'resource', 'event'] as const) {
+            const interpreted = await trace(false, when);
+            expect(interpreted, when).toEqual([[16, -18], [22, -26]]);
+            expect(await trace(true, when), when).toEqual(interpreted);
+        }
+    });
+});
+
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
     let artifact: ReturnType<typeof compileFixture>;
-    beforeAll(() => { artifact = compileFixture(EMCC!); });
+    beforeAll(() => { artifact = compileFixture(EMCC!); }, 60_000);
 
     async function installFixture(app: App) {
         useBytesPlatform();
@@ -230,6 +299,24 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // the five duties this fixture carries for the wasm road are untouched.
         expect(interpreted.pop[0]![1]).toBeGreaterThan(0);
         expect(interpreted.pop[FRAMES - 1]![0]).toBeLessThan(DOOMED.length);
+    });
+
+    it.skipIf(!HAS_WASM)('delivers events between compiled systems through the packaged installation', async () => {
+        const engine = await loadWasmModule(), app = App.new(), reg = new engine.Registry();
+        app.connectCpp(reg, engine);
+        try {
+            const fixture = await installFixture(app);
+            app.world.insert(app.world.spawn(), fixture.Mover, { x: 0, speed: 0, bounces: 3 });
+            const target = app.world.spawn();
+            app.world.insert(target, fixture.Doomed, { ttl: 0 });
+            app.addSystem(fixture.announceSystem);
+            app.addSystem(fixture.absorbSystem);
+            await app.tick(DT);
+            expect(app.world.get(target, fixture.Doomed).ttl).toBe(0);
+            await app.tick(DT);
+            expect(app.world.get(target, fixture.Doomed).ttl).toBe(1);
+            expect(app.compiledSystems.calls).toBe(4);
+        } finally { app.quit({ keepRenderer: true }); reg.delete(); }
     });
 
     it.skipIf(!HAS_WASM).each(['borrowed', 'owned'])('retires a compiled despawn batch on a %s registry restart', async ownership => {

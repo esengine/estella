@@ -819,50 +819,34 @@ export class App {
         try {
             const epoch = installation.epoch;
             this.checkCompiledInstallEpoch_(epoch);
-            this.ensureTime_();
-            const runtime = await prepareAot({
-                world: this.world_,
-                host: opts.host,
-                manifest: opts.manifest,
-                wasm: opts.wasm,
-                beforeCommit: () => this.checkCompiledInstallEpoch_(epoch),
-                resourceFields: (name) => {
-                    const def = builtinResource(name) ?? this.resources_.getByName(name) ?? declaredResource(name);
-                    if (def === undefined) return undefined;
-                    const value = this.resources_.get(def);
-                    return typeof value === 'object' && value !== null ? Object.keys(value) : [];
-                },
-                // A manifest carries event NAMES; the registry answers for the ones
-                // some system has asked for a reader or a writer of.
-                events: (name) => {
-                    // Through the DEFINITION, so the bus exists whether or not an
-                    // interpreted system has asked for one yet: a twin sending into
-                    // a bus nobody had made would drop its payloads and say nothing.
-                    const def = eventNamed(name);
-                    if (def === undefined) return undefined;
-                    const bus = this.eventRegistry_.getBus(def);
-                    return { read: () => bus.getReadBuffer(), send: (payload) => bus.send(payload) };
-                },
-                resources: (name) => {
-                    // The engine's own by name, and the PROJECT's through the
-                    // storage's own name registry — a compiled system reads either.
-                    const def = builtinResource(name) ?? this.resources_.getByName(name) ?? declaredResource(name);
-                    // `get`, not `has` then `get`: a slot holding a materialised
-                    // default is what an INTERPRETED system reads, and a twin has to
-                    // see the same world or the two stop being the same program.
-                    return def === undefined
-                        ? undefined
-                        : this.resources_.get(def) as Readonly<Record<string, unknown>>;
-                },
-            });
-            if (epoch !== this.quitEpoch_) {
-                runtime.dispose?.();
-                throw new Error('Compiled systems installation was cancelled by App.quit');
-            }
-            this.commitCompiledRuntime_(runtime, epoch);
+            await this.installWasmCompiled_(opts.host, opts.wasm, opts.manifest, epoch);
         } finally {
             installation.done();
         }
+    }
+
+    private async installWasmCompiled_(
+        host: AotHost, wasm: string | BufferSource, manifest: AotManifest, epoch: number, ensureRunner = false,
+    ): Promise<number> {
+        this.ensureTime_();
+        const runtime = await prepareAot({
+            world: this.world_, host, wasm, manifest,
+            beforeCommit: () => this.checkCompiledInstallEpoch_(epoch),
+            resources: name => this.getResourceByName(name) as Readonly<Record<string, unknown>> | undefined,
+            events: name => {
+                const def = eventNamed(name);
+                if (!def) return undefined;
+                const bus = this.eventRegistry_.getBus(def);
+                return { read: () => bus.getReadBuffer(), send: payload => bus.send(payload) };
+            },
+        });
+        if (epoch !== this.quitEpoch_) {
+            runtime.dispose?.();
+            throw new Error('Compiled systems installation was cancelled by App.quit');
+        }
+        if (ensureRunner) this.ensureRunner_();
+        this.commitCompiledRuntime_(runtime, epoch);
+        return runtime.systems.size;
     }
 
     private reserveCompiledInstall_(): { ready: Promise<void>; done(): void; epoch: number } {
@@ -1249,23 +1233,7 @@ export class App {
                 _free: (ptr: number) => module._free(ptr),
                 get HEAPU8(): Uint8Array { return module.HEAPU8; },
             };
-            this.ensureTime_();
-            const runtime = await prepareAot({
-                world: this.world_,
-                host,
-                manifest,
-                wasm,
-                beforeCommit: () => this.checkCompiledInstallEpoch_(epoch),
-                resources: (name: string) => this.getResourceByName(name) as
-                    Readonly<Record<string, unknown>> | undefined,
-            });
-            if (epoch !== this.quitEpoch_) {
-                runtime.dispose?.();
-                throw new Error('Compiled systems installation was cancelled by App.quit');
-            }
-            this.ensureRunner_();
-            this.commitCompiledRuntime_(runtime, epoch);
-            return runtime.systems.size;
+            return await this.installWasmCompiled_(host, wasm, manifest, epoch, true);
         } finally {
             installation.done();
         }

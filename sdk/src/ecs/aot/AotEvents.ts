@@ -45,11 +45,13 @@ export class AotEvents {
         const payloads = this.bus(event)?.read() ?? [];
         const rows: number[][] = [];
         for (const payload of payloads) {
+            const values = fields.map(path => numberAt(payload, path));
+            if (this.disposed) return [];
             const block = this.memory.alloc(Math.max(POOL_SLOT_BYTES, fields.length * POOL_SLOT_BYTES));
             this.blocks.push(block);
             const buffer = this.memory.current?.(block) ?? block.buffer;
             const view = new Float64Array(buffer, block.byteOffset, fields.length);
-            fields.forEach((path, i) => { view[i] = numberAt(payload, path); });
+            view.set(values);
             rows.push([0, block.byteOffset]);
         }
         return rows;
@@ -65,9 +67,12 @@ export class AotEvents {
         target.send(payload);
     }
 
-    /** Give the per-call blocks back; they are only valid inside one call. */
-    release(): void {
-        const blocks = this.blocks.splice(0);
+    /** Blocks before this position belong to an enclosing synchronous call. */
+    beginCall(): number { return this.blocks.length; }
+
+    /** Release the blocks acquired by this call. Disposal releases them all. */
+    release(from = 0): void {
+        const blocks = this.blocks.splice(from);
         disposeAll(blocks, block => this.memory.release(block));
     }
 }

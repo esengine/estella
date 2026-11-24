@@ -37,8 +37,10 @@ export interface AotAddresses {
     payloadRows(event: string, fields: readonly string[]): readonly (readonly number[])[];
     /** Deliver one payload the compiled code appended, rebuilt from `fields`. */
     sendEvent(event: string, fields: readonly string[], values: readonly number[]): void;
-    /** Hand back the blocks `payloadRows` took; they outlive no call. */
-    releasePayloads(): void;
+    /** Start an event-payload scope on runtimes that share an allocator across nested calls. */
+    beginPayloads?(): number;
+    /** Hand back the blocks acquired by this invocation. */
+    releasePayloads(from?: number): void;
     /** The definition a manifest's component NAME refers to in this world. */
     componentNamed(name: string): AnyComponentDef | undefined;
 }

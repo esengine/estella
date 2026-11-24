@@ -21,6 +21,7 @@
 
 import { POOL_SLOT_BYTES, type PoolBlock, type PoolMemory } from '../ScriptPool';
 import { disposeAll } from '../../util/disposeAll';
+import type { AotManifest } from './AotSystems';
 import {
     resourceBitSource, resourceBlockBytes, resourceLayout, type ResourceMember,
 } from '../resourceShapes';
@@ -28,14 +29,35 @@ import {
 /** Reads the live value of a named resource, or undefined if the world has none. */
 export type ResourceReader = (name: string) => Readonly<Record<string, unknown>> | undefined;
 
+/** The live resource's field order for the module handshake. */
+export function resourceFieldNames(value: unknown): string[] | undefined {
+    if (value === undefined) return undefined;
+    return value !== null && typeof value === 'object' ? Object.keys(value) : [];
+}
+
+/** Project resource layouts in the field order emitted by the compiler. */
+export function declaredResourceLayouts(manifest: AotManifest): Map<string, readonly string[]> {
+    const layouts = new Map<string, readonly string[]>();
+    for (const system of manifest.systems) {
+        for (const resource of system.resources) if (resource.fields) layouts.set(resource.name, resource.fields);
+    }
+    return layouts;
+}
+
+interface ResourceMirror {
+    readonly layout: readonly ResourceMember[];
+    readonly bytes: number;
+    block?: PoolBlock;
+    scratch?: Uint8Array;
+}
+
 /**
  * Blocks for the resources compiled systems read, refreshed on demand. One per
  * world; a resource with no declared shape simply has no address, and a system
  * naming it did not compile.
  */
 export class AotResources {
-    private readonly blocks = new Map<string, PoolBlock>();
-    private readonly views = new Map<string, Uint8Array>();
+    private readonly mirrors = new Map<string, ResourceMirror>();
     private disposed = false;
 
     constructor(
@@ -49,21 +71,22 @@ export class AotResources {
         private readonly declared: ReadonlyMap<string, readonly string[]> = new Map(),
     ) {}
 
-    /** `name`'s members, from the engine's table or from what the build said. */
-    private layoutOf(name: string): readonly ResourceMember[] | null {
-        const engine = resourceLayout(name);
-        if (engine) return engine;
+    private mirrorFor(name: string): ResourceMirror | undefined {
+        const known = this.mirrors.get(name);
+        if (known) return known;
         const fields = this.declared.get(name);
-        return fields
-            ? fields.map((field, i) => ({ kind: 'scalar', name: field, offset: i * POOL_SLOT_BYTES }))
-            : null;
+        const layout = resourceLayout(name) ?? fields?.map((field, i): ResourceMember =>
+            ({ kind: 'scalar', name: field, offset: i * POOL_SLOT_BYTES }));
+        if (!layout) return undefined;
+        const bytes = fields ? fields.length * POOL_SLOT_BYTES : resourceBlockBytes(name);
+        const mirror = { layout, bytes };
+        this.mirrors.set(name, mirror);
+        return mirror;
     }
 
-    /** Bytes `name`'s block needs, by whichever layout answers for it. */
     /** How many bytes `name`'s mirror is, for a host that must be given a range. */
     bytesOf(name: string): number {
-        const declared = this.declared.get(name);
-        return declared ? declared.length * POOL_SLOT_BYTES : resourceBlockBytes(name);
+        return this.mirrorFor(name)?.bytes ?? 0;
     }
 
     /**
@@ -72,35 +95,34 @@ export class AotResources {
      */
     addressOf(name: string): number | undefined {
         if (this.disposed) throw new Error('AotResources is disposed');
-        const layout = this.layoutOf(name);
-        if (!layout) return undefined;
+        const mirror = this.mirrorFor(name);
+        if (!mirror) return undefined;
         const value = this.read(name);
-        if (!value) return undefined;
+        if (!value || this.disposed) return undefined;
 
-        let block = this.blocks.get(name);
-        if (!block) {
-            block = this.memory.alloc(this.bytesOf(name));
-            this.blocks.set(name, block);
-        }
-        // Re-viewed rather than held: allocating anything may have grown the
-        // heap, and a grown heap detaches every view of it.
-        const buffer = this.memory.current?.(block) ?? block.buffer;
-        let view = this.views.get(name);
-        if (!view || view.buffer !== buffer) {
-            view = new Uint8Array(buffer, block.byteOffset, this.bytesOf(name));
-            this.views.set(name, view);
-        }
-        const f64 = new Float64Array(view.buffer, view.byteOffset, view.byteLength / POOL_SLOT_BYTES);
-        for (const member of layout) {
-            if (member.kind === 'scalar') {
-                const v = value[member.name];
-                f64[member.offset / POOL_SLOT_BYTES] =
-                    typeof v === 'boolean' ? (v ? 1 : 0) : (typeof v === 'number' ? v : 0);
-                continue;
+        // A field getter or input service can grow the engine heap. Take its answers
+        // in JS memory, then publish them in one copy into the current engine buffer.
+        const view = mirror.scratch ?? new Uint8Array(mirror.bytes);
+        mirror.scratch = undefined; // A nested read needs its own in-progress snapshot.
+        try {
+            const f64 = new Float64Array(view.buffer);
+            for (const member of mirror.layout) {
+                if (member.kind === 'scalar') {
+                    const v = value[member.name];
+                    f64[member.offset / POOL_SLOT_BYTES] =
+                        typeof v === 'boolean' ? (v ? 1 : 0) : (typeof v === 'number' ? v : 0);
+                } else {
+                    this.fillBits(name, member.name, member.offset, member.bits, view, value);
+                }
             }
-            this.fillBits(name, member.name, member.offset, member.bits, view, value);
+            if (this.disposed) return undefined;
+            const block = mirror.block ??= this.memory.alloc(mirror.bytes);
+            const buffer = this.memory.current?.(block) ?? block.buffer;
+            new Uint8Array(buffer, block.byteOffset, mirror.bytes).set(view);
+            return block.byteOffset;
+        } finally {
+            mirror.scratch = view;
         }
-        return block.byteOffset;
     }
 
     /**
@@ -132,11 +154,14 @@ export class AotResources {
      * skipped, because the block never carried it.
      */
     writeBack(name: string): void {
-        const layout = this.layoutOf(name);
-        const view = this.views.get(name);
+        const mirror = this.mirrors.get(name);
+        if (!mirror?.block) return;
+        const { block, layout, bytes } = mirror;
+        // Read the whole result before calling user getters or setters. Both can grow the heap.
+        const buffer = this.memory.current?.(block) ?? block.buffer;
+        const f64 = new Float64Array(buffer, block.byteOffset, bytes / POOL_SLOT_BYTES).slice();
         const value = this.read(name) as Record<string, unknown> | undefined;
-        if (!layout || !view || !value) return;
-        const f64 = new Float64Array(view.buffer, view.byteOffset, view.byteLength / POOL_SLOT_BYTES);
+        if (!value || this.disposed) return;
         for (const member of layout) {
             // Bit sets are a service's answers, not its state: there is nothing
             // on the other side to assign back to.
@@ -150,9 +175,8 @@ export class AotResources {
 
     dispose(): void {
         this.disposed = true;
-        const blocks = [...this.blocks.values()];
-        this.blocks.clear();
-        this.views.clear();
-        disposeAll(blocks, block => this.memory.release(block));
+        const mirrors = [...this.mirrors.values()];
+        this.mirrors.clear();
+        disposeAll(mirrors, mirror => { if (mirror.block) this.memory.release(mirror.block); });
     }
 }

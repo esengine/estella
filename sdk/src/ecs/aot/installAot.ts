@@ -26,7 +26,7 @@ import type { World } from '../world';
 import type { SystemRunner } from '../system';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotContext } from './AotContext';
-import { AotResources, type ResourceReader } from './AotResources';
+import { AotResources, declaredResourceLayouts, resourceFieldNames, type ResourceReader } from './AotResources';
 import { AotEvents, type EventBusAccess } from './AotEvents';
 import { AotSystems, type AotManifest } from './AotSystems';
 import type { AotAddresses, AotRuntime } from './AotRuntime';
@@ -126,10 +126,7 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'> & {
         return [decl.name, missing.length === 0];
     }));
     systems.install(opts.manifest, exports, componentNamed, {
-        resourceFields: opts.resourceFields ?? ((name) => {
-            const value = opts.resources(name);
-            return value === undefined ? undefined : Object.keys(value);
-        }),
+        resourceFields: opts.resourceFields ?? (name => resourceFieldNames(opts.resources(name))),
         runs: (name) => takeable.get(name) ?? false,
         moduleContract: moduleContractOf(exports),
     });
@@ -137,7 +134,7 @@ export async function prepareAot(opts: Omit<InstallAotOptions, 'runner'> & {
     opts.beforeCommit?.();
     if (!canAddress(opts.world)) throw new Error('The engine memory changed while installing compiled systems');
     opts.world.useScriptPoolMemory(memory);
-    const resources = new AotResources(memory, opts.resources, declaredLayouts(opts.manifest));
+    const resources = new AotResources(memory, opts.resources, declaredResourceLayouts(opts.manifest));
     const events = new AotEvents(memory, opts.events ?? (() => undefined));
     const ctx = new AotContext(memory);
     let disposed = false;
@@ -170,15 +167,6 @@ function wasmSource(wasm: string | BufferSource): string | ArrayBuffer {
     return wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer;
 }
 
-/** Layouts the BUILD derived for the project's own resources, by name. */
-function declaredLayouts(manifest: AotManifest): Map<string, readonly string[]> {
-    const out = new Map<string, readonly string[]>();
-    for (const decl of manifest.systems) {
-        for (const r of decl.resources) if (r.fields) out.set(r.name, r.fields);
-    }
-    return out;
-}
-
 /** What a manifest's component NAME means in this runtime. */
 function componentNamed(name: string): AnyComponentDef | undefined {
     return getComponent(name);
@@ -196,6 +184,7 @@ export function worldAddresses(resources: AotResources, payloads: AotEvents): Ao
         resourceWriteBack: (name: string) => resources.writeBack(name),
         payloadRows: (event, fields) => payloads.rowsFor(event, fields),
         sendEvent: (event, fields, values) => payloads.send(event, fields, values),
-        releasePayloads: () => payloads.release(),
+        beginPayloads: () => payloads.beginCall(),
+        releasePayloads: from => payloads.release(from),
     };
 }
