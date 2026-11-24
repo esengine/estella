@@ -690,25 +690,37 @@ export interface ESEngineModule {
     renderer_submitAll(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_collisionQueryCount?(): number;
+    particle_collisionQueryCountInWorld?(registry: CppRegistry): number;
     particle_collisionQueries?(): number;
+    particle_collisionQueriesInWorld?(registry: CppRegistry): number;
     particle_collisionEventCount?(): number;
+    particle_collisionEventCountInWorld?(registry: CppRegistry): number;
     particle_collisionEvents?(): number;
+    particle_collisionEventsInWorld?(registry: CppRegistry): number;
     particle_collisionStatsCount?(): number;
+    particle_collisionStatsCountInWorld?(registry: CppRegistry): number;
     particle_collisionStats?(): number;
+    particle_collisionStatsInWorld?(registry: CppRegistry): number;
     particle_collisionResolve?(registry: CppRegistry, ptr: number, count: number): void;
     particle_collisionSetBudget?(queries: number, events: number, debug: boolean): void;
+    particle_collisionSetBudgetInWorld?(registry: CppRegistry, queries: number, events: number, debug: boolean): void;
     particle_play?(registry: CppRegistry, entity: number): void;
     particle_emitAt?(registry: CppRegistry, entity: number, count: number, px: number, py: number, pz: number,
                      nx: number, ny: number, nz: number, vx: number, vy: number, vz: number): number;
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;
+    particle_getAliveCountInWorld?(registry: CppRegistry, entity: number): number;
     /** Upload (count = LUT size) or clear (count = 0) an entity's baked color-over-life LUT. */
     particle_set_color_lut?(entity: number, ptr: number, count: number): void;
+    particle_setColorLutInWorld?(registry: CppRegistry, entity: number, ptr: number, count: number): void;
     /** Upload/clear an entity's baked size-over-life multiplier LUT. */
     particle_set_size_lut?(entity: number, ptr: number, count: number): void;
+    particle_setSizeLutInWorld?(registry: CppRegistry, entity: number, ptr: number, count: number): void;
     particle_set_speed_lut?(entity: number, ptr: number, count: number): void;
+    particle_setSpeedLutInWorld?(registry: CppRegistry, entity: number, ptr: number, count: number): void;
     particle_set_bursts?(entity: number, ptr: number, count: number): void;
+    particle_setBurstsInWorld?(registry: CppRegistry, entity: number, ptr: number, count: number): void;
     trail_update?(registry: CppRegistry, dt: number): void;
     trail_clear?(registry: CppRegistry, entity: number): void;
     springbone_update?(registry: CppRegistry, dt: number): void;

@@ -3,6 +3,7 @@
 import type { App } from '../app/app';
 import type { Entity } from '../types';
 import type { EngineApi } from '../ecs/bridge/engineApi';
+import type { ParticleWorldBindings } from './particleWorldBindings';
 import type { CppRegistry } from '../wasm';
 import type { Physics2DAPI } from '../physics/Physics2D';
 import type { Physics3DQueries } from '../physics3d/Physics3DQueries';
@@ -46,7 +47,7 @@ export class ParticleCollisionBridge {
     level: ParticleCollisionBudget | null = null;
     private updating_ = false;
     constructor(private readonly engine_: NonNullable<EngineApi>, private readonly registry_: CppRegistry,
-                private readonly resolve_?: ParticleQueryResolver) {}
+                private readonly bindings_: ParticleWorldBindings, private readonly resolve_?: ParticleQueryResolver) {}
     private read_(count: number, words: number, getter: (()=>number) | undefined, max: number): ArrayBuffer | undefined {
         if (!Number.isInteger(count) || count < 0 || count > max || !getter) return undefined;
         const ptr = getter(), heap = this.engine_.HEAPU8;
@@ -63,11 +64,11 @@ export class ParticleCollisionBridge {
         const e=this.engine_;
         try {
             const budget=this.effectiveBudget();
-            e.particle_collisionSetBudget?.(budget.queries,budget.events,this.debug);
+            this.bindings_.setBudget?.(budget.queries,budget.events,this.debug);
             e.particle_update?.(this.registry_,dt);
-            const count=e.particle_collisionQueryCount?.() ?? 0;
+            const count=this.bindings_.queryCount?.() ?? 0;
             if (count>0 && e.particle_collisionResolve) {
-                const queries=this.read_(count,10,e.particle_collisionQueries?.bind(e),65536);
+                const queries=this.read_(count,10,this.bindings_.queries,65536);
                 let ptr=0;
                 try {
                     if (queries && e._malloc && e._free && e.HEAPU8) ptr=e._malloc(count*32);
@@ -88,11 +89,11 @@ export class ParticleCollisionBridge {
                     } else e.particle_collisionResolve(this.registry_,0,0);
                 } finally {if(ptr)e._free?.(ptr);}
             }
-            const eventCount=e.particle_collisionEventCount?.() ?? 0;
-            const events=this.read_(eventCount,14,e.particle_collisionEvents?.bind(e),16384);
+            const eventCount=this.bindings_.eventCount?.() ?? 0;
+            const events=this.read_(eventCount,14,this.bindings_.events,16384);
             if(events){const u=new Uint32Array(events),f=new Float32Array(events);for(let i=0;i<eventCount;i++){const b=i*14;const event={emitter:u[b] as Entity,particle:u[b+1],body:u[b+2] as Entity,mode:u[b+3],x:f[b+4],y:f[b+5],z:f[b+6],normalX:f[b+7],normalY:f[b+8],normalZ:f[b+9],velocityX:f[b+10],velocityY:f[b+11],velocityZ:f[b+12]};this.contacts.push(event);if(u[b+13])this.events.push(event);}}
-            const statCount=e.particle_collisionStatsCount?.() ?? 0;
-            const stats=this.read_(statCount,10,e.particle_collisionStats?.bind(e),1000000);
+            const statCount=this.bindings_.statsCount?.() ?? 0;
+            const stats=this.read_(statCount,10,this.bindings_.stats,1000000);
             if(stats){const u=new Uint32Array(stats);for(let i=0;i<statCount;i++){const b=i*10;this.stats.push({emitter:u[b] as Entity,queries:u[b+1],hits:u[b+2],budgetSkipped:u[b+3],distanceSkipped:u[b+4],unavailable:u[b+5],events:u[b+6],eventDropped:u[b+7],fallbacks:u[b+8],mode:u[b+9]});}}
         } finally {this.updating_=false;}
     }

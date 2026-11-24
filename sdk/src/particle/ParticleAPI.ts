@@ -4,6 +4,7 @@ import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { Entity } from '../types';
 import { defineResource } from '../ecs/resource';
+import { particleWorldBindings, type ParticleWorldBindings } from './particleWorldBindings';
 import { ParticleCollisionBridge, type ParticleQueryResolver } from './ParticleCollisionBridge';
 import type { ParticleCollisionBudget, ParticleCollisionEventPayload, ParticleCollisionStats } from './collision';
 
@@ -22,6 +23,7 @@ function collisionCap(key: keyof ParticleCollisionBudget, value: number): number
 export class ParticleAPI {
     private readonly module_: NonNullable<EngineApi>;
     private readonly registry_: CppRegistry;
+    private readonly bindings_: ParticleWorldBindings;
     private readonly collisions_: ParticleCollisionBridge;
 
     /** @param module whichever engine core is present — the wasm module on the web,
@@ -29,7 +31,8 @@ export class ParticleAPI {
     constructor(module: NonNullable<EngineApi>, registry: CppRegistry, resolve?: ParticleQueryResolver) {
         this.module_ = module;
         this.registry_ = registry;
-        this.collisions_ = new ParticleCollisionBridge(module,registry,resolve);
+        this.bindings_ = particleWorldBindings(module, registry);
+        this.collisions_ = new ParticleCollisionBridge(module, registry, this.bindings_, resolve);
     }
 
     update(dt: number): void {
@@ -88,7 +91,7 @@ export class ParticleAPI {
     }
 
     getAliveCount(entity: Entity): number {
-        return this.module_.particle_getAliveCount?.(entity as number) ?? 0;
+        return this.bindings_.aliveCount?.(entity as number) ?? 0;
     }
 
     /**
@@ -97,13 +100,13 @@ export class ParticleAPI {
      * data is copied into the wasm heap for the call, then freed.
      */
     setColorLut(entity: Entity, lut: Float32Array | null): void {
-        this.uploadLut(this.module_.particle_set_color_lut, entity, lut, 4);
+        this.uploadLut(this.bindings_.colorLut, entity, lut, 4);
     }
 
     /** Upload an entity's baked size-over-life multiplier LUT (an N-scalar
      *  Float32Array), or null to clear. */
     setSizeLut(entity: Entity, lut: Float32Array | null): void {
-        this.uploadLut(this.module_.particle_set_size_lut, entity, lut, 1);
+        this.uploadLut(this.bindings_.sizeLut, entity, lut, 1);
     }
 
     /**
@@ -112,7 +115,7 @@ export class ParticleAPI {
      * into its velocity, so this is not a second force system.
      */
     setSpeedLut(entity: Entity, lut: Float32Array | null): void {
-        this.uploadLut(this.module_.particle_set_speed_lut, entity, lut, 1);
+        this.uploadLut(this.bindings_.speedLut, entity, lut, 1);
     }
 
     /**
@@ -121,7 +124,7 @@ export class ParticleAPI {
      */
     setBursts(entity: Entity, bursts: readonly { time: number; count: number }[] | null): void {
         const lut = bursts && bursts.length > 0 ? Float32Array.from(bursts.flatMap((b) => [b.time, b.count])) : null;
-        this.uploadLut(this.module_.particle_set_bursts, entity, lut, 2);
+        this.uploadLut(this.bindings_.bursts, entity, lut, 2);
     }
 
     // Copy a Float32Array into the core's heap and hand its offset + element count

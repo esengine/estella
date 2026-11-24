@@ -41,7 +41,8 @@ namespace particle { class ParticleSystem; struct GpuStep; }
 
 class GpuParticles {
 public:
-    explicit GpuParticles(GfxDevice& device);
+    GpuParticles(GfxDevice& device, const Shared<particle::ParticleSystem>& owner);
+    bool retired() const { return owner_.expired(); }
     ~GpuParticles();
 
     GpuParticles(const GpuParticles&) = delete;
@@ -63,7 +64,7 @@ public:
      * @return false when there is nothing to draw (no compute, no memory).
      */
     bool submit(Entity entity, const ecs::ParticleEmitter& emitter, const ecs::Transform& transform,
-                particle::ParticleSystem& system, const particle::GpuStep& step, const glm::vec4& eye,
+                const particle::GpuStep& step, const glm::vec4& eye,
                 BufferHandle& instances, BufferHandle& segments, u32& segmentCount);
 
     /// An emitter collided with the depth last frame, so the scene must draw into a target whose depth can be read.
@@ -100,7 +101,6 @@ private:
         ReadbackHandle readback = ReadbackHandle::Invalid;
         u32 readbackBytes = 0;
         u32 collisionMode = 0;
-        particle::ParticleSystem* system = nullptr;
     };
     struct Job;
 
@@ -113,6 +113,7 @@ private:
     void run();
 
     GfxDevice& device_;
+    Weak<particle::ParticleSystem> owner_;
     ComputeHandle kernel_ = ComputeHandle::Invalid;
     ComputeHandle beginEvents_ = ComputeHandle::Invalid;
     ComputeHandle finishEvents_ = ComputeHandle::Invalid;
@@ -149,6 +150,32 @@ private:
     std::vector<i32> parent_;
     std::vector<u8> staging_;
     std::vector<u8> control_staging_;
+};
+
+/** Device buffers, readbacks and depth history follow the registry that produced them. */
+class GpuParticleWorlds {
+public:
+    explicit GpuParticleWorlds(GfxDevice& device) : device_(device) {}
+    bool available() const;
+    void beginFrame();
+    void beginPass() { pass_.clear(); }
+    void collect(u64 registryId);
+    GpuParticles& forWorld(u64 registryId, const Shared<particle::ParticleSystem>& system);
+
+    void declare(rg::RenderGraph& graph, std::vector<rg::ResourceId>& dependencies);
+    void declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene, u32 width, u32 height, const glm::mat4& clip);
+    void setDepthGridMax(u32 texels);
+    bool wantsDepth() const { return wantsDepth_; }
+    u32 drawnSlots() const;
+    u32 lastDispatches() const;
+    u32 depthGridWidth() const;
+
+private:
+    GfxDevice& device_;
+    std::unordered_map<u64, Unique<GpuParticles>> worlds_;
+    std::vector<GpuParticles*> pass_;
+    u32 depthGridMax_ = 640;
+    bool wantsDepth_ = false;
 };
 
 }  // namespace esengine

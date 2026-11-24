@@ -31,7 +31,7 @@
 #include "RandomSource.hpp"
 #ifdef ES_ENABLE_PARTICLES
 #include "../renderer/plugins/ParticlePlugin.hpp"
-#include "../particle/ParticleSystem.hpp"
+#include "../particle/ParticleWorlds.hpp"
 #endif
 #include "../renderer/plugins/TrailPlugin.hpp"
 #include "../trail/TrailSystem.hpp"
@@ -72,8 +72,7 @@ void EstellaContext::registerLogicSystems() {
     if (u32 pending = 0; takePendingRandomSeed(pending)) randomSource->reseed(pending);
     services_.registerOwned<RandomSource>(std::move(randomSource));
 #ifdef ES_ENABLE_PARTICLES
-    services_.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
-    services_.getService<particle::ParticleSystem>()->reseedFrom(*services_.getService<RandomSource>());
+    services_.registerOwned<particle::ParticleWorlds>(makeUnique<particle::ParticleWorlds>(*services_.getService<RandomSource>()));
 #endif
     services_.registerOwned<trail::TrailSystem>(makeUnique<trail::TrailSystem>());
     services_.registerOwned<springbone::SpringBoneSystem>(makeUnique<springbone::SpringBoneSystem>());
@@ -205,7 +204,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 #ifdef ES_ENABLE_PARTICLES
     {
         auto particlePlugin = std::make_unique<ParticlePlugin>();
-        particlePlugin->setParticleSystem(services_.getService<particle::ParticleSystem>());
+        particlePlugin->setWorlds(services_.getService<particle::ParticleWorlds>());
         renderFrame->addPlugin(std::move(particlePlugin));
     }
 #endif

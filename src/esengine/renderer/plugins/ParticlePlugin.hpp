@@ -10,7 +10,7 @@
 
 namespace esengine {
 
-namespace particle { class ParticleSystem; }
+namespace particle { class ParticleWorlds; }
 
 class ParticlePlugin : public RenderTypePlugin {
 public:
@@ -18,7 +18,7 @@ public:
     void shutdown() override {}
 
 
-    void setParticleSystem(particle::ParticleSystem* system) { particle_system_ = system; }
+    void setWorlds(particle::ParticleWorlds* worlds) { worlds_ = worlds; }
 
     // An emitter inside a UI tree draws where that tree says it does — the reason
     // a UI particle is a first-class thing here rather than an extension — so it
@@ -28,7 +28,7 @@ public:
     const char* collectScope() const override { return "render.collect.particle"; }
 
 private:
-    particle::ParticleSystem* particle_system_ = nullptr;
+    particle::ParticleWorlds* worlds_ = nullptr;
     u32 particle_shader_id_ = 0;  // PARTICLE_INSTANCE program (GPU instancing)
     /// The shader resource behind it — held so a device rebuild, which runs
     /// init() again, can release the one the dead context owned.

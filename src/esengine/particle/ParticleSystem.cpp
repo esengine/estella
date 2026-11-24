@@ -20,6 +20,19 @@ void ParticleSystem::reseedFrom(const esengine::RandomSource& source) {
     rng_ = source.stream(kRandomStream);
 }
 
+Connection ParticleSystem::observe(ecs::Registry& registry, Shared<ParticleSystem> keepAlive) {
+    auto connection = registry.onDestroy([this, owner = std::move(keepAlive)](Entity entity) {
+        states_.erase(entity);
+        pending_play_.erase(entity);
+        colorLuts_.erase(entity);
+        sizeLuts_.erase(entity);
+        speedLuts_.erase(entity);
+        burstSchedules_.erase(entity);
+    });
+    observing_ = true;
+    return connection;
+}
+
 void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
     collision_queries_.clear(); collision_pending_.clear(); collision_events_.clear();
     collision_stats_.clear(); collision_cameras_.clear();
@@ -32,16 +45,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
         transform.ensureDecomposed();
         collision_cameras_.push_back(transform.worldPosition);
     }
-    if (!destroyConn_.isConnected()) {
-        destroyConn_ = registry.onDestroy([this](Entity entity) {
-            states_.erase(entity);
-            pending_play_.erase(entity);
-            colorLuts_.erase(entity);
-            sizeLuts_.erase(entity);
-            speedLuts_.erase(entity);
-            burstSchedules_.erase(entity);
-        });
-    }
+    if (!observing_) destroyConn_ = observe(registry);
 
     // Flatten the active force fields once so the per-particle loop touches no
     // components. Fields are world objects, applied to world-space particles.

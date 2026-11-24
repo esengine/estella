@@ -2,13 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app/app';
 import { PluginInstallations } from '../app/pluginInstallations';
+import { disposeAll } from '../util/disposeAll';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
 import { fxPreviewOrPlayMode } from '../ecs/env';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
-import { registerSceneComponentCodec } from '../scene/scene';
+import { declareSceneOutOfBandFields, registerWorldSceneComponentCodec } from '../scene/scene';
 import { Particle, ParticleAPI } from './ParticleAPI';
 import { particleQueryResolver } from './ParticleCollisionBridge';
 import { ParticleCollisionEvent, type ParticleCollisionEventPayload } from './collision';
@@ -20,19 +21,17 @@ import type { QualityController } from '../render/quality';
 import { bakeGradient, type Gradient } from './gradient';
 import { bakeCurve, type Curve } from './curve';
 
+const authoredFields = ['colorGradient', 'sizeCurve', 'bursts'] as const;
+
 export class ParticlePlugin implements Plugin {
     name = 'particle';
 
-    /** Entity → authored color-over-life gradient (out-of-band; baked to the C++ LUT). */
-    private readonly gradients_ = new Map<number, Gradient>();
-    /** Entity → authored size-over-life curve (out-of-band; baked to the C++ LUT). */
-    private readonly sizeCurves_ = new Map<number, Curve>();
-    /** Entity → authored burst schedule (out-of-band; handed to the sim as (time, count) pairs). */
-    private readonly bursts_ = new Map<number, { time: number; count: number }[]>();
-    private readonly overlays_ = new PluginInstallations<() => void>();
-    private offDespawn_: (() => void) | null = null;
+    private readonly cleanups_ = new PluginInstallations<Array<() => void>>();
 
     build(app: App): void {
+        this.cleanup(app);
+        const cleanups: Array<() => void> = [];
+        this.cleanups_.set(app, cleanups);
         // Whichever core is present; a core built without ES_ENABLE_PARTICLES simply
         // answers no particle_* entry point, which the API already tolerates.
         // `?? {}`: an app with no engine core (a test, a pure-logic host) still gets
@@ -41,8 +40,7 @@ export class ParticlePlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         const api = new ParticleAPI(engine, registry, particleQueryResolver(app));
         app.insertResource(Particle, api);
-        this.overlays_.take(app)?.();
-        this.overlays_.set(app, registerWorldDrawCallback(Particle._id, app.world, () => {
+        cleanups.push(registerWorldDrawCallback(Particle._id, app.world, () => {
             if (!api.debugNormals) return;
             for (const hit of api.collisionContacts) {
                 Draw.line3D({x:hit.x,y:hit.y,z:hit.z},
@@ -53,18 +51,19 @@ export class ParticlePlugin implements Plugin {
 
         // The color gradient is authored as stops in the component data but isn't a
         // C++ field — carry it out-of-band and bake it into the sim's LUT on load.
-        const gradients = this.gradients_;
-        const sizeCurves = this.sizeCurves_;
-        const bursts = this.bursts_;
+        const gradients = new Map<number, Gradient>();
+        const sizeCurves = new Map<number, Curve>();
+        const bursts = new Map<number, { time: number; count: number }[]>();
 
-        this.offDespawn_ = app.world.onDespawn((entity) => {
+        cleanups.push(app.world.onDespawn((entity) => {
             if (gradients.delete(entity)) api.setColorLut(entity, null);
             if (sizeCurves.delete(entity)) api.setSizeLut(entity, null);
             if (bursts.delete(entity)) api.setBursts(entity, null);
-        });
+        }));
 
-        registerSceneComponentCodec('ParticleEmitter', {
-            outOfBandFields: ['colorGradient', 'sizeCurve', 'bursts'],
+        declareSceneOutOfBandFields('ParticleEmitter', authoredFields);
+        cleanups.push(registerWorldSceneComponentCodec(app.world, 'ParticleEmitter', {
+            outOfBandFields: authoredFields,
             importData: (entity, outOfBand) => {
                 const g = outOfBand.colorGradient as Gradient | undefined;
                 api.setColorLut(entity, bakeGradient(g));
@@ -89,7 +88,7 @@ export class ParticlePlugin implements Plugin {
                 const b = bursts.get(entity);
                 if (b) data.bursts = b;
             },
-        });
+        }));
 
         // Particle advance is gameplay — frozen in editor edit mode, runs in
         // play mode / standalone runtime (matches animation/physics/timeline).
@@ -109,11 +108,7 @@ export class ParticlePlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
-        this.overlays_.take(app)?.();
-        this.offDespawn_?.();
-        this.offDespawn_ = null;
-        this.gradients_.clear();
-        this.sizeCurves_.clear();
+        disposeAll(this.cleanups_.take(app) ?? [], release => release(), true);
     }
 }
 

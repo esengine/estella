@@ -488,7 +488,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
     if (i >= cap) { return; }
     let flags = P.p1.y;
-    if ((flags & 1u) != 0u) {
+    // A reset and a new burst can reach the device in one step. Clear the old
+    // slots and let the scheduled births overwrite theirs through bornState.
+    let first = P.p0.y % cap;
+    let rel = (i + cap - first) % cap;
+    if ((flags & 1u) != 0u && rel >= P.p0.z) {
         states[i] = State(vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
         hide(i);
         return;
@@ -503,8 +507,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     rng = pcg(P.p1.x ^ (i * 2654435761u) ^ (P.p12.x * 40503u));
 
     // Born this step? Slot i holds the particle whose absolute index lands on it.
-    let first = P.p0.y % cap;
-    let rel = (i + cap - first) % cap;
     if (rel < P.p0.z) {
         rng = pcg(P.p1.x ^ ((P.p0.y + rel) * 2654435761u));
         var at = P.origin.xyz;
@@ -704,7 +706,6 @@ struct GpuParticles::Job {
     Entity entity;
     ParamsBlock block;
     Slot* slot;
-    particle::ParticleSystem* system;
     particle::GpuStep step;
     u32 subEmitter = 0;       ///< The child its events feed.
     f32 inheritVelocity = 0;  ///< What of a parent's speed that child keeps.
@@ -712,7 +713,8 @@ struct GpuParticles::Job {
     u32 reportEvents = 0;     ///< How many of its events the game asks to hear about.
 };
 
-GpuParticles::GpuParticles(GfxDevice& device) : device_(device) {}
+GpuParticles::GpuParticles(GfxDevice& device, const Shared<particle::ParticleSystem>& owner)
+    : device_(device), owner_(owner) {}
 
 GpuParticles::~GpuParticles() {
     release();
@@ -813,6 +815,8 @@ void GpuParticles::ensureEmpties() {
 }
 
 void GpuParticles::pollReadbacks() {
+    const auto system = owner_.lock();
+    if (!system) return;
     for (auto& [id, slot] : slots_) {
         if (slot.readback == ReadbackHandle::Invalid) continue;
         const GfxReadbackStatus status = device_.pollReadback(slot.readback);
@@ -821,7 +825,7 @@ void GpuParticles::pollReadbacks() {
         slot.readback = ReadbackHandle::Invalid;
         if (status != GfxReadbackStatus::Ready) continue;
         std::vector<u8> bytes(slot.readbackBytes);
-        if (!device_.takeReadback(handle, bytes.data(), bytes.size()) || !slot.system) continue;
+        if (!device_.takeReadback(handle, bytes.data(), bytes.size())) continue;
         u32 total = 0;
         std::memcpy(&total, bytes.data(), sizeof(u32));
         const u32 kept = std::min(total, (slot.readbackBytes - kEventHeaderBytes) / kEventBytes);
@@ -837,7 +841,7 @@ void GpuParticles::pollReadbacks() {
                            r[0], r[1], r[2], r[8], r[9], r[10], r[4], r[5], r[6], 1u});
         }
         // Past what was kept, the kinds are not known; every event of an emitter that only reports hits is one.
-        slot.system->addGpuCollisions(Entity::fromRaw(id), total > kept ? hits + (total - kept) : hits, out.data(), static_cast<u32>(out.size()));
+        system->addGpuCollisions(Entity::fromRaw(id), total > kept ? hits + (total - kept) : hits, out.data(), static_cast<u32>(out.size()));
     }
 }
 
@@ -861,14 +865,15 @@ GpuParticles::Slot* GpuParticles::ensureSlot(Entity entity, u32 capacity) {
 }
 
 bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, const ecs::Transform& transform,
-                          particle::ParticleSystem& system, const particle::GpuStep& step, const glm::vec4& eye,
+                          const particle::GpuStep& step, const glm::vec4& eye,
                           BufferHandle& instances, BufferHandle& segments, u32& segmentCount) {
+    const auto system = owner_.lock();
+    if (!system) return false;
     if (!ensureKernel() || step.capacity == 0) return false;
     Slot* slot = ensureSlot(entity, step.capacity);
     if (!slot) return false;
     instances = slot->instances;
     drawn_ += step.drawCount;
-    slot->system = &system;
     slot->collisionMode = static_cast<u32>(emitter.collisionMode);
 
     const bool collides = emitter.collisionEnabled;
@@ -923,7 +928,7 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     if (step.dt <= 0.0f && step.spawnCount == 0 && !step.reset && !local) return true;
     if (jobs_.size() >= kMaxJobs) return true;
 
-    Job job{entity, {}, slot, &system, step};
+    Job job{entity, {}, slot, step};
     ParamsBlock& b = job.block;
     std::memset(&b, 0, sizeof(b));
 
@@ -944,9 +949,9 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     if (step.fed) flags |= kFed;
     if (trailOn) flags |= kTrail;
 
-    const auto* colorLut = system.colorLut(entity);
-    const auto* sizeLut = system.sizeLut(entity);
-    const auto* speedLut = system.speedLut(entity);
+    const auto* colorLut = system->colorLut(entity);
+    const auto* sizeLut = system->sizeLut(entity);
+    const auto* speedLut = system->speedLut(entity);
     if (colorLut) flags |= kColorLut;
     if (sizeLut) flags |= kSizeLut;
     if (speedLut) flags |= kSpeedLut;
@@ -966,7 +971,7 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     set4(b.p9, finite(emitter.angleSpreadMin * math::DEG_TO_RAD), finite(emitter.angleSpreadMax * math::DEG_TO_RAD),
          static_cast<f32>(emitter.colorEasing), finite(emitter.collisionFloor));
     set4(b.p10, finite(emitter.collisionBounce), finite(emitter.collisionFriction), finite(emitter.collisionLifetimeLoss), finite(emitter.spriteFPS));
-    const std::vector<particle::ForceFieldInstance>& fields = system.forceFields();
+    const std::vector<particle::ForceFieldInstance>& fields = system->forceFields();
     const u32 fieldCount = local ? 0u : static_cast<u32>(std::min<std::size_t>(fields.size(), kMaxFields));
     set4(b.p11, static_cast<u32>(std::max(emitter.spriteColumns, 1)), static_cast<u32>(std::max(emitter.spriteRows, 1)),
          emitter.spriteLoop ? 1u : 0u, fieldCount);
@@ -1002,7 +1007,7 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     }
 
     set4(b.p12, static_cast<u32>(frame_), eventCapacity, static_cast<u32>(std::max(emitter.burstCount, 1)),
-         sdfMode ? static_cast<u32>(std::min<std::size_t>(system.sdfColliders().size(), kMaxColliders)) : 0u);
+         sdfMode ? static_cast<u32>(std::min<std::size_t>(system->sdfColliders().size(), kMaxColliders)) : 0u);
     // A report must hear every hit; a chance belongs to a child.
     set4(b.p13, report > 0 || !hasChild ? 1.0f : std::clamp(finite(emitter.subEmitterChance, 1.0f), 0.0f, 1.0f), 0.0f,
          std::max(finite(emitter.collisionThickness), 0.0f), 0.0f);
@@ -1099,6 +1104,12 @@ rg::ResourceId GpuParticles::declare(rg::RenderGraph& graph) {
 }
 
 void GpuParticles::run() {
+    // A registry can close after collection, before its graph pass executes.
+    const auto system = owner_.lock();
+    if (!system) {
+        jobs_.clear();
+        return;
+    }
     if (jobs_.empty() || kernel_ == ComputeHandle::Invalid) return;
     const u32 needed = static_cast<u32>(jobs_.size()) * kJobStride;
     if (params_ == BufferHandle::Invalid || paramsCapacity_ < needed) {
@@ -1140,7 +1151,7 @@ void GpuParticles::run() {
     };
     for (Job& job : jobs_) place(place, job, 0);
 
-    const std::vector<particle::SdfColliderInstance>& colliders = jobs_.front().system->sdfColliders();
+    const std::vector<particle::SdfColliderInstance>& colliders = system->sdfColliders();
     const u32 colliderBytes = static_cast<u32>(std::min<std::size_t>(colliders.size(), kMaxColliders)) * sizeof(particle::SdfColliderInstance);
     if (colliderBytes > 0 && (colliders_ == BufferHandle::Invalid || collidersCapacity_ < colliderBytes)) {
         if (colliders_ != BufferHandle::Invalid) device_.deleteBuffer(colliders_);
@@ -1213,7 +1224,7 @@ void GpuParticles::run() {
         };
         if (device_.dispatchCompute(kernel_, bindings, 9, (job.slot->capacity + 63) / 64)) {
             ++lastDispatches_;
-            job.system->commitGpuStep(job.entity, job.step);
+            system->commitGpuStep(job.entity, job.step);
         }
         if (controlled && fed) {
             const GfxComputeBinding control[3] = {
@@ -1229,6 +1240,73 @@ void GpuParticles::run() {
         }
     }
     jobs_.clear();
+}
+
+bool GpuParticleWorlds::available() const { return device_.supportsCompute(); }
+
+void GpuParticleWorlds::beginFrame() {
+    beginPass();
+    wantsDepth_ = false;
+    std::erase_if(worlds_, [](const auto& pair) { return pair.second->retired(); });
+    for (auto& [id, gpu] : worlds_) {
+        gpu->beginFrame();
+        wantsDepth_ |= gpu->wantsDepth();
+    }
+}
+
+void GpuParticleWorlds::collect(u64 registryId) {
+    auto it = worlds_.find(registryId);
+    if (it == worlds_.end()) return;
+    auto* gpu = it->second.get();
+    if (std::find(pass_.begin(), pass_.end(), gpu) == pass_.end()) pass_.push_back(gpu);
+}
+
+GpuParticles& GpuParticleWorlds::forWorld(u64 registryId, const Shared<particle::ParticleSystem>& system) {
+    auto [it, created] = worlds_.try_emplace(registryId);
+    auto& gpu = it->second;
+    if (created) {
+        gpu = makeUnique<GpuParticles>(device_, system);
+        gpu->setDepthGridMax(depthGridMax_);
+        gpu->beginFrame();
+    }
+    collect(registryId);
+    return *gpu;
+}
+
+void GpuParticleWorlds::declare(rg::RenderGraph& graph, std::vector<rg::ResourceId>& dependencies) {
+    for (auto* gpu : pass_) {
+        const auto result = gpu->declare(graph);
+        if (result != rg::kNoResource) dependencies.push_back(result);
+    }
+}
+
+void GpuParticleWorlds::declareDepthCopy(rg::RenderGraph& graph, rg::ResourceId scene,
+                                         u32 width, u32 height, const glm::mat4& clip) {
+    for (auto* gpu : pass_) gpu->declareDepthCopy(graph, scene, width, height, clip);
+}
+
+void GpuParticleWorlds::setDepthGridMax(u32 texels) {
+    if (depthGridMax_ == texels) return;
+    depthGridMax_ = texels;
+    for (auto& [id, gpu] : worlds_) gpu->setDepthGridMax(texels);
+}
+
+u32 GpuParticleWorlds::drawnSlots() const {
+    u32 slots = 0;
+    for (const auto& [id, gpu] : worlds_) slots += gpu->drawnSlots();
+    return slots;
+}
+
+u32 GpuParticleWorlds::lastDispatches() const {
+    u32 dispatches = 0;
+    for (const auto& [id, gpu] : worlds_) dispatches += gpu->lastDispatches();
+    return dispatches;
+}
+
+u32 GpuParticleWorlds::depthGridWidth() const {
+    u32 width = 0;
+    for (const auto* gpu : pass_) width = std::max(width, gpu->depthGridWidth());
+    return width;
 }
 
 }  // namespace esengine

@@ -270,6 +270,23 @@ void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count);
 void particle_set_speed_lut(u32 entity, uintptr_t ptr, i32 count);
 /** Burst schedule: `count` pairs of (seconds, particles) at `ptr`; 0 clears. */
 void particle_set_bursts(u32 entity, uintptr_t ptr, i32 count);
+
+// Registry-explicit particle controls and readbacks.
+u32 particle_collisionQueryCountInWorld(ecs::Registry& registry);
+// @heapreturn esengine::particle_collisionQueryCountInWorld(esn_reg()) * 40
+uintptr_t particle_collisionQueriesInWorld(ecs::Registry& registry);
+u32 particle_collisionEventCountInWorld(ecs::Registry& registry);
+// @heapreturn esengine::particle_collisionEventCountInWorld(esn_reg()) * 56
+uintptr_t particle_collisionEventsInWorld(ecs::Registry& registry);
+u32 particle_collisionStatsCountInWorld(ecs::Registry& registry);
+// @heapreturn esengine::particle_collisionStatsCountInWorld(esn_reg()) * 40
+uintptr_t particle_collisionStatsInWorld(ecs::Registry& registry);
+void particle_collisionSetBudgetInWorld(ecs::Registry& registry, u32 queries, u32 events, bool debug);
+u32 particle_getAliveCountInWorld(ecs::Registry& registry, u32 entity);
+void particle_setColorLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count);
+void particle_setSizeLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count);
+void particle_setSpeedLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count);
+void particle_setBurstsInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count);
 #endif
 void trail_update(ecs::Registry& registry, f32 dt);
 void trail_clear(ecs::Registry& registry, u32 entity);

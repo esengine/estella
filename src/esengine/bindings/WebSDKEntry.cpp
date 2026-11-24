@@ -64,9 +64,6 @@
 #include "../ecs/components/Collider2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../animation/TweenSystem.hpp"
-#ifdef ES_ENABLE_PARTICLES
-#include "../particle/ParticleSystem.hpp"
-#endif
 #include "../core/Log.hpp"
 
 #include <glm/glm.hpp>
@@ -88,9 +85,6 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_initialized (ctx().state().initialized)
 #define g_resourceManager (ctx().tryGet<resource::ResourceManager>())
 #define g_renderContext (ctx().tryGet<RenderContext>())
-#ifdef ES_ENABLE_PARTICLES
-#define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
-#endif
 
 // Bytes malloc has handed out and not got back, for the resource census. The
 // reserved heap size cannot answer this: emscripten's heap only grows, so a leak
@@ -876,6 +870,18 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("particle_set_size_lut", ES_RENDER_BIND(particle_set_size_lut));
     emscripten::function("particle_set_speed_lut", ES_RENDER_BIND(particle_set_speed_lut));
     emscripten::function("particle_set_bursts", ES_RENDER_BIND(particle_set_bursts));
+    emscripten::function("particle_collisionQueryCountInWorld", ES_RENDER_BIND(particle_collisionQueryCountInWorld));
+    emscripten::function("particle_collisionQueriesInWorld", ES_RENDER_BIND(particle_collisionQueriesInWorld));
+    emscripten::function("particle_collisionEventCountInWorld", ES_RENDER_BIND(particle_collisionEventCountInWorld));
+    emscripten::function("particle_collisionEventsInWorld", ES_RENDER_BIND(particle_collisionEventsInWorld));
+    emscripten::function("particle_collisionStatsCountInWorld", ES_RENDER_BIND(particle_collisionStatsCountInWorld));
+    emscripten::function("particle_collisionStatsInWorld", ES_RENDER_BIND(particle_collisionStatsInWorld));
+    emscripten::function("particle_collisionSetBudgetInWorld", ES_RENDER_BIND(particle_collisionSetBudgetInWorld));
+    emscripten::function("particle_getAliveCountInWorld", ES_RENDER_BIND(particle_getAliveCountInWorld));
+    emscripten::function("particle_setColorLutInWorld", ES_RENDER_BIND(particle_setColorLutInWorld));
+    emscripten::function("particle_setSizeLutInWorld", ES_RENDER_BIND(particle_setSizeLutInWorld));
+    emscripten::function("particle_setSpeedLutInWorld", ES_RENDER_BIND(particle_setSpeedLutInWorld));
+    emscripten::function("particle_setBurstsInWorld", ES_RENDER_BIND(particle_setBurstsInWorld));
 #endif
     emscripten::function("trail_update", ES_RENDER_BIND(trail_update));
     emscripten::function("trail_clear", ES_RENDER_BIND(trail_clear));

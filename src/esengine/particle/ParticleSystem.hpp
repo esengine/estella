@@ -301,6 +301,9 @@ private:
     std::vector<GpuCollisions> gpu_collisions_;
     // RAII: auto-unregisters from the registry's onDestroy when this system is
     // destroyed, so a torn-down system never leaves a dangling `this` behind.
+    friend class ParticleWorlds;
+    Connection observe(ecs::Registry& registry, Shared<ParticleSystem> keepAlive = {});
+    bool observing_ = false;
     Connection destroyConn_;
 };
 

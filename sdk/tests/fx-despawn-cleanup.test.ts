@@ -13,6 +13,7 @@ import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
 import { MeshRendererPlugin, MeshRenderers } from '../src/render/meshRenderer';
 import { ParticlePlugin } from '../src/particle/ParticlePlugin';
+import { loadSceneData, serializeScene } from '../src/scene/scene';
 import { TrailPlugin } from '../src/trail/TrailPlugin';
 import { TrailRenderer } from '../src/ecs/component';
 import type { ESEngineModule } from '../src/wasm';
@@ -53,31 +54,34 @@ describe('FX per-entity state on despawn', () => {
         expect(api.getGeometry(e)).toBeUndefined();
     });
 
-    it('Particle: despawn drops gradient/size-curve entries and clears the native LUTs', () => {
+    it('Particle: despawn clears the emitter LUTs and leaves the other emitter authored', () => {
         const { app, module } = bootApp();
-        const setColorLut = vi.fn();
-        const setSizeLut = vi.fn();
-        const m = module as unknown as Record<string, unknown>;
-        m.particle_set_color_lut = setColorLut;
-        m.particle_set_size_lut = setSizeLut;
+        withAllocator(module);
+        const setColor = vi.fn(), setSize = vi.fn(), setBursts = vi.fn();
+        Object.assign(module, {
+            HEAPF32: new Float32Array(module.HEAPU8!.buffer),
+            particle_set_color_lut: setColor, particle_set_size_lut: setSize, particle_set_bursts: setBursts,
+        });
+        app.addPlugin(new ParticlePlugin());
+        const fields = { colorGradient: { stops: [{ t: 0, color: { r: 1, g: 1, b: 1, a: 1 } }] },
+            sizeCurve: { keys: [{ time: 0, value: 1 }] }, bursts: [{ time: 0, count: 4 }] };
+        const entities = [1, 2].map(id => ({ id, name: 'effect ' + id, parent: null, children: [],
+            components: [{ type: 'ParticleEmitter', data: fields }] }));
+        const loaded = loadSceneData(app.world, { version: 4, name: 'particles', entities });
+        const first = loaded.get(1)!;
+        for (const setter of [setColor, setSize, setBursts]) {
+            expect(setter).toHaveBeenCalledTimes(2);
+            setter.mockClear();
+        }
 
-        const plugin = new ParticlePlugin();
-        app.addPlugin(plugin);
-        const e = app.world.spawn();
-        const other = app.world.spawn();
-        const gradients = (plugin as unknown as { gradients_: Map<number, unknown> }).gradients_;
-        const sizeCurves = (plugin as unknown as { sizeCurves_: Map<number, unknown> }).sizeCurves_;
-        gradients.set(e as number, { stops: [{ t: 0, color: { r: 1, g: 1, b: 1, a: 1 } }] });
-        gradients.set(other as number, { stops: [{ t: 0, color: { r: 1, g: 1, b: 1, a: 1 } }] });
-        sizeCurves.set(e as number, { keys: [{ t: 0, v: 1 }] });
+        app.world.despawn(first);
 
-        app.world.despawn(e);
-
-        expect(gradients.has(e as number)).toBe(false);
-        expect(sizeCurves.has(e as number)).toBe(false);
-        expect(gradients.has(other as number)).toBe(true);
-        expect(setColorLut).toHaveBeenCalledWith(e, 0, 0);
-        expect(setSizeLut).toHaveBeenCalledWith(e, 0, 0);
+        for (const setter of [setColor, setSize, setBursts]) {
+            expect(setter.mock.calls).toEqual([[first, 0, 0]]);
+        }
+        const saved = serializeScene(app.world).entities;
+        expect(saved).toHaveLength(1);
+        expect(saved[0].components.find(c => c.type === 'ParticleEmitter')?.data).toMatchObject(fields);
     });
 
     it('Trail: despawn clears native history only for entities with TrailRenderer', () => {

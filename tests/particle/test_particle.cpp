@@ -4,7 +4,7 @@
 #include <esengine/ESEngine.hpp>
 #include <esengine/particle/Particle.hpp>
 #include <esengine/particle/ParticleEasing.hpp>
-#include <esengine/particle/ParticleSystem.hpp>
+#include <esengine/particle/ParticleWorlds.hpp>
 #include <cmath>
 #include <functional>
 
@@ -117,6 +117,35 @@ TEST_CASE("easing_ease_in_out") {
 // ============================================================================
 // ParticleSystem Tests
 // ============================================================================
+
+TEST_CASE("particle simulations live until their registry or context is destroyed") {
+    ecs::Registry survivor;
+    Weak<ParticleSystem> survivorSystem;
+    {
+        ParticleWorlds worlds{RandomSource(123u)};
+        survivorSystem = worlds.select(survivor);
+        Weak<ParticleSystem> retired;
+        {
+            ecs::Registry peer;
+            retired = worlds.select(peer);
+            CHECK(retired.lock() != survivorSystem.lock());
+            CHECK(worlds.legacy() == retired.lock());
+        }
+        CHECK(retired.expired());
+        CHECK(worlds.forRegistry(survivor) == survivorSystem.lock());
+        CHECK_FALSE(survivorSystem.expired());
+    }
+    CHECK(survivorSystem.expired());
+}
+
+TEST_CASE("legacy particle authoring before the first registry binds to that world") {
+    ParticleWorlds worlds{RandomSource(123u)};
+    auto authored = worlds.legacy();
+    ecs::Registry first, second;
+    CHECK(worlds.select(first) == authored);
+    CHECK(worlds.forRegistry(second) != authored);
+    CHECK(worlds.legacy() == authored);
+}
 
 TEST_CASE("system_no_emitters_no_crash") {
     ecs::Registry registry;
@@ -935,6 +964,34 @@ Entity makeGpuEmitter(ecs::Registry& registry, const std::function<void(ecs::Par
     return e;
 }
 }  // namespace
+
+TEST_CASE("GPU steps and same-frame restarts belong to their registry") {
+    ParticleWorlds worlds{RandomSource(123u)};
+    ecs::Registry first, second;
+    const auto a = worlds.forRegistry(first);
+    worlds.setGpuAvailable(true);
+    const auto b = worlds.forRegistry(second);
+    const Entity x = makeGpuEmitter(first, [](auto& emitter) { emitter.burstCount = 3; });
+    const Entity y = makeGpuEmitter(second, [](auto& emitter) { emitter.burstCount = 7; });
+    REQUIRE(x == y);
+    a->update(first, 0.01f);
+    b->update(second, 0.01f);
+
+    GpuStep step;
+    REQUIRE(a->peekGpuStep(x, step));
+    a->commitGpuStep(x, step);
+    CHECK_EQ(a->aliveCount(x), 3u);
+    CHECK_EQ(b->aliveCount(y), 0u);
+    a->reset(x);
+    a->play(x);
+    a->update(first, 0.01f);
+    REQUIRE(a->peekGpuStep(x, step));
+    CHECK(step.reset);
+    CHECK_EQ(step.spawnCount, 3u);
+    REQUIRE(b->peekGpuStep(y, step));
+    CHECK_FALSE(step.reset);
+    CHECK_EQ(step.spawnCount, 7u);
+}
 
 TEST_CASE("gpu_emitter_without_a_compute_device_runs_on_the_cpu_capped") {
     ecs::Registry registry;

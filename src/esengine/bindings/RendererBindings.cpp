@@ -46,7 +46,7 @@
 // Core, not particles: the seed binding below is unconditional.
 #include "../core/RandomSource.hpp"
 #ifdef ES_ENABLE_PARTICLES
-#include "../particle/ParticleSystem.hpp"
+#include "../particle/ParticleWorlds.hpp"
 #endif
 #include "../trail/TrailSystem.hpp"
 #include "../springbone/SpringBoneSystem.hpp"
@@ -81,7 +81,15 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_viewportWidth (ctx().state().viewport_width)
 #define g_viewportHeight (ctx().state().viewport_height)
 #ifdef ES_ENABLE_PARTICLES
-#define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
+static particle::ParticleWorlds* particleWorlds() { return ctx().tryGet<particle::ParticleWorlds>(); }
+static Shared<particle::ParticleSystem> particlesIn(ecs::Registry& registry) {
+    auto* worlds = particleWorlds();
+    return worlds ? worlds->select(registry) : nullptr;
+}
+static Shared<particle::ParticleSystem> legacyParticles() {
+    auto* worlds = particleWorlds();
+    return worlds ? worlds->legacy() : nullptr;
+}
 #endif
 #define g_trailSystem (ctx().tryGet<trail::TrailSystem>())
 #define g_springBoneSystem (ctx().tryGet<springbone::SpringBoneSystem>())
@@ -996,76 +1004,147 @@ void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 
 
 #ifdef ES_ENABLE_PARTICLES
 void particle_update(ecs::Registry& registry, f32 dt) {
-    if (!g_particleSystem) return;
-    ensureTransformsUpdated(registry);
-    g_particleSystem->update(registry, dt);
+    if (auto system = particlesIn(registry)) {
+        ensureTransformsUpdated(registry);
+        system->update(registry, dt);
+    }
 }
 
-u32 particle_collisionQueryCount() { return g_particleSystem ? static_cast<u32>(g_particleSystem->collisionQueries().size()) : 0; }
-uintptr_t particle_collisionQueries() { return g_particleSystem ? reinterpret_cast<uintptr_t>(g_particleSystem->collisionQueries().data()) : 0; }
-u32 particle_collisionEventCount() { return g_particleSystem ? static_cast<u32>(g_particleSystem->collisionEvents().size()) : 0; }
-uintptr_t particle_collisionEvents() { return g_particleSystem ? reinterpret_cast<uintptr_t>(g_particleSystem->collisionEvents().data()) : 0; }
-u32 particle_collisionStatsCount() { return g_particleSystem ? static_cast<u32>(g_particleSystem->collisionStats().size()) : 0; }
-uintptr_t particle_collisionStats() { return g_particleSystem ? reinterpret_cast<uintptr_t>(g_particleSystem->collisionStats().data()) : 0; }
-void particle_collisionSetBudget(u32 queries, u32 events, bool debug) { if (g_particleSystem) g_particleSystem->setCollisionBudget(queries,events,debug); }
 void particle_collisionResolve(ecs::Registry& registry, uintptr_t ptr, u32 count) {
-    if (!g_particleSystem) return;
-    const u32 expected = static_cast<u32>(g_particleSystem->collisionQueries().size());
-    const auto* replies = count == expected && count <= 65536 ? boundarySpan<particle::CollisionReply>(ptr,count,"particle_collisionResolve") : nullptr;
-    g_particleSystem->resolveCollisions(registry,replies,replies ? count : 0);
+    if (auto system = particlesIn(registry)) {
+        const auto expected = system->collisionQueries().size();
+        const auto* replies = count == expected && count <= 65536 ? boundarySpan<particle::CollisionReply>(ptr, count, "particle_collisionResolve") : nullptr;
+        system->resolveCollisions(registry, replies, replies ? count : 0);
+    }
 }
 
-// The entity crosses the wasm boundary as a raw u32 (Embind has no registered
-// binding for esengine::Entity — calling with it throws "unbound types"). Rebuild
-// the Entity C++-side, matching particle_set_color_lut/set_size_lut below.
 void particle_play(ecs::Registry& registry, u32 entity) {
-    if (!g_particleSystem) return;
-    (void)registry;
-    g_particleSystem->play(Entity::fromRaw(entity));
+    if (auto system = particlesIn(registry)) system->play(Entity::fromRaw(entity));
 }
 
 void particle_stop(ecs::Registry& registry, u32 entity) {
-    if (!g_particleSystem) return;
-    (void)registry;
-    g_particleSystem->stop(Entity::fromRaw(entity));
+    if (auto system = particlesIn(registry)) system->stop(Entity::fromRaw(entity));
 }
 
 void particle_reset(ecs::Registry& registry, u32 entity) {
-    if (!g_particleSystem) return;
-    (void)registry;
-    g_particleSystem->reset(Entity::fromRaw(entity));
+    if (auto system = particlesIn(registry)) system->reset(Entity::fromRaw(entity));
 }
 
 u32 particle_emitAt(ecs::Registry& registry, u32 entity, u32 count, f32 px, f32 py, f32 pz,
                     f32 nx, f32 ny, f32 nz, f32 vx, f32 vy, f32 vz) {
-    if (!g_particleSystem) return 0;
-    return g_particleSystem->emitAt(registry, Entity::fromRaw(entity), count, glm::vec3(px, py, pz),
-                                    glm::vec3(nx, ny, nz), glm::vec3(vx, vy, vz));
+    auto system = particlesIn(registry);
+    return system ? system->emitAt(registry, Entity::fromRaw(entity), count, glm::vec3(px, py, pz),
+                                   glm::vec3(nx, ny, nz), glm::vec3(vx, vy, vz)) : 0;
+}
+
+u32 particle_collisionQueryCountInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? static_cast<u32>(system->collisionQueries().size()) : 0;
+}
+
+u32 particle_collisionQueryCount() {
+    auto system = legacyParticles();
+    return system ? static_cast<u32>(system->collisionQueries().size()) : 0;
+}
+
+uintptr_t particle_collisionQueriesInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? reinterpret_cast<uintptr_t>(system->collisionQueries().data()) : 0;
+}
+
+uintptr_t particle_collisionQueries() {
+    auto system = legacyParticles();
+    return system ? reinterpret_cast<uintptr_t>(system->collisionQueries().data()) : 0;
+}
+
+u32 particle_collisionEventCountInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? static_cast<u32>(system->collisionEvents().size()) : 0;
+}
+
+u32 particle_collisionEventCount() {
+    auto system = legacyParticles();
+    return system ? static_cast<u32>(system->collisionEvents().size()) : 0;
+}
+
+uintptr_t particle_collisionEventsInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? reinterpret_cast<uintptr_t>(system->collisionEvents().data()) : 0;
+}
+
+uintptr_t particle_collisionEvents() {
+    auto system = legacyParticles();
+    return system ? reinterpret_cast<uintptr_t>(system->collisionEvents().data()) : 0;
+}
+
+u32 particle_collisionStatsCountInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? static_cast<u32>(system->collisionStats().size()) : 0;
+}
+
+u32 particle_collisionStatsCount() {
+    auto system = legacyParticles();
+    return system ? static_cast<u32>(system->collisionStats().size()) : 0;
+}
+
+uintptr_t particle_collisionStatsInWorld(ecs::Registry& registry) {
+    auto system = particlesIn(registry);
+    return system ? reinterpret_cast<uintptr_t>(system->collisionStats().data()) : 0;
+}
+
+uintptr_t particle_collisionStats() {
+    auto system = legacyParticles();
+    return system ? reinterpret_cast<uintptr_t>(system->collisionStats().data()) : 0;
+}
+
+void particle_collisionSetBudgetInWorld(ecs::Registry& registry, u32 queries, u32 events, bool debug) {
+    if (auto system = particlesIn(registry)) system->setCollisionBudget(queries, events, debug);
+}
+
+void particle_collisionSetBudget(u32 queries, u32 events, bool debug) {
+    if (auto system = legacyParticles()) system->setCollisionBudget(queries, events, debug);
+}
+
+u32 particle_getAliveCountInWorld(ecs::Registry& registry, u32 entity) {
+    auto system = particlesIn(registry);
+    return system ? system->aliveCount(Entity::fromRaw(entity)) : 0;
 }
 
 u32 particle_getAliveCount(u32 entity) {
-    if (!g_particleSystem) return 0;
-    return g_particleSystem->aliveCount(Entity::fromRaw(entity));
+    auto system = legacyParticles();
+    return system ? system->aliveCount(Entity::fromRaw(entity)) : 0;
+}
+
+void particle_setColorLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count) {
+    if (auto system = particlesIn(registry)) system->setColorLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 
 void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count) {
-    if (!g_particleSystem) return;
-    g_particleSystem->setColorLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+    if (auto system = legacyParticles()) system->setColorLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+}
+
+void particle_setSizeLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count) {
+    if (auto system = particlesIn(registry)) system->setSizeLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 
 void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count) {
-    if (!g_particleSystem) return;
-    g_particleSystem->setSizeLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+    if (auto system = legacyParticles()) system->setSizeLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+}
+
+void particle_setSpeedLutInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count) {
+    if (auto system = particlesIn(registry)) system->setSpeedLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 
 void particle_set_speed_lut(u32 entity, uintptr_t ptr, i32 count) {
-    if (!g_particleSystem) return;
-    g_particleSystem->setSpeedLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+    if (auto system = legacyParticles()) system->setSpeedLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+}
+
+void particle_setBurstsInWorld(ecs::Registry& registry, u32 entity, uintptr_t ptr, i32 count) {
+    if (auto system = particlesIn(registry)) system->setBursts(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 
 void particle_set_bursts(u32 entity, uintptr_t ptr, i32 count) {
-    if (!g_particleSystem) return;
-    g_particleSystem->setBursts(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+    if (auto system = legacyParticles()) system->setBursts(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 #endif
 
@@ -1288,7 +1367,7 @@ void engine_setRandomSeed(u32 seed) {
         // Consumers derive a generator once, so each is re-derived here. One
         // today; this list is where a second one announces itself.
 #ifdef ES_ENABLE_PARTICLES
-        if (auto* particles = g_particleSystem) particles->reseedFrom(*source);
+        if (auto* particles = particleWorlds()) particles->reseedFrom(*source);
 #endif
     }
 }
@@ -1460,7 +1539,7 @@ void renderer_setTreeSortLayers(u32 mask) {
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit) {
     if (g_renderFrame) g_renderFrame->setShadowBudget(atlasSize, cellSize, cascades);
 #ifdef ES_ENABLE_PARTICLES
-    if (g_particleSystem) g_particleSystem->setParticleLimit(particleLimit);
+    if (auto* particles = particleWorlds()) particles->setParticleLimit(particleLimit);
 #endif
 }
 
@@ -1488,7 +1567,7 @@ void renderer_setPlanarReflectionQuality(f32 scale, u32 maxSize, f32 updatesPerS
 void renderer_setParticleDepthGrid(u32 texels) {
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (g_renderFrame) {
-        if (GpuParticles* gpu = g_renderFrame->gpuParticles()) gpu->setDepthGridMax(texels);
+        if (auto* gpu = g_renderFrame->gpuParticleWorlds()) gpu->setDepthGridMax(texels);
     }
 #else
     (void)texels;

@@ -46,7 +46,7 @@
 
 namespace esengine {
 
-class GpuParticles;
+class GpuParticleWorlds;
 
 namespace ecs { struct Light; }
 class ImmediateDraw;
@@ -712,7 +712,7 @@ public:
 
 #ifdef ES_ENABLE_GPU_PARTICLES
     /** Where emitters that simulate on the GPU queue their step, and find the buffer to draw (null before init). */
-    GpuParticles* gpuParticles() { return gpu_particles_.get(); }
+    GpuParticleWorlds* gpuParticleWorlds() { return gpu_particles_.get(); }
 #endif
     /** The skin cache (SkinCache.hpp): what a skinned draw asks for the vertices this frame posed for it. */
     SkinCache* skinCache() { return skin_cache_.get(); }
@@ -730,7 +730,7 @@ private:
 #endif
 #ifdef ES_ENABLE_GPU_PARTICLES
     /// The compute-simulated particles' buffers live here, across frames: their state is the point of them.
-    Unique<GpuParticles> gpu_particles_;
+    Unique<GpuParticleWorlds> gpu_particles_;
 #endif
     Unique<SkinCache> skin_cache_;
     /// The frame whose skins were scheduled: once a frame, by its first collect.

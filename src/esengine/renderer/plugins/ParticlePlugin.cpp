@@ -14,7 +14,7 @@
 #include "../../resource/ShaderParser.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ParticleEmitter.hpp"
-#include "../../particle/ParticleSystem.hpp"
+#include "../../particle/ParticleWorlds.hpp"
 #include "../../particle/Particle.hpp"
 
 #include "../../particle/ParticleStretch.hpp"
@@ -40,9 +40,7 @@ static_assert(sizeof(ParticleInstanceData) == PARTICLE_INSTANCE_STRIDE, "instanc
 void ParticlePlugin::init(RenderFrameContext& ctx) {
     // Whether emitters that ask to simulate on the GPU can: the device says, and the CPU sim falls back where it cannot.
 #ifdef ES_ENABLE_GPU_PARTICLES
-    if (particle_system_ && ctx.frame && ctx.frame->gpuParticles()) {
-        particle_system_->setGpuAvailable(ctx.frame->gpuParticles()->available());
-    }
+    if (worlds_) worlds_->setGpuAvailable(ctx.frame && ctx.frame->gpuParticleWorlds() && ctx.frame->gpuParticleWorlds()->available());
 #endif
     // Particle instancing shader, authored as particle.esshader (single source,
     // WGSL twin included) and embedded for the web build. Attribute locations
@@ -81,7 +79,8 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
-    if (!particle_system_ || particle_shader_id_ == 0) return;
+    if (!worlds_ || particle_shader_id_ == 0 || registry.countOf<ecs::ParticleEmitter>() == 0) return;
+    const auto system = worlds_->forRegistry(registry);
 
     auto emitterView = registry.activeView<ecs::Transform, ecs::ParticleEmitter>();
 
@@ -93,7 +92,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         auto& transform = emitterView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
 
-        const auto* state = particle_system_->getState(entity);
+        const auto* state = system->getState(entity);
         if (!state) continue;
 
         // A GPU emitter's particles are in a buffer a kernel writes: this frame's step is queued, and the draw is told
@@ -104,13 +103,13 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 particleCount = 0;
         if (state->gpu) {
 #ifdef ES_ENABLE_GPU_PARTICLES
-            GpuParticles* gpu = ctx.frame ? ctx.frame->gpuParticles() : nullptr;
             // The screen's overlay is not drawn through the graph the kernel runs in.
-            if (!gpu || collect_ctx.isOverlay()) continue;
+            if (!ctx.frame || !ctx.frame->gpuParticleWorlds() || collect_ctx.isOverlay()) continue;
+            auto& gpu = ctx.frame->gpuParticleWorlds()->forWorld(registry.instanceId(), system);
             buffers.reserveStream(LayoutId::ParticleInstance);
             particle::GpuStep step;
-            if (!particle_system_->peekGpuStep(entity, step)) continue;
-            if (!gpu->submit(entity, emitter, transform, *particle_system_, step, collect_ctx.camera.eye, gpuInstances, gpuSegments, gpuSegmentCount)) continue;
+            if (!system->peekGpuStep(entity, step)) continue;
+            if (!gpu.submit(entity, emitter, transform, step, collect_ctx.camera.eye, gpuInstances, gpuSegments, gpuSegmentCount)) continue;
             particleCount = step.drawCount;
 #else
             continue;  // no compute in this build: ParticleSystem never marks an emitter GPU-simulated

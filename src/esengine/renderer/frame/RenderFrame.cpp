@@ -186,7 +186,7 @@ void RenderFrame::init(u32 width, u32 height) {
 #endif
 
 #ifdef ES_ENABLE_GPU_PARTICLES
-    gpu_particles_ = makeUnique<GpuParticles>(device_);
+    gpu_particles_ = makeUnique<GpuParticleWorlds>(device_);
 #endif
     if (!skin_cache_) skin_cache_ = makeUnique<SkinCache>(device_);
     pool_.init();
@@ -221,10 +221,7 @@ void RenderFrame::shutdown() {
     }
     plugins_.clear();
 #ifdef ES_ENABLE_GPU_PARTICLES
-    if (gpu_particles_) {
-        gpu_particles_->release();
-        gpu_particles_.reset();
-    }
+    gpu_particles_.reset();
 #endif
     pool_.shutdown();
     shadow_pool_.shutdown();
@@ -501,6 +498,9 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                         const PassClear& camera_clear) {
+#ifdef ES_ENABLE_GPU_PARTICLES
+    if (gpu_particles_) gpu_particles_->beginPass();
+#endif
     // A chain that is engaged draws the scene into a capture exactly as big as the camera's rect, and only its present lands at
     // the rect's offset (setOutputViewport). So the camera's rect starts at the capture's origin: left at the camera's own x/y
     // it names pixels outside the capture, and a camera that does not start at the window's corner (the right half of a split,
@@ -858,8 +858,7 @@ void RenderFrame::end() {
 #ifdef ES_ENABLE_GPU_PARTICLES
         // The particles a kernel advances this frame are drawn by the scene, so it runs first.
         if (gpu_particles_) {
-            const rg::ResourceId simulated = gpu_particles_->declare(graph_);
-            if (simulated != rg::kNoResource) scene.dependencies.push_back(simulated);
+            gpu_particles_->declare(graph_, scene.dependencies);
         }
 #endif
         // A surface that refracts has to see what stands behind it, and what stands behind it is the opaque scene: the pass is
@@ -3434,6 +3433,9 @@ void RenderFrame::declareSkinCache(ecs::Registry& registry) {
 
 void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     ES_PROFILE_SCOPE("render.collect");
+#ifdef ES_ENABLE_GPU_PARTICLES
+    if (gpu_particles_) gpu_particles_->collect(registry.instanceId());
+#endif
     // Split because "collect is expensive" names no mechanism: planning shadows,
     // gathering lights and walking one render type's population are different
     // work that a single total cannot be told apart by.
