@@ -790,10 +790,12 @@ export function loadSceneData(
  * snapshot-id → new entity for callers that need to remap references/selection.
  */
 export function resetWorldTo(world: World, sceneData: SceneData): Map<number, Entity> {
+    const attempt = new SceneLoadAttempt(world, sceneData.name);
     // getAllEntities returns a fresh array, so despawning as we go is safe; the
     // valid() guard tolerates despawn cascading to children.
     for (const entity of world.getAllEntities()) {
         if (world.valid(entity)) world.despawn(entity);
+        attempt.assertCurrent();
     }
     return loadSceneData(world, sceneData);
 }

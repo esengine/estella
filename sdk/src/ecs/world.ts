@@ -146,6 +146,25 @@ export interface QueryFilter {
     readonly deps: readonly AnyComponentDef[];
 }
 
+/** Position in an active subtree teardown, including the next listener to notify. */
+class DespawnCursor {
+    readonly visit: Entity[] = [];
+    readonly order: Entity[] = [];
+    readonly nativeOwned: Entity[] = [];
+    index = -1;
+    phase: 'begin' | 'notify' | 'forget' | 'done' = 'begin';
+    observers?: readonly ((entity: Entity) => void)[];
+    nextObserver = 0;
+}
+
+interface DestructionState {
+    lifetime: symbol;
+    registry: CppRegistry | null;
+    entities: Set<Entity>;
+    active: DespawnCursor[];
+    spare?: DespawnCursor;
+}
+
 // =============================================================================
 // World
 // =============================================================================
@@ -221,7 +240,7 @@ export class World {
     private assetFieldResolver_: AssetFieldResolver | null = null;
     private assetFieldObservers_?: Set<(entity: Entity, component: AnyComponentDef) => void>;
     private pendingAssetFields_?: PendingAssetFields;
-    private despawning_: Set<Entity> | null = null;
+    private despawning_: DestructionState | null = null;
 
     /** @internal */
     get builtin(): BuiltinBridge {
@@ -241,7 +260,7 @@ export class World {
         options?: BridgeConnectOptions,
     ): void {
         // A populated JS-only World can already have entity owners before a host attaches its first registry.
-        if (!this.hasCpp && this.entities_.size && this.coreDisconnect_.size) this.builtin_.disconnect();
+        if (!this.hasCpp && this.entities_.size && (this.coreDisconnect_.size || this.despawning_?.active.length)) this.builtin_.disconnect();
         this.addressOf_.clear();
         this.builtin_.connect(cppRegistry, module, options);
         for (const e of this.scripts_.getStorageById(Disabled._id)?.keys() ?? []) cppRegistry.setEntityEnabled?.(e, false);
@@ -288,6 +307,17 @@ export class World {
             disposeAll([
                 () => this.flushEngineStamps(),
                 () => {
+                    const state = this.despawning_;
+                    if (state?.active.length) {
+                        // A nested despawn returns to the observer that started it.
+                        disposeAll([...state.active], cursor => {
+                            try {
+                                if (state.lifetime === this.entityLifetime) this.drainDespawn_(state, cursor);
+                            } finally { this.releaseDespawn_(state, cursor); }
+                        }, true);
+                    }
+                },
+                () => {
                     for (const dispose of [...this.coreDisconnect_]) {
                         try { dispose(); } catch (error) { log.warn('world', 'Core disconnect callback error', error); }
                     }
@@ -301,6 +331,7 @@ export class World {
             this.entityLifetime_ = Symbol();
             this.lifetimeRegistry_ = null;
             this.lifetimeReset_ = undefined;
+            this.despawning_ = null;
             this.clearStampFlusher_?.();
             this.clearStampFlusher_ = undefined;
             this.engineTypeIdsFor_ = null;
@@ -400,6 +431,13 @@ export class World {
             entity = makeEntity(idx, gen);
         }
 
+        // A registry replacement or bulk clear can allocate an identical packed
+        // handle. Its first SDK row starts at the new entity's insertion rank.
+        if (this.entities_.has(entity)) {
+            this.pendingAssetFields_?.remove(entity);
+            this.names_.remove(entity);
+            this.forgetEntity_(entity);
+        }
         this.entities_.set(entity, this.nextEntityRank_++);
         this.indexGeneration_.set(entityIndex(entity), entityGeneration(entity));
         return entity;
@@ -438,86 +476,124 @@ export class World {
                 'Use Commands to defer entity destruction until after iteration completes.'
             );
         }
-        if (!this.valid(entity) || this.despawning_?.has(entity)) return;
-        const cppRegistry = this.builtin_.getCppRegistry();
-        if (cppRegistry?.destructionPending?.(entity)) return;
-        this.despawnSubtree_(entity, cppRegistry);
+        if (this.valid(entity)) this.despawnSubtree_(entity, this.builtin_.getCppRegistry());
     }
 
     /** Depth-first teardown of `entity` and its descendants (children before parent). */
     private despawnSubtree_(entity: Entity, cppRegistry: CppRegistry | null): void {
-        const reserved = this.despawning_ ??= new Set<Entity>();
-        const owned: Entity[] = [], nativeOwned: Entity[] = [], postorder: Entity[] = [];
-        const stack: Array<{ entity: Entity; children: Entity[] | null; next: number }> = [
-            { entity, children: null, next: 0 },
-        ];
-        try {
-            // Reserve the whole subtree before callbacks run. It cannot escape
-            // through reparenting, receive new children, or be torn down twice
-            // by a re-entrant callback. Snapshot each child list just once.
-            while (stack.length) {
-                const frame = stack[stack.length - 1];
-                if (frame.children === null) {
-                    if (!this.valid(frame.entity) || reserved.has(frame.entity)
-                        || cppRegistry?.destructionPending?.(frame.entity)) { stack.pop(); continue; }
-                    reserved.add(frame.entity); owned.push(frame.entity);
-                    frame.children = this.childEntitiesOf_(frame.entity, true);
-                }
-                if (frame.next < frame.children.length) {
-                    stack.push({ entity: frame.children[frame.next++], children: null, next: 0 });
-                } else {
-                    postorder.push(frame.entity); stack.pop();
-                }
-            }
-            if (cppRegistry && cppRegistry.hasParent(entity)) {
-                try { cppRegistry.setParent(entity, INVALID_ENTITY); }
-                catch (e) { handleWasmError(e, `despawn(detach ${entity})`); }
-            }
-            // Detach before taking native ownership: setParent also rejects
-            // reserved entities. The same core guard then protects raw registry
-            // calls and native teardown invoked from an SDK callback.
-            if (cppRegistry) {
-                for (const current of owned) {
-                    if (cppRegistry.reserveDestruction(current)) nativeOwned.push(current);
-                }
-            }
-            for (const current of postorder) if (this.valid(current)) this.despawnOne_(current, cppRegistry);
-        } finally {
-            for (const current of nativeOwned) cppRegistry!.releaseDestruction(current);
-            for (const current of owned) reserved.delete(current);
-            if (reserved.size === 0) this.despawning_ = null;
+        const lifetime = this.entityLifetime;
+        if (this.lifetimeReset_ === -1) return;
+        if (this.despawning_?.lifetime !== lifetime) {
+            this.despawning_ = { lifetime, registry: cppRegistry, entities: new Set(), active: [] };
         }
+        const state = this.despawning_;
+        const cursor = state.spare ?? new DespawnCursor();
+        state.spare = undefined;
+        const { visit, order, nativeOwned } = cursor;
+        try {
+            // Visiting siblings right to left gives child-first authored order when read backwards.
+            // Reserve the complete tree before any destruction callback can change its hierarchy.
+            let current: Entity | undefined = entity;
+            while (current !== undefined) {
+                if (this.valid(current) && !state.entities.has(current) && !cppRegistry?.destructionPending?.(current)) {
+                    state.entities.add(current);
+                    order.push(current);
+                    if (cppRegistry?.hasChildren(current)) {
+                        this.appendChildEntities_(cppRegistry, current, visit, true);
+                        if (this.entityLifetime !== lifetime) return;
+                    }
+                }
+                current = visit.pop();
+            }
+            if (order.length === 0) return;
+            if (cppRegistry) {
+                if (cppRegistry.hasParent(entity)) {
+                    try { cppRegistry.setParent(entity, INVALID_ENTITY); }
+                    catch (e) { handleWasmError(e, `despawn(detach ${entity})`); }
+                    if (this.entityLifetime !== lifetime) return;
+                }
+                for (const owned of order) {
+                    if (cppRegistry.reserveDestruction(owned)) nativeOwned.push(owned);
+                }
+            }
+            cursor.index = order.length - 1;
+            state.active.push(cursor);
+            try { this.drainDespawn_(state, cursor); } finally { state.active.pop(); }
+        } finally {
+            this.releaseDespawn_(state, cursor);
+            if (visit.length) visit.length = 0;
+            cursor.observers = undefined;
+            cursor.nextObserver = 0;
+            cursor.phase = 'begin';
+            state.spare = cursor;
+        }
+    }
+
+    private releaseDespawn_(state: DestructionState, cursor: DespawnCursor): void {
+        try {
+            // A completed cursor checked its world after the last native destroy.
+            if (state.registry && (cursor.phase === 'done' || state.lifetime === this.entityLifetime)) {
+                while (cursor.nativeOwned.length) state.registry.releaseDestruction(cursor.nativeOwned.pop()!);
+            }
+        } finally {
+            if (cursor.nativeOwned.length) cursor.nativeOwned.length = 0;
+            while (cursor.order.length) state.entities.delete(cursor.order.pop()!);
+        }
+    }
+
+    /** Advance before calling out. Disconnect can finish this same cursor in the original world. */
+    private drainDespawn_(state: DestructionState, cursor: DespawnCursor): void {
+        const { lifetime, registry } = state;
+        while (cursor.index >= 0) {
+            const entity = cursor.order[cursor.index]!;
+            if (cursor.phase === 'begin') {
+                if (!this.valid(entity)) { cursor.index--; continue; }
+                this.pendingAssetFields_?.remove(entity);
+                cursor.phase = 'notify';
+                if (editorBridge()?.onEntityDespawned) {
+                    notifyBridge('onEntityDespawned', entity);
+                    if (this.entityLifetime !== lifetime) return;
+                }
+            }
+            if (cursor.phase === 'notify') {
+                const observers = cursor.observers ??= this.despawnCallbacks_;
+                while (cursor.nextObserver < observers.length) {
+                    this.notifyDespawn_(observers[cursor.nextObserver++]!, entity);
+                    if (this.entityLifetime !== lifetime) return;
+                }
+                cursor.phase = 'forget';
+                this.names_.remove(entity);
+                if (registry) {
+                    try { registry.destroy(entity); }
+                    catch (e) { handleWasmError(e, `despawn(entity=${entity})`); }
+                    if (this.entityLifetime !== lifetime) return;
+                }
+            }
+            this.forgetEntity_(entity);
+            cursor.index--;
+            cursor.observers = undefined;
+            cursor.nextObserver = 0;
+            cursor.phase = 'begin';
+        }
+        cursor.phase = 'done';
     }
 
     private abortedReported_ = false;
 
-    private despawnOne_(entity: Entity, cppRegistry: CppRegistry | null): void {
-        this.pendingAssetFields_?.remove(entity);
-        notifyBridge('onEntityDespawned', entity);
-
-        for (const cb of this.despawnCallbacks_) {
-            try { cb(entity); } catch (e) {
-                // A module that has aborted fails every callback the same way, and one report says so for all of them.
-                if (e instanceof WasmModuleAborted) {
-                    if (!this.abortedReported_) {
-                        this.abortedReported_ = true;
-                        log.warn('world', 'Despawn callbacks stopped: the engine module has aborted', e);
-                    }
-                    continue;
+    private notifyDespawn_(callback: (entity: Entity) => void, entity: Entity): void {
+        try { callback(entity); } catch (e) {
+            if (e instanceof WasmModuleAborted) {
+                if (!this.abortedReported_) {
+                    this.abortedReported_ = true;
+                    log.warn('world', 'Despawn callbacks stopped: the engine module has aborted', e);
                 }
+            } else {
                 log.warn('world', 'Despawn callback error', e);
             }
         }
+    }
 
-        this.names_.remove(entity);
-
-        if (cppRegistry) {
-            try {
-                cppRegistry.destroy(entity);
-            } catch (e) {
-                handleWasmError(e, `despawn(entity=${entity})`);
-            }
-        }
+    private forgetEntity_(entity: Entity): void {
         this.entities_.delete(entity);
         this.queries_.markStructuralChange();
         const wasReserved = this.reservedEntities_?.delete(entity);
@@ -582,8 +658,13 @@ export class World {
 
     /** @internal Cleanup during core disconnect can check just the subtree's destruction reservation. */
     isDestructionPending(entity: Entity, includeCoreDisconnect = true): boolean {
-        return (includeCoreDisconnect && this.builtin_.disconnecting) || !!this.despawning_?.has(entity)
+        return (includeCoreDisconnect && this.builtin_.disconnecting) || this.reservedForDestruction_(entity)
             || !!this.builtin_.getCppRegistry()?.destructionPending?.(entity);
+    }
+
+    private reservedForDestruction_(entity: Entity): boolean {
+        const batch = this.despawning_;
+        return !!batch && batch.entities.has(entity) && batch.lifetime === this.entityLifetime;
     }
 
     /** Effective activity, including ancestors; unlike valid(), an inactive
@@ -789,7 +870,7 @@ export class World {
     /** Reject invalid relationships without changing hierarchy or notifications. */
     trySetParent(child: Entity, parent: Entity): boolean {
         if (parent === (0xFFFFFFFF as Entity)) parent = INVALID_ENTITY;
-        if (this.despawning_?.has(child) || this.despawning_?.has(parent)) return false;
+        if (this.reservedForDestruction_(child) || this.reservedForDestruction_(parent)) return false;
         if (!this.valid(child) || (parent !== INVALID_ENTITY && !this.valid(parent))) return false;
         const cppRegistry = this.builtin_.getCppRegistry();
         if (cppRegistry) {
@@ -814,7 +895,7 @@ export class World {
 
     /** Detach `entity` from its parent, leaving its own children attached to it. */
     removeParent(entity: Entity): void {
-        if (this.despawning_?.has(entity)) return;
+        if (this.reservedForDestruction_(entity)) return;
         if (!this.valid(entity)) return;
         const cppRegistry = this.builtin_.getCppRegistry();
         if (cppRegistry?.destructionPending?.(entity)) return;
@@ -830,13 +911,17 @@ export class World {
     }
 
     /** `entity`'s children, snapshotted out of the wasm vector that holds them. */
-    private childEntitiesOf_(entity: Entity, strict = false): Entity[] {
-        const cppRegistry = this.builtin_.getCppRegistry();
-        if (!cppRegistry || !cppRegistry.hasChildren(entity)) return [];
+    private childEntitiesOf_(entity: Entity): Entity[] {
+        const registry = this.builtin_.getCppRegistry();
         const children: Entity[] = [];
+        if (registry?.hasChildren(entity)) this.appendChildEntities_(registry, entity, children);
+        return children;
+    }
+
+    private appendChildEntities_(registry: CppRegistry, entity: Entity, children: Entity[], strict = false): void {
         try {
             // Snapshot then free the wasm VectorEntity (it leaks if left alive).
-            const vec = cppRegistry.getChildren(entity).entities;
+            const vec = registry.getChildren(entity).entities;
             try {
                 const count = vec.size();
                 for (let i = 0; i < count; i++) children.push(vec.get(i) as Entity);
@@ -847,7 +932,6 @@ export class World {
             // parent while leaving unread children alive with dangling links.
             if (strict) throw e;
         }
-        return children;
     }
 
     // Parent/Children are one relationship with two halves, and setParent is the
