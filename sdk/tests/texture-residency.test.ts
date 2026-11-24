@@ -199,6 +199,62 @@ describe('texture residency (Assets ↔ pool contract)', () => {
         stillWarm.release();
     });
 
+    it('restores a warm mesh preview in place for a tileset and never exposes a late smaller upload', async () => {
+        const assets = buildAssets(), file = 'tex/shared.png';
+        const scene = (type: string, field: string) => ({
+            version: '1.0', name: 'Use', entities: [{ id: 1, name: 'Draw', parent: null, children: [],
+                components: [{ type, data: { [field]: file } }] }],
+        });
+        assets.setTextureStreamingStart(64);
+        const decode = vi.fn(async (_path: string, _flip: boolean, edge?: number) => {
+            const width = edge || 512;
+            return { width, height: 1, sourceWidth: 512, sourceHeight: 1, pixels: new Uint8Array(width * 4) };
+        });
+        assets.getTextureLoader().setPixelDecoder(decode);
+        try {
+            const room = await assets.preloadSceneAssets(scene('MeshRenderer', 'texture'));
+            const handle = room.textureHandles.get(file)!;
+            room.scope.releaseAll();
+            expect(pool.entryOf(handle)?.evictable).toBe(true);
+            const tile = await assets.preloadSceneAssets(scene('TilemapLayer', 'tileset'));
+            expect(tile.missing).toEqual([]);
+            expect(tile.textureHandles.get(file)).toBe(handle);
+            expect(assets.getTexture(file)).toMatchObject({ handle, width: 512 });
+            let resume!: () => void, enter!: () => void;
+            const waiting = new Promise<void>(resolve => { enter = resolve; });
+            const gate = new Promise<void>(resolve => { resume = resolve; });
+            decode.mockImplementationOnce(async () => {
+                enter(); await gate;
+                return { width: 32, height: 1, sourceWidth: 512, sourceHeight: 1, pixels: new Uint8Array(32 * 4) };
+            });
+            const shrink = assets.resizeTexture(handle, 32);
+            await waiting;
+            const sprite = await assets.preloadSceneAssets(scene('Sprite', 'texture'));
+            resume();
+            expect(await shrink).toBeNull();
+            expect(sprite.textureHandles.get(file)).toBe(handle);
+            expect(assets.getTexture(file)).toMatchObject({ handle, width: 512 });
+            await assets.resizeTexture(handle, 64);
+            const restoring = new Promise<void>(resolve => { enter = resolve; });
+            const restored = new Promise<void>(resolve => { resume = resolve; });
+            decode.mockImplementationOnce(async () => {
+                enter(); await restored;
+                return { width: 512, height: 1, sourceWidth: 512, sourceHeight: 1, pixels: new Uint8Array(512 * 4) };
+            });
+            const preparing = assets.preloadSceneAssets(scene('TilemapLayer', 'tileset'));
+            await restoring;
+            const competing = assets.resizeTexture(handle, 32);
+            resume();
+            const shared = await preparing;
+            expect(shared.missing).toEqual([]);
+            expect(shared.textureHandles.get(file)).toBe(handle);
+            expect(await competing).toBeNull();
+            expect(assets.getTexture(file)).toMatchObject({ handle, width: 512 });
+            tile.scope.releaseAll(); sprite.scope.releaseAll(); shared.scope.releaseAll();
+            expect(pool.entryOf(handle)?.refCount).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
     it('the SDK holds one pool reference no matter how many callers loaded', async () => {
         const assets = buildAssets();
         const result = await assets.loadTexture('tex/a.png');

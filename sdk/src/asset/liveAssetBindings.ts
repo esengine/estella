@@ -18,6 +18,7 @@
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { builtinComponentRegistry, getComponentRegistry, isBuiltinComponent, type AnyComponentDef } from '../ecs/component';
+import { collectMaterialTextures } from './surfaceTextureUses';
 import type { AssetFieldType } from '../scene/scene';
 
 /** One field of one live component, bound to the asset being replaced. */
@@ -26,6 +27,7 @@ export interface LiveAssetBinding {
     readonly component: AnyComponentDef;
     readonly field: string;
     readonly value: number | string;
+    readonly measuresTextureDensity?: boolean;
 }
 
 /** Component names carrying at least one field of any of these asset types —
@@ -46,6 +48,26 @@ function* storedBindingComponents(world: World, entity?: Entity): Generator<AnyC
         if (isBuiltinComponent(component)) yield component;
     }
     yield* world.getStoredScriptComponents(entity);
+}
+
+/** Active fields whose renderer does not report texel demand need their imported pixels. */
+export function collectUnmeasuredTextures(world: World, into: Set<number>): void {
+    const materials = new Set<number>();
+    for (const component of storedBindingComponents(world)) {
+        const fields = component.assetFields.filter(f => !f.measuresTextureDensity && (f.type === 'texture' || f.type === 'material'));
+        if (!fields.length) continue;
+        const native = isBuiltinComponent(component);
+        const entities = native ? world.getEntitiesWithComponents([component]) : world.getStoredComponentEntities(component);
+        for (const entity of entities) {
+            if ((!native && !world.isEntityActive(entity)) || world.isDestructionPending(entity)) continue;
+            const data = world.get(entity, component);
+            for (const { type, field } of fields) {
+                const handle = data[field];
+                if (typeof handle === 'number' && handle > 0) (type === 'texture' ? into : materials).add(handle);
+            }
+        }
+    }
+    for (const material of materials) collectMaterialTextures(material, into);
 }
 
 /** Script definitions share an id by name. A synchronous observer may replace the row with a new declaration. */
@@ -76,10 +98,10 @@ export function* liveAssetBindings(
         for (const entity of world.getStoredComponentEntities(component)) {
             if (world.isDestructionPending(entity)) continue;
             const data = world.get(entity, component) as Record<string, number | string>;
-            for (const { field } of fields) {
+            for (const { field, measuresTextureDensity } of fields) {
                 const bound = data[field];
                 if (bound === value || (other !== undefined && bound === other)) {
-                    yield { entity, component, field, value: bound };
+                    yield { entity, component, field, value: bound, measuresTextureDensity };
                 }
             }
         }

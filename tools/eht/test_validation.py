@@ -62,6 +62,9 @@ expect('invalidates names a sibling (order-independent)',
 expect('existing asset annotation still clean',
        'ES_PROPERTY(asset=texture)\n    u32 tex = 0;',
        errors=0)
+expect('texture density requires a texture or material asset',
+       'ES_PROPERTY(asset=mesh, measures_texture_density)\n    u32 mesh = 0;',
+       errors=1)
 expect('skip_serialize / replicated flags accepted',
        'ES_PROPERTY(skip_serialize, replicated)\n    float z = 0.0f;',
        errors=0)
@@ -230,6 +233,9 @@ component_meta_emits('renderable reaches COMPONENT_META',
                      "renderableField: 'visible',")
 component_meta_emits('transient reaches COMPONENT_META',
                      'transient', FLAG, 'transient: true,')
+component_meta_emits('measured texture bindings reach the SDK',
+                     '', 'ES_PROPERTY(asset=texture, measures_texture_density)\n    u32 normalMap = 0;',
+                     "field: 'normalMap', type: 'texture' as AssetFieldType, measuresTextureDensity: true")
 
 def carries(name: str, body: str, *, uncarried: int) -> None:
     """A field type the boundary cannot marshal is refused BEFORE codegen: every

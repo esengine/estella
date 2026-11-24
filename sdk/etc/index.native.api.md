@@ -996,6 +996,7 @@ unread: number
 ## AssetFieldMeta — interface @public
 ```
 field: string
+measuresTextureDensity: boolean | undefined
 type: AssetFieldType
 ```
 
@@ -1124,6 +1125,7 @@ ResourceDef<AssetsClass>
 
 ## AssetsData — type @beta
 ```
+@internal acquireSurfaceBinding: (type: SurfaceAsset, ref: string, use: SurfaceUse) => Promise<AssetLease>
 @internal appScope: AssetScope
 @internal assetGraphSettled: () => Promise<void>
 @internal dependenciesOf: (type: string, ref: string) => readonly DependencyReceipt[]

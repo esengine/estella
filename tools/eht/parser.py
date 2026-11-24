@@ -47,7 +47,7 @@ class CppParser:
     # RC9-1 kills.
     FLAG_ANNOTATIONS = frozenset({
         'animatable', 'anim_override', 'entity_ref', 'readonly',
-        'slider', 'advanced', 'skip_serialize', 'replicated',
+        'slider', 'advanced', 'skip_serialize', 'replicated', 'measures_texture_density',
         # Marks the field OPTIONAL in the generated `<Name>Data` interface. What a
         # field added to a component already frozen `stability=public` needs: the
         # struct always carries it, but `world.set` takes the whole interface, so a
@@ -227,6 +227,8 @@ class CppParser:
             self.errors.append(f"{loc}: slider requires both min= and max= on the same field")
 
         asset_type = annotations.get('asset')
+        if 'measures_texture_density' in annotations and asset_type not in ('texture', 'material'):
+            self.errors.append(f"{loc}: measures_texture_density requires a texture or material asset field")
         if asset_type is not None and asset_type not in self.VALID_ASSET_TYPES:
             known = ', '.join(sorted(self.VALID_ASSET_TYPES))
             self.warnings.append(f"{loc}: unknown asset type '{asset_type}' (known: {known})")

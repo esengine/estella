@@ -21,7 +21,7 @@ import type { App, Plugin } from '../app/app';
 import { PluginInstallations } from '../app/pluginInstallations';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
-import { getComponent } from '../ecs/component';
+import { collectUnmeasuredTextures } from '../asset/liveAssetBindings';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
 import { bindTextureStreamingStart } from '../asset/Assets';
@@ -177,9 +177,6 @@ export class TextureStreaming {
 /** @experimental */
 export const TextureStreamingRes = defineResource<TextureStreaming>(new TextureStreaming(), 'TextureStreaming');
 
-/** Components whose `texture` field draws a texture no view measures the need of. */
-const UNMEASURED = ['Sprite', 'UIVisual', 'TilemapLayer', 'ParticleEmitter', 'TrailRenderer', 'SpriteMask'];
-
 /** @experimental */
 export class TextureStreamingPlugin implements Plugin {
     name = 'textureStreaming';
@@ -216,14 +213,7 @@ export class TextureStreamingPlugin implements Plugin {
 
         const refreshHeld = (): void => {
             state.held.clear();
-            for (const name of UNMEASURED) {
-                const def = getComponent(name);
-                if (!def) continue;
-                for (const e of world.getEntitiesWithComponents([def])) {
-                    const t = (world.get(e, def) as { texture?: number }).texture;
-                    if (typeof t === 'number' && t > 0) state.held.add(t);
-                }
-            }
+            collectUnmeasuredTextures(world, state.held);
         };
 
         app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
@@ -300,7 +290,8 @@ export class TextureStreamingPlugin implements Plugin {
             }
 
             const options = textureStreamingOptionsOf(profile);
-            const available = [...state.textures.values()].filter(e => !moving.has(e.handle) && !state.restoring.has(e.handle));
+            const available = [...state.textures.values()].filter(e => !moving.has(e.handle)
+                && !state.restoring.has(e.handle) && !loader.isResizing(e.handle));
             for (const move of planStreaming(available, now, options)) {
                 if (state.inFlight >= inFlight) break;
                 const entry = state.textures.get(move.handle)!;

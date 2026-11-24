@@ -33,12 +33,12 @@ class MetadataGenerator:
         self._enum_values = build_enum_value_map(enums)
         self.abi_hash = abi_hash
 
-    def _get_asset_fields(self, comp: Component) -> List[Dict[str, str]]:
+    def _get_asset_fields(self, comp: Component) -> List[Tuple[str, str, bool]]:
         fields = []
         for prop in comp.properties:
             asset_type = prop.annotations.get('asset')
             if asset_type and not _is_skeletal_asset(asset_type):
-                fields.append({'field': prop.name, 'type': asset_type})
+                fields.append((prop.name, asset_type, 'measures_texture_density' in prop.annotations))
         return fields
 
     def _get_skeletal_descriptor(self, comp: Component) -> Optional[Dict[str, str]]:
@@ -402,6 +402,8 @@ class MetadataGenerator:
             'export interface AssetFieldMeta {',
             '    field: string;',
             '    type: AssetFieldType;',
+            '    /** The renderer reports texel demand for this texture or the textures sampled by this material. */',
+            '    measuresTextureDensity?: boolean;',
             '}',
             '',
             '/**',
@@ -514,8 +516,9 @@ class MetadataGenerator:
 
             if asset_fields:
                 parts = ', '.join(
-                    f"{{ field: '{f['field']}', type: '{f['type']}' as AssetFieldType }}"
-                    for f in asset_fields
+                    f"{{ field: '{name}', type: '{asset_type}' as AssetFieldType"
+                    + (", measuresTextureDensity: true" if measured else "") + " }"
+                    for name, asset_type, measured in asset_fields
                 )
                 lines.append(f'        assetFields: [{parts}],')
             else:

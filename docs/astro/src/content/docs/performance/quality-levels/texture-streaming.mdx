@@ -56,8 +56,13 @@ other than a mesh.
   softer.
 - A resize costs a decode and an upload on the frame it completes, which can show as a frame or two of tens of
   milliseconds while a scene settles.
-- A texture that a sprite, UI element, tilemap, particle or trail also draws is restored to its imported size and left
-  there. A texture used only by sprites loads at its imported size.
+- Scene preload supplies the imported size for sprites, UI, tilesets and project components with ordinary texture
+  fields. This includes textures sampled through their materials. A mesh sharing that texture keeps the same handle,
+  even when it loaded a preview first. After the scene and its retained readers release their assets, the next mesh-only
+  load can start small again.
+- The streamer reads each field's `assetFields` declaration. A renderer that reports texel demand for a texture or
+  a material's samplers can declare `measuresTextureDensity: true` on that field. Other live texture and material
+  fields keep the imported resolution.
 - A KTX2 file is cut at a mip level without decoding. Where the host transcodes KTX2 itself (the native builds), it cannot
   be cut, and the texture is left at its size.
 - Older hosts that cannot replace a texture's contents in place load the full image at once.

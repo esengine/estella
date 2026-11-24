@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { World } from '../src/ecs/world';
+import { defineComponent, MeshRenderer, TilemapLayer } from '../src/ecs/component';
+import { Material } from '../src/render/material';
+import { connectFakeCpp } from './helpers/fakeEngine';
 
 const clock = { now: 0 };
 const dims = new Map<number, { width: number; height: number }>();
@@ -32,6 +36,7 @@ function harness(startedSmall = 0) {
     const loader = {
         startedSmall,
         resizableHandles: () => bindings.keys(),
+        isResizing: () => false,
         streamingBinding: (handle: number) => bindings.get(handle),
         fullSize: (handle: number) => { const edge = KNOWN_FULL.get(handle) ?? FILES.get(handle); return edge ? { width: edge, height: edge } : null; },
     };
@@ -50,9 +55,10 @@ function harness(startedSmall = 0) {
     };
     const quality = { enabled: true, profile };
     const resources = new Map<unknown, unknown>([[Quality, quality], [Assets, assets]]);
+    const world = new World(); connectFakeCpp(world);
     let tick: (() => void) | null = null;
     const app = {
-        world: { getEntitiesWithComponents: () => [] },
+        world,
         insertResource: (res: unknown, value: unknown) => { resources.set(res, value); },
         hasResource: (res: unknown) => resources.has(res),
         getResource: (res: unknown) => resources.get(res),
@@ -68,7 +74,7 @@ function harness(startedSmall = 0) {
         tick!();
         for (let i = 0; i < 10; i++) await Promise.resolve();
     };
-    return { quality, profile, resized, run, bindings, assets, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
+    return { world, quality, profile, resized, run, bindings, assets, state: () => resources.get(TextureStreamingRes) as InstanceType<typeof import('../src/render/textureStreaming').TextureStreaming> };
 }
 
 describe('textures streaming shrank, once the quality level stops streaming', () => {
@@ -95,6 +101,31 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         expect(dims.get(1)!.width).toBe(2048);
         await run(6000);
         expect(resized.length).toBe(2);
+    });
+
+    it('protects tilesets, project texture fields and inherited material uniforms while meshes request smaller levels', async () => {
+        const { world, run, state, resized } = harness();
+        const layer = world.spawn(), panel = world.spawn(), mesh = world.spawn();
+        const atlas = defineComponent('StreamedAtlasPanel', { image: 0, brush: 0 }, {
+            assetFields: [{ field: 'image', type: 'texture' }, { field: 'brush', type: 'material' }],
+        });
+        const parent = Material.create({ shader: 1 }), brush = Material.createInstance(parent);
+        try {
+            Material.setUniform(parent, 'u_image', Material.tex(3));
+            world.insert(layer, TilemapLayer, { tileset: 1 });
+            world.insert(panel, atlas, { image: 2, brush });
+            world.insert(mesh, MeshRenderer, { texture: 1, normalMap: 2 });
+            for (const handle of FILES.keys()) dims.set(handle, { width: 64, height: 64 });
+            wants = '1:64,2:64,3:64';
+            await run(1000);
+            expect([...state().held].sort()).toEqual([1, 2, 3]);
+            expect(resized.sort()).toEqual([[1, 0], [2, 0], [3, 0]]);
+            world.despawn(layer); world.despawn(panel);
+            wants = '1:64'; await run(5000);
+            wants = '1:64'; await run(9000);
+            expect(state().held.size).toBe(0);
+            expect(dims.get(1)?.width).toBe(64);
+        } finally { Material.release(brush); Material.release(parent); }
     });
 
     it('include the ones that were loaded small while streaming was on', async () => {

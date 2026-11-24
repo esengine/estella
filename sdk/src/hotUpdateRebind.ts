@@ -33,16 +33,23 @@ import { assetScopeForEntity } from './scene/sceneManager';
 import type { Assets } from './asset/Assets';
 import type { AssetLease } from './asset/AssetLease';
 import type { AssetFieldType } from './scene/scene';
-import { componentsBindingAssetTypes, liveAssetBindings } from './asset/liveAssetBindings';
+import { componentsBindingAssetTypes, liveAssetBindings, type LiveAssetBinding } from './asset/liveAssetBindings';
 import { migrateLiveBindings } from './asset/liveAssetRebind';
 import { boundValueIn } from './asset/leaseBindings';
 import { log } from './util/logger';
 
 /** Take the replacement out of the realm — by receipt, whatever its kind. */
-async function acquire(assets: Assets, type: AssetFieldType, ref: string): Promise<AssetLease> {
-    return type === 'texture'
-        ? assets.acquireTexture(ref)
-        : assets.acquireTyped(type, ref);
+function acquire(
+    assets: Assets, type: AssetFieldType, ref: string, first: LiveAssetBinding, rest: Iterable<LiveAssetBinding>,
+): Promise<AssetLease> {
+    if (type !== 'texture' && type !== 'material') return assets.acquireTyped(type, ref);
+    if (first.measuresTextureDensity) {
+        for (const binding of rest) {
+            if (!binding.measuresTextureDensity) return assets.acquireSurfaceBinding(type, ref, 'full');
+        }
+        return assets.acquireSurfaceBinding(type, ref, 'mesh');
+    }
+    return assets.acquireSurfaceBinding(type, ref, 'full');
 }
 
 /**
@@ -126,12 +133,14 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
                 const change = pending.shift()!;
                 if (change.epoch !== assets.epoch) continue;
                 const { ref, type, oldValue } = change;
-                if (liveAssetBindings(world, type, oldValue).next().done) {
+                const bindings = liveAssetBindings(world, type, oldValue);
+                const first = bindings.next();
+                if (first.done) {
                     log.warn('asset', `hot-update rebind: nothing holds "${ref}" (${type}) at ${String(oldValue)}`);
                     continue;
                 }
                 reloading++;
-                void acquire(assets, type, ref).then(
+                void acquire(assets, type, ref, first.value, bindings).then(
                     lease => { ready.push({ change, lease }); },
                     error => { log.warn('asset', `hot-update rebind: reloading "${ref}" failed; its holders keep the asset they have`, error); },
                 ).finally(() => { reloading--; });

@@ -10,6 +10,7 @@ import type { AssetScope, AssetLease } from './AssetLease';
 import type { AssetFieldType } from '../scene/scene';
 import { hasBindingDeclaration, liveAssetBindings, type LiveAssetBinding } from './liveAssetBindings';
 import { boundValueOf, sameAcquisition } from './leaseBindings';
+import { inheritSurfaceUse } from './surfaceTextureUses';
 import { log } from '../util/logger';
 
 type OwnerScopeResolver = (entity: Entity, create: boolean, value: number | string, preferred?: AssetScope) => AssetScope | null;
@@ -107,7 +108,7 @@ export function migrateLiveBindings(
                 const share = replacement.retain();
                 if (!share) break;
                 // A write may synchronously despawn its owner. Register the share before notifying the world.
-                group.added = scope.addFieldLease(type, newValue, share);
+                group.added = scope.addFieldLease(type, newValue, inheritSurfaceUse(outgoing, share));
             }
             // Another owner's observer may have moved these fields already. The final walk decides what is still held.
             if (outgoing && !sameAcquisition(outgoing, replacement)) group.outgoing = outgoing;

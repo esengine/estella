@@ -25,6 +25,7 @@
 import { getComponent } from '../ecs/component';
 import { spinePairKey } from './spinePairKey';
 import type { SceneData, AssetFieldType } from '../scene/scene';
+import type { SurfaceUse } from './surfaceTextureUses';
 
 export interface SpineAssetRef {
     skeleton: string;
@@ -84,6 +85,7 @@ function usesAuthoredRef(type: string): boolean {
 /** Entities that named each acquisition in this preparation. */
 export class SceneAssetOwners {
     private readonly byType = new Map<string, Map<string, { entities?: Set<number>; auxiliary?: Set<number> }>>();
+    readonly surfaces = { texture: new Map<string, SurfaceUse>(), material: new Map<string, SurfaceUse>() };
 
     constructor(private readonly options: { entityOwnership: boolean | 'auxiliary'; includeAliases?: boolean }) {}
 
@@ -144,7 +146,7 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
     };
     return {
         refs,
-        asset(entity: number, type: string, raw: string, auxiliary = false) {
+        asset(entity: number, type: string, raw: string, auxiliary = false, measured?: boolean) {
             const path = resolve(raw);
             if (path === null) return;
             const key = acquireAs ? (usesAuthoredRef(type) ? raw : acquireAs(type, raw, path)) : undefined;
@@ -152,10 +154,11 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
             bucket(refs.rawByType, type, raw);
             if (!refs.rawFor.has(path)) refs.rawFor.set(path, raw);
             owners?.asset(type, raw, path, entity, auxiliary, key);
-        },
-        mesh(raw: string, material: boolean) {
-            const path = refResolver ? refResolver(raw) : raw;
-            if (path) (material ? refs.meshMaterials : refs.meshTextures).add(path);
+            if (measured !== undefined && (type === 'texture' || type === 'material')) {
+                if (measured) (type === 'material' ? refs.meshMaterials : refs.meshTextures).add(path);
+                const uses = owners?.surfaces[type];
+                if (uses && (!measured || !uses.has(path))) uses.set(path, measured ? 'mesh' : 'full');
+            }
         },
         skeletal(entity: number, dragonBones: boolean, skelRef: string, atlasRef: string) {
             const skeleton = resolve(skelRef), atlas = resolve(atlasRef);
@@ -186,29 +189,20 @@ export function indexSceneAssets(
             if (!definition) continue;
             const data = component.data as Record<string, unknown>;
 
-            if (component.type === 'MeshRenderer') {
-                for (const field of ['texture', 'normalMap', 'material'] as const) {
-                    const raw = data[field];
-                    if (typeof raw === 'string' && raw) {
-                        for (const index of indexes) index.mesh(raw, field === 'material');
-                    }
-                }
-            }
-
             if (definition.discoverAssets) {
-                const fields = owners && definition.assetFields.length ? [...definition.assetFields] : [];
+                const fields = [...definition.assetFields];
                 for (const { type, path } of definition.discoverAssets(data)) {
                     if (typeof path !== 'string' || !path) continue;
                     // Each scalar field accounts for one declaration. A list may also name the same file.
                     const field = fields.findIndex(f => f.type === type && data[f.field] === path);
-                    if (field >= 0) fields.splice(field, 1);
-                    for (const index of indexes) index.asset(entity.id, type, path, !!owners && field < 0);
+                    const declaration = field >= 0 ? fields.splice(field, 1)[0] : undefined;
+                    for (const index of indexes) index.asset(entity.id, type, path, !declaration, declaration && !!declaration.measuresTextureDensity);
                 }
             } else {
-                for (const { field, type } of definition.assetFields) {
+                for (const { field, type, measuresTextureDensity } of definition.assetFields) {
                     const raw = data[field];
                     if (typeof raw === 'string' && raw) {
-                        for (const index of indexes) index.asset(entity.id, type, raw);
+                        for (const index of indexes) index.asset(entity.id, type, raw, false, !!measuresTextureDensity);
                     }
                 }
             }

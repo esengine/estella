@@ -21,6 +21,7 @@ import type {
 import { AsyncCache, RetryableAssetError } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
 import { assetPairKey } from './assetPairKey';
+import { collectMaterialTextures, SurfaceTextureUses, type SurfaceAsset, type SurfaceClaim, type SurfaceUse } from './surfaceTextureUses';
 import { bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
@@ -535,10 +536,7 @@ export class Assets {
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
     private readonly handlePaths_ = new Map<string, Map<number, string>>();
-    /** Textures a mesh draws, keyed by asset identity so streaming follows a moved file. */
-    private readonly meshTextures_ = new Set<string>();
-    /** Materials drawn by meshes. Their textures join {@link meshTextures_} as the material loads them. */
-    private readonly meshMaterials_ = new Set<string>();
+    private readonly surfaceUses_ = new SurfaceTextureUses();
     /** The edge a mesh texture is first loaded at while texture streaming is on; 0 loads it whole. */
     private streamingStartEdge_: number | (() => number) = 0;
 
@@ -644,8 +642,24 @@ export class Assets {
      * @experimental
      */
     noteMeshSurface(surface: { material?: string; texture?: string }): void {
-        if (surface.material) this.meshMaterials_.add(this.assetIdentity_(surface.material));
-        if (surface.texture) this.meshTextures_.add(this.assetIdentity_(surface.texture));
+        if (surface.material) this.surfaceUses_.noteMesh(this.surfaceKey_('material', surface.material));
+        if (surface.texture) this.surfaceUses_.noteMesh(this.surfaceKey_('texture', surface.texture));
+    }
+
+    private surfaceKey_(type: SurfaceAsset, ref: string): string { return assetPairKey(type, this.assetIdentity_(ref)); }
+
+    /** @internal Load a hot replacement for the texture consumers present in this world. */
+    async acquireSurfaceBinding(type: SurfaceAsset, ref: string, use: SurfaceUse): Promise<AssetLease> {
+        const claim = this.surfaceUses_.claim(this.surfaceKey_(type, ref), use);
+        try { return await (type === 'texture' ? this.acquireTexture(ref) : this.acquireTyped(type, ref)); }
+        finally { claim.release(); }
+    }
+
+    private async restoreSurfaceTexture_(handle: number): Promise<void> {
+        const restoring = this.textureLoader_.restoreForSurface(handle, this.getLoadContext_());
+        if (!restoring) return;
+        if (!await restoring) throw new Error(`Texture ${handle} could not restore its imported size`);
+        evictTextureDimensions(handle);
     }
 
     /** A positive edge overrides this App's initial mesh texture size. Zero uses its quality profile, or full size without one. */
@@ -654,7 +668,7 @@ export class Assets {
     }
 
     private initialTextureEdge_(ref: string): number {
-        if (!this.meshTextures_.has(this.assetIdentity_(ref))) return 0;
+        if (this.surfaceUses_.use(this.surfaceKey_('texture', ref)) !== 'mesh') return 0;
         const edge = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
         return edge > 0 ? edge : streamingDefaults.get(this)?.() ?? 0;
     }
@@ -903,6 +917,12 @@ export class Assets {
         const lease = this.textureRefs_.acquireLoad(cacheKey, result.handle, load);
         // The last holder may release between a cache hit and this continuation.
         if (!lease) return this.acquireTextureVariant_(ref, flip);
+        if (this.textureLoader_.mayHoldReducedTextures && this.surfaceUses_.use(this.surfaceKey_('texture', ref)) === 'full') {
+            try {
+                await this.restoreSurfaceTexture_(result.handle);
+                this.assertLoading_(epoch);
+            } catch (error) { this.releaseTextureLease(lease); throw error; }
+        }
         this.recordHandlePath_('texture', result.handle, path);
         // The 9-slice border belongs to the IMAGE, so it rides its import
         // settings and is stamped onto the handle here — the one place every
@@ -940,8 +960,9 @@ export class Assets {
             rm.releaseTexture(handle);
             return null;
         }
-        this.textureLoader_.adoptRevived(handle, cacheKey);
-        return { handle, width: dims.width, height: dims.height };
+        const value = { handle, width: dims.width, height: dims.height };
+        this.textureLoader_.adoptRevived(handle, cacheKey, value);
+        return value;
     }
 
     /**
@@ -1778,8 +1799,7 @@ export class Assets {
         const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
         const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover, (type, raw, path) =>
             !isSceneHandleType(type) && this.loaders_.get(type)?.registry ? this.registryIdentity_(raw) : path);
-        for (const p of discovered.meshTextures) this.meshTextures_.add(this.assetIdentity_(p));
-        for (const p of discovered.meshMaterials) this.meshMaterials_.add(this.assetIdentity_(p));
+        const surfaceClaims = new Map<string, SurfaceClaim>();
         for (const ref of discovered.unresolved) {
             missing.push({ ref, reason: 'unresolved' });
         }
@@ -1798,6 +1818,8 @@ export class Assets {
         const scope = new AssetScope();
         const acquisitions: SceneAssetAcquisition[] = [];
         const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
+            const claim = surfaceClaims.get(assetPairKey(type, path));
+            if (claim) lease = claim.keep(lease);
             if (recorder) recorder.own(path, lease, type);
             else {
                 scope.add(lease);
@@ -1892,11 +1914,17 @@ export class Assets {
         }
 
         const totalCount = tasks.length;
-        onProgress?.(0, totalCount);
-
         const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
         const began = preloadClock();
         try {
+            for (const type of ['texture', 'material'] as const) {
+                for (const [path, use] of owners.surfaces[type]) {
+                    if (!discovered.byType.get(type)?.has(path)) continue;
+                    const ref = discovered.rawFor.get(path) ?? path;
+                    surfaceClaims.set(assetPairKey(type, path), this.surfaceUses_.claim(this.surfaceKey_(type, ref), use));
+                }
+            }
+            onProgress?.(0, totalCount);
             await runWithConcurrency(tasks, maxConcurrent, () => {
                 onProgress?.(++loadedCount, totalCount);
             });
@@ -1913,6 +1941,8 @@ export class Assets {
             try { scope.releaseAll(); }
             catch (cleanupError) { log.warn('asset', 'Scene preload cleanup failed', cleanupError); }
             throw error;
+        } finally {
+            for (const claim of surfaceClaims.values()) claim.release();
         }
     }
 
@@ -2038,7 +2068,16 @@ export class Assets {
         const slot = await this.acquireSlot_<T>(type, ref, owner);
         try { this.assertLoading_(epoch); }
         catch (error) { slot?.release(); throw error; }
-        return slot ?? this.acquireHandle_<T>(type, ref, owner);
+        if (!(loader instanceof MaterialAssetLoader) || !this.textureLoader_.mayHoldReducedTextures
+            || this.surfaceUses_.use(this.surfaceKey_('material', ref)) !== 'full') return slot ?? this.acquireHandle_<T>(type, ref, owner);
+        const held = slot ?? await this.acquireHandle_<T>(type, ref, owner);
+        try {
+            const handles = new Set<number>();
+            collectMaterialTextures((held.value as MaterialResult).handle, handles);
+            await Promise.all([...handles].map(handle => this.restoreSurfaceTexture_(handle)));
+            this.assertLoading_(epoch);
+        } catch (error) { held.release(); throw error; }
+        return held;
     }
 
     private async acquireSlot_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T> | null> {
@@ -2710,6 +2749,7 @@ export class Assets {
             ], dispose => dispose());
         } finally {
             this.meshOwners_ = undefined;
+            this.surfaceUses_.clear();
             this.handlePaths_.clear();
             this.entityScopes_ = new EntityAssetScopes(this.leaseForBinding.bind(this));
             this.releasing_ = false;
@@ -3256,8 +3296,16 @@ export class Assets {
             this.assertLoading_(epoch);
             return lease;
         };
+        const forMaterial = async <T>(type: string, ref: string, acquire: () => Promise<AssetLease<T>>): Promise<AssetLease<T>> => {
+            if (recorder.owner?.type !== 'material' || (type !== 'texture' && type !== 'material')) return acquire();
+            const use = this.surfaceUses_.use(this.surfaceKey_('material', recorder.owner.key));
+            if (!use) return acquire();
+            const claim = this.surfaceUses_.claim(this.surfaceKey_(type, ref), use);
+            try { return claim.keep(await acquire()); }
+            finally { claim.release(); }
+        };
         const acquireAsset = <T>(type: string, ref: string) =>
-            take(ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner), type);
+            take(ref, () => forMaterial(type, ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner)), type);
         return {
             ...base,
             get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
@@ -3273,7 +3321,7 @@ export class Assets {
             loadTexture: (path, flipY) => read(path, () => base.loadTexture(path, flipY)),
             decodePixels: path => read(path, () => base.decodePixels!(path)),
             acquireTexture: async (path, flipY) =>
-                take(path, () => base.acquireTexture(path, flipY), 'texture'),
+                take(path, () => forMaterial('texture', path, () => base.acquireTexture(path, flipY)), 'texture'),
             acquireAsset,
             resolveRef: ref => this.resolveRef(ref),
             preparePrefab: ref => acquireAsset<PreparedPrefab>('prepared-prefab', ref),
@@ -3325,11 +3373,6 @@ export class Assets {
                 if (problems.length === 0) self.assetProblems_.delete(path);
                 else self.assetProblems_.set(path, [...problems]);
                 if (!same) self.assetProblemListener_?.(path, problems);
-            },
-            noteMaterialTexture(material: string, texture: string): void {
-                if (self.meshMaterials_.has(self.assetIdentity_(material))) {
-                    self.meshTextures_.add(self.assetIdentity_(texture));
-                }
             },
             async acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>> {
                 return self.acquireTyped<T>(type, ref);

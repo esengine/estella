@@ -110,6 +110,8 @@ interface TextureSource {
     readonly flip: boolean;
     readonly settings?: TextureImportSettings;
     readonly io: TextureReadContext;
+    value: TextureResult;
+    limited: boolean;
     edge: number;
     fullWidth: number;
     fullHeight: number;
@@ -120,6 +122,15 @@ interface HeldTextureSource {
     readonly refill: TextureRefill;
     references: number;
     resize: number;
+    pending?: { edge: number; forSurface?: boolean; work: Promise<{ width: number; height: number } | null> };
+}
+
+function limitedByRequest(texture: TextureResult, edge: number): boolean {
+    if (edge <= 0) return false;
+    if (texture.fullWidth !== undefined && texture.fullHeight !== undefined) {
+        return texture.width < texture.fullWidth || texture.height < texture.fullHeight;
+    }
+    return Math.max(texture.width, texture.height) >= edge;
 }
 
 export class TextureLoader implements AssetLoader<TextureResult> {
@@ -190,6 +201,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
     startedSmall = 0;
     askedSmall = 0;
+    /** @internal A material only needs a size check after a bounded load or resize was requested. */
+    mayHoldReducedTextures = false;
     /** The same sources by residency key, kept past a release: a texture revived from the warm cache is the same file at the size it was left at. */
     private readonly sourcesByKey_ = new Map<string, TextureSource>();
     private deviceFormats_: CompressedTextureFormat[] | null = null;
@@ -281,20 +294,50 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const held = this.held_.get(handle);
         const rm = requireResourceManager();
         if (!held || !rm.adoptTextureContent) return null;
+        if (held.pending?.edge === maxEdge) return held.pending.work;
+        if (held.pending?.forSurface) return null;
         const request = ++held.resize;
+        if (maxEdge > 0) this.mayHoldReducedTextures = true;
         const { source } = held;
         const io = bindingRecord(source.path) === undefined ? ctx : source.io;
-        const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
-        try {
-            if (this.held_.get(handle) !== held || held.resize !== request) return null;
-            if (!rm.adoptTextureContent(handle, fresh.handle)) return null;
-            source.fullWidth = fresh.fullWidth ?? fresh.width;
-            source.fullHeight = fresh.fullHeight ?? fresh.height;
-            source.edge = Math.max(fresh.width, fresh.height);
-            this.recordFormat_(source, decision);
-            return { width: fresh.width, height: fresh.height };
-        } finally { rm.releaseTexture(fresh.handle); }
+        const work = Promise.resolve().then(async () => {
+            const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
+            try {
+                if (this.held_.get(handle) !== held || held.resize !== request) return null;
+                if (!rm.adoptTextureContent?.(handle, fresh.handle)) return null;
+                source.fullWidth = fresh.fullWidth ?? fresh.width;
+                source.fullHeight = fresh.fullHeight ?? fresh.height;
+                source.edge = Math.max(fresh.width, fresh.height);
+                source.limited = limitedByRequest(fresh, maxEdge);
+                source.value.width = fresh.width;
+                source.value.height = fresh.height;
+                if (fresh.fullWidth !== undefined) {
+                    source.value.fullWidth = fresh.fullWidth;
+                    source.value.fullHeight = fresh.fullHeight;
+                } else {
+                    delete source.value.fullWidth;
+                    delete source.value.fullHeight;
+                }
+                this.recordFormat_(source, decision);
+                return { width: fresh.width, height: fresh.height };
+            } finally { rm.releaseTexture(fresh.handle); }
+        }).finally(() => { if (held.resize === request) held.pending = undefined; });
+        held.pending = { edge: maxEdge, work };
+        return work;
     }
+
+    /** @internal Finish a full-size reader's preload on the existing handle, including a warm revival or a pending shrink. */
+    restoreForSurface(handle: number, ctx: TextureReadContext): Promise<{ width: number; height: number } | null> | undefined {
+        const held = this.held_.get(handle);
+        if (!held) return;
+        if (!held.pending && !held.source.limited) return;
+        const work = this.resize(handle, 0, ctx);
+        if (held.pending) held.pending.forSurface = true;
+        return work;
+    }
+
+    /** @internal Background moves wait for uploads already requested by a surface or another caller. */
+    isResizing(handle: number): boolean { return !!this.held_.get(handle)?.pending; }
 
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
     resizable(handle: number): boolean { return this.held_.has(handle) && !!requireResourceManager().adoptTextureContent; }
@@ -316,9 +359,17 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     setPendingStartEdge(edge: number): void { this.pendingOptions_.startEdge = edge; }
 
     /** A texture the warm cache gave back under @p key is the one this loader decoded under it: resizable again. */
-    adoptRevived(handle: number, key: string): void {
+    adoptRevived(handle: number, key: string, value?: TextureResult): void {
         const source = this.sourcesByKey_.get(key);
-        if (source?.handle === handle) this.holdSource_(source);
+        if (source?.handle !== handle) return;
+        if (value) {
+            if (source.edge < Math.max(source.fullWidth, source.fullHeight)) {
+                value.fullWidth = source.fullWidth;
+                value.fullHeight = source.fullHeight;
+            }
+            source.value = value;
+        }
+        this.holdSource_(source);
     }
 
     private holdSource_(source: TextureSource): void {
@@ -326,8 +377,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const held = this.held_.get(handle);
         if (held?.source === source) { held.references++; return; }
         const refill: TextureRefill = async () => {
-            if (this.held_.get(handle)?.refill !== refill) return false;
-            const edge = source.edge < Math.max(source.fullWidth, source.fullHeight) ? source.edge : 0;
+            const current = this.held_.get(handle);
+            if (current?.refill !== refill) return false;
+            const edge = !current.pending?.forSurface && source.edge < Math.max(source.fullWidth, source.fullHeight) ? source.edge : 0;
             const size = await this.resize(handle, edge, source.io);
             if (size) evictTextureDimensions(handle);
             return size !== null;
@@ -353,6 +405,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!options) this.pendingOptions_ = {};
         // A pool that cannot replace content in-place could never restore a streaming preview.
         const start = startEdge > 0 && requireResourceManager().adoptTextureContent ? startEdge : 0;
+        if (start > 0) this.mayHoldReducedTextures = true;
         if (startEdge > 0) this.askedSmall++;
         const { texture: result, decision } = await this.decodeAndUpload_(path, ctx, flip, settings, start);
         if (result.fullWidth !== undefined) this.startedSmall++;
@@ -362,6 +415,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const source: TextureSource = {
             handle: result.handle, key, path, flip, settings,
             io: { backend: ctx.backend, catalog: ctx.catalog, resolveStreamTail: ctx.resolveStreamTail, readSharedFile: ctx.readSharedFile },
+            value: result, limited: limitedByRequest(result, start),
             edge: Math.max(result.width, result.height),
             fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height,
         };

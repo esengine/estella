@@ -27,6 +27,8 @@ export const ABI_LAYOUT_HASH = '21759a2e9e105f51';
 export interface AssetFieldMeta {
     field: string;
     type: AssetFieldType;
+    /** The renderer reports texel demand for this texture or the textures sampled by this material. */
+    measuresTextureDensity?: boolean;
 }
 
 /**
@@ -719,7 +721,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             mesh: 0,
         },
         renderableField: 'enabled',
-        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'normalMap', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }, { field: 'mesh', type: 'mesh' as AssetFieldType }],
+        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType, measuresTextureDensity: true }, { field: 'normalMap', type: 'texture' as AssetFieldType, measuresTextureDensity: true }, { field: 'material', type: 'material' as AssetFieldType, measuresTextureDensity: true }, { field: 'mesh', type: 'mesh' as AssetFieldType }],
         entityFields: [],
         colorFields: ['color'],
         animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],

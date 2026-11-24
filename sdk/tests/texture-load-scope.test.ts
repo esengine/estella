@@ -7,6 +7,10 @@ import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
 import { indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import { setLinearColorSpace } from '../src/ecs/env';
+import { defineComponent, MeshRenderer, TilemapLayer } from '../src/ecs/component';
+import { installHotUpdateRebind } from '../src/hotUpdateRebind';
+import { connectFakeCpp } from './helpers/fakeEngine';
+import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
 import { QualityController } from '../src/render/quality';
 import { Quality } from '../src/render/qualityRuntime';
 import { textureStreamingPlugin } from '../src/render/textureStreaming';
@@ -36,6 +40,11 @@ function installDecoder(assets: Assets): Assets {
 
 function assetsWithPixels(): Assets {
     return installDecoder(Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module: null }));
+}
+
+function surfaceScene(...components: SceneData['entities'][number]['components']): SceneData {
+    return { version: SCENE_FORMAT_VERSION, name: 'Surfaces',
+        entities: components.map((component, id) => ({ id, name: component.type, parent: null, children: [], components: [component] })) };
 }
 
 describe('the import settings of one texture request', () => {
@@ -180,6 +189,155 @@ async function firstWidth(assets: Assets, path: string, mesh = true): Promise<nu
 
 describe('mesh texture size before the first frame', () => {
     afterEach(() => { uploads.length = 0; vi.restoreAllMocks(); });
+
+    it.each(['released', 'reset', 'active', 'mixed'] as const)('loads the imported image for a sprite after a %s mesh acquisition', async mode => {
+        const assets = assetsWithPixels();
+        assets.setTextureStreamingStart(64);
+        assets.getTextureLoader().setPixelDecoder(async (_path, _flip, edge) => {
+            const width = edge || 512;
+            return { width, height: 1, sourceWidth: 512, sourceHeight: 1, pixels: new Uint8Array(width * 4) };
+        });
+        const path = 'shared.png', mesh = { type: 'MeshRenderer', data: { texture: path } }, sprite = { type: 'Sprite', data: { texture: path } };
+        try {
+            const meshLoad = mode === 'mixed' ? undefined : await assets.preloadSceneAssets(surfaceScene(mesh));
+            if (meshLoad) expect(assets.getTexture(path)?.width).toBe(64);
+            if (mode === 'released') meshLoad!.scope.releaseAll();
+            if (mode === 'reset') assets.releaseAll();
+            const drawing = await assets.preloadSceneAssets(mode === 'mixed' ? surfaceScene(mesh, sprite) : surfaceScene(sprite));
+            expect(drawing.missing).toEqual([]);
+            expect(assets.getTexture(path)?.width).toBe(512);
+            expect(uploads.map(u => u.width)).toEqual(mode === 'mixed' ? [512] : [64, 512]);
+            if (mode === 'active') expect(drawing.textureHandles.get(path)).toBe(meshLoad!.textureHandles.get(path));
+            drawing.scope.releaseAll();
+            meshLoad?.scope.releaseAll();
+            expect(await firstWidth(assets, path, false)).toBe(512);
+            const nextMesh = await assets.preloadSceneAssets(surfaceScene(mesh));
+            expect(assets.getTexture(path)?.width).toBe(64);
+            nextMesh.scope.releaseAll();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('uses the declared texture fields of tilemaps and project components when a mesh normal map shares their file', async () => {
+        const assets = assetsWithPixels();
+        assets.setTextureStreamingStart(64);
+        const custom = defineComponent('StreamedProjectPanel', { atlas: 0 }, { assetFields: [{ field: 'atlas', type: 'texture' }] });
+        try {
+            for (const [type, field] of [['TilemapLayer', 'tileset'], [custom._name, 'atlas']]) {
+                const path = type + '.png';
+                const scene = await assets.preloadSceneAssets(surfaceScene(
+                    { type, data: { [field]: path } }, { type: 'MeshRenderer', data: { normalMap: path } }));
+                expect(assets.getTexture(path)?.width).toBe(512);
+                scene.scope.releaseAll();
+            }
+        } finally { assets.releaseAll(); }
+    });
+
+    it('reuses the first upload when a bounded decode already returned the imported dimensions', async () => {
+        const assets = assetsWithPixels(), file = 'small.png';
+        assets.setTextureStreamingStart(64);
+        assets.getTextureLoader().setPixelDecoder(async () => ({
+            width: 32, height: 1, sourceWidth: 32, sourceHeight: 1, pixels: new Uint8Array(32 * 4),
+        }));
+        try {
+            const mesh = await assets.preloadSceneAssets(surfaceScene({ type: 'MeshRenderer', data: { texture: file } }));
+            const sprite = await assets.preloadSceneAssets(surfaceScene({ type: 'Sprite', data: { texture: file } }));
+            expect(sprite.missing).toEqual([]);
+            expect(sprite.textureHandles.get(file)).toBe(mesh.textureHandles.get(file));
+            expect(uploads.map(upload => upload.width)).toEqual([32]);
+            mesh.scope.releaseAll(); sprite.scope.releaseAll();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('reads measured and unmeasured fields independently on the same renderer', async () => {
+        const assets = assetsWithPixels();
+        assets.setTextureStreamingStart(64);
+        const surface = defineComponent('StreamedTwoTextures', { surface: 0, overlay: 0 }, { assetFields: [
+            { field: 'surface', type: 'texture', measuresTextureDensity: true }, { field: 'overlay', type: 'texture' },
+        ] });
+        try {
+            const data = surfaceScene({ type: surface._name, data: { surface: 'albedo.png', overlay: 'overlay.png' } });
+            const scene = await assets.preloadSceneAssets(data);
+            expect(assets.getTexture('albedo.png')?.width).toBe(64);
+            expect(assets.getTexture('overlay.png')?.width).toBe(512);
+            scene.scope.releaseAll();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('rechecks the live readers on each file update, including a tileset added between two updates', async () => {
+        const app = App.new(), assets = assetsWithPixels(), world = app.world, path = 'dynamic.png';
+        connectFakeCpp(world);
+        assets.setTextureStreamingStart(64);
+        app.insertResource(AssetsResource, assets);
+        installHotUpdateRebind(app, assets);
+        const update = async () => {
+            assets.invalidate(path);
+            for (let i = 0; i < 4; i++) {
+                await app.tick(1 / 60);
+                await new Promise<void>(resolve => setTimeout(resolve, 0));
+            }
+            return assets.getTexture(path)!;
+        };
+        try {
+            const mesh = world.spawn(), first = await assets.acquireTexture(path);
+            world.insert(mesh, MeshRenderer, { texture: first.value.handle });
+            const small = await update();
+            expect(small.width).toBe(64);
+            const tiles = world.spawn();
+            world.insert(tiles, TilemapLayer, { tileset: small.handle });
+            const shared = await update();
+            expect(shared.width).toBe(512);
+            expect(world.get(tiles, TilemapLayer).tileset).toBe(shared.handle);
+            expect(world.get(mesh, MeshRenderer).texture).toBe(shared.handle);
+            world.despawn(tiles);
+            expect((await update()).width).toBe(64);
+            first.release(); world.despawn(mesh);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it('keeps a parent material texture full for a sprite that joins a mesh material instance', async () => {
+        const assets = assetsWithPixels();
+        assets.setTextureStreamingStart(64);
+        assets.register({ type: 'material-shader', extensions: [], load: async () => ({ compile: () => 1 }) });
+        vi.spyOn(assets.backend, 'fetchText').mockImplementation(async url => JSON.stringify(url.endsWith('child.esmaterial')
+            ? { type: 'material', instanceOf: 'parent.esmaterial', properties: {} }
+            : { type: 'material', shader: 'builtin:test', properties: { u_map: 'map.png' } }));
+        const ref = 'art/child.esmaterial', file = 'art/map.png';
+        try {
+            const mesh = await assets.preloadSceneAssets(surfaceScene({ type: 'MeshRenderer', data: { material: ref } }));
+            expect(mesh.missing).toEqual([]);
+            const texture = assets.getTexture(file)!;
+            expect(texture.width).toBe(64);
+            const sprite = await assets.preloadSceneAssets(surfaceScene({ type: 'Sprite', data: { material: ref } }));
+            expect(sprite.missing).toEqual([]);
+            expect(sprite.materialHandles.get(ref)).toBe(mesh.materialHandles.get(ref));
+            expect(assets.getTexture(file)).toMatchObject({ handle: texture.handle, width: 512 });
+            mesh.scope.releaseAll(); sprite.scope.releaseAll();
+            expect(await firstWidth(assets, file, false)).toBe(512);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('retries a refused full-size upload without dropping the mesh reader, and shares a concurrent retry', async () => {
+        const assets = assetsWithPixels();
+        assets.setTextureStreamingStart(64);
+        const file = 'racing.png', sheet = surfaceScene({ type: 'TilemapLayer', data: { tileset: file } });
+        try {
+            const mesh = await assets.preloadSceneAssets(surfaceScene({ type: 'MeshRenderer', data: { normalMap: file } }));
+            const handle = mesh.textureHandles.get(file);
+            manager.adoptTextureContent.mockReturnValueOnce(false);
+            const failed = await assets.preloadSceneAssets(sheet);
+            expect(failed.missing).toHaveLength(1);
+            expect(assets.sizes().refRows).toBe(1);
+            expect(assets.getTexture(file)).toMatchObject({ handle, width: 64 });
+            const [a, b] = await Promise.all([assets.preloadSceneAssets(sheet), assets.preloadSceneAssets(sheet)]);
+            expect([...a.missing, ...b.missing]).toEqual([]);
+            expect(uploads.map(u => u.width)).toEqual([64, 512, 512]);
+            expect(assets.getTexture(file)).toMatchObject({ handle, width: 512 });
+            mesh.scope.releaseAll(); a.scope.releaseAll(); b.scope.releaseAll();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
 
     it('reads the owning App in either plugin order and after another App quits', async () => {
         const first = appWithQuality(64), second = appWithQuality(256);

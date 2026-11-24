@@ -47,13 +47,13 @@ struct MeshVertex2D {
 ES_COMPONENT(renderable=enabled)
 struct MeshRenderer {
     /** @brief Texture sampled by the mesh UVs (invalid = untextured, vertex colors only) */
-    ES_PROPERTY(asset = texture)
+    ES_PROPERTY(asset = texture, measures_texture_density)
     resource::TextureHandle texture;
 
     /** @brief Tangent-space normal map, applied on top of the geometry's own normals.
      *         Needs a mesh that HAS normals; its tangent frame is derived per pixel,
      *         so the geometry carries no tangent channel. */
-    ES_PROPERTY(asset = texture, tooltip="Normal map (tangent space). Needs a mesh with normals.")
+    ES_PROPERTY(asset = texture, measures_texture_density, tooltip="Normal map (tangent space). Needs a mesh with normals.")
     resource::TextureHandle normalMap;
 
     /** @brief Color tint multiplied with per-vertex colors (white = unchanged) */
@@ -92,7 +92,7 @@ struct MeshRenderer {
     glm::vec2 parallax{1.0f, 1.0f};
 
     /** @brief Custom material ID (0 = use default batch shader) */
-    ES_PROPERTY(asset = material, category=Materials, tooltip="The material it is drawn with; none draws it with the built-in look (texture and colour above).")
+    ES_PROPERTY(asset = material, measures_texture_density, category=Materials, tooltip="The material it is drawn with; none draws it with the built-in look (texture and colour above).")
     u32 material{0};
 
     ES_PROPERTY()
