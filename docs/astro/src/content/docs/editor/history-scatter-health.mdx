@@ -1,60 +1,58 @@
 ---
 title: History, Scatter Brush & Project Health
-description: The panels that sit around editing — the History list and how it undoes agent runs, the Scatter Brush for dressing a scene, and Project Health, the pre-build check list.
+description: The History panel (undo stack, agent runs), the Scatter Brush for scene dressing, and Project Health, the pre-build check list shared with Package Project and the editor MCP.
 ---
 
-Three smaller editor tools that the other guides assume you know about. Search the
-Command Palette for any of them.
+All three are reachable from the Command Palette (**Ctrl / ⌘ + Shift + P**).
 
 ## History
 
-**History** lists every edit you have made in the open scene, in order, with **Now**
-marking where you are. It is the visible form of Undo / Redo (`Ctrl/⌘ + Z`,
-`Ctrl/⌘ + Shift + Z`): click an earlier row to step back to that state.
+**History** lists the edits of the open scene in order, with **Now** marking the current position. It is the visible
+form of the undo stack (**Ctrl / ⌘ + Z**, **Ctrl / ⌘ + Shift + Z**); clicking a row steps back or forward to that state.
 
-Edits an [agent connected over MCP](/docs/agents/mcp/) makes land here like your own,
-one row per step, and step back the same way.
+Edits by an [agent connected over MCP](/docs/agents/mcp/) are recorded the same way, one row per step, grouped under
+the agent run with an **Undo run** action.
+
+![The History panel: an agent run with two set_field steps, the current position marker, and Undo run](@/assets/guides/en/ed-history.png)
 
 ## Scatter Brush
 
-The **Scatter Brush** dresses a scene — rocks, trees, grass tufts — by dragging in the
-viewport instead of placing each copy by hand. Arm it from the Command Palette (**Scatter Brush**); its panel opens on the left. Arming it again, or pressing `Esc`, puts it away.
+The Scatter Brush places copies of an entity by painting in the scene view. Toggle it from the Command Palette
+(**Scatter Brush**) or put it away with **Esc**; its panel opens on the left.
 
-1. Select the entity to scatter and press **Use Selected** (**Source** shows what is
-   armed). Without a source the panel says *Select an entity to scatter*.
-2. Set the **Brush**:
+![The Scatter Brush panel: Source, Use Selected, and the Brush settings with a preview of one dab](@/assets/guides/en/ed-scatter.png)
 
-   | Setting | What it does |
+1. Select the source entity and press **Use Selected**.
+2. Set the brush:
+
+   | Setting | Description |
    |---|---|
-   | **Radius** | How wide a disc one stroke dabs. |
-   | **Density** | How many copies fall inside the disc. |
-   | **Spacing** | The minimum gap between copies, so they never pile up. |
-   | **Scale Variation** | Random size spread per copy. |
-   | **Random Turn** | Random facing per copy. |
+   | **Radius** | Radius of one dab. |
+   | **Density** | Copies per dab. |
+   | **Spacing** | Minimum distance between copies. |
+   | **Scale Variation** | Random scale spread per copy. |
+   | **Random Turn** | Random orientation per copy. |
 
-   The preview shows one sample: the disc, the copies it would drop, and the spacing
-   each keeps.
-3. Drag in the viewport. Each stroke is **one undo step** and reports *Scattered N*.
+   The preview shows one dab: the disc, its sample points and their spacing.
+3. Drag in the scene view. Each stroke is one undo step and reports the number of copies placed.
 
-The **Scatter Around Selection** command fills the spot the selection stands on without a
-stroke — "more of this, here".
+**Scatter Around Selection** fills the area around the current selection without a stroke.
 
 ## Project Health
 
-**Project Health** is the checklist the editor runs over the project before you build, and
-the same one **Build → Package Project…** runs first — a blocker stops the build. It
-covers things like asset references that resolve to nothing, an empty required field
-on a component, a missing entry scene, scripts that do not compile, unsaved changes
-that would not be in the build, a target that cannot be built on this machine, and
-viewport fallbacks (HDR, MSAA). It sits in the bottom dock and groups what it found:
+**Project Health** is the pre-build check list; **Build → Package Project…** runs the same checks first, and a blocker
+stops the build. Checks include unresolved asset references, empty required component fields, a missing startup scene,
+script compilation, unsaved changes that would be excluded from the build, target prerequisites on this machine, and
+scene view fallbacks (HDR, MSAA).
 
-- **Blocks the build** — fix before packaging.
-- **Warnings** and **Notes** — worth a look, not fatal.
-- **Could not be checked** — the editor lacked what it needed (a connected device, a
-  toolchain); this is not a pass.
+![Project Health: one blocker (unsaved changes not in the build) and two checks that could not be run](@/assets/guides/en/ed-health.png)
 
-Some entries carry a **Fix** button that applies the repair for you; if it cannot, the
-panel says why. **Re-check** runs it again, and the panel tells you when the project
-changed since the last check. A clean result reads *Nothing is standing in the way of
-a build.* The same list is available to automation as `get_project_health` in the
-[editor MCP](/docs/agents/mcp/).
+| Group | Meaning |
+|---|---|
+| **Blocks the build** | Must be fixed before packaging. |
+| **Warnings**, **Notes** | Non-fatal findings. |
+| **Could not be checked** | A prerequisite was unavailable (device, toolchain); not a pass. |
+
+Entries with a **Fix** button apply the repair, or state why they cannot. **Re-check** runs the list again; the panel
+indicates when the project has changed since the last run. The same list is available to automation as
+`get_project_health` in the [editor MCP](/docs/agents/mcp/).

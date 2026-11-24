@@ -1,94 +1,83 @@
 ---
 title: Building a scene
-description: "Creating entities, the World Outliner, and the Details inspector — including its purpose-built layout widgets and the asset import settings it edits."
+description: Entity creation paths, asset drag and drop, World Outliner operations and prefab actions, the Details inspector and its purpose-built controls, and the asset inspector with import settings and the 9-slice border editor.
 ---
+
 ## Creating entities
 
-There are several ways to add an entity:
+| Path | Result |
+|---|---|
+| **Entity → Add Entity** | An entity with `Transform` only. |
+| *World Outliner → Add → Create entity…* | The create popover: built-in presets (Empty, Sprite, Camera, Particles, Light, Tilemap, Spine, Audio, Text, Bitmap Text, Shape, Mesh, Trail, DragonBones, Sound Event, Sun, 3D primitives, Third Person Character, Outdoor Environment), UI primitives and widgets, project components, and every `.esprefab` in the project. |
+| *World Outliner → right-click* | Context actions: create, folders, parenting, prefab creation. |
+| Drag from the Content Browser | See below. |
 
-- **Entity → Add Entity** drops a blank Transform entity.
-- **+ Add → Create entity…** opens a command-palette that spawns entities: the built-ins — **Empty**,
-  **Sprite**, **Camera**, **Particles**, **Light**, **Tilemap**, **Spine**, **Audio**,
-  **Text**, **Bitmap Text**, **Shape**, **Mesh**, **Trail**, **DragonBones**, **Sound Event**, **Sun**, the
-  built-in 3D primitives (cube, sphere and the rest), ready-made **Third Person Character** and
-  **Outdoor Environment** setups, and the **UI** widgets (Canvas plus
-  controls) — **your own project components**, and any **`.esprefab` prefab** in the
-  project. Every create path (this menu, drag-and-drop, and the automation surface) runs
-  the same pipeline, so each spawn is a single undo step.
-- **Right-click in the Outliner** for the same actions in context, plus folders,
-  parenting, and prefab creation.
-- **Drag from the Content Browser** — drop an image to spawn a Sprite, or a `.esprefab`
-  to instantiate it.
+All creation paths (menus, drag and drop, automation) share one pipeline; each creation is one undo step.
 
-## The World Outliner
+### Dragging assets into the scene
 
-The Outliner is the scene's hierarchy. You can:
+| Asset | Dropped in the scene view | Dropped in the World Outliner |
+|---|---|---|
+| Image | `Sprite` at the drop point; a **UI Image** (`UINode` + `UIVisual`) when dropped on a Canvas or UI node | `Sprite` under the row; a UI Image when the row is a Canvas or UI node |
+| `.esprefab` | Prefab instance | Prefab instance under the row |
+| `.esmesh` | Mesh entity | Mesh entity under the row |
+| `.esanim` | Animated sprite | Animated sprite under the row |
+| `.estileset` | Tilemap | Tilemap under the row |
 
-- Reparent by dragging entities onto one another, and organize with **folders**.
-- **Type to jump** — with the tree focused, type the first letters of a name to
-  jump to the matching entity.
-- **Rename** with `F2`, **Duplicate** with Ctrl/⌘ + D, **Delete** with Delete.
-- **Hide/Show** and **Lock/Unlock** entities (independent of whether the component is
-  enabled at runtime). Hiding takes the entity out of the edit viewport — sprites,
-  skeletons, tilemaps, particles, lights and all — without editing the scene the game
-  loads. Locking leaves it visible and selectable but gives it no handles: the
-  viewport won't pick it, and the transform gizmo won't appear for it.
-- **Create Prefab** from a selection, then drop instances back into the scene.
-- Right-click a prefab instance for **Edit Prefab**, **Apply to Prefab**, **Revert to
-  Prefab**, **Create Variant** and **Unpack Prefab**, and **Make Virtual (load on demand)** /
-  **Make Whole (load with the scene)**. A virtual instance is shown and edited whole here
-  but a running scene builds only its root — see
-  [Virtual instances](/docs/world/prefabs/#virtual-instances).
+Drops on empty Outliner space create the entity at the scene root. See
+[Sprite or UI Image](/docs/ui/sprite-or-ui/) for the Sprite / UI Image distinction.
 
-## The Details panel
+## World Outliner
 
-Details is the inspector for the selection. It lists every component on the entity and
-its fields — driven by the engine's reflection metadata, so ranges, units, enums, and
-tooltips come straight from the component definition. Add components, edit values, and
-they're written back to the scene live. Fields enforce their constraints as you edit: a
-**required** field is flagged when left empty, a numeric field is clamped to its
-declared range on write, and dropping an asset onto a slot is rejected unless its type
-matches.
+![The World Outliner with folders and the context menu of the Player entity: Rename, Duplicate, Create Prefab, Delete, Hide, Lock, Disable, New Folder from Selection, Move to Root, Unparent, Add Child, Create Child](@/assets/guides/en/ed-outliner-menu.png)
 
-Each component is a **collapsible section**, and the panel remembers what you fold —
-across reselects *and* editor restarts — so an inspector stays as tidy as you leave it.
-Rarely-touched "chrome" (a widget's `Focusable` and `ThemeStyle` tags) starts folded.
+| Operation | Input |
+|---|---|
+| Reparent | Drag onto another entity |
+| Organise | Folders (context menu → New Folder from Selection) |
+| Jump to entity | Type the first letters of a name with the tree focused |
+| Rename / Duplicate / Delete | **F2** / **Ctrl/⌘ + D** / **Delete** |
+| Hide / Lock | Row toggles; independent of runtime enablement |
+| Create Prefab | Context menu on a selection |
 
-On a prefab instance, the prefab bar at the top of Details carries the **Virtual** toggle
-described above.
+- **Hide** removes the entity from the edit scene view (sprites, skeletons, tilemaps, particles, lights) without
+  changing the scene the game loads.
+- **Lock** keeps the entity visible but not pickable and without transform handles.
+- **Prefab instances** offer *Edit Prefab*, *Apply to Prefab*, *Revert to Prefab*, *Create Variant*, *Unpack Prefab*,
+  and *Make Virtual (load on demand)* / *Make Whole (load with the scene)*. A virtual instance is edited whole in the
+  editor, but the running scene builds only its root. See [Virtual instances](/docs/world/prefabs/#virtual-instances).
 
-Where a visual control beats a row of raw numbers, Details shows a **purpose-built
-widget** — most of them for UI nodes:
+## Details
 
-- an **anchor** control for absolutely-positioned `UINode`s: a clickable **3×3 grid** for
-  the nine point anchors (Left / Centre / Right × Top / Middle / Bottom) plus a **Stretch**
-  toggle per axis;
-- a **flex** (auto-layout) widget for `FlexContainer`s: **Direction** (row / column and
-  their reverses), a **3×3 alignment grid** that sets main- and cross-axis alignment in one
-  click, main-axis **Distribute** (Packed / Between / Around / Evenly), and **Wrap** /
-  **Stretch** toggles — with **padding** edited as a four-edge `sides` control;
-- an inline **Controllers** strip that pulls per-node state authoring into the inspector:
-  pick a state page and *gear* a field to bind it, all without leaving the panel (see
-  [UI controllers](/docs/ui/controllers/));
-- for a **material**, a **Shader** picker to swap the bound shader — a built-in template or
-  a project `.esshader` — see
-  [Materials & Shaders](/docs/graphics/materials/#choosing--sharing-shaders-in-the-editor).
+Details inspects the selection. Fields are generated from component reflection metadata, so ranges, units, enums and
+tooltips come from the component definition. Edits are written to the scene immediately.
 
-![The Details panel showing the anchor grid and layout controls for a UI node](@/assets/guides/en/inspector-flex.png)
+- **Validation** — required fields are flagged when empty; numeric fields are clamped to their declared range; asset
+  slots reject assets of the wrong type.
+- **Sections** — each component is collapsible; fold state persists across selections and editor restarts.
+  Rarely edited components (`Focusable`, `ThemeStyle` on widgets) start folded.
+- **Notices** — configurations that have no effect are reported on the component card (for example a `Sprite` on a
+  `UINode`, or a positioned Transform on a laid-out UI node).
+- **Prefab bar** — on prefab instances, shows the prefab and the **Virtual** toggle.
 
-*A UI node's inspector: the **In Layout / Absolute** toggle, the clickable **3×3 anchor grid** (with per-axis Stretch), and `Display: Flex` — visual controls in place of raw numbers.*
+### Purpose-built controls
 
-Details also serves as the **asset inspector**: select an asset in the Content Browser to
-edit its import settings or, for a material, its parameters.
+| Component | Control |
+|---|---|
+| `UINode` (absolute) | Anchor picker: 3×3 grid of point anchors plus per-axis Stretch. |
+| `FlexContainer` | Direction, 3×3 alignment grid (main and cross axis), main-axis distribution (Packed / Between / Around / Evenly), Wrap and Stretch toggles, four-edge padding. |
+| UI nodes with controllers | Inline Controllers strip for page selection and field gears ([UI Controllers](/docs/ui/controllers/)). |
+| Material | Shader picker (built-in template or project `.esshader`) ([Materials](/docs/graphics/materials/#choosing--sharing-shaders-in-the-editor)). |
 
-**Dragging a 9-slice border.** A texture's slice border decides where a `NineSlice` panel
-keeps its corners crisp, and typing four numbers means guessing at them. Select the
-texture and drag the four guides directly on the preview instead — the numeric fields stay
-in sync, so you can nudge one edge exactly after eyeballing the rest.
+![Details for a UI node: In Layout / Absolute toggle, 3×3 anchor grid with Stretch, Display, Opacity, Pointer Events, size and margins](@/assets/guides/en/inspector-flex.png)
 
-Import settings describe the **asset**, not the scene that happens to use it, and they now
-reach every place the texture is drawn: the edit viewport, Play (in the viewport and in
-the Game panel), and a packaged build. A frame that slices correctly while you author it
-slices correctly in the shipped game.
+## Asset inspector
+
+Selecting an asset in the Content Browser shows its import settings in Details (for materials, its parameters).
+Import settings belong to the asset and apply everywhere it is drawn: the edit scene view, play mode (scene view and
+Game panel) and packaged builds.
+
+**9-slice border.** For textures, the four slice guides can be dragged on the preview; the numeric fields stay in
+sync.
 
 ![Dragging the 9-slice border guides on a texture in the asset inspector](@/assets/guides/en/nine-slice-drag.png)

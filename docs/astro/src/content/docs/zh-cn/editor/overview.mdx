@@ -1,79 +1,75 @@
 ---
 title: 编辑器
-description: Estella 编辑器导览——可停靠工作区、视口与变换 gizmo、用 Outliner 和 Details 搭场景、内容浏览器、编辑器内运行、各专用资产编辑器,以及项目设置。
+description: Estella 编辑器概览——启动器与项目目录结构、可停靠工作区及其面板、运行模式隔离，以及编辑器各章节索引。
 ---
 
 import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Estella 编辑器是一个桌面应用(Electron + React),带 UE5 风格的**可停靠工作区**。你可视化地搭
-场景、在检视器里调组件、绘制瓦片地图、连节点图,并**直接在编辑器里运行游戏**——在一个隔离的
-运行时 realm 里,所以运行永远不会弄脏你的场景。
+Estella 编辑器是一个桌面应用（Electron + React），采用可停靠的工作区。它提供可视化场景编辑、组件检视器、资源编辑器（时间轴、瓦片地图、节点图、材质）以及编辑器内运行模式；运行模式在隔离的运行时领域中执行游戏，不会修改正在编辑的场景。
 
-## 启动项目
+![Estella 编辑器与一个平台跳跃场景：场景视图、世界大纲、细节与内容浏览器](@/assets/guides/zh/editor-overview.png)
 
-没有项目打开时,编辑器显示 **启动器(Launcher)**:
+*默认工作区：场景视图（中）、世界大纲与细节（右）、内容浏览器、输出日志与性能分析器（下）、运行控制（上）。*
 
-- **最近** — 重新打开你做过的项目,带搜索和网格/列表视图。
-- **新建项目** — 选一个模板,起名字、选位置,创建。模板分两组:**Starters**
-  (**Blank**——只有一个相机的空场景——以及可直接运行的起步项目,如 2D 平台跳跃、
-  俯视角、像素 RPG、UI 游戏、3D 起步、在线 3D 世界、试玩广告和微信小游戏)和
-  **Examples**(随附的示例项目,可直接探索和修改)。
+## 启动器
 
-一个项目就是磁盘上的一个文件夹。编辑器关心的几块:
+未打开项目时，编辑器显示启动器：
 
-| 路径 | 是什么 |
+| 页面 | 功能 |
 |---|---|
-| `project.esproject` | 项目清单——名字、默认场景、设计分辨率、启用的特性(物理、渲染)、打包。纳入版本控制。 |
-| `.esengine/workspace.json` | 编辑器本地状态(上次打开的场景、面板布局)。被 gitignore。 |
-| `assets/scenes/*.esscene` | 你的场景。 |
-| `assets/…` | 纹理、材质、瓦片集等资产,每个带一个 `.meta` 边车文件。 |
-| `src/components.ts` | **声明入口**——编辑器会求值这个模块以及它 import 到的一切,以此认识你的组件。组件定义在哪都行,从这里 re-export 出来即可。见[脚本](/docs/zh-cn/scripting/overview/#声明放在哪里)。 |
-| `src/main.ts` | **启动入口**——注册系统的地方。跑游戏的是它;编辑器从不求值它。 |
+| **最近** | 重新打开最近的项目；支持搜索、网格与列表视图。 |
+| **新建项目** | 由模板创建项目：**起步模板**（空白、2D 平台跳跃、俯视角、像素 RPG、UI 游戏、3D 入门、联网 3D、试玩广告、微信小游戏）或**示例**（内置示例项目）。 |
 
-资产按 UUID(`@uuid:…`)可移植地引用,而不是按路径,所以移动或重命名文件不会断掉引用。
+## 项目目录结构
+
+项目即一个文件夹：
+
+| 路径 | 内容 |
+|---|---|
+| `project.esproject` | 项目清单：名称、启动场景、设计分辨率、启用的功能、打包配置。纳入版本控制。 |
+| `.esengine/workspace.json` | 编辑器本地状态（上次打开的场景、面板布局）。被 Git 忽略。 |
+| `assets/scenes/*.esscene` | 场景。 |
+| `assets/…` | 纹理、材质、瓦片集等资源，各带一个 `.meta` 附属文件。 |
+| `src/components.ts` | **声明入口**：编辑器执行该模块及其导入，以发现项目组件。见[脚本](/docs/zh-cn/scripting/overview/)。 |
+| `src/main.ts` | **启动入口**：注册系统并运行游戏。编辑器不会执行它。 |
+
+资源以 UUID（`@uuid:…`）引用，移动或重命名文件不会破坏引用。
 
 ## 工作区
 
-![Estella 编辑器与一个平台跳跃场景——视口、世界大纲、细节、内容浏览器](@/assets/guides/zh/editor-overview.png)
+| 区域 | 内容 |
+|---|---|
+| **活动栏**（最左） | 编辑模式（瓦片地图 / UI / 世界 / 场景）、面板菜单、内容抽屉、智能体、设置。 |
+| **菜单栏** | 文件、编辑、实体、视图、构建、窗口、帮助；插件贡献命令时出现**工具**菜单。 |
+| **标题栏** | 运行控制（运行、暂停、重启、运行模式菜单）、**扫码预览**（在手机上运行）、**编译**（脚本）。 |
+| **场景视图**（中） | WebGL 场景视图及其工具栏：变换工具、吸附、2D / 3D、屏幕控制、**显示**、**Gizmo**。 |
+| **世界大纲**（右） | 当前场景的实体层级。 |
+| **细节**（右） | 选中对象的检视器。 |
+| **底部停靠区** | 内容浏览器、输出日志、性能分析器；其他面板（序列器、瓦片调色板）按需打开。 |
+| **状态栏** | 内容抽屉开关、编辑模式、保存状态、已加载模块、FPS、实体数、内存、图形后端、引擎版本。 |
 
-*默认工作区:视口居中,世界大纲与细节在右侧,内容浏览器在底部,运行控制在顶部。*
-
-从外到内的默认布局:
-
-- **活动栏(Activity Bar)** — 最左侧的图标竖条:四种**编辑模式**(瓦片地图 / UI / 世界 / 场景)、**面板**菜单(显示或隐藏任何停靠面板)、内容抽屉、Agent 和设置。
-- **菜单栏** — 文件 · 编辑 · 实体 · 视图 · 构建 · 窗口 · 帮助;插件往“工具”菜单里加了命令后,会多出一个**工具**菜单。保存在“文件”里,撤销和重做在“编辑”里。
-- **顶栏** — **运行**控制(运行、暂停、重新运行,以及选择游戏在哪里运行的菜单)、**扫码预览**(在手机上运行游戏)、**编译**(编译脚本)。
-- **视口**(中央) — 实时 WebGL 场景视图,自带工具栏:变换工具、吸附、2D / 3D、屏幕控制、**显示**和 **Gizmo**。
-- **World Outliner**(右) — 场景的实体层级。
-- **Details**(右) — 当前选中项的检视器。
-- **内容浏览器**、**输出日志**和**性能分析器**(底部标签)。其他面板 —— 序列器、瓦片调色板 —— 在需要时打开:从“面板”菜单,或由拥有它的模式打开。
-- **状态栏** — 内容抽屉开关、编辑模式、场景是否已保存、已加载的模块、FPS、实体数、内存、图形后端和引擎版本。每个读数都保持单行;窗口太窄时,状态栏会先去掉较长的消息和最不重要的读数,而不是换行。
-
-面板可停靠——拖动标签即可重排、拆分或浮动,布局会自动保存。你也能用 **Ctrl / ⌘ + Space** 从任
-何地方把内容浏览器唤成上滑浮层(*内容抽屉*)。
+拖动标签可停靠、拆分、浮动或重新排列面板；布局按项目保存。内容浏览器也可以作为上滑覆盖层随时打开（**内容抽屉**，**Ctrl / ⌘ + Space**）。
 
 <Aside type="note">
-  运行发生在与你正在编辑的场景**分离的 realm** 里,所以运行中的游戏无法改动你的编辑态世界。
-  停止后回到你原本那个场景,分毫不差。
+  运行模式在独立于编辑场景的领域中执行。运行中的游戏无法修改编辑模式的世界，停止后编辑器恢复到运行前的场景。
 </Aside>
 
-## 本章其余部分
-
-上面的导览讲的是这个工具长什么样。下面几页是你会反复回来查的部分。
+## 章节
 
 <CardGrid>
-  <LinkCard title="视口与编辑模式" href="/docs/zh-cn/editor/viewport/" description="导航、变换 gizmo、对齐与分布,以及设备预览。" />
-  <LinkCard title="搭建场景" href="/docs/zh-cn/editor/scenes/" description="创建实体、World Outliner,以及 Details 检视器。" />
-  <LinkCard title="内容浏览器" href="/docs/zh-cn/editor/content-browser/" description="新建与导入资产,以及查找谁引用了它们。" />
-  <LinkCard title="编辑器内运行" href="/docs/zh-cn/editor/play/" description="在隔离 realm 里运行游戏,以及自动保存恢复。" />
-  <LinkCard title="专用编辑器" href="/docs/zh-cn/editor/asset-editors/" description="Sequencer、瓦片地图模式、图块集编辑器与节点图。" />
-  <LinkCard title="项目设置" href="/docs/zh-cn/editor/settings/" description="编辑器偏好,以及写进项目文件的设置。" />
-  <LinkCard title="键盘快捷键" href="/docs/zh-cn/editor/shortcuts/" description="全部默认绑定,以及命令面板。" />
+  <LinkCard title="场景视图与编辑模式" href="/docs/zh-cn/editor/viewport/" description="导航、选择、变换工具、轴心模式、对齐与分布、吸附、编辑模式、设备预览。" />
+  <LinkCard title="搭建场景" href="/docs/zh-cn/editor/scenes/" description="创建实体、世界大纲、细节检视器、资源导入设置。" />
+  <LinkCard title="内容浏览器" href="/docs/zh-cn/editor/content-browser/" description="创建与导入资源、按资源类型的操作、查找引用。" />
+  <LinkCard title="编辑器内运行" href="/docs/zh-cn/editor/play/" description="运行模式、大纲中的运行世界、检查模式、保留运行时修改、手机预览、自动保存。" />
+  <LinkCard title="资源编辑器" href="/docs/zh-cn/editor/asset-editors/" description="序列器、瓦片地图模式、瓦片集编辑器、节点图。" />
+  <LinkCard title="设置" href="/docs/zh-cn/editor/settings/" description="编辑器偏好与项目设置。" />
+  <LinkCard title="历史、散布笔刷与项目健康" href="/docs/zh-cn/editor/history-scatter-health/" description="撤销历史、场景布置、构建前检查。" />
+  <LinkCard title="键盘快捷键" href="/docs/zh-cn/editor/shortcuts/" description="默认快捷键与命令面板。" />
 </CardGrid>
 
-## 参见
+## 另请参阅
 
-- [场景](/docs/zh-cn/world/scenes/) —— 一个 `.esscene` 里有什么、如何加载。
-- [脚本](/docs/zh-cn/scripting/overview/) —— 项目组件会自动出现在检视器里。
-- [预制体](/docs/zh-cn/world/prefabs/) —— 带逐实例覆盖的可复用实体模板。
-- [构建与导出](/docs/zh-cn/publishing/overview/) —— 把项目发布到 Web、微信或可玩广告。
+- [场景](/docs/zh-cn/world/scenes/) —— `.esscene` 的内容与加载。
+- [脚本](/docs/zh-cn/scripting/overview/) —— 检视器中的项目组件。
+- [预制体](/docs/zh-cn/world/prefabs/) —— 可复用的实体模板。
+- [构建与导出](/docs/zh-cn/publishing/overview/) —— 导出目标。

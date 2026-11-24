@@ -1,85 +1,80 @@
 ---
 title: The Editor
-description: A tour of the Estella editor — the docked workspace, the viewport and its transform gizmos, building scenes with the Outliner and Details panels, the Content Browser, play-in-editor, the specialized asset editors, and project settings.
+description: Estella editor overview — launcher and project layout on disk, the docked workspace and its panels, play-mode isolation, and an index of the editor chapters.
 ---
 
 import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-The Estella editor is a desktop application (Electron + React) with a UE5-style
-**dockable workspace**. You build scenes visually, tune components in an inspector,
-paint tilemaps, wire node graphs, and **play the game right inside the editor** — in
-an isolated runtime realm, so play never dirties your scene.
+The Estella editor is a desktop application (Electron + React) with a dockable workspace. It provides visual scene
+authoring, a component inspector, asset editors (timelines, tilemaps, node graphs, materials) and in-editor play mode,
+which runs the game in an isolated runtime realm so that play never modifies the edited scene.
 
-## Launching a project
+![The Estella editor with a platformer scene: scene view, World Outliner, Details and Content Browser](@/assets/guides/en/editor-overview.png)
 
-When no project is open, the editor shows the **Launcher**:
+*Default workspace: scene view (centre), World Outliner and Details (right), Content Browser, Output Log and Profiler
+(bottom), play controls (top).*
 
-- **Recent** — reopen a project you've worked on, with search and grid/list views.
-- **New project** — pick a template, give it a name and location, and create it.
-  Templates come in two groups: **Starters** (**Blank** — an empty scene with a
-  camera — plus ready-to-run beginnings such as a 2D platformer, a top-down
-  game, a pixel RPG, a UI game, a 3D starter, an online 3D world, a Playable Ad
-  and a WeChat Mini Game) and **Examples** (the bundled sample projects, ready to
-  explore and edit).
+## Launcher
 
-A project is a folder on disk. The pieces the editor cares about:
+With no project open, the editor shows the launcher:
 
-| Path | What it is |
+| Page | Function |
 |---|---|
-| `project.esproject` | The project manifest — name, default scene, design resolution, enabled features (physics, rendering), packaging. Committed to version control. |
-| `.esengine/workspace.json` | Editor-local state (last-opened scene, panel layout). Gitignored. |
-| `assets/scenes/*.esscene` | Your scenes. |
-| `assets/…` | Textures, materials, tilesets, and other assets, each with a `.meta` sidecar. |
-| `src/components.ts` | The **declaration entry** — the editor evaluates this module and everything it imports to learn your components. Declare them anywhere; re-export them from here. See [Scripting](/docs/scripting/overview/#where-declarations-live). |
-| `src/main.ts` | The **startup entry** — where you register systems. This is what runs the game; the editor never evaluates it. |
+| **Recent** | Reopens a recent project; search, grid and list views. |
+| **New project** | Creates a project from a template: **Starters** (Blank, 2D Platformer, Top-down, Pixel RPG, UI Game, 3D Starter, Online 3D, Playable Ad, WeChat Mini-game) or **Examples** (the bundled sample projects). |
 
-Assets are referenced portably by UUID (`@uuid:…`) rather than by path, so moving or
-renaming a file doesn't break references.
+## Project layout
 
-## The workspace
+A project is a folder:
 
-![The Estella editor with a platformer scene — viewport, World Outliner, Details, and Content Browser](@/assets/guides/en/editor-overview.png)
+| Path | Content |
+|---|---|
+| `project.esproject` | Project manifest: name, startup scene, design resolution, enabled features, packaging. Version-controlled. |
+| `.esengine/workspace.json` | Editor-local state (last scene, panel layout). Git-ignored. |
+| `assets/scenes/*.esscene` | Scenes. |
+| `assets/…` | Textures, materials, tilesets and other assets, each with a `.meta` sidecar. |
+| `src/components.ts` | **Declaration entry**: the editor evaluates this module and its imports to discover project components. See [Scripting](/docs/scripting/overview/#where-declarations-live). |
+| `src/main.ts` | **Startup entry**: registers systems; runs the game. Never evaluated by the editor. |
 
-*The default workspace: the viewport in the centre, the World Outliner and Details on the right, the Content Browser along the bottom, and the Play controls up top.*
+Assets are referenced by UUID (`@uuid:…`), so moving or renaming files does not break references.
 
-The default layout, from the outside in:
+## Workspace
 
-- **Activity Bar** — the far-left icon rail: the four **editing modes** (Tilemap / UI / World / Scene), the **Panels** menu (show or hide any docked panel), the Content Drawer, the Agent, and Settings.
-- **Menu Bar** — File · Edit · Entity · View · Build · Window · Help, plus a **Tools** menu that appears once a plugin contributes a command to it. Save is in File; Undo and Redo are in Edit.
-- **Header** — the **Play** controls (Play, Pause, Restart, and the menu that picks where the game runs), **Scan Preview** to run the game on a phone, and **Compile** for your scripts.
-- **Viewport** (center) — the live WebGL scene view, with its own toolbar: the transform tools, snapping, 2D / 3D, the screen controls, **Show** and **Gizmos**.
-- **World Outliner** (right) — the scene's entity hierarchy.
-- **Details** (right) — the inspector for the current selection.
-- **Content Browser**, **Output Log** and **Profiler** (bottom tabs). Other panels — the Sequencer, the Tile Palette — open when you need them, from the Panels menu or the mode that owns them.
-- **Status Bar** — the Content Drawer toggle, edit mode, whether the scene is saved, the loaded modules, FPS, entity count, memory, the graphics backend, and the engine version. Each readout stays on one line; when the bar is short of room it drops the long message and the least useful readouts rather than wrapping.
+| Region | Content |
+|---|---|
+| **Activity Bar** (far left) | Editing modes (Tilemap / UI / World / Scene), Panels menu, Content Drawer, Agent, Settings. |
+| **Menu Bar** | File, Edit, Entity, View, Build, Window, Help; **Tools** when a plugin contributes to it. |
+| **Header** | Play controls (Play, Pause, Restart, play-mode menu), **Scan Preview** (run on a phone), **Compile** (scripts). |
+| **Scene view** (centre) | WebGL scene view with its toolbar: transform tools, snapping, 2D / 3D, screen controls, **Show**, **Gizmos**. |
+| **World Outliner** (right) | Entity hierarchy of the open scene. |
+| **Details** (right) | Inspector for the selection. |
+| **Bottom dock** | Content Browser, Output Log, Profiler; other panels (Sequencer, Tile Palette) open on demand. |
+| **Status Bar** | Content Drawer toggle, edit mode, save state, loaded modules, FPS, entity count, memory, graphics backend, engine version. |
 
-Panels are dockable — drag a tab to re-arrange, split, or float it, and the layout is
-saved automatically. You can also summon the Content Browser as a slide-up overlay
-from anywhere with **Ctrl / ⌘ + Space** (the *Content Drawer*).
+Panels can be docked, split, floated or rearranged by dragging tabs; the layout is saved per project. The Content
+Browser is also available as a slide-up overlay (**Content Drawer**, **Ctrl / ⌘ + Space**).
 
 <Aside type="note">
-  Play runs in a **separate realm** from the scene you're editing, so a running game
-  can't mutate your edit-mode world. Stopping returns you to exactly the scene you had.
+  Play mode runs in a separate realm from the edited scene. The running game cannot modify the edit-mode world, and
+  Stop restores the editor to the scene as it was.
 </Aside>
 
-## The rest of this chapter
-
-The tour above is the shape of the tool. The pages below are the parts you come
-back to.
+## Chapters
 
 <CardGrid>
-  <LinkCard title="Viewport & editing modes" href="/docs/editor/viewport/" description="Navigation, transform gizmos, align & distribute, and the device preview." />
-  <LinkCard title="Building a scene" href="/docs/editor/scenes/" description="Creating entities, the World Outliner, and the Details inspector." />
-  <LinkCard title="The Content Browser" href="/docs/editor/content-browser/" description="Creating and importing assets, and finding what references them." />
-  <LinkCard title="Play in the editor" href="/docs/editor/play/" description="Running the game in an isolated realm, and autosave recovery." />
-  <LinkCard title="Asset editors" href="/docs/editor/asset-editors/" description="The Sequencer, tilemap mode, tileset editor and node graphs." />
-  <LinkCard title="Project settings" href="/docs/editor/settings/" description="Editor preferences and the settings saved into your project." />
-  <LinkCard title="Keyboard shortcuts" href="/docs/editor/shortcuts/" description="Every default binding, and the Command Palette." />
+  <LinkCard title="Scene view & editing modes" href="/docs/editor/viewport/" description="Navigation, selection, transform tools, pivot modes, align and distribute, snapping, editing modes, device preview." />
+  <LinkCard title="Building a scene" href="/docs/editor/scenes/" description="Entity creation, World Outliner, Details inspector, asset import settings." />
+  <LinkCard title="Content Browser" href="/docs/editor/content-browser/" description="Asset creation and import, per-asset actions, Find Usages." />
+  <LinkCard title="Play in the editor" href="/docs/editor/play/" description="Play modes, the running world in the Outliner, Inspect, keeping play-time changes, phone preview, autosave." />
+  <LinkCard title="Asset editors" href="/docs/editor/asset-editors/" description="Sequencer, tilemap mode, tileset editor, node graphs." />
+  <LinkCard title="Settings" href="/docs/editor/settings/" description="Editor preferences and project settings." />
+  <LinkCard title="History, Scatter Brush & Project Health" href="/docs/editor/history-scatter-health/" description="Undo history, scene dressing, pre-build checks." />
+  <LinkCard title="Keyboard shortcuts" href="/docs/editor/shortcuts/" description="Default bindings and the Command Palette." />
 </CardGrid>
 
 ## See also
 
-- [Scenes](/docs/world/scenes/) — what a `.esscene` holds and how it loads.
-- [Scripting](/docs/scripting/overview/) — project components appear in the inspector automatically.
-- [Prefabs](/docs/world/prefabs/) — reusable entity templates with per-instance overrides.
-- [Building & Exporting](/docs/publishing/overview/) — ship the project to web, WeChat, or a playable ad.
+- [Scenes](/docs/world/scenes/) — `.esscene` content and loading.
+- [Scripting](/docs/scripting/overview/) — project components in the inspector.
+- [Prefabs](/docs/world/prefabs/) — reusable entity templates.
+- [Building & Exporting](/docs/publishing/overview/) — export targets.

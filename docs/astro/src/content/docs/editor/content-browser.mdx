@@ -1,42 +1,60 @@
 ---
-title: The Content Browser
-description: "Your project's asset explorer — creating and importing assets, per-asset actions, and Find Usages."
+title: Content Browser
+description: Content Browser reference — asset creation, per-type context actions, import, rename / move / delete with reference handling, Find Usages, views and columns, and the Content Drawer.
 ---
-The Content Browser is your project's asset explorer. Its **create** menu makes new
-assets in place:
 
-- New Scene, New Prefab, **New Script…**, New Animation, New Animation Controller,
-  New Input Map, New Locale Table, New Cube Environment (six images), New Material,
-  New Material Graph, New Material Subgraph, **New Shader**, New State Machine,
-  New Behavior Tree, New Script Graph, New Avatar, Create Sound Event, New World
-  Rules, New Terrain Layer, New Folder — plus any asset type a plugin adds.
-- Context actions per asset type: **Create Tileset** and **Create Sprite
-  Animation** (from a texture), **Create Tilemap** (from a tileset), **Create
-  Animated Sprite** (from an animation clip), **Create Material Instance** (from a
-  material); a scene also offers **Set as Startup Scene**, and an imported asset
-  **Reimport**.
+The Content Browser is the project's asset explorer. It is docked at the bottom by default and is also available as an
+overlay from anywhere (**Content Drawer**, **Ctrl / ⌘ + Space**).
 
-![The Content Browser New menu listing every asset type that can be created](@/assets/guides/en/content-new-menu.png)
+## Creating assets
 
-*The Content Browser **New** menu.*
+The **Add** menu creates assets in the current folder: Scene, Prefab, **Script…**, Animation, Animation Controller,
+Input Map, Locale Table, Cube Environment (six images), Material, Material Graph, Material Subgraph, **Shader**,
+State Machine, Behavior Tree, Script Graph, Avatar, Sound Event, World Rules, Terrain Layer, Folder, and asset types
+contributed by plugins.
 
+![The Content Browser Add menu listing the creatable asset types](@/assets/guides/en/content-new-menu.png)
 
-**New Script…** is the one that writes more than a file: a module nothing imports is
-never bundled and its component never reaches Add Component, so the dialog also adds
-the one line in your project's script entry that pulls it in — which entry depending
-on whether you're making a component or a system. See
-[Scripting](/docs/scripting/overview/#the-new-script-dialog).
+**New Script…** also registers the module: a module that nothing imports is not bundled and its component never
+reaches Add Component, so the dialog adds an import to the appropriate project entry (declaration entry for
+components, startup entry for systems). See [Scripting](/docs/scripting/overview/#the-new-script-dialog).
 
-**Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
-a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
-Duplicate, Copy Path, Copy Reference, **Find Usages**, Show in Explorer, and Delete.
-Rename, move, and duplicate each post a toast with an **Undo** action — and renaming or
-moving an asset rewrites its references in every open document, so nothing dangles.
-**Delete** first lists every scene, prefab, and asset that references the file (so you
-know exactly what breaks), then moves it to the OS trash — still recoverable with Undo.
-The folder tree is fully keyboard-driven — arrows walk and collapse/expand, Enter opens
-a folder.
+## Context actions
 
-**Find Usages** — right-click an asset, or click the reference count in the Inspector's
-asset details — lists everywhere a texture, material, prefab, or scene is referenced,
-across the on-disk dependency graph *and* the unsaved open scene.
+| Asset | Actions |
+|---|---|
+| Texture | Create Tileset, Create Sprite Animation |
+| Tileset | Create Tilemap |
+| Animation clip | Create Animated Sprite |
+| Material | Create Material Instance |
+| Scene | Set as Startup Scene |
+| Imported asset | Reimport |
+| Any | Rename, Duplicate, Copy Path, Copy Reference, Find Usages, Show in Explorer, Delete |
+
+## Import
+
+Drag files from the file manager onto the Content Browser, or use **Import…**. Each asset receives a `.meta` sidecar
+(UUID and import settings) the first time it is seen.
+
+## Rename, move and delete
+
+- Rename, move and duplicate post a notification with **Undo**.
+- Rename and move rewrite references in every open document.
+- **Delete** first lists every scene, prefab and asset that references the file, then moves it to the OS trash;
+  Undo restores it.
+
+## Find Usages
+
+Context menu → **Find Usages**, or the reference count in the asset inspector, lists every reference to a texture,
+material, prefab or scene, across the on-disk dependency graph and the unsaved open scene.
+
+## Views
+
+**Settings** (in the Content Browser bar) selects the view — **Tiles**, **List** or **Columns** — and the sort order,
+folder visibility and search options. In Columns view, column headers sort by Name, Type, Size or Modified; the edges
+between headers can be dragged to resize columns (double-click restores the defaults); a header's context menu hides
+the column.
+
+## Keyboard
+
+The folder tree is keyboard-navigable: arrows move and collapse / expand, **Enter** opens a folder, **F2** renames.

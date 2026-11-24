@@ -1,165 +1,139 @@
 ---
-title: Viewport & editing modes
-description: "Navigating the viewport, the transform gizmos, align & distribute, show flags, the Scene / UI / Tilemap modes, and the design-resolution device preview."
+title: Scene view & editing modes
+description: Scene view reference — navigation, selection, transform tools and gizmo behaviour, pivot modes, duplicate and nudge, align and distribute, snapping, show flags, editing modes, design resolution and device preview, project screen presets.
 ---
-The viewport is where you place and manipulate entities.
 
-**Navigation**
+The scene view displays the edited scene and hosts the transform tools.
 
-- **Pan** — drag with the middle mouse button (or hold **Space** and drag, for a trackpad).
-- **Turn** — drag with the **right** mouse button once the view is a spatial one
-  (perspective, or already turned), or **Alt-drag** from any view. A drag grabs the
-  scene: the world turns the way the pointer moves. On a flat 2D view right-drag
-  pans, as it always did — there is nothing to walk around.
-- **Zoom** — scroll the mouse wheel (zooms toward the cursor).
-- **Frame Selected** — press **F** to center and fit the selection.
+![The scene view with the Universal Transform tool on the selected player: move arrows, scale boxes and the rotation ring](@/assets/guides/en/ed-gizmo.png)
 
-**Selecting**
+*Universal Transform (**Y**) on the selected entity: move arrows and centre plane, scale boxes beyond the arrow tips,
+rotation ring.*
 
-- **Click** an entity to select it; **Shift-click** to toggle it in a multi-selection.
-- Drag on **empty space** to **marquee** box-select everything inside.
-- Press **Esc** to cancel an in-progress drag, then to clear the selection.
+## Navigation
 
-**Transforming** — pick a tool from the toolbar (or its shortcut) and drag a gizmo
-handle:
+| Action | Input |
+|---|---|
+| Pan | Middle-drag, or **Space** + drag |
+| Orbit | Right-drag in a spatial view (perspective or rotated), or **Alt** + drag in any view. In a flat 2D view right-drag pans. |
+| Zoom | Mouse wheel, toward the cursor |
+| Frame selection | **F** |
 
-| Tool | Shortcut | Gizmo |
+## Selection
+
+| Action | Input |
+|---|---|
+| Select | Click |
+| Toggle in selection | **Shift** + click |
+| Box select | Drag on empty space |
+| Cancel drag / clear selection | **Esc** |
+
+## Transform tools
+
+| Tool | Key | Handles |
 |---|---|---|
-| Select | `Q` | Pick / marquee only, no transform handles. |
-| Move | `W` | Projected arrows. Spatial views add XY / YZ / ZX planes and screen-plane movement at the center; head-on 2D keeps X / Y and its center plane. |
-| Rotate | `E` | Projected axis rings; spatial views add a circular screen-axis outer ring. Head-on 2D shows the original Z ring. |
-| Scale | `R` | Projected axis boxes. Spatial views add plane handles and XYZ uniform scaling at the center; head-on 2D keeps two-axis center scaling. |
-| Rect | `T` | The selected sprite or UI node's own rectangle grips. |
-| Universal Transform | `Y` | Move arrows and center plane, outer scale boxes and rotation rings together. |
+| Select | `Q` | Picking and box selection only. |
+| Move | `W` | Axis arrows. Spatial views add XY / YZ / ZX plane handles and a screen-plane centre; head-on 2D shows X / Y and the centre plane. |
+| Rotate | `E` | Axis rings; spatial views add an outer screen-axis ring. Head-on 2D shows the Z ring. |
+| Scale | `R` | Axis boxes; spatial views add plane handles and a uniform centre. Head-on 2D shows two-axis centre scaling. |
+| Rect | `T` | The rectangle grips of the selected sprite or UI node. |
+| Universal | `Y` | Move, scale and rotate handles together. |
 
-Universal Transform gives move handles priority over scale boxes, then rotation
-rings. Scale boxes sit beyond the arrow tips so they remain reachable; a drag
-along one complete box-arm length doubles that axis's scale. Each press chooses
-one operation, which remains fixed for the entire drag. Its hover and drag
-highlight affect only that operation. The separate W / E / R tools remain
-available and T remains Rect.
+Gizmo behaviour:
 
-Spatial plane handles turn into the quadrant facing the camera. Edge-on planes
-are hidden; the same projected corners are drawn and hit-tested. A World plane
-drag changes only its two named components. Local uses the rotated plane normal.
-The spatial move center follows a plane parallel to the presented camera through
-the selection pivot, captured at the start of the drag. Scale's spatial center
-applies one factor to X, Y and Z. These gestures keep single-step undo and Esc.
+- **Universal priority.** Move handles take precedence over scale boxes, scale boxes over rotation rings. Scale boxes
+  sit beyond the arrow tips; dragging one box-arm length doubles that axis. The operation chosen at press is fixed for
+  the drag.
+- **Plane handles** face the camera quadrant; edge-on planes are hidden. A World-space plane drag changes only its two
+  components; Local uses the rotated plane normal. The spatial move centre drags on a camera-parallel plane through the
+  pivot, captured at press.
+- **Rotation.** The outer ring rotates about the camera's forward axis captured at press, regardless of Local / World.
+  Inner rings use the drawn Local or World axis. Rotations are converted through each target's parent frame. Outer-ring
+  snapping rounds the primary object's twist about the view axis.
+- **Hover** highlights the handle a press will grab and sets the cursor; it does not modify transforms or open an undo
+  step.
+- **Settings → Editor → Viewport → Gizmos**: **Transform handle size** (0.5–2, default 1) scales handles and hit areas;
+  **Fade occluded transform handles** dims spatial handle segments behind geometry. Both persist across sessions.
 
-The spatial rotation outer ring stays circular on screen. It turns about the
-presented camera's forward axis captured at the press, regardless of Local mode.
-Inner rings use the projected Local or World axis they draw. Rotation writes are
-converted through each target's parent frame, including Alt copies. Outer-ring
-snapping rounds the primary object's signed quaternion twist about the view axis;
-the ring radius and axis remain fixed until the drag ends.
+## Pivot modes
 
-Hovering a transform handle highlights the handle that a press will grab. The
-cursor shows moving, rotation or the projected resize direction. Camera or
-selection changes recompute the target; leaving the canvas clears it. Navigation,
-paint, picking and contributed tools keep their own pointer routing. Hover alone
-does not change transforms or begin an undo transaction.
+The pivot button cycles **Center → Pivot → Individual Origins** (also in the **View** menu and the Command Palette):
 
-**Settings → Editor → Viewport → Gizmos → Transform handle size** scales the transform
-arrows, center plane, rotation rings and hit areas together from 0.5 to 2 (default
-1). The preference persists across editor sessions. Changing it during a handle
-drag takes effect after release; the current drag retains its size and sensitivity.
+| Mode | Rotate / scale about |
+|---|---|
+| Center | The selection centroid. |
+| Pivot | The active object's position. |
+| Individual Origins | Each target's own position (one handle drawn at the selection centre). |
 
-**Fade occluded transform handles**, in the same settings group, dims spatial
-handle segments behind scene geometry. Disable it to keep all handles drawn on
-top. This preference persists across sessions; flat 2D handles retain their appearance.
+Translation is identical in all modes. When a parent and its child are both selected, the parent carries the subtree
+and the child is not transformed twice. Locked entities are excluded. The mode is captured at the start of a drag.
 
-The viewport pivot button cycles **Center → Pivot → Individual Origins**. Center
-uses the selection's centroid; Pivot uses the active object's position. Individual
-Origins draws one handle at the selection center, but rotation and scale keep each
-target's position and change its own pose. Translation is the same in all modes.
-Choose a mode directly from the **View** menu or the Command Palette. If a parent
-and child are both selected, the parent still carries its subtree to avoid applying
-the gesture twice. Locked targets stay excluded. The pivot policy is captured at
-the start of a drag, so changing it during that drag applies to the next gesture.
+## Duplicate and nudge
 
-Each drag is a single undo step; **Esc** cancels it. **Alt-drag a selected handle** to
-duplicate it and drag the copies. Nudge the selection with the **arrow keys** (one
-grid step; hold **Shift** for ×10).
+- Each drag is one undo step; **Esc** cancels it.
+- **Alt** + drag on a selected handle duplicates the selection and drags the copies.
+- Arrow keys nudge by one grid step; **Shift** multiplies by 10.
 
-Alt-left on the rest of the canvas still orbits the camera. Hidden or locked
-handles and contributed tools do not claim this copy gesture.
+## Align and distribute
 
-**Align & distribute** — select two or more entities and a strip of alignment buttons
-appears in the viewport overlay: align **left / centre / right** edges and **top / middle /
-bottom** edges. With three or more selected, two **distribute** buttons even out horizontal
-or vertical spacing. Each is a single undo step and works across every entity kind (sprites,
-UI nodes, gizmo-only entities alike).
+With two or more entities selected, alignment buttons appear in the scene view toolbar: left / centre / right and
+top / middle / bottom edges. With three or more, two distribute buttons equalise horizontal or vertical spacing. Each
+operation is one undo step and applies to sprites, UI nodes and gizmo-only entities alike.
 
-**Snapping** — toggle snapping from the viewport's Snap dropdown and set the grid step,
-rotation angle, and scale increment.
+![Three platforms selected: the align and distribute buttons in the scene view toolbar, the move gizmo at the selection centre](@/assets/guides/en/ed-align.png)
 
-**Show Flags** — a viewport dropdown toggles the Grid, Gizmos, Physics, and the perf
-overlay, plus World/Local axis orientation and Pivot-vs-Center. Entities that don't
-render — Cameras, `Light`, colliders, joints, particle emitters — are drawn as
-gizmos in edit mode (icon, view rect, light reach/cone, collider outline, joint
-anchor links) so you can see and place them; many carry drag handles that write
-their fields directly (light radius, collider size, emitter shape, joint anchors).
+## Snapping
+
+The snapping dropdown enables snapping and sets the grid step, rotation increment and scale increment.
+
+## Show flags and gizmos
+
+The **Show** dropdown toggles grid, gizmos, physics shapes and the performance overlay, and sets World / Local
+orientation and the pivot mode. Non-rendering entities — cameras, lights, colliders, joints, particle emitters — are
+drawn as gizmos in edit mode (icons, view rectangles, light reach and cone, collider outlines, joint anchors). Many
+gizmos have handles that edit their component fields directly (light radius, collider size, emitter shape, joint
+anchors).
 
 ## Editing modes
 
-The Activity Bar's first four icons switch the **editing mode** — **Tilemap**, **UI**, **World**,
-or **Scene**. The mode also *follows your selection*: pick a `Canvas` or `UINode` and the
-editor suggests **UI** mode, a `TilemapLayer` suggests **Tilemap** — switching that mode's
-tools and viewport aids **without** disturbing your panel layout. To open a mode's
-companion panels (UI Widgets, the Tile Palette), click its Activity Bar icon or the
-viewport's mode chip; that also **pins** the mode as a sticky lock that ordinary selection
-clicks won't clear — re-click it to go back to following the selection.
+The first four Activity Bar icons select the editing mode: **Tilemap**, **UI**, **World**, **Scene**. The mode follows
+the selection — a `Canvas` or `UINode` suggests UI, a `TilemapLayer` suggests Tilemap — and switches tools and scene view
+aids without changing the panel layout. Clicking a mode's icon, or the mode chip in the scene view, opens its companion
+panels (UI Widgets, Tile Palette) and **pins** the mode so that selection changes do not leave it; clicking again
+unpins it.
 
-**The design frame + device preview.** A scene is authored against a **design resolution** —
-a fixed reference size (e.g. `1920 × 1080` landscape or `750 × 1334` portrait). This is a
-**project-level** value (Settings → Project → Game → Display), not a UI-layer one: the viewport's
-**design resolution** and **Device** controls work in **every** editor mode, so
-you can preview a gameplay-only scene on a real device **without** a UI Canvas. When the
-scene has a Canvas, UI additionally lays out inside the frame per its scale mode.
+## Design resolution and device preview
 
-- **Design resolution** dropdown (viewport toolbar, reading the current size such as `800×600`) —
-  sets the design resolution and reframes to it (undoable). With a Canvas it edits that Canvas; otherwise it edits the project value.
-- **Device** dropdown (its button reads `Design` while no device is simulated) — picks the **target
-  screen** (iPhone / iPad / 1080p …) in any mode.
-  While editing it draws that screen's aspect as letterbox bars + safe-area insets over
-  your scene; when you press **Play** the running game is letterboxed to the same shape,
-  in the viewport and in the **Game** panel alike. It never changes your design
-  resolution — it changes what you are looking at it *through*.
-- **Orientation** (same dropdown) — swaps the device's width and height. It applies to a
-  **device**, so it is disabled while `Design` is selected: with no screen simulated
-  there is nothing to rotate.
-- **Camera Fit** (Settings → Project → Game → Display) — how the **main camera** scales the design
-  resolution, independent of any UI Canvas. `None` (default) keeps the camera's own
-  orthoSize; any other mode letterboxes the game the same way on every device, and the
-  device preview then shows the **real** framing (WYSIWYG for gameplay, not just UI).
+Scenes are authored against a **design resolution** (for example `1920 × 1080` landscape or `750 × 1334` portrait). It
+is a project setting (**Settings → Project → Game → Display**) and applies in every editing mode, with or without a UI
+Canvas. With a Canvas, UI is additionally laid out inside the frame according to its scale mode.
 
-**One screen, edit and run.** The `Design` entry is the "no simulation" choice: the game
-fills whatever space the panel has, which is what authoring for desktop wants. Pick any
-real device and both the edit overlay and the running game commit to its shape — so a
-project authored for a phone is never only ever *run* at whatever aspect the dock
-happened to be dragged to.
+| Control | Function |
+|---|---|
+| **Design resolution** (toolbar, e.g. `800×600`) | Sets the design resolution and reframes. Edits the Canvas if one exists, otherwise the project value. Undoable. |
+| **Device** (reads `Design` when no device is simulated) | Selects a target screen (iPhone, iPad, 1080p, …). In edit mode it draws the screen's aspect as letterbox bars and safe-area insets; in play mode the running game is letterboxed to the same shape, in the scene view and the Game panel. The design resolution is not changed. |
+| **Orientation** (Device dropdown) | Swaps the device's width and height. Disabled while `Design` is selected. |
+| **Camera Fit** (Settings → Project → Game → Display) | How the main camera scales the design resolution, independent of any Canvas. `None` (default) keeps the camera's own `orthoSize`; other modes letterbox identically on every device, and the device preview shows the actual framing. |
 
-![A scene running in the viewport, framed to the selected target screen rather than to the panel's own shape](@/assets/guides/en/game-target-screen.png)
+`Design` means no simulation: the game fills the available panel area. Selecting a device applies its shape to both
+the edit overlay and the running game.
+
+![A scene running in the scene view, framed to the selected target screen rather than to the panel's shape](@/assets/guides/en/game-target-screen.png)
 
 ### Project screen presets
 
-The built-in device list is a guess. A team that ships to specific hardware corrects it
-in **Settings → Project → Game → Advanced → Screen presets** (settings you set once per project
-sit under the page's **Advanced** fold): add a row with an id, a name and the
-portrait size, and it joins the dropdown for everyone who opens the project.
+**Settings → Project → Game → Advanced → Screen presets** extends or overrides the built-in device list for everyone
+who opens the project:
 
-- **Id** is what a saved selection resolves through, so keep it stable. Reusing a built-in
-  id (`iphone`, `ipad`, `1080p`, `720p`) **replaces** that built-in rather than sitting
-  beside it — which is how a studio makes "iPhone" mean the exact handset it tests on.
-- **Sizes are stored portrait** (width ≤ height), like the built-ins, so the orientation
-  toggle means the same thing for every screen.
-- **Safe area** (the row's ▸ expander) sets the notch / home-indicator insets in device
-  pixels. Leave them at zero and nothing is written to the project file — the viewport's
-  *Safe area* overlay then has nothing to draw for that screen.
+- **Id** — the key a saved selection resolves through; keep it stable. Reusing a built-in id (`iphone`, `ipad`,
+  `1080p`, `720p`) replaces that built-in.
+- **Size** — stored in portrait orientation (width ≤ height), like the built-ins.
+- **Safe area** (row expander) — notch and home-indicator insets in device pixels. Zero insets are not written to the
+  project file.
 
-![Project Settings showing a screen preset row with its safe-area insets expanded](@/assets/guides/en/settings-screen-presets.png)
+![Project Settings → Game → Display → Advanced: two screen presets, Steam Deck and iPhone 15 Pro](@/assets/guides/en/settings-screen-presets.png)
 
-Presets live in `project.esproject`, so they are shared through version control:
+Presets are stored in `project.esproject`:
 
 ```json title="project.esproject"
 {

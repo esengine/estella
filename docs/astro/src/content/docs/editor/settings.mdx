@@ -1,82 +1,60 @@
 ---
-title: Project settings
-description: "Editor preferences and the project-wide settings saved into project.esproject — display, UI theme, physics, rendering layers and packaging."
+title: Settings
+description: Settings window reference — editor preferences stored per machine and project settings stored in project.esproject (display, UI theme, runtime tuning, rendering, physics, build and modules, configuration tables), and the editor language.
 ---
-Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. The window has two tabs,
-**Editor** and **Project**, and each is a short list of pages. Search at the top finds a
-setting on any page.
 
-- **Editor** — yours, kept on this machine:
-  - **General** — Appearance (**language**, accent color, interface font, UI scale),
-    Performance, Console, and the renderer backend.
-  - **Viewport** — grid, snapping, and the transform gizmos.
-  - **Shortcuts** — every shortcut below is rebindable here.
-  - **Tools and AI** — the external script / image editors and browser, and whether
-    [AI agents](/docs/agents/mcp/) may connect over MCP and change the project.
-- **Project** — saved into `project.esproject` and shared with whoever opens it:
-  - **Game** — **Display** (the project design resolution, which seeds new Canvases and
-    drives the device preview in any scene; the project-wide **screen orientation**, which
-    every export target honors and which, unset, is derived from the design resolution's
-    aspect; the **camera fit**, how the main camera scales the design resolution
-    without a UI Canvas — `None` = off; and the **render resolution**, whether the scene is
-    drawn at the screen's size, at the design resolution or at an integer multiple of it and
-    then scaled to the screen), **UI** (the widget **theme**, dark or light, and
-    per-role **Theme Colors** overrides, applied identically in the editor, Play, and every
-    export — see [UI widgets — theming](/docs/ui/widgets/#theming)), **Audio**, **Spine** and **Runtime** (the engine's tuning, below).
-  - **Rendering** — up to thirty-two named sorting layers that populate the inspector's
-    layer dropdown, and which of them y-sort. The names are suggestions, not a limit:
-    a render `layer` still accepts a number outside them. Quality tiers and the project
-    environment live here too, with the choices about delivery: compiling shaders in the
-    background, warming them up behind the loading screen, and drawing only frames that
-    change (see [Quality levels](/docs/performance/quality-levels/#shader-compilation-and-render-on-demand)).
-    Under **Render Scheduling**, enable **Dedicated render thread** for native builds
-    and cross-origin isolated web builds, or **GPU async compute** for supported native
-    Metal devices. Both switches default to off. Use the local browser preview to try
-    the web render thread.
-  - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
-    matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
-    speed, sleeping, continuous collision). See [Physics](/docs/gameplay/physics/).
-  - **Build and modules** — per-target packaging metadata (WeChat AppID, Desktop app id /
-    product name, splash, achievements), the engine modules the project includes and, for
-    the web build, the **allowed server origins** — the servers (`wss://play.example.com`) the
-    page may open connections to. Without any, the page's Content-Security-Policy allows only
-    its own origin.
-  - **Configuration tables** — the optional **Luban** (designers keep tables in Excel; the
-    editor generates the JSON and TypeScript the game reads) and **Protobuf** (messages written
-    in `.proto` files become TypeScript types and a compact binary codec) tools. Each is off by
-    default: off, the editor looks for nothing and downloads nothing; on, it checks the tool is
-    installed (asking before it downloads anything) and keeps the generated code current.
+**Ctrl / ⌘ + ,** or the Activity Bar gear opens Settings. The window has two scopes, **Editor** and **Project**, each
+divided into pages; the search field finds settings on any page. Settings changed once per project (screen presets,
+solver tuning, theme colours, module switches, AI provider endpoints) are under each page's **Advanced** fold.
 
-Settings you set once and then leave alone — screen presets, solver tuning, the theme's
-colors, the module switches, the endpoints of your own AI providers — sit under a page's
-**Advanced** fold, so a page's body is what people actually touch.
+![The Settings window on the Editor scope: Editor / Project tabs, page list, search field](@/assets/guides/en/settings-window.png)
 
-![The Settings window on its Editor tab, with the Editor and Project tabs, the page list and a search box](@/assets/guides/en/settings-window.png)
+## Editor scope
 
-*The Settings window. **Editor** settings are yours and stay on this machine; **Project** settings travel with the project.*
+Stored on this machine.
+
+| Page | Content |
+|---|---|
+| **General** | Appearance (language, accent colour, interface font, UI scale), performance, console, renderer backend. |
+| **Viewport** | Grid, snapping, transform gizmos. |
+| **Shortcuts** | Rebinding of every shortcut ([Keyboard shortcuts](/docs/editor/shortcuts/)). |
+| **Tools and AI** | External script and image editors and browser; whether [AI agents](/docs/agents/mcp/) may connect over MCP and modify the project. |
+
+## Project scope
+
+Stored in `project.esproject` and shared with the project.
+
+| Page | Content |
+|---|---|
+| **Game** | **Display**: design resolution (seeds new Canvases, drives the device preview), screen orientation (honoured by every export target; derived from the design resolution when unset), camera fit (`None` = off), render resolution (screen size, design resolution, or an integer multiple scaled to the screen). **UI**: widget theme (dark / light) and per-role theme colours, applied identically in editor, play and exports ([Theming](/docs/ui/theming/)). **Audio**, **Spine**, **Runtime** (below). |
+| **Rendering** | Up to 32 named sorting layers (populate the layer dropdowns; numeric layers outside the list remain valid) and which of them y-sort; quality tiers; project environment; shader compilation in the background, warm-up behind the loading screen, render on demand ([Quality levels](/docs/performance/quality-levels/#shader-compilation-and-render-on-demand)). **Render Scheduling**: *Dedicated render thread* (native builds and cross-origin-isolated web builds) and *GPU async compute* (supported native Metal devices); both off by default. |
+| **Physics** | Enable, gravity, 16 collision-layer names and the 16×16 collision matrix, solver tuning (fixed timestep, sub-steps, contact Hz / damping / push speed, sleeping, continuous collision). See [Physics](/docs/gameplay/physics/). |
+| **Build and modules** | Per-target packaging metadata (WeChat AppID, desktop app id and product name, splash, achievements), included engine modules, and for web builds the **allowed server origins** (e.g. `wss://play.example.com`); without entries the page's Content-Security-Policy allows only its own origin. |
+| **Configuration tables** | **Luban** (Excel tables → generated JSON and TypeScript) and **Protobuf** (`.proto` → TypeScript types and binary codec). Off by default; when on, the editor verifies the tool installation (asking before any download) and keeps generated code current. |
 
 ## Runtime
 
-**Project → Game → Runtime** holds the engine's own tuning, which used to be reachable only
-from code. The project file keeps only what differs from the engine's values, in
-`features.runtime`; every build ships the same block and Play applies it before the first
-asset loads. The edit viewport keeps the engine's values.
+**Project → Game → Runtime** exposes engine tuning. The project file stores only values that differ from the engine
+defaults, under `features.runtime`; builds ship the same block, and play mode applies it before the first asset loads.
+The edit scene view uses engine defaults.
 
-![Project Settings, Game page, Runtime section: the Scene Transition, Frame Limits, Cache Budgets and Text groups](@/assets/guides/en/settings-runtime.png)
+![Project Settings, Game page, Runtime section: Scene Transition, Frame Limits, Cache Budgets and Text groups](@/assets/guides/en/settings-runtime.png)
 
-The settings used least sit under the page's **Advanced** fold: **Most fixed steps per frame**, **Load timeout**, **Retry cooldown**, **Device-loss copies** and **Text canvas size**.
-
-| Group | Settings |
-|---|---|
-| **Scene Transition** | **Duration** (default 0.3 s) and **Colour** of the fade a scene switch uses when the call names none. |
-| **Frame Limits** | **Longest frame step** (0.25 s): a frame that took longer — a tab in the background, a stall — advances the game by this much, not by the time that really passed. **Most fixed steps per frame** (8): the cap on catch-up steps of the fixed-rate update (physics); past it the simulation slows down instead of spiralling. |
-| **Asset Loading** | **Load timeout** (30 s) before one asset's load fails, and **Retry cooldown** (5 s) before a failed asset is tried again. |
-| **Cache Budgets** | Memory kept for **Texture cache** (64 MiB of GPU memory for textures nothing uses right now), **Audio cache** (32 MiB of decoded clips) and **Device-loss copies** (16 MiB of CPU copies the device keeps to survive losing the GPU, past which it warns). 0 turns the first two off. |
-| **Text** | **Text canvas size** (512) the text is rasterised on, and the **Default font family** for a Text with none of its own. |
+| Group | Setting | Default | Description |
+|---|---|---|---|
+| Scene Transition | Duration, Colour | 0.3 s | Fade used by a scene switch that specifies none. |
+| Frame Limits | Longest frame step | 0.25 s | Upper bound on the simulated time of one frame (background tabs, stalls). |
+| | Most fixed steps per frame *(Advanced)* | 8 | Cap on fixed-rate catch-up steps; beyond it the simulation slows instead of spiralling. |
+| Asset Loading | Load timeout *(Advanced)* | 30 s | Time before an asset load fails. |
+| | Retry cooldown *(Advanced)* | 5 s | Delay before a failed asset is retried. |
+| Cache Budgets | Texture cache | 64 MiB | GPU memory for textures not currently in use; 0 disables. |
+| | Audio cache | 32 MiB | Decoded audio clips; 0 disables. |
+| | Device-loss copies *(Advanced)* | 16 MiB | CPU copies kept to survive GPU device loss; warns beyond it. |
+| Text | Text canvas size *(Advanced)* | 512 | Rasterisation canvas size. |
+| | Default font family | — | Font for `Text` components without their own. |
 
 ## Editor language
 
-The editor ships in **English** and **简体中文** and follows your system language on
-first launch. Switch it under **Settings → Editor → General → Appearance → Language** — the change
-applies after a reload (the editor prompts for one). The editor's UI strings run on
-the same [localization engine](/docs/assets/localization/) your game uses at runtime.
+The editor is available in **English** and **简体中文** and follows the system language on first launch. Change it in
+**Settings → Editor → General → Appearance → Language**; the change applies after a reload, which the editor prompts
+for. Editor strings use the same [localization engine](/docs/assets/localization/) as games at runtime.

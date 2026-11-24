@@ -1,101 +1,74 @@
 ---
 title: Play in the editor
-description: "Running the game inside the editor in an isolated realm, the play-mode options, and autosave & crash recovery."
+description: Play mode reference — play controls and modes, multiplayer play with a listen server, the running world in the Outliner, Inspect, keeping play-time changes, phone preview over the LAN, and autosave recovery.
 ---
-The **Play** controls in the toolbar run your game:
 
-- **Play** starts the game; while running the same button becomes **Stop**, with
-  **Restart** and **Pause/Resume** as side buttons.
-- The play-mode dropdown chooses **Play In Viewport** (the game hosts over the viewport)
-  or **Play In New Window** (a dedicated **Game** tab), and toggles **Maximize Viewport on
-  Play** — which hands the whole workspace to the running game and restores your layout on
-  Stop.
-- The same dropdown picks **Single Player** or **2 / 3 / 4 Players (Listen Server)**:
-  with more than one, the first realm boots as the listen server and each extra
-  player gets a client realm wired to it by in-editor replication, so a networked
-  game can be tried without leaving the editor.
-- A running game reads as a soft accent ring around the viewport (amber, with the frame
-  dimmed, when paused) — not a badge over the game.
-- Shortcuts: **F5** play, **Esc** stop, **F6** pause/resume, **Shift+F5** restart, and
-  **F11** to maximize/restore the viewport at any time.
+Play mode runs the game in an isolated realm, using the same runtime as shipped builds.
 
-Because play uses an isolated realm — the same runtime that ships your game — what you
-see in play is what a player gets.
+## Controls
 
-![The play mode menu: play in viewport or a new window, maximize on play, and single player or two to four players with a listen server](@/assets/guides/en/play-mode-menu.png)
+| Control | Function | Shortcut |
+|---|---|---|
+| Play / Stop | Start; while running, stop | **F5** / **Esc** |
+| Pause / Resume | | **F6** |
+| Restart | | **Shift + F5** |
+| Maximize | Maximize or restore the scene view | **F11** |
+| Inspect | Editor takes the pointer over the running game | **F8** |
 
-*The menu beside **Play**.*
+The play-mode menu beside Play selects:
 
-## The Outliner while playing
+| Option | Values |
+|---|---|
+| Host | **Play In Viewport** (over the scene view) or **Play In New Window** (a dedicated Game tab) |
+| Maximize Viewport on Play | Gives the whole workspace to the game; the layout is restored on Stop |
+| Players | **Single Player**, or **2 / 3 / 4 Players (Listen Server)**: the first realm runs as listen server, each further player as a client realm connected by in-editor replication |
 
-There is one hierarchy, not two. While the game runs the Outliner shows the **running
-world**, and a row that came from your scene keeps the identity it had before Play — so
-what you had expanded stays expanded, what you had selected stays selected, and the
-Inspector tracks that entity's live values. Entities the game spawned appear under a
-**Runtime** group; they are gone on Stop, as are any values you tweak while playing.
+![The play-mode menu: Play In Viewport / New Window, Maximize Viewport on Play, Single Player or 2–4 players with a listen server](@/assets/guides/en/play-mode-menu.png)
 
-Authoring is the document's, so it waits for Stop: while playing you can select, search,
-fold and hide rows, but not rename, reparent, create or delete.
+A running game is indicated by an accent ring around the scene view (amber, with the frame dimmed, while paused).
 
-## Moving things while the game runs
+## The running world in the Outliner
 
-Turn on **Inspect** (above the game, or **F8**) and the selected entity is outlined on
-the running frame, and the pointer belongs to the editor instead of the game: click to select what is
-under it, then move, turn or resize it with the transform tools, which appear beside the
-frame while Inspect is on and answer to the same **W / E / R** keys they do when
-editing. It is off by default, because a game you cannot click is not a game. With
-Inspect off nothing is drawn over the running game; a new selection shows where it is
-for a moment.
+During play the Outliner shows the running world. Entities that came from the scene keep their identity, so
+expansion, selection and the Details view carry over. Entities spawned by the game appear under a **Runtime** group
+and are removed on Stop.
 
-The running world is what answers all of this — where the entity is drawn, what is under
-the pointer, where a drag lands — so it is the game's own camera doing the projection,
-and a moved entity ends up where the game will draw it. As with any play-time edit, it
-lasts until Stop.
+Structural edits wait for Stop: during play, rows can be selected, searched, folded and hidden, but not renamed,
+reparented, created or deleted. Field edits apply to the running world and end at Stop unless kept (below).
 
-## Keeping what you changed
+## Inspect
 
-Play-time edits end at Stop — that is what makes them safe to make. But the scene
-document is never destroyed while the game runs, so the work does not have to be
-thrown away: if you changed anything, Stop offers to **keep** it, and the Output Log
-lists exactly what that would be. Keeping is one undo step.
+With **Inspect** on (above the game, or **F8**), the pointer belongs to the editor: click to select under the cursor,
+and move, rotate or scale with the transform tools (**W / E / R**), which appear beside the frame. Picking and dragging
+are resolved by the running world and the game's own camera, so a moved entity lands where the game draws it. Inspect
+is off by default; with it off, nothing is drawn over the game.
 
-What gets kept is the FIELD's value as the running world holds it at Stop, for each
-field you touched. So dragging one axis of a position keeps the position — including
-an axis a script was driving. The log line shows the value before you decide.
+## Keeping play-time changes
 
-Entities the game spawned cannot be kept: the scene has no row to write them to. Those
-are counted in the log rather than silently dropped.
+If fields were changed during play, Stop offers to **keep** them; the Output Log lists each change with its value
+before the decision. Keeping applies each touched field's value as the running world holds it at Stop (including axes
+driven by scripts) as one undo step. Entities spawned by the game cannot be kept; they are counted in the log.
 
-## Preview on a phone
+## Phone preview
 
-Click **Scan Preview** beside Play to save the current scene and prepare a Web
-preview. Connect your phone to the same network and scan the QR code. The phone
-browser runs the project itself; 2D and 3D use the same runtime and entry point.
+**Scan Preview** saves the scene, builds a web preview and serves it on the LAN with a QR code. The phone browser runs
+the project with the same runtime for 2D and 3D.
 
-The compact popover provides the address, connected-device count and Stop.
-**More Settings** lets you select a saved scene and LAN interface, rebuild, and
-inspect connection or reload errors. Close the popover or settings to keep
-previewing; Stop, switching projects or closing the editor invalidates the link.
-Each session generates a new access token. This preview has no public tunnel.
+- The popover shows the address, connected devices and Stop. **More Settings** selects the scene and network interface,
+  rebuilds, and reports connection and reload errors.
+- Each session issues a new access token; there is no public tunnel. Stop, switching projects or closing the editor
+  invalidates the link.
+- Saving scenes or assets rebuilds and refreshes connected browsers. Script saves are hot-swapped when the schema is
+  compatible; structural changes reload the page with the reason reported. A failed build leaves the previous preview
+  available.
+- Preview builds skip AOT and asset compression. Without WebGPU on the browser origin, the preview falls back to
+  WebGL2; the project's shipping backend setting is unchanged.
+- The page may connect to the same servers as play mode. Web exports are restricted to
+  **Project Settings → Allowed server origins**.
 
-The page on the phone may connect wherever Play may, so a game that logs in to a server
-on your LAN works there too. A shipping web export is stricter: it connects only to the
-servers listed in **Project Settings → Allowed server origins**.
+## Autosave and recovery
 
-Saving scenes or assets rebuilds and refreshes connected browsers. Script saves
-use the existing schema probe and system hot swap to retain the running world
-when compatible. Structural changes reload the page and report why. A failed
-build leaves the previous completed preview available. Preview builds skip AOT
-and asset compression. Native and minigame device deployment uses its own tools.
-If the browser origin cannot provide WebGPU, preview uses the existing WebGL2
-backend. The project's shipping backend setting stays unchanged.
-
-## Autosave & recovery
-
-The editor periodically snapshots your **unsaved** documents — only when there are
-unsaved changes and no Play session is running — so a crash or power loss never costs
-more than the last few moments of work. A snapshot is kept in your project's workspace
-folder and never counts as a real save. The next time you open the project, if a
-snapshot is newer than the file on disk, the editor offers to **restore** it; saving the
-document supersedes its snapshot. This sits alongside the crash minidump and the
-automatic reload if the GPU render process is lost.
+The editor periodically snapshots unsaved documents (only when there are unsaved changes and no play session is
+running) into the project's workspace folder. Snapshots are not saves. On the next open, a snapshot newer than the file
+on disk is offered for **restore**; saving the document supersedes its snapshot. This complements crash minidumps and
+the automatic reload after GPU process loss.

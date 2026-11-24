@@ -1,32 +1,63 @@
 ---
 title: Asset editors
-description: "The document editors behind a double-click: the Sequencer, tilemap mode, the tileset editor, and the state-machine, behavior-tree and material graphs."
+description: Document editors opened from the Content Browser — Sequencer, tilemap mode and Tile Palette, tileset editor, state machine and behaviour tree graphs, script graphs and the material graph — and the shared node-canvas controls.
 ---
-Double-click an asset in the Content Browser to open its editor in a document tab.
 
-- **Sequencer** edits keys and curves in `.estimeline` files. [Animate a move with two keys](/docs/animation/timeline/#animate-a-move-with-two-keys).
-- **Tilemap mode** — a **Tile Palette** panel beside the Content Browser, with tools in the viewport toolbar for **brush, erase, rectangle, ellipse, line, bucket, select,
-  eyedropper**, and **terrain (autotile)**, saved **stamps**, a **Replace tiles…** command (swap one
-  tile ID for another across a layer or a selection), plus stamp **flip-H / flip-V / rotate-90°**
-  (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode** (`D`). The
-  palette selects with the arrow keys (`Shift` grows a multi-tile stamp), and maps can
-  be **orthogonal, isometric, staggered, or hexagonal**. See
-  [Tilemaps](/docs/world/tilemaps/).
-- **Tileset editor** — author per-tile **collision** (box, circle, polygon, slope
-  presets; one-way / sensor / material modifiers) with **direct-manipulation** shape
-  editors on a magnified tile: drag a circle's **centre or radius**, **click-add / drag /
-  click-delete** a polygon's **vertices**, and pick a **one-way** platform's solid side
-  (top / bottom / left / right) — resizing keeps the sensor / material / density modifiers.
-  Also **terrain** sets for autotiling (edge/corner peering or multi-color **corner
-  Wang**), per-tile **probability** weights and properties, and **animated tiles** — drag
-  frame thumbnails to **reorder**, or set the whole loop to **one uniform duration**, with
-  a live preview.
-- **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
-  for AI. See [Gameplay AI](/docs/gameplay/ai/overview/).
-- **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
-  [Materials & Shaders](/docs/graphics/materials/).
+Double-clicking an asset in the Content Browser opens its editor as a document tab beside the scene view.
 
-The State Machine and Behavior Tree editors share a common node canvas: **middle-drag**
-to pan, **wheel** to zoom toward the cursor, drag an output handle onto another node to
-connect them, click to select a node or edge, **Delete** to remove it, and right-click
-the canvas to add a node at the cursor.
+| Asset | Editor | Chapter |
+|---|---|---|
+| `.estimeline` | Sequencer | [Timeline](/docs/animation/timeline/) |
+| `.estileset` | Tileset editor | [Tilemaps](/docs/world/tilemaps/) |
+| `TilemapLayer` (selection) | Tilemap mode + Tile Palette | [Tilemaps](/docs/world/tilemaps/) |
+| `.esfsm` / `.esbt` | State machine / behaviour tree graph | [Gameplay AI](/docs/gameplay/ai/overview/) |
+| `.esgraph` | Script graph | [Script graphs](/docs/gameplay/script-graphs/) |
+| `.esmatgraph` | Material graph | [Materials & Shaders](/docs/graphics/materials/) |
+
+## Sequencer
+
+Edits keys and curves of a timeline: tracks bound to entities, dope sheet and curve editor. See
+[Animate a move with two keys](/docs/animation/timeline/#animate-a-move-with-two-keys).
+
+![The Sequencer dope sheet with tracks and keys](@/assets/guides/en/seq-dopesheet.png)
+
+## Tilemap mode
+
+Selecting a `TilemapLayer` (or the Tilemap Activity Bar icon) enables tilemap mode: a **Tile Palette** panel and
+painting tools in the scene view toolbar.
+
+| Feature | Description |
+|---|---|
+| Tools | Brush, erase, rectangle, ellipse, line, bucket, select, eyedropper, terrain (autotile) |
+| Stamps | Saved multi-tile stamps; flip H / flip V / rotate 90° (`H` / `V` / `R` with a paint tool active); random scatter (`D`) |
+| Replace tiles… | Replace one tile id with another across a layer or selection |
+| Palette | Arrow keys select; **Shift** extends a multi-tile stamp |
+| Grid orientation | Orthogonal, isometric, staggered, hexagonal |
+
+![Tilemap mode: the painting tools in the scene view toolbar and the Tile Palette](@/assets/guides/en/tilemap-tools.png)
+
+## Tileset editor
+
+| Feature | Description |
+|---|---|
+| Collision | Per-tile box, circle, polygon and slope shapes; one-way, sensor and material modifiers. Direct manipulation on a magnified tile: circle centre and radius, polygon vertices (click to add, drag, click to delete), one-way solid side. |
+| Terrain | Autotile sets: edge / corner peering or multi-colour corner Wang. |
+| Properties | Per-tile probability weights and custom properties. |
+| Animation | Animated tiles: reorder frames by dragging, uniform loop duration, live preview. |
+
+![The tileset editor: per-tile collision shapes edited on a magnified tile](@/assets/guides/en/tileset-collision.png)
+
+## Node graphs
+
+State machines, behaviour trees and script graphs share one node canvas:
+
+| Action | Input |
+|---|---|
+| Pan | Middle-drag |
+| Zoom | Wheel, toward the cursor |
+| Connect | Drag from an output handle onto a node |
+| Select | Click a node or edge |
+| Delete | **Delete** |
+| Add node | Right-click the canvas |
+
+![A behaviour tree in the node graph editor](@/assets/guides/en/ai-bt.png)

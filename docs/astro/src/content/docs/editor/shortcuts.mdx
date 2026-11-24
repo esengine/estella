@@ -1,19 +1,17 @@
 ---
 title: Keyboard shortcuts
-description: "Every default shortcut, all of them rebindable, plus the Command Palette and the editor keyboard navigation model."
+description: Default editor shortcuts (all rebindable), the Command Palette and Go to Anything, and keyboard navigation in menus, trees and palettes.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-`mod` is **⌘** on macOS and **Ctrl** elsewhere. All of these are rebindable under
-Settings → Editor → Shortcuts.
+`mod` is **⌘** on macOS and **Ctrl** elsewhere. All bindings can be changed in **Settings → Editor → Shortcuts**.
 
 | Action | Shortcut |
 |---|---|
 | New Scene | `mod + N` |
 | Open Project | `mod + O` |
-| Save Scene | `mod + S` |
-| Save Scene As | `mod + shift + S` |
+| Save Scene / Save Scene As | `mod + S` / `mod + shift + S` |
 | Undo / Redo | `mod + Z` / `mod + shift + Z` (or `mod + Y`) |
 | Duplicate | `mod + D` |
 | Copy / Cut / Paste | `mod + C` / `mod + X` / `mod + V` |
@@ -23,29 +21,34 @@ Settings → Editor → Shortcuts.
 | Universal Transform tool | `Y` |
 | Nudge selection (×10 with Shift) | Arrow keys |
 | Frame Selected | `F` |
-| Play · Stop | `F5` · `Esc` |
-| Pause/Resume · Restart | `F6` · `shift + F5` |
-| Inspect While Playing (toggle) | `F8` |
-| Maximize / restore viewport | `F11` |
+| Rename | `F2` |
+| Play / Stop | `F5` / `Esc` |
+| Pause / Resume, Restart | `F6`, `shift + F5` |
+| Inspect while playing | `F8` |
+| Maximize / restore scene view | `F11` |
 | Package Project… | `mod + shift + B` |
 | Go to Anything… | `mod + P` |
 | Command Palette | `mod + shift + P` |
 | Content Drawer | `mod + Space` |
-| Project Settings | `mod + ,` |
-| Zoom interface in / out / reset | `mod + =` / `mod + -` / `mod + 0` |
+| Settings | `mod + ,` |
+| Interface zoom in / out / reset | `mod + =` / `mod + -` / `mod + 0` |
 
-The **Command Palette** (`mod + shift + P`) fuzzy-searches every runnable command —
-the fastest way to reach any action without hunting through menus.
+## Command Palette
 
-Beyond the command shortcuts, the editor is keyboard-navigable throughout: menus
-and context menus move with the arrow keys (plus type-ahead, Home/End, and `→` /
-`←` for submenus), the Outliner jumps to entities as you type, the Content
-Browser's folder tree and the tile palette both walk with arrows, and keyboard
-focus is always shown with a visible focus ring.
+**Go to Anything** (`mod + P`) searches files, entities, panels, commands and settings; the **Command Palette**
+(`mod + shift + P`) opens it on the Command scope. Results show the command's category and shortcut; disabled commands
+are listed but greyed out.
+
+![The Command Palette on the Command scope: scope tabs All / Asset / Entity / Panel / Command / Setting, and commands with their category and shortcut](@/assets/guides/en/ed-command-palette.png)
+
+## Keyboard navigation
+
+- Menus and context menus: arrow keys, type-ahead, **Home** / **End**, `→` / `←` for submenus.
+- World Outliner: type-ahead to jump to an entity; arrows move, collapse and expand.
+- Content Browser folder tree and Tile Palette: arrow-key navigation.
+- Keyboard focus is always indicated by a focus ring.
 
 <Aside type="tip">
-  For headless automation and AI agents, the editor also exposes an
-  `EditorControlSurface` (load a scene, step the sim, read the scene tree/inspector,
-  capture the viewport) over an MCP server — a developer/automation surface driven from
-  scripts, separate from the visual editor above.
+  For automation and AI agents, the editor exposes an MCP server (load scenes, edit entities, step the simulation,
+  read the inspector, capture the scene view). See [AI agents (MCP)](/docs/agents/mcp/).
 </Aside>
