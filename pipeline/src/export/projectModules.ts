@@ -58,17 +58,19 @@ export interface ProjectModule {
 /**
  * Which build directory serves a target.
  *
- * `web` covers desktop and playable too — all three run the same web glue in the
- * same JS engine. Mini-game vendors share `wechat`, which is where the engine's
- * own WXWebAssembly builds already live; a vendor whose runtime genuinely
- * differs can be given its own directory by id, checked first.
+ * `web` covers playable too — both run the same web glue in the same JS engine
+ * (native targets declare and stage none; see `sideModuleDeclarations`).
+ * Mini-game vendors share `wechat`, which is where the engine's own
+ * WXWebAssembly builds already live; a vendor whose runtime genuinely differs
+ * can be given its own directory by id, checked first.
  */
 function buildDirNames(platform: ExportPlatform): string[] {
     if (platform === 'web' || platform === 'desktop' || platform === 'playable') return ['web'];
     if (platform === 'wechat') return ['wechat'];
     // A project's own mini-game vendor: its id first, then the WeChat build,
-    // which is what every mini-game host's toolchain is a variant of.
-    return [platform, 'wechat', 'web'];
+    // which is what every mini-game host's toolchain is a variant of. Never the
+    // web build: its glue expects WebAssembly, which a mini-game host does not have.
+    return [platform, 'wechat'];
 }
 
 interface ModuleManifest {

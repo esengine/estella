@@ -82,6 +82,10 @@ describe('discovery', () => {
     // Substituting the web one produces a package that fails on a device.
     await writeModule('rive', { builds: { web: ['rive.js', 'rive.wasm'] } });
     expect((await loadProjectModules(root, 'wechat'))[0].buildDir).toBeNull();
+    // Every mini-game vendor runs a WeChat-style host, so none of them may take it either.
+    for (const vendor of ['douyin', 'acme-play'] as const) {
+      expect((await loadProjectModules(root, vendor))[0].buildDir).toBeNull();
+    }
   });
 
   it('lets a project vendor use its own directory, else the wechat build', async () => {

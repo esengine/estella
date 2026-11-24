@@ -15,7 +15,7 @@ name in the generated mini-game entry, inlined in a playable, and loaded in Play
 ```
 <project>/.esengine/modules/rive/
   module.json          { "file": "rive", "globalName": "RiveModule" }
-  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
+  web/rive.js   rive.wasm      ← web, playable, and Play
   wechat/rive.js  rive.wasm    ← every mini-game vendor
 ```
 
@@ -69,7 +69,7 @@ every backend.
 |---|---|
 | Web, Playable | Staged from `web/` |
 | WeChat | Staged from `wechat/` |
-| Other mini-game hosts | Staged from a directory named for the vendor id, else `wechat/`, else `web/` |
+| Other mini-game hosts | Staged from a directory named for the vendor id, else `wechat/`; never `web/` |
 | Play (editor) | Loaded from `web/` |
 | Desktop, Android, iOS | **Not supported.** The native host links its modules into the app binary, so a module shipped with the content cannot load; the export warns and stages nothing. Build the module into the native host instead. |
 

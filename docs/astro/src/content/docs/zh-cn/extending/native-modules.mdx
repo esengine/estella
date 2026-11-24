@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 ```
 <project>/.esengine/modules/rive/
   module.json          { "file": "rive", "globalName": "RiveModule" }
-  web/rive.js   rive.wasm      ← web, desktop, playable, and Play
+  web/rive.js   rive.wasm      ← web, playable, and Play
   wechat/rive.js  rive.wasm    ← every mini-game vendor
 ```
 
@@ -59,7 +59,7 @@ const version = rive.cwrap('rive_version', 'string', [])() as string;
 |---|---|
 | 网页、Playable | 取自 `web/` |
 | 微信 | 取自 `wechat/` |
-| 其他小游戏宿主 | 依次取自以厂商 id 命名的目录、`wechat/`、`web/` |
+| 其他小游戏宿主 | 依次取自以厂商 id 命名的目录、`wechat/`；不使用 `web/` |
 | 运行模式（编辑器） | 从 `web/` 加载 |
 | 桌面、Android、iOS | **不支持。** 原生宿主将模块链接进应用二进制，随内容发布的模块无法加载；导出会给出警告且不打包任何模块。应将模块构建进原生宿主。 |
 
