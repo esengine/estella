@@ -11,7 +11,7 @@
 * @file    commands.ts
 * @brief   Deferred entity/component operations
 */
-import type { Entity } from '../types';
+import { INVALID_ENTITY, type Entity } from '../types';
 import { type AnyComponentDef, type ComponentDef, isBuiltinComponent } from './component';
 import type { World } from './world';
 import { type ResourceDef, ResourceStorage } from './resource';
@@ -118,7 +118,7 @@ export class EntityCommands {
     private readonly entityRef_: { entity: Entity };
     private readonly components_: SpawnComponentEntry[] = [];
     private readonly spawnName_?: string;
-    private isNew_: boolean;
+    private phase_: 'queued' | 'publishing' | 'existing';
     private parent_: Entity | null = null;
 
     constructor(commands: CommandsInstance, entity: Entity | null, name?: string) {
@@ -126,11 +126,11 @@ export class EntityCommands {
 
         if (entity === null) {
             this.entityRef_ = { entity: 0 as Entity };
-            this.isNew_ = true;
+            this.phase_ = 'queued';
             this.spawnName_ = name;
         } else {
             this.entityRef_ = { entity };
-            this.isNew_ = false;
+            this.phase_ = 'existing';
         }
     }
 
@@ -139,7 +139,7 @@ export class EntityCommands {
      *  be part of the comparison and the composition is. */
     describe(): string {
         const parts = this.components_.map((c) => `${c.component._name}=${stableText(c.data)}`).sort();
-        return `${this.isNew_ ? 'spawn' : `edit#${this.entityRef_.entity}`}`
+        return `${this.phase_ === 'existing' ? `edit#${this.entityRef_.entity}` : 'spawn'}`
             + `${this.spawnName_ ? `:${this.spawnName_}` : ''}`
             + `(${parts.join(',')})${this.parent_ === null ? '' : `<-${this.parent_}`}`;
     }
@@ -153,7 +153,7 @@ export class EntityCommands {
             instance = (component as ComponentDef<T>).create(data);
         }
 
-        if (this.isNew_) {
+        if (this.phase_ !== 'existing') {
             this.components_.push({ component, data: instance });
         } else {
             this.commands_.queueInsert(this.entityRef_.entity, component, instance);
@@ -163,7 +163,7 @@ export class EntityCommands {
     }
 
     remove(component: AnyComponentDef): this {
-        if (!this.isNew_) {
+        if (this.phase_ === 'existing') {
             this.commands_.queueRemove(this.entityRef_.entity, component);
         }
         return this;
@@ -175,7 +175,7 @@ export class EntityCommands {
      * only one half of the link.
      */
     childOf(parent: Entity): this {
-        if (this.isNew_) {
+        if (this.phase_ !== 'existing') {
             this.parent_ = parent;
         } else {
             this.commands_.queueSetParent(this.entityRef_.entity, parent);
@@ -183,22 +183,28 @@ export class EntityCommands {
         return this;
     }
 
+    /** The allocated handle, or INVALID_ENTITY once the queue's world has been replaced. */
     id(): Entity {
-        if (this.isNew_ && this.entityRef_.entity === 0) {
+        if (this.phase_ === 'queued' && this.entityRef_.entity === INVALID_ENTITY) {
             // Inside a running query the spawn cannot happen yet, but its identity
             // can: reserve it, and let the flush spawn into it. Outside one the
             // spawn lands now, as it always has.
             if (this.commands_.isWorldIterating()) this.entityRef_.entity = this.commands_.reserveEntity();
             else this.finalize();
         }
-        return this.entityRef_.entity;
+        return this.commands_.isCurrent() ? this.entityRef_.entity : INVALID_ENTITY;
     }
 
     finalize(): void {
-        if (this.isNew_) {
+        if (this.phase_ !== 'queued') return;
+        this.phase_ = 'publishing';
+        try {
             this.commands_.spawnImmediate(this.components_, this.entityRef_, this.spawnName_, this.parent_);
-            this.isNew_ = false;
+            this.phase_ = 'existing';
             this.parent_ = null;
+        } catch (error) {
+            this.phase_ = 'queued';
+            throw error;
         }
     }
 }
@@ -211,18 +217,28 @@ export class EntityCommands {
  * The command queue a system declared with {@link Commands}. Records structural
  * work — spawn, despawn, add or remove a component, install a resource — and
  * applies it when the system returns, so nothing moves under a running query.
+ * If the world restarts during the run, the outgoing queue discards its remaining work.
  *
  * @public
  */
 export class CommandsInstance {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
+    private readonly lifetime_: symbol;
     private pending_: Command[] = [];
     private spawned_: EntityCommands[] = [];
+    private nextSpawn_ = 0;
+    private nextCommand_ = 0;
 
     constructor(world: World, resources: ResourceStorage) {
         this.world_ = world;
         this.resources_ = resources;
+        this.lifetime_ = world.entityLifetime;
+    }
+
+    /** @internal A builder and its queue share the entity population of the invocation that created them. */
+    isCurrent(): boolean {
+        return this.world_.entityLifetime === this.lifetime_;
     }
 
     spawn(name?: string): EntityCommands {
@@ -242,12 +258,10 @@ export class CommandsInstance {
 
     /**
      * A world-level service, for the work no component write can express.
-     * Null where nothing installed it — an app assembled without that plugin
-     * is a fact to report, not a crash. Here rather than on each context
-     * because this is the one door every authored surface already holds.
+     * Returns null when the service is absent or the invocation's world has retired.
      */
     resource<T>(def: ResourceDef<T>): T | null {
-        return this.resources_.has(def) ? this.resources_.get(def) : null;
+        return this.isCurrent() && this.resources_.has(def) ? this.resources_.get(def) : null;
     }
 
     insertResource<T>(resource: ResourceDef<T>, value: T): this {
@@ -278,7 +292,7 @@ export class CommandsInstance {
 
     /** @internal An identity for a spawn that will be applied at flush. */
     reserveEntity(): Entity {
-        return this.world_.reserveEntity();
+        return this.isCurrent() ? this.world_.reserveEntity() : INVALID_ENTITY;
     }
 
     /** @internal How EntityCommands applies a deferred spawn — `entityRef` is the
@@ -290,16 +304,21 @@ export class CommandsInstance {
         parent?: Entity | null,
     ): void {
         // A reserved id (see EntityCommands.id) is spawned into, not replaced.
-        let entity = entityRef.entity;
-        if (entity !== 0 && this.world_.valid(entity)) this.world_.commitReservedSpawn(entity, name);
-        else entity = this.world_.spawn(name);
-        entityRef.entity = entity;
+        if (!this.isCurrent()) return;
+        if (entityRef.entity !== INVALID_ENTITY && this.world_.valid(entityRef.entity)) {
+            this.world_.commitReservedSpawn(entityRef.entity, name);
+        } else {
+            // An onSpawn observer can ask the same builder for its id.
+            this.world_.spawnImmediate(name, entity => { entityRef.entity = entity; });
+        }
+        const entity = entityRef.entity;
 
         for (const entry of components) {
+            if (!this.isCurrent()) return;
             this.world_.insert(entity, entry.component, entry.data as Record<string, unknown>);
         }
 
-        if (parent !== null && parent !== undefined) {
+        if (parent != null && this.isCurrent()) {
             this.world_.setParent(entity, parent);
         }
     }
@@ -317,19 +336,27 @@ export class CommandsInstance {
     }
 
     flush(): void {
-        for (const ec of this.spawned_) {
-            ec.finalize();
-        }
-        this.spawned_.length = 0;
-
-        for (const cmd of this.pending_) {
-            try {
-                this.executeCommand(cmd);
-            } catch (e) {
-                log.warn('commands', `Failed to execute command: ${cmd.type}`, e);
+        // Advance before calling out. A listener can flush newly queued work synchronously.
+        while (this.nextSpawn_ < this.spawned_.length) {
+            const spawn = this.spawned_[this.nextSpawn_++]!;
+            try { spawn.finalize(); }
+            catch (error) {
+                // A nested flush may already have drained the list. The failing builder still owns its id.
+                if (!this.spawned_.includes(spawn)) this.spawned_.push(spawn);
+                this.nextSpawn_ = 0;
+                throw error;
             }
         }
+        this.spawned_.length = 0;
+        this.nextSpawn_ = 0;
+
+        while (this.nextCommand_ < this.pending_.length && this.isCurrent()) {
+            const cmd = this.pending_[this.nextCommand_++]!;
+            try { this.executeCommand(cmd); }
+            catch (e) { log.warn('commands', `Failed to execute command: ${cmd.type}`, e); }
+        }
         this.pending_.length = 0;
+        this.nextCommand_ = 0;
     }
 
     private executeCommand(cmd: Command): void {

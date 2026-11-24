@@ -41,19 +41,23 @@ function editorBridge(): EditorBridge | null {
     return getDefaultContext().editorBridge;
 }
 
+/** Whether the caller can continue publishing into the world that delivered this notification. */
 function notifyBridge<K extends keyof EditorBridge>(
+    world: World,
     method: K,
     ...args: Parameters<NonNullable<EditorBridge[K]>>
-): void {
+): boolean {
     const bridge = editorBridge();
-    if (!bridge) return;
+    if (!bridge) return true;
     const fn = bridge[method] as ((...a: unknown[]) => void) | undefined;
-    if (typeof fn !== 'function') return;
+    if (typeof fn !== 'function') return true;
+    const lifetime = world.entityLifetime;
     try {
         fn.apply(bridge, args as unknown[]);
     } catch (e) {
         log.warn('world', `EditorBridge.${String(method)} threw`, e);
     }
+    return world.entityLifetime === lifetime;
 }
 
 export { PTR_LAYOUTS } from '../wasm/ptrLayouts.generated';
@@ -228,7 +232,7 @@ export class World {
     /** Allocation order, updated on an explicit reorder. Generation is part of the entity handle. */
     private readonly entities_ = new Map<Entity, number>();
     private nextEntityRank_ = 0;
-    private reservedEntities_?: Set<Entity>;
+    private reservedSpawns_?: { lifetime: symbol; entities: Set<Entity> };
     /** Worlds that only query components keep their cached hits across bare spawns. */
     private tracksPopulation_ = false;
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
@@ -260,7 +264,10 @@ export class World {
         options?: BridgeConnectOptions,
     ): void {
         // A populated JS-only World can already have entity owners before a host attaches its first registry.
-        if (!this.hasCpp && this.entities_.size && (this.coreDisconnect_.size || this.despawning_?.active.length)) this.builtin_.disconnect();
+        if (!this.hasCpp && this.entities_.size
+            && (this.coreDisconnect_.size || this.despawning_?.active.length || this.reservedSpawns_?.entities.size)) {
+            this.builtin_.disconnect();
+        }
         this.addressOf_.clear();
         this.builtin_.connect(cppRegistry, module, options);
         for (const e of this.scripts_.getStorageById(Disabled._id)?.keys() ?? []) cppRegistry.setEntityEnabled?.(e, false);
@@ -291,6 +298,8 @@ export class World {
             this.lifetimeRegistry_ = registry;
             this.lifetimeReset_ = reset;
             this.entityLifetime_ = Symbol();
+            // A native clear already returned these slots. Only their SDK rows are still ours.
+            if (this.reservedSpawns_) this.releaseReservedSpawns_();
         }
         return this.entityLifetime_;
     }
@@ -322,6 +331,7 @@ export class World {
                         try { dispose(); } catch (error) { log.warn('world', 'Core disconnect callback error', error); }
                     }
                 },
+                () => this.releaseReservedSpawns_(this.getCppRegistry()),
                 // Disconnect listeners may have made a final engine write of their own.
                 () => this.flushEngineStamps(),
                 () => this.releaseStampBuffer_(),
@@ -403,14 +413,32 @@ export class World {
         if (this.speculation_) {
             throw new Error('Cannot reserve an entity inside a speculation.');
         }
+        if (this.builtin_.disconnecting) return INVALID_ENTITY;
+        const lifetime = this.entityLifetime;
+        if (this.lifetimeReset_ === -1) return INVALID_ENTITY;
         const entity = this.allocateEntity_();
-        (this.reservedEntities_ ??= new Set()).add(entity);
+        (this.reservedSpawns_ ??= { lifetime, entities: new Set() }).entities.add(entity);
         return entity;
     }
 
     /** @internal Finish a spawn begun by {@link reserveEntity}. */
     commitReservedSpawn(entity: Entity, name?: string): void {
-        if (this.reservedEntities_?.delete(entity)) this.commitSpawn_(entity, name);
+        const reserved = this.reservedSpawns_;
+        if (reserved && reserved.lifetime === this.entityLifetime && reserved.entities.delete(entity)) {
+            this.commitSpawn_(entity, name);
+        }
+    }
+
+    private releaseReservedSpawns_(registry?: CppRegistry | null): void {
+        const reserved = this.reservedSpawns_;
+        if (!reserved) return;
+        const entities = [...reserved.entities];
+        for (const entity of entities) this.discardEntityRow_(entity);
+        this.reservedSpawns_ = undefined;
+        // Native destroy callbacks can clear the same registry and immediately reuse every number.
+        if (registry) disposeAll(entities, entity => {
+            if (reserved.lifetime === this.entityLifetime) registry.destroy(entity);
+        });
     }
 
     private allocateEntity_(): Entity {
@@ -433,29 +461,28 @@ export class World {
 
         // A registry replacement or bulk clear can allocate an identical packed
         // handle. Its first SDK row starts at the new entity's insertion rank.
-        if (this.entities_.has(entity)) {
-            this.pendingAssetFields_?.remove(entity);
-            this.names_.remove(entity);
-            this.forgetEntity_(entity);
-        }
+        if (this.entities_.has(entity)) this.discardEntityRow_(entity);
         this.entities_.set(entity, this.nextEntityRank_++);
         this.indexGeneration_.set(entityIndex(entity), entityGeneration(entity));
         return entity;
     }
 
     private commitSpawn_(entity: Entity, name?: string): void {
+        const lifetime = this.spawnCallbacks_.length || editorBridge() ? this.entityLifetime : undefined;
         this.queries_.markStructuralChange();
         if (this.tracksPopulation_) this.queries_.markComponentDirty(ENTITY_POPULATION);
 
         if (name !== undefined) {
             this.insert(entity, Name, { value: name });
+            if (lifetime !== undefined && this.entityLifetime !== lifetime) return;
         }
 
         for (const cb of this.spawnCallbacks_) {
             try { cb(entity); } catch (e) { log.warn('world', 'Spawn callback error', e); }
+            if (this.entityLifetime !== lifetime) return;
         }
 
-        notifyBridge('onEntitySpawned', entity, name);
+        notifyBridge(this, 'onEntitySpawned', entity, name);
     }
 
     /**
@@ -550,10 +577,7 @@ export class World {
                 if (!this.valid(entity)) { cursor.index--; continue; }
                 this.pendingAssetFields_?.remove(entity);
                 cursor.phase = 'notify';
-                if (editorBridge()?.onEntityDespawned) {
-                    notifyBridge('onEntityDespawned', entity);
-                    if (this.entityLifetime !== lifetime) return;
-                }
+                if (!notifyBridge(this, 'onEntityDespawned', entity)) return;
             }
             if (cursor.phase === 'notify') {
                 const observers = cursor.observers ??= this.despawnCallbacks_;
@@ -593,10 +617,16 @@ export class World {
         }
     }
 
+    private discardEntityRow_(entity: Entity): void {
+        this.pendingAssetFields_?.remove(entity);
+        this.names_.remove(entity);
+        this.forgetEntity_(entity);
+    }
+
     private forgetEntity_(entity: Entity): void {
         this.entities_.delete(entity);
         this.queries_.markStructuralChange();
-        const wasReserved = this.reservedEntities_?.delete(entity);
+        const wasReserved = this.reservedSpawns_?.entities.delete(entity);
         if (!wasReserved && this.tracksPopulation_) this.queries_.markComponentDirty(ENTITY_POPULATION);
 
         // Dirty exactly the component versions this entity carried so its
@@ -889,7 +919,7 @@ export class World {
         }
         const linkedParent = parent === INVALID_ENTITY ? null : parent;
         this.trackHierarchyWrite_(child, linkedParent);
-        notifyBridge('onParentChanged', child, linkedParent);
+        notifyBridge(this, 'onParentChanged', child, linkedParent);
         return true;
     }
 
@@ -907,7 +937,7 @@ export class World {
             }
         }
         this.trackHierarchyWrite_(entity, null);
-        notifyBridge('onParentChanged', entity, null);
+        notifyBridge(this, 'onParentChanged', entity, null);
     }
 
     /** `entity`'s children, snapshotted out of the wasm vector that holds them. */
@@ -947,7 +977,11 @@ export class World {
             return this.has(entity, Parent) ? this.get(entity, Parent) : { entity: INVALID_ENTITY };
         }
         const listed = (data as Partial<ChildrenData> | undefined)?.entities ?? [];
-        for (const child of listed) this.setParent(child as Entity, entity);
+        const lifetime = this.entityLifetime;
+        for (const child of listed) {
+            this.setParent(child as Entity, entity);
+            if (this.entityLifetime !== lifetime) return { entities: [] };
+        }
         return { entities: this.builtin_.hasCpp ? this.childEntitiesOf_(entity) : [...listed] };
     }
 
@@ -1053,27 +1087,16 @@ export class World {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }
             }
-            this.recordComponentWrite_(entity, component);
+            if (!this.recordComponentWrite_(entity, component)) return;
             const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, kind !== 'replace', edited);
-            notifyBridge('onComponentChanged', entity, component._name);
-            start?.();
+            if (notifyBridge(this, 'onComponentChanged', entity, component._name)) start?.();
             return;
         }
         // Insert-or-replace means the ADD case owes the same bookkeeping insert
         // does, or a warmed query never learns the entity matched. The builtin
         // branch above says so; this one did not.
         const { isNew } = this.scripts_.set(entity, component as ComponentDef<any>, data);
-        if (isNew) {
-            this.queries_.markComponentDirty(component._id);
-            this.queries_.markStructuralChange();
-            this.changes_.recordAdded(component, entity);
-            notifyBridge('onComponentAdded', entity, component._name);
-        }
-        this.recordComponentWrite_(entity, component);
-        if ((component as ComponentDef<any>)._id === Name._id) {
-            this.names_.update(entity, (data as { value: string }).value);
-        }
-        notifyBridge('onComponentChanged', entity, component._name);
+        this.finishComponentWrite_(entity, component, data, isNew);
     }
 
     /**
@@ -1096,13 +1119,16 @@ export class World {
         };
     }
 
-    private notifyAssetFields_(entity: Entity, component: AnyComponentDef): void {
+    private notifyAssetFields_(entity: Entity, component: AnyComponentDef): boolean {
         if (this.assetFieldObservers_ && component.assetFields?.length) {
+            const lifetime = this.entityLifetime;
             for (const observer of this.assetFieldObservers_) {
                 try { observer(entity, component); }
                 catch (error) { log.warn('world', `Asset field observer failed for ${component._name}`, error); }
+                if (this.entityLifetime !== lifetime) return false;
             }
         }
+        return true;
     }
 
     /**
@@ -1195,7 +1221,7 @@ export class World {
             if ((component as ComponentDef<any>)._id === Name._id) {
                 this.names_.update(entity, (draft as { value: string }).value);
             }
-            notifyBridge('onComponentChanged', entity, component._name);
+            notifyBridge(this, 'onComponentChanged', entity, component._name);
         }
     }
 
@@ -1276,7 +1302,11 @@ export class World {
             return;
         }
         if (component._id === Children._id) {
-            for (const child of this.childEntitiesOf_(entity)) this.removeParent(child);
+            const lifetime = this.entityLifetime;
+            for (const child of this.childEntitiesOf_(entity)) {
+                this.removeParent(child);
+                if (this.entityLifetime !== lifetime) break;
+            }
             return;
         }
 
@@ -1286,15 +1316,14 @@ export class World {
             this.changes_.recordRemoved(component, entity);
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
-            this.notifyAssetFields_(entity, component);
-            notifyBridge('onComponentRemoved', entity, component._name);
+            if (this.notifyAssetFields_(entity, component)) notifyBridge(this, 'onComponentRemoved', entity, component._name);
         } else {
             this.removeScript_(entity, component as ComponentDef<any>);
         }
     }
 
     // =========================================================================
-    // Builtin Component Insert (delegates to BuiltinBridge)
+    // Component storage and write notifications
     // =========================================================================
 
     private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
@@ -1302,36 +1331,30 @@ export class World {
         const refs = this.takeAssetRefs_(component, raw);
         const { merged, isNew } = this.builtin_.insert(entity, component, (refs?.clean ?? data) as Partial<T>);
         const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, false);
-        if (isNew) {
-            this.queries_.markComponentDirty(component._id);
-            this.queries_.markStructuralChange();
-            this.changes_.recordAdded(component, entity);
-            notifyBridge('onComponentAdded', entity, component._name);
-        }
-        this.recordComponentWrite_(entity, component);
-        notifyBridge('onComponentChanged', entity, component._name);
-        start?.();
+        this.finishComponentWrite_(entity, component, merged, isNew, start);
         return merged;
     }
 
-    // =========================================================================
-    // Script Component Operations (delegates to ScriptStorage)
-    // =========================================================================
-
     private insertScript_<T>(entity: Entity, component: ComponentDef<T>, data?: unknown): T {
         const { value, isNew } = this.scripts_.insert(entity, component, data);
+        this.finishComponentWrite_(entity, component, value, isNew);
+        return value;
+    }
+
+    private finishComponentWrite_(
+        entity: Entity, component: AnyComponentDef, value: unknown, isNew: boolean, start?: () => void,
+    ): void {
         if (isNew) {
             this.queries_.markComponentDirty(component._id);
             this.queries_.markStructuralChange();
             this.changes_.recordAdded(component, entity);
-            notifyBridge('onComponentAdded', entity, component._name);
+            if (!notifyBridge(this, 'onComponentAdded', entity, component._name)) return;
         }
-        this.recordComponentWrite_(entity, component);
+        if (!this.recordComponentWrite_(entity, component)) return;
         if (component._id === Name._id) {
             this.names_.update(entity, (value as { value: string }).value);
         }
-        notifyBridge('onComponentChanged', entity, component._name);
-        return value;
+        if (notifyBridge(this, 'onComponentChanged', entity, component._name)) start?.();
     }
 
     private removeScript_<T>(entity: Entity, component: ComponentDef<T>): void {
@@ -1343,8 +1366,7 @@ export class World {
         this.changes_.recordRemoved(component, entity);
         this.queries_.markComponentDirty(component._id);
         this.queries_.markStructuralChange();
-        this.notifyAssetFields_(entity, component);
-        notifyBridge('onComponentRemoved', entity, component._name);
+        if (this.notifyAssetFields_(entity, component)) notifyBridge(this, 'onComponentRemoved', entity, component._name);
     }
 
     // =========================================================================
@@ -1684,7 +1706,7 @@ export class World {
                 return [];
             }
             if (!off && !filter && !withFilters.length && !withoutFilters.length && !reqBuiltin.length) {
-                if (population && !this.reservedEntities_?.size) return this.getAllEntities();
+                if (population && !this.reservedSpawns_?.entities.size) return this.getAllEntities();
                 if (reqScript.length === 1) return Array.from(reqScript[0].keys());
             }
 
@@ -1721,7 +1743,7 @@ export class World {
 
             const entities: Entity[] = [];
             candidate: for (const entity of candidates) {
-                if (population && this.reservedEntities_?.has(entity)) continue;
+                if (population && this.reservedSpawns_?.entities.has(entity)) continue;
                 if (sparse && !this.entities_.has(entity)) continue;
                 // Test script membership before crossing into the core for activity or builtin membership.
                 for (let i = 0; i < reqScript.length; i++) {
@@ -2079,7 +2101,7 @@ export class World {
      * storage path: `set`, `insert`, `update` and a `Mut` write-back all arrive
      * here whether or not the fast pointer setter moved the bytes.
      */
-    private recordComponentWrite_(entity: Entity, component: AnyComponentDef): void {
+    private recordComponentWrite_(entity: Entity, component: AnyComponentDef): boolean {
         if (component._id === Disabled._id) this.builtin_.getCppRegistry()?.setEntityEnabled?.(entity, false);
         // An engine component's write is stamped where the engine keeps it, beside the component: the engine's own readers
         // (the renderer) ask there what changed, whoever wrote it.
@@ -2088,7 +2110,7 @@ export class World {
             this.builtin_.invalidateTransformComposition();
         }
         this.changes_.recordChanged(component, entity);
-        this.notifyAssetFields_(entity, component);
+        return this.notifyAssetFields_(entity, component);
     }
 
     private syncActivityEpoch_(): void {

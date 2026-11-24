@@ -23,6 +23,11 @@ function createMockWorld() {
             entities.add(e);
             return e;
         }),
+        spawnImmediate: (_name?: string, record?: (e: Entity) => void): Entity => {
+            const entity = world.spawn();
+            record?.(entity);
+            return entity;
+        },
         despawn: vi.fn((e: Entity) => entities.delete(e)),
         insert: vi.fn(),
         remove: vi.fn(),

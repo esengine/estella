@@ -52,9 +52,8 @@ export interface AotAddresses {
  */
 export interface AotDispatcher {
     /**
-     * True when the twin RAN. False is the no-cliff rule arriving where it can
-     * still be honoured: a host that cannot yet name every component of a system
-     * has not failed, it has not taken this one, and the interpreter keeps it.
+     * True when dispatch consumed this invocation, including when its world retired.
+     * False lets the interpreter run the system against the same live population.
      */
     run(twin: AotTwin): boolean;
 }

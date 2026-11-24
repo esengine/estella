@@ -3223,6 +3223,7 @@ keyof ThemeColors
 ## CommandsInstance — class @public
 ```
 @internal describe: () => string
+@internal isCurrent: () => boolean
 @internal isWorldIterating: () => boolean
 @internal reserveEntity: () => Entity
 @internal spawnImmediate: (components: SpawnComponentEntry[], entityRef: { entity: Entity; }, name?: string, parent?: Entity | null) => void

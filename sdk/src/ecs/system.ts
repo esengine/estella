@@ -407,7 +407,7 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
  * its first run, which arguments are command buffers, and when it last ran. One record, found once per run.
  */
 interface SystemState {
-    readonly args: unknown[];
+    args: unknown[] | null;
     /** Null until a first run has resolved every param: a setup that threw is not kept (see {@link SystemRunner.run}). */
     queries: QueryInstance<any>[] | null;
     removeds: RemovedQueryInstance<any>[];
@@ -508,7 +508,7 @@ export class SystemRunner {
         // interpreter keeping the system rather than the system not running.
         if (twin && this.runCompiled_(system, twin)) return;
         const state = this.stateOf_(system);
-        const args = state.args;
+        const args = state.args ?? new Array(system._params.length);
 
         this.currentLastRunTick_ = state.lastRunTick;
         const lastChangeSequence = state.lastChangeSequence;
@@ -572,10 +572,12 @@ export class SystemRunner {
 
         const t0 = this.timings_ ? performance.now() : 0;
         let result: void | Promise<void>;
+        // Each invocation flushes the arguments it handed out. Another run can start while this one awaits.
+        state.args = null;
         try {
             result = (system._fn as (...args: unknown[]) => void | Promise<void>)(...args);
         } catch (e) {
-            this.flushSystem_(system, state, t0);
+            this.flushSystem_(system, state, t0, args);
             throw e;
         }
 
@@ -585,7 +587,7 @@ export class SystemRunner {
             const suspended = this.world_.suspendIteration();
             const resume = (): void => {
                 this.world_.resumeIteration(suspended);
-                this.flushSystem_(system, state, t0);
+                this.flushSystem_(system, state, t0, args);
             };
             return result.then(resume, (e) => {
                 resume();
@@ -593,7 +595,7 @@ export class SystemRunner {
             });
         }
 
-        this.flushSystem_(system, state, t0);
+        this.flushSystem_(system, state, t0, args);
     }
 
     /**
@@ -616,7 +618,7 @@ export class SystemRunner {
         return true;
     }
 
-    private flushSystem_(system: SystemDef, state: SystemState, t0: number): void {
+    private flushSystem_(system: SystemDef, state: SystemState, t0: number, args: unknown[]): void {
         // Kept Mut rows first: the edits a system made to rows it held past the
         // loop belong to the entities as they stood, before its Commands despawn
         // or restructure any of them.
@@ -624,11 +626,11 @@ export class SystemRunner {
         if (queries) {
             for (let i = 0; i < queries.length; i++) queries[i].settleKeptRows();
         }
-        const args = state.args;
         const commandSlots = state.commandSlots;
         for (let i = 0; i < commandSlots.length; i++) {
             (args[commandSlots[i]] as CommandsInstance).flush();
         }
+        state.args ??= args;
         if (this.queryCosts_) {
             this.harvestQueryCost_(system, state);
         }

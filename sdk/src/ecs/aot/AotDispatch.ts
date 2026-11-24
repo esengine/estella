@@ -40,7 +40,7 @@
 import { isBuiltinComponent, type AnyComponentDef } from '../component';
 import { computeQueryCacheKey, type World, queryDepIds, feedsTransformComposition } from '../world';
 import type { Entity } from '../../types';
-import { CMD_DESPAWN } from './AotContext';
+import { CMD_DESPAWN, type AotCommand } from './AotContext';
 import type { AotRuntime } from './AotRuntime';
 import type { AotTwin } from './AotSystems';
 
@@ -119,43 +119,55 @@ export class AotDispatch {
     constructor(private readonly world: World, private readonly runtime: AotRuntime) {}
 
     run(twin: AotTwin): boolean {
+        const lifetime = this.world.entityLifetime;
         const plan = this.planFor_(twin);
-        if (!this.packRows_(plan, this.world.layoutEpoch())) {
-            if (plan.reads) this.runtime.addresses.releasePayloads();
-            return false;
-        }
-
-        const resources = plan.resources.map((r) => this.runtime.addresses.resourceAt(r.name) ?? 0);
         const writers = twin.decl.writers ?? [];
-        this.runtime.ctx.setRecordLengths(writers.map((wr) => wr.fields.length));
-        this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
-        twin.call(this.runtime.ctx.address);
-        this.runtime.systems.noteCall();
+        let commands: AotCommand[];
+        let events: typeof NO_RECORDS;
+        try {
+            if (!this.packRows_(plan, this.world.layoutEpoch())) {
+                // Only the originating population may retry through the interpreter.
+                return this.world.entityLifetime !== lifetime;
+            }
+            const resources: number[] = [];
+            for (const r of plan.resources) {
+                if (this.world.entityLifetime !== lifetime) return true;
+                resources.push(this.runtime.addresses.resourceAt(r.name) ?? 0);
+            }
+            if (this.world.entityLifetime !== lifetime) return true;
+            this.runtime.ctx.setRecordLengths(writers.map((wr) => wr.fields.length));
+            this.runtime.ctx.build(plan.scratch, plan.rowWords, plan.offsets, plan.counts, resources);
+            twin.call(this.runtime.ctx.address);
+            this.runtime.systems.noteCall();
+            // A host callback can dispatch another system into this same ABI buffer.
+            commands = this.runtime.ctx.commands();
+            events = writers.length > 0 ? this.runtime.ctx.events() : NO_RECORDS;
+        } finally {
+            if (plan.reads) this.runtime.addresses.releasePayloads();
+        }
 
         // A resource is a MIRROR: a `ResMut` write lands in the block and nowhere
         // else. Only the declared ones — copying a read-only mirror back would
         // overwrite what the engine wrote this frame with a pre-call snapshot.
         for (const r of plan.resources) {
-            if (r.mut) this.runtime.addresses.resourceWriteBack(r.name);
+            if (!r.mut) continue;
+            if (this.world.entityLifetime !== lifetime) return true;
+            this.runtime.addresses.resourceWriteBack(r.name);
         }
 
         // What it sent. The compiled code appended numbers; the payload is rebuilt
         // from the same field list that flattened it.
-        for (const rec of writers.length > 0 ? this.runtime.ctx.events() : NO_RECORDS) {
+        for (const rec of events) {
+            if (this.world.entityLifetime !== lifetime) return true;
             const decl = writers.find((wr) => wr.slot === rec.slot);
             if (decl) this.runtime.addresses.sendEvent(decl.event, decl.fields, rec.fields);
         }
-        // The payload blocks are valid for exactly this call: `packRows_` takes
-        // one per payload per frame, and nothing else hands them back.
-        if (plan.reads) this.runtime.addresses.releasePayloads();
-
-        for (const cmd of this.runtime.ctx.commands()) {
+        for (const cmd of commands) {
+            if (this.world.entityLifetime !== lifetime) return true;
             // Only despawn is in the v1 record set.
             if (cmd.kind === CMD_DESPAWN) this.world.despawn(cmd.a as unknown as Entity);
         }
-        this.markChanged_(plan);
-        // Always: this module shares the engine's memory, so whatever it names
-        // is reachable the moment it is installed.
+        if (this.world.entityLifetime === lifetime) this.markChanged_(plan, lifetime);
         return true;
     }
 
@@ -244,7 +256,7 @@ export class AotDispatch {
      * self-gates on the same answer, and on a hot path with nothing listening
      * that is a per-row cost spent for nothing.
      */
-    private markChanged_(plan: Plan): void {
+    private markChanged_(plan: Plan, lifetime: symbol): void {
         for (let k = 0; k < plan.queries.length; k++) {
             const q = plan.queries[k];
             const n = plan.counts[k];
@@ -256,7 +268,10 @@ export class AotDispatch {
             for (const def of q.mutated) {
                 if (this.world.isChangeTracked(def)) {
                     // Through the mutation seam: stamps the engine's copy too, and tells Changed() queries.
-                    for (let i = 0; i < n; i++) this.world.markChanged(plan.scratch[base + i * q.width] as unknown as Entity, def);
+                    for (let i = 0; i < n; i++) {
+                        this.world.markChanged(plan.scratch[base + i * q.width] as unknown as Entity, def);
+                        if (def.assetFields?.length && this.world.entityLifetime !== lifetime) return;
+                    }
                 } else if (isBuiltinComponent(def)) {
                     // Nothing in script watches it, but the engine's readers of changes do (composition recomposes only the
                     // Transforms stamped since its last pass; the renderer keeps what it built for the rest).

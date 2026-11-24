@@ -95,6 +95,8 @@ async function probe({ name, kind, expect, defect = false, cpp = false, body }) 
     const world = app.world;
     const { component, initial } = kind(sdk, seq++);
     world.enableChangeTracking(component);
+    // This probe reads removal history below. Register before the measured tick so the tracker keeps it.
+    const removalReader = world.registerRemovedReader(component);
 
     const e = world.spawn();
     world.insert(e, component, initial);
@@ -111,6 +113,7 @@ async function probe({ name, kind, expect, defect = false, cpp = false, body }) 
     const observed = world.anyChangedSince(component, since)
         && (world.isChangedSince(e, component, since)
             || world.getRemovedEntitiesSince(component, since).includes(e));
+    world.disposeRemovedReader(component, removalReader);
     const after = snapshot(world, e, component);
     const stored = had !== world.has(e, component) || JSON.stringify(before) !== JSON.stringify(after);
 
@@ -173,6 +176,14 @@ await probe({
 await probe({
     name: 'world.remove', kind: pooled, expect: { stored: true, observed: true },
     body: ({ world, e, component }) => { world.remove(e, component); },
+});
+
+await probe({
+    name: 'Commands.entity(e).remove', kind: pooled, expect: { stored: true, observed: true },
+    body: async ({ app, sdk: s, e, component }) => {
+        app.addSystem(s.defineSystem([s.Commands()], commands => { commands.entity(e).remove(component); }));
+        await app.tick(1 / 60);
+    },
 });
 
 await probe({

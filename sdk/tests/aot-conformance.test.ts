@@ -14,7 +14,7 @@
  *          Loud skip without emsdk: a differential that never compiled anything
  *          agrees with itself.
  */
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -26,11 +26,13 @@ import { emitC, moduleDeclarations } from '../../compiler/src/codegen';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 
 import { App } from '../src/app/app';
+import { registerComponent } from '../src/ecs/component';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { createMockModule } from './mocks/wasm';
 import { FakeEngine } from './fakeEngine';
 import { buildAotModule, useBytesPlatform } from './helpers/aotFade';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { Query, Changed } from '../src/ecs/query';
 import { Time } from '../src/ecs/resource';
@@ -180,11 +182,22 @@ async function play(compiled: { wasm: Uint8Array; manifest: AotManifest } | null
 }
 
 describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
+    let artifact: ReturnType<typeof compileFixture>;
+    beforeAll(() => { artifact = compileFixture(EMCC!); });
+
+    async function installFixture(app: App) {
+        useBytesPlatform();
+        const fixture = await import('./fixtures/conformance-systems');
+        // Each test gets a clean component catalogue, including when the fixture module is cached.
+        for (const def of [fixture.Mover, fixture.Doomed]) registerComponent(def._name, def);
+        await app.installCompiledSystems(Uint8Array.from(artifact.wasm), artifact.manifest);
+        return fixture;
+    }
+
     it('answers the same world after every frame', async () => {
         setDefaultContext(new AppContext());
         setEditorMode(false);
         setPlayMode(false);
-        const artifact = compileFixture(EMCC!);
         const interpreted = await play(null);
         const twins = await play(artifact);
 
@@ -217,6 +230,70 @@ describe.skipIf(!EMCC)('one source, interpreted and compiled', () => {
         // the five duties this fixture carries for the wasm road are untouched.
         expect(interpreted.pop[0]![1]).toBeGreaterThan(0);
         expect(interpreted.pop[FRAMES - 1]![0]).toBeLessThan(DOOMED.length);
+    });
+
+    it.skipIf(!HAS_WASM).each(['borrowed', 'owned'])('retires a compiled despawn batch on a %s registry restart', async ownership => {
+        const engine = await loadWasmModule();
+        const old = new engine.Registry(), next = new engine.Registry(), app = App.new();
+        const owned = ownership === 'owned';
+        app.connectCpp(old, engine, { ownedRegistry: owned });
+        try {
+            const fixture = await installFixture(app);
+            app.addSystem(fixture.reapSystem);
+            const targets = [app.world.spawn(), app.world.spawn()];
+            for (const entity of targets) app.world.insert(entity, fixture.Doomed, { ttl: 8 });
+            let calls = 0;
+            const replacements: Entity[] = [];
+            app.world.onDespawn(() => {
+                if (app.world.getCppRegistry() !== old) return;
+                calls = app.compiledSystems.calls;
+                if (owned) app.quit({ keepRenderer: true });
+                app.connectCpp(next, engine);
+                replacements.push(app.world.spawn(), app.world.spawn());
+            });
+            await app.tick(DT);
+            expect(calls).toBe(1);
+            expect(replacements).toEqual(targets);
+            expect(app.world.getAllEntities()).toEqual(replacements);
+            expect(next.entityCount()).toBe(2);
+            if (!owned) expect(old.entityCount()).toBe(1);
+        } finally {
+            app.quit({ keepRenderer: true });
+            if (!owned) old.delete();
+            next.delete();
+        }
+    });
+
+    it.skipIf(!HAS_WASM)('consumes a retired invocation without running its twin or replaying its closure', async () => {
+        const engine = await loadWasmModule(), app = App.new();
+        const old = new engine.Registry(), next = new engine.Registry();
+        app.connectCpp(old, engine);
+        try {
+            const fixture = await installFixture(app);
+            const entity = app.world.spawn();
+            app.world.insert(entity, fixture.Doomed, { ttl: 8 });
+            let packed = false, replayed = false;
+            const replacement = { bounces: 0, frames: 0, census: 42 };
+            app.insertResource(fixture.Tally, { bounces: 0, frames: 0, get census() {
+                if (!packed) {
+                    packed = true;
+                    app.connectCpp(next, engine);
+                    app.world.spawn();
+                    app.insertResource(fixture.Tally, replacement);
+                }
+                return 0;
+            } });
+            app.addSystem(defineSystem([], () => { replayed = true; }, { name: fixture.censusSystem._name }));
+            await app.tick(DT);
+            expect(packed).toBe(true);
+            expect(replayed).toBe(false);
+            expect(app.compiledSystems.calls).toBe(0);
+            expect(app.world.getAllEntities()).toEqual([entity]);
+            expect(app.getResource(fixture.Tally).census).toBe(42);
+        } finally {
+            app.quit({ keepRenderer: true });
+            old.delete(); next.delete();
+        }
     });
 });
 
