@@ -19,6 +19,11 @@ describe('textureImportSettingsFrom', () => {
             .toEqual({ filter: 'linear', wrap: undefined, srgb: undefined, sliceBorder: undefined });
     });
 
+    it('samples Data as linear, including older metadata with sRGB still selected', () => {
+        expect(textureImportSettingsFrom({ use: 'data' })?.srgb).toBe(false);
+        expect(textureImportSettingsFrom({ use: 'data', sRGB: true })?.srgb).toBe(false);
+    });
+
     it('carries sRGB only when the block states it', () => {
         expect(textureImportSettingsFrom({ sRGB: false })?.srgb).toBe(false);
         expect(textureImportSettingsFrom({ sRGB: true })?.srgb).toBe(true);

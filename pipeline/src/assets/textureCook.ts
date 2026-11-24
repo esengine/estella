@@ -8,7 +8,7 @@
  *          texture as the game will draw it, and both read and write the same
  *          cook cache, so whichever compresses a texture first pays for it once.
  */
-import { readTextureCookSettings } from '../project/importSettings';
+import { readTextureCookSettings, type TextureUse } from '../project/importSettings';
 import { decodePngImage, downscaleRgba } from './atlasPacker';
 import { encodeRgbaPng } from './png';
 import { decodeGrey16, downscaleGrey16, encodeGrey16 } from './png16';
@@ -181,6 +181,11 @@ export function pngBitDepth(png: Uint8Array): number {
   return png.byteLength > 24 && png[1] === 0x50 && png[2] === 0x4e && png[3] === 0x47 ? png[24]! : 8;
 }
 
+/** Data textures and wide samples go through the lossless cook, including inside atlas folders. */
+export function needsLosslessTextureCook(use: TextureUse, png?: Uint8Array): boolean {
+  return use === 'data' || (png !== undefined && pngBitDepth(png) === 16);
+}
+
 function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
   try {
     return pngDimensions(png);
@@ -242,8 +247,7 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const textureEnc = input.encoder?.module ?? null;
   // Numbers, not a picture: a texture whose Use is Data, and any PNG of 16 bits a sample whatever it is marked (the paths below all
   // decode to 8 bits first). It is never encoded or filled; it is shrunk only where a Data texture's Max Size says so, at its own depth.
-  const wide = raster && pngBitDepth(data) === 16;
-  if (tex.use === 'data' || wide) {
+  if (needsLosslessTextureCook(tex.use, raster ? data : undefined)) {
     const cook = decideTextureCook({
       compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
       compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: raster ? safePngDimensions(data) : null,
@@ -253,6 +257,7 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     if (tex.use !== 'data') {
       warnings.push(`${path}: holds 16 bits a sample but its Use is Colour - shipped as the file it is, uncapped. Set Use to Data to say so, and to cap it.`);
     } else if (capped) {
+      const wide = pngBitDepth(data) === 16;
       const grey = wide ? decodeGrey16(data) : null;
       if (grey) data = encodeGrey16(downscaleGrey16(grey, tex.maxSize));
       else if (!wide) {

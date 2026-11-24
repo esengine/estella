@@ -30,7 +30,7 @@ import { atlasTextureSettingsKey, textureImportSettingsFrom } from '../../../sdk
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
-import { readTextureCookSettings } from '../project/importSettings';
+import { readTextureCookSettings, textureUse } from '../project/importSettings';
 import { audioLoadTypeOf } from './audioCook';
 // The compression a build gives one texture, and the one reason it is that.
 // The branch below IS this function — a cook that re-derived the choice would
@@ -52,7 +52,7 @@ import {
   readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
 import { cookCached } from './cookCache';
-import { cookTexture, loadTextureEncoder, pngDimensions, fillClearTexels, fillsClearTexels, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
+import { cookTexture, loadTextureEncoder, needsLosslessTextureCook, pngDimensions, fillClearTexels, fillsClearTexels, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 import { meshTextureRoles } from './textureUsage';
 import { makeStreamTail, type StreamTail } from './streamTail';
 import { matchScriptAssetRefs, scanScriptAssetRefs, unregisteredScriptRefs } from './scriptAssetRefs';
@@ -728,12 +728,10 @@ export async function cookAssets(
       + `${kb(artBytes)}, and a package that holds a KTX2 carries a ${kb(decoderBytes!)} transcoder`);
   }
 
-  let encodePng: ((png: Uint8Array) => Promise<Uint8Array>) | null = null;
   let textureEnc: BasisEncoderModule | null = null;
   let encoderId = '';
   if (compressTextures) {
     ({ module: textureEnc, id: encoderId } = await loadTextureEncoder());
-    encodePng = (png) => textureEnc!.encodePngToKtx2(png, { mode: 'uastc' });
   }
   // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
   // settings can opt a clip out (seamless loops) or pick a bitrate.
@@ -787,7 +785,9 @@ export async function cookAssets(
       const compatible = new Map<string, AtlasInputImage[]>();
       for (const entry of [...entries].sort((a, b) => a.path.localeCompare(b.path))) {
         try {
-          const image = decodePngImage(entry.path, await readFile(path.join(root, entry.path)));
+          const bytes = await readFile(path.join(root, entry.path));
+          if (needsLosslessTextureCook(textureUse(entry.importer?.use), bytes)) continue;
+          const image = decodePngImage(entry.path, bytes);
           const settings = textureImportSettingsFrom(entry.importer);
           image.wrap = settings?.wrap;
           if (fillsClearTexels(entry.importer, platform)) image.rgba = fillClearTexels(image) ?? image.rgba;
@@ -801,17 +801,23 @@ export async function cookAssets(
       }
       const pages = [...compatible.values()].flatMap(images => packAtlas(images));
       for (let n = 0; n < pages.length; n++) {
-        const pagePng: Uint8Array = encodePagePng(pages[n]);
-        let pageBytes: Uint8Array = pagePng;
+        const page = pages[n];
+        let pageBytes: Uint8Array;
         let pageExt = '.png';
         let compressedFormats: string[] | undefined;
         // One payload for every frame on the page, so it is compressed when a
         // frame on it asks to be; a page of sprites on Auto ships as a PNG.
-        const pageFrames = pages[n].placements.map((p) => byPath.get(p.key)).filter((e): e is AssetEntry => !!e);
-        if (encodePng && pageFrames.some((e) => pageCompressedBy(e))) {
-          pageBytes = await encodePng(pagePng);
+        const pageFrames = page.placements.map(p => byPath.get(p.key)).filter((e): e is AssetEntry => !!e);
+        const requester = textureEnc && pageFrames.find(pageCompressedBy);
+        if (textureEnc && requester) {
+          const { srgb, mipmaps } = readTextureCookSettings(requester.importer, platform);
+          pageBytes = await textureEnc.encodeToKtx2({
+            type: textureEnc.ImageType.RGBA, data: page.rgba, width: page.width, height: page.height,
+          }, { mode: 'uastc', srgb, mipmaps });
           pageExt = '.ktx2';
           compressedFormats = COMPRESSED_TARGETS;
+        } else {
+          pageBytes = encodePagePng(page);
         }
         const pageHash = contentHashHex(pageBytes);
         const { name: group, delivery } = resolveAssetGroup(`${dir}/`, groupsConfig);
@@ -825,12 +831,12 @@ export async function cookAssets(
           await writeFile(dst, pageBytes);
           staged.add(pageOutRel);
         }
-        for (const placement of pages[n].placements) {
+        for (const placement of page.placements) {
           atlasPlan.set(placement.key, {
             page: n,
             frame: { x: placement.x, y: placement.y, width: placement.width, height: placement.height },
-            pageWidth: pages[n].width,
-            pageHeight: pages[n].height,
+            pageWidth: page.width,
+            pageHeight: page.height,
             pageOutRel, pageHash, pageSize: pageBytes.byteLength, compressedFormats,
           });
         }

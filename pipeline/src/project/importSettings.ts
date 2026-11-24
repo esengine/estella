@@ -12,6 +12,8 @@
  *        a spec onto whatever control it renders.
  */
 
+import { textureSrgbSetting, textureUse, type TextureUse } from '../../../sdk/src/asset/textureImportSettings';
+
 /** What an import setting can hold. Anything richer belongs in the asset, not here. */
 export type ImporterValue = number | boolean | string;
 
@@ -435,14 +437,7 @@ export function textureCompression(stored: unknown): TextureCompression {
   return stored === false ? 'off' : 'auto';
 }
 
-/** What a texture holds: a picture, or numbers a texel (the `use` import setting). */
-export type TextureUse = 'colour' | 'data';
-
-/** A stored Use as it reads today: anything that is not `data` is a picture. */
-export function textureUse(stored: unknown): TextureUse {
-  return stored === 'data' ? 'data' : 'colour';
-}
-
+export { textureUse, type TextureUse };
 export { DATA_TEXTURE_IMPORTER } from '../../../tools/assetMetaTable.js';
 
 export function readTextureCookSettings(importer: Record<string, unknown> | undefined, platform?: string): {
@@ -453,7 +448,6 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
   const mipCoverage = importer?.mipCoverage;
   const format = importer?.compressFormat;
   const maxSize = importer?.maxSize;
-  const srgb = importer?.sRGB;
   const data = use === 'data';
   const resolved = {
     use,
@@ -461,7 +455,7 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
     compress: data ? 'off' as TextureCompression : textureCompression(compress),
     format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
     maxSize: typeof maxSize === 'number' && maxSize >= 0 ? maxSize : 0,
-    srgb: data ? false : typeof srgb === 'boolean' ? srgb : true,
+    srgb: textureSrgbSetting(use, importer?.sRGB) ?? true,
     mipCoverage: !data && typeof mipCoverage === 'number' && mipCoverage > 0 && mipCoverage < 1 ? mipCoverage : 0,
     mipmaps: importer?.mipmaps !== false,
   };

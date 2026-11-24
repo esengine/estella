@@ -86,6 +86,7 @@ export async function encodeToKtx2(source, opts = {}) {
     }
     enc.setPerceptual(perceptual);
     enc.setMipGen(mipmaps);
+    enc.setMipSRGB(srgb);
     enc.setYFlip(yFlip);
     if (normalMap) enc.setNormalMap();
 

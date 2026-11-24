@@ -11,6 +11,19 @@
  * "works in the editor, not in the build" gets born.
  */
 
+export type TextureUse = 'colour' | 'data';
+
+/** Older metadata without Use describes a colour image. */
+export function textureUse(stored: unknown): TextureUse {
+    return stored === 'data' ? 'data' : 'colour';
+}
+
+/** Data holds numeric samples. Colour images may explicitly select a transfer function. */
+export function textureSrgbSetting(use: TextureUse, stored: unknown): boolean | undefined {
+    if (use === 'data') return false;
+    return typeof stored === 'boolean' ? stored : undefined;
+}
+
 /** Import-time texture settings, as the loader consumes them. */
 export interface ParsedTextureImportSettings {
     filter?: 'linear' | 'nearest';
@@ -44,7 +57,7 @@ export function textureImportSettingsFrom(
     const wrap = importer.wrapMode === 'repeat' || importer.wrapMode === 'clamp' || importer.wrapMode === 'mirror'
         ? importer.wrapMode
         : undefined;
-    const srgb = typeof importer.sRGB === 'boolean' ? importer.sRGB : undefined;
+    const srgb = textureSrgbSetting(textureUse(importer.use), importer.sRGB);
     const mipmaps = typeof importer.mipmaps === 'boolean' ? importer.mipmaps : undefined;
     const sliceBorder = readSliceBorder(importer.sliceBorder);
     return filter || wrap || srgb !== undefined || mipmaps !== undefined || sliceBorder

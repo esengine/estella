@@ -12,9 +12,9 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
-    readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage,
+    readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage, extractMipTail,
 } from '../src/assets/ktx2Mips';
-import { cookCached } from '../src/assets/cookCache';
+import { cookCached, encoderIdentity } from '../src/assets/cookCache';
 import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
@@ -64,6 +64,29 @@ describe('the chain under an authored level', () => {
 });
 
 describe('halving an sRGB image', () => {
+    it.each([[true, 188], [false, 128]] as const)('filters encoded mips in the source colour space (sRGB %s)', async (srgb, expected) => {
+        const pixels = new Uint8Array(SIDE * SIDE * 4);
+        for (let y = 0; y < SIDE; y++) for (let x = 0; x < SIDE; x++) {
+            const v = (x + y) % 2 ? 255 : 0;
+            pixels.set([v, v, v, 255], 4 * (y * SIDE + x));
+        }
+        const encoded = await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: pixels, width: SIDE, height: SIDE }, { srgb });
+        const tail = extractMipTail(encoded, readKtx2Layout(encoded)!, 1)!;
+        const { pixels: average } = await enc.transcodeKtx2ToRgba(tail.bytes);
+        expect(Math.abs(average[0]! - expected)).toBeLessThanOrEqual(3);
+    });
+
+    it('refreshes cached textures when encoder settings change in the wrapper', () => {
+        const dir = path.join(work, 'encoder-identity');
+        mkdirSync(dir, { recursive: true });
+        const codec = path.join(dir, 'basis_encoder.wasm'), core = path.join(dir, 'encoderCore.mjs');
+        writeFileSync(codec, 'same codec');
+        writeFileSync(core, 'first settings');
+        const previous = encoderIdentity(codec);
+        writeFileSync(core, 'second settings');
+        expect(encoderIdentity(codec)).not.toBe(previous);
+    });
+
     it('averages light, not its encoding', () => {
         // Black and white side by side: half the light is 188 in sRGB, not 128.
         const px = new Uint8Array([0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255]);

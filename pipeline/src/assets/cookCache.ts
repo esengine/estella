@@ -9,17 +9,20 @@
  * and a later export of unchanged art costs a file read.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const CACHE_DIR = '.esengine/cache/cook';
 
-/** Part of every key: an encode by a different encoder is a different result. */
+/** Both the codec and the caller that configures its colour and mip filters determine the emitted bytes. */
 export function encoderIdentity(encoderFile: string): string {
     try {
-        const st = statSync(encoderFile);
-        return createHash('sha256').update(readFileSync(encoderFile)).digest('hex').slice(0, 16) + `:${st.size}`;
+        const codec = readFileSync(encoderFile);
+        const hash = createHash('sha256').update(codec);
+        const core = path.join(path.dirname(encoderFile), 'encoderCore.mjs');
+        if (existsSync(core)) hash.update(readFileSync(core));
+        return hash.digest('hex').slice(0, 16) + `:${codec.length}`;
     } catch {
         return 'unknown-encoder';
     }

@@ -13,6 +13,8 @@ import { cookAssets } from '../src/assets/cookAssets';
 import type { TextureCookDecision } from '../src/assets/textureCookDecision';
 import { decodePngImage } from '../src/assets/atlasPacker';
 import { encodeRgbaPng } from '../src/assets/png';
+import { encodeGrey16 } from '../src/assets/png16';
+import { readKtx2Layout } from '../src/assets/ktx2Mips';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 import { noisePng } from './fixtures/solidPng.mjs';
 
@@ -636,6 +638,50 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       expect(b.atlas?.page).toBe(shared ? 0 : 1);
       expect(a.path === b.path).toBe(shared);
       for (const entry of [a, b]) expect(existsSync(path.join(cooked.outDir, entry.path))).toBe(true);
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
+  it('encodes each atlas page with its authored colour space and mip levels', async () => {
+    const r = makeAtlasProject();
+    try {
+      for (const [name, importer] of [['a', { compress: 'on' }], ['b', { compress: 'on', sRGB: false, mipmaps: false }]] as const) {
+        const meta = path.join(r, `assets/sprites/heroes.atlas/${name}.png.meta`);
+        writeFileSync(meta, JSON.stringify({ ...JSON.parse(readFileSync(meta, 'utf8')), importer }));
+      }
+      const cooked = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out',
+        atlasTextures: true, compressTextures: true, contentAddressed: true });
+      expect(cooked.ok).toBe(true);
+      const { entries } = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as CookManifest;
+      const layout = (uuid: string) => {
+        const entry = entries.find(e => e.uuid === uuid)!;
+        expect(entry.atlas).toBeDefined();
+        return readKtx2Layout(readFileSync(path.join(cooked.outDir, entry.path)))!;
+      };
+      const colour = layout(TEX_A), linear = layout(TEX_B);
+      expect(colour.srgb).toBe(true);
+      expect(colour.levels.length).toBeGreaterThan(1);
+      expect(linear.srgb).toBe(false);
+      expect(linear.levels).toHaveLength(1);
+    } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
+  it('preserves data samples and 16-bit images in an atlas directory', async () => {
+    const r = makeAtlasProject();
+    try {
+      const dir = path.join(r, 'assets/sprites/heroes.atlas');
+      const meta = path.join(dir, 'a.png.meta');
+      writeFileSync(meta, JSON.stringify({ ...JSON.parse(readFileSync(meta, 'utf8')), importer: { use: 'data', compress: 'on' } }));
+      const wide = encodeGrey16({ width: 2, height: 2, data: new Uint16Array([129, 250, 258, 65535]) });
+      writeFileSync(path.join(dir, 'b.png'), wide);
+      const cooked = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out',
+        atlasTextures: true, compressTextures: true, contentAddressed: true });
+      expect(cooked.ok).toBe(true);
+      const { entries } = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as CookManifest;
+      for (const [uuid, name] of [[TEX_A, 'a.png'], [TEX_B, 'b.png']]) {
+        const entry = entries.find(e => e.uuid === uuid)!;
+        expect(entry.atlas).toBeUndefined();
+        expect(readFileSync(path.join(cooked.outDir, entry.path))).toEqual(readFileSync(path.join(dir, name)));
+      }
     } finally { rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   });
 
