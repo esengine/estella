@@ -563,6 +563,7 @@ export {
     SPRITE_MOTION,
     SPINE_MOTION,
     type AnimatorWindow,
+    type AnimatorDebugView,
     type AnimatorMotion,
     type AnimatorClipMotion,
     type AnimatorBlend1DMotion,

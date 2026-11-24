@@ -834,6 +834,28 @@ export class AnimatorControllerAPI {
         return this.params.get(entity)?.get(name) === true;
     }
 
+    /**
+     * What one animator was doing as of its last step, for an editor's debugger: the parameters it was set, and per
+     * layer the seconds into the current state's motion, one pass's length, and a crossfade under way. Null for an
+     * entity no animator has stepped. Which state it is in is the component's to say.
+     */
+    debugView(entity: Entity): AnimatorDebugView | null {
+        const rt = this.runtimes_.get(entity);
+        if (!rt) return null;
+        const params: Record<string, number | boolean> = {};
+        for (const [k, v] of this.params.get(entity) ?? []) params[k] = v;
+        const active = rt.inertia?.active;
+        return {
+            params,
+            layers: rt.layers.map((l) => ({
+                time: l.time,
+                span: l.span,
+                fade: l.fadeFrom ? { elapsed: l.fadeElapsed, duration: l.fadeDuration } : undefined,
+            })),
+            inertia: active ? { elapsed: active.elapsed, duration: active.duration } : undefined,
+        };
+    }
+
     /** Drop an entity's parameter/trigger/playback state (wire to world.onDespawn). */
     removeEntity(entity: Entity): void {
         this.params.delete(entity);
@@ -1580,6 +1602,23 @@ interface LayerRuntime {
     fade: [WeightedPose, WeightedPose];
     /** This layer's mask, resolved against the rig it is running on. */
     reach?: MaskReach;
+}
+
+/** One animator's playback as {@link AnimatorControllerAPI.debugView} reads it. */
+export interface AnimatorDebugView {
+    /** The parameters set on it; one never set holds the controller's default. */
+    params: Record<string, number | boolean>;
+    /** One per layer, the base layer first. */
+    layers: {
+        /** Seconds the current state's motion has played. */
+        time: number;
+        /** Seconds one pass of it lasts; 0 before it is known. */
+        span: number;
+        /** A crossfade into the current state still under way. */
+        fade?: { elapsed: number; duration: number };
+    }[];
+    /** A transition by inertia on the base layer still under way. */
+    inertia?: { elapsed: number; duration: number };
 }
 
 const EMPTY_PARAMS: ReadonlyMap<string, number | boolean> = new Map();

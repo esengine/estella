@@ -44,6 +44,7 @@ export {
     Animator,
     AnimatorController,
     AnimatorControllerAPI,
+    type AnimatorDebugView,
     registerAnimatorController,
     getRegisteredAnimatorController,
     clearAnimatorControllerStore,

@@ -17,6 +17,7 @@ ResourceDef<AnimatorControllerAPI>
 ```
 @internal useAssetControllers: (source: (ref: string) => AnimatorControllerDef | undefined) => void
 clearControllers: () => void
+debugView: (entity: Entity) => AnimatorDebugView | null
 getBool: (entity: Entity, name: string) => boolean
 getController: (name: string) => AnimatorControllerDef | undefined
 getFloat: (entity: Entity, name: string) => number

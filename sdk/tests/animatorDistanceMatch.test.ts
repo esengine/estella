@@ -136,3 +136,19 @@ describe('what a state played by distance says about itself', () => {
         expect(clock()).toBeCloseTo(0.1, 5);
     });
 });
+
+describe('the debug view an editor reads', () => {
+    it('says what the animator was set and where each layer is in its motion', () => {
+        const { world, ctrl, clock } = setup();
+        expect(ctrl.debugView(E)).toBeNull();
+        ctrl.update(world, 0);
+        ctrl.setFloat(E, 'left', 60);
+        ctrl.update(world, 1 / 60);
+        const view = ctrl.debugView(E)!;
+        expect(view.params).toEqual({ left: 60 });
+        expect(view.layers).toHaveLength(1);
+        expect(view.layers[0]!.time).toBeCloseTo(clock(), 6);
+        expect(view.layers[0]!.span).toBeCloseTo(2, 6);
+        expect(view.layers[0]!.fade).toBeUndefined();
+    });
+});
