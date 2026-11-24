@@ -979,9 +979,6 @@ jobs:
       - name: Build the Linux host and its runtime template
         run: node build-tools/cli.js native --target linux
 
-      - name: Validate a scene with sequential and sparse entity IDs
-        run: xvfb-run -a node bench/scene-validation.mjs build/cmake/native-linux/estella_desktop
-
       - name: Run native renderer regressions
         run: |
           cmake --build build/cmake/native-linux --target test_native_renderer test_render_thread --parallel 4
@@ -994,10 +991,13 @@ jobs:
           build/cmake/native-linux/test_native_ws_lifetime
           node tools/verify-native-wss.mjs --probe build/cmake/native-linux/test_native_wss --trust machine
 
-      - name: A game packaged from it renders
+      - name: Verify native scene loading and packaged rendering
         run: |
           ls -l /usr/share/vulkan/icd.d/ || true
-          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
+          xvfb-run -a --server-args="-screen 0 1280x720x24" bash -e <<'NATIVE'
+          node bench/scene-validation.mjs build/cmake/native-linux/estella_desktop
+          node tools/verify-desktop-render.mjs --tier pr
+          NATIVE
 
   # The same question on Windows, and it is not redundant. Until this job existed
   # NOTHING compiled the native host for MSVC except the release workflow, which
