@@ -16,7 +16,7 @@
 // prefer this byte method when present, so web (embind, no such method) stays
 // byte-identical.
 
-import type { CppResourceManager } from '../../wasm';
+import { TextureContent, type CppResourceManager } from '../../wasm';
 import { RESOURCE_BINDINGS, TEXT_BINDINGS } from './nativeBindings';
 
 /** `rm_createTextureEx` filter/wrap codes, for the case with no import settings.
@@ -72,8 +72,8 @@ export function createNativeResourceManager(
         // The host transcodes KTX2 (basis) and uploads the blocks:
         // { id, width, height, format, blockRefused } → { handle, ... }. A host
         // without the last two leaves them undefined, never a compressed answer.
-        createTextureFromKTX2: (bytes, srgb, mipmaps = true, maxEdge = 0) => {
-            const r = hostCall(scope, RESOURCE_BINDINGS.createTextureKTX2, [bytes, srgb, mipmaps, maxEdge]) as
+        createTextureFromKTX2: (bytes, srgb, mipmaps = true, maxEdge = 0, content = TextureContent.Asset) => {
+            const r = hostCall(scope, RESOURCE_BINDINGS.createTextureKTX2, [bytes, srgb, mipmaps, maxEdge, content]) as
                 { id: number; width: number; height: number;
                   format?: number; blockRefused?: boolean } | null;
             return r

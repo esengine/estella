@@ -104,7 +104,7 @@ export interface CppResourceManager {
      *  `format` is the uploaded GfxCompressedFormat ordinal, negative for decoded RGBA.
      *  `blockRefused` reports a supported format whose block size did not fit the image.
      *  Older hosts may omit the format and the reason. */
-    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean, mipmaps?: boolean, maxEdge?: number): {
+    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean, mipmaps?: boolean, maxEdge?: number, content?: TextureContent): {
         handle: number; width: number; height: number;
         format?: number; blockRefused?: boolean;
     } | null;

@@ -14,9 +14,10 @@
  * enabled JS-side via `getExtension`. The C++ `GfxDevice::compressedTexImage2D`
  * entry backs the non-WebGL2 fallback path instead.
  */
-import { TextureContent, type ESEngineModule } from '../wasm';
+import type { ESEngineModule } from '../wasm';
 import { unwrapRestagedPath } from '../assetTypes';
 import { applyBoundTextureSampling, handOverNewTexture } from './glTextureUpload';
+import { assetTextureTarget, type TextureUploadTarget } from './textureUploadTarget';
 
 // =============================================================================
 // Format vocabulary
@@ -285,7 +286,7 @@ export function compressedLevelsSupported(
 export function uploadCompressedTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule,
     support: CompressedTextureSupport, fmt: CompressedTextureFormat,
-    t: TranscodeResult, opts?: CompressedUploadOptions,
+    t: TranscodeResult, opts?: CompressedUploadOptions, destination: TextureUploadTarget = assetTextureTarget,
 ): UploadedTexture {
     const internalFormat = glInternalFormat(support, fmt, opts?.srgb ?? false);
     if (internalFormat == null) throw new Error(`compressed upload: no GL internalformat for ${fmt}`);
@@ -300,15 +301,16 @@ export function uploadCompressedTexture(
         levels.forEach((l, i) => g.compressedTexImage2D(g.TEXTURE_2D, i, internalFormat, l.width, l.height, 0, l.data));
         applyParams(g, levels.length, false, opts);
     }, {
-        width: t.width, height: t.height, content: TextureContent.Asset,
+        width: t.width, height: t.height, content: destination.content,
         gpuBytes: levels.reduce((n, l) => n + l.data.byteLength, 0),
-    });
+    }, destination.resourceManager?.());
     return { handle, width: t.width, height: t.height };
 }
 
 /** Fallback: upload decoded RGBA8 via `gl.texImage2D`. */
 export function uploadRgbaTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule, r: RgbaResult, opts?: CompressedUploadOptions,
+    destination: TextureUploadTarget = assetTextureTarget,
 ): UploadedTexture {
     const handle = handOverNewTexture(module, gl, (g) => {
         // Linear pipeline: the decoded pixels are sRGB-encoded color, same as
@@ -317,7 +319,7 @@ export function uploadRgbaTexture(
         const levels = levelsOf(r, opts);
         levels.forEach((l, i) => g.texImage2D(g.TEXTURE_2D, i, internalFormat, l.width, l.height, 0, g.RGBA, g.UNSIGNED_BYTE, l.data));
         applyParams(g, levels.length, levels.length === 1 && opts?.mipmaps !== false, opts);
-    }, { width: r.width, height: r.height, content: TextureContent.Asset });
+    }, { width: r.width, height: r.height, content: destination.content }, destination.resourceManager?.());
     return { handle, width: r.width, height: r.height };
 }
 
@@ -416,7 +418,7 @@ export interface LoadedCompressedTexture extends UploadedTexture {
  */
 export async function loadCompressedTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule,
-    transcoder: BasisTranscoder, bytes: Uint8Array, opts?: CompressedUploadOptions,
+    transcoder: BasisTranscoder, bytes: Uint8Array, opts?: CompressedUploadOptions, destination: TextureUploadTarget = assetTextureTarget,
 ): Promise<LoadedCompressedTexture> {
     const support = detectCompressedTextureSupport(gl);
     const target = chooseTargetFormat(support, opts?.srgb ?? false);
@@ -425,10 +427,10 @@ export async function loadCompressedTexture(
     const aligned = !target || !t || compressedLevelsSupported('webgl2', target, levelsOf(t, opts));
     const decision = compressedUploadDecision(target, t !== null, aligned);
     if (target !== null && t && aligned) {
-        return { ...uploadCompressedTexture(gl, module, support, target, t, opts), decision };
+        return { ...uploadCompressedTexture(gl, module, support, target, t, opts, destination), decision };
     }
     const decoded = await transcoder.transcodeToRgba(bytes, opts);
     if (!decoded) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
     const rgba = levelsFrom(decoded, opts?.maxEdge);
-    return { ...uploadRgbaTexture(gl, module, rgba, opts), decision };
+    return { ...uploadRgbaTexture(gl, module, rgba, opts, destination), decision };
 }

@@ -106,7 +106,7 @@ for (const [what, re] of [
   ['the native host upload', /hostUploadDecision\(/],
   ['the WebGL2 upload', /return loadCompressedTexture\(/],
   ['compressed engine blocks', /decision: compressedUploadDecision\(target, true\)/],
-    ['the engine RGBA fallback and its block-alignment reason', /decision: compressedUploadDecision\(target, false, blockAligned\)/],
+  ['the engine RGBA fallback and its block-alignment reason', /decision: compressedUploadDecision\(target, false, blockAligned\)/],
   ['an ordinary image', /\{ decision = RAW_PAYLOAD_UPLOAD, \.\.\.texture \} = await this\.decodeFile_/],
 ]) {
   if (!re.test(loader)) {

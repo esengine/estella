@@ -10,6 +10,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TextureLoader } from '../src/asset/loaders/TextureLoader';
 import { uploadRgbaTexture } from '../src/asset/compressed';
+import { handOverNewTexture } from '../src/asset/glTextureUpload';
+import { TextureContent, type CppResourceManager, type ESEngineModule } from '../src/wasm';
 
 function mockGl(opts?: { createReturnsNull?: boolean; throwOnUpload?: boolean }) {
     const tex = { __tex: true };
@@ -58,4 +60,19 @@ describe('compressed uploadRgbaTexture', () => {
             .toThrow(/GL upload failed/);
         expect(gl.deleteTexture).toHaveBeenCalledWith(tex);
     });
+});
+
+it.each(['throw', 'invalid handle'])('reclaims a GL texture and its table entry when pool registration returns %s', outcome => {
+    const { gl, tex } = mockGl();
+    const table: Record<number, WebGLTexture> = {};
+    const module = { GL: { textures: table, getNewId: () => 9 } } as unknown as ESEngineModule;
+    const owner = { registerExternalTexture: () => {
+        if (outcome === 'throw') throw new Error('pool retired');
+        return 0;
+    } } as unknown as CppResourceManager;
+    const upload = () => handOverNewTexture(module, gl, () => {}, { width: 4, height: 4, content: TextureContent.AtlasPage }, owner);
+    if (outcome === 'throw') expect(upload).toThrow('pool retired');
+    else expect(upload()).toBe(0);
+    expect(table[9]).toBeUndefined();
+    expect(gl.deleteTexture.mock.calls).toEqual([[tex]]);
 });

@@ -49,6 +49,8 @@ Spine `.atlas` files are used as exported:
 - **Premultiplied alpha** — a `pma: true` atlas header is honoured; no import setting is required.
 - **Texture compression** — with **Compress textures** enabled at export, atlas pages are cooked to KTX2 and
   transcoded on the device like any other texture.
+- **Page sampling** follows each image's texture import settings, including filter, wrap, sRGB and mipmaps.
+  Standalone loads through `loadSpineAssets` use the same settings as scene loads.
 
 ## Playback and mixing
 

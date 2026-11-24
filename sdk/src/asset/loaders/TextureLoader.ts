@@ -9,8 +9,9 @@ import type { ImageLoadResult, PlatformImage } from '../../platform/types';
 import { fitImagePixels } from '../../platform/imagePixels';
 import { decodeBlobBitmap, decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { evictTextureDimensions, requireResourceManager } from '../../wasm/resourceManager';
+import { assetTextureTarget, type TextureUploadTarget } from '../textureUploadTarget';
 import { provideTextureContent, withdrawTextureContent, type TextureRefill } from '../../wasm/textureRefill';
-import { TextureContent, type CppResourceManager, type ESEngineModule } from '../../wasm';
+import type { CppResourceManager, ESEngineModule, TextureContent } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
     isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, levelsOf, chooseEngineTargetFormat, engineFormatCode,
@@ -98,7 +99,9 @@ export function textureResidencyKey(path: string, flip: boolean): string {
 /** @internal Project path and flip as displayed in diagnostics, including for secondary loaders on a device. */
 export function logicalTextureKey(poolKey: string): string { return poolKey.replace(/(:[fn]):\d+$/, '$1'); }
 
-type TextureReadContext = Pick<LoadContext, 'backend' | 'catalog' | 'resolveStreamTail' | 'readSharedFile'>;
+type TextureReadContext = Pick<LoadContext, 'backend' | 'resolveStreamTail' | 'readSharedFile'> & {
+    catalog?: Pick<LoadContext['catalog'], 'getBuildPath' | 'getStreamTail'>;
+};
 const primaryTextureOwners = new WeakMap<CppResourceManager, number>();
 let nextTextureOwner = 0;
 
@@ -216,8 +219,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      */
     importSettingsResolver: TextureImportSettingsResolver | null = null;
 
-    constructor(module: ESEngineModule | null) {
+    constructor(module: ESEngineModule | null, private readonly uploadTarget_: TextureUploadTarget = assetTextureTarget) {
         this.module_ = module;
+    }
+
+    private resourceManager_(): CppResourceManager {
+        return this.uploadTarget_.resourceManager?.() ?? requireResourceManager();
     }
 
     /** One-shot options for direct calls that omit their own load options. */
@@ -245,7 +252,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     async loadFromPixels(
         width: number, height: number, pixels: Uint8Array, flipY: boolean, content: TextureContent, srgb = true,
     ): Promise<TextureResult> {
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         // A collage of colour images, so colour, unless the caller says its texels are numbers: the engine takes the code as said.
         const format = samplesAsSrgb(srgb) ? 2 : 1;
         // Native (no wasm heap): upload the bytes directly. Web embind lacks this
@@ -272,7 +279,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const held = this.held_.get(handle);
         if (held && --held.references === 0) this.dropHold_(handle, held);
         evictTextureDimensions(handle);
-        requireResourceManager().releaseTexture(handle);
+        this.resourceManager_().releaseTexture(handle);
     }
 
     /**
@@ -294,7 +301,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      */
     async resize(handle: number, maxEdge: number, ctx: TextureReadContext): Promise<{ width: number; height: number } | null> {
         const held = this.held_.get(handle);
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         if (!held || !rm.adoptTextureContent) return null;
         const { source } = held;
         if (maxEdge > 0 && this.importedReaders_.has(handle)) {
@@ -362,13 +369,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
-    resizable(handle: number): boolean { return this.held_.has(handle) && !!requireResourceManager().adoptTextureContent; }
+    resizable(handle: number): boolean { return this.held_.has(handle) && !!this.resourceManager_().adoptTextureContent; }
 
     /** @internal Identity of the current hold on a streamable texture. */
     streamingBinding(handle: number): object | undefined { return this.held_.get(handle); }
 
     *resizableHandles(): IterableIterator<number> {
-        if (this.held_.size && requireResourceManager().adoptTextureContent) yield* this.held_.keys();
+        if (this.held_.size && this.resourceManager_().adoptTextureContent) yield* this.held_.keys();
     }
 
     /** The size of the file behind @p handle, whatever size it is held at; null for one this loader did not decode from a file. */
@@ -430,7 +437,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const { settings, startEdge = 0 } = options ?? this.pendingOptions_;
         if (!options) this.pendingOptions_ = {};
         // A pool that cannot replace content in-place could never restore a streaming preview.
-        const start = startEdge > 0 && requireResourceManager().adoptTextureContent ? startEdge : 0;
+        const start = startEdge > 0 && this.resourceManager_().adoptTextureContent ? startEdge : 0;
         if (start > 0) this.mayHoldReducedTextures = true;
         if (startEdge > 0) this.askedSmall++;
         const { texture: result, decision } = await this.decodeAndUpload_(path, ctx, flip, settings, start);
@@ -452,7 +459,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // survive as an evictable cache entry (budget permitting) and the next
         // load revives it by this key instead of re-fetching + re-decoding.
         // Optional-chained: minimal test mocks may not model the pool surface.
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         rm.registerTextureWithPath?.(result.handle, this.poolKey(key, rm));
         return result;
     }
@@ -462,7 +469,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     ): Promise<{ texture: TextureResult; decision: TextureUploadDecision }> {
         // A build that shipped a small copy beside the file (texture streaming) is read from the copy whenever the size asked for
         // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
-        const tail = maxEdge > 0 ? ctx.resolveStreamTail?.(path) ?? ctx.catalog.getStreamTail?.(path) : null;
+        const tail = maxEdge > 0 ? ctx.resolveStreamTail?.(path) ?? ctx.catalog?.getStreamTail?.(path) : null;
         const useTail = tail != null && maxEdge <= Math.max(tail.width, tail.height);
         const file = bindingFile(path);
         const buildPath = useTail ? tail.path : ctx.catalog?.getBuildPath(file) ?? file;
@@ -524,7 +531,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private uploadPixels_(image: ImageLoadResult, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number): TextureResult {
         const fitted = fitImagePixels(image, maxEdge);
-        const handle = createTextureFromPixels(this.module_, fitted, TextureContent.Asset, flip, pixelParams(settings));
+        const handle = createTextureFromPixels(this.module_, fitted, this.uploadTarget_.content, flip, pixelParams(settings), this.uploadTarget_.resourceManager?.());
         const { width, height, sourceWidth, sourceHeight } = fitted;
         return sourceWidth !== undefined && sourceHeight !== undefined
             ? { handle, width, height, fullWidth: sourceWidth, fullHeight: sourceHeight }
@@ -593,9 +600,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // Native (embedded Dawn): the ResourceManager transcodes the KTX2 with the
         // host's basis library and uploads the compressed blocks — no WebGL2, no
         // wasm transcoder. sRGB follows the texture's settings, as on every path.
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         if (rm.createTextureFromKTX2) {
-            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb), settings?.mipmaps ?? true, maxEdge);
+            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb), settings?.mipmaps ?? true, maxEdge, this.uploadTarget_.content);
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
             this.applyCompressedSampler_(rm, r.handle, settings);
             // A host that reports no format says nothing rather than claiming
@@ -614,7 +621,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         }
         // The WebGL2 context belongs to this wasm module.
         return loadCompressedTexture(gl, this.module_!, transcoder, bytes,
-            { ...settings, srgb: samplesAsSrgb(settings?.srgb), maxEdge });
+            { ...settings, srgb: samplesAsSrgb(settings?.srgb), maxEdge }, this.uploadTarget_);
     }
 
     /** Compressed engine uploads start with a linear, clamped sampler. Address the device texture owned by this loader. */
@@ -640,7 +647,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async loadCompressedViaEngine(
         path: string, transcoder: BasisTranscoder, bytes: Uint8Array, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<LoadedCompressedTexture> {
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         const module = this.module_;
         const srgb = samplesAsSrgb(settings?.srgb);
         let target: CompressedTextureFormat | null = null;
@@ -653,6 +660,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             const levels = t ? levelsOf(t, settings) : [];
             blockAligned = !target || !t || compressedLevelsSupported('webgpu', target, levels);
             if (target && t && blockAligned) {
+                if (this.resourceManager_() !== rm) throw new Error(`Resource manager changed while loading texture: ${path}`);
                 const code = engineFormatCode(target, srgb);
                 // Level 0 first, packed, as the device unpacks them, every level of the chain: the device copies each as whole blocks
                 // (its physical size), so a level whose side is not a multiple of four is uploaded too. Stopping at the first such level
@@ -662,7 +670,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                     let at = ptr;
                     for (const l of levels) { module.HEAPU8.set(l.data, at); at += l.data.length; }
                     return rm.createCompressedTexture!(t.width, t.height, code, ptr, size, levels.length,
-                        TextureContent.Asset);
+                        this.uploadTarget_.content);
                 });
                 if (handle) {
                     this.applyCompressedSampler_(rm, handle, settings);
@@ -759,7 +767,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             return (this.deviceFormats_ =
                 supportedTargetFormats((f) => glInternalFormat(support, f, srgb) !== null));
         }
-        const rm = requireResourceManager();
+        const rm = this.resourceManager_();
         if (rm.supportsCompressedFormat) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             return (this.deviceFormats_ =
@@ -784,7 +792,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const handle = handOverNewTexture(this.module_!, gl, (g) => {
             uploadBoundTextureImage(g, img, flip, settings?.srgb);
             applyBoundTextureSampling(g, settings);
-        }, { width, height, content: TextureContent.Asset });
+        }, { width, height, content: this.uploadTarget_.content }, this.uploadTarget_.resourceManager?.());
         return { handle, width, height };
     }
 

@@ -95,7 +95,7 @@ describe('the sampler of an engine-uploaded KTX2', () => {
             es_rm_getTextureGLId: (handle: number) => handle + 200,
         });
         await new TextureLoader(null).loadDetached('sprite.ktx2', ctx, false, { filter: 'nearest', wrap: 'mirror', mipmaps: false });
-        expect(createTexture).toHaveBeenCalledWith(KTX2, false, false, 0);
+        expect(createTexture).toHaveBeenCalledWith(KTX2, false, false, 0, TextureContent.Asset);
         expect(renderer_setTextureParams).toHaveBeenCalledWith(203, 0, 0, 2, 2);
     });
 

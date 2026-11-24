@@ -12,12 +12,13 @@
  */
 #pragma once
 
+#include "esengine/resource/ResourceManager.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
 namespace esengine {
 class GfxDevice;
-namespace resource { class ResourceManager; }
 }  // namespace esengine
 
 namespace eshost {
@@ -42,6 +43,7 @@ struct KTX2Result {
  *  @p device supports, falling back to RGBA32 so it always succeeds if the file
  *  is valid — and says in the result which of those happened. */
 KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps,
-                         esengine::resource::ResourceManager& rm, esengine::GfxDevice& device, double maxEdge = 0);
+                         esengine::resource::ResourceManager& rm, esengine::GfxDevice& device, double maxEdge = 0,
+                         esengine::resource::ResourceContent content = esengine::resource::ResourceContent::Asset);
 
 }  // namespace eshost

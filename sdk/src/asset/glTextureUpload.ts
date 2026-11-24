@@ -23,7 +23,7 @@ import { glWrapMode, type TextureWrap } from './glTexParams';
 import type { PlatformCanvas, PlatformImage } from '../platform/types';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { platformCreateCanvas } from '../platform/base';
-import type { ESEngineModule, TextureContent } from '../wasm';
+import type { CppResourceManager, ESEngineModule, TextureContent } from '../wasm';
 
 /** Anything WebGL will take directly as texture content. */
 export type GlImageSource = PlatformImage | PlatformCanvas | ImageBitmap;
@@ -172,22 +172,28 @@ export function handOverNewTexture(
     gl: WebGL2RenderingContext,
     write: (gl: WebGL2RenderingContext) => void,
     desc: HandOverDesc,
+    owner?: CppResourceManager,
 ): number {
     const texture = gl.createTexture();
     if (!texture) throw new Error('the GL context gave no texture (is it lost?)');
+    let id: number | undefined;
+    let handle = 0;
     try {
         withBoundTexture(gl, texture, () => write(gl));
-    } catch (err) {
-        gl.deleteTexture(texture);
-        throw err;
+        const rm = owner ?? requireResourceManager();
+        const glObj = module.GL;
+        id = glObj.getNewId(glObj.textures);
+        glObj.textures[id] = texture;
+        handle = desc.gpuBytes !== undefined && rm.registerExternalTextureSized
+            ? rm.registerExternalTextureSized(id, desc.width, desc.height, desc.gpuBytes, desc.content)
+            : rm.registerExternalTexture(id, desc.width, desc.height, desc.content);
+        return handle;
+    } finally {
+        if (!handle) {
+            if (id !== undefined && module.GL.textures[id] === texture) delete module.GL.textures[id];
+            gl.deleteTexture(texture);
+        }
     }
-    const glObj = module.GL;
-    const id = glObj.getNewId(glObj.textures);
-    glObj.textures[id] = texture;
-    const rm = requireResourceManager();
-    return desc.gpuBytes !== undefined && rm.registerExternalTextureSized
-        ? rm.registerExternalTextureSized(id, desc.width, desc.height, desc.gpuBytes, desc.content)
-        : rm.registerExternalTexture(id, desc.width, desc.height, desc.content);
 }
 
 /**

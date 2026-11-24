@@ -4,13 +4,14 @@ import { AsyncCache } from '../asset/AsyncCache';
 import { ownedAssetLease, type AssetLease } from '../asset/AssetLease';
 import type { Assets } from '../asset/Assets';
 import type { TextureResult } from '../asset/AssetLoader';
-import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
-import { samplesAsSrgb } from '../ecs/env';
+import type { BasisTranscoder } from '../asset/compressed';
+import { TextureLoader } from '../asset/loaders/TextureLoader';
+import { atlasBindingSettings, atlasPageBinding } from '../asset/manifestBinding';
 import { disposeAll } from '../util/disposeAll';
 import { TextureContent, type CppResourceManager, type ESEngineModule } from '../wasm';
 import { getResourceManager, requireResourceManager } from '../wasm/resourceManager';
 import { provideTextureContent, withdrawTextureContent } from '../wasm/textureRefill';
-import { createTextureFromPixels, type RuntimeAssetSource } from './runtimeAssets';
+import type { RuntimeAssetSource } from './runtimeAssets';
 
 export type AcquireAtlasPage = (path: string) => Promise<AssetLease<TextureResult>>;
 
@@ -29,10 +30,15 @@ export async function withAtlasPages<T>(
     if (assets) return read(path => assets.acquireTexture(path, false, 'imported'));
 
     const pages = new AsyncCache<AssetLease<TextureResult>>(lease => lease.release());
+    let load: ReturnType<typeof standalonePageReader> | undefined;
     try {
         return await read(async path => {
             const staged = source.resolveRef?.(path) ?? path;
-            const lease = await pages.getOrLoad(staged, () => createHostPage(module, source, staged, transcoder));
+            const key = atlasPageBinding(staged, source.textureImportSettings?.(path));
+            const lease = await pages.getOrLoad(key, () => {
+                load ??= standalonePageReader(module, source, transcoder);
+                return load(staged, key);
+            });
             return lease.retain()!;
         });
     } finally {
@@ -40,16 +46,42 @@ export async function withAtlasPages<T>(
     }
 }
 
-async function createHostPage(
-    module: ESEngineModule | null, source: RuntimeAssetSource, staged: string,
+function standalonePageReader(
+    module: ESEngineModule | null, source: RuntimeAssetSource,
     transcoder: (() => Promise<BasisTranscoder | null>) | undefined,
-): Promise<AssetLease<TextureResult>> {
+) {
     const rm = requireResourceManager();
-    const upload = () => uploadAtlasPage(module, rm, source, staged, transcoder);
+    const loader = new TextureLoader(module, {
+        content: TextureContent.AtlasPage,
+        resourceManager() {
+            if (getResourceManager() !== rm) throw new Error('Resource manager changed while loading atlas page');
+            return rm;
+        },
+    });
+    loader.setPixelDecoder((file, flip) => source.decodePixels(file, flip));
+    if (transcoder) loader.setTranscoderProvider(transcoder);
+    if (source.compressedTexture) loader.setCompressedSource(async file => {
+        const cooked = await source.compressedTexture!(file);
+        // Skeleton attachments address imported pixels even while the editor cooks a compressed copy.
+        return cooked === 'pending' ? null : cooked;
+    });
+    return (staged: string, key: string) => {
+        const settings = atlasBindingSettings(key);
+        return createHostPage(key, rm, async () => {
+            const page = await loader.loadDetached(staged, { backend: source.backend }, false, settings);
+            if (!page.handle) throw new Error(`Texture upload failed: ${staged}`);
+            return page;
+        });
+    };
+}
+
+async function createHostPage(
+    key: string, rm: CppResourceManager, upload: () => Promise<TextureResult>,
+): Promise<AssetLease<TextureResult>> {
     const page = await upload();
     if (getResourceManager() !== rm) {
         rm.releaseTexture(page.handle);
-        throw new Error(`Resource manager changed while loading atlas page: ${staged}`);
+        throw new Error(`Resource manager changed while loading atlas page: ${key}`);
     }
     let held = true;
     const active = () => held && getResourceManager() === rm;
@@ -60,39 +92,9 @@ async function createHostPage(
         finally { rm.releaseTexture(fresh.handle); }
     };
     provideTextureContent(page.handle, refill);
-    return ownedAssetLease(staged, page.handle, page, () => {
+    return ownedAssetLease(key, page.handle, page, () => {
         held = false;
         withdrawTextureContent(page.handle, refill);
         rm.releaseTexture(page.handle);
     });
-}
-
-async function uploadAtlasPage(
-    module: ESEngineModule | null, rm: CppResourceManager, source: RuntimeAssetSource,
-    staged: string, transcoderProvider: (() => Promise<BasisTranscoder | null>) | undefined,
-): Promise<TextureResult> {
-    const checkDevice = () => {
-        if (getResourceManager() !== rm) throw new Error(`Resource manager changed while loading atlas page: ${staged}`);
-    };
-    let decoded;
-    if (isKtx2Path(staged)) {
-        const bytes = new Uint8Array(await source.backend.fetchBinary(staged));
-        if (rm.createTextureFromKTX2) {
-            checkDevice();
-            const result = rm.createTextureFromKTX2(bytes, samplesAsSrgb());
-            if (!result?.handle) throw new Error(`KTX2 transcode failed: ${staged}`);
-            return result;
-        }
-        const transcoder = await transcoderProvider?.();
-        if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
-        const rgba = await transcoder.transcodeToRgba(bytes);
-        if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
-        decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
-    } else {
-        decoded = await source.decodePixels(staged, false);
-    }
-    checkDevice();
-    const handle = createTextureFromPixels(module, decoded, TextureContent.AtlasPage, false, undefined, rm);
-    if (!handle) throw new Error(`Texture upload failed: ${staged}`);
-    return { handle, width: decoded.width, height: decoded.height };
 }

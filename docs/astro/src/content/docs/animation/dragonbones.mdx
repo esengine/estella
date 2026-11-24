@@ -27,6 +27,9 @@ A DragonBones export consists of three files, imported together as one asset typ
 | `<name>_tex.json` | Atlas: the position of each piece in the image. |
 | `<name>_tex.png` | Atlas image. |
 
+The atlas image uses its texture import settings for filtering, wrapping, sRGB and mipmaps. Standalone loads through
+`loadDragonBonesAssets` use the same settings as scene loads.
+
 Copy the folder into the project. The skeleton and atlas JSON files are distinguished **by the `_ske` / `_tex` name
 suffix**, not by extension.
 

@@ -11,7 +11,6 @@
 #include "esengine/renderer/rhi/GfxDevice.hpp"
 #include "esengine/renderer/rhi/GfxEnums.hpp"
 #include "esengine/renderer/rhi/Texture.hpp"           // TextureFormat
-#include "esengine/resource/ResourceManager.hpp"
 
 #include <mutex>
 #include <vector>
@@ -47,7 +46,7 @@ const FormatChoice kChoices[] = {
 namespace eshost {
 
 KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps,
-                         resource::ResourceManager& rm, GfxDevice& device, double maxEdge) {
+                         resource::ResourceManager& rm, GfxDevice& device, double maxEdge, resource::ResourceContent content) {
     const KTX2Result fail{-1, 0, 0, -1, false};
     ensureBasis();
 
@@ -117,7 +116,7 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps
 
     resource::TextureHandle handle;
     if (compressed) {
-        handle = rm.createCompressedTexture(resource::ResourceContent::Asset, w, h, gfxFmt,
+        handle = rm.createCompressedTexture(content, w, h, gfxFmt,
                                             ConstSpan<u8>(out.data(), out.size()), uploaded);
     } else {
         TextureSpecification spec;
@@ -126,7 +125,7 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb, bool mipmaps
         spec.format = srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8;
         spec.wrapS = spec.wrapT = TextureWrap::ClampToEdge;
         spec.generateMips = mipmaps;
-        handle = rm.createTexture(resource::ResourceContent::Asset, spec);
+        handle = rm.createTexture(content, spec);
         if (auto* texture = rm.getTexture(handle)) texture->setDataRaw(out.data(), static_cast<u32>(out.size()), false);
     }
     if (!handle.isValid()) return fail;

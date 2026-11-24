@@ -39,7 +39,7 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?, mipmaps?, maxEdge?)
+// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?, mipmaps?, maxEdge?, content?)
 //   -> { id, width, height, format, blockRefused } | null.
 // Transcodes a KTX2/Basis container to the best device-supported compressed format
 // (or RGBA32) and uploads it. Web runtimes use the wasm transcoder.
@@ -53,9 +53,11 @@ esjs::Val js_createTextureKTX2(const esjs::Args& a) {
     const bool srgb = a.size() > 1 && esjs::toBool(a[1]);
     const bool mipmaps = a.size() < 3 || esjs::isUndefined(a[2]) || esjs::toBool(a[2]);
     const double maxEdge = a.size() > 3 ? esjs::toNumber(a[3]) : 0;
+    const auto content = a.size() > 4 && !esjs::isUndefined(a[4])
+        ? static_cast<resource::ResourceContent>(esjs::toInt32(a[4])) : resource::ResourceContent::Asset;
     auto r = host().ctx->renderThread().invoke([&] {
         return transcodeKTX2(bytes.data(), bytes.size(), srgb, mipmaps,
-                             host().ctx->require<resource::ResourceManager>(), *host().gfx, maxEdge);
+                             host().ctx->require<resource::ResourceManager>(), *host().gfx, maxEdge, content);
     });
     if (r.handle < 0) return esjs::null();
     esjs::Val o = esjs::object();
@@ -175,7 +177,7 @@ esjs::Val js_registry_getCameraEntities(const esjs::Args& a) {
 }  // namespace
 
 void registerRenderBindings(HostState& h, esjs::Val global) {
-    bindGlobal(global, "es_createTextureKTX2", js_createTextureKTX2, 4);
+    bindGlobal(global, "es_createTextureKTX2", js_createTextureKTX2, 5);
     bindGlobal(global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(global, "es_rasterizeGlyph", js_rasterizeGlyph, 1);
     bindGlobal(global, "es_renderer_surfaceSize", js_renderer_surfaceSize, 0);

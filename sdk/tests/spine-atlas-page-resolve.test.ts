@@ -30,6 +30,9 @@ vi.mock('../src/wasm/resourceManager', () => ({
 import { loadSpineAssets, loadSpineSceneEntities } from '../src/spine/loadSpineScene';
 import { SpineManager } from '../src/spine/SpineManager';
 import { textureRefill } from '../src/wasm/textureRefill';
+import { TextureContent } from '../src/wasm';
+import { withAtlasPages } from '../src/runtime/atlasPages';
+import { setLinearColorSpace } from '../src/ecs/env';
 import { loadDragonBonesAssets, loadDragonBonesSceneEntities } from '../src/dragonbones/loadDragonBonesScene';
 import { DragonBonesManager } from '../src/dragonbones/DragonBonesManager';
 import { releaseUnusedAtlases } from '../src/dragonbones/atlasOwnership';
@@ -52,7 +55,9 @@ function makeSource(resolved: Record<string, string>): RuntimeAssetSource & {
             fetchText: vi.fn(async () => ATLAS),
             fetchBinary: vi.fn(async (p: string) => {
                 fetchedBinaries.push(p);
-                return new Uint8Array([1, 2, 3]).buffer;
+                return /\.ktx2(?:\.bin)?$/.test(p)
+                    ? new Uint8Array([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]).buffer
+                    : new Uint8Array([1, 2, 3]).buffer;
             }),
         } as never,
         decodePixels: vi.fn(async () => ({ width: 4, height: 4, pixels: new Uint8Array(64) })),
@@ -183,6 +188,79 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
 });
 
 describe('standalone atlas ownership', () => {
+    it('shares matching page settings across aliases and recovers each distinct sampler by its own receipt', async () => {
+        const file = 'assets/hash.png';
+        const source = makeSource({ 'a/ink.png': file, 'b/ink.png': file, 'c/ink.png': file });
+        const ink = { filter: 'nearest', wrap: 'repeat', mipmaps: false } as const;
+        source.textureImportSettings = path => path === 'c/ink.png' ? { srgb: false, wrap: 'mirror' } : ink;
+        rm.createTextureFromBytes.mockClear().mockReturnValueOnce(120).mockReturnValueOnce(121).mockReturnValueOnce(122);
+        setLinearColorSpace(true);
+        try {
+            const pages = await withAtlasPages(null, source, undefined,
+                acquire => Promise.all(['a/ink.png', 'b/ink.png', 'c/ink.png'].map(acquire)));
+            try {
+                expect(pages.map(page => page.value.handle)).toEqual([120, 120, 121]);
+                const rgba = expect.any(Uint8Array);
+                expect(rm.createTextureFromBytes.mock.calls).toEqual([
+                    [4, 4, rgba, 2, false, TextureContent.AtlasPage, 0, 0],
+                    [4, 4, rgba, 1, false, TextureContent.AtlasPage, 3, 2],
+                ]);
+                source.textureImportSettings = () => ink;
+                expect(await textureRefill(121)!()).toBe(true);
+                expect(rm.createTextureFromBytes).toHaveBeenLastCalledWith(4, 4, rgba, 1, false, TextureContent.AtlasPage, 3, 2);
+                expect(rm.adoptTextureContent).toHaveBeenLastCalledWith(121, 122);
+            } finally { for (const page of pages) page.release(); }
+            expect(textureRefill(120)).toBeUndefined();
+            expect(textureRefill(121)).toBeUndefined();
+        } finally { setLinearColorSpace(false); }
+    });
+
+    it('passes native KTX2 page ownership and imported sampling to the shared texture loader', async () => {
+        const source = makeSource({ 'assets/spine/spineboy.png': 'assets/hash.ktx2.bin' });
+        source.textureImportSettings = () => ({ srgb: false, filter: 'nearest', wrap: 'mirror', mipmaps: false });
+        const upload = vi.fn(() => ({ handle: 123, width: 4, height: 4 }));
+        const module = { renderer_setTextureParams: vi.fn() };
+        Object.assign(rm, { createTextureFromKTX2: upload });
+        setLinearColorSpace(true);
+        try {
+            await readAndRelease(module as never, source, null, PAIR);
+            expect(upload).toHaveBeenCalledWith(expect.any(Uint8Array), false, false, 0, TextureContent.AtlasPage);
+            expect(module.renderer_setTextureParams).toHaveBeenCalledWith(7, 0, 0, 2, 2);
+        } finally {
+            delete (rm as { createTextureFromKTX2?: unknown }).createTextureFromKTX2;
+            setLinearColorSpace(false);
+        }
+    });
+
+    it('keeps attachment pixels at their imported size while an editor cook is pending', async () => {
+        const source = makeSource({ page: 'assets/ink.png' });
+        source.compressedTexture = vi.fn(async () => 'pending' as const);
+        source.decodePixels.mockResolvedValue({ width: 2048, height: 2, pixels: new Uint8Array(2048 * 2 * 4) });
+        const page = await withAtlasPages(null, source, undefined, acquire => acquire('page'));
+        try {
+            expect(page.value).toMatchObject({ width: 2048, height: 2 });
+            expect(source.compressedTexture).toHaveBeenCalledWith('assets/ink.png');
+        } finally { page.release(); }
+    });
+
+    it('abandons compressed blocks if the owning pool retires during transcoding', async () => {
+        const source = makeSource({ page: 'assets/page.ktx2' });
+        const createCompressedTexture = vi.fn();
+        Object.assign(rm, { createCompressedTexture, supportsCompressedFormat: () => true });
+        const t = {
+            transcode: async () => { device.connected = false; return { width: 4, height: 4, data: new Uint8Array(16) }; },
+            transcodeToRgba: vi.fn(),
+        };
+        try {
+            await expect(withAtlasPages({} as never, source, async () => t, acquire => acquire('page'))).rejects.toThrow(/Resource manager changed/);
+            expect(createCompressedTexture).not.toHaveBeenCalled();
+        } finally {
+            device.connected = true;
+            const pool = rm as { createCompressedTexture?: unknown; supportsCompressedFormat?: unknown };
+            delete pool.createCompressedTexture;
+            delete pool.supportsCompressedFormat;
+        }
+    });
     it('discards pixels decoded after their resource manager was retired', async () => {
         const source = makeSource({});
         source.decodePixels.mockImplementationOnce(async () => {

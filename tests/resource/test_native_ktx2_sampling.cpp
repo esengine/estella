@@ -39,6 +39,27 @@ static bool checkPreview(const std::vector<uint8_t>& bytes, Preview preview, boo
     return false;
 }
 
+static bool checkRecoveryOwner(const std::vector<uint8_t>& bytes, bool blocks) {
+    using esengine::resource::ResourceContent;
+    esengine::MockGfxDevice device;
+    device.compressedSupported = blocks;
+    esengine::resource::ResourceManager rm;
+    rm.init(device);
+    const auto image = eshost::transcodeKTX2(bytes.data(), bytes.size(), false, false, rm, device, 13);
+    const auto page = eshost::transcodeKTX2(bytes.data(), bytes.size(), false, false, rm, device, 13, ResourceContent::AtlasPage);
+    if (image.handle < 0 || page.handle < 0) return false;
+    device.notifyDeviceLost(esengine::GfxDeviceLostReason::ContextLost, "test");
+    device.recoverDevice();
+    bool owesImage = false, owesPage = false;
+    for (const auto& owed : rm.texturesAwaitingReupload()) {
+        if (owed.handle.id() == static_cast<uint32_t>(image.handle)) owesImage = owed.content == ResourceContent::Asset;
+        if (owed.handle.id() == static_cast<uint32_t>(page.handle)) owesPage = owed.content == ResourceContent::AtlasPage;
+    }
+    if (owesImage && owesPage) return true;
+    std::fprintf(stderr, "KTX2 recovery blocks=%d: asset=%d atlas=%d\n", blocks, owesImage, owesPage);
+    return false;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
     std::ifstream file(argv[1], std::ios::binary);
@@ -57,5 +78,5 @@ int main(int argc, char** argv) {
             }
         }
     }
-    return 0;
+    return checkRecoveryOwner(bytes, true) && checkRecoveryOwner(bytes, false) ? 0 : 1;
 }
