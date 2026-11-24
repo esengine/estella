@@ -57,7 +57,7 @@ function rootMotionRequest(world: World, entity: Entity): AnimatorRootMotionData
 }
 
 /** What the stick last asked of each character that walks by its animation: a ground direction, how hard (0..1), and the speed the animator is told, which follows it at the controller's rates. */
-const wishes = new Map<Entity, { x: number; z: number; amount: number; speed: number }>();
+const wishes = new Map<Entity, { x: number; z: number; amount: number; speed: number; back: boolean }>();
 
 /** The stick, from the keys a keyboard stands in for one with. */
 function readStick(input: InputState): { x: number; y: number } {
@@ -111,29 +111,33 @@ export function requestMotion(
             // The speed asked of the animator comes up to the stick's at the controller's own rates, so a gait changes
             // over the time the character takes to reach it rather than in one frame.
             const amount = Math.min(1, Math.hypot(stick.x, stick.y));
-            // Asked to go some other way than she faces, she slows while she turns: the gait carries her along her
-            // facing, so at full speed a turn round would be a run that spins. Half speed across the stick, none
-            // straight back; she comes up to speed again as she comes round.
+            // Asked to turn back the way she came, she slows while she comes round; anything short of a right angle
+            // she runs through at full speed, or every touch of the stick would be a stumble. Full speed up to
+            // across, none straight back.
             let along = 1;
+            let back = false;
             if (amount > 0 && world.has(entity, Transform)) {
                 const facing = yawOfQuaternion((world.get(entity, Transform) as TransformData).rotation);
                 const error = shortestAngleDelta(facing, facingYaw(direction)) * Math.PI / 180;
-                along = (1 + Math.cos(error)) / 2;
+                back = Math.cos(error) < 0;
+                along = back ? 1 + Math.cos(error) : 1;
             }
             const wanted = amount * data.moveSpeed * along;
             const was = wishes.get(entity)?.speed ?? 0;
             const rate = (wanted < was ? data.deceleration : data.acceleration) * dt;
             const speed = Math.abs(wanted - was) <= rate ? wanted : was + Math.sign(wanted - was) * rate;
-            wishes.set(entity, { x: direction.x, z: direction.z, amount, speed });
+            wishes.set(entity, { x: direction.x, z: direction.z, amount, speed, back });
         } else {
             wishes.delete(entity);
         }
         let next: { x: number; z: number };
-        if (driven && byAnimation && character.isOnFloor) {
-            // The gait says how fast; the stick says which way. Travelling along the facing alone, a character turned
-            // round at a run carries on the way it was going while it comes round and ends up a stride or two off to
-            // the side. Its velocity is brought round to the stick at the controller's rates instead: it slows along
-            // the line it was on, turns, and goes off the other way from where it stood.
+        if (driven && byAnimation && character.isOnFloor && wishes.get(entity)!.back) {
+            // Turned back the way it came, the gait says how fast and the stick which way. Travelling along its facing,
+            // a character turned round at a run would carry on the way it was going while it came round and end up a
+            // stride or two off to the side. Its velocity is brought round to the stick at the controller's rates
+            // instead: it slows along the line it was on, turns, and goes off the other way from where it stood.
+            // Anything short of that it runs through along its facing, which turns with the stick: the speed stays
+            // the gait's and the feet stay where the clip put them.
             const pace = rootMotionVelocity(driven.deltaPosition, driven.deltaTime);
             const rate = Math.hypot(pace.x, pace.z);
             const wish = wishes.get(entity)!;

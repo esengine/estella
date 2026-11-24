@@ -261,3 +261,19 @@ describe('a constraint weighted to nothing', () => {
         expect(world.get(SHIN, Transform).rotation).toEqual(identity());
     });
 });
+
+describe('a lock taken up again', () => {
+    it('holds where the foot is now, not where it held the last time', () => {
+        const world = makeWorld();
+        const ground = context();
+        frame(world, ground);
+        // Let go of, and the rig carried a long way off while it was.
+        frame(world, ground, { ...lock, weight: 0 });
+        rigAt(world, 0, 3);
+        frame(world, ground, { ...lock, weight: 0 });
+        const free = footInWorld(world).at;
+
+        frame(world, ground);
+        expect(footInWorld(world).at.x).toBeCloseTo(free.x, 3);
+    });
+});

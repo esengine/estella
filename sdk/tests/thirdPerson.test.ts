@@ -498,21 +498,30 @@ describe('a character that walks by its animation, asked to go another way', () 
         expect(asked(['KeyW'], 1)).toBeCloseTo(4, 5);
     });
 
-    it('asks for half across it, and nothing straight back, so it slows while it comes round', () => {
-        expect(asked(['KeyD'], 1)).toBeCloseTo(2, 4);
+    it('runs straight through a turn across it, and asks for nothing straight back', () => {
+        expect(asked(['KeyD'], 1)).toBeCloseTo(4, 4);
         expect(asked(['KeyS'], 1)).toBe(0);
     });
 });
 
 describe('a character running by its animation, turned round', () => {
-    it('goes the way the stick says at the pace the gait sets, not along its facing', () => {
+    it('turned back, goes the way the stick says at the pace the gait sets, not along its facing', () => {
         const world = scene(0, { rootMotion: true, moveSpeed: 4, acceleration: 1e6, deceleration: 1e6 });
-        // Facing -Z and the gait carrying it 3 a second that way; the stick says +X.
+        // Facing -Z and the gait carrying it 3 a second that way; the stick says +Z, straight back.
         asksToMove(world, { x: 0, y: 0, z: -0.05 }, 1 / 60);
-        requestMotion(world, stubInput(['KeyD']), 1 / 60);
+        requestMotion(world, stubInput(['KeyS']), 1 / 60);
         const v = askedVelocity(world);
-        expect(v.x).toBeCloseTo(3, 4);
-        expect(v.z).toBeCloseTo(0, 4);
+        expect(v.z).toBeCloseTo(3, 4);
+        expect(v.x).toBeCloseTo(0, 4);
+    });
+
+    it('turned less than a right angle, runs on along its facing at the pace of the gait', () => {
+        const world = scene(0, { rootMotion: true, moveSpeed: 4, acceleration: 1e6, deceleration: 1e6 });
+        asksToMove(world, { x: 0, y: 0, z: -0.05 }, 1 / 60);
+        requestMotion(world, stubInput(['KeyW', 'KeyD']), 1 / 60);
+        const v = askedVelocity(world);
+        expect(v.z).toBeCloseTo(-3, 4);
+        expect(v.x).toBeCloseTo(0, 4);
     });
 
     it('comes round at the controller\'s rates: it slows along the line it was on first', () => {

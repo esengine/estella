@@ -645,8 +645,12 @@ export function solveAnimatorIK(
     }
     if (ground) {
         const feet = constraints.filter((ik) => ik.kind === 'foot-lock')
-            .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
-        if (feet.length) lockFeet(world, pose, rigRoot, feet, resolveJoint, ground);
+            .map((ik) => ({ ik, weight: weightOf(ik, params) }));
+        // A lock weighted to nothing forgets where it held: taken up again, it holds where the foot is then, not where
+        // it was the last time, which may be a long way back.
+        for (const f of feet) if (f.weight <= 0) ground.locks?.delete(rigRoot + '/' + f.ik.tip);
+        const held = feet.filter((f) => f.weight > 0);
+        if (held.length) lockFeet(world, pose, rigRoot, held, resolveJoint, ground);
     }
     for (const ik of constraints) {
         if (ik.kind === 'foot-plant' || ik.kind === 'foot-lock') continue;
