@@ -556,6 +556,21 @@ ${SSAO_GLSL}
 
 ${IGN_GLSL}
 
+const float CONTACT_OFF_SCREEN = -1e9;
+
+// How far behind what the depth buffer shows the point at distance t along the ray is, in view depth; negative in front of it.
+// CONTACT_OFF_SCREEN where the ray has left the picture, and a large negative where it crosses the sky.
+float behindAt(vec3 P, vec3 L, float t, ivec2 size) {
+    vec3 Q = P + L * t;
+    vec4 q = u_projection * vec4(Q, 1.0);
+    if (q.w <= 1e-4) return CONTACT_OFF_SCREEN;
+    vec2 uv = q.xy / q.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return CONTACT_OFF_SCREEN;
+    ivec2 tx = screenTexel(uv, size);
+    if (depthAt(tx, size) >= 1.0) return -1e8;
+    return q.w - (u_projection * vec4(worldAt(tx, size), 1.0)).w;
+}
+
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
@@ -590,25 +605,51 @@ void main() {
     float jitter = ign(gl_FragCoord.xy + 5.588238 * float(int(u_time.x * 60.0) & 63));
     float occluded = 0.0;
     float steps = clamp(floor(u_contactShadowSteps), 1.0, float(CONTACT_SHADOW_STEPS_MAX));
+    // A sample is in front of the picture, in the thin layer just under a surface (a blocker), or deeper than a wall is thick
+    // (behind something, which may be a thin thing far in front and no blocker at all). A step can jump the layer: a ray
+    // meets a surface seen edge-on a hair inside it and is already deep, and one that entered a thick thing through a side
+    // the picture does not show only meets the layer on its way out. So whenever two samples in a row are on opposite sides
+    // of it, the gap between them is halved to look for it. Through a surface the depth is continuous and the layer is
+    // there; round an outline the depth breaks, the layer is not, and a thing merely in front casts nothing.
+    float last = 0.0;        // the sample before this one
+    bool lastDeep = false;
+    float entered = -1.0;    // where the ray first went behind anything since it was last in front
+    bool blocked = false;
     for (int i = 0; i < CONTACT_SHADOW_STEPS_MAX; ++i) {
         if (float(i) >= steps) break;
         float t = (float(i) + jitter + 0.5) / steps * u_length;
-        vec3 Q = P + L * t;
-        vec4 q = u_projection * vec4(Q, 1.0);
-        if (q.w <= 1e-4) break;
-        vec2 uv = q.xy / q.w * 0.5 + 0.5;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
-        ivec2 tx = screenTexel(uv, size);
-        if (depthAt(tx, size) >= 1.0) continue;
-        float surface = (u_projection * vec4(worldAt(tx, size), 1.0)).w;
-        // Behind what the buffer shows by more than the surface's own noise, and by less than a wall's thickness.
-        float behind = q.w - surface;
-        if (behind > u_thickness * 0.08 + t * 0.01 && behind < u_thickness) {
-            // The nearer the blocker, the harder the contact: a hit at the far end of the march is half a shadow, not a whole one.
-            float reach = t / u_length;
-            occluded = 1.0 - reach * reach;
-            break;
+        float behind = behindAt(P, L, t, size);
+        if (behind == CONTACT_OFF_SCREEN) break;
+        bool front = behind <= u_thickness * 0.08 + t * 0.01;
+        bool deep = behind >= u_thickness;
+        // A step lands somewhere past where the blocker begins; the middle of the step is the even guess, and varies half as
+        // much with the jittered start as the landing does.
+        if (!front && entered < 0.0) entered = max(t - 0.5 * u_length / steps, 0.0);
+        if (!front && !deep) { blocked = true; break; }
+        if (deep != lastDeep) {
+            float lo = last;
+            float hi = t;
+            for (int k = 0; k < 6; ++k) {
+                float mid = 0.5 * (lo + hi);
+                float b = behindAt(P, L, mid, size);
+                bool midFront = b <= u_thickness * 0.08 + mid * 0.01;
+                bool midDeep = b >= u_thickness;
+                if (!midFront && !midDeep) { blocked = true; break; }
+                if (midDeep == lastDeep) lo = mid; else hi = mid;
+            }
+            if (blocked) {
+                if (deep) entered = lo;
+                break;
+            }
         }
+        if (front) entered = -1.0;
+        last = t;
+        lastDeep = deep;
+    }
+    if (blocked) {
+        // The nearer the blocker, the harder the contact: one met at the far end of the march is half a shadow, not a whole one.
+        float reach = clamp(entered / u_length, 0.0, 1.0);
+        occluded = 1.0 - reach * reach;
     }
     fragColor = vec4(src.rgb * (1.0 - u_intensity * occluded * facing), src.a);
 }
