@@ -52,7 +52,8 @@
         "uniforms": {
          "u_intensity": 1.0,
          "u_lightScene": 1,
-         "u_clouds": 0.3
+         "u_clouds": 0.3,
+         "u_groundAlbedo": 0.4
         }
        },
        {
@@ -198,9 +199,9 @@
       "intensity": 1.0,
       "enabled": true,
       "color": {
-       "r": 0.55,
-       "g": 0.66,
-       "b": 0.85,
+       "r": 1,
+       "g": 1,
+       "b": 1,
        "a": 1
       }
      }
