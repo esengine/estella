@@ -1,0 +1,189 @@
+---
+title: 精灵
+description: Sprite 组件参考——创建精灵、字段与默认值、着色与不透明度、GroupOpacity、尺寸与轴心、世界单位、视差、点击检测，以及编辑器中的精灵编辑。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` 在世界空间中渲染一个带纹理的四边形。带 `Transform` 与 `Sprite` 的实体经当前[相机](/docs/zh-cn/graphics/camera/overview/)绘制；重叠的精灵按排序层与层内次序排序（[绘制顺序与排序](/docs/zh-cn/graphics/sprites/sorting/)）。
+
+<Aside type="caution" title="屏幕空间 UI">
+  `Sprite` 是世界空间渲染组件，用于经相机渲染的内容（角色、道具、瓦片、背景）。屏幕空间图像（图标、按钮、面板、进度条）使用画布下的 `UINode` + `UIVisual`，参与布局与屏幕适配。`UINode` 实体上的 `Sprite` 不会渲染。见[精灵还是 UI 图片](/docs/zh-cn/ui/sprite-or-ui/)。
+</Aside>
+
+![Sprite Lab 示例：同一张白纹理的八种着色、翻转，以及一个排序组](@/assets/guides/zh/play-sprites.png)
+
+*Sprite Lab 示例：同一张白色纹理的八种着色、翻转与一个排序组。*
+
+## 创建精灵
+
+| 方式 | 结果 |
+|---|---|
+| *世界大纲 → 添加 → 创建实体… → Sprite* | 精灵实体，`size` 为 `{100,100}`，无纹理。 |
+| 从内容浏览器把图片拖入场景视图 | 带纹理的精灵，尺寸等于纹理像素尺寸。 |
+| 把图片拖到已有实体上 | 把纹理赋给该实体的 `Sprite`。 |
+| 代码 | `Transform` + 带纹理句柄的 `Sprite`（见下）。 |
+
+`Sprite.texture` 存放纹理**句柄**，由加载器获得，例如 `assets.loadTexture(ref)`（[资源](/docs/zh-cn/assets/overview/)）：
+
+```typescript
+import { defineSystem, Commands, Res, Transform, Sprite, Assets } from 'esengine';
+
+const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');   // { handle, width, height }
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { texture: tex.handle, size: { x: tex.width, y: tex.height } });
+});
+```
+
+## Sprite 字段
+
+{/* SHOT: spr-sprite-details | Details panel with a sprite entity selected: the Sprite card expanded showing Texture, Color, Size, Pivot (with its 3×3 preset grid and the frac / px switch), Layer as a dropdown of named sorting layers, Order and Draw Mode */}
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `texture` | `0` | 纹理句柄。`0` 绘制无纹理的白色四边形。运行时赋入资源路径（`insert(Sprite, { texture: 'assets/hero.png' })`）时，引擎加载该资源并替换为句柄；加载完成前字段读数为 `0`。 |
+| `color` | `{1,1,1,1}` | 与纹理相乘的着色，alpha 控制不透明度。可动画。 |
+| `size` | `{1,1}` | 以世界单位计的渲染尺寸。可动画。在编辑器中创建的精灵初始为 `{100,100}`；拖入图片时取纹理像素尺寸。 |
+| `pivot` | `{0.5,0.5}` | 精灵旋转与缩放所围绕的点，以 `size` 的比例表示。0–1 之外的值位于精灵之外。 |
+| `layer` | `0` | 排序层（[排序层](/docs/zh-cn/graphics/sprites/sorting/#排序层)）。 |
+| `order` | `0` | 排序层内的次序，−128…127，值越大越靠上（[层内次序](/docs/zh-cn/graphics/sprites/sorting/#层内次序)）。 |
+| `maskInteraction` | `None` | 对 [`SpriteMask`](/docs/zh-cn/graphics/sprites/sorting/#精灵遮罩) 的响应：`None`、`VisibleInside`、`VisibleOutside`。 |
+| `drawMode` | `Auto` | `Auto` 根据 `tileSize` 与纹理的九宫格边界推断模式；`Simple`、`Tiled`、`NineSlice` 强制指定（[绘制模式](/docs/zh-cn/graphics/sprites/textures/#绘制模式平铺与九宫格)）。 |
+| `flipX` / `flipY` | `false` | 水平 / 垂直镜像。 |
+| `material` | `0` | 自定义[材质](/docs/zh-cn/graphics/materials/overview/)句柄；`0` 使用内置精灵着色器。 |
+| `lit` | `false` | 以平面法线接收 2D 光照。自定义 `material` 会覆盖此项。 |
+| `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | 归一化 UV 下的纹理子区域（[纹理区域与采样](/docs/zh-cn/graphics/sprites/textures/)）。 |
+| `tileSize` / `tileSpacing` | `{0,0}` | 纹理重复尺寸与间隔；`0` 表示不平铺。 |
+| `parallax` | `{1,1}` | 逐轴视差滚动系数（[视差](#视差)）。 |
+| `enabled` | `true` | 隐藏精灵而不移除组件。 |
+
+## 着色与不透明度
+
+`color` 是叠加在纹理上的 RGBA 乘数。白色（`{1,1,1,1}`）保持纹理不变；alpha 小于 1 时精灵半透明。
+
+```typescript
+sprite.color = { r: 1, g: 0.4, b: 0.4, a: 1 };   // 红色着色
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 不透明度
+```
+
+`color` 与 `size` 可动画，可在 [Sequencer](/docs/zh-cn/animation/timeline/) 中设置关键帧。
+
+### 组不透明度
+
+`GroupOpacity` 用一个值淡化实体及其整棵子树。不透明度沿层级向下相乘，乘入每个后代自身的 alpha。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `opacity` | `1` | 本实体及其下全部内容的不透明度，0–1，与其上方每个 `GroupOpacity` 相乘。 |
+| `enabled` | `true` | 禁用该组件。 |
+
+```typescript
+world.insert(panel, GroupOpacity, { opacity: 0.5 });
+```
+
+`GroupOpacity` 作用于精灵、位图文字、图形、拖尾与瓦片地图层。它不是合成图层：组处于半透明时，相互重叠的子级会彼此透出。UI 节点使用 `UINode.opacity`，规则相同（[遮罩与显隐](/docs/zh-cn/ui/masks/#不透明度与点击穿透)）。
+
+## 尺寸与轴心
+
+`size` 是四边形的世界单位尺寸，与纹理像素尺寸无关；`{ tex.width, tex.height }` 按 1:1 渲染纹理。`Transform` 的缩放在此基础上相乘。
+
+`pivot` 是精灵旋转与缩放所围绕的归一化锚点（0–1）：
+
+| `pivot` | 位置 |
+|---|---|
+| `{0.5, 0.5}` | 中心（默认）。 |
+| `{0, 0}` | 左下角。 |
+| `{0.5, 0}` | 底边中点；用于站立的角色。 |
+| `{0.5, -1}` | 图像下方一个精灵高度处；用于图像之外的转轴（摆臂、门）。 |
+
+![同一个精灵绕三个不同轴心旋转——轴心点（黄点）保持不动、四边形绕它摆动：居中＝原地旋转，角点＝甩出去，底部中心＝钉住脚下](@/assets/guides/sprite-pivot.svg)
+
+轴心以比例存储，因此 `size` 改变后仍然有效。编辑器还支持以像素输入轴心，以及在场景视图中拖动手柄（[在编辑器中](#在编辑器中)）。
+
+## 单位与坐标
+
+- 一个世界单位等于一个设计像素。编辑器相机按 `orthoSize = designHeight / 2` 设定，拖入场景视图的图片生成 `size = { tex.width, tex.height }` 的精灵。
+- 因此 `Sprite.size` 以设计像素计，`pivot` 是该尺寸的比例。
+- 世界坐标 Y 轴朝上：屏幕向上为正 Y，所以 `pivot: {0, 0}` 是左下角。
+
+<Aside type="note">
+  `Canvas.pixelsPerUnit`（默认 `100`）不缩放精灵。它是物理尺度：多少设计像素等于一个 Box2D 米（[物理](/docs/zh-cn/gameplay/physics/)）。精灵的显示尺寸为 `size` × `Transform` 缩放。单位与坐标空间见[变换](/docs/zh-cn/core-concepts/transforms/)。
+</Aside>
+
+## 视差
+
+`parallax` 逐轴缩放精灵相对相机的移动量。渲染器将精灵偏移 `cameraCenter × (1 − parallax)`。
+
+| 值 | 行为 |
+|---|---|
+| `1` | 随世界移动（默认）。 |
+| `0` 与 `1` 之间 | 比世界滚动得慢，呈现为更远。 |
+| `0` | 锁定在相机上（固定背景板）。 |
+
+视差背景通常由系数为 `0.2`、`0.5`、`0.8` 等的若干精灵叠成。`BitmapText`、`ShapeRenderer` 与 `MeshRenderer` 使用相同的系数。
+
+## 点击检测
+
+屏幕点对精灵的检测分两步：用 `CameraView` 资源把它转换到世界空间（[相机](/docs/zh-cn/graphics/camera/overview/#屏幕--世界坐标)），再用以下考虑轴心的辅助函数对精灵占位进行测试：
+
+| 函数 | 测试对象 |
+|---|---|
+| `pointInWorldRect(px, py, worldX, worldY, worldW, worldH, pivotX, pivotY)` | 由位置与轴心放置的轴对齐矩形（未旋转精灵的占位）。 |
+| `pointInOBB(…, rotationZ, rotationW)` | 按变换四元数的 `z` / `w` 旋转后的同一矩形；未旋转时等同于矩形测试。 |
+| `pointInHitArea(px, py, area)` | 本地坐标下的 `HitAreaShape`：`rect`、`circle` 或 `polygon`。 |
+
+```typescript
+import { defineSystem, Query, Res, CameraView, Input, Transform, Sprite, pointInOBB } from 'esengine';
+
+const clickSprites = defineSystem(
+  [Query(Transform, Sprite), Res(CameraView), Res(Input)],
+  (q, view, input) => {
+    if (!input.isMouseButtonPressed(0)) return;
+    const p = view.screenToWorld(input.mouseX, input.mouseY);
+    if (!p) return;
+    for (const [entity, t, s] of q) {
+      const w = s.size.x * t.worldScale.x, h = s.size.y * t.worldScale.y;
+      if (pointInOBB(p.x, p.y, t.worldPosition.x, t.worldPosition.y,
+                     w, h, s.pivot.x, s.pivot.y,
+                     t.worldRotation.z, t.worldRotation.w)) {
+        console.log('hit', entity);
+      }
+    }
+  });
+```
+
+可点击区域不是精灵矩形时，以精灵本地坐标将该区域描述为 `HitAreaShape`，再测试本地化后的点：
+
+```typescript
+import { pointInHitArea, type HitAreaShape } from 'esengine';
+
+const hull: HitAreaShape = { type: 'polygon', points: [0, 0, 64, 0, 64, 48, 32, 64, 0, 48] };
+// 未旋转的精灵：减去其原点即完成本地化。
+const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hull);
+```
+
+`screenToWorld` 也作为独立函数导出，接收逆 view-projection 矩阵与视口矩形；`CameraView.screenToWorld` 是绑定了当前相机的同一函数。UI 拾取由 `Interactable` 与 `UIEvents` 处理（[交互](/docs/zh-cn/ui/interaction/)）。
+
+## 在编辑器中
+
+`Sprite` 的全部字段在 **Details** 中编辑；`layer` 显示项目的命名排序层。精灵、相机与光源在场景视图中显示 Gizmo（[场景视图](/docs/zh-cn/editor/viewport/)）。
+
+`pivot` 有三种编辑方式，写入的都是同一个比例值：
+
+| 控件 | 行为 |
+|---|---|
+| 字段下方的 3×3 网格 | 设为九个标准位置之一。 |
+| 该行的 `比例` / `px` 切换 | `px` 显示 `pivot × size`，并把输入的像素值换算回比例（输入 `32` 存为 `32 / size`）。场景中始终存储比例。 |
+| 场景视图中的轴心手柄 | 在 **选择**（`Q`）与 **矩形**（`T`）工具下，单选精灵时显示。拖动手柄移动轴心而不移动画面，位移由变换位置补偿。在移动、旋转、缩放与通用工具下隐藏，因为这些工具的中心手柄位于同一点。 |
+
+{/* SHOT: spr-pivot-handle | Scene view, Select tool (Q), one sprite selected: the pivot handle dragged to the sprite's bottom centre (the feet), artwork unchanged */}
+
+## 另请参阅
+
+- [纹理区域与采样](/docs/zh-cn/graphics/sprites/textures/) —— 翻转、图集、滚动、平铺、过滤。
+- [绘制顺序与排序](/docs/zh-cn/graphics/sprites/sorting/) —— 排序层、排序组、Y 排序、深度层、遮罩。
+- [效果与 2D 渲染组件](/docs/zh-cn/graphics/sprites/effects/) —— 材质、光照、滤镜、图元、拖尾、位图文字。
+- [纹理](/docs/zh-cn/assets/textures/) —— 格式、导入设置与纹理尺寸。
+- [动画](/docs/zh-cn/animation/overview/) —— 精灵表帧动画与属性补间。

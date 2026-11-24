@@ -1,0 +1,298 @@
+---
+title: 天空、雾与天气
+description: 大气效果参考——带体积云、烘焙云、云遮罩与云影的 Sky Atmosphere、Starfield、带体积光的 Height Fog、Distance Fog、Light Shafts、降雨与降雪、Snow Cover，以及 2D 薄雾、战争迷雾与雨效果。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+这些效果绘制天空、空气和降水。它们在检视器中带有**大气**标签（`lightShafts` 带有**光照**标签）。[昼夜](/docs/zh-cn/graphics/time-of-day/)与
+[天气](/docs/zh-cn/graphics/weather/)组件会驱动其中若干参数。雾的颜色以 **sRGB** 书写，在线性项目中会被转换，与清屏色和灯光颜色相同，因此所选颜色即完全被雾覆盖的表面
+所呈现的颜色。
+
+{/* SHOT: pp-sky-atmosphere | A 3D outdoor scene in the Game view at low sun with Sky Atmosphere (Cloud Coverage about 0.5, Cloud Shadows above 0) and Height Fog with Volumetric Light: lit cloud edges, patchy cloud shadow on the ground, light shafts in the haze; the Sky Atmosphere entry unfolded in the Inspector. */}
+
+## 天空大气
+
+`skyAtmosphere`（Sky Atmosphere）在没有绘制表面的地方绘制散射太阳光的大气，包含太阳、月亮、星星和体积云。云以半尺寸计算，由一个全尺寸 pass 合成，该 pass
+同时绘制天穹、太阳、月亮和星星。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Brightness | 1 | 天空亮度。 |
+| `u_lightScene` | Light the Scene | 0 | 为 1 时，所有未指定自身环境的 Ambient 光源都由此天空照亮（漫反射光与反射），并随天空变化更新。 |
+| `u_panorama` | Keep Background | 0 | 保留场景背后背景（全景图、清屏色）的比例。0 表示替换。 |
+| `u_overcast` | Overcast | 0 | 1 为毫无间隙的阴天。由 Weather 组件驱动。 |
+| `u_groundAlbedo` | Ground Albedo | 0.2 | 开启 Light the Scene 时，地面返回到场景光照中的光。 |
+| `u_haze` | Haze | 1 | 米氏散射：越大天空越白、越刺眼，日落越红。 |
+| `u_altitude` | Altitude | 0.1 | 相机离地高度，单位为千米。 |
+| `u_sunSize`、`u_sunBrightness` | Sun Size / Sun Brightness | 1 / 40 | 太阳圆盘的大小与亮度。 |
+| `u_moon`、`u_stars` | Moon / Stars | 1 / 1 | 月亮与星星的亮度。 |
+| `u_followSun` | Follow Scene Sun | 1 | 1：太阳为场景的平行光。0：使用下面两个角度。由 Time of Day 组件写入。 |
+| `u_sunAzimuth`、`u_sunElevation` | Sun Azimuth / Elevation | 40 / 35 | 太阳方向，单位为度（方位角从 +Z 转向 +X）。 |
+| `u_planetRadius` | Planet Radius | 0 | 大于 0 时，天空属于一颗以 Planet Centre X/Y/Z 为中心、该半径的行星。 |
+
+云参数见[云](#云)。
+
+### 天空与细小几何体
+
+天空在场景之后绘制，并垫在场景之下。效果在效果链中时，场景被清为透明，其 alpha 记录几何体覆盖每个像素的比例，因此天空按该覆盖率混合在亚像素的电线或栏杆之下，
+而不是替换整个像素。效果输出的 alpha 为 1，因此后续效果看不到这一处理。**Keep Background** 大于 0 时，场景重新清为相机的颜色。
+
+### 云
+
+云在空气中光线步进，并从内部被照亮：每一步都测量自身与太阳之间隔着多少云，因此厚云的背光面暗、薄边亮。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_clouds` | Cloud Coverage | 0.45 | 主云层覆盖天空的比例。Weather 组件会提高它。 |
+| `u_cloudBase`、`u_cloudThickness` | Cloud Base / Cloud Thickness | 1.5 / 2.5 | 主云层的高度与厚度，单位为千米。 |
+| `u_cloudBrightness` | Cloud Brightness | 1 | 云的亮度。 |
+| `u_cloudScale` | Cloud Scale | 1 | 云的大小；2 表示宽度减半。 |
+| `u_cloudSoftness` | Cloud Softness | 0.22 | 边缘柔和度。 |
+| `u_cloudChange` | Cloud Change | 0.004 | 云在漂移中改变形状的速率。0 表示保持每朵云的形状。 |
+| `u_cloudSilver` | Silver Lining | 0.6 | 靠近太阳时云边的亮度。 |
+| `u_windSpeed`、`u_windDirection` | Wind Speed / Wind Direction | 0.05 / 60 | 漂移速度，单位为千米每秒；方向为从 +Z 转向 +X 的角度。 |
+| `u_cloud2Coverage` | Upper Layer Coverage | 0 | 第二层云。0 时没有开销。 |
+| `u_cloud2Base`、`u_cloud2Thickness`、`u_cloud2Scale` | Upper Layer Base / Thickness / Scale | 6 / 0.6 / 1.8 | 第二层的高度、厚度与颗粒。 |
+| `u_cloud2Wind` | Upper Layer Wind | 1.6 | 第二层的风速倍数。 |
+
+第二层通常更高、更薄、移动更快。设在主云层之下时，它位于主云层前方。它同样投射云影。
+
+**云时钟。** 云的位置是风累积的位移，在游戏时钟上逐帧相加。风变强或转向时，云从当前位置继续移动；[天气](/docs/zh-cn/graphics/weather/)过渡可以在不跳变的情况下改变风。
+游戏暂停时天空静止，相同的步进产生相同的天空。雾的云光束读取相同的位置。要从存档恢复天空，保存 `skyClockState()` 并传给 `setSkyClockState()`。
+
+### 云遮罩
+
+**Cloud Mask**（`u_cloudMask`）为云提供形状：一张可平铺的覆盖率纹理（线性数据、单通道、重复寻址；0 为晴，1 为浓）。`u_cloudMaskTile` 为一次重复所覆盖的云层千米数
+（0 表示云完全由噪声决定）。云绘制在遮罩所示的位置，噪声只负责侵蚀边缘。第二张更柔和、更高的遮罩（`u_cloudMask2`、`u_cloudMask2Tile`）按三分之一并入。
+
+由遮罩塑形的同一批云投射云影并点亮雾中的光束，雾从天空读取遮罩。遮罩应作为数据导入：不使用 sRGB，不压缩。遮罩不含高度信息，因此应将 `u_cloudThickness` 保持在约一千米
+以下；从低角度看，厚的遮罩云层会沿视线被拉成条纹。
+
+### 烘焙云
+
+**Baked Clouds**（`u_bakedClouds: 1`）是面向手机和小游戏的低开销档位。云不再为每个像素步进，而是步进到一张 512 × 512 的天穹全景图中，每帧绘制其十六分之一，
+每个天空像素按自身方向从全景图中读取。天穹每十六帧刷新一次。全景图完整之前，以及天空位于行星上时，云按像素步进。全景图完整后，云 pass 为一个只读取全景图的着色器。
+
+```ts
+world.insert(volume, PostProcessVolume, { effects: [{ type: 'skyAtmosphere', enabled: true, uniforms: { u_bakedClouds: 1 } }] });
+```
+
+| 测量（Wilds，3840 × 2160） | 云 pass |
+|---|---|
+| 逐像素步进 | 3.9–4.4 ms |
+| 烘焙 | 1.2–2.1 ms，另加全景图条带 0.07 ms |
+
+两种方式在两个后端上生成的天空一致（渲染检查 `sky-clouds-marched` 与 `sky-clouds-baked`）。全景图每通道 8 位，读取时经过轻微模糊，因此烘焙云略软。
+
+### 云影
+
+**Cloud Shadows**（`u_cloudShadow`）大于 0 时，天空在场景之前绘制一张云影图：以相机为中心、每个方向 16 千米的方形范围内，太阳光线穿过云层后剩余的比例，使用与天空
+绘制时相同的密度。第一盏平行光在为每个表面着色时读取它，因此云下的地面更暗、更斑驳，天空开阔处被照亮。
+
+- 只削弱太阳的直射光。天空光（环境光与反射）、其他光源和自发光不受影响，因此阴影中的田野保留天空的颜色，不受光或自发光的物体保持不变。
+- 投射云影会将云固定在世界中，而非随相机移动，因此可以从云下走进走出。
+- 天空以千米为单位，场景使用自身单位。**World Units per km**（`u_unitsPerKm`）设定换算；未设置时跟随项目的 Units per Metre（厘米项目为 100 000，米项目为 1000）。
+- 云影图占太阳阴影图集中的一块。图集已满时（高画质档位的四级级联会占满图集），太阳为其让出最远的一级级联。
+- 存储的值是每条光线在相机高度处剩余的光：相机在云层以下时精确，相机位于云层之中时为估计值。16 千米以外以及没有投射云影的天空处，太阳不被削弱。
+
+为 0（默认值）时不绘制云影图。
+
+### 云的限制
+
+- **只能从下方看到。** 相机位于云层之上时看不到云层；没有云顶。
+- **颗粒。** 步进抖动在上采样时经过滤波；地平线附近或 Cloud Scale 很大时可能残留淡淡的纹理。
+- **雾的光束只跟随主云层。** 上层云不产生光束。
+- **主光不跟随单朵云。** 云影施加在表面上；光源自身的强度跟随天气，而不跟随挡在太阳前的云。
+- **未在真机上测量。** 上层云对其覆盖的每个半尺寸像素增加 12 次密度采样（主云层为 64 次），为 0 时没有开销。
+
+## 星空
+
+`starfield`（Starfield）在任何分辨率下都绘制一到两个像素大小的星点，分三个亮度层，叠加在已绘制的天空之上（环境全景图，或效果链中更早的天空效果）。Sun Size 大于 0
+时，它还将第一盏平行光绘制为带光晕的圆盘。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Brightness | 1 | 星点亮度。 |
+| `u_density` | Density | 1 | 星点数量。 |
+| `u_size` | Size (pixels) | 1 | 星点大小，单位为像素。 |
+| `u_band`、`u_bandTilt`、`u_bandTurn` | Band / Band Tilt / Band Turn | 0.5 / 25 / 0 | 星点密集带的强度与朝向（度）。 |
+| `u_sunSize`、`u_sunGlow` | Sun Size (degrees) / Sun Glow | 0 / 1 | 太阳圆盘的大小与光晕。0 不绘制圆盘。 |
+
+`starfield` 以及任何以 `over` 定义的天空（[自定义天空](/docs/zh-cn/graphics/post-processing/scripting/#自定义天空)）以与 Sky Atmosphere 相同的方式垫在场景之下。
+它从任何天空效果运行之前所绘制的场景中读取几何体覆盖率，因此挡在天空前的混合表面（行星的光环、玻璃、烟）按自身不透明度遮挡星点。环境全景图作为背景绘制时，全景图属于场景
+的一部分，星点加在深度仍为远平面的所有位置。
+
+## 高度雾
+
+`heightFog`（Height Fog）随高度变薄：山谷被填满，山顶清朗。密度随高度指数衰减，因此射线所穿过的雾有闭式解，无需步进。同一公式使地平线朦胧、天顶清澈。天空像素使用
+一条很长的射线；Sky Haze 决定天空保留多少这种雾霾。朝向太阳看时，雾霾带有 Sun Colour。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_density` | Density | 0.0015 | 基准高度处每世界单位的密度：一个单位的雾所吸收的光的比例。 |
+| `u_heightFalloff` | Height Falloff | 0.003 | 雾随高度变薄的速度。0 为均匀密度。 |
+| `u_baseHeight` | Base Height | 0 | 基准密度所在的世界高度。 |
+| `u_startDistance` | Start Distance | 0 | 雾开始前与相机的世界距离。 |
+| `u_maxOpacity` | Max Opacity | 1 | 雾不透明度上限。 |
+| `u_followSun` | Follow Scene Sun | 1 | 1：方向与颜色取自第一盏发光的平行光。0：使用下面的角度。 |
+| `u_sunAzimuth`、`u_sunElevation` | Sun Azimuth / Elevation | 40 / 25 | 太阳方向，单位为度；在不跟随时，或场景没有平行光时使用。 |
+| `u_inscatter` | Sun Glow | 0.6 | 朝向太阳的雾霾强度。 |
+| `u_sunExponent` | Glow Sharpness | 8 | 光晕在太阳周围的集中程度。 |
+| `u_skyFog` | Sky Haze | 0.8 | 天空保留的地平线雾霾比例。0 表示天空不受影响。 |
+| `u_volumetric` | Volumetric Light | 0 | 依据阴影贴图计算的内散射阳光比例。 |
+| `u_volumeRange` | Volumetric Range | 3000 | 空气步进覆盖的、距相机的世界距离。 |
+| `u_cloudShade` | Cloud Shafts | 0 | 天空云层对光束的切割程度。 |
+| `u_fogColor`、`u_sunColor` | Colour / Sun Colour | — | 颜色参数：雾的颜色与朝向太阳的雾霾颜色。 |
+| `u_planetRadius` | Planet Radius | 0 | 大于 0 时，高度以行星球面之上测量，而非世界 Y。 |
+
+### 体积光
+
+**Volumetric Light** 使雾霾带上太阳的阴影。相机与每个表面之间的空气对照太阳阴影贴图分 24 步步进，每个处于光中的步骤都将部分光散射向眼睛：建筑的阴影是暗雾，
+两栋建筑之间的缝隙是一道光束。它需要一盏投射阴影的平行光。超出 Volumetric Range 后雾仍会压暗画面，但不再有光束。体积部分以半尺寸计算。
+
+**Cloud Shafts** 使光束跟随天空的云，因此云的间隙在任何视线方向下都是一道立于空气中的光束。雾沿太阳光线向上穿过 Cloud Shadows 大于 0 的 `skyAtmosphere` 的云层，
+使用与天空绘制相同的密度；云覆盖之处是暗的空气。光束的长度等于 Volumetric Range：要让光束穿过几千米高的云，需要较低的 Height Falloff 和几千米的 Volumetric Range。
+天空的覆盖率、高度、厚度、风和遮罩每帧复制到雾上，它们不是雾的设置。
+
+## 距离雾
+
+`distanceFog`（Distance Fog）是按到相机距离计算的线性雾。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_fogNear` | Near | 10 | 雾开始的距离。 |
+| `u_fogFar` | Far | 60 | 雾达到最大的距离。 |
+| `u_intensity` | Intensity | 1 | 最大雾量。 |
+| `u_fogColor` | Colour | (0.6, 0.68, 0.78) | 颜色参数：雾的颜色。 |
+
+## 光束
+
+`lightShafts`（Light Shafts）在屏幕空间中渲染穿过太阳前方遮挡物的太阳光线：每个像素朝太阳在屏幕上的位置步进，并统计途中有多少是开阔天空。太阳必须在屏幕上或刚好在
+屏幕外，且只有深度缓冲中存在的内容才能投出光束。需要带阴影的体积光时，使用 Height Fog 的 Volumetric Light；二者结合可呈现低角度太阳的雾霾与光线效果。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.6 | 光束强度。 |
+| `u_followSun` | Follow Scene Sun | 1 | 1：场景的平行光。0：使用下面的角度。 |
+| `u_sunAzimuth`、`u_sunElevation` | Sun Azimuth / Elevation | 40 / 25 | 不跟随时的太阳方向，单位为度。 |
+| `u_decay` | Decay | 0.96 | 每步的衰减；越低光束越短。 |
+| `u_reach` | Reach | 0.6 | 每个像素朝太阳步进的路程比例。 |
+| `u_sunColor` | Sun Colour | (1, 0.85, 0.6) | 颜色参数：光束颜色。 |
+
+## 雨与雪
+
+`rain` 效果（位于体积上，或由[天气](/docs/zh-cn/graphics/weather/)施加）由两部分产生降雨或降雪：
+
+- **下落的雨滴与雪花**在世界中、相机周围的一个盒体内绘制，使用场景深度，因此较近的几何体会遮挡它们。雨滴是沿速度方向拉伸并朝向眼睛的四边形；沿下落方向看时为一个点。
+  **降雪**绘制柔和的圆形雪花，下落时左右摆动，速度约每秒一米，受风影响比雨更大。雪不会打湿地面，也不产生涟漪。
+- **效果本身**压暗潮湿的表面、绘制水坑，并在水坑上产生涟漪。
+
+雨滴的落点由一个世界空间网格决定，水花、水坑涟漪以及 Water 着色器的雨环都共用该网格，因此一滴雨的水花与其涟漪是同一次落地。**水花**是一个亮点加上被抛起、再被项目重力
+拉回的几颗水珠。**涟漪**需要雨滴：`u_intensity` 为 0 时地面潮湿但静止。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 雨量：网格中实际落下的雨滴比例。 |
+| `u_wetness` | Wetness | 1 | 表面压暗程度与涟漪的清晰程度。 |
+| `u_wind`、`u_speed` | Wind / Speed | 0.15 / 1.6 | 下落的倾斜与速度。 |
+| `u_streakLength` | Streak Length | 0.3 | 雨丝长度。 |
+| `u_puddles` | Puddles | 0.3 | 平地上积水的比例。 |
+| `u_puddleScale` | Puddle Size | 350 | 水坑的世界尺寸。 |
+| `u_snowfall` | Snowfall | 0 | 降雪量。0 表示无雪。 |
+| `u_shelterRange` | Shelter Range | 3000 | 遮蔽图在相机周围每个方向覆盖的世界距离。 |
+| `u_streakWidth`、`u_streakBrightness` | Streak Width / Brightness | 0.012 / 0.35 | 雨滴外观；宽度单位为米。 |
+| `u_flakeSize`、`u_flakeBrightness` | Flake Size / Brightness | 0.04 / 0.9 | 雪花外观；大小单位为米。 |
+| `u_splashDroplets`、`u_splashSize`、`u_splashBrightness`、`u_splashSpeed`、`u_splashLife` | Splash … | 4 / 0.03 / 0.9 / 1 / 0.3 | 每个水花的水珠数、大小（米）、亮度、抛出速度（1 为雨滴速度）、寿命（秒）。水珠数为 0 时只保留亮点。 |
+| `u_ringSpeed`、`u_ringLife`、`u_ringWidth`、`u_ringStrength` | Ring … | 0.25 / 0.5 / 0.006 / 1 | 涟漪速度（米/秒）、寿命（秒）、波峰宽度（米）与强度。 |
+| `u_streakTexture`、`u_flakeTexture`、`u_splashTexture` | Streak / Flake / Splash Texture | — | 替换内置柔和雨丝与圆点的纹理参数：alpha 为形状，颜色为着色。雨丝纹理从尾（v 0）到头（v 1）。 |
+| `u_streakColor`、`u_flakeColor`、`u_splashColor` | Streak / Flake / Splash Colour | (0.78, 0.82, 0.9) | 颜色参数。 |
+
+外观参数以米和秒为单位，因此同一外观在任何世界尺度下保持一致。该效果由引擎时钟驱动动画，没有自身的时间参数。
+
+### 潮湿地面与水坑
+
+潮湿的表面按 Wetness 压暗，因为孔隙中的水吸收了干燥表面会散射的光。朝向天空的表面完全压暗，背向天空的表面减弱到其 0.6；朝向取自 G-buffer 法线（若存在，例如树叶），
+否则取自深度缓冲，因此斜坡和植物与旁边的平地一同变暗。
+
+积水需要**平地**：朝上且足够平坦、能够存水的表面。水坑比潮湿地面更暗，雨滴在其上留下涟漪。水坑的位置是世界位置和周围地面的函数：噪声决定水坑的位置，深度缓冲标出低处。
+比一个水坑范围内的周围地面更低的点积水更多，隆起处积水更少，平地保持给定的覆盖率。水坑因此聚集在路缘旁、凹处和坡脚，并且不随相机移动。
+
+水坑同时是镜面，这由[反射](/docs/zh-cn/graphics/post-processing/lighting/#屏幕空间反射)效果负责：为 `ssr` 设置相同的 `u_puddles` 与 `u_puddleScale`，雨效果压暗的水坑
+即为反射的水坑。潮湿地面整体比干燥地面更光亮；下雨时应提高 `ssr` 的强度。
+
+### 遮蔽
+
+雨不会穿过屋顶。`rain` 效果在效果链中时，帧会从正上方将场景仅以深度绘制一次，写入一张 1024² 的图，覆盖相机周围每个方向 Shelter Range 世界单位：即每处最高表面。
+下落的雨滴止于其下方的最高表面，因此遮阳篷下没有雨落下。遮蔽下的地面保持干燥和静止（没有潮湿、水坑或涟漪），而遮蔽物本身朝向天空，会被打湿。开销为对范围内常驻网格的
+一次仅深度绘制；应将 Shelter Range 保持在所需范围内。图外的地面按露天处理。
+
+**限制。** 地面形状读取自相机所见的内容；墙后的凹陷无法得知。
+
+### 积雪覆盖
+
+`snowCover`（Snow Cover）将雪铺在朝向天空且上方无遮挡的所有表面上，地形和其上的物体一视同仁，无需修改任何材质。积雪随坡度以及在雪线以下变薄，并按画面中该处已有的光照
+着色，因此地面上的阴影也是雪上的阴影。它使用与雨相同的遮蔽图。Snow 天气会施加它（[地形](/docs/zh-cn/graphics/terrain/overview/)）。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_amount` | Amount | 1 | 从低处的薄薄一层到完全覆盖。 |
+| `u_snowLine` | Snow Line | −100000 | 世界高度，低于此高度没有积雪。 |
+| `u_snowLineBand` | Snow Line Band | 100 | 雪线之上积雪逐渐变厚的世界高度范围。 |
+| `u_slopeLimit` | Slope Limit | 0.55 | 表面需朝上到何种程度才能积雪：1 仅平地，0 接近垂直。 |
+| `u_grainScale` | Drift Size | 120 | 雪堆的世界尺寸。 |
+| `u_shelterRange` | Shelter Range | 3000 | 同雨。 |
+| `u_snowColor` | Snow Colour | (0.92, 0.95, 1) | 颜色参数：雪的颜色。 |
+
+## 2D 大气
+
+以下三个效果用于没有深度缓冲的场景。它们的长度以世界单位计，因此在相机移动时保持在地面上。
+
+### 2D 薄雾
+
+`mist2d`（Mist 2D）在地面上铺开漂移的成团薄雾。被照亮的区域会透过薄雾发光。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_density` | Density | 0.55 | 最浓处的厚度。 |
+| `u_coverage` | Coverage | 0.6 | 覆盖地面的比例：0 无，1 几乎全部。 |
+| `u_scale` | Scale | 520 | 雾团的世界尺寸。 |
+| `u_speed` | Speed | 18 | 漂移速度，单位为世界单位每秒。 |
+| `u_direction` | Direction | 25 | 漂移方向，从 +X 起的角度。 |
+| `u_glow` | Glow | 0.6 | 被照亮区域在雾中的散射程度。 |
+| `u_fogColor` | Colour | (0.62, 0.72, 0.76) | 颜色参数：薄雾颜色。 |
+
+### 2D 战争迷雾
+
+`fog2d`（Fog of War 2D）实现战争迷雾：从未见过的地面为暗，见过又离开的地面以变暗、去饱和的方式被记住，视野内的地面按原样显示。它需要一个 `FogOfWar` 组件，由其系统
+每帧提供已探索图与可见图。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_forgetLight` | Remembered Brightness | 0.4 | 被记住地面的亮度。 |
+| `u_forgetDesat` | Remembered Desaturation | 0.7 | 被记住地面去除的颜色比例。 |
+| `u_unexploredColor` | Unexplored Colour | 黑 | 颜色参数：未探索地面的颜色。 |
+
+### 2D 雨
+
+`rain2d`（Rain 2D）绘制雨丝，并在地面上绘制涟漪、水花和水坑；`RainShelter` 精灵下的区域保持干燥。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 雨量。 |
+| `u_wetness` | Wetness | 1 | 地面压暗程度与涟漪清晰度。 |
+| `u_puddles`、`u_puddleScale` | Puddles / Puddle Size | 0.4 / 220 | 积水地面的比例；水坑的世界尺寸。 |
+| `u_rippleScale` | Ripple Scale | 36 | 每个涟漪所在网格单元的世界尺寸。 |
+| `u_wind`、`u_speed`、`u_streakLength` | Wind / Speed / Streak Length | 0.15 / 1.6 / 0.3 | 雨丝的倾斜、速度与长度。 |
+| `u_maskSize` | Shelter Mask Size | 512 | 遮蔽遮罩每边的纹素数，每帧重绘。越大越精细、开销越高；画质级别可以降低它。 |
+| `u_streakColor` | Streak Colour | (0.78, 0.82, 0.9) | 颜色参数：雨丝颜色。 |
+
+<Aside type="tip">
+  高度雾和光束会留下逐像素噪点。效果链中有 `taa` 时，应将其放在它们之后（[时间性抗锯齿](/docs/zh-cn/graphics/post-processing/image-effects/#时间性抗锯齿)）。
+</Aside>
+
+## 参见
+
+- [天气](/docs/zh-cn/graphics/weather/)
+- [昼夜](/docs/zh-cn/graphics/time-of-day/)
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)

@@ -1,0 +1,141 @@
+---
+title: Planets & Large Ground
+description: Tiled terrain for heightmaps too large to hold in memory (.esterrain), and the Planet component — spherical ground from a direction-based provider, planet queries and gravity, generated worlds, layers, collision, sea and sky.
+---
+
+This page covers two forms of large ground built on the [Terrain](/docs/graphics/terrain/overview/) machinery: tiled heightmaps
+for very large areas, and `Planet`, ground on a sphere.
+
+## Tiled ground
+
+A heightmap is read whole: an 8193 × 8193 field occupies about 256 MiB. Set the terrain's `tiles` to a `.esterrain` file
+and the ground is stored as tiles of 513 × 513 samples (neighbours share their edge row) plus a low-detail overview.
+
+- Distant ground is drawn from the overview, which is always resident.
+- Full-detail tiles are read only near the view or a moving body. Beyond a 256 MiB budget the least recently used tiles
+  are released. Where no tile has been read the height is unknown, and collision and queries wait for it.
+- **Split into Tiles** in the terrain sculpt panel converts a heightmap terrain to tiles.
+- Tiled ground is sculpted and painted like any other, on the resident tiles: a brush dab over a tile not yet read is
+  skipped and the tile is read. A modified tile stays resident until saved; saving writes only the modified tiles and the
+  overview.
+- The sculpt panel exports the heights as one image the size of the area and imports one over the tiles. With
+  **Loaded tiles**, non-resident tiles are not read: export takes them from the overview, and import writes the resident
+  tiles and the overview only. **All tiles** reads and writes every tile. Import is refused while there are unsaved
+  changes.
+- Tile images are referenced only by the `.esterrain` and, like a `heightmap`, are read as data; none is uploaded as a
+  texture.
+
+Measured in the editor on a 4096-unit area: an 8193 × 8193 field opened as tiles holds 36 MiB, and 45 MiB close to the
+ground.
+
+{/* SHOT: terrain-sculpt-tiles | The terrain sculpt panel for a tiled terrain (Terrain with a .esterrain in Tiles): the tile section with Split into Tiles, the heightmap export/import buttons and the Loaded tiles / All tiles scope selector visible */}
+
+## Planet
+
+`Planet` is ground on a sphere. It uses the same machinery as flat terrain over a cube whose six faces are each a
+quadtree, with every point projected out to the radius. The finest cells are under the eye; a planet seen from far away
+is a handful of coarse nodes. The same ground is drawn from the surface and from space with no transition.
+
+{/* SHOT: terrain-planet-details | Details panel of a Planet entity with the Shape, Layers, Sea and Physics groups expanded (Sea ticked), and the scene view showing the planet from orbit with its sea */}
+
+### Fields
+
+| Field | Description |
+|---|---|
+| `radius` | Radius in metres. The planet stands at its entity, unrotated and unscaled. |
+| `provider`, `world`, `generatorVersion`, `seed` | Generator (registered with `registerPlanetProvider`), world name, version and seed. The same four produce the same ground everywhere. A version the provider no longer lists fails the planet. |
+| `cellSize`, `detail` | Finest mesh cell in metres, and how far the finest cells reach (above 1 is further). |
+| `layerColor0`–`3` | Grass, dirt, snow and rock colours. |
+| `macroScale`, `macroVariation` | Size in metres and strength (0–1) of a brightness variation laid over the layers. |
+| `layers` | Up to four `.esterrainlayer` files. Empty draws the four colours. |
+| `tintLayers` | Multiply the layer textures by the four layer colours, for grey grain textures that take each planet's colours. Off draws layers in their own colours. |
+| `collision`, `collisionDistance`, `collisionLayer`, `friction` | As on flat terrain: whether bodies collide, the build radius round each moving body (metres), the layer, and friction. |
+| `gravity` | Pull toward the centre at the surface, in m/s² (9.81 is Earth's). 0 (default) pulls nothing. Requires 3D physics. |
+| `sea`, `seaLevel`, `seaColor`, `seaOpacity` | Whether the planet has a sea, its height above the radius (metres), its colour, and its opacity (0–1). |
+| `seaWaveLength`, `seaWaveSteepness` | Longest wave, crest to crest, in metres (shorter trains ride on it), and wave steepness (0 is a mirror). |
+| `seaShallowDepth` | Depth in metres at which the bottom is lost to the water colour. Shallower water is clearer and paler and breaks white along the shore. |
+
+The quality level's **Planet draw levels** (12 at High, 11 at Medium, 10 at Low) caps how many tree levels are drawn
+below a whole face. Collision and queries keep the authored `cellSize`.
+
+### Providers
+
+A planet provider answers for **directions**, not positions. It receives unit directions from the planet's centre and
+the radius, and returns each direction's height above the radius and optionally four layer weights. A sphere has no x
+and z, so a generator samples three-dimensional noise at the point, which has no seam and no pole.
+
+```typescript
+import { registerPlanetProvider } from 'esengine/terrain';
+
+registerPlanetProvider({
+    id: 'my-game:planet',
+    versions: [1],
+    range: () => [-40, 200],
+    sample({ seed, radius, directions, count }) {
+        const heights = new Float32Array(count);
+        for (let i = 0; i < count; i++) heights[i] = myHeight(seed, radius, directions[i * 3]!, directions[i * 3 + 1]!, directions[i * 3 + 2]!);
+        return { heights };
+    },
+});
+```
+
+A provider may also set `workerSource`: the text of a self-contained plain-JavaScript module whose default export
+provides `sample`, `fields`, `versions` and `id`. The world is then laid out and the ground painted on worker threads,
+and the main thread only places each result. Without it, the work runs on the main thread.
+
+### Queries and gravity
+
+`PlanetRegistryRes` answers the questions a round world poses:
+
+| Method | Returns |
+|---|---|
+| `nearest(x, y, z)` | The planet whose surface is nearest the point. |
+| `up(planet, x, y, z)` | Unit direction away from the planet's centre. |
+| `altitude(planet, x, y, z)` | Height above the radius. |
+| `groundHeight(planet, x, y, z)` | The generator's height under the position (`null` while an asynchronous provider has not answered). |
+| `groundPoint(planet, x, y, z)` | The point on the ground under the position. |
+
+With `gravity` set, 3D physics pulls every dynamic body toward the centre of the nearest planet that has gravity: the
+world gravity is removed from the body and the planet's applied as a force each fixed step. With world gravity at zero,
+a body falls toward the planet.
+
+### Generated worlds on a planet
+
+Place a `WorldGen` with `surface` set to **Planet** on the `Planet`'s entity to lay out a
+[generated world](/docs/world/generation/) over the sphere. Each cube face is laid out as a plane in metres by the same
+rules as a flat world (biomes over fields, recipes, layers); a direction is planned by the face it falls on, and placed
+content stands along the planet's up.
+
+- Available fields: ground height, slope, three-dimensional noise (seamless across face edges), `paint.<layer>` for each
+  planet layer, and fields the provider declares in `fields`.
+- Biomes paint the ground (`paintGround`), so what is drawn and what grows come from one map.
+- `seaLevel` is the sea height; lower ground is under water.
+- `WorldZone`s stand at a world position and are kept on the face they fall on.
+
+### Collision and layers
+
+The finest nodes within `collisionDistance` of each moving 3D body and character are built as collision geometry from the
+samples the ground is drawn from. A planet's transform is a position only: collision of a rotated or scaled planet stands
+where the unrotated planet would be.
+
+Each layer is projected onto the planes of the world axes by how much the ground faces them, with a wider tile mixed in
+at a distance. Layers are drawn by the same code as the Terrain Layers shader, so a layer's mask darkens sky light on a
+planet as on flat ground (including its `occlusion`). The Planet material has the same `u_heightBlend`, `u_blendNoise`
+and `u_antiTile`; they default to 0.
+
+### Sea and sky
+
+With `sea` on, the planet has a translucent, lit sphere at `seaLevel` above the radius, in which lower ground stands. The
+sea carries trains of waves laid over the sphere as surface slope, is clearer and paler over shallow ground, and breaks
+white along the shore.
+
+The sky follows the planet's curvature: give `skyAtmosphere` and `heightFog` the planet's radius and centre, and they
+compute sky and haze for the ground under the camera. The sun is a fixed direction, so day and night depend on where on
+the planet the camera stands.
+
+## Limits
+
+- **The planet sea does not move the geometry.** Its waves are surface slope only; the sphere mesh is too coarse to carry
+  them. The flat [water](/docs/graphics/water/overview/) system's displacement, ripples and caustics do not apply to it.
+- **A planet's transform is a position.** Rotation and scale are ignored.
+- **Tiles not yet read have no height.** Queries and collision over them wait until the tile is loaded.

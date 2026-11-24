@@ -1,0 +1,122 @@
+---
+title: 网格
+description: 自定义三角网格——MeshRenderer 的内联几何与网格资源、用于运行时几何的 MeshRenderers 资源、朝向相机的 Billboard 卡片，以及配合 Draw 绘制的句柄式 Geometry API。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+| API | 模型 | 典型用途 |
+|---|---|---|
+| `MeshRenderer` | 组件：参与排序、可保存、可检视。 | 程序化地形切片、径向血条弧、水面、导入的网格。 |
+| `Geometry` | 即时：在绘制回调中绘制的顶点缓冲句柄。 | 配合材质或着色器的自定义顶点布局。 |
+
+## 自定义网格：`MeshRenderer`
+
+`MeshRenderer` 渲染一个带索引的三角形列表。几何可以内联写在组件上：位置为 x、y 坐标对，可选的逐顶点 UV 与颜色，以及索引。
+
+```typescript
+import { Transform, MeshRenderer } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(MeshRenderer, {
+    geometry: {
+      positions: [0, 0,  100, 0,  50, 80],
+      colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
+      indices: [0, 1, 2],
+    },
+  });
+```
+
+该组件具有标准的渲染字段：`texture`、`color`、`layer`、`lit`、`parallax` 与 `material`。
+
+### 几何来源
+
+| 来源 | 行为 |
+|---|---|
+| 内联 `geometry` | 由代码提供的运行时数据。不是检视器字段，编辑器的 `set_field` 无法修改；编辑视口不显示脚本生成的几何。 |
+| `mesh` 字段 | 实体长期保有的几何：内置形状（`builtin:cube`、`builtin:sphere`、`builtin:plane`、`builtin:quad` 等）、`.esmesh` 资源，或运行时由 `assets.createMesh(data)` 得到的句柄。 |
+
+### 运行时修改几何
+
+在场景中或生成时设置的内联几何会自动上传。之后的修改经由 `MeshRenderers` 资源进行；仅写入 `geometry` 字段不会被检测到。
+
+| 方法 | 作用 |
+|---|---|
+| `setGeometry(entity, geometry)` | 替换并重新上传几何。索引由引擎校验。 |
+| `getGeometry(entity)` | 返回当前几何，或 `undefined`。 |
+| `clearGeometry(entity)` | 移除几何。 |
+
+### 朝向相机的卡片：`Billboard`
+
+`MeshRenderer` 旁的 `Billboard` 使网格朝向每个绘制它的视图：招牌、3D 世界中的角色精灵、绘制在卡片上的远处树木、镜头闪光。
+
+```typescript
+import { MeshRenderer, Billboard, BillboardMode } from 'esengine';
+
+world.insert(card, MeshRenderer, { mesh: 'builtin:quad', texture: tree, lit: false });
+world.insert(card, Billboard, { mode: BillboardMode.Upright });
+```
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `mode` | `ViewPlane` | `ViewPlane`：像粒子一样平铺在视图平面内；同一视图中的卡片朝向一致。`Upright`：只绕世界上方向旋转，相机俯视时仍保持直立（树木、招牌、角色）。 |
+| `enabled` | `true` | 关闭时网格保持实体自身的旋转。 |
+
+行为：
+
+- 网格的 +Z 转向观察者，+Y 朝上，即 `builtin:quad` 的站立方式。
+- 旋转在绘制时按视图分别计算，两台相机都能看到卡片正面。实体的 `Transform` 从不被写入，脚本、物理与编辑器 Gizmo 读取的都是编辑时设定的旋转。
+- 阴影贴图也是一个视图：卡片在其中转向光源，投下完整轮廓。
+- `Billboard` 不参与[静态合批](/docs/zh-cn/performance/static-batching/)，`MeshInstances` 的摆放实例也不会被转动。
+
+{/* SHOT: draw-billboard | Scene view in 3D with the camera looking down at an angle: several textured builtin:quad tree cards standing upright on the ground; Details shows the MeshRenderer card (Mesh builtin:quad) and the Billboard card with Mode Upright */}
+
+## 自定义几何：`Geometry` API
+
+`Geometry` 上传带索引的顶点缓冲并返回句柄，在绘制回调中通过 `Draw.drawMeshWithMaterial(geometry, material, transform?)` 配合[材质](/docs/zh-cn/graphics/materials/code/)绘制，或通过 `Draw.drawMesh(geometry, shader, transform)` 配合原始着色器绘制。
+
+```typescript
+import { Geometry, Draw, Material, registerDrawCallback } from 'esengine';
+
+const quad = Geometry.createQuad(120, 120);                  // 1 单位 = 1 设计像素
+const mat = Material.create({ shader });                     // 已编译的着色器
+
+registerDrawCallback('custom-mesh', () => {
+  Draw.drawMeshWithMaterial(quad, mat);                      // 单位变换
+});
+```
+
+### `GeometryOptions`
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `vertices` | — | 交错顶点数据，一个 `Float32Array`（每次上传最多 64K 个 float）。 |
+| `layout` | — | `VertexAttributeDescriptor[]`：按缓冲顺序，每个属性一个 `{ name, type }`。 |
+| `indices` | — | `Uint16Array` 或 `Uint32Array` 三角形列表（每次上传最多 16K 个索引）。 |
+| `dynamic` | `false` | 为通过 `updateVertices` 频繁更新而分配。 |
+
+`DataType` 表示每个属性的形状：`Float`、`Float2`、`Float3`、`Float4`、`Int`、`Int2`、`Int3`、`Int4`。
+
+### 方法与辅助函数
+
+| 方法 | 作用 |
+|---|---|
+| `create(options)` | 上传网格并返回 `GeometryHandle`。失败或数据超限时抛出异常。 |
+| `updateVertices(handle, vertices, offset?)` | 重写 `dynamic` 几何的顶点数据；`offset` 以 float 计。 |
+| `release(handle)` / `isValid(handle)` | 释放 / 检查句柄。 |
+| `createQuad(width?, height?)` | 居中四边形，默认 1×1。布局为 `a_position` + `a_texCoord`。 |
+| `createCircle(radius?, segments?)` | 三角扇圆形，默认 1 与 32。布局相同。 |
+| `createPolygon(points)` | 由 `{ x, y }` 点扇形三角化的多边形；UV 取自其包围盒。布局相同。 |
+
+辅助网格使用 `Float2` 位置与 `Float2` UV，与只含片元阶段的 `.esshader` 材质匹配。
+
+<Aside type="note">
+  只需逐顶点颜色的三角形，用 `Draw.triangles` 或 `Draw.createTriangles` 绘制更简单（[`Draw` API](/docs/zh-cn/graphics/drawing/overview/#draw-api)）。
+</Aside>
+
+## 另请参阅
+
+- [矢量路径](/docs/zh-cn/graphics/drawing/vector-paths/) —— `setPath` 由路径生成 `MeshRenderer` 几何。
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 用于 `MeshRenderer` 与 `Geometry` 的材质。
+- [模型](/docs/zh-cn/assets/models/) —— 导入的网格、蒙皮与变形目标。

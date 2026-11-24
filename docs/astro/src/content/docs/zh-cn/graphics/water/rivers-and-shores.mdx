@@ -1,0 +1,184 @@
+---
+title: 湖泊、河流与瀑布
+description: 湖泊与海洋的岸线、水体如何塑造地形（内置剖面与 Curve Channel）、盆地与汇流分析、河流及其水流、Spline 组件与 SplineCurve，以及 Waterfall 与 WaterfallAnchor 组件。
+---
+
+本页介绍[水体](/docs/zh-cn/graphics/water/overview/#水体)与形状相关的行为：湖泊和海洋与地面的交界、水体如何切削地形、沿样条的河流，以及瀑布。
+
+{/* SHOT: water-river-handles | A river WaterBody selected in the scene view over terrain: spline point squares, edge-midpoint circles and width handles offset across the river; Details shows the Spline point editor (Point, Type, Location, Width, Depth, Velocity, Audio Intensity) for the selected point */}
+
+## 湖泊与岸线
+
+湖泊是位于其实体高度的轮廓。水体区域计算到轮廓的有符号距离，场景中有 `Terrain` 时还计算其上的水深；由此得出每个点保留的波浪
+比例（边缘或浅水处为零，从 `shoreWidth` 往内为完整）。水面沿轮廓被裁切（按区域分辨率描绘，而非网格单元），几何和着色向岸边
+平息，岸线起泡。
+
+水填满低地，并在山丘穿过之处与之相接；波浪随水变浅而消失。水体只在其水面高于地面处才是水：位于湖泊轮廓或河宽内、高出水面的
+山丘或河岸是陆地，绘制和查询均如此。没有地形时湖泊深度不受限制。轮廓不得自相交。
+
+海洋以同样方式从地形取得岸线：区域内地面高于海平面处被裁切，波浪在 `shoreWidth` 的水深内平息。海洋是区域边缘之外的开阔海：
+只有低地与该边缘相连时才是海，因此被更高地面围住、低于海平面的洼地保持干燥（或拥有自己的湖泊）。区域之外，海洋处处位于其
+水位，波浪完整。
+
+水体重叠时，湖泊优先于河流（河流汇入湖泊处取湖泊水位，流速逝入静水），二者均优先于海洋。水面不投射阴影：阳光通过焦散照亮
+水下物体。
+
+## 地形塑形
+
+`affectsTerrain` 开启（默认）时，湖泊、河流和岛屿会改变其下方及周围的地形。这些改变以[地形修改器](/docs/zh-cn/graphics/terrain/rendering-and-code/#修改器)
+施加，因此绘制的地面、查询和碰撞都随之变化，编辑水体只重建其覆盖的地面。
+
+- 设置了 `bedDepth` 的**湖泊**在轮廓下切出湖底，从岸边向下倾斜。
+- 设置了 `bedDepth`（或逐点 `depth`，见[样条](#样条)）的**河流**切出一道河槽：中部低于水面 `bedDepth`，边缘与水面齐平；
+  河岸以相同坡度继续延伸直到与地面相接，最远两个河宽。每段河流是一个修改器，因此编辑样条只重建沿线的地面。已低于河床的地面
+  保持不变。
+- **岛屿**将轮廓内的地面抬升到其自身高度，坡面在 `shoreWidth` 内下降。
+- 游戏自行切削的地面（已包含河道的高度图）将 `bedDepth` 保持为 0，或关闭 `affectsTerrain`。
+
+`channelShape` 选择切削剖面：**Built In**（如上），或由下列字段配置的 **Curve Channel**。
+
+| 字段 | 说明 |
+|---|---|
+| `elevationCurve` | 横跨坡段的河床剖面：从曲线起点（0，岸线加 `channelEdgeOffset` 处）到坡段末端（1），切削达到完整深度的比例。末端应保持为 1，以达到水体（或河流点）设定的深度。 |
+| `channelEdgeOffset` | 曲线从岸线向内开始的距离。负值从河岸上开始，使切削宽于水面。 |
+| `curveRampWidth` | 曲线从起点到完整深度的坡段宽度。 |
+| `terrainBlend` | **Alpha Blend**（默认）：切低较高地面、垫高较低地面，使水始终有位于其水位的地面。**Min**：只切削（用于汇入湖泊的河流，不抬高湖底）。**Max**：只抬升。**Additive**：叠加平坦地面应得的切削量，保留地面自身的细节与坡度，但河床高度不精确。 |
+| `falloffMode` | **Width**：河岸在 `falloffWidth` 内回归地形。**Angle**：河岸以 `falloffAngle` 延伸直到与地面相接，最远 `falloffWidth`。 |
+| `falloffWidth`、`falloffAngle` | 衰减宽度（或最大延伸距离），以及相对水平的河岸坡度（度）。 |
+| `falloffEdgeOffset` | 衰减开始前位于水位的平坦边缘：即使河流切穿山丘也有一条水平河岸。 |
+| `terrainZOffset` | 整体抬高（负值为降低）切削相对水面的高度。 |
+| `terraceAlpha`、`terraceSpacing`、`terraceSmoothness` | 切削上的阶地：程度（0 无，1 完全阶梯）、每级阶地的高差、边缘圆滑度（0 陡直，1 无台阶）。 |
+| `terraceMaskLength`、`terraceMaskStartOffset` | 将阶地限制在从水边向外、从偏移处开始的一段距离内。长度 0 表示处处有阶地。 |
+| `blurRadius` | 在此半径内平均切削，软化边缘和拐角。0：无。 |
+| `curlAmount1`、`curlTiling1`、`curlAmount2`、`curlTiling2` | 两个八度的旋度噪声，弯曲切削轮廓：位移量和涡旋尺寸。 |
+| `innerSmoothDistance`、`outerSmoothDistance` | 在一定宽度内圆滑内缘（河床到河岸），在一定高度内圆滑外缘（河岸到地面）。 |
+
+所有长度均为世界单位。
+
+## 盆地与汇流
+
+世界中湖泊和河流的位置由游戏（或其生成器）决定。`findBasins(grid, ground, { seaLevel })`（`esengine/water`）通过对网格做
+一次优先级洪泛提供地形分析：
+
+| 结果 | 说明 |
+|---|---|
+| `basins` | 每个洼地及其水会填到的 `level`（边缘最低点）、最深点 `deepest` 和溢出处 `outlet`。 |
+| `filled` | 每个纹素处水会达到的高度。 |
+| `basin` | 每个纹素所属的盆地。 |
+| `downstream`、`accumulation` | 每个纹素的排水去向（直到区域边缘）以及流经它的汇水量——即河流所在。 |
+| `sea` | 给定海平面时，海从边缘可到达的低地。 |
+
+`drainPath(map, x, z)` 从某点沿汇流方向追踪。在盆地 `level` 处按其轮廓放置的湖泊恰好将其填满；从 `outlet` 沿 `drainPath`
+放置的河流流经水应流经之处。
+
+## 河流
+
+河流沿其自身实体上的 `Spline`：宽度为曲线在各点的宽度，水面为曲线在最近点处的高度，因此河流向下游流动。在同一实体上放置
+`Spline` 和 `form` 为 **River** 的 `WaterBody`，水体区域即会烘焙它。
+
+- **水流。** `flowSpeed` 为河流最宽处的流速。较窄河段流得更快，较宽河段更慢，范围为该速度的四分之一到两倍，相当于同一流量
+  通过不同宽度。方向为曲线方向。水流从河流起点起在一个河宽内渐入，并在汇入处的一个河宽内渐出，因此河口是静水。样条点的
+  `velocity` 可在局部覆盖 `flowSpeed`。
+- **平流的水面。** 着色器将波浪和涟漪向下游输送：水面的两份副本沿水流每次移动一个周期，一份淡入时另一份淡出，掩盖其中一份
+  的重置，水面在弯道处也不会被拉伸。
+- **波浪。** 河流有自己的 `waveHeight`，与其他水体一样在 `shoreWidth` 内向河岸平息。`Waters.sample` 在 `flow` 中返回水流
+  （世界单位/秒，沿河方向；其他位置为零）。
+- **河岸与河口。** 河岸是场中岸线距离为零之处，按区域分辨率描绘。河流汇入湖泊、海洋或另一条河流时，二者在一个半纹素内混合：
+  没有接缝，河口处没有岸线，也没有高度台阶。
+
+## 样条
+
+`Spline` 只是数据，不绘制任何内容。河流读取其实体上的样条；其他沿路径运动的系统可用 `SplineCurve`（`esengine/spline`，
+可选模块）读取。
+
+| 字段 | 说明 |
+|---|---|
+| `points` | 曲线依次经过的点，位于实体自身空间。 |
+| `closed` | 将终点与起点相连（至少三个点）。 |
+
+| 点属性 | 说明 |
+|---|---|
+| `x`、`y`、`z` | 实体空间中的位置。 |
+| `width` | 沿曲线跟随之物在此处的宽度，向下一点的宽度平滑过渡。 |
+| `type` | 到下一点的线段类型：`curve`（默认）、`customTangent`、`linear` 或 `constant`。 |
+| `arriveTangent`、`leaveTangent` | `customTangent` 时进入和离开该点的方向与拉力。 |
+| `depth`、`velocity`、`audioIntensity` | 可选的逐点河流参数，沿曲线平滑过渡。缺省时使用水体的 `bedDepth`、`flowSpeed`，响度为 1。 |
+
+```ts
+import { SplineCurve } from 'esengine/spline';
+
+const curve = new SplineCurve(spline.points, spline.closed);
+curve.position(s);   // 沿曲线距离 s 处的点
+curve.tangent(s);    // 该处的行进方向
+curve.width(s);      // 该处宽度，在点之间平滑过渡
+curve.nearest(x, z); // xz 平面上的最近位置：s、距离、所在侧
+```
+
+默认线段是向心 Catmull-Rom 曲线：经过每个点，点间距不均时也不会打圈或形成尖点。曲线按距离参数化，因此 `s` 是从起点量起的
+世界单位，而不是在点密处走得更快的参数。开放曲线超出两端时钳制到端点；闭合曲线循环。
+
+在 Details 中，Spline 部分显示点数，可逐点切换（第一个、上一个、下一个、最后一个），并编辑所选点的输入键、位置、类型、切线、
+宽度，以及河流上的深度、流速和音频强度。
+
+## 瀑布
+
+河流水面是地面上的一张场，无法竖立，因此流到悬崖的河流止于崖边。**`Waterfall`** 从那里继续。将其放在崖口处的实体上，朝向
+水流离开的方向（实体前方）。水以 `speed` 水平抛出并受重力下落；每片水幕在遇到地面、遇到非其来源的水，或落到崖口下方
+`maxDrop` 处时结束。它作为实体自身的 `MeshRenderer` 绘制，并在其字段、位置或下方内容变化时重建。
+
+{/* SHOT: water-waterfall | A Waterfall at a cliff lip in the scene view, three sheets falling into a pool with a foot-mist ParticleEmitter on a WaterfallAnchor child; Details shows the Waterfall fields */}
+
+| 字段 | 说明 |
+|---|---|
+| `width` | 水在崖口处的宽度。 |
+| `speed` | 沿实体前方水平离开的速度。越快抛得离悬崖越远。 |
+| `flare` | 水幕底部相对其宽度增加的比例（1 为两倍宽）。 |
+| `sheets`、`sheetGap` | 水幕数（1–5），沿抛出方向前后排列，以及它们在崖口处的间距。中间一片为全宽，其余较窄。 |
+| `maxDrop` | 未遇到任何东西的瀑布在崖口下方结束的落差。 |
+| `rows`、`across` | 每片水幕自上而下的行数（2–256）与横向单元数（1–32）。 |
+
+只有实体绕竖直轴的旋转决定瀑布方向；保持实体直立且不缩放。
+
+**Waterfall 着色器。** `MeshRenderer` 没有材质时使用内置 **Waterfall** 着色器：崖口处清澈的水撕裂成水丝，再化为水雾，纹样随
+水向下移动。
+
+| 参数 | 说明 |
+|---|---|
+| `u_water`、`u_foam` | 崖口处的水色，以及破碎后的白色。 |
+| `u_strands` | 半片水幕上的水丝数。 |
+| `u_run` | 下落过程中每秒水丝变化的次数（越少水丝越长）。 |
+| `u_veil`、`u_tearBy` | 水幕底部消散的比例，以及撕裂到该程度的下落距离。 |
+| `u_opacity`、`u_roughness` | 不透明度与粗糙度。 |
+| `u_translucency` | 穿透水幕的光量，从太阳所在一侧照亮。0 按不透明表面照亮。 |
+
+自定义材质可读取网格数据：`uv.x` 为横跨水幕的位置，`uv.y` 为该处水已下落的秒数，顶点颜色红色为已完成下落的比例，绿色为每片
+水幕各自的编号。
+
+### WaterfallAnchor
+
+属于瀑布某处的内容是带有 **`WaterfallAnchor`** 的子实体。瀑布将该子实体保持在其路径中线上、高出路径 `lift`：
+
+| 字段 | 说明 |
+|---|---|
+| `at` | 以下落时间比例表示的位置：0 为崖口，1（默认）为落点，无论水落在何处。 |
+| `lift` | 高出瀑布路径的高度。 |
+
+子实体上的 [`ParticleEmitter`](/docs/zh-cn/world/particles/) 提供水雾，地面或瀑布下方的水变化时它随落点移动：
+
+```json
+{ "name": "Foot Mist", "parent": 31, "components": [
+  { "type": "Transform", "data": {} },
+  { "type": "WaterfallAnchor", "data": { "at": 1 } },
+  { "type": "ParticleEmitter", "data": { "shape": 5, "shapeRadius": 700, "rate": 22, "speedMin": 150, "speedMax": 600,
+      "lifetimeMin": 4, "lifetimeMax": 8, "startSizeMin": 400, "startSizeMax": 800, "endSizeMin": 1400, "endSizeMax": 2400,
+      "blendMode": 0, "startColor": { "r": 1, "g": 1, "b": 1, "a": 0.12 }, "endColor": { "r": 1, "g": 1, "b": 1, "a": 0 } } } ] }
+```
+
+锚点只设置子实体在瀑布自身空间中的位置；其旋转和缩放保持原样。
+
+## 限制
+
+- **湖泊轮廓是平面多边形。** 不贴合弯曲的岸线。
+- **不按水流生成泡沫。** 急流和瀑布不会因流速或坡度而起泡。
+- **河床只在需要时切削。** 湖泊只在 `bedDepth` 大于零时切出湖底；河流只在 `bedDepth` 或某点的 `depth` 大于零处切削。两者均
+  需开启 `affectsTerrain`。

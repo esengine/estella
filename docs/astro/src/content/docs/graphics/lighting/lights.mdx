@@ -1,0 +1,272 @@
+---
+title: Lights
+description: Light component reference — light types, every field and its default, aiming, per-frame light limits and tiled lights, sprite layer ranges, falloff shaping, inverse-square falloff, cookies, intensity units, and light editing in the editor.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A light is an entity with a **`Light`** component. Its position and aim come from the entity's `Transform`; the
+component holds only the light's own parameters. Lighting is part of the renderer and needs no plugin. A renderer is
+affected by lights only when it is drawn lit ([Lit Surfaces](/docs/graphics/lighting/surfaces/)).
+
+![The 2D Lighting example: a spot light lighting a grid of dark boxes](@/assets/guides/en/play-lighting-2d.png)
+
+*The 2D Lighting example: a light pooling on dark boxes; the rest of the scene is unlit.*
+
+## Adding a light
+
+In the editor, the Create picker offers **Light** (a Point light at the entity's position) and **Sun** (a Directional
+light aimed into the screen). A `Light` component can also be added to an existing entity in the Details panel.
+
+From code:
+
+```typescript
+import { defineSystem, Commands, Transform, Light, LightType, lightAimRotation } from 'esengine';
+
+const addSun = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    // A light aims along its entity's forward, so the sun is aimed by rotating the entity.
+    .insert(Transform, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
+    })
+    .insert(Light, {
+      type: LightType.Directional,
+      color: { r: 1, g: 0.95, b: 0.8, a: 1 },
+      intensity: 1.2,
+    });
+});
+```
+
+Point and Spot lights read their world position from the `Transform` and are skipped without one. Directional and Spot
+lights shine along the entity's forward axis (its rotation applied to −Z); `lightAimRotation(direction)` returns the
+rotation that aims that axis along a direction.
+
+## Light types
+
+| `LightType` | Behaviour |
+|---|---|
+| `Point` (default) | Radiates from the entity's position and falls to zero at `radius`. |
+| `Directional` | Uniform light along the entity's forward axis, like the sun. Position is ignored; only rotation matters. No distance attenuation. |
+| `Spot` | A cone from the entity's position along its forward axis: full strength within `innerAngle`, fading to zero at `outerAngle`, out to `radius`. |
+| `Ambient` | A base term added everywhere, independent of position. Flat by default; two-colour with `hemisphere`; an environment with `environment` ([Environment lighting](/docs/graphics/lighting/surfaces/#environment-lighting)). |
+
+```typescript
+// A warm point light
+.insert(Light, { type: LightType.Point, radius: 320, intensity: 1.5,
+                   color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
+
+// A flashlight cone, aimed down the screen by its entity
+.insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
+.insert(Light, { type: LightType.Spot,
+                   innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
+
+// A dim ambient fill so unlit areas are not black
+.insert(Light, { type: LightType.Ambient, intensity: 0.25 });
+```
+
+## Fields
+
+### Common
+
+| Field | Default | Applies to | Description |
+|---|---|---|---|
+| `type` | `Point` | — | `LightType`: `Point`, `Directional`, `Ambient`, `Spot`. |
+| `color` | `{1,1,1,1}` | all | Light colour, RGBA 0–1. Alpha is unused; strength is `intensity`. |
+| `intensity` | `1` | all | Brightness multiplier. May exceed 1 (HDR, see [Color Space & Quality](/docs/graphics/lighting/color-and-quality/)). |
+| `enabled` | `true` | all | Disables the light without removing it. |
+
+### Reach and shape
+
+| Field | Default | Applies to | Description |
+|---|---|---|---|
+| `radius` | `200` | Point, Spot | Falloff reach in world units. |
+| `innerRadius` | `0` | Point, Spot | Radius held at full strength before the falloff starts. A value at or past `radius` gives a hard-edged disc. |
+| `falloff` | `1` | Point, Spot | Exponent applied to the falloff ramp (0–8). `1` is linear; higher concentrates light near the source; lower extends it and ends abruptly. |
+| `inverseSquare` | `false` | Point, Spot | Falls off as 1/distance² in metres. `innerRadius` and `falloff` are ignored. |
+| `innerAngle` | `30` | Spot | Inner cone angle in degrees (full angle); full strength inside. |
+| `outerAngle` | `45` | Spot | Outer cone angle in degrees (full angle); zero at this angle. |
+| `cookie` | — | Point, Spot | Texture whose **alpha** shapes the light. |
+| `cookieSize` | `{0,0}` | Point, Spot | Cookie size in world units. `0` on an axis covers the light's reach (2 × `radius`). |
+| `layerMin` / `layerMax` | `-128` / `127` | Point, Directional, Spot | Range of sprite layers the light reaches. |
+
+### Shadows
+
+Described in [Shadows](/docs/graphics/lighting/shadows/).
+
+| Field | Default | Applies to | Description |
+|---|---|---|---|
+| `shadowStrength` | `1` | Point, Directional, Spot | Fraction of the light a shadow removes (0–1); `0.6` gives a dark rather than black shadow. Applies to 2D and mesh shadows. |
+| `shadowSoftness` | `0` | Point, Directional, Spot | Light-source half-extent in world units; `0` is a hard edge. Read by 2D shadows, and by mesh shadow maps of Point and Spot lights. |
+| `shadowDistance` | `0` | Directional | Reach of a Directional light's 2D shadows; `0` casts no 2D shadow. |
+| `sourceAngle` | `0.53` | Directional | Angular diameter of the source in degrees (the sun is 0.53); `0` is a hard edge. |
+| `meshShadows` | `false` | Point, Directional, Spot | Casts a shadow map over 3D meshes. |
+| `shadowExtent` | `0` | Directional | Radius of a single fixed shadow map centred on the shadow-casting meshes; `0` fits cascades to the view. |
+| `cascadeSplit` | `0.75` | Directional | Cascade split distribution: `0` even along the view, `1` each cascade a fixed multiple farther than the last; values between blend the two. |
+| `shadowBias` | `1.5` | Point, Directional, Spot | Shadow-map texels a surface is offset toward the light before the test. Raise to remove acne; lower if shadows detach from their casters. |
+| `shadowSlopeFloor` | `0.15` | Point, Directional, Spot | Minimum facing assumed for grazed surfaces, capping their extra bias. Lower to clear acne on walls the light skims; raise to keep their shadows attached. |
+
+### Directional sun
+
+| Field | Default | Description |
+|---|---|---|
+| `followEnvironmentSun` | `false` | Takes direction and strength from the environment's sun; the environment then lights with its sky only. `color` and `intensity` scale the result. |
+| `aimFollowedSun` | `false` | With `followEnvironmentSun`: aims by this light's `Transform` instead of the panorama's sun; colour and strength still come from the panorama. |
+
+### Ambient
+
+| Field | Default | Description |
+|---|---|---|
+| `hemisphere` | `false` | Light from above in `color`, from below in `groundColor`, blended by surface facing. Ignored when `environment` is set. |
+| `groundColor` | `#5a4d40` | Colour received by a downward-facing surface with `hemisphere` on. Scaled by `intensity`. |
+| `environment` | — | Baked `.esenv` environment; replaces the flat and hemisphere terms. |
+| `environmentRotation` | `0` | Rotation of the environment about the up axis, in degrees. |
+| `drawEnvironment` | `false` | Also draws the environment as the background. |
+| `diffuseScale` | `1` | Scales the light the environment gives surfaces, not their reflections or the drawn sky. |
+| `diffuseTint` | `{1,1,1,1}` | Tints the light the environment gives surfaces, not their reflections. |
+| `reflectionScale` | `1` | Scales what baked reflection probes show. |
+| `reflectionSaturation` | `1` | Colour retained by baked reflection probes (`0` = grey). |
+| `bakedTint` | `{1,1,1,1}` | Multiplies baked indirect light (lightmaps, probe volumes), so a time of day or weather can scale the bake. |
+
+`reflectionScale`, `reflectionSaturation` and `bakedTint` are read from the frame's Ambient light.
+
+## Light limits per frame
+
+A frame holds up to **112 lights**:
+
+- **Per-pixel lights (up to 16).** Every lit pixel evaluates these in turn. Selection order: Directional lights, then
+  lights that cast mesh shadows, then the brightest.
+- **Tiled lights (up to 96).** Remaining Point and Spot lights **without a mesh shadow map**. The screen is divided into
+  a 16 × 12 grid; for each tile the engine records which lights' spheres (`radius`) reach it, and a pixel evaluates only
+  its tile's lights. Cost scales with the lights near a pixel, not the lights in the scene.
+
+Both counts are quality settings: **Per-pixel lights** 8 / 12 / 16 and **Tiled lights** 32 / 64 / 96 at low / medium /
+high. Tiled lights are evaluated only when **3D lighting** is Full ([Color Space &
+Quality](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)). Lights past the limit are refused, dimmest
+first; the editor's Light Status reports the refusal, and a warning is logged when the limits are at their maximum.
+
+Constraints:
+
+- **Tiled lights cast no mesh shadows.** A shadow-casting light that does not fit the per-pixel set is refused, since
+  shadow maps are read only there. 2D shadows are not affected: the 2D shadow mask serves tiled lights as well
+  ([2D shadows](/docs/graphics/lighting/shadows/#2d-shadows)).
+- **`radius` determines tile coverage.** A light with a large radius touches every tile and costs accordingly.
+- **Planar reflections** are drawn with the per-pixel lights only.
+- 2D lights use the same sets.
+
+![Details of a directional Light showing its status, lights in frame, colour, intensity, shadow strength and layer range](@/assets/guides/en/details-light.png)
+
+*A Directional `Light` in Details: the light's status and the number of lights in the frame against the limit appear above
+the fields.*
+
+For more static lights than the limits allow, bake them ([Baked Lighting](/docs/graphics/lighting/baked/)).
+
+## Layer range
+
+By default a light reaches sprites on every layer. `layerMin` and `layerMax` (**Layer Min** / **Layer Max**) restrict
+it to sprites whose `layer` is within the range, for example a lamp inside a hut that must not light the roof drawn
+above it:
+
+```ts
+// Floor and furniture on layers 1–4, roof on 7: the lamp reaches layers up to 6.
+world.insert(lamp, Light, { type: 0, color: { r: 1, g: 0.78, b: 0.45, a: 1 }, intensity: 1.5, radius: 330, layerMax: 6 });
+```
+
+- Only sprites carry a layer: a lit `Sprite` (the **Lit** checkbox, or a material built from the Lit or Sway template)
+  is tested. Meshes, tilemaps, particles and skeletons are lit regardless of range.
+- Ambient lights ignore the range and reach every layer.
+- Directional lights accept a range.
+- A custom lit sprite shader participates by calling `applyLighting2DLayer(albedo, N, worldPos, v_lightLayer)` instead
+  of `applyLighting2D` and declaring `flat in highp float v_lightLayer;`. A shader calling `applyLighting2D` is lit by
+  every light.
+- Cost: one comparison per light per pixel; none when no light sets a range.
+
+## Falloff
+
+A Point or Spot light fades linearly from its centre to zero at `radius`. Two fields change the curve without changing
+where the light ends:
+
+- **`innerRadius`** keeps full strength out to its radius; the fade occupies the remaining band.
+- **`falloff`** is the exponent applied to that ramp. `1` is linear. Above 1, light concentrates near the source and
+  the outer reach dims quickly. Below 1, light stays bright for most of the reach and then ends.
+
+```ts
+// A lantern: a bright core, then a quick fade.
+entity.insert(Light, {
+    type: LightType.Point, radius: 400, innerRadius: 120, falloff: 2.5, intensity: 1.4,
+});
+```
+
+The defaults (`0`, `1`) give the linear ramp.
+
+### Inverse-square falloff
+
+With **`inverseSquare`**, a Point or Spot light falls off with the inverse square of distance, as glTF and three.js
+point lights do. `intensity` is then the light reaching a surface **one metre** away (the project's units per metre
+define the metre), a quarter of that at two metres. `radius` only marks where the light is cut off: the remainder eases
+to zero near the far end with the same window function glTF and three.js use. `innerRadius` and `falloff` do not apply.
+
+```ts
+// A shed lamp: at 1 m as bright as a sun of intensity 3.
+entity.insert(Light, { type: LightType.Point, intensity: 3, radius: 13, inverseSquare: true });
+```
+
+Punctual lights in imported glTF files use this mode (candela divided by π, range scaled with the model). Baked
+lighting uses the same falloff as the runtime.
+
+## Cookies
+
+A **`cookie`** is a texture whose alpha defines the shape of a Point or Spot light (a lantern's irregular glow, a
+window shaft).
+
+```ts
+entity.insert(Light, {
+    type: LightType.Point, radius: 300, intensity: 1.6,
+    cookie: 'assets/textures/lantern-glow.png',
+});
+```
+
+- Only the alpha channel is read; the light's colour comes from `color`.
+- The cookie is drawn centred on the light, rotated by the entity's rotation, at `cookieSize` (or the light's reach
+  when `0`).
+- It multiplies the falloff: a shaped light still fades out at `radius` and respects `innerRadius` and `falloff`.
+- Up to **four** shaped lights per frame. Further lights are drawn without their shape.
+
+Cookies are drawn into a screen-space mask with one channel per shaped light, using the same mechanism as 2D shadows;
+each costs one quad rather than a texture slot.
+
+{/* SHOT: light-cookie | A Point light with a cookie texture (irregular lantern glow) lighting a lit floor in the scene view, Preview FX on; the Light card in Details visible with Cookie and Cookie Size fields filled. */}
+
+## Intensity units
+
+`intensity` contains no factor of π: a Directional light of `1` facing a surface gives it its full colour. three.js
+(r155 and later) divides diffuse light by π, so intensities taken from a three.js scene are about three times too bright;
+divide them by π. three.js `HemisphereLight` corresponds to an `Ambient` light with `hemisphere` on.
+
+## In the editor
+
+![A 2D light in the editor viewport — its reach and the shadows its casters throw](@/assets/guides/en/lighting.png)
+
+*A `Light` previewed in the scene view: its reach and the shadows cast by the pillars. **Preview FX** lights the scene
+in edit mode.*
+
+- Lights are drawn as gizmos: an icon, the reach circle, and the direction or cone. The radius handle sets `radius` by
+  dragging. See [Scene view](/docs/editor/viewport/).
+- `color`, `intensity`, `radius`, the spot angles and the shadow fields update the scene view as they are edited in
+  Details.
+- `color`, `intensity`, `radius`, `innerRadius`, `falloff`, `cookieSize`, the spot angles, `shadowStrength`,
+  `shadowSoftness`, `sourceAngle`, `shadowDistance`, `groundColor`, `diffuseScale` and `diffuseTint` are animatable and
+  can be keyed in the
+  [Sequencer](/docs/animation/timeline/).
+
+<Aside type="note">
+  Distance to a light depends on the receiver. A sprite has no depth, so distance is measured in the plane and the
+  light's `z` is ignored. A mesh with normals measures in three dimensions against the world `z` of the light's entity,
+  which sets a Point or Spot light's height.
+</Aside>
+
+## See also
+
+- [Lit Surfaces](/docs/graphics/lighting/surfaces/)
+- [Shadows](/docs/graphics/lighting/shadows/)
+- [Baked Lighting](/docs/graphics/lighting/baked/)

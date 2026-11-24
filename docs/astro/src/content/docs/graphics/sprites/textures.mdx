@@ -1,0 +1,128 @@
+---
+title: Texture Regions & Sampling
+description: How a Sprite maps its texture — flipping, UV sub-rectangles and atlas cells, uvRectFromPixels, UV scrolling, the Simple / Tiled / NineSlice draw modes, and per-texture filtering and wrap modes.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A `Sprite` shows a region of its texture, selected by `uvOffset` / `uvScale` and mirrored by `flipX` / `flipY`, and
+lays it out on the quad according to `drawMode`. How the texture is sampled — filter and wrap — is a property of the
+texture handle, not of the sprite.
+
+## Flipping
+
+`flipX` and `flipY` mirror the displayed region horizontally and vertically, for example to face a character left or
+right with one texture. Flipping is applied to the UV rectangle and does not change `size`, `pivot` or the transform.
+
+## Sub-rectangles and atlas cells
+
+`uvOffset` and `uvScale` select a normalized sub-rectangle of the texture. The default `{0,0}` / `{1,1}` shows the
+whole texture.
+
+UV space is y-up: `v = 0` is the image's bottom row and `v = 1` its top row, the opposite of image-editor pixel
+coordinates. `uvRectFromPixels` converts a pixel rectangle measured from the top-left into the UV window:
+
+```typescript
+import { uvRectFromPixels } from 'esengine';
+
+// The 32×32 cell at pixel (64, 0) of a 256×128 sheet.
+world.insert(entity, Sprite, {
+  texture: sheet.handle,
+  size: { x: 32, y: 32 },
+  ...uvRectFromPixels({ x: 64, y: 0, width: 32, height: 32 }, 256, 128),
+});
+```
+
+| Function | Returns |
+|---|---|
+| `uvRectFromPixels(rect, textureWidth, textureHeight)` | `{ uvOffset, uvScale }` for `rect` (`x`, `y`, `width`, `height` in pixels, `y` measured down from the top edge). |
+
+<Aside type="caution">
+  `uvOffset.y = y / height` computed by hand selects the vertically mirrored cell. The error is not visible on a
+  sprite that shows the whole texture, only on atlas cells.
+</Aside>
+
+Related:
+
+- Separate textures can be packed onto one canvas at run time with
+  [`TextureAtlas`](/docs/graphics/drawing/render-textures/#atlas-packing-textureatlas), which returns the
+  `{ texture, uvOffset, uvScale }` of each source.
+- Frame-by-frame animation drives these fields through the [Animator](/docs/animation/overview/).
+
+## Scrolling
+
+Animating `uvOffset` over time scrolls the texture across the sprite (water, conveyor belts). UVs then leave the
+0–1 range, so the texture's wrap mode must be `Repeat` ([Filtering and wrapping](#filtering-and-wrapping)).
+
+## Draw modes: tiling and 9-slice
+
+`drawMode` selects how the region is laid out on the quad:
+
+| `SpriteDrawMode` | Geometry |
+|---|---|
+| `Auto` (default) | `Tiled` when both `tileSize` components are above 0; otherwise `NineSlice` when the texture has a 9-slice border; otherwise `Simple`. `tileSize` takes precedence over a slice border. |
+| `Simple` | One quad; the region is stretched to `size`. |
+| `Tiled` | The region repeats every `tileSize`, separated by `tileSpacing`. Requires `tileSize`; without it the sprite draws as `Simple`. |
+| `NineSlice` | Corners at 1:1, edges stretched along one axis, the centre along both. Requires a slice border on the texture; without one the sprite draws as `Simple`. |
+
+Tiling behaviour:
+
+- `tileSize` and `tileSpacing` are in the sprite's local units and are multiplied by the transform scale.
+- Each tile is emitted as its own quad showing the full region; tiles along the far edges are cropped. Tiling therefore
+  does not depend on the texture's wrap mode.
+- A grid of more than 16384 tiles is drawn as one stretched quad.
+
+The 9-slice border is texture metadata, set in the texture asset inspector ([Textures](/docs/assets/textures/)).
+
+{/* SHOT: spr-draw-modes | Scene view with three sprites of the same non-square size using one bordered texture: Draw Mode Simple (stretched), Tiled (Tile Size set) and NineSlice (texture with a slice border); Details of the Tiled sprite showing Draw Mode, Tile Size and Tile Spacing */}
+
+## Filtering and wrapping
+
+Sampling parameters are set per texture handle and apply to every sprite, material and draw that uses the texture.
+
+![The same 16×16 texture magnified: Nearest keeps hard pixel edges, Linear blends them into a smooth gradient](@/assets/guides/texture-filter.png)
+
+*The same texture magnified about 15×. `Nearest` keeps texel edges hard (pixel art); `Linear` interpolates between
+texels (default).*
+
+| Enum | Values | Meaning |
+|---|---|---|
+| `TextureFilter` | `Nearest`, `Linear` | `Nearest`: hard texel edges. `Linear`: smooth interpolation (default). |
+| `TextureWrap` | `Repeat`, `ClampToEdge`, `MirroredRepeat` | Sampling of UVs outside 0–1: repeat the texture, extend the edge texel, or repeat mirrored. |
+
+![How each wrap mode samples UVs outside 0–1: Repeat tiles the texture, Clamp to edge extends the border pixel, Mirror flips every other tile](@/assets/guides/texture-wrap.png)
+
+*UVs outside 0–1 (centre tile = the texture): `Repeat` tiles it, `ClampToEdge` extends the border texel,
+`MirroredRepeat` mirrors every other copy.*
+
+| Function | Effect |
+|---|---|
+| `setTextureFilter(textureId, filter)` | Sets min and mag filter. Resets wrap to `ClampToEdge`. |
+| `setTextureWrap(textureId, wrap)` | Sets wrap on both axes. Resets filter to `Linear`. |
+| `setTextureParams(textureId, minFilter, magFilter, wrapS, wrapT)` | Sets all four parameters. |
+
+```typescript
+import { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from 'esengine';
+
+setTextureFilter(tex.handle, TextureFilter.Nearest);   // pixel art
+setTextureWrap(tex.handle, TextureWrap.Repeat);        // UV scrolling
+
+// Filter and wrap together:
+setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
+                 TextureWrap.Repeat, TextureWrap.Repeat);
+```
+
+Import-time defaults for filter and wrap are part of the texture's import settings
+([Textures](/docs/assets/textures/)).
+
+<Aside type="tip">
+  `TextureFilter.Nearest` keeps texels sharp but does not prevent shimmer from a camera at fractional positions.
+  Combine it with the camera's `pixelPerfect` flag, which snaps an orthographic camera to the pixel grid
+  ([Camera](/docs/graphics/camera/overview/#the-camera-component)).
+</Aside>
+
+## See also
+
+- [Sprites](/docs/graphics/sprites/overview/) — the `Sprite` component and its fields.
+- [Textures](/docs/assets/textures/) — formats, import settings and the 9-slice border editor.
+- [Render Textures](/docs/graphics/drawing/render-textures/) — `TextureAtlas` and `TextureCanvas`.

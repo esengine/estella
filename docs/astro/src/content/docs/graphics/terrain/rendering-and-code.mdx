@@ -1,0 +1,237 @@
+---
+title: Terrain Rendering & Code
+description: How Terrain is drawn (quadtree, geomorphing, height pages, building over frames, virtual texture) and its runtime API — height and normal queries, status, collision tiles, raycasts, modifiers, path search and terrain providers.
+---
+
+This page covers how a [Terrain](/docs/graphics/terrain/overview/) is drawn and the `TerrainsRes` API scripts use to query and
+modify it.
+
+{/* SHOT: terrain-detail-group | Details panel of a Terrain that has layers, with the Detail group expanded: Cell Size, Detail, Virtual Texture ticked, Virtual Texture From 1; the scene view behind shows the terrain from a low angle */}
+
+## Quadtree
+
+The ground is divided by a quadtree. Every node at every level is drawn with the same 32 × 32-cell patch, scaled to the
+node's square: a level-0 node is `32 * cellSize` across, and each level up is twice as wide with cells twice as large.
+
+Each level has a range from the eye. Level 0's range is `2.5 * 32 * cellSize * detail`, multiplied by the quality
+level's **Detail distance** (1 at High, 0.8 at Medium, 0.5 at Low); each level's range is twice the one below. A node
+closer to the eye than the range of the level below it is split into its four children, so the ground is finest round
+the eye and coarsens level by level. An area has enough levels for a top node to cover the area; infinite ground has
+enough for the top level's range to reach `drawDistance`.
+
+Nodes are ordinary `MeshRenderer` children of the terrain entity sharing one mesh and one material, drawn as instances:
+the whole ground is a handful of draw calls. The patch is flat; the Terrain shader lifts each vertex to the ground
+height read from the node's page and takes the normal from the same page.
+
+**Geomorphing.** Toward the end of its level's range, the shader slides each vertex onto the grid of the level above. At
+the edge of the range every vertex of a fine node lies on a vertex of the coarser neighbour, so adjacent levels meet
+along the same line: no cracks, no skirts, and no popping as the eye moves.
+
+## Pages
+
+The heights a node is drawn with are stored in a **page**: the node's square sampled 64 times per side (two samples per
+patch cell), plus one sample beyond each edge so edge slopes are known. A page holds 16-bit height over the ground's
+range and the normal in one atlas texture, and the four layer weights in another.
+
+| Quality level | Terrain page atlas | Pages per atlas |
+|---|---|---|
+| High, Medium | 2048 × 2048 | 900 |
+| Low | 1024 × 1024 | 225 |
+
+A device whose maximum texture size is below twice the atlas side uses 1024. A coarse node's page covers more ground
+with the same 64 samples, so its detail falls off with its cells.
+
+Pages are made on demand, a few per frame within a time budget, coarse and near pages first. Until a node's page exists,
+the node is drawn from its nearest ancestor that has one, so the ground appears at once and sharpens as pages arrive.
+When the atlas is full, the least recently drawn page is evicted.
+
+The atlas is a budget for the nodes drawn at once: a page that stands in for a finer one does not match its finer
+neighbours' edges, and the ground cracks along them. A `detail` that requests more nodes than the atlas holds (about 4
+on 1.5 m cells from most viewpoints) is drawn at the share of its range that fits, 0.9 of it at a time, and a warning
+reports once the detail being used.
+
+## Building over frames
+
+Making pages and eroding an area are spread over frames so that neither stalls a frame. While they run they are listed
+with their progress ("Building the terrain", "Eroding the terrain") in the editor's status bar. A game can read the same
+list to show a loading screen.
+
+## Virtual texture
+
+With **Virtual Texture** (`virtualTexture`) on a terrain with layers, the surface is baked into pages. From level
+**Virtual Texture From** (`virtualTextureFrom`, default 1) outward, each quadtree node gets a page of what the Terrain
+Layers shader produces before lighting — colour, roughness, normal including the layers' normal maps, and occlusion —
+rendered once on the GPU. The node is then drawn from that page with two texture reads instead of reading every layer at
+every pixel. The page is rendered through the ground's own material, so its parameters (colour map, wet band, strata,
+per-layer settings) produce the same result baked and live. Lighting, shadows and sky remain live.
+
+| Setting | High | Medium | Low |
+|---|---|---|---|
+| Page side (**Terrain surface page size**) | 256 | 256 | 128 |
+| Pages baked per frame | 2 | 2 | 1 |
+
+A minigame with no quality policy uses the Low values. A page covers its node, so it holds about as much detail as the
+node is drawn at; a node is roughly the same size on screen at every level. The nearest level stays live by default,
+where layer detail is most visible; `virtualTextureFrom` 0 bakes it too. Ground steeper than the Terrain Layers
+material's `u_surfaceUp` (default 0.65, about 50°) is drawn live, because a page seen from above stretches down a cliff.
+A node whose page is not ready is drawn live, so nothing pops in.
+
+Pages are baked nearest first, listed as "Baking the ground's surface", and re-baked when the node's height-and-paint
+page is remade (sculpting, a modifier, a world painting the ground) or the layers are repacked. A script that changes a
+material parameter at run time calls `repaint()` on `TerrainsRes` so the pages follow. The atlas holds 63 pages (33 MB
+at 256 texels, 8 MB at 128); the least recently drawn are evicted.
+
+Measured on the Terrain & Water example (RTX 3060, 1080p, WebGL2): ground shading went from 2.1 to 0.8 ms and the frame
+from 15.1 to 13.5 ms at the default camera; at the lake, from 2.6 to 1.8 ms (1.2 ms with level 0 baked).
+
+## Height queries
+
+```ts
+import { TerrainsRes } from 'esengine/terrain';
+
+const terrains = app.getResource(TerrainsRes);
+const y = terrains.heightAt(x, z);       // world height, or null where there is no terrain
+const n = terrains.normalAt(x, z);       // unit normal of the triangle there, or null
+```
+
+Queries read the surface lattice of `cellSize` cells, each cell split along the diagonal from its (1, 0) corner to its
+(0, 1) corner. This is exactly the finest level drawn near the eye and the geometry bodies collide with, so queries, rays
+and drawn triangles agree (to the GPU's 16-bit height encoding: a few millimetres for a few hundred units of height), and
+the result does not depend on the camera. Queries answer for any point whether or not its page exists.
+
+| Member | Description |
+|---|---|
+| `heightAt(x, z)` | World height of the ground, or `null`. Returns `null` until an area's images are read and its erosion has finished; a provider that answers asynchronously leaves a point `null` until the samples round it arrive. |
+| `normalAt(x, z)` | Unit normal of the surface triangle at the point, or `null`. |
+| `heightBeneathAt(x, z)` | Ground height as generated, beneath all modifiers. |
+| `loading` | `true` while any terrain is still reading images or eroding. |
+| `status(entity)` | `loading`, `ready`, or `failed` with a `reason`. |
+| `raycast(origin, direction, maxDistance)` | Intersects the same triangles anywhere, without the physics world. |
+| `collisionReadyAt(x, z)` | Whether collision geometry under the point is built. |
+| `findPath(from, to, options)` | Walkable path search; see [Path search](#path-search). |
+| `setModifier(modifier)`, `deleteModifier(id)` | See [Modifiers](#modifiers). |
+| `repaint()` | Remakes every page, for a paint that changed what it returns. |
+
+A terrain fails when its heightmap cannot be read, its provider is not registered, or its `generatorVersion` is no
+longer listed by the provider. A failed terrain draws nothing and answers `null`, rather than generating noise where
+the game expects its own ground.
+
+## Collision
+
+With `collision` on, the ground is added to the 3D physics world as tiles of 32 cells within `collisionDistance` of every
+moving 3D body and every character. The tile under each one is built immediately, the rest a few per frame nearest
+first, and tiles are released when nothing is near. Each tile is a static mesh body owned by the terrain entity, so a ray
+or contact that hits the ground reports the terrain. During a rebuild the old tiles remain until new ones replace them,
+so nothing standing on the ground falls through.
+
+`collisionReadyAt(x, z)` reports whether the ground under a point is built; wait on it before dropping an object there.
+A provider that answers asynchronously builds a tile once its samples arrive. Far from anything that moves there is no
+ground in the physics world; use `raycast` for long lines of sight, picking and landing spots.
+
+Tiles are triangle meshes rather than a compressed heightfield shape: a heightfield shape quantizes samples and
+triangulates cells its own way, so collision would no longer match the drawn and queried ground.
+
+Tiles are registered through the `CollisionGeometry` resource (`esengine`), which any system that produces static
+geometry at run time can use; the 3D physics world keeps one static body per piece.
+
+## Modifiers
+
+Modifiers change the ground locally — a levelled building plot, a pad, a road bed. A modifier is a function of world
+position and the current height, over a square region of the world. Modifiers are applied over the terrain's ground in
+the order they were set, and every reader follows them: rendering, `heightAt`, `normalAt`, rays and collision. Only the
+pages and collision tiles a modifier touches are rebuilt, and content placed on the ground (plants, water, a generated
+world) is placed again.
+
+```ts
+import { TerrainsRes, flattenModifier } from 'esengine/terrain';
+
+const terrains = app.getResource(TerrainsRes);
+const level = terrains.heightBeneathAt(x, z)!;          // the ground as generated, under every modifier
+terrains.setModifier(flattenModifier('plot 1', { type: 'rect', x, z, halfX: 40, halfZ: 30, yaw }, level, 12));
+terrains.deleteModifier('plot 1');                       // restores the ground
+```
+
+`flattenModifier(id, shape, height, falloff)` accepts a `circle` (`x`, `z`, `radius`) or a `rect` (`x`, `z`, `halfX`,
+`halfZ`, optional `yaw`). A `WorldZone` with `flatten` levels its ground with a modifier.
+
+## Path search
+
+`findPath` searches the ground for a route that a walker limited to a maximum slope can take. Use it to validate spawns,
+quest goals or settlements in a generated world. It reads the ground along the search (including modifiers), so it
+needs no baked data and works on infinite ground.
+
+```ts
+import { TerrainsRes } from 'esengine/terrain';
+import { WatersRes } from 'esengine/water';
+
+const terrains = app.getResource(TerrainsRes);
+const waters = app.getResource(WatersRes);
+const way = terrains.findPath(spawn, village, {
+    maxSlope: 32,                                         // degrees from flat
+    step: 8,                                              // search cell, in world units
+    blocked: (x, z) => (waters.shoreAt(x, z) ?? 1) < 0,   // exclude water
+});
+if (way.state !== 'reached') regenerate();              // 'unreachable', 'exhausted' (hit maxCells) or 'noGround'
+```
+
+| Option | Description |
+|---|---|
+| `step` | Search cell size, in world units (default 4). Smaller finds narrower passes and costs more. |
+| `maxSlope` | Steepest ground the walker climbs, in degrees from flat (default 35). |
+| `blocked` | Predicate for positions the walker may not stand on besides over-steep ground (deep water, reserved zones). |
+| `maxCells` | Cells the search may open before giving up (default 200 000); a search that reaches it returns `exhausted`. |
+| `detour` | How far beyond the bounding box of both ends the search may wander, as a share of the distance between them (default 1). |
+
+| `state` | Meaning |
+|---|---|
+| `reached` | A path was found. |
+| `unreachable` | Every route out of the start within the search bounds was explored; none reaches the end. |
+| `exhausted` | The search ran out of cells before deciding. |
+| `noGround` | One end has no known ground, is too steep, or is blocked. |
+
+The returned path is straightened wherever a straight walk holds, with its length along the ground. It is intended for
+checks and planning, not per-frame use: a few hundred metres cost milliseconds. Agents that move every frame use
+[navigation](/docs/gameplay/ai/navigation/).
+
+## Providers and versions
+
+Infinite ground (and an area with no heightmap) is produced by a provider: a deterministic function of world position.
+The provider is asked for a region — world, seed, version, a corner in world units, a spacing and a sample count per
+side — and returns heights, and optionally four layer weights per sample. Every region is the same function sampled at
+other points, so neighbouring pages share edge samples, coarse and fine pages agree where samples coincide, and page
+order has no effect. Positions are world positions: two terrains placed apart over the same world show the same ground.
+
+```ts
+import { registerTerrainProvider, type TerrainProvider } from 'esengine/terrain';
+
+const planet: TerrainProvider = {
+    id: 'mygame:planet',
+    versions: [1, 2],                          // every version a saved world may still name
+    range: (seed, version) => [-200, 900],     // lowest and highest height, over which the GPU encodes
+    sample({ world, seed, version, x0, z0, spacing, count }) {
+        const heights = new Float32Array(count * count);
+        // ... heights[j * count + i] at (x0 + i * spacing, z0 + j * spacing)
+        return { heights };                    // or a Promise, from a worker or a server
+    },
+};
+registerTerrainProvider(planet);
+```
+
+| Member | Description |
+|---|---|
+| `id` | Name referenced by `Terrain.provider`. |
+| `versions` | Every algorithm version a saved world may reference. |
+| `range(seed, version)` | Lowest and highest height; the GPU encodes heights over this range. |
+| `sample(region)` | Heights (and optional weights) for a region, synchronously or as a `Promise`. |
+| `heightAt(world, seed, version, x, z)` | Optional. Answers a single point immediately; without it, points are answered from small sampled tiles at the finest cell size. |
+
+A version identifies an algorithm permanently. A saved world stores `generatorVersion`; when the algorithm changes, add a
+version and keep the old one, so content built on the old ground still stands on it. The engine's noise is
+`estella:noise`, version 1.
+
+## Limits
+
+- **Collision is the finest level.** Distant ground is drawn coarser than it collides, which is not visible from where
+  collision happens. Only moving bodies get ground to hit, within `collisionDistance`.
+- **Pages are made a few per frame.** On the first frames, or after the eye jumps, the ground is drawn coarse briefly
+  and sharpens, rather than stalling a frame.

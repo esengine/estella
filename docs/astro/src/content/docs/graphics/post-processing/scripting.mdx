@@ -1,0 +1,197 @@
+---
+title: Scripting & custom effects
+description: Post-processing from code — the PostProcess resource and effect stacks, multi-pass effects and sub-pass reads, texture parameters, the effect registry, compute effects on WebGPU, and custom skies with defineSkyEffect.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A `PostProcessVolume` resolves effects, multi-pass layouts, defaults and texture references automatically
+([Post-processing](/docs/graphics/post-processing/overview/)). For a fixed per-camera pipeline built in code, use the
+**`PostProcess`** resource directly. New effects are added to the shared registry with `registerEffect` or `defineSkyEffect`
+and then appear in the editor's add menu like built-in ones.
+
+{/* SHOT: pp-custom-effect-menu | PostProcessVolume Inspector with the add-effect menu open, showing a project-defined sky ("Dusk Sky", registered with defineSkyEffect) listed among the built-in Atmosphere effects. */}
+
+## Effect stacks
+
+A stack starts empty and holds one **pass** per single-pass effect. Get the effect's shader from the registry with
+`getEffectDef(type).factory()`, set its `u_`-prefixed uniforms, and bind the stack to a camera:
+
+```typescript
+import { defineSystem, Query, Res, Camera, PostProcess, getEffectDef } from 'esengine';
+
+const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  const grade = getEffectDef('colorGrade')!;
+  for (const [camera] of q) {
+    const stack = pp.createStack();
+    stack.addPass('colorGrade', grade.factory!())
+         .setUniform('colorGrade', 'u_saturation', 1.3)
+         .setUniform('colorGrade', 'u_contrast', 1.1);
+    pp.bind(camera, stack);   // pp.unbind(camera) to remove
+  }
+});
+```
+
+| Method | Description |
+|---|---|
+| `PostProcess.createStack()` | Creates an empty stack. |
+| `stack.addPass(name, shader, scale?, continuesEffect?, minScale?)` | Appends a pass. `scale` is the fraction of the chain size it draws at (default 1). Chainable. |
+| `stack.setUniform(pass, uniform, value)` | Sets a float parameter (`u_`-prefixed). Chainable. |
+| `stack.setTexture(pass, uniform, handle)` | Binds a texture parameter, such as a LUT. Chainable. |
+| `stack.setEnabled(name, on)` | Enables or disables an added pass. Chainable. |
+| `stack.removePass(name)` / `stack.clearPasses()` | Removes one pass or all passes. Chainable. |
+| `stack.setDisplayLut(texture, amount)` | Sets the [Display LUT](/docs/graphics/post-processing/color/#display-lut) of the last pass; `amount` 0–1, texture 0 clears it. Chainable. |
+| `PostProcess.bind(camera, stack)` / `unbind(camera)` | Attaches or removes a camera's stack. |
+| `PostProcess.getStack(camera)` | The stack bound to a camera, or `null`. |
+| `getEffectDef(type)` / `getAllEffectDefs()` / `getEffectTypes()` | Looks up effect definitions: shader factory, parameters, sub-passes. |
+
+`factory` is absent on compute, engine-native and output-stage effects (`sharpen`, `voxelGI`, `displayLut`); a volume handles
+those. An effect used only from a script must have its shader group imported in a package
+([Effects in a package](/docs/graphics/post-processing/overview/#effects-in-a-package)).
+
+## Multi-pass effects
+
+A multi-pass effect (`bloom`, `ssao`, `depthOfField`, `heightFog`) lists its sub-passes in `def.multiPass`. Add every
+sub-pass with its scale, marking each after the first as continuing the effect, as a volume does:
+
+```typescript
+const bloom = getEffectDef('bloom')!;
+bloom.multiPass!.forEach((p, i) => stack.addPass(p.name, p.factory(), p.scale ?? 1, i > 0, p.minScale));
+```
+
+A sub-pass with `scale` below 1 draws at that fraction of the chain size. The chain's last pass always draws at full size.
+
+**Reading an earlier sub-pass.** A sub-pass can read any earlier pass of its own effect, not only the one before it: declare a
+texture parameter named `u_pass_<name>` (`#pragma param u_pass_bloom_down_2 texture default(black)`) and the chain binds the
+output of the pass called `<name>`, keeping it alive until this pass has run. Bloom's upsample passes add back the
+downsample of their own size this way.
+
+## Texture parameters
+
+Some effects take textures: `lutGrade` and `displayLut` a lookup table, `palette` a palette strip, `skyAtmosphere` cloud masks,
+`rain` sprite textures. On a stack, bind them with `setTexture`; on a `PostProcessVolume`, list them under the effect's
+`textures` as asset references.
+
+```typescript
+stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory!())
+     .setTexture('lutGrade', 'u_lut', lutHandle)
+     .setUniform('lutGrade', 'u_intensity', 1);
+```
+
+## Effect shaders
+
+A chain effect's fragment shader is a `PostProcess`-domain shader (`#pragma domain PostProcess`). It reads the picture so far
+as `u_texture` at `v_texCoord`, has `u_time` and `u_viewport`, and declares its parameters with `#pragma param`
+(`#pragma param u_amount float default(1) range(0,1)`). An effect that declares `#pragma gbuffer` makes the frame write the
+[G-buffer](/docs/graphics/post-processing/lighting/#the-g-buffer) and reads it at `u_gbuffer`. Compile the source with
+`Material.compileShader` and return the handle from the effect's `factory`.
+
+## Registering an effect
+
+`registerEffect(def)` adds an effect type to the registry shared by the editor and the runtime. The main fields of an
+`EffectDef`:
+
+| Field | Description |
+|---|---|
+| `type`, `label` | Type name as volumes store it; Inspector label. |
+| `factory` | Compiles the effect's fragment shader (a `PostProcess`-domain shader). |
+| `compute` | Instead of `factory`: a WGSL compute shader ([Compute effects](#compute-effects)). |
+| `fallback` | Fragment passes that stand in for a compute effect on a device without compute. |
+| `multiPass` | Sub-passes, each `{ name, factory, scale?, minScale? }`. |
+| `uniforms` | Float parameters: `{ name, label, min, max, step, defaultValue, neutralValue? }`. `neutralValue` is the value at which the effect does nothing (default 0), used by volume blending. |
+| `textures` | Texture parameters: `{ name, label }`. |
+| `colors` | Colour parameters: `{ name, label, defaultValue }`. |
+
+## Compute effects
+
+An effect can be a WGSL **compute shader** run over the whole picture instead of a draw. This suits effects that read many
+neighbours or keep a result of their own. `sharpen` is one.
+
+A compute effect requires a device with a compute stage, which is **WebGPU**. On WebGL2, an effect with a `fallback` (a
+fragment pass of the same arithmetic, as `sharpen` has) runs the fallback; one without is left out of the chain and the
+picture passes through unchanged. Write a compute effect without a fallback only to refine a picture that is already
+complete. The Inspector marks compute effects **WebGPU only**. At run time, the engine binding
+`postprocess_supportsCompute()` reports whether the device has a compute stage.
+
+Register it with `compute` in place of `factory`:
+
+```ts
+import { registerEffect } from 'esengine';
+
+registerEffect({
+  type: 'myInvert',
+  label: 'Invert',
+  compute: { source: INVERT_WGSL, workgroupSize: [8, 8] },
+  // The params block: these, as f32s, in this order.
+  uniforms: [{ name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1 }],
+});
+```
+
+The shader receives these bindings at group 0, declares the ones it uses, and has an entry point named `main`:
+
+| Binding | Content | Declared as |
+|---|---|---|
+| 0 | The image so far | `texture_2d<f32>` |
+| 1 | The output image, the same size | `texture_storage_2d<rgba16float, write>` |
+| 2 | The effect's `uniforms` as f32s, in listed order | `var<uniform>` of a struct that starts with them |
+| 3 | The size, `vec4f(w, h, 1/w, 1/h)` | `var<uniform>` |
+| 4 | The scene's depth | `texture_depth_2d` |
+| 5 | A linear clamp sampler | `sampler` |
+
+It is dispatched over the whole picture in groups of `workgroupSize` (default 8 × 8), so the shader must check that its pixel
+lies inside the image.
+
+## Custom skies
+
+`defineSkyEffect` turns one function, the sky's radiance along a direction, into an effect a `PostProcessVolume` carries like
+any other. The sky is drawn behind the scene. With **Light the Scene** on, the engine reads back a small panorama of it about
+once a second and makes it the scene's environment (diffuse light and reflections), as Sky Atmosphere does.
+
+```typescript
+import { defineSkyEffect } from 'esengine';
+
+defineSkyEffect({
+    type: 'duskSky',
+    label: 'Dusk Sky',
+    colors: [{ name: 'u_horizon', label: 'Horizon', defaultValue: { r: 0.95, g: 0.55, b: 0.28, a: 1 } }],
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+        return mix(u_horizon.rgb, vec3(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+        return mix(mc.u_horizon.rgb, vec3f(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+});
+```
+
+| Option | Description |
+|---|---|
+| `type`, `label` | Effect type and Inspector label. |
+| `glsl`, `wgsl` | Declarations and `skyRadiance` in each language. Returns linear radiance. |
+| `uniforms` | Float parameters. Brightness (`u_intensity`) and Light the Scene (`u_lightScene`) are added automatically. |
+| `colors` | Colour parameters (vec4). |
+| `textures` | Textures the sky brings itself (a noise table), by sampler name, each a function returning pixels; `wrap: 'repeat'` for a tiling table. |
+| `groundShadow` | The sources also define `skyShadow`; the sky shades the ground (see below). |
+| `over` | Its light is added to a sky already drawn behind the scene (an environment panorama), not only where nothing was drawn. |
+| `still` | The sky is static between parameter changes: below the high quality level it is drawn once into a panorama, a strip per frame, and the sky pass reads the panorama. |
+
+In `skyRadiance`, `sun` is the first directional light's direction and `sunColor` its colour times intensity. `env` is 1 while
+the environment panorama is drawn; omit a sun disc then, since the directional light already provides the sun's direct light.
+Parameters are uniforms (prefixed `mc.` in WGSL), and the time is `u_time.x`.
+
+**Ground shadow.** With `groundShadow: true`, a second function beside the first, `float skyShadow(vec3 world, vec3 sun)`
+(WGSL `fn skyShadow(world : vec3f, sun : vec3f) -> f32`), returns the share of sunlight left at a world position, 1 for all of
+it. The engine draws it into the sun's cloud shadow map before the scene, as Sky Atmosphere's
+[Cloud Shadows](/docs/graphics/post-processing/sky-and-weather/#cloud-shadows) does, and the first directional light is dimmed
+by it when each surface is shaded. Sky light and emission are not dimmed. A value of 0 leaves only the sky's light.
+`u_cloudShadowExtentKm` (16 km by default) is how far the map reaches around the camera.
+
+<Aside type="note">
+  `CanvasEffect` UI materials use the same `PostProcess`-domain shader model as chain effects
+  ([CanvasEffect](/docs/ui/world-ui/#canvaseffect--a-canvas-drawn-through-a-material)).
+</Aside>
+
+## See also
+
+- [Post-processing](/docs/graphics/post-processing/overview/)
+- [Materials & Shaders](/docs/graphics/materials/overview/) — shader directives, including `#pragma gbuffer`.
+- [Camera](/docs/graphics/camera/overview/)

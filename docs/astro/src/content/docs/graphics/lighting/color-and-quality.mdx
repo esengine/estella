@@ -1,0 +1,99 @@
+---
+title: Color Space and Quality
+description: Gamma and linear color space, HDR lighting, how colours are stored in a linear project, the Full and Direct 3D lighting levels with measured phone cost, and the lighting-related quality settings.
+---
+
+## Linear color space
+
+By default the engine renders in **gamma space**: colours blend as authored. A project can switch to the **linear**
+pipeline: textures are decoded from sRGB to linear on sample (in hardware), lights and tints blend in linear light, and
+the final blit encodes the frame back to sRGB.
+
+Linear blending changes how light accumulates: falloffs no longer crush to black, and overlapping lights add as light
+rather than as paint. Unlit art is unchanged, since decode followed by encode is an identity; differences appear only
+where colours mix.
+
+### HDR
+
+Linear mode enables **HDR**. Where float render targets are available (always on WebGPU; on WebGL2 with
+`EXT_color_buffer_float`), the post-processing chain runs in half float, so a light with `intensity` above 1 carries
+over-range energy into [bloom and tonemapping](/docs/graphics/post-processing/overview/#hdr-chain).
+
+### Enabling
+
+**Settings → Project → Rendering → Color space → Linear.** Shaders compile against the mode, so it is fixed at engine
+start and the editor prompts for a reload. The setting is stored in the project manifest: the scene view, Play and
+every export (web, desktop, WeChat, playable) use the same pipeline. Code-first projects pass it at app creation:
+
+```typescript
+const app = createWebApp(module, { colorSpace: 'linear' });
+```
+
+{/* SHOT: light-color-space-setting | Settings → Project → Rendering with the Color space field set to Linear and the reload prompt shown. */}
+
+### Colour storage
+
+Colour pickers show the on-screen colour in both modes. In a linear project:
+
+| Colour | Stored as |
+|---|---|
+| `Sprite.color`, `Light.color` | sRGB; decoded by the engine. |
+| `MeshRenderer.color` of a resident mesh, material colours | Linear; passed to the shader unchanged. `0.25` in a scene file displays as `#89` in the picker. |
+
+Colours written to a mesh from code must be linear values.
+
+## 3D lighting level
+
+There is one lighting model. The quality level's **3D lighting** setting (`lighting`) selects how much of the engine's
+lighting a lit mesh shader is compiled with:
+
+| Level | Lit meshes include |
+|---|---|
+| `full` | The per-pixel lights, tiled lights, soft shadows from lights with a size, hair shadows and the 2D light masks. |
+| `direct` | The per-pixel lights and hard shadows only, as `#pragma lighting direct` compiles ([Materials & Shaders](/docs/graphics/materials/esshader/#pragmas)). |
+
+Defaults: `direct` at low and medium (a phone uses medium when the project names no level), `full` at high, and `full`
+with the quality system off. Sprites keep their 2D lighting, including 2D shadows and cookies, at every level.
+
+Change it per level under **Project Settings → Rendering → Quality → 3D lighting**, or in code:
+
+```typescript
+quality: { profiles: { medium: { lighting: 'full' } } }
+```
+
+{/* SHOT: light-quality-3d-lighting | Project Settings → Rendering → Quality with the Lights group expanded: 3D lighting (Full / Direct), Per-pixel lights and Tiled lights for the low, medium and high columns. */}
+
+Most of the saving from `direct` comes from shader size rather than skipped work: a program containing tiled lights and
+the soft-shadow search keeps more registers live and runs fewer pixels in parallel even where those branches do not
+execute. Measured on a Snapdragon 8 Elite, a full-screen lit floor drawn fifteen times under a sun at the default
+`sourceAngle`, other settings equal:
+
+| | `full` | `direct` |
+|---|---|---|
+| Built-in mesh shader, soft-shadowed sun | 57 ms | 24 ms |
+| Built-in mesh shader, hard-shadowed sun (`sourceAngle: 0`) | 33 ms | 25 ms |
+| Material with `specular` 0, soft-shadowed sun | 41 ms | under 17 ms (the 60 fps cap) |
+
+The level does not change materials. A material with `specular` 0 skips the specular lobe for every light. Beyond that,
+the cheapest shadows are [blob shadows](/docs/graphics/lighting/shadows/#blob-shadows) for moving objects and
+[baked lighting](/docs/graphics/lighting/baked/) for static ones.
+
+## Lighting quality settings
+
+| Setting | Key | Low / Medium / High | Description |
+|---|---|---|---|
+| 3D lighting | `lighting` | direct / direct / full | See above. |
+| Per-pixel lights | `loopLights` | 8 / 12 / 16 | Lights every lit pixel evaluates ([Light limits](/docs/graphics/lighting/lights/#light-limits-per-frame)). |
+| Tiled lights | `tiledLights` | 32 / 64 / 96 | Point and Spot lights beyond the per-pixel set; Full lighting only. |
+| Shadow maps | `shadowTiles` | 8 / 12 / 16 | Mesh shadow maps per frame ([Mesh shadows](/docs/graphics/lighting/shadows/#mesh-shadows)). |
+| 2D soft-shadow samples | `shadowSoftSamples` | 8 / 12 / 16 | Silhouettes summed for a soft 2D shadow. |
+| Per-pixel light probes | `probesPerPixel` | off / on / on | Probe volume reads per pixel or per object ([Baked Lighting](/docs/graphics/lighting/baked/#per-pixel-and-per-object-reads)). |
+| Planar reflection scale / max size / updates | `planarReflection*` | see [Planar Reflections](/docs/graphics/lighting/planar-reflections/#quality) | |
+
+The full list is in [Quality levels](/docs/performance/quality-levels/).
+
+## See also
+
+- [Post-processing](/docs/graphics/post-processing/overview/)
+- [Quality levels](/docs/performance/quality-levels/)
+- [Lights](/docs/graphics/lighting/lights/)

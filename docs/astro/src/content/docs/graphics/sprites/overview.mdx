@@ -1,0 +1,211 @@
+---
+title: Sprites
+description: Sprite component reference — creating a sprite, fields and defaults, tint and opacity, GroupOpacity, size and pivot, world units, parallax, hit-testing, and sprite editing in the editor.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` renders a textured quad in world space. An entity with `Transform` and `Sprite` is drawn through the active
+[Camera](/docs/graphics/camera/overview/); overlapping sprites are ordered by sorting layer and order
+([Draw Order & Sorting](/docs/graphics/sprites/sorting/)).
+
+<Aside type="caution" title="Screen-space UI">
+  `Sprite` is a world-space renderer for content drawn through the camera (characters, props, tiles, backgrounds).
+  Screen-space images (icons, buttons, panels, bars) are `UINode` + `UIVisual` under a Canvas and participate in layout
+  and screen adaptation. A `Sprite` on a `UINode` entity is not rendered. See
+  [Sprite or UI Image](/docs/ui/sprite-or-ui/).
+</Aside>
+
+![The Sprite Lab example: tints and draw layers, an orbit with alpha, rotate and flip, and a sorting group](@/assets/guides/en/play-sprites.png)
+
+*The Sprite Lab example: one white texture with eight tints, flips, and a sorting group.*
+
+## Creating a sprite
+
+| Method | Result |
+|---|---|
+| *World Outliner → Add → Create entity… → Sprite* | Sprite entity, `size` `{100,100}`, no texture. |
+| Image dragged from the Content Browser into the scene view | Textured sprite at the texture's pixel size. |
+| Image dragged onto an existing entity | Assigns the texture to its `Sprite`. |
+| Code | `Transform` + `Sprite` with a texture handle (below). |
+
+`Sprite.texture` holds a texture **handle**, obtained from a loader such as `assets.loadTexture(ref)`
+([Assets](/docs/assets/overview/)):
+
+```typescript
+import { defineSystem, Commands, Res, Transform, Sprite, Assets } from 'esengine';
+
+const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets) => {
+  const tex = await assets.loadTexture('assets/textures/player.png');   // { handle, width, height }
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { texture: tex.handle, size: { x: tex.width, y: tex.height } });
+});
+```
+
+## Sprite fields
+
+{/* SHOT: spr-sprite-details | Details panel with a sprite entity selected: the Sprite card expanded showing Texture, Color, Size, Pivot (with its 3×3 preset grid and the frac / px switch), Layer as a dropdown of named sorting layers, Order and Draw Mode */}
+
+| Field | Default | Description |
+|---|---|---|
+| `texture` | `0` | Texture handle. `0` draws an untextured white quad. An asset path assigned at run time (`insert(Sprite, { texture: 'assets/hero.png' })`) is loaded and replaced by its handle; the field reads `0` until the load completes. |
+| `color` | `{1,1,1,1}` | Tint multiplied with the texture; alpha controls opacity. Animatable. |
+| `size` | `{1,1}` | Rendered size in world units. Animatable. Sprites created in the editor start at `{100,100}`; image drops use the texture's pixel size. |
+| `pivot` | `{0.5,0.5}` | Point the sprite rotates and scales about, as a fraction of `size`. Values outside 0–1 lie outside the sprite. |
+| `layer` | `0` | Sorting layer ([Sorting layers](/docs/graphics/sprites/sorting/#sorting-layers)). |
+| `order` | `0` | Order within the sorting layer, −128…127; higher draws on top ([Order within a layer](/docs/graphics/sprites/sorting/#order-within-a-layer)). |
+| `maskInteraction` | `None` | Response to a [`SpriteMask`](/docs/graphics/sprites/sorting/#sprite-masks): `None`, `VisibleInside`, `VisibleOutside`. |
+| `drawMode` | `Auto` | `Auto` infers the mode from `tileSize` and the texture's 9-slice border; `Simple`, `Tiled` and `NineSlice` force one ([Draw modes](/docs/graphics/sprites/textures/#draw-modes-tiling-and-9-slice)). |
+| `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
+| `material` | `0` | Custom [material](/docs/graphics/materials/overview/) handle; `0` uses the built-in sprite shader. |
+| `lit` | `false` | Receives 2D lights with a flat normal. A custom `material` overrides it. |
+| `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | Texture sub-rectangle in normalized UV ([Texture Regions & Sampling](/docs/graphics/sprites/textures/)). |
+| `tileSize` / `tileSpacing` | `{0,0}` | Texture repeat size and gap; `0` disables tiling. |
+| `parallax` | `{1,1}` | Parallax scroll factor per axis ([Parallax](#parallax)). |
+| `enabled` | `true` | Hides the sprite without removing the component. |
+
+## Tint and opacity
+
+`color` is an RGBA multiplier over the texture. White (`{1,1,1,1}`) leaves the texture unchanged; alpha below 1 makes
+the sprite translucent.
+
+```typescript
+sprite.color = { r: 1, g: 0.4, b: 0.4, a: 1 };   // red tint
+sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% opacity
+```
+
+`color` and `size` are animatable and can be keyed in the [Sequencer](/docs/animation/timeline/).
+
+### Group opacity
+
+`GroupOpacity` fades an entity and its whole subtree with one value. Opacities multiply down the hierarchy into each
+descendant's own alpha.
+
+| Field | Default | Description |
+|---|---|---|
+| `opacity` | `1` | Opacity of this entity and everything under it, 0–1, multiplied with every `GroupOpacity` above it. |
+| `enabled` | `true` | Disables the component. |
+
+```typescript
+world.insert(panel, GroupOpacity, { opacity: 0.5 });
+```
+
+`GroupOpacity` applies to sprites, bitmap text, shapes, trails and tilemap layers. It is not a composited layer:
+overlapping children remain visible through one another while the group is partially transparent. UI nodes use
+`UINode.opacity`, which follows the same rule ([Masks & Visibility](/docs/ui/masks/#opacity-and-click-through)).
+
+## Size and pivot
+
+`size` is the quad's size in world units, independent of the texture's pixel dimensions; `{ tex.width, tex.height }`
+renders the texture 1:1. `Transform` scale multiplies on top of it.
+
+`pivot` is the normalized anchor (0–1) the sprite rotates and scales about:
+
+| `pivot` | Position |
+|---|---|
+| `{0.5, 0.5}` | Centre (default). |
+| `{0, 0}` | Bottom-left corner. |
+| `{0.5, 0}` | Bottom centre; standing characters. |
+| `{0.5, -1}` | One sprite height below the art; a hinge outside the image (swinging arm, door). |
+
+![The same sprite rotated about three different pivots — the pivot dot stays fixed while the quad swings around it: center spins in place, a corner swings out, bottom-center pins the feet](@/assets/guides/sprite-pivot.svg)
+
+The pivot is stored as a fraction so that it remains valid when `size` changes. The editor also accepts it in pixels
+and as a handle in the scene view ([In the editor](#in-the-editor)).
+
+## Units and coordinates
+
+- One world unit is one design pixel. Editor cameras are authored with `orthoSize = designHeight / 2`, and an image
+  dropped into the scene view creates a sprite with `size = { tex.width, tex.height }`.
+- `Sprite.size` is therefore in design pixels, and `pivot` is a fraction of that size.
+- The world is Y-up: positive Y points up on screen, so `pivot: {0, 0}` is the bottom-left corner.
+
+<Aside type="note">
+  `Canvas.pixelsPerUnit` (default `100`) does not scale sprites. It is the physics scale: design pixels per Box2D
+  metre ([Physics](/docs/gameplay/physics/)). A sprite's displayed size is `size` × `Transform` scale. See
+  [Transforms](/docs/core-concepts/transforms/) for units and coordinate spaces.
+</Aside>
+
+## Parallax
+
+`parallax` scales the sprite's movement relative to the camera, per axis. The renderer offsets the sprite by
+`cameraCenter × (1 − parallax)`.
+
+| Value | Behaviour |
+|---|---|
+| `1` | Moves with the world (default). |
+| Between `0` and `1` | Scrolls slower than the world; reads as farther away. |
+| `0` | Locked to the camera (fixed backdrop). |
+
+A parallax background is typically a stack of sprites at factors such as `0.2`, `0.5` and `0.8`. `BitmapText`,
+`ShapeRenderer` and `MeshRenderer` use the same factor.
+
+## Hit-testing
+
+A screen point is tested against a sprite in two steps: convert it to world space with the `CameraView` resource
+([Camera](/docs/graphics/camera/overview/#screen--world-coordinates)), then test it against the sprite's footprint with one of the pivot-aware helpers:
+
+| Function | Tests |
+|---|---|
+| `pointInWorldRect(px, py, worldX, worldY, worldW, worldH, pivotX, pivotY)` | Axis-aligned rectangle placed by position and pivot (an unrotated sprite's footprint). |
+| `pointInOBB(…, rotationZ, rotationW)` | The same rectangle rotated by the transform quaternion's `z` / `w`; equivalent to the rectangle test when unrotated. |
+| `pointInHitArea(px, py, area)` | A `HitAreaShape`: `rect`, `circle` or `polygon`, in local coordinates. |
+
+```typescript
+import { defineSystem, Query, Res, CameraView, Input, Transform, Sprite, pointInOBB } from 'esengine';
+
+const clickSprites = defineSystem(
+  [Query(Transform, Sprite), Res(CameraView), Res(Input)],
+  (q, view, input) => {
+    if (!input.isMouseButtonPressed(0)) return;
+    const p = view.screenToWorld(input.mouseX, input.mouseY);
+    if (!p) return;
+    for (const [entity, t, s] of q) {
+      const w = s.size.x * t.worldScale.x, h = s.size.y * t.worldScale.y;
+      if (pointInOBB(p.x, p.y, t.worldPosition.x, t.worldPosition.y,
+                     w, h, s.pivot.x, s.pivot.y,
+                     t.worldRotation.z, t.worldRotation.w)) {
+        console.log('hit', entity);
+      }
+    }
+  });
+```
+
+For a clickable region that is not the sprite's rectangle, describe the region as a `HitAreaShape` in sprite-local
+coordinates and test the localized point:
+
+```typescript
+import { pointInHitArea, type HitAreaShape } from 'esengine';
+
+const hull: HitAreaShape = { type: 'polygon', points: [0, 0, 64, 0, 64, 48, 32, 64, 0, 48] };
+// Unrotated sprite: localize by subtracting its origin.
+const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hull);
+```
+
+`screenToWorld` is also exported as a standalone function taking an inverse view-projection matrix and a viewport
+rectangle; `CameraView.screenToWorld` is the same function bound to the active camera. UI picking is handled by
+`Interactable` and `UIEvents` ([Interaction](/docs/ui/interaction/)).
+
+## In the editor
+
+All `Sprite` fields are edited in **Details**; `layer` shows the project's named sorting layers. Sprites, cameras and
+lights display gizmos in the scene view ([Scene view](/docs/editor/viewport/)).
+
+`pivot` has three editors, all writing the same stored fraction:
+
+| Control | Behaviour |
+|---|---|
+| 3×3 grid under the field | Sets one of the nine standard positions. |
+| `frac` / `px` switch on the row | `px` displays `pivot × size` and converts typed pixels back to a fraction (`32` stores `32 / size`). The scene always stores the fraction. |
+| Pivot handle in the scene view | Shown for a single selected sprite under the **Select** (`Q`) and **Rect** (`T`) tools. Dragging it moves the pivot without moving the artwork; the transform position compensates. Hidden under Move, Rotate, Scale and Universal, whose centre handle occupies the same point. |
+
+{/* SHOT: spr-pivot-handle | Scene view, Select tool (Q), one sprite selected: the pivot handle dragged to the sprite's bottom centre (the feet), artwork unchanged */}
+
+## See also
+
+- [Texture Regions & Sampling](/docs/graphics/sprites/textures/) — flipping, atlases, scrolling, tiling, filtering.
+- [Draw Order & Sorting](/docs/graphics/sprites/sorting/) — sorting layers, groups, y-sort, depth layers, masks.
+- [Effects & 2D Renderers](/docs/graphics/sprites/effects/) — materials, lighting, filters, shapes, trails, bitmap text.
+- [Textures](/docs/assets/textures/) — formats, import settings and texture dimensions.
+- [Animation](/docs/animation/overview/) — sprite-sheet flipbooks and tweened properties.

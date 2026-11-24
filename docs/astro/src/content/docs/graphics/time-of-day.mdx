@@ -1,84 +1,87 @@
 ---
 title: Time of Day
-description: A TimeOfDay component that moves the sun and the moon across the sky, dims and tints the lights, lights the fog, and draws a dusk glow and a night sky of stars.
+description: TimeOfDay component reference — sun and moon placement from hour, latitude and season, what the hour drives (key light, ambient, reflections, sky, fog, exposure), the editor day curve, composition with Weather, and the code API.
 ---
 
-A day is a path the sun takes and what the light, the sky and the fog are because of where it is. `TimeOfDay` places the
-sun with the astronomy that fits in four lines — an hour angle, a latitude and a season — so a day has the right shape
-(a long high arc in summer, a short low one in winter, sunrise toward the east) from three numbers a person can understand.
-Everything else is the same idea as [Weather](/docs/graphics/weather/): **multipliers of what the scene already says**, so the
-same hour fits any project.
+`TimeOfDay` places the sun from an hour angle, a latitude and a solar declination (the season), producing the correct
+shape of a day: a long, high arc in summer, a short, low one in winter, with sunrise toward the east. Its effect on
+lights, sky and fog is expressed, like [Weather](/docs/graphics/weather/), as **multipliers of the values the scene
+already authors**, so the same hour fits any project.
 
-## The component
+## Component
 
-Add a `TimeOfDay` component to one entity.
+Add `TimeOfDay` to one entity.
 
-| Field | What it does |
+| Field | Description |
 |---|---|
-| `hour` | The hour, 0–24 (12 is noon, default 12). The game advances it; set it in the editor to preview an hour. |
-| `daySeconds` | Seconds a whole day takes while the game runs. 0 (the default) holds the hour where it is. |
-| `latitude` | Where on the planet, in degrees (positive is north): how high the noon sun climbs (default 40). |
-| `declination` | The season, −23.5 to 23.5: positive is summer in the north (default 15). |
-| `north` | How far the world is turned from compass north (+Z) toward +X, in degrees — which way the sun rises (default 0). |
-| `drive` | What the time drives: Lights, Sky, Fog, Exposure, Reflections. All five by default. |
+| `hour` | Hour, 0–24 (12 is noon; default 12). Advanced by the system during play; set in the editor to preview an hour. |
+| `daySeconds` | Real seconds per full day during play. 0 (default) holds the hour. |
+| `latitude` | Latitude in degrees, positive north (default 40): how high the noon sun climbs and how long the day is. |
+| `declination` | Season, −23.5 to 23.5; positive is northern summer (default 15). |
+| `north` | Rotation of the world from compass north (+Z) toward +X, in degrees: the direction of sunrise (default 0). |
+| `drive` | What the hour drives: Lights, Sky, Fog, Exposure, Reflections. All five by default. |
 
 ![Details of a Time Of Day component with the daylight curve, the hour, sun height, daylight and key light readouts, and what it drives](@/assets/guides/en/details-time-of-day.png)
 
-*The **Time Of Day** component: the daylight curve with the hour marked, live readouts of the sun, and the bits it drives.*
+*The **Time Of Day** component: the daylight curve with the hour marked, live sun readouts, and the drive flags.*
 
 ## In the editor
 
-Select the entity and the Details panel shows the day instead of a list of numbers: the sun's height across 24 hours, drawn
-from this component's own latitude and declination (a winter day is a low short arc, a polar summer one never sets), with a
-hand you drag to set the hour — or click the dial and use the arrow keys, 15 minutes a step, an hour with Shift. Beside it
-are the sun's height, the daylight and the key light's scale at that hour, and below, a switch for each thing the clock
-drives. The hour you set is what the editor previews; it only advances in Play.
+Details shows the day as a curve instead of a list of numbers: the sun's elevation over 24 hours, computed from this
+component's latitude and declination (a winter day is a low, short arc; a polar summer day never sets), with a handle that
+sets the hour. Alternatively, focus the dial and use the arrow keys: 15 minutes per step, one hour with **Shift**. Beside
+the curve are the sun's elevation, the daylight value and the key-light scale at that hour; below it, a switch for each
+drive flag. The hour set in the editor is previewed; it advances only in Play.
 
-## What an hour changes
+## What the hour drives
 
-- **The key light.** The scene's directional light (the one that follows a panorama's sun or casts shadows, else the first) is
-  aimed at the sun and scaled by a day's curve: warm and weak near the horizon, gone a little below it. While the sun is
-  down it is aimed at the **moon** and given a few hundredths of the sun's strength and a blue tint, so a night has shadows
-  that fall away from the moon. The crossover happens where both are dark, so nothing pops.
-- **The ambient light** is scaled and tinted — blue by night, warm at dusk — and **baked reflection probes** are dimmed and
-  drained of colour, since they were baked under a daytime sky.
-- **The sky.** A [Sky Atmosphere](/docs/graphics/post-processing/) effect scatters the sun's light through a planet's atmosphere — Rayleigh for
-  the blue of the air, Mie for the haze and the glare round the sun — so the blue of noon, the red of a sunset and the afterglow
-  after it come out of one calculation. It draws the sun (white overhead, red at the horizon), the moon, the stars, and volumetric
-  clouds the sun lights and the wind moves. It takes the sun from the clock, so it never mistakes the moon-lit key light for the sun.
-- **Fog.** Height Fog's colour is lit as the day is (dark at night, orange at dusk), and its glow follows the key light.
-- **Exposure.** Auto Exposure's compensation is raised at night so it stays readable (a scene without one gets it on its Colour
-  Grade).
+| Drive | Effect |
+|---|---|
+| **Lights** | The key light — the scene's directional light that follows a panorama's sun or casts shadows, otherwise the first — is aimed at the sun and scaled by a daylight curve: warm and weak near the horizon, off shortly below it. While the sun is down, it is aimed at the **moon**, given a few hundredths of the sun's strength and a blue tint, so night has shadows cast from the moon. The crossover happens where both are dark, so nothing pops. The ambient light is scaled and tinted: blue at night, warm at dusk. |
+| **Reflections** | Baked reflection probes are dimmed and desaturated, since they were baked under a daytime sky. |
+| **Sky** | A [Sky Atmosphere](/docs/graphics/post-processing/sky-and-weather/#sky-atmosphere) effect scatters sunlight through the atmosphere — Rayleigh scattering for the blue of the air, Mie for haze and the glare round the sun — so the noon blue, sunset red and afterglow come from one calculation. It draws the sun (white overhead, red at the horizon), the moon, the stars, and volumetric clouds lit by the sun and moved by the wind. It takes the sun from the clock, so it never mistakes the moonlit key light for the sun. |
+| **Fog** | Height Fog's colour is lit as the day is (dark at night, orange at dusk), and its glow follows the key light. |
+| **Exposure** | Auto Exposure's compensation is raised at night to keep the image readable. A scene without Auto Exposure gets the compensation on its Colour Grade. |
 
-In the editor the scene's lights are left alone — as with Weather, previewing an hour never changes the scene you save — so
-the effects that follow the sun (sky, fog) are told where the clock's sun is instead. The lights move while the game runs.
+In the editor, scene lights are not modified — as with Weather, previewing an hour never changes the saved scene — so
+the effects that follow the sun (sky, fog) receive the clock's sun position directly. Lights move during play.
 
-## With the weather
+{/* SHOT: tod-dusk-preview | Scene view of an Outdoor Environment at hour 19 with the Time Of Day Details panel beside it: the daylight curve handle near sunset, readouts showing low sun height, and the sky glowing orange at the horizon */}
 
-Both scale the same lights, each from what the author set, so they compose: a rainy dusk is the dusk's colour times the rain's
-strength. The weather also greys the sky (`overcast`), hiding the sun, moon and stars as it clouds over.
+## With weather
 
-## Reading and driving it from code
+Time of day and weather scale the same lights, each from the authored values, so they compose: a rainy dusk is the
+dusk's colour × the rain's strength. Weather also greys the sky (`overcast`), hiding the sun, moon and stars as clouds
+thicken.
+
+## Code
 
 ```ts
 import { timeOfDayAt, currentTimeOfDay, TimeOfDay } from 'esengine';
 
-// Where the sun is at 18:30 at latitude 51, in midsummer.
+// The sun at 18:30, latitude 51, midsummer.
 const evening = timeOfDayAt(18.5, 51, 23);
 evening.sunDir;        // unit vector toward the sun
 evening.daylight;      // 0 at night, 1 by day
 
-// Set the hour: the system does the rest.
+// Set the hour; the system applies the rest.
 world.insert(clockEntity, TimeOfDay, { hour: 6, daySeconds: 600 });
 ```
 
-The hour comes from the scene clock as the weather does: `hourAt(hour, daySeconds, t)` is the hour of a clock that began at `hour`, `t` seconds
-later, and `seekSceneClock(t)` puts the scene's clock there (see [Weather](/docs/graphics/weather/#a-moment-not-a-sum-of-frames)).
+| Function | Description |
+|---|---|
+| `timeOfDayAt(hour, latitude?, declination?, north?)` | The state at an hour (defaults 40, 15, 0), including `sunDir` and `daylight`. |
+| `currentTimeOfDay()` | The current state of the scene's clock, or `null` without a `TimeOfDay`. |
+| `hourAt(hour, daySeconds, t)` | The hour of a clock that started at `hour`, `t` seconds later. |
+
+The hour derives from the scene clock, as weather does; `seekSceneClock(t)` moves the clock (see
+[Scene clock](/docs/graphics/weather/#scene-clock)).
 
 ## Limits
 
-The baked lighting and the baked reflection probes are one moment's: the bake is of a daytime sky, so the lighting that is
-**not** from lights (lightmaps, probe volumes) does not move with the sun. A scene that is meant to pass through a whole day wants
-its sun and its sky live — a lit-by-lights scene, or a baked one whose bake is mostly the sky's soft light — and the dimming
-and tinting above do the rest. Windows and lamps do not light themselves at night; give them an emissive material or a light you
-turn on with `currentTimeOfDay()?.daylight`.
+- **Baked lighting is one moment.** Lightmaps, probe volumes and baked reflection probes are baked under a daytime sky,
+  so lighting that does not come from lights does not move with the sun. A scene meant to pass through a whole day needs
+  a live sun and sky — lit by lights, or baked mostly from soft sky light — and the dimming and tinting above handle the
+  rest.
+- **Emissive surfaces are not switched.** Windows and lamps do not light themselves at night; give them an emissive
+  material or a light switched on from `currentTimeOfDay()?.daylight`.

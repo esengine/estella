@@ -1,0 +1,207 @@
+---
+title: Materials in Code
+description: Reference for creating and driving materials from TypeScript — the Material API, MaterialOptions and render state, material instances, ShaderSources, material graphs built as data with compileMaterialGraph, and drawing custom geometry with a material.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `Material` object compiles shaders, creates materials and sets their parameters at runtime. Material graphs are
+plain data that compile to `.esshader` source.
+
+{/* SHOT: mat-graph-editor | The material graph editor with a .esmatgraph open: a Texture node (u_albedo) and a Color node (u_tint) wired into a Multiply node, its result wired to the Output node's color input; the node palette visible. */}
+
+## Creating and applying a material
+
+Compile the shader once (not per frame), create a material, then assign its handle to a renderer:
+
+```typescript
+import { Material } from 'esengine';
+
+const shader = Material.compileShader(tintShaderSource);
+const tintMat = Material.create({
+  shader,
+  uniforms: { u_tint: [1, 0.6, 0.2, 1], u_intensity: 1.5 },
+});
+```
+
+```typescript
+import { defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [entity, sprite] of q) {
+    sprite.material = tintMat;   // the material handle
+  }
+});
+```
+
+## Updating parameters
+
+```typescript
+Material.setUniform(tintMat, 'u_intensity', 2.5);
+const v = Material.getUniform(tintMat, 'u_intensity');
+```
+
+Texture values are passed as `Material.tex(textureId)`.
+
+## `Material` API
+
+| Method | Description |
+|---|---|
+| `compileShader(esshaderSource, features?)` | Compiles an `.esshader` (reflects `#pragma param`); returns a shader handle. `features` lists the enabled `#pragma switch` names. |
+| `createShader(vertexSrc, fragmentSrc)` | Compiles a raw GLSL vertex/fragment pair (no reflected params). |
+| `releaseShader(shader)` | Releases a shader handle. |
+| `create(options)` | Creates a material from [`MaterialOptions`](#materialoptions). |
+| `createInstance(source)` | Creates an instance that inherits everything from `source` and stores only the values set on it. |
+| `setUniform(material, name, value)` | Sets a parameter. |
+| `getUniform(material, name)` | Reads a parameter's current value. |
+| `getUniforms(material)` | All parameter values, an instance's inherited values included. |
+| `tex(textureId, slot?)` | A texture reference for use as a parameter value. |
+| `setBlendMode` / `getBlendMode` | Blend mode. |
+| `setDepthTest`, `setDepthWrite`, `setDepthBias`, `setCull` | Render state setters. |
+| `getShader(material)` | The material's shader handle. |
+| `isValid(material)` | Whether the handle refers to a live material. |
+| `release(material)` | Releases a material. |
+
+### `MaterialOptions`
+
+| Field | Default | Description |
+|---|---|---|
+| `shader` | — | Shader handle from `compileShader` / `createShader` (required). |
+| `uniforms` | — | Initial parameter values by name; textures as `Material.tex(textureId)`. |
+| `blendMode` | `BlendMode.Normal` | How the material composites. |
+| `depthTest` | `false` | Test against the depth buffer. |
+| `depthWrite` | `true` | Write to the depth buffer. |
+| `cull` | `CullMode.None` | Triangle culling mode. |
+| `depthBias` | `0` | Depth-buffer units toward the eye; decides which of two coplanar surfaces wins (a decal on a wall). |
+| `switches` | `{}` | Enabled `#pragma switch` names, recorded for inspection and serialisation. The permutation itself is chosen when the shader is compiled. |
+
+### `BlendMode`
+
+| Value | Blend factors | Use |
+|---|---|---|
+| `BlendMode.Normal` | SrcAlpha, OneMinusSrcAlpha | Default. |
+| `BlendMode.Additive` | SrcAlpha, One | Glow, particles. |
+| `BlendMode.Multiply` | DstColor, OneMinusSrcAlpha | Shadows, multiply. |
+| `BlendMode.Screen` | One, OneMinusSrcColor | Lighten. |
+| `BlendMode.PremultipliedAlpha` | One, OneMinusSrcAlpha | Premultiplied-alpha sources. |
+
+### `CullMode`
+
+| Value | Meaning |
+|---|---|
+| `CullMode.None` | Draw both faces (the 2D default). |
+| `CullMode.Back` | Cull back faces. |
+| `CullMode.Front` | Cull front faces. |
+
+### `ShaderSources`
+
+For the raw `createShader` path, `ShaderSources` provides ES 3.0 GLSL using the batch vertex layout (`vec3` position +
+`vec4` color + `vec2` texCoord, with `u_projection` / `u_model` uniforms). Pair a vertex source with its fragment:
+
+| Source | Stage | Description |
+|---|---|---|
+| `ShaderSources.SPRITE_VERTEX` | vertex | Passes position, color and UV through. |
+| `ShaderSources.SPRITE_FRAGMENT` | fragment | `texture(u_texture, uv) × v_color`. |
+| `ShaderSources.COLOR_VERTEX` | vertex | Position and color only (no UV). |
+| `ShaderSources.COLOR_FRAGMENT` | fragment | Flat vertex color. |
+
+These are not `.esshader` templates and have no `#pragma param` reflection.
+
+## Material graphs in code
+
+The editor's material graph generates an `.esshader`. `compileMaterialGraph(graph)` walks the node graph from the
+output and emits the same source a hand-written shader would contain (the GLSL fragment and its WGSL twin), so a graph
+material runs on either backend and its constant and texture nodes become ordinary reflected `#pragma param`s. A graph
+is plain data:
+
+```typescript
+import { compileMaterialGraph, Material, type MaterialGraph } from 'esengine';
+
+const graph: MaterialGraph = {
+  name: 'TintedSprite',
+  output: 'out',                     // id of the output node
+  nodes: [
+    { id: 'tex',  type: 'textureSample', params: { name: 'u_albedo', default: 'white' } },
+    { id: 'tint', type: 'constColor',    params: { name: 'u_tint', value: [1, 0.6, 0.2, 1] } },
+    { id: 'mul',  type: 'multiply',      inputs: { a: 'tex', b: 'tint' } },
+    { id: 'out',  type: 'output',        inputs: { color: 'mul' } },
+  ],
+};
+
+const shader = Material.compileShader(compileMaterialGraph(graph));
+const mat = Material.create({ shader });
+Material.setUniform(mat, 'u_tint', [1, 0, 0, 1]);   // graph params are ordinary params
+```
+
+| `MaterialGraph` field | Description |
+|---|---|
+| `name` | Shader name. |
+| `domain` | Shader domain; `Unlit` by default. Set `Lit` for a lit material. |
+| `output` | Id of the `output` node, the compile root. |
+| `nodes` | Nodes: `id`, `type`, `params` (literals), `inputs` (input slot → source node id), `x` / `y` (canvas position, ignored by the compiler). |
+| `kind` | `'subgraph'` for a `.esmatsub`, a graph used as one node, ending in a `subOutput`. |
+
+`compileMaterialGraph(graph, resolve?)` throws on a cycle, a missing node or input, an `output` that does not reference
+an output node, or a `subgraph` node when no `resolve` function is given to look up subgraphs.
+
+### Node types
+
+`GraphNodeType` lists the node types; `NODE_SPECS` holds each type's ports and editable literals, the schema the
+editor's palette reads.
+
+| Node | Output | Description |
+|---|---|---|
+| `output` | — | Root. Inputs: `color`, `normal`, `metallic`, `roughness`, `occlusion`, `emission`, `alpha`, `vertexOffset`. |
+| `uv` / `screenUV` | `vec2` | Texture UV / canvas-normalised screen UV (0–1, y-up). |
+| `vertexColor` | `vec4` | The sprite's per-instance tint. |
+| `time` | `float` | Engine frame clock in seconds. |
+| `constFloat` / `constColor` | `float` / `vec4` | A reflected material param (`params: { name, value }`). |
+| `textureSample` | `vec4` | Samples a texture param at a UV (`params: { name, default }`). |
+| `normalMap` | `vec3` | Samples a tangent-space normal map param as data (`params: { name }`). |
+| `channel` | `float` | One component (`r`/`g`/`b`/`a`) of a value. |
+| `uvTransform` | `vec2` | UV × tiling + offset (`tileX`, `tileY`, `offsetX`, `offsetY` literals). |
+| `switch` | `vec4` | One of two inputs (`on`, `off`), chosen by a `#pragma switch` (`feature`: capitals, digits and underscores; `default`). |
+| `multiply` / `add` / `lerp` | widened / `vec4` | Arithmetic; scalars broadcast against vectors. |
+| `oneMinus` / `saturate` / `sin` | input type | `1 − x` / clamp 0–1 / sine. |
+| `smoothstep` | input type | `smoothstep(edge0, edge1, x)`; the edges are node literals. |
+| `noise` | `float` | Procedural value noise over a UV (`scale` literal). |
+| `panner` | `vec2` | `uv + time × speed` (`speedX` / `speedY` literals). |
+| `subgraph` / `subInput` / `subOutput` | from the subgraph | A subgraph used as a node, and the input and result nodes inside a subgraph. |
+
+### Editing operations
+
+The SDK exports pure operations on graphs; each returns a new graph and leaves the input unchanged:
+
+| Function | Description |
+|---|---|
+| `newMaterialGraph()` | A starter graph: a white `textureSample` wired to `output`. |
+| `addNode(g, type, x, y)` | Adds a node with default literals; returns `{ graph, id }`. |
+| `connect(g, fromId, toId, toSlot)` | Wires an edge; returns `g` unchanged if the edge would create a cycle or the slot is unknown. |
+| `disconnect(g, toId, toSlot)` | Clears an input connection. |
+| `moveNode(g, id, x, y)` | Canvas layout only; the compiler ignores positions. |
+| `removeNode(g, id)` | Removes a node and every edge touching it. The `output` node cannot be removed. |
+
+## Custom geometry
+
+The **`Geometry`** API (`Geometry.create` with a `GeometryOptions` vertex layout, plus the `createQuad`,
+`createCircle` and `createPolygon` helpers) builds handle-based meshes that are drawn immediately with
+`Draw.drawMeshWithMaterial(geometry, material)`. See [Custom Drawing](/docs/graphics/drawing/meshes/#custom-geometry-the-geometry-api).
+
+## Guidelines
+
+- Compile shaders once at startup and reuse the handle; never compile in a per-frame system.
+- Renderers that use the same shader and parameters share one material, so they batch into fewer draw calls.
+- Animated effects call `setUniform` on a shared material rather than creating new materials.
+- The editor's material graph covers most authoring; the code API is for procedural materials.
+
+<Aside type="note">
+  Raw shaders without reflected params use `Material.createShader(vertexSrc, fragmentSrc)` instead of
+  `compileShader`.
+</Aside>
+
+## See also
+
+- [Materials](/docs/graphics/materials/overview/)
+- [The .esshader format](/docs/graphics/materials/esshader/)
+- [Assets](/docs/assets/overview/) — `loadMaterial` and shader handles.
+- [Particles](/docs/world/particles/) — assigning a custom `material` to an emitter.

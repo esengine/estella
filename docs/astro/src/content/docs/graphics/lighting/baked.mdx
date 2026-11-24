@@ -1,0 +1,182 @@
+---
+title: Baked Lighting
+description: Baked lighting reference — lightmaps through MeshLightmap and a second UV set, how lit interacts with a bake, baking in the editor and from the command line, BakedLighting settings, light probe volumes with sparse bricks and runtime capture, and reflection probes.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A bake computes light that does not move once, offline, and stores it in textures. At run time a surface reads a texel
+instead of evaluating lights, so the number of baked lights does not affect frame cost and is not bound by the
+[per-frame light limits](/docs/graphics/lighting/lights/#light-limits-per-frame).
+
+| Component | Holds | Read by |
+|---|---|---|
+| `MeshLightmap` | The lightmap atlas and this object's rectangle in it | Static meshes with a second UV set |
+| `LightProbeVolume` | A grid of baked irradiance in a box | Moving objects, characters, and meshes without lightmap UVs |
+| `ReflectionProbe` | A baked reflection for a box | Glossy and metallic surfaces inside the box |
+| `BakedLighting` | The scene's bake settings and the fingerprint of the last bake | The baker and the Lighting panel |
+
+## Lightmaps
+
+A lightmap requires two things:
+
+- **A mesh with a second UV set.** The first UV set wraps the art and may overlap; a lightmap needs every surface in its
+  own region. Both importers carry a second set through when the model has one (`TEXCOORD_1` in glTF, the second UV layer
+  in FBX). The model importer can also generate one ([Models](/docs/assets/models/)).
+- **A `MeshLightmap` component**, written by the bake.
+
+### `MeshLightmap`
+
+| Field | Default | Description |
+|---|---|---|
+| `lightmap` | — | The baked atlas. Unset means no bake: the object keeps its real-time light. |
+| `scaleOffset` | `(1, 1, 0, 0)` | Rectangle in the atlas: `xy` scales the second UV set, `zw` offsets it. `(1, 1, 0, 0)` reads the whole texture, as a single-object bake produces. |
+
+The rectangle is per entity, not per mesh: the same mesh placed twice is lit differently in each place. An object whose
+mesh has a second UV set but no `MeshLightmap` renders unchanged; a zero rectangle is read as "no bake", not as a black
+atlas.
+
+### `lit` and baked light
+
+The meaning of a lightmap depends on the renderer's `lit` flag:
+
+| `lit` | With `MeshLightmap` | Without |
+| --- | --- | --- |
+| on | Real-time light **plus** the bake, which supplies the indirect term | Real-time light only |
+| off | The bake is **all** of the surface's light | Unlit: the texture as authored |
+
+With `lit` off, a scene whose lights are all baked pays no per-light cost.
+
+Skinned meshes take no bake. A character in a baked scene is lit in real time and by probe volumes.
+
+## Baking
+
+| Method | Notes |
+|---|---|
+| **Lighting** panel → **Bake Lighting** (also the **Bake Lighting** command) | Writes the atlas beside the scene and fills every `MeshLightmap`, probe volume and reflection probe. One undo step. |
+| `node pipeline/bin/estella.mjs bake-scene <scene.esscene>` | The same bake from the command line. `--check` verifies that the committed result is a bake of the scene. Scenes with parented entities or prefab instances must be baked in the editor. |
+
+A lightmap produced elsewhere (Blender Cycles, a Substance bake, any renderer that writes a lightmap and its UV layout)
+is read the same way: the contract is the component, not the baker.
+
+The Lighting panel shows whether the scene is **Never baked**, **Up to date** or **Out of date** (something the bake
+reads has changed since), counts of baked surfaces, moving objects and probe volumes, the bake settings, and for the
+selected object the source of its light (lightmap, probe volume, real-time lights or environment only) with the reason
+when it receives no baked light.
+
+{/* SHOT: light-lighting-panel | The Lighting panel docked on the left with a baked scene: state Up to date, the surface / moving / probe volume counts, the Bake settings group (Atlas size, Texels / unit, Bounces, Samples, Probe samples, Probe levels, Sky occlusion), the Bake Lighting button, and the Selected object section for a static mesh reporting baked light from the lightmap atlas. */}
+
+### Bake settings
+
+The `BakedLighting` component carries the scene's bake settings. Without it a bake uses the defaults; **Add lighting
+settings** in the Lighting panel adds it.
+
+| Field | Default | Description |
+|---|---|---|
+| `atlasSize` | `1024` | Side of the square atlas, in texels. |
+| `texelsPerUnit` | `0.25` | Lightmap density in texels per world unit (a world unit is a design pixel). |
+| `bounces` | `8` | Light reflections simulated. `0` is direct light only. An enclosed room with light walls needs 8 or more. |
+| `samples` | `64` | Rays each lightmap texel gathers per bounce. |
+| `probeSamples` | `128` | Directions each probe gathers, over the whole sphere. |
+| `skyOcclusion` | `false` | Probes store how much sky they see instead of the sky itself, so the sky at run time (Sky Atmosphere, weather) lights them and interiors stay dark. |
+| `probeLevels` | `1` | Brick sizes a probe volume may use (1–4); see [Sparse bricks](#sparse-bricks). |
+| `bakedFrom` | `''` | Fingerprint of the inputs the last bake read. Written by the baker. |
+
+## Light probe volumes
+
+A **`LightProbeVolume`** is a box of baked irradiance on a grid. An object inside takes its indirect light from the
+surrounding probes instead of from the frame's single environment. It lights what a lightmap cannot: moving objects,
+characters, and meshes without lightmap UVs.
+
+| Field | Default | Description |
+|---|---|---|
+| `probes` | — | The baked grid (`.esprobes`). Unset: nothing baked; objects inside are lit as without the volume. |
+| `halfExtents` | `{100,100,100}` | Half the box size from the entity's position, in world units. |
+| `spacing` | `100` | World units between probes in the next bake. Changing it has no effect until the next bake. |
+| `capture` | `false` | Fills the box at run time from a capture at its centre instead of from `probes`. |
+| `captureInterval` | `0` | With `capture`: seconds between captures; `0` captures once. |
+| `enabled` | `true` | Disabled volumes are skipped. |
+
+The box is axis-aligned at the entity's world position; rotation and scale are not read.
+
+### Sparse bricks
+
+The grid is stored as **bricks** of 4 × 4 × 4 cells in a 3D atlas, located through one indirection cell per brick. With
+**`BakedLighting.probeLevels`** above 1 (**Probe levels** in the Lighting panel), the bake keeps the volume's `spacing`
+only in bricks near geometry and samples open air at 2, 4 or 8 times the spacing. A large volume with fine spacing along
+floors and walls then bakes with far fewer probes, and the per-volume probe cap grows eight times per level. Where a fine
+brick meets a coarse one, the fine brick's face takes the coarse brick's values, so no seam appears where spacing changes.
+A grid whose bricks would all be fine is written dense, as with one level.
+
+Selecting a volume in the editor shows the loaded grid: a sparse grid draws its bricks, finest in violet, then amber
+(2×), pale yellow (4×) and grey (8×); a dense grid draws a cross at every probe. The display reflects the grid the engine
+loaded, not the component's current `spacing`.
+
+{/* SHOT: light-probe-bricks | A baked LightProbeVolume selected in the scene view of an interior with Probe levels 3: violet fine bricks along the floor and walls, amber and pale yellow coarser bricks in the open air; Details shows the Light Probe Volume card. */}
+
+### Per-pixel and per-object reads
+
+| Reader | Read |
+|---|---|
+| Mesh **without** lightmap UVs, quality setting **Per-pixel light probes** on | The grid at each pixel: ten texture reads per lookup (the indirection cell, then one filtered read per coefficient). |
+| Mesh **with** lightmap UVs, or any mesh with **Per-pixel light probes** off | One value at the object's position. No atlas is held on the GPU. |
+
+**Per-pixel light probes** (`probesPerPixel`) is off at low and on at medium and high, and on with the quality system off.
+Read per object, a long mesh spanning a lit yard and a dark shed is lit uniformly. `get_stats` and the frame stats report
+`probes`: draws reading per pixel and per object, and the atlas size in bytes.
+
+### Runtime capture
+
+A bake sees only what it can store: a mesh without lightmap UVs is black to it, so lamps lighting such walls contribute
+nothing to the probes. With **`capture`** on, a `LightProbeVolume` is filled at run time instead: the scene is rendered
+in all directions from the box's centre (walls as currently lit, sky through openings), and objects inside read that
+light in place of the bake. This corresponds to a real-time sky light or reflection capture.
+
+```ts
+entity.insert(LightProbeVolume, { halfExtents: { x: 22, y: 7, z: 11 }, capture: true, captureInterval: 2 });
+```
+
+- One 32-pixel face is rendered per frame: a capture costs six small scene draws over six frames.
+- Each capture sees the room lit by the previous one, so repeated captures add bounces.
+- The box is a single sample point: suitable for a room, not for a long hall whose ends differ. Use several boxes.
+- Glossy surfaces in the box also **reflect** the capture, projected onto the box's walls. A scene with baked
+  `ReflectionProbe`s keeps those; the frame binds one reflection atlas.
+- Keep the box's centre clear: an object around that point occupies the whole capture.
+
+## Reflection probes
+
+A lightmap supplies diffuse light. Without a probe, glossy and metallic surfaces reflect the sky, including indoors. A
+**`ReflectionProbe`** is a box whose reflections come from the bake, filled by the same bake as `LightProbeVolume`.
+
+```typescript
+world.insert(room, ReflectionProbe, { halfExtents: { x: 400, y: 220, z: 400 } });
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `halfExtents` | `{200,200,200}` | Half the box size from the entity's position. |
+| `reflection` | — | The scene's baked reflection atlas (`.esenv`). Written by the baker. |
+| `slot` | `0` | Atlas column of this probe. Column 0 is the environment; `0` means not yet baked. Written by the baker. |
+| `enabled` | `true` | Off: surfaces inside reflect the sky. |
+
+The baker captures the sphere seen from the probe's position, prefilters it for every roughness level, and writes every
+probe of the scene into one atlas beside the lightmap. Only the box is authored.
+
+- **The reflection is projected onto the box**, so it moves across a surface as the viewpoint moves. Size the box to the
+  room, not to the object.
+- **Where boxes overlap, the smaller one wins.**
+- **Do not place a probe inside a glossy object.** The capture is taken from the probe's position.
+- The box is axis-aligned.
+- `reflectionScale` and `reflectionSaturation` on the frame's Ambient light adjust what probes show, for example under
+  weather ([Ambient fields](/docs/graphics/lighting/lights/#ambient)).
+
+<Aside type="tip">
+  Probes read the solved lighting, so bake lighting before judging reflections. Moving a probe changes the bake's
+  fingerprint, and the Lighting panel reports the scene as out of date.
+</Aside>
+
+## See also
+
+- [Lights](/docs/graphics/lighting/lights/)
+- [Planar Reflections](/docs/graphics/lighting/planar-reflections/)
+- [Models](/docs/assets/models/)

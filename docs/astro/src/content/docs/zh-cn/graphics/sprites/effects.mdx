@@ -1,0 +1,131 @@
+---
+title: 效果与 2D 渲染组件
+description: 精灵材质与 2D 光照、SpriteFilter 描边 / 发光 / 投影材质，以及相关的 2D 渲染组件——ShapeRenderer 图元、TrailRenderer 拖尾与世界空间 BitmapText。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+精灵在着色之外的外观由其材质与 `lit` 标志控制。另有三个组件在不使用精灵纹理的情况下绘制 2D 内容；它们沿用 `Sprite` 的排序 `layer`、`color` 与 `parallax` 约定。
+
+## 材质与光照
+
+`Sprite.material` 用自定义材质替换内置精灵着色器（着色、溶解、扭曲）；见[材质与着色器](/docs/zh-cn/graphics/materials/overview/)。
+
+| 方式 | 结果 |
+|---|---|
+| `Sprite.lit = true` | 精灵以平面法线接收 `Light` 实体的光照，无需材质。 |
+| Lit-2D 材质 | 法线贴图与自定义受光着色。覆盖 `lit`。 |
+
+两者见[受光表面](/docs/zh-cn/graphics/lighting/surfaces/)。
+
+![效果画廊示例：同一个角色分别套上描边、发光、投影和像素化滤镜](@/assets/guides/zh/play-effects.png)
+
+*效果画廊示例：同一个精灵使用不同的 `SpriteFilter` 材质。*
+
+## 精灵滤镜
+
+`SpriteFilter` 为常见的逐精灵效果创建现成材质，结果赋给 `Sprite.material`。
+
+```typescript
+import { SpriteFilter } from 'esengine';
+
+sprite.material = SpriteFilter.createOutline({ color: { r: 1, g: 1, b: 1, a: 1 }, width: 2 });
+sprite.material = SpriteFilter.createGlow();
+sprite.material = SpriteFilter.createDropShadow({ offsetX: 3, offsetY: 3, blur: 2 });
+```
+
+| 方法 | 选项与默认值 |
+|---|---|
+| `createOutline(options?)` | `color`（白色）、`width`（`1`）、`texelSize`。 |
+| `createGlow(options?)` | 描边，默认 `color` 为暖黄色 `{1, 0.8, 0.2, 0.8}`、`width` 为 `2`。 |
+| `createDropShadow(options?)` | `color`（黑色 α 0.6）、`offsetX` / `offsetY`（`3`）、`blur`（`2`）、`texelSize`。 |
+| `setOutlineColor(material, color)` / `setOutlineWidth(material, width)` | 原地更新描边或发光材质。 |
+| `setShadowOffset(material, x, y)` / `setShadowBlur(material, blur)` | 原地更新投影材质。 |
+
+- 每次 `create*` 调用都创建一个新材质。外观相同的精灵应共享同一句柄。
+- `texelSize` 默认每轴 `1/512`。纹理为其他尺寸时，为得到精确的像素宽度，传入 `texelSize: { x: 1 / texWidth, y: 1 / texHeight }`。
+
+## 图元：`ShapeRenderer`
+
+`ShapeRenderer` 不使用纹理绘制实心图元：占位、进度条、调试标记。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `shapeType` | `Circle` | `ShapeType.Circle`、`Capsule` 或 `RoundedRect`。 |
+| `color` | `{1,1,1,1}` | 填充颜色。 |
+| `size` | `{100,100}` | 以世界单位计的尺寸。 |
+| `cornerRadius` | `0` | `RoundedRect` 的圆角半径。 |
+| `layer` | `0` | 排序层。 |
+| `parallax` | `{1,1}` | 视差滚动系数。 |
+| `enabled` | `true` | 隐藏图形而不移除组件。 |
+
+```typescript
+import { Transform, ShapeRenderer, ShapeType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ShapeRenderer, {
+    shapeType: ShapeType.RoundedRect,
+    size: { x: 200, y: 80 },
+    cornerRadius: 12,
+    color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+  });
+```
+
+任意轮廓、描边与带孔多边形用[矢量路径](/docs/zh-cn/graphics/drawing/vector-paths/)构建。
+
+## 拖尾：`TrailRenderer`
+
+`TrailRenderer` 沿实体最近的路径绘制世界空间条带：刀光、冲刺、弹道残影。引擎记录位置历史，并每帧生成逐渐收窄的条带。
+
+![拖尾示例：一颗拖着长长叠加拖尾的彗星](@/assets/guides/zh/play-trail.png)
+
+*拖尾示例：彗星的叠加拖尾沿其轨迹延伸。*
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(TrailRenderer, { time: 0.4, startWidth: 24, blendMode: 1 });  // 叠加
+```
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `time` | `0.5` | 每个记录点的存续秒数，之后从尾部淡出。 |
+| `minVertexDistance` | `5` | 记录新点前需移动的最小世界距离；`0` 表示每帧记录。 |
+| `emitting` | `true` | `false` 停止记录；已有条带脱离实体并原地淡出。 |
+| `startWidth` / `endWidth` | `20` / `0` | 头部 / 尾部的条带宽度；`0` 收窄成线。 |
+| `startColor` / `endColor` | 白色 / 白色 α 0 | 由头至尾插值的颜色。可动画。 |
+| `texture` | `0` | 沿条带采样的纹理（U 由头至尾，V 横跨宽度）；`0` 仅使用顶点色。 |
+| `blendMode` | `0` | `0` 正常、`1` 叠加、`2` 正片叠底。 |
+| `layer` / `material` | `0` / `0` | 排序层 / 自定义材质。 |
+| `enabled` | `true` | 隐藏拖尾。 |
+
+`Trail` 资源（`Res(Trail)`）提供 `clear(entity)`，立即丢弃某实体的历史——例如瞬移时，避免条带划过整张地图。
+
+粒子发射器有各自的逐粒子拖尾（[粒子](/docs/zh-cn/world/particles/)）。
+
+## 世界空间文字：`BitmapText`
+
+`BitmapText` 使用预烘焙的位图字体在世界空间渲染文字：伤害数字、名牌、复古风格界面。`font` 引用 BMFont 资源（`.fnt` 文本或 `.bmfont` JSON）。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `text` | `''` | 要绘制的字符串。 |
+| `font` | `0` | 位图字体资源（`.fnt` / `.bmfont`）。 |
+| `fontSize` | `1` | 相对字体原始尺寸的缩放，最小为 1。 |
+| `align` | `Left` | `Left`、`Center`、`Right`。 |
+| `spacing` | `0` | 每个字符的额外间距。 |
+| `color` | `{1,1,1,1}` | 着色。可动画。 |
+| `layer` / `parallax` | `0` / `{1,1}` | 排序层 / 视差系数，与 `Sprite` 相同。 |
+| `enabled` | `true` | 隐藏文字。 |
+
+<Aside type="note">
+  带布局、换行与 SDF 渲染的屏幕空间文字使用 UI 的 `Text` 组件（[文本](/docs/zh-cn/ui/text/)）。
+</Aside>
+
+## 另请参阅
+
+- [精灵](/docs/zh-cn/graphics/sprites/overview/) —— `Sprite` 组件。
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 适用于任何渲染组件的自定义着色器。
+- [光源](/docs/zh-cn/graphics/lighting/lights/)、[受光表面](/docs/zh-cn/graphics/lighting/surfaces/)与[阴影](/docs/zh-cn/graphics/lighting/shadows/) —— 光源、法线贴图与阴影投射体。
+- [自定义绘制](/docs/zh-cn/graphics/drawing/overview/) —— 即时模式绘制与自定义网格。

@@ -1,0 +1,193 @@
+---
+title: 镜头与画面效果
+description: 镜头、抗锯齿与风格化效果参考——Bloom、Depth of Field、Motion Blur、Lens Flare、Film Grain、Chromatic Aberration、Lens Distortion、Vignette、Sharpen、MSAA、FXAA、TAA、Blur、Pixelate、Palette 及各描边效果。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+这些效果模拟相机镜头、消除锯齿或对画面做风格化处理。它们在检视器中带有**镜头**、**抗锯齿**或**风格化**标签。参数名为场景数据和代码中使用的带 `u_`
+前缀的名称。
+
+{/* SHOT: pp-depth-of-field | A 3D scene in the Game view with Depth of Field enabled: a sharp subject in the middle distance, a blurred foreground and background with hexagonal bokeh on a bright light (Aperture Blades 6, Highlight Boost above 0); the Depth of Field entry unfolded in the Inspector. */}
+
+## 泛光
+
+`bloom` 在亮于阈值的像素周围添加辉光。超范围的光以半尺寸提取，分五步降采样至 1/64 尺寸，再逐级升采样回来，每一级加回同尺寸的降采样结果。辉光衰减圆润柔和，
+带有一条很淡的长尾。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_threshold` | Threshold | 0.4 | 产生辉光的亮度下限。大于 1 的值需要 [HDR 链路](/docs/zh-cn/graphics/post-processing/overview/#hdr-链路)。 |
+| `u_intensity` | Intensity | 1.5 | 辉光强度。 |
+| `u_radius` | Radius | 1 | 整体加宽辉光。 |
+
+明亮的天空应保持在阈值以下；否则每条贴着天空的暗边都会带上天空的辉光。
+
+## 景深
+
+`depthOfField`（Depth of Field）模糊焦点周围 `u_focusRange` 深度之外的内容。它分三个 pass：第一个确定镜头的对焦位置，第二个把每个像素的模糊半径计算到浮点目标中，
+第三个收集模糊。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_focusDistance` | Focus Distance | 600 | 关闭 Auto Focus 时，相机到焦点的世界长度。 |
+| `u_autoFocus` | Auto Focus | 0 | 为 1 时对焦于对焦点下的表面。 |
+| `u_focusX`、`u_focusY` | Focus Point X / Y | 0.5 | 对焦点，以屏幕宽度（从左）与高度（从上）的比例表示。 |
+| `u_focusSpeed` | Focus Speed | 5 | 焦点移向新距离的速率。 |
+| `u_focusRange` | Focus Range | 100 | 清晰区域的世界深度。 |
+| `u_aperture` | Aperture (px) | 24 | 无限远物体的模糊半径，单位为像素。 |
+| `u_maxBlur` | Max Blur (px) | 14 | 模糊半径上限，单位为像素。 |
+| `u_blades` | Aperture Blades (0 = round) | 0 | 0：圆形光圈。3 及以上：相应边数的多边形。 |
+| `u_bokehRotation` | Blade Rotation | 0 | 多边形光圈的旋转角度，单位为度。 |
+| `u_highlight` | Highlight Boost | 0 | 亮采样的额外权重，使失焦的灯呈现为明亮的光圈形状。 |
+
+**对焦。** 开启 Auto Focus 时，焦距为对焦点下的深度，取九个采样。镜头以 Focus Speed 在对数距离上向其移动，因此对焦变化是平滑过渡。对焦点下只有天空时，
+焦点不变。
+
+**模糊。** 模糊半径随表面到焦点的距离占其自身距离的比例增大，上限为 Max Blur；天空视为无限远。每个像素在自身半径内收集邻居，且邻居仅在其自身模糊能够到达
+本像素时计入：清晰的前景物体不会渗入模糊的背景，而模糊的前景会铺到其后方的内容上。64 个采样沿螺旋按像素偏移，留下的细颗粒由 `taa` 消除。
+
+## 运动模糊
+
+`motionBlur`（Motion Blur）沿像素自上一帧以来的运动将其拉开。相机运动由深度缓冲重建；自身移动的网格由 `taa` 同样使用的运动 pass 跟随，因此沿其自身轨迹拖影。
+无需其他设置。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Shutter | 0.5 | 拖影覆盖一帧运动的比例。0.5 为 180° 快门，1 为整帧。 |
+| `u_maxBlur` | Max Blur | 0.05 | 最长拖影占画面的比例，用于限制切镜或瞬移时的拖影。 |
+| `u_objectMotion` | Object Motion | 1 | 1：移动网格跟随其自身运动。0：仅相机运动。 |
+
+相机静止且没有移动网格时，画面不变。运动模糊不施加亚像素抖动，不依赖 `taa`。
+
+## 镜头光晕
+
+`lensFlare`（Lens Flare）从亮于阈值的像素投出带色彩边缘的鬼影和光晕。它读取画面本身，因此画面中需要存在高于 `u_threshold` 的值：明亮的太阳圆盘、灯、
+HDR 下的自发光表面。它以半尺寸计算，以全尺寸合成。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.4 | 光晕强度。 |
+| `u_threshold` | Threshold | 1.2 | 产生光晕的亮度下限，以画面自身单位计（含 HDR）。 |
+| `u_ghosts` | Ghosts | 5 | 鬼影数量。 |
+| `u_dispersal` | Dispersal | 0.35 | 鬼影间距。 |
+| `u_haloWidth` | Halo Width | 0.45 | 光环半径。 |
+| `u_chromatic` | Colour Fringe | 0.012 | 色彩边缘的通道分离量。 |
+| `u_tint` | Tint | (1, 0.85, 0.7) | 颜色参数：光晕色调。 |
+
+## 胶片颗粒
+
+`filmGrain`（Film Grain）添加胶片晶粒大小的噪点，随时钟变化。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.15 | 颗粒强度。 |
+| `u_size` | Grain Size | 1.6 | 颗粒大小。 |
+| `u_response` | Mid-tone Response | 0.8 | 1 使颗粒集中在中间调；0 使其均匀分布，包括黑与白。 |
+
+## 镜头瑕疵
+
+| 效果 | 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|---|
+| `chromaticAberration` | `u_intensity` | Intensity | 3 | RGB 色散强度。 |
+| `lensDistortion` | `u_strength` | Strength | 0 | 桶形（正值）或枕形（负值）畸变。 |
+| | `u_zoom` | Zoom | 1 | 缩放畸变后的画面，使边缘保持在画框内。 |
+| `vignette` | `u_intensity` | Intensity | 0.6 | 完全压暗时的强度。 |
+| | `u_radius` | Radius | 1 | 压暗达到最大的距离。 |
+| | `u_softness` | Softness | 0.5 | 半径以内的渐变宽度。 |
+| | `u_roundness` | Roundness | 0 | 0 跟随画框形状（1 为边的中点）；1 为圆形，其上 1 为画面的角。 |
+
+`lensDistortion` 在默认值下为恒等。
+
+## 锐化
+
+`sharpen` 将每个像素推离其邻居的均值，再将其限制在邻居所张成的范围内，使边缘变陡而不产生光晕。在 WebGPU 上它是计算 pass；在 WebGL2 上由同样算术的片元 pass
+绘制出完全相同的画面。由于存在计算版本，检视器将其标为**仅 WebGPU**。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.5 | 像素被推离邻域均值的程度。0 表示画面不变。 |
+| `u_limit` | Overshoot Limit | 0.25 | 像素可超出邻域范围的程度，以该范围的比例计。0 表示不允许超出。 |
+
+## 抗锯齿
+
+| 方法 | 位置 | 消除 | 开销 |
+|---|---|---|---|
+| MSAA | 场景目标，效果链之前 | 几何边缘 | 每个采样的填充率 |
+| `fxaa` | 效果链中的效果 | 近似处理边缘；画面变软 | 一个全屏 pass |
+| `taa` | 效果链中的效果 | 着色锯齿、细几何体、屏幕空间效果的噪点 | 一个 pass、每个相机一份历史目标、移动网格的运动 pass |
+
+### MSAA
+
+几何边缘由场景本身的多重采样平滑，默认 4×，WebGL2 与 WebGPU 上均如此；原生包运行在 WebGPU 上。`createWebApp(module, { msaaSamples })` 设置采样数，
+`msaaSamples: 1` 将其关闭。设备会对请求的采样数做限制。
+
+### FXAA
+
+`fxaa` 是更便宜、更柔和的替代方案，用于额外采样开销过高的设备。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 输入与抗锯齿结果之间的混合比例。 |
+
+### 时间性抗锯齿
+
+`taa` 跨帧累积。它在效果链中时，引擎每帧将画面偏移一个不同的亚像素量（八个位置循环），保留该效果的上一帧输出，并将二者混合。历史位置通过重投影确定：
+每个像素借助深度缓冲反投影到世界，再用上一帧的相机投影回去。每个相机有各自的历史。MSAA 与它同时保持开启，二者叠加。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_blend` | Blend | 0.1 | 每帧中新画面的占比。越低越平滑、跟随变化越慢；1 表示不累积。 |
+| `u_objectMotion` | Object Motion | 1 | 1：移动网格按其自身运动重投影。0：仅相机运动。 |
+
+**顺序。** 将 `taa` 放在所有需要它平均噪点的效果之后：环境光遮蔽、接触阴影、全局光照、反射、光束、高度雾。排在 `taa` 之后的效果所带来的噪点会原样到达屏幕。
+若 `taa` 之后还有此类效果，检视器在该 `taa` 条目上显示警告标签。
+
+{/* SHOT: pp-taa-order-warning | PostProcessVolume Inspector with Temporal Anti-Aliasing above Ambient Occlusion and Height Fog; the "!" warning tag on the TAA entry with its tooltip open, listing the effects that run after it. */}
+
+**移动网格。** `taa` 在效果链中时，发生移动的网格会再绘制一遍到运动目标中，记录每个像素自上一帧移动的距离；在移动表面就是屏幕上可见表面的位置，效果跟随该运动。
+细而快的移动物体因此保持对比度，而不会淡入背景。开销为对发生移动的物体多绘制一次（没有物体移动时为零）以及一张与场景同尺寸的 RGBA32F 目标；不支持浮点渲染目标的设备
+会跳过该 pass。蒙皮网格通过骨骼跟随：帧会保留每个骨骼上次绘制时的调色板。混合表面以及材质顶点钩子添加的运动不被跟随；它们使用相机运动，并被限制在像素周围的颜色范围内。
+
+TAA 与 SSAO 一样读取场景深度；在 WebGPU 上，它无法在没有深度解析的多重采样场景上运行。
+
+## 风格化
+
+| 效果 | 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|---|
+| `blur` | `u_intensity` | Intensity | 2 | 高斯模糊强度。 |
+| `pixelate` | `u_pixelSize` | Pixel Size | 4 | 块大小，单位为像素。 |
+| `outline` | `u_intensity` | Intensity | 1 | 基于亮度 Sobel 边缘检测的墨线。 |
+| | `u_threshold` | Threshold | 0.2 | 画线所需的边缘强度。 |
+| | `u_thickness` | Thickness | 1 | 线宽。 |
+| `depthOutline` | `u_intensity` | Intensity | 1 | 深度跳变处的黑线：轮廓，而非着色。 |
+| | `u_threshold` | Threshold | 0.01 | 画线所需的深度跳变。 |
+| | `u_thickness` | Thickness | 1 | 线宽，单位为像素。 |
+| `edgeOutline` | `u_intensity` | Intensity | 1 | 轮廓与折痕处的彩色线。 |
+| | `u_depthThreshold` | Depth Threshold | 0.01 | 轮廓：邻居位于后方的距离，以其自身深度的比例计。 |
+| | `u_normalThreshold` | Crease Threshold | 0.4 | 折痕：两个表面法线的偏转程度（0 同向，1 直角，2 相反）。 |
+| | `u_thickness` | Thickness | 1 | 线宽，单位为像素。 |
+| | `u_lineColor` | Line Colour | 黑 | 颜色参数：线的颜色。 |
+
+`edgeOutline` 依据表面法线检测折痕，因此需要向 [G-buffer](/docs/zh-cn/graphics/post-processing/lighting/#g-buffer) 写入法线的表面：受光网格、Model、Toon。
+
+### 调色板
+
+`palette` 将画面限制在一套调色板内：在有序抖动之后，每个像素变为色板条图（N×1 像素，每像素一种颜色，最多 64 色）中最接近的颜色。将它放在效果链最后，
+并以最近邻过滤导入色板图像。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_palette` | Palette (N x 1 image, one colour a pixel, up to 64) | — | 纹理参数：色板条图。 |
+| `u_strength` | Strength | 1 | 输入与量化结果之间的混合比例。 |
+| `u_dither` | Dither | 0.5 | 颜色选择在相邻颜色之间分散的程度。 |
+| `u_ditherScale` | Dither Scale | 1 | 抖动单元大小，单位为设备像素；与美术的像素尺寸一致。 |
+
+<Aside type="tip">
+  像素美术需要在光照和天气变化下保持同一套调色板时，将 `palette` 放在所有光照与大气效果之后。
+</Aside>
+
+## 参见
+
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)
+- [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/)

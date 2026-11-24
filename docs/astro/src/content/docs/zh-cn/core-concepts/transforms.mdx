@@ -61,13 +61,13 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
   (网格、透视相机、[3D 物理](/docs/zh-cn/gameplay/physics-3d/))里坐标轴仍是 Y 向上,
   `z` 就是普通空间轴:相机与灯光朝 `-Z` 看,地面是 XZ 平面。对 2D 精灵,渲染先按各渲染器的排序层
   `layer` 粗排;同一层内用 `z` 做精细排序(俯视角深度请用
-  [y 排序层](/docs/zh-cn/graphics/sprites/#绘制顺序与排序层))。它不会使精灵产生
+  [y 排序层](/docs/zh-cn/graphics/sprites/sorting/#y-排序层))。它不会使精灵产生
   透视缩放。
 - **屏幕空间 Y 轴向下**:指针坐标(`Input.mouseX/mouseY`、UI 命中测试)是从画布
   **左上角**起算的像素,Y 向下增大。
 
 用 `CameraView` 资源在两个空间之间转换(完整 API 见
-[相机](/docs/zh-cn/graphics/camera/#屏幕--世界坐标)):
+[相机](/docs/zh-cn/graphics/camera/overview/#屏幕--世界坐标)):
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -273,7 +273,7 @@ world = parentWorld × T(position) × R(rotation) × S(scale)
 ## 另请参阅
 
 - [组件](/docs/zh-cn/core-concepts/components/)——组件如何声明与存储数据。
-- [相机](/docs/zh-cn/graphics/camera/)——orthoSize、跟随与屏幕 ↔ 世界转换。
-- [精灵与渲染](/docs/zh-cn/graphics/sprites/)——排序层、y 排序与绘制顺序。
+- [相机](/docs/zh-cn/graphics/camera/overview/)——orthoSize、跟随与屏幕 ↔ 世界转换。
+- [绘制顺序与排序](/docs/zh-cn/graphics/sprites/sorting/)——排序层、y 排序与绘制顺序。
 - [物理](/docs/zh-cn/gameplay/physics/)——单位制中以米为单位的那一侧。
 - [数学辅助](/docs/zh-cn/scripting/math/)——在规范类型上做向量与旋转数学。

@@ -1,0 +1,234 @@
+---
+title: 光源
+description: Light 组件参考——光源类型、全部字段及默认值、朝向、每帧光源上限与分块光源、精灵层范围、衰减形状、平方反比衰减、cookie、强度单位，以及编辑器中的光源编辑。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+光源是带有 **`Light`** 组件的实体。其位置和朝向取自实体的 `Transform`；组件只保存光源自身的参数。光照内建于渲染器，无需插件。渲染组件只有以受光方式绘制时才受光源影响（[受光表面](/docs/zh-cn/graphics/lighting/surfaces/)）。
+
+![2D 光照示例：一盏聚光灯照亮一片暗色方块](@/assets/guides/zh/play-lighting-2d.png)
+
+*2D 光照示例：光照落在暗色方块上，场景其余部分不受光。*
+
+## 添加光源
+
+编辑器的创建选择器提供 **Light**（位于实体位置的 Point 光）和 **Sun**（朝向屏幕内的 Directional 光）。也可在 Details 面板中为已有实体添加 `Light` 组件。
+
+代码方式：
+
+```typescript
+import { defineSystem, Commands, Transform, Light, LightType, lightAimRotation } from 'esengine';
+
+const addSun = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    // 光源沿所在实体的前方照射，因此通过旋转实体来瞄准太阳。
+    .insert(Transform, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: lightAimRotation({ x: -1, y: -1, z: -1 }),
+    })
+    .insert(Light, {
+      type: LightType.Directional,
+      color: { r: 1, g: 0.95, b: 0.8, a: 1 },
+      intensity: 1.2,
+    });
+});
+```
+
+Point 与 Spot 光从 `Transform` 读取世界位置，没有 `Transform` 时被跳过。Directional 与 Spot 光沿实体的前方轴（旋转作用于 −Z）照射；`lightAimRotation(direction)` 返回使该轴指向给定方向的旋转。
+
+## 光源类型
+
+| `LightType` | 行为 |
+|---|---|
+| `Point`（默认） | 从实体位置向外辐射，在 `radius` 处衰减为零。 |
+| `Directional` | 沿实体前方轴的均匀光，类似太阳。忽略位置，只看旋转；没有距离衰减。 |
+| `Spot` | 从实体位置沿前方轴的光锥：`innerAngle` 内满强度，到 `outerAngle` 衰减为零，范围至 `radius`。 |
+| `Ambient` | 处处叠加的底光，与位置无关。默认为单色；开启 `hemisphere` 为双色；设置 `environment` 为环境光照（[环境光照](/docs/zh-cn/graphics/lighting/surfaces/#环境光照)）。 |
+
+```typescript
+// 一盏暖色点光
+.insert(Light, { type: LightType.Point, radius: 320, intensity: 1.5,
+                   color: { r: 1, g: 0.7, b: 0.3, a: 1 } });
+
+// 手电光锥，由所在实体朝屏幕下方瞄准
+.insert(Transform, { rotation: lightAimRotation({ x: 0, y: -1, z: 0 }) })
+.insert(Light, { type: LightType.Spot,
+                   innerAngle: 18, outerAngle: 34, radius: 500, intensity: 2 });
+
+// 微弱的环境补光，使未受光区域不至于全黑
+.insert(Light, { type: LightType.Ambient, intensity: 0.25 });
+```
+
+## 字段
+
+### 通用
+
+| 字段 | 默认值 | 适用类型 | 说明 |
+|---|---|---|---|
+| `type` | `Point` | — | `LightType`：`Point`、`Directional`、`Ambient`、`Spot`。 |
+| `color` | `{1,1,1,1}` | 全部 | 光颜色，RGBA 0–1。alpha 不使用；强度由 `intensity` 决定。 |
+| `intensity` | `1` | 全部 | 亮度倍数，可大于 1（HDR，见[色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/)）。 |
+| `enabled` | `true` | 全部 | 不移除组件即可关闭光源。 |
+
+### 范围与形状
+
+| 字段 | 默认值 | 适用类型 | 说明 |
+|---|---|---|---|
+| `radius` | `200` | Point、Spot | 衰减范围，世界单位。 |
+| `innerRadius` | `0` | Point、Spot | 衰减开始前保持满强度的半径。等于或超过 `radius` 时为硬边圆盘。 |
+| `falloff` | `1` | Point、Spot | 作用于衰减斜坡的指数（0–8）。`1` 为线性；更大则光集中在光源附近；更小则照得更远并突然结束。 |
+| `inverseSquare` | `false` | Point、Spot | 按以米计的距离平方反比衰减；忽略 `innerRadius` 与 `falloff`。 |
+| `innerAngle` | `30` | Spot | 光锥内角，度（全角）；内部满强度。 |
+| `outerAngle` | `45` | Spot | 光锥外角，度（全角）；在此角度衰减为零。 |
+| `cookie` | — | Point、Spot | 以 **alpha** 定义光源形状的纹理。 |
+| `cookieSize` | `{0,0}` | Point、Spot | cookie 尺寸，世界单位。某轴为 `0` 时覆盖光源范围（2 × `radius`）。 |
+| `layerMin` / `layerMax` | `-128` / `127` | Point、Directional、Spot | 光源照到的精灵层范围。 |
+
+### 阴影
+
+详见[阴影](/docs/zh-cn/graphics/lighting/shadows/)。
+
+| 字段 | 默认值 | 适用类型 | 说明 |
+|---|---|---|---|
+| `shadowStrength` | `1` | Point、Directional、Spot | 阴影去除的光照比例（0–1）；`0.6` 使阴影暗而不黑。同时作用于 2D 阴影和网格阴影。 |
+| `shadowSoftness` | `0` | Point、Directional、Spot | 光源半尺寸，世界单位；`0` 为硬边。2D 阴影读取它；网格阴影图仅对 Point 与 Spot 光读取。 |
+| `shadowDistance` | `0` | Directional | Directional 光 2D 阴影的延伸距离；`0` 不投射 2D 阴影。 |
+| `sourceAngle` | `0.53` | Directional | 光源角直径，度（太阳为 0.53）；`0` 为硬边。 |
+| `meshShadows` | `false` | Point、Directional、Spot | 在 3D 网格上投射阴影图。 |
+| `shadowExtent` | `0` | Directional | 以投影网格为中心的单张固定阴影图半径；`0` 表示级联贴合视野。 |
+| `cascadeSplit` | `0.75` | Directional | 级联划分分布：`0` 沿视线均匀划分，`1` 每级比上一级远固定倍数；中间值混合两者。 |
+| `shadowBias` | `1.5` | Point、Directional、Spot | 深度比较前表面朝光源偏移的阴影图纹素数。出现阴影痤疮时调大；阴影与投影物脱开时调小。 |
+| `shadowSlopeFloor` | `0.15` | Point、Directional、Spot | 掠射表面按多少朝向计算的下限，限制其额外偏移。调小可消除光掠过墙面的痤疮；调大使其阴影贴合。 |
+
+### Directional 太阳
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `followEnvironmentSun` | `false` | 方向和强度取自环境中的太阳；环境此后只以天空部分照明。`color` 与 `intensity` 缩放结果。 |
+| `aimFollowedSun` | `false` | 配合 `followEnvironmentSun`：按本光源的 `Transform` 定向，而不是全景图中的太阳；颜色和强度仍取自全景图。 |
+
+### Ambient
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `hemisphere` | `false` | 上方来光为 `color`，下方来光为 `groundColor`，按表面朝向混合。设置了 `environment` 时忽略。 |
+| `groundColor` | `#5a4d40` | 开启 `hemisphere` 时正对下方的表面接收的颜色，受 `intensity` 缩放。 |
+| `environment` | — | 烘焙的 `.esenv` 环境；取代单色项与半球项。 |
+| `environmentRotation` | `0` | 环境绕向上轴的旋转，度。 |
+| `drawEnvironment` | `false` | 同时将环境绘制为背景。 |
+| `diffuseScale` | `1` | 缩放环境照到表面上的光，不影响表面反射和绘制的天空。 |
+| `diffuseTint` | `{1,1,1,1}` | 为环境照到表面上的光着色，不影响表面反射。 |
+| `reflectionScale` | `1` | 缩放烘焙反射探针显示的内容。 |
+| `reflectionSaturation` | `1` | 烘焙反射探针保留的颜色（`0` = 灰）。 |
+| `bakedTint` | `{1,1,1,1}` | 乘到烘焙间接光（光照贴图、探针体积）上，使时间段或天气可以缩放烘焙结果。 |
+
+`reflectionScale`、`reflectionSaturation` 与 `bakedTint` 从本帧的 Ambient 光读取。
+
+## 每帧光源上限
+
+一帧最多容纳 **112 盏光源**：
+
+- **逐像素光源（最多 16 盏）。** 每个受光像素依次计算这些光源。选取顺序：Directional 光，其次是投射网格阴影的光源，再按亮度。
+- **分块光源（最多 96 盏）。** 其余**没有网格阴影图**的 Point 与 Spot 光。屏幕划分为 16 × 12 的分块；引擎为每个分块记录哪些光源的球体（`radius`）能到达它，像素只计算本分块的光源。成本取决于像素附近的光源数，而非场景中的光源数。
+
+两个数量都是画质设置：**逐像素光源数**在低 / 中 / 高档为 8 / 12 / 16，**分块光源数**为 32 / 64 / 96。分块光源仅在 **3D 光照**为完整时计算（[色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/#3d-光照级别)）。超出上限的光源被拒绝，最暗的先被拒绝；编辑器的 Light Status 会报告拒绝情况，上限处于最大值时还会输出警告。
+
+约束：
+
+- **分块光源不投射网格阴影。** 未能进入逐像素集合的投影光源会被拒绝，因为阴影图只在逐像素计算中读取。2D 阴影不受影响：2D 阴影遮罩同样服务于分块光源（[2D 阴影](/docs/zh-cn/graphics/lighting/shadows/#2d-阴影)）。
+- **`radius` 决定分块覆盖。** 半径很大的光源会覆盖所有分块，成本相应增加。
+- **平面反射**只使用逐像素光源绘制。
+- 2D 光源使用同样的集合。
+
+![平行光 Light 的 Details：状态、本帧灯光数、颜色、强度、阴影强度和层范围](@/assets/guides/zh/details-light.png)
+
+*Details 中的 Directional `Light`：字段上方显示光源状态以及本帧光源数与上限。*
+
+静态光源超出上限时，可将其烘焙（[烘焙光照](/docs/zh-cn/graphics/lighting/baked/)）。
+
+## 层范围
+
+默认情况下光源照到所有层的精灵。`layerMin` 与 `layerMax`（**Layer Min** / **Layer Max**）将其限制为 `layer` 处于该范围内的精灵，例如小屋内的灯不应照亮绘制在其上方的屋顶：
+
+```ts
+// 地板和家具位于 1–4 层，屋顶位于 7 层：这盏灯照到 6 层为止。
+world.insert(lamp, Light, { type: 0, color: { r: 1, g: 0.78, b: 0.45, a: 1 }, intensity: 1.5, radius: 330, layerMax: 6 });
+```
+
+- 只有精灵带有层：受光的 `Sprite`（勾选 **Lit**，或使用 Lit、Sway 模板创建的材质）参与测试。网格、瓦片地图、粒子和骨骼动画不受范围限制。
+- Ambient 光忽略范围，照到所有层。
+- Directional 光可以设置范围。
+- 自定义受光精灵着色器调用 `applyLighting2DLayer(albedo, N, worldPos, v_lightLayer)` 代替 `applyLighting2D`，并声明 `flat in highp float v_lightLayer;` 即可参与。调用 `applyLighting2D` 的着色器受所有光源照亮。
+- 开销：每盏光源每像素一次比较；没有光源设置范围时无开销。
+
+## 衰减
+
+Point 或 Spot 光从中心线性衰减，到 `radius` 处为零。以下两个字段改变曲线，但不改变光照结束的位置：
+
+- **`innerRadius`** 在该半径内保持满强度，衰减发生在剩余的环带内。
+- **`falloff`** 是作用于该斜坡的指数。`1` 为线性。大于 1 时光集中在光源附近，外圈迅速变暗；小于 1 时光在大部分范围内保持明亮，然后结束。
+
+```ts
+// 提灯：明亮的灯芯，随后快速衰减。
+entity.insert(Light, {
+    type: LightType.Point, radius: 400, innerRadius: 120, falloff: 2.5, intensity: 1.4,
+});
+```
+
+默认值（`0`、`1`）即线性斜坡。
+
+### 平方反比衰减
+
+开启 **`inverseSquare`** 后，Point 或 Spot 光按距离平方反比衰减，与 glTF 和 three.js 的点光源一致。此时 `intensity` 为到达 **1 米**外表面的光照（1 米对应的单位数由项目的每米单位数定义），2 米处为其四分之一。`radius` 仅标记光照截止位置：末端以与 glTF、three.js 相同的窗口函数平滑降为零。`innerRadius` 与 `falloff` 不起作用。
+
+```ts
+// 棚灯：1 米处与强度 3 的太阳同样亮。
+entity.insert(Light, { type: LightType.Point, intensity: 3, radius: 13, inverseSquare: true });
+```
+
+导入的 glTF 点光源使用此模式（坎德拉除以 π，作用距离随模型缩放）。烘焙光照使用与运行时相同的衰减。
+
+## Cookie
+
+**`cookie`** 是以 alpha 定义 Point 或 Spot 光形状的纹理（提灯不规则的光晕、窗户投下的光柱）。
+
+```ts
+entity.insert(Light, {
+    type: LightType.Point, radius: 300, intensity: 1.6,
+    cookie: 'assets/textures/lantern-glow.png',
+});
+```
+
+- 只读取 alpha 通道；光的颜色来自 `color`。
+- cookie 以光源为中心绘制，随实体旋转，尺寸为 `cookieSize`（为 `0` 时为光源范围）。
+- 它与衰减相乘：有形状的光源仍在 `radius` 处淡出，并遵循 `innerRadius` 与 `falloff`。
+- 每帧最多 **四盏** 带形状的光源。超出的光源不带形状绘制。
+
+cookie 被绘制到屏幕空间遮罩中，每盏带形状的光源占一个通道，机制与 2D 阴影相同；每个 cookie 的开销是一个四边形，而不是一个纹理槽位。
+
+{/* SHOT: light-cookie | A Point light with a cookie texture (irregular lantern glow) lighting a lit floor in the scene view, Preview FX on; the Light card in Details visible with Cookie and Cookie Size fields filled. */}
+
+## 强度单位
+
+`intensity` 不含 π 因子：强度为 `1` 的 Directional 光正对表面时给出完整颜色。three.js（r155 及以后）将漫反射光除以 π，因此取自 three.js 场景的强度约亮三倍，应除以 π。three.js 的 `HemisphereLight` 对应开启 `hemisphere` 的 `Ambient` 光。
+
+## 编辑器
+
+![编辑器视口里的 2D 光——它的照射范围与投射的阴影](@/assets/guides/zh/lighting.png)
+
+*在场景视图中预览的 `Light`：其照射范围以及柱子投下的阴影。**Preview FX** 可在编辑模式下点亮场景。*
+
+- 光源以 gizmo 显示：图标、照射范围圆以及方向或光锥。拖动半径手柄设置 `radius`。见[场景视图](/docs/zh-cn/editor/viewport/)。
+- 在 Details 中编辑 `color`、`intensity`、`radius`、聚光角度和阴影字段时，场景视图即时更新。
+- `color`、`intensity`、`radius`、`innerRadius`、`falloff`、`cookieSize`、聚光角度、`shadowStrength`、`shadowSoftness`、`sourceAngle`、`shadowDistance`、`groundColor`、`diffuseScale` 与 `diffuseTint` 可动画，可在 [Sequencer](/docs/zh-cn/animation/timeline/) 中设置关键帧。
+
+<Aside type="note">
+  到光源的距离取决于受光对象。精灵没有深度，距离在平面内度量，忽略光源的 `z`。带法线的网格在三维中度量，依据光源实体的世界 `z`，即 Point 或 Spot 光的高度。
+</Aside>
+
+## 参见
+
+- [受光表面](/docs/zh-cn/graphics/lighting/surfaces/)
+- [阴影](/docs/zh-cn/graphics/lighting/shadows/)
+- [烘焙光照](/docs/zh-cn/graphics/lighting/baked/)

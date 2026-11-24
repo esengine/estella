@@ -1,0 +1,172 @@
+---
+title: Camera basics
+description: Camera reference — active-camera selection, the Camera component and its fields, camera rigs in the Create menu, zoom and projection, design-resolution fit, aspect ratio, and screen ↔ world conversion through CameraView.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A scene is rendered through a camera: an entity with a `Camera` component. The camera defines the projection, the zoom
+and the screen rectangle the world is drawn into. The camera is positioned and rotated through its entity's
+`Transform`.
+
+{/* SHOT: cam-component-details | Details panel of a selected 2D camera entity: Transform card and the Camera card with Projection Type Orthographic, Ortho Size 540, Is Active on, Viewport, Clear Flags and Culling Mask visible; scene view behind it showing the camera's view rectangle gizmo */}
+
+## Active camera
+
+A scene may contain any number of camera entities. Among the cameras with `isActive` set that cover the whole screen,
+the one with the highest `priority` is **live**; the world is rendered through it into its `viewport`. Changing the
+live camera, blending between cameras and the tie-break rule are described in
+[Blending & switching](/docs/graphics/camera/blending/#switching-cameras-by-priority). Cameras with a smaller
+`viewport` or a `renderTarget` are drawn in addition to the live camera
+([Multiple cameras & large worlds](/docs/graphics/camera/multiple-cameras/)).
+
+2D scenes use the **Orthographic** projection. Its `orthoSize` is the visible half-height in world units and acts as the
+zoom: a smaller value zooms in.
+
+<Aside type="note">
+  A camera requires no plugin setup. The follow, blend and shake systems run in the editor and in the standard runtime.
+</Aside>
+
+## Creating a camera
+
+```typescript
+import { defineSystem, Commands, Transform, Camera, ProjectionType } from 'esengine';
+
+const spawnCamera = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Camera, {
+      projectionType: ProjectionType.Orthographic,
+      orthoSize: 540,        // half-height in world units → zoom
+      isActive: true,
+    });
+});
+```
+
+## Camera rigs in the Create menu
+
+The editor's **Create** menu, and an agent's `create` operation with a `template`, provide preconfigured camera rigs.
+Each item is a `Camera` with the pipeline components already added; the target is assigned in the Details panel.
+
+{/* SHOT: cam-create-menu | Scene view Create menu opened on its Camera category, listing Follow Camera 2D, Tracking Camera, Look-At Camera, Handheld Camera, Dolly Camera with Track, Target Group Camera 2D, Target Group Camera, State-Driven Camera, Impulse Source and Camera Brain */}
+
+| Item | Template | Contents |
+|---|---|---|
+| Follow Camera 2D | `camera:follow-2d` | Orthographic camera with a `PositionComposer`: a dead zone the target may move in and a soft zone it never leaves. |
+| Tracking Camera | `camera:tracking` | Perspective camera behind and above its target (`FollowTarget`), framing it (`LookAtTarget`) and keeping it in sight (`CameraDeoccluder`). |
+| Look-At Camera | `camera:look-at` | Stationary camera that turns toward its target. |
+| Handheld Camera | `camera:handheld` | Camera with mild `CameraNoise`. |
+| Dolly Camera with Track | `camera:dolly` | A `Spline` track and a camera on it (`CameraDolly`, Track Target) that looks at its target. |
+| Target Group Camera 2D | `camera:group-2d` | A `CameraTargetGroup` and an orthographic camera framing it (`PositionComposer`, `GroupFraming` zoom). |
+| Target Group Camera | `camera:group-3d` | A `CameraTargetGroup` and a perspective camera that follows, looks at and frames it (`GroupFraming` dolly then zoom). |
+| State-Driven Camera | `camera:state-driven` | A `StateDrivenCamera`: the live camera is chosen by an Animator state. |
+| Impulse Source | `camera:impulse` | A `CameraImpulseSource` that fires a shake from its position. |
+| Camera Brain | `camera:brain` | The scene's `CameraBrain`: a change of camera blends instead of cutting. |
+
+The components are described in [Following & framing](/docs/graphics/camera/follow/),
+[Noise, shake & impulses](/docs/graphics/camera/shake/) and [Blending & switching](/docs/graphics/camera/blending/).
+
+## The `Camera` component
+
+The SDK authoring defaults target 2D: Orthographic, active, `orthoSize` 540.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic` (2D) or `Perspective`. |
+| `orthoSize` | number | `540` | Visible half-height in world units (Orthographic); the zoom. Animatable. |
+| `fov` | number | `60` | Field of view in degrees (Perspective only; 1–179). |
+| `nearPlane` | number | `0.1` | Near clip distance (Perspective only). |
+| `farPlane` | number | `1000` | Far clip distance. An orthographic camera has no near plane and renders a symmetric `±farPlane` box, so this value is its reach in both directions. |
+| `aspectRatio` | number | `1.77` | Width / height. `0` = derived from the viewport. |
+| `isActive` | boolean | `true` | Whether the camera is eligible to be the live camera. |
+| `priority` | number | `0` | Selection order among active cameras (higher wins). |
+| `viewport` | Vec4 | `{0,0,1,1}` | Screen rectangle in 0–1: `x`, `y`, then width in `z` and height in `w`. |
+| `clearFlags` | `ClearFlags` | `ColorAndDepth` | Buffers cleared before rendering: `Nothing` / `Color` / `Depth` / `ColorAndDepth`. |
+| `pixelPerfect` | boolean | `false` | Snaps the camera to the world pixel grid so pixel art renders without sub-pixel shimmer (Orthographic). |
+| `cullingMask` | number | all layers | Bitmask of the sorting layers this camera renders (bit *i* = layer *i*). |
+| `renderTarget` | number | `0` | `RenderTexture` handle the camera draws into instead of the screen (`0` = screen); set from a script at run time. |
+| `showFrustum` | boolean | `false` | Editor only: draws the camera's whole view volume, near face to far. When off, the gizmo outlines what the camera frames on the content plane, which is empty for a camera aimed away from that plane. |
+
+## Zoom & projection
+
+`orthoSize` controls zoom: halving it doubles the on-screen scale. Zoom is changed through `orthoSize`, not through the
+camera entity's `Transform` scale, which distorts rendering. `orthoSize` is animatable, so a zoom can be tweened
+([Animation](/docs/animation/overview/)):
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
+
+const zoomIn = defineSystem([Res(Tween)], (tween) => {
+  tween.to(cameraEntity, TweenTarget.CameraOrthoSize, 540, 270, 0.5);   // from 540 to 270 (2×) over 0.5 s
+});
+```
+
+`Orthographic` keeps sizes constant with depth and is the projection for 2D scenes. `Perspective` is used for 3D scenes
+and for layered pseudo-3D scenes.
+
+## Design-resolution fit
+
+Each frame the engine resolves a *fit source*. When one is present, the main camera is adapted to the actual screen
+aspect: `orthoSize` is the camera's half-height **at the design aspect**, and the scale mode determines the result on a
+wider or narrower screen (keep the height, keep the width, expand, shrink or match). The fit source is, in order:
+
+1. the **`ScreenScaling`** resource (**Settings → Project → Game → Display → Camera fit**), when its `scaleMode` is a
+   scale mode (`≥ 0`);
+2. otherwise the scene's **`Canvas`** component, if one exists;
+3. otherwise none: the camera renders its raw `orthoSize`.
+
+Under a fit, `orthoSize` remains the zoom and is not replaced by the design height; the tween above applies with a
+`Canvas` in the scene. UI does not follow the zoom: UI lays out in the design resolution fitted to the screen, so
+zooming the camera does not reflow it, and screen-space UI is drawn through its own projection.
+
+An `orthoSize` of `designResolution.y / 2` shows exactly the design frame; the default `540` matches the default
+1080-pixel design height. Scale modes, letterbox examples and the `ScreenScaling` fields are documented in
+[Screen & Design Resolution](/docs/core-concepts/screen/).
+
+## Matching the canvas aspect
+
+`updateCameraAspectRatio(world, aspect)` writes `aspectRatio` to **every** `Camera` component in the world. The shipped
+runtimes call it at boot with the canvas's `width / height`, keeping the authored field in sync with the surface.
+Rendering derives the aspect from the live viewport each frame and does not read `aspectRatio`.
+
+```typescript
+import { updateCameraAspectRatio } from 'esengine';
+
+updateCameraAspectRatio(app.world, canvas.width / canvas.height);
+```
+
+## Screen ↔ world coordinates
+
+The `CameraView` resource converts between screen and world space, for example to place an entity under the pointer or
+to test visibility. Each method returns `null` when there is no camera.
+
+```typescript
+import { defineSystem, Res, CameraView, Input } from 'esengine';
+
+const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
+  const world  = view.pointerToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const screen = view.worldToScreen(x, y);                         // { x, y } | null
+  const mouse  = view.getWorldMousePosition();                     // { x, y } | null
+  const bounds = view.getWorldBounds();   // { left, right, bottom, top } | null
+});
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `pointerToWorld(px, py, planeZ = 0)` | `{x, y} \| null` | Pointer position as `Input` reports it (CSS pixels, y down) → world position on the plane at `planeZ`. |
+| `screenToWorld(sx, sy, planeZ = 0)` | `{x, y} \| null` | Framebuffer pixel (y up from the bottom edge) → world position on the plane at `planeZ`. Orthographic cameras ignore the plane; under a perspective camera pass the z the target sits on. Pointer coordinates passed here are mirrored about the viewport centre; use `pointerToWorld` for them. |
+| `worldToScreen(wx, wy, wz = 0)` | `{x, y} \| null` | World position → framebuffer pixel. `null` when there is no camera or the point is at or behind the eye; points outside the viewport still return coordinates. |
+| `screenRay(sx, sy)` / `pointerRay(px, py)` | `{origin, dir} \| null` | The world ray through a framebuffer pixel or a pointer position, for picking against planes other than a z plane. |
+| `getWorldMousePosition()` | `{x, y} \| null` | The cursor in world space. |
+| `getWorldBounds()` | `{left, right, bottom, top} \| null` | The visible world rectangle. |
+
+The conversions use the director's resolved main view before shake (see
+[The camera director](/docs/graphics/camera/blending/#the-camera-director)).
+
+## See also
+
+- [Screen & Design Resolution](/docs/core-concepts/screen/): design-resolution fit, scale modes, `ScreenScaling` and
+  `pixelPerfect`.
+- [Animation](/docs/animation/overview/): tweening `orthoSize`.
+- [Input](/docs/scripting/input/): pointer input for picking.
+- [UI](/docs/ui/overview/): UI renders in screen space, independent of the camera.

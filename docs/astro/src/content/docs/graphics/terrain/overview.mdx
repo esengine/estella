@@ -1,0 +1,241 @@
+---
+title: Terrain
+description: Terrain component reference — area and infinite ground, heightmaps and noise, erosion, splatmaps, terrain layer files, the Terrain and Terrain Layers shaders, and blending objects, roads and snow into the ground.
+---
+
+`Terrain` draws heightfield ground as a quadtree of identical patches centred on the eye: cells are finest near the
+camera and double in size level by level with distance. The ground is a height for each (x, z) position; caves,
+overhangs and holes require [Voxel Terrain](/docs/world/voxel-terrain/).
+
+Terrain is an optional module (`esengine/terrain`). A package includes it when a scene contains a `Terrain` or a script
+imports the module.
+
+| Page | Contents |
+|---|---|
+| Terrain (this page) | Component fields, erosion, layers, materials, ground blending. |
+| [Rendering & Code](/docs/graphics/terrain/rendering-and-code/) | Quadtree, pages, virtual texture, height queries, collision, modifiers, path search, providers. |
+| [Planets & Large Ground](/docs/graphics/terrain/large-worlds/) | Tiled heightmaps (`.esterrain`) and the `Planet` component. |
+
+![The Terrain & Water example: green hills, a river running to the sea, and the sea in the foreground](@/assets/guides/en/play-terrain-water.png)
+
+*The Terrain & Water example: layered ground, a river and the sea, built from the Terrain and Water components.*
+
+## Component
+
+Add `Terrain` to an entity. The ground is positioned at the entity; its children are the quadtree nodes, created at run
+time and in the editor's scene view and updated as the eye moves. Only the component is saved; no geometry is baked into
+the scene.
+
+`extent` selects one of two kinds of ground:
+
+| `extent` | Behaviour |
+|---|---|
+| **Area** | Ground `sizeX` × `sizeZ`, centred on the entity, from a heightmap, a tile set, or (with neither) a window onto its provider's ground at the area's world position. Two noise areas of the same size placed side by side join; moving an area moves the window, not the ground. Supports erosion, splatmaps, a colour map and an occlusion map. |
+| **Infinite** | Ground produced by a provider at any world position, without an edge, drawn round the eye out to `drawDistance`. The same provider, world, seed and version produce the same ground in the editor, in a game and on a server. |
+
+![Details of a Terrain: the layer list and the shape fields](@/assets/guides/en/details-terrain.png)
+
+*The **Terrain** component: layers, then the shape of the ground and the source of its heights.*
+
+### Shape
+
+| Field | Description |
+|---|---|
+| `extent` | `Area` or `Infinite`. |
+| `heightmap` | Area only. An image read as data: the file's bytes with no colour conversion and no GPU texture, shipped as the PNG it is. A heightmap compressed during export fails the terrain with a message. Assigning an image here marks its texture **Data** in its import settings (see [Textures](/docs/assets/textures/)); no size cap applies unless one is set, and a capped image keeps its 16 bits. Empty generates the ground from noise. |
+| `tiles` | Area only. A `.esterrain` file that replaces `heightmap`: tiles read near the view and a coarse overview for the rest. See [Tiled ground](/docs/graphics/terrain/large-worlds/#tiled-ground). |
+| `heightmapFormat` | **Grey**: the grey (or red) channel at the file's bit depth — 16 bits from a 16-bit PNG, 256 levels from an 8-bit PNG. **Red + green**: 16 bits split across red (high byte) and green (low byte) of an 8-bit image. |
+| `sizeX`, `sizeZ` | Area size in world units. For infinite ground `sizeX` is the span over which `frequency` hills are spread, and `sizeZ` is unused. |
+| `height` | World height of the highest ground. |
+| `provider`, `world`, `generatorVersion` | Infinite ground, or an area with no heightmap: the generator (`estella:noise`, the engine's noise, or one registered by the game), the world name passed to it, and the generator version the world was made with. A version the provider no longer lists fails the terrain. |
+| `erosion` | 0–4. Rain erosion strength; see [Erosion](#erosion). 0 leaves the ground unchanged. |
+
+### Noise
+
+Used when the ground comes from `estella:noise`.
+
+| Field | Description |
+|---|---|
+| `seed` | Noise seed. A different seed produces different ground. |
+| `frequency` | Number of hills across the area (or across `sizeX` for infinite ground). |
+| `octaves` | Layers of detail, 1–8. |
+| `persistence` | Height kept by each finer octave, 0–1. Lower is smoother. |
+| `ridged` | 0 produces rolling hills; 1 produces sharp ridges. |
+| `resolution` | Area only. Samples along each side of the noise field (17–2049). |
+| `warp` | 0–1. Domain warp of the noise by noise of its own: winding valleys and bent ridges instead of round hills. |
+
+### Layers
+
+| Field | Description |
+|---|---|
+| `layers` | Up to eight [terrain layer](#terrain-layers) files, in the order the paint weighs them. With layers, the ground uses the **Terrain Layers** shader. Empty draws the four layer colours, or the textures of a material on the Terrain shader. |
+| `material` | A material on the **Terrain** shader, or on **Terrain Layers** when `layers` is set. Empty uses the stock material. |
+| `splatmap` | Area only. RGBA weights of layers 1–4. Empty paints by height and slope. |
+| `splatmap2` | Area only. RGBA weights of layers 5–8, read together with `splatmap`. |
+| `colorMap` | Area only. A texture laid over the whole area and mixed into the ground colour by its alpha (flower meadows, map regions, scorched ground). Import **Use**: Colour. Its first row lies along the area's minimum z, as the heightmap's does. |
+| `colorMapStrength` | 0–1. Colour-map contribution where its alpha is 1. Read every frame; changing it rebuilds nothing. |
+| `occlusionMap` | Area only. A texture whose red channel is the share of sky light reaching the ground: baked occlusion for gullies, hollows and cliff feet, which are too large for screen-space occlusion. It dims ambient light only; direct sunlight is left to shadows. Import **Use**: Data. |
+| `occlusionStrength` | 0–1. Amount of the occlusion map applied. |
+| `rockSlope` | Slope at which ground turns to rock (0 flat, 1 sheer). |
+| `dirtHeight`, `snowHeight` | Heights, as a share of `height`, where grass gives way to dirt and where snow begins. |
+| `layerColor0`–`3` | Grass, dirt, snow, rock colours used when the ground has no material. |
+
+### Detail
+
+| Field | Description |
+|---|---|
+| `cellSize` | The finest mesh cell, in world units, used near the eye. Cells double level by level with distance. |
+| `detail` | 0.25–8. Multiplier on how far the finest cells reach. Above 1 is finer at a distance and costs more triangles. |
+| `drawDistance` | Infinite only. Distance from the eye to which the ground is drawn. |
+| `virtualTexture` | Bake the layered surface into pages; see [Virtual texture](/docs/graphics/terrain/rendering-and-code/#virtual-texture). Ground with layers only. |
+| `virtualTextureFrom` | First quadtree level drawn from baked pages: 0 includes the nearest ground, 1 (default) bakes all levels but the nearest. |
+
+### Collision
+
+| Field | Description |
+|---|---|
+| `collision` | Whether 3D bodies and characters collide with the ground. |
+| `collisionDistance` | Radius, in world units, round each moving body and character within which collision tiles are built. |
+| `collisionLayer` | Advanced. Collision layer, 0–15. |
+| `friction` | Advanced. Ground friction. |
+
+Changing `detail`, `drawDistance` or a layer colour takes effect on the next frame. Changing any other field rebuilds
+the ground.
+
+### Erosion
+
+On an area, `erosion` simulates hydraulic erosion: drops of rain run downhill over the field, cut the ground where they
+can carry more sediment and deposit it where they slow. The result is gullies on slopes, sharper ridges between them
+and silt in valleys. At 1 there is one drop per field sample (capped at 600 000 drops). The same seed produces the same
+result. Erosion applies to heightmap fields as well as noise fields. Grass is replaced with dirt along the channels the
+water ran. Erosion of a large field runs over several frames and is shown in progress (see
+[Building over frames](/docs/graphics/terrain/rendering-and-code/#building-over-frames)).
+
+Infinite ground has no edge for water to drain off, so its erosion is applied in the noise: each octave is damped where
+the octaves below it are already steep. This produces smooth valleys between sharp ridges at no cost beyond the noise.
+It paints no dirt channels.
+
+## Terrain layers
+
+A terrain layer (`.esterrainlayer`; **New → New Terrain Layer** in the editor) describes one ground material — grass,
+path dirt, sand, rock — as a set of textures. A `Terrain` lists up to eight layers in `layers`; the splatmaps weigh them
+(first splatmap RGBA: layers 1–4; second: layers 5–8). Without splatmaps the first four are painted by height and slope
+as grass, dirt, snow and rock, and a [generated world](/docs/world/generation/)'s biomes can paint all eight.
+
+| Field | Description |
+|---|---|
+| `albedo` | Colour texture, sRGB. Empty is white, coloured by `tint`. |
+| `normal` | Tangent-space normal map, green up (OpenGL convention). Empty is flat. |
+| `mask` | Red: ambient occlusion. Green: roughness. Blue: height. Empty: no occlusion, `roughness`, and albedo brightness as height. |
+| `tile` | World units covered by one texture repeat (default 400, i.e. 4 m at 100 units per metre). |
+| `tint` | RGB multiplier on the albedo. |
+| `roughness` | Roughness where there is no mask (default 0.9). |
+| `normalStrength` | Normal-map strength: 1 as authored, 0 flat. |
+| `heightBlend` | Optional, 0–1. How much the layer's own height decides where it meets another: 0 blends by paint alone (grass into sand), 1 by layer heights (stones standing through grass). Where several layers meet, each counts by its weight. Absent: the material's `u_heightBlend`. |
+| `occlusion` | Optional, 0–1. Share of sky light reaching this layer, multiplied by the mask's occlusion. Lets vegetated ground take less sky light than bare rock. Direct lights are not dimmed. Absent: 1. |
+
+The **Terrain Layers** shader (`builtin:terrain-layers`) draws layered ground:
+
+- Every layer is sampled by world position with no visible repeat near the eye, and with a wider tile mixed in at a
+  distance.
+- Where layers meet, the layer whose mask height is higher shows (stones through grass, sand between stones).
+- On slopes each layer is also projected from the sides (triplanar), so cliffs are not stretched.
+- Normal maps and mask occlusion and roughness contribute to lighting.
+- Each point is drawn from the four layers with the most weight there; further layers would be a sliver of the blend
+  after sharpening and would cost every ground pixel the texture reads of all eight.
+
+| Parameter | Description |
+|---|---|
+| `u_sharpness`, `u_heightBlend`, `u_blendNoise`, `u_antiTile`, `u_macroVariation`, `u_wetLevel`, `u_wetBand` | As on the [Terrain material](#terrain-material). |
+| `u_farScale` | Scale of the wider tile mixed in at a distance. |
+| `u_triplanarFrom` | Slope at which side projection begins. |
+| `u_strataWarp`, `u_strataSpan` | Side-projected layers are read by height, so a cliff texture's beds lie level. `u_strataWarp` is how far the beds wander up and down, by slow noise `u_strataSpan` wide (0, the default, keeps them straight). |
+| `u_antiTileTurn` | How far a cell of the no-repeat sampling may be rotated. A layer with directional grain (rippled sand) shows the hexagonal cells when rotated; 0 offsets cells without rotating them. |
+| `u_surfaceUp` | Steepest ground (as the up component of the normal, default 0.65, about 50°) drawn from the virtual texture; steeper ground is shaded live. |
+
+**Texture requirements.** Per layer: three square, power-of-two, seamlessly tiling textures. Layers are packed into
+texture arrays at the size of the largest layer, at most 1024 (512 on minigame platforms), so 1024 is sufficient. Import
+the normal map and the mask as data (not colour-managed). Layer textures are packed when the terrain is built and again
+whenever a layer file or one of its textures is saved.
+
+## Terrain material
+
+Without layer files the ground has four fixed layers — grass, dirt, snow and rock — drawn by the **Terrain** shader
+(`builtin:terrain`). Each point carries a weight for each layer, from the splatmap or from height and slope. Textures are
+tiled by world position, so a layer runs unbroken across the ground, and rock is projected from three sides.
+
+| Parameter | Description |
+|---|---|
+| `u_layer0`–`3` | Layer textures: grass, dirt, snow, rock. |
+| `u_tint0`–`3` | Per-layer colour multiplier. |
+| `u_tile0`–`3` | World units covered by one repeat of each layer. |
+| `u_sharpness` | Dominance of the heavier layer at a seam: 1 is a linear blend, higher is a harder edge. |
+| `u_heightBlend` | How much seams follow layer relief (texture brightness): rock shows through gaps in grass before the grass gives way; sand fills the low places between stones. 0 is a plain blend. |
+| `u_antiTile` | Amount of each layer re-sampled rotated on a wider tile and blended in by slow noise, hiding repeats across a field. Fades out with distance. |
+| `u_macroVariation` | Wide, slow brightness variation over all layers. |
+| `u_relief` | Depth, in world units, at which layer relief (brightness as height) affects lighting. 0 is smooth. |
+| `u_wetLevel`, `u_wetBand` | Wet ground at a waterline: below `u_wetLevel + u_wetBand` (world heights) the ground darkens and becomes glossier, most at `u_wetLevel`. A band of 0 disables it. |
+| `u_roughness` | Roughness of dry ground. |
+
+Other parameters (`u_heightPages`, `u_lodRange0` and similar) are written by the `Terrain` component every frame and are
+not authored in the material.
+
+## Ground blending
+
+Three mechanisms hide the line where an object meets the ground. None requires the ground to be a terrain.
+
+### Ground Blend material
+
+The `builtin:ground-blend` shader is the [Model](/docs/graphics/materials/overview/#built-in-shader-templates) shader, with all its maps and parameters, for
+rocks, kerbs and foundations. Where the surface comes close to what is rendered behind it, it fades into that pixel of the
+scene, so the seam blends into the ground as drawn (its layers, lighting and shadows), with nothing baked.
+
+| Parameter | Description |
+|---|---|
+| `u_blendDistance` | Height above the surface behind at which the material is fully opaque, in world units. Measured as a height, not along the view, so the band holds as the camera tilts. 0 is a hard edge. |
+| `u_blendNoise`, `u_blendNoiseScale` | Edge irregularity, and its world-space scale. |
+| `u_layer2`, `u_layer2Tint`, `u_layer2Roughness` | A second layer: dirt, moss, wet stone. |
+| `u_layer2Tile` | World length of one repeat of the second layer, projected from above so it lines up across objects. 0 uses the mesh's own UV. |
+| `u_layerReach` | Height up from the surface behind to which the second layer climbs. |
+| `u_vertexBlend` | 1: vertex-colour red paints the second layer, and vertex colour no longer tints the surface. |
+
+A material on this shader is drawn after a copy of the opaque scene is taken, as water is; a scene containing one takes
+that copy even with no post-process effect of its own.
+
+### `RoadDecal`
+
+`RoadDecal` on an entity with a `Spline` lays the entity's `MeshRenderer` along the curve and over the ground, row by
+row. It is rebuilt when the spline or the ground changes. With no terrain it lies along the curve as authored. Each edge
+fades over `edgeFade`, so use a blended material.
+
+| Field | Description |
+|---|---|
+| `step` | Row spacing along the curve, in world units. Smaller follows the ground and bends more closely. |
+| `across` | Cells across the road (1–32). More follows a crowned or sloping ground. |
+| `widthScale` | Multiplier on the width stored at each spline point. |
+| `lift` | Height above the ground. Distant ground is drawn coarser than requested, so a road seen from far needs more lift. |
+| `edgeFade` | Share of the half width over which each edge fades. |
+| `tile` | Length of one texture repeat along the curve. |
+
+### Snow and wet surfaces
+
+The `snowCover` [post-process effect](/docs/graphics/post-processing/sky-and-weather/#snow-cover) lays snow on any surface that faces the sky and is
+not covered, terrain and objects alike, without changing materials. Parameters: `u_amount`, `u_snowLine` and
+`u_snowLineBand` (the height it stops at), `u_slopeLimit` and `u_grainScale`. The `Snow` [weather](/docs/graphics/weather/)
+adds it. The `rain` effect with `u_intensity` at 0 and `u_wetness` raised produces wet ground without falling rain.
+
+## Limits
+
+- **One height per position.** Caves, overhangs and holes require [Voxel Terrain](/docs/world/voxel-terrain/), or meshes
+  placed with the terrain.
+- **Position only.** The terrain follows its entity's position; rotation and scale are ignored by `heightAt` and by the
+  shader. Keep the entity unrotated and unscaled, and size the ground with `sizeX`, `sizeZ` and `height`.
+- **Infinite ground comes from its provider.** It takes no heightmap or splatmap, and its erosion paints no dirt.
+- **Paint resolution equals page resolution.** Layer weights are sampled with heights, two samples per cell; a splatmap
+  finer than that is averaged near the eye and coarser still at a distance.
+- **Ground Blend fades into what is behind it.** Where nothing is close behind the surface (a rock's side seen against a
+  distant valley) there is no seam to hide. A wall just behind a Ground Blend object counts as close. Two Ground Blend
+  objects do not fade into each other, since neither is in the scene copy the other reads. It requires float render
+  targets; without them it draws as a plain Model material.
+- **`snowCover` is screen-space.** It has no depth: it does not round an edge or bury a stone, and covers only what the
+  camera sees.

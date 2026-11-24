@@ -1,0 +1,139 @@
+---
+title: 受光表面
+description: 渲染组件如何接受光照——lit 开关、Lit 域材质及其着色器辅助函数、法线贴图、通过 applyLightingPBR 实现的金属度与粗糙度，以及单色、半球和烘焙 .hdr 环境光。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+渲染组件默认不受光，忽略所有 `Light`。渲染组件通过 `lit` 开关或着色器声明了 **Lit** 域的材质接受光照。所有受光表面（3D 网格、精灵和材质中的 `applyLightingPBR`）使用同一个 BRDF。
+
+{/* SHOT: light-lit-sprite-normal-map | Scene view with Preview FX on: two copies of the same sprite under one Point light, the left with the Lit checkbox only (flat), the right with a material from the Lit template and a normal map showing relief; Details shows the right sprite's material with its normal map parameter. */}
+
+## `lit` 开关
+
+`Sprite` 与 `MeshRenderer` 带有 `lit` 字段（Details 中的 **Lit** 勾选框）。它无需材质即可使渲染组件受光；精灵以平坦法线受光，所有光源类型、衰减和阴影均适用。自定义材质会覆盖此开关。`lit` 对带光照贴图的网格的作用见[烘焙光照](/docs/zh-cn/graphics/lighting/baked/#lit-与烘焙光)。
+
+```typescript
+app.world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: hero, lit: true });
+```
+
+## 受光材质
+
+需要着色参数、法线贴图或自定义表面逻辑时，使用着色器声明了 `#pragma domain Lit` 的材质。引擎注入 `LightConstants` 块和光照辅助函数。2D 着色器的顶点段可省略：
+
+```glsl
+#pragma shader "MyLit"
+#pragma version 300 es
+#pragma domain Lit
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+uniform sampler2D u_textures[8];
+out vec4 fragColor;
+
+// #pragma domain Lit 注入 LightConstants 块和 applyLighting2D()。
+void main() {
+  vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+  vec3 N = vec3(0.0, 0.0, 1.0);                 // 平坦法线，朝向相机
+  vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
+  fragColor = vec4(lit, base.a);
+}
+#pragma end
+```
+
+在编辑器中，**内容浏览器 → 新建材质 → Lit** 创建一个带着色参数和可选法线贴图的受光材质。将域设为 `Lit` 的材质图生成同类材质（[材质与着色器](/docs/zh-cn/graphics/materials/overview/)）。代码方式：
+
+```typescript
+import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const litMat = Material.create({ shader: Material.compileShader(myLitSource) });
+
+const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [, sprite] of q) sprite.material = litMat;
+});
+```
+
+所有带 `material` 字段的渲染组件（`Sprite`、`SpineAnimation`、`ParticleEmitter`、`MeshRenderer`、`UIVisual`）都以同样方式受光。
+
+### 法线贴图
+
+传给 `applyLighting2D` 的 `N` 是表面法线。常量 `vec3(0, 0, 1)` 得到均匀受光的平坦表面。从**法线贴图**采样的法线提供逐像素凹凸：同一基础色随各光源方向产生高光和明暗。用 `#pragma param … texture` 声明法线纹理（[材质与着色器](/docs/zh-cn/graphics/materials/esshader/#声明参数)）。
+
+### 金属度、粗糙度与高光
+
+`applyLighting2D` 是不反射的情形。其一般形式通过微表面 BRDF 计算相同的光源，任何 Lit 着色器都可调用：
+
+```glsl
+highp vec3 P = vec3(v_worldPos, 0.0);
+highp vec3 lit = applyLightingPBR(
+  base.rgb,                 // albedo
+  N,                        // 表面法线
+  P,                        // 世界位置
+  viewDirection(P),         // 指向相机，来自 frame 块
+  u_metallic,               // 0 = 电介质，1 = 金属
+  u_roughness,              // 0 = 镜面，1 = 完全漫反射
+  u_specular,               // glTF specularFactor：0 去除高光
+  1.0                       // 环境光遮蔽
+);
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `applyLighting2D(albedo, N, worldPos)` | 取 `metallic = 0`、`roughness = 1`、`specular = 0` 的 `applyLightingPBR`。 |
+| `applyLighting2DLayer(albedo, N, worldPos, layer)` | 同上，并遵循光源的层范围（[层范围](/docs/zh-cn/graphics/lighting/lights/#层范围)）。 |
+| `applyLightingPBR(albedo, N, P, V, metallic, roughness, specular, ao)` | 完整 BRDF。 |
+| `viewDirection(worldPos)` | 指向相机的单位向量，取自 frame 块中的相机位置。正交相机为常量，透视相机逐像素变化。 |
+
+金属没有漫反射项，只有反射。没有环境时，它反射场景的环境光，视为从各方向等量到达，因此没有 `Ambient` 光时，金属在没有光源照射的地方为黑色。
+
+`specular` 为 0 的材质对每盏光源都跳过高光项，在手机上开销更低（[色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/#3d-光照级别)）。
+
+## 环境光照
+
+`Ambient` 光的环境项有三种形式：
+
+| 形式 | 字段 | 结果 |
+|---|---|---|
+| 单色 | `color`、`intensity` | 各方向颜色相同。 |
+| 半球 | `hemisphere`、`color`、`groundColor` | 上方为 `color`，下方为 `groundColor`，按表面朝向混合。 |
+| 环境 | `environment` | 烘焙的全景图：按朝向取漫反射光，并为金属和光滑表面提供预过滤反射。取代单色项与半球项。 |
+
+第一盏带有 `environment` 的 `Ambient` 光即本帧的环境。`color` 与 `intensity` 对其缩放。
+
+### 导入 `.hdr` 全景图
+
+| 方式 | 结果 |
+|---|---|
+| 将 `.hdr` 拖入内容浏览器 | 文件被复制到项目中并烘焙。 |
+| 放入项目目录 | 编辑器检测到并烘焙。 |
+| `estella import-hdr <file> [outDir]` | 命令行上的同一烘焙。`--face-size <n>` 设置最清晰反射级别的分辨率。 |
+
+烘焙在源文件旁写出两个文件：
+
+- **`<name>.esenv`**——以九个辐照度系数表示的漫反射部分（不含纹理）。
+- **`<name>_env.png`**——预过滤反射图集，每个粗糙度级别对应一级 mip。
+
+全景图本身不随包发布；光源引用的是 `.esenv`。
+
+```typescript
+cmds.spawn().insert(Light, {
+  type: LightType.Ambient,
+  environment: 'assets/sky.esenv',
+  intensity: 1,
+});
+```
+
+`environmentRotation` 同时旋转天空、漫反射光和反射。`drawEnvironment` 同时将全景图绘制为背景（是否绘制背景仍由相机决定）。`diffuseScale` 与 `diffuseTint` 改变照到表面上的光，不改变反射和绘制的天空。
+
+{/* SHOT: light-environment-ambient | Details of an Ambient Light with Environment set to a baked .esenv, Environment Rotation and Draw Environment visible; the scene view behind shows a metallic sphere reflecting the panorama with the environment drawn as sky. */}
+
+## 参见
+
+- [光源](/docs/zh-cn/graphics/lighting/lights/)
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/)
+- [精灵](/docs/zh-cn/graphics/sprites/overview/)

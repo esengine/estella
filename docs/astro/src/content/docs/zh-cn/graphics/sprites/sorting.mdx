@@ -1,0 +1,165 @@
+---
+title: 绘制顺序与排序
+description: 精灵及其他 2D 渲染组件的绘制顺序——排序层、层内次序、SortingGroup、场景顺序、Y 排序层、层级顺序层与深度排序层，以及 SpriteMask 裁切。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+相互重叠的精灵及其他 2D 渲染组件按以下键由后向前绘制，优先级从高到低：
+
+| 键 | 设置方式 | 说明 |
+|---|---|---|
+| 排序层 | `layer`（组成员取 `SortingGroup.layer`） | 层越低越先绘制（在后面）。 |
+| 次序 | `Sprite.order`（组取 `SortingGroup.order`） | −128…127，值越大越靠上。 |
+| 层的排序方式 | 项目设置中逐层指定 | z（默认）、世界 Y（Y 排序）、层级顺序，或深度缓冲（深度排序）。 |
+| 场景顺序 | 实体在场景中的顺序 | 决定其余平局；靠后的实体绘制在上。 |
+
+![左：三个排序层堆叠，更高的层画在前面。右：在 Y 排序层上，屏幕上更靠下的精灵画在更靠上的前面。](@/assets/guides/sprite-sort.svg)
+
+## 排序层
+
+`layer` 把渲染组件分配到某个排序层。层名在 **设置 → 项目 → 渲染 → 层名称** 中定义，之后检视器把 `layer` 显示为下拉菜单（*Background*、*Default*、*Foreground* 等）。
+
+- 最多可命名 32 个槽位。槽位的下标就是其绘制位置。
+- 名称仅作标签。字段接受列表之外的数值；未定义任何名称时，`layer` 是普通数字字段。渲染器可对任意整数排序。
+
+```typescript
+sprite.layer = 0;   // 例如 "Background"
+sprite.layer = 2;   // 例如 "Foreground"，绘制在上
+```
+
+{/* SHOT: spr-sorting-settings | Settings → Project → Rendering: Layer names filled in (Background, Default, Gameplay, Foreground), Advanced settings shown with the Y-sorted layers and Depth-sorted layers checkbox lists, Gameplay checked as y-sorted */}
+
+## 层内次序
+
+`Sprite.order` 决定精灵在其排序层内的位置：值越大越靠上，范围 −128…127。`0` 表示不指定。非零次序覆盖该层自身的排序方式——默认层的 z、Y 排序层的世界 Y、深度排序层的深度。
+
+```typescript
+shadow.order = -1;  // 无论主人在何处，都位于其下方
+weapon.order = 1;   // 位于持握它的手之上
+```
+
+在 Y 排序层上，`order` 是唯一的覆盖手段，因为 z 不参与该层的排序键。
+
+## 排序组
+
+`SortingGroup` 使实体及其整棵子树作为一个单元参与排序。组声明整个装配体的层与次序；每个成员的 `Sprite.order` 成为其在组内的位置。组外的任何渲染组件都不会绘制在两个成员之间。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `layer` | `0` | 整个组的排序层；成员不再各自声明。 |
+| `order` | `0` | 组在其层内的次序，−128…127。 |
+| `enabled` | `true` | 禁用该组。 |
+
+```typescript
+world.insert(character, SortingGroup, { layer: 2, order: 5 });
+// 组内的成员次序只用于部件之间的先后。
+world.update(body, Sprite, (s) => { s.order = 0; });
+world.update(arm, Sprite, (s) => { s.order = 1; });
+```
+
+两个成组的角色之间只按各自的组排序，部件不会相互交错。
+
+组可以嵌套。自带 `SortingGroup` 的预制体挂到手臂下后，无论手臂移到何处都保持为一个整体；外层组仍然拥有该层，内层整体也不会被手臂的兄弟节点拆开。
+
+<Aside type="caution">
+  组成员与一个层和次序都与该组相同的组外渲染组件之间，交错顺序未定义。请为每个组分配独立的层与次序位置。
+</Aside>
+
+## 场景顺序
+
+层、次序与层的排序键都相同时，实体按场景顺序绘制：世界大纲中越靠下的实体越绘制在上。在大纲中拖动一行会立即改变场景视图中的结果，与运行时一致。拖动父实体会连同其子实体一起移动。
+
+运行时，`world.applyEntityOrder(entities)` 重排世界的存储，使迭代（进而使键相同时的绘制）遵循给定列表：
+
+```typescript
+// 在这三者中，`card` 最后绘制。
+world.applyEntityOrder([other, another, card]);
+```
+
+- 列出的实体按给定顺序最先迭代。未列出的实体保持原有相对顺序，排在其后。
+- 实体 ID 与组件值不变。
+- 查询迭代期间的调用会被忽略。
+
+## Y 排序层
+
+在 **设置 → 项目 → 渲染 → 高级 → Y 轴排序层** 中勾选的层，其上的精灵、图形与文本按世界 Y 顺序绘制：屏幕上越靠下的实体越绘制在上，因此位于树下方的角色绘制在树前面。
+
+<Aside type="note">
+  在 Y 排序层内，绘制顺序优先于材质合批；交替使用不同材质的重叠绘制无法合并为一次 draw call。仅对需要的层启用 Y 排序。
+</Aside>
+
+## 层级顺序层
+
+`Renderer.setTreeSortLayers(mask)` 选定若干层（位 0–31），其上的精灵、标签与图形按层级顺序叠放，而不是按着色器与深度：父节点先于子节点，靠前兄弟的子树先于靠后兄弟的子树。适用于上层面板必须盖住下层面板文字的情形。
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.setTreeSortLayers(1 << 3);   // 第 3 层按层级顺序叠放
+```
+
+## 深度排序层（2.5D）
+
+在 **设置 → 项目 → 渲染 → 高级 → 深度排序层** 中勾选的层，用深度缓冲（依据各实体 `Transform` 的 z）而不是绘制顺序决定遮挡。配合透视相机即为 2.5D：不同深度的精灵在任意角度下都能正确遮挡。
+
+是否参与深度遮挡由材质的混合模式决定：
+
+| 混合模式 | 在深度排序层中的行为 |
+|---|---|
+| `None`（不透明） | 写入深度；被任何更近的内容遮挡，与绘制先后无关。 |
+| 其他（半透明） | 测试深度但不写入；仍按由后向前的绘制顺序。 |
+
+该区分是固定的：写入深度的半透明精灵会在其后方的精灵上切出生硬的边缘。需要正确遮挡的精灵须使用不透明材质。
+
+场景工具栏的 **2D / 3D** 按钮把编辑器视图切换为透视相机，用于检查深度层。它只影响编辑器视图；Game 视图始终使用场景相机。拾取与拖动随透视视图进行，因此 z = −400 的精灵在其绘制位置即可选中。
+
+<Aside type="note">
+  一个层要么是 Y 排序，要么是深度排序。两个列表中都勾选的层按 Y 排序。可用 z 范围在正交相机下为 ±`farPlane`（默认 ±1000），在透视相机下为 `nearPlane`…`farPlane`；超出范围的内容被裁掉。
+</Aside>
+
+## 精灵遮罩
+
+`SpriteMask` 把实体自身的 `Sprite` 变为模板。在它之后绘制、并选择接受遮罩的精灵会被其形状裁切。遮罩使用精灵已设置的纹理、尺寸、轴心、翻转与九宫格，遮罩精灵本身不绘制。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `alphaCutoff` | `0` | 0–1。大于 0 时，alpha 低于该值的片元不参与遮罩，遮罩随精灵形状而非其矩形。 |
+| `limitRange` | `false` | 限制遮罩的作用范围。关闭时作用于其后绘制的所有精灵。 |
+| `rangeEndLayer` | `0` | 遮罩作用到的最后一个排序层（需 `limitRange`）。 |
+| `rangeEndOrder` | `0` | 遮罩在该层内作用到的最后一个次序，含该值（需 `limitRange`）。 |
+| `enabled` | `true` | 禁用遮罩。 |
+
+遮罩通过 `Sprite.maskInteraction` 逐精灵选择接受，因此添加遮罩不会隐藏无关的精灵：
+
+| `SpriteMaskInteraction` | 可见部分 |
+|---|---|
+| `None`（默认） | 整个精灵；忽略遮罩。 |
+| `VisibleInside` | 仅遮罩覆盖的部分（窗口）。 |
+| `VisibleOutside` | 仅遮罩之外的部分（孔洞）。 |
+
+```typescript
+import { SpriteMask, SpriteMaskInteraction, Sprite } from 'esengine';
+
+world.insert(hole, SpriteMask, { alphaCutoff: 0.5 });
+world.update(fog, Sprite, (s) => {
+  s.maskInteraction = SpriteMaskInteraction.VisibleOutside;  // 在迷雾上开一个孔
+});
+```
+
+作用范围与优先级：
+
+- 遮罩作用于按层与次序在其之后绘制的精灵。与遮罩层和次序都相同的精灵不会被裁切。
+- 两个遮罩重叠处，由更近（最后写入）的遮罩决定模板，因此每个精灵至多被一个遮罩裁切。
+- 遮罩只影响渲染。拾取、物理与空间查询不受其影响。
+
+{/* SHOT: spr-sprite-mask | Scene view: a dark fog sprite with Mask Interaction VisibleOutside and a round SpriteMask (Alpha Cutoff 0.5) cutting a circular hole in it; Details shows the SpriteMask card of the mask entity */}
+
+UI 节点改用 `UIMask`（[遮罩与显隐](/docs/zh-cn/ui/masks/)）。
+
+## 另请参阅
+
+- [精灵](/docs/zh-cn/graphics/sprites/overview/) —— `Sprite` 组件。
+- [遮挡、视野与地面效果](/docs/zh-cn/graphics/sprites/visibility/) —— 屋顶淡出、视线、战争迷雾。
+- [项目设置](/docs/zh-cn/editor/settings/) —— 排序层名称与逐层排序方式。
+- [变换](/docs/zh-cn/core-concepts/transforms/) —— z、层级与世界空间。

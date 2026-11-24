@@ -1,0 +1,62 @@
+---
+title: 多相机与大世界
+description: 多相机参考——主视图的选取、用于分屏与画中画的子视口相机、叠加层相机、渲染目标相机、剔除掩码，以及由 setRenderOriginStep 设置的浮动渲染原点。
+---
+
+## 多相机与分屏
+
+每帧屏幕上的相机被划分为主视图和叠加在其上的层：
+
+| 相机 | 角色 | 绘制顺序 |
+|---|---|---|
+| 全屏 `viewport`（`{0,0,1,1}`），清除颜色 | 主视图候选；由导演选出一台（[混合与切换](/docs/zh-cn/graphics/camera/blending/#按优先级切换相机)）。 | 屏幕上最先绘制 |
+| 全屏 `viewport`，不清除颜色 | 叠加在主视图上的层（例如叠在世界之上的 UI 相机）；没有其他全屏相机时即为主视图。 | 在主视图之上，按 `priority` |
+| 较小的 `viewport` | 层：分屏、小地图、画中画。 | 在主视图之上，按 `priority` |
+| `renderTarget` ≠ `0` | 不参与屏幕候选。 | 先于主视图 |
+
+分屏通过 `viewport` 为每台相机指定一个子矩形。矩形依次为 `x`、`y`，宽度存于 `z`，高度存于 `w`，取值为屏幕的 0–1。双人左右分屏：
+
+```typescript
+.insert(Camera, { viewport: { x: 0,   y: 0, z: 0.5, w: 1 }, isActive: true }); // left
+.insert(Camera, { viewport: { x: 0.5, y: 0, z: 0.5, w: 1 }, isActive: true }); // right
+```
+
+构图类组件（`PositionComposer`、`LookAtTarget`、`GroupFraming`、`CameraBounds`）按每台相机自身 `viewport` 所占的屏幕部分度量。
+
+{/* SHOT: cam-split-screen | Game view of a two-player scene in play mode with two cameras, each with a half-width viewport (left and right halves), each following a different player; Outliner showing both camera entities */}
+
+## 渲染目标与层
+
+`renderTarget` 非零的相机绘制到该 `RenderTexture`，而不是屏幕（小地图、镜子、只渲染一次的头像）。该句柄在运行时创建，因此该字段由脚本设置。相机的 `viewport` 覆盖整个目标，分辨率由目标自身的尺寸决定。绘制到纹理的相机先于主视图渲染，因此主视图可以采样它们绘制的内容。目标的创建与句柄的指定见[渲染纹理](/docs/zh-cn/graphics/drawing/render-textures/)。
+
+`cullingMask` 选择相机渲染的排序层：第 *i* 位对应第 *i* 层。UI 属于其 `Canvas` 所在的层。0–31 以外的层没有对应位，所有相机都会绘制。
+
+## 大世界
+
+单精度浮点数表示的位置只在零点附近精确：距原点 50 公里处一步为 4 毫米，那里的网格会随相机移动而抖动。`setRenderOriginStep(step)` 改为相对相机附近的一点绘制世界：
+
+```ts
+import { setRenderOriginStep } from 'esengine';
+
+setRenderOriginStep(1024); // metres; 0 (the default) draws relative to the world's own origin
+```
+
+渲染原点是相机位置按 `step` 取整的结果。只有当相机离开它超过 `step` 时原点才会移动，因此阴影贴图、光照网格以及其他按世界网格布置的缓存只在原点移动时变化。
+
+| 坐标 | 内容 |
+|---|---|
+| 相对渲染原点 | 网格、光源、探针、粒子、拖尾、瓦片地图与世界空间 UI，在交给 GPU 之前转换；相机的视图投影也针对同一原点构造。 |
+| 从原点读回世界位置 | 地形、星球、水、植被、高度雾与天空云层；它们按世界位置布置，原点移动时不会滑动。 |
+| 世界坐标，不受影响 | 变换、物理、网络、`screenToWorld` 与拾取。 |
+| 世界视图投影 | 绘制回调与调试绘制；在远离零点处保持单精度浮点的精度。 |
+
+约束：
+
+- 一帧只有一个原点。多台相机时，原点跟随屏幕的主相机；远离原点的相机以单精度浮点精度绘制。
+- 原点移动时，上一帧的视图与网格会被移到新原点，因此运动矢量与时间性效果可以延续。全局光照体素需要一帧稳定。
+
+## 另请参阅
+
+- [相机基础](/docs/zh-cn/graphics/camera/overview/)
+- [世界流送](/docs/zh-cn/world/streaming/)：世界原点精度随距离的实测。
+- [绘制](/docs/zh-cn/graphics/drawing/overview/#绘制回调)：绘制回调及其获得的视图投影。

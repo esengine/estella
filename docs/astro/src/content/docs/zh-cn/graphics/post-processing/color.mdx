@@ -1,0 +1,137 @@
+---
+title: 色彩与曝光
+description: 色调与颜色参考——输出变换项目设置、Tonemap 与 AgX 效果、带分离色调与抬高黑位的 Color Grade、LUT Grade、Display LUT、Auto Exposure 与 Grayscale。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+在线性空间中打光的场景可以包含超出显示器显示范围的值。**输出变换**在所有效果之后将完成的帧映射到显示器，仅执行一次。本页的效果在效果链内塑造色调与颜色
+（`tonemap`、`agx`、`colorGrade`、`lutGrade`、`autoExposure`、`grayscale`），或在输出变换之后作用于显示值（`displayLut`）。它们在检视器中均带有**色彩**标签。
+
+{/* SHOT: pp-color-grade | A lit 3D scene in the viewport beside the Inspector of a PostProcessVolume with Tonemap followed by an unfolded Color Grade (Shadow Tint teal, Highlight Tint warm, S-Curve above 0); the graded look visible in the viewport. */}
+
+## 输出变换
+
+输出变换是项目设置，而非效果：**设置 → 项目 → 渲染 → 输出变换**。它作用于编辑器视口、运行预览和所有导出，修改后无需重新加载即可生效。
+
+{/* SHOT: pp-output-transform-setting | Settings window, Project → Rendering section, with the Output transform dropdown open showing None, ACES and Neutral. */}
+
+| 变换 | 行为 | 适用 |
+| --- | --- | --- |
+| **无** | 仅编码。大于 1 的值被截断。 | 平面 2D 美术、UI，以及必须原样往返的内容。 |
+| **ACES** | 电影式肩部：高光收卷、暗部加深。压缩时同时去饱和，非常亮的红色会偏向奶白。 | 追求电影质感的 3D 光照场景。 |
+| **中性** | Khronos PBR Neutral：同样的收卷，保留色相与饱和度。阳光下的红色仍为红色。 | 产品展示、风格化美术，以及颜色准确性重要的内容。 |
+
+代码中：`createWebApp(module, { outputTransform: 'none' | 'aces' | 'neutral' })`。
+
+<Aside>
+  `tonemap` 效果是效果链内一个独立的、可选的 ACES pass。设置了输出变换时应关闭 `tonemap`；两条曲线串联会对高光压缩两次。
+</Aside>
+
+## 色调映射
+
+`tonemap` 在效果链内应用 ACES 曲线，其后的效果看到的是显示范围的值。在 HDR 链路下它接收超范围输入（[HDR 链路](/docs/zh-cn/graphics/post-processing/overview/#hdr-链路)）。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_exposure` | Exposure | 0 | 曲线之前施加的曝光，单位为档。 |
+| `u_curve` | Fitted ACES | 0 | 为 1 时，用 three.js 称为 ACES Filmic 的拟合 ACES 曲线替换引擎的曲线。 |
+
+拟合曲线在过曲线之前混合各通道：明亮的颜色趋向白色（引擎的曲线保持色相），暗部更深。three.js 在这条曲线之前还会将曝光乘以 1/0.6；此处的等效值为
+`u_exposure` 0.74。
+
+## AgX
+
+`agx` 是 Blender 使用的 AgX 视图变换。它接收场景线性输入、输出显示线性值，因此放在效果链最后，并将输出变换设为**无**。它自带查找表（`esengine/fx-agx` 组）。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_contrast` | Contrast (Look) | 1 | 观感：1 为 AgX Base，1.2 为 Medium High Contrast。 |
+
+## 调色
+
+`colorGrade`（Color Grade）在默认值下为恒等。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_exposure` | Exposure | 0 | 曝光，单位为档。 |
+| `u_contrast` | Contrast | 1 | 对比度。在线性项目中为围绕中灰（0.18）的幂曲线。 |
+| `u_saturation` | Saturation | 1 | 饱和度。 |
+| `u_temperature` | Temperature | 0 | 白平衡，冷（−1）至暖（1）。 |
+| `u_tint` | Tint | 0 | 白平衡，品红（−1）至绿（1）。 |
+| `u_toneLow` | Tone Low | 0.03 | 亮度低于此值时 Shadow Tint 完全生效。 |
+| `u_toneHigh` | Tone High | 0.55 | 亮度高于此值时 Highlight Tint 完全生效。 |
+| `u_curve` | S-Curve | 0 | 向覆盖画面范围的平滑阶梯曲线混合。0 为关闭。 |
+| `u_gain` | Gain | 1 | 斜率：每个色调乘以该值。 |
+| `u_offset` | Offset | 0 | 在增益之后相加。 |
+| `u_shadowTint` | Shadow Tint | 白 | 暗部的颜色乘数。 |
+| `u_highlightTint` | Highlight Tint | 白 | 亮部的颜色乘数。 |
+| `u_lift` | Lift | 黑 | 带色相的黑位，按其值的十分之一相加。 |
+
+### 分离色调与抬高的黑位
+
+Shadow Tint、Highlight Tint、S-Curve、Gain、Offset 与 Lift 作用于显示器所显示的画面。应将调色放在 **`tonemap` 之后**；在它之前，0–1 只是场景范围的一部分。
+
+- **Shadow Tint** 与 **Highlight Tint** 分别乘在暗部与亮部，按亮度在 Tone Low 与 Tone High 之间过渡。白色表示不变。它们是乘数，不做色彩管理，可以大于 1：
+  阴影中 `(0.80, 1.01, 1.13)` 配合高光中 `(1.07, 1.0, 0.90)` 即为青-暖分离。
+- **S-Curve** 使暗部略沉、亮部略提。
+- **Gain** 与 **Offset**：每个色调先乘以增益，再加上偏移。负偏移会压低黑位，并将比它暗的部分截为纯黑；线性项目中的对比度则保持黑位不动。写作
+  `(c - 0.5) * k + 0.5` 的对比度等于增益 `k` 加偏移 `0.5 - 0.5 * k`：对比度 1.04 即 `u_gain` 1.04、`u_offset` −0.02。
+- **Lift** 将其颜色的十分之一加到每个色调上：`(0.06, 0.085, 0.11)` 使黑位朝青色抬高约 `(0.006, 0.0085, 0.011)`。
+
+## 调色 LUT
+
+`lutGrade`（LUT Grade）在效果链中通过颜色查找表对场景值调色：查找表为 2D 打包的 `1024×32` 图像，包含 32³ 色立方的 32 个切片。未绑定查找表时为恒等。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_lut` | LUT (1024x32, 32 slices) | — | 纹理参数：查找表。 |
+| `u_intensity` | Intensity | 1 | 输入与调色结果之间的混合比例。 |
+
+在体积上，查找表列在该效果的 `textures` 下：`{ type: 'lutGrade', enabled: true, uniforms: { u_intensity: 1 }, textures: { u_lut: <ref> } }`。
+在代码中用 `stack.setTexture` 绑定（[纹理参数](/docs/zh-cn/graphics/post-processing/scripting/#纹理参数)）。
+
+## 显示 LUT
+
+针对完成画面制作的调色（调色师提供的 LUT、胶片模拟）应位于输出变换之后，而效果链中没有效果在那里运行。`displayLut`（Display LUT）是帧最后一个 pass
+的一个阶段：画面先经输出变换曲线、为显示器编码，再按其将要显示的颜色在表中查值。无论输出变换为何，它只在本来就要执行的 pass 中增加一次纹理读取。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_lut` | LUT (1024x32, 32 slices, as the display shows it) | — | 纹理参数：查找表。 |
+| `u_intensity` | Intensity | 1 | 输入与查表结果之间的混合比例。 |
+
+查找表布局：1024×32，沿 x 排列 32 个切片；蓝色选择切片，红色沿切片内方向增大，绿色沿图像向上增大（行从底部开始读取）。查找表是数据：不压缩、不生成 mip、
+不使用 sRGB。符合此形状的图像（N 个 N×N 切片，N = 32 时为 1024×32）在编辑器和命令行中导入时都会自动采用这些设置。
+
+代码中：`stack.setDisplayLut(textureHandle, amount)`。
+
+## 自动曝光
+
+`autoExposure`（Auto Exposure）调节曝光，使画面平均亮度落在中灰。它测量亮度**对数**的平均值，忽略暗于 2⁻⁸ 的像素，然后以每秒速率从上一帧的值向目标移动，
+与帧率无关。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_bias` | Compensation (EV) | 0 | 加到测得曝光上的档数。 |
+| `u_speedUp` | Brighten Speed | 3 | 向更亮曝光适应的速率。 |
+| `u_speedDown` | Darken Speed | 1 | 向更暗曝光适应的速率。 |
+| `u_minEV` | Min EV | −4 | 曝光下限。 |
+| `u_maxEV` | Max EV | 4 | 曝光上限。 |
+| `u_metering` | Metering (0 avg, 1 centre, 2 spot) | 0 | 0：整个画面。1：中央重点，半径为 Meter Size 的柔和衰减。2：点测光，仅该半径的圆盘。 |
+| `u_meterSize` | Meter Size | 0.35 | 中央重点或点测光的半径，以画面比例计。 |
+
+只要设备能渲染到浮点目标，测量值与适应后的曝光就保存在浮点目标中，因此在 8 位效果链中适应行为相同（被曝光的画面本身在那里仍会被截断）。应放在 `bloom` 之前。
+
+## 灰度
+
+`grayscale` 对画面去色。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 去色程度；1 为完全灰度。 |
+
+## 参见
+
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)
+- [色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/) —— 线性色彩空间；[光源](/docs/zh-cn/graphics/lighting/lights/#强度单位) —— 光源强度。

@@ -1,0 +1,81 @@
+---
+title: 平面反射
+description: PlanarReflection 参考——反射平面与捕获规则、字段、粗糙度滤波、每视图预算、画质档默认值与更新策略、状态与刷新 API，以及编辑器诊断。
+---
+
+`PlanarReflection` 将当前相机按平面镜像，为平坦的受光表面渲染实时反射：水面、镜子和光滑地面。它只提供反射，不是水体模拟。该组件为实验性组件。
+
+实体需要带 GPU 常驻网格的 `MeshRenderer` 以及受光 / PBR 材质。平面经过实体的世界原点，以所选本地轴为法线。平面另一侧的几何体、接收反射的实体自身以及屏幕空间 UI 不参与捕获。
+
+```typescript
+import { PlanarReflection, ReflectionAxis, ReflectionQuality,
+  ReflectionUpdate, refreshPlanarReflection, planarReflectionStatus } from 'esengine';
+
+world.insert(surface, PlanarReflection, {
+  axis: ReflectionAxis.Y,
+  quality: ReflectionQuality.Custom,
+  resolutionScale: 0.5,
+  maxSize: 1024,
+  update: ReflectionUpdate.EveryFrame,
+});
+// OnDemand 模式下，被反射的场景改变后请求刷新：
+refreshPlanarReflection(app, surface);
+const capture = planarReflectionStatus(app, surface, cameraEntity);
+```
+
+## 字段
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `axis` | `Y` | `ReflectionAxis`（`X`、`Y`、`Z`）：本地法线轴，随实体变换。地面用 `Y`，镜子用 `Z`。 |
+| `clipOffset` | `0.02` | 裁剪偏移，世界单位；排除平面后方的几何体。 |
+| `cullingMask` | 全部位 | 参与捕获的排序层位掩码。 |
+| `quality` | `Project` | `ReflectionQuality`：`Project` 使用当前画质档；`Custom` 使用以下字段。 |
+| `resolutionScale` | `0.5` | `Custom`：每边占屏幕分辨率的比例（0.125–1）。 |
+| `maxSize` | `1024` | `Custom`：每边最大捕获尺寸，纹素（64–4096）。 |
+| `update` | `EveryFrame` | `Custom`：`ReflectionUpdate`——`EveryFrame`、`FixedRate` 或 `OnDemand`。只影响捕获，不限制主场景帧率。 |
+| `updatesPerSecond` | `30` | `FixedRate`：每秒捕获次数（1–120）。 |
+| `revision` | `0` | 递增即请求一次新的 `OnDemand` 捕获；`refreshPlanarReflection` 执行此操作。 |
+| `enabled` | `true` | 启用捕获。 |
+
+## 着色
+
+材质仍控制颜色、金属响应、Fresnel 与粗糙度。捕获的辐射度替换本次绘制的环境镜面输入，不会叠加在已反射的天空之上。不受光材质不采样 PBR 反射。应使用平面网格而不是有厚度的盒子，使反射几何与平面一致。
+
+反射按表面粗糙度滤波：九个采样点，宽度至少为一个半像素，随粗糙度增大而变宽。潮湿路面显示柔和的反射，水洼的反射保持清晰。被反射的太阳或天空高光在其最亮通道上被限制在 1.5 的柔和上限内（从 0.75 开始的拐点，保持色相），而不是被截断为白色。该滤波是小范围空间近似，不是预过滤的 GGX 卷积。
+
+## 捕获规则
+
+- 每个视图捕获一个可见表面，按稳定实体 ID 选择。其他表面报告 `budget-excluded`。
+- 每个相机拥有独立的捕获。不再使用的视图释放其渲染目标；尺寸改变时刷新；设备重建时强制重新捕获。
+- 捕获不执行后处理、宿主绘制回调或递归反射，只使用逐像素光源。
+- 不为反射相机重新生成世界空间 2D 光照遮罩。
+
+## 画质
+
+`quality: Project` 时，捕获遵循画质档：
+
+| 画质设置 | 低 | 中 | 高 |
+|---|---|---|---|
+| `planarReflectionScale` | ¼ | ½ | 1 |
+| `planarReflectionMaxSize` | 512 | 1024 | 2048 |
+| `planarReflectionUpdatesPerSecond` | 30 | 0（每帧） | 0（每帧） |
+
+三者都可在画质档中覆盖（[画质等级](/docs/zh-cn/performance/quality-levels/)）。画质档生效时，`Custom` 反射也受该档比例和尺寸的限制，更新频率不超过该档的频率（`OnDemand` 除外）。
+
+## 状态与编辑器
+
+`planarReflectionStatus(app, entity, view)` 返回某个视图的捕获状态。视图 `0` 为手动 / 编辑器视图；运行时传入相机的运行时实体 ID。
+
+Details 中的 `PlanarReflection` 卡片提供捕获参数、画质覆盖、临时反射平面预览以及实时诊断（捕获尺寸、绘制数、资源）。
+
+{/* SHOT: light-planar-reflection-details | A flat floor with PlanarReflection selected and its transient plane preview visible in the scene view, reflecting nearby objects; Details shows the Planar Reflection card with Capture and Quality groups and the live capture size / draws diagnostics. */}
+
+## 示例
+
+`examples/planar-reflection`：空格切换捕获，1 / 2 / 3 选择项目画质档，移动物体展示实时反射。WebGL2 与 WebGPU 无界面检查覆盖几何位置、裁剪、层过滤与更新策略；移动端真机帧时间验收尚未完成。
+
+## 参见
+
+- [烘焙光照](/docs/zh-cn/graphics/lighting/baked/#反射探针)
+- [水体](/docs/zh-cn/graphics/water/overview/)

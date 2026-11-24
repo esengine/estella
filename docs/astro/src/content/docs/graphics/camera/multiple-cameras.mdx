@@ -1,0 +1,73 @@
+---
+title: Multiple cameras & large worlds
+description: Multi-camera reference — main-view selection, sub-viewport cameras for split-screen and picture-in-picture, layer cameras, render-target cameras, culling masks, and the floating render origin set by setRenderOriginStep.
+---
+
+## Multiple cameras & split-screen
+
+Each frame the on-screen cameras are sorted into the main view and layers drawn over it:
+
+| Camera | Role | Draw order |
+|---|---|---|
+| Full-screen `viewport` (`{0,0,1,1}`), clears colour | Candidate for the main view; the director selects one ([Blending & switching](/docs/graphics/camera/blending/#switching-cameras-by-priority)). | First on screen |
+| Full-screen `viewport`, does not clear colour | Layer over the main view (for example a UI camera over the world); the main view when no other full-screen camera exists. | Over the main view, by `priority` |
+| Smaller `viewport` | Layer: split-screen, minimap, picture-in-picture. | Over the main view, by `priority` |
+| `renderTarget` ≠ `0` | Not a candidate for the screen. | Before the main view |
+
+Split-screen gives each camera a sub-rectangle through `viewport`. The rectangle is `x`, `y`, then width in `z` and
+height in `w`, in 0–1 of the screen. Two-player split-screen, left and right halves:
+
+```typescript
+.insert(Camera, { viewport: { x: 0,   y: 0, z: 0.5, w: 1 }, isActive: true }); // left
+.insert(Camera, { viewport: { x: 0.5, y: 0, z: 0.5, w: 1 }, isActive: true }); // right
+```
+
+Framing components (`PositionComposer`, `LookAtTarget`, `GroupFraming`, `CameraBounds`) measure each camera by its own
+`viewport` share of the screen.
+
+{/* SHOT: cam-split-screen | Game view of a two-player scene in play mode with two cameras, each with a half-width viewport (left and right halves), each following a different player; Outliner showing both camera entities */}
+
+## Render targets and layers
+
+A camera with a non-zero `renderTarget` draws into that `RenderTexture` instead of the screen (a minimap, a mirror, a
+portrait rendered once). The handle is created at run time, so the field is set from a script. The camera's `viewport`
+covers the whole target, and the target's own size determines the resolution. Cameras drawing into textures render
+before the main view, so the main view can sample what they drew. Creating a target and assigning its handle are
+described in [Render textures](/docs/graphics/drawing/render-textures/#rendering-a-camera-into-a-target).
+
+`cullingMask` selects the sorting layers a camera renders: bit *i* is layer *i*. UI belongs to its `Canvas`'s layer.
+Layers outside 0–31 have no bit and are drawn by every camera.
+
+## Large worlds
+
+A position stored in a single-precision float is precise only near zero: at 50 km from the origin a step is 4 mm, and a
+mesh there jitters as the camera moves. `setRenderOriginStep(step)` draws the world relative to a point near the camera:
+
+```ts
+import { setRenderOriginStep } from 'esengine';
+
+setRenderOriginStep(1024); // metres; 0 (the default) draws relative to the world's own origin
+```
+
+The render origin is the camera position rounded to `step`. It moves only when the camera is further than `step` from
+it, so shadow maps, the light grid and other caches laid out on the world grid change only when the origin moves.
+
+| Coordinates | Contents |
+|---|---|
+| Relative to the render origin | Meshes, lights, probes, particles, trails, tilemaps and world-space UI, before the GPU receives them; the camera's view-projection is built for the same origin. |
+| World position read back from the origin | Terrain, planets, water, foliage, height fog and sky clouds, which are laid out by world position and do not slide when the origin moves. |
+| World coordinates, unaffected | Transforms, physics, networking, `screenToWorld` and picking. |
+| World view-projection | Draw callbacks and debug drawing; they keep single-float precision far from zero. |
+
+Constraints:
+
+- One origin serves a frame. With several cameras it follows the screen's main camera; a camera far from it draws at
+  single-float precision.
+- When the origin moves, the previous frame's view and meshes are moved to the new origin, so motion vectors and
+  temporal effects continue. Global-illumination voxels settle over one frame.
+
+## See also
+
+- [Camera basics](/docs/graphics/camera/overview/)
+- [World streaming](/docs/world/streaming/): world-origin precision measured over distance.
+- [Drawing](/docs/graphics/drawing/overview/#draw-callbacks): draw callbacks and the view-projection they receive.

@@ -1,0 +1,97 @@
+---
+title: Planar Reflections
+description: PlanarReflection reference — reflecting plane and capture rules, fields, roughness filtering, per-view budget, quality-level defaults and update policies, status and refresh API, and editor diagnostics.
+---
+
+`PlanarReflection` mirrors the current camera across a plane and renders a live reflection for a flat lit surface:
+water, mirrors and polished floors. It provides the reflection only; it is not a water simulation. The component is
+experimental.
+
+The entity requires a resident `MeshRenderer` mesh with a lit/PBR material. The plane passes through the entity's world
+origin with the selected local axis as its normal. Geometry on the far side of the plane, the receiving entity itself
+and screen-space UI are excluded from the capture.
+
+```typescript
+import { PlanarReflection, ReflectionAxis, ReflectionQuality,
+  ReflectionUpdate, refreshPlanarReflection, planarReflectionStatus } from 'esengine';
+
+world.insert(surface, PlanarReflection, {
+  axis: ReflectionAxis.Y,
+  quality: ReflectionQuality.Custom,
+  resolutionScale: 0.5,
+  maxSize: 1024,
+  update: ReflectionUpdate.EveryFrame,
+});
+// With OnDemand, request a refresh after the reflected scene changes:
+refreshPlanarReflection(app, surface);
+const capture = planarReflectionStatus(app, surface, cameraEntity);
+```
+
+## Fields
+
+| Field | Default | Description |
+|---|---|---|
+| `axis` | `Y` | `ReflectionAxis` (`X`, `Y`, `Z`): local normal axis, transformed with the entity. `Y` for a floor, `Z` for a mirror. |
+| `clipOffset` | `0.02` | Clip offset in world units; excludes geometry behind the plane. |
+| `cullingMask` | all bits | Sorting-layer bits included in the capture. |
+| `quality` | `Project` | `ReflectionQuality`: `Project` uses the active quality level; `Custom` uses the fields below. |
+| `resolutionScale` | `0.5` | `Custom`: share of the screen resolution per side (0.125–1). |
+| `maxSize` | `1024` | `Custom`: maximum capture size per side in texels (64–4096). |
+| `update` | `EveryFrame` | `Custom`: `ReflectionUpdate` — `EveryFrame`, `FixedRate` or `OnDemand`. Affects only the capture, never the main scene's frame rate. |
+| `updatesPerSecond` | `30` | `FixedRate`: captures per second (1–120). |
+| `revision` | `0` | Incrementing it requests a new `OnDemand` capture; `refreshPlanarReflection` does this. |
+| `enabled` | `true` | Enables the capture. |
+
+## Shading
+
+The material keeps control of tint, metallic response, Fresnel and roughness. The captured radiance replaces the
+environment's specular input for this draw; it is not added over a reflected sky. An unlit material does not sample PBR
+reflections. Use a flat mesh rather than a thick box, so the reflecting geometry matches the plane.
+
+The reflection is filtered by the surface's roughness: nine taps, at least one and a half pixels wide and wider as
+roughness increases. A damp road shows a soft reflection and a puddle a sharp one. A reflected sun or sky highlight is
+limited to a soft ceiling of 1.5 on its brightest channel (a knee starting at 0.75, hue preserved) instead of clipping
+toward white. The filter is a small spatial approximation, not a prefiltered GGX convolution.
+
+## Capture rules
+
+- One visible surface is captured per view, chosen by stable entity ID. Other surfaces report `budget-excluded`.
+- Each camera owns a separate capture. Views no longer in use release their targets; resizing refreshes them; a device
+  rebuild forces a recapture.
+- Captures run without post-processing, host draw callbacks or recursion, and use the per-pixel lights only.
+- World-space 2D light masks are not regenerated for the reflected camera.
+
+## Quality
+
+With `quality: Project`, the capture follows the quality level:
+
+| Quality setting | Low | Medium | High |
+|---|---|---|---|
+| `planarReflectionScale` | ¼ | ½ | 1 |
+| `planarReflectionMaxSize` | 512 | 1024 | 2048 |
+| `planarReflectionUpdatesPerSecond` | 30 | 0 (every frame) | 0 (every frame) |
+
+All three can be overridden in a quality profile ([Quality levels](/docs/performance/quality-levels/)). While a quality
+level is in force, a `Custom` reflection is capped by the level's scale and size, and is updated no more often than the
+level's rate unless it is `OnDemand`.
+
+## Status and editor
+
+`planarReflectionStatus(app, entity, view)` returns the capture state for a view. View `0` is the manual/editor view; at
+run time pass the camera's runtime entity ID.
+
+The `PlanarReflection` card in Details exposes the capture settings, quality overrides, a transient plane preview, and
+live diagnostics (capture size, draws, resources).
+
+{/* SHOT: light-planar-reflection-details | A flat floor with PlanarReflection selected and its transient plane preview visible in the scene view, reflecting nearby objects; Details shows the Planar Reflection card with Capture and Quality groups and the live capture size / draws diagnostics. */}
+
+## Example
+
+`examples/planar-reflection`: Space toggles the capture, 1 / 2 / 3 select the project quality level, and a moving object
+demonstrates the live reflection. WebGL2 and WebGPU headless checks cover geometry placement, clipping, layers and update
+policies; frame-time acceptance on physical mobile devices is pending.
+
+## See also
+
+- [Baked Lighting](/docs/graphics/lighting/baked/#reflection-probes)
+- [Water](/docs/graphics/water/overview/)

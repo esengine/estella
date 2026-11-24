@@ -1,0 +1,147 @@
+---
+title: 相机基础
+description: 相机参考——活动相机的选取、Camera 组件及其字段、创建菜单中的相机组合、缩放与投影、设计分辨率适配、宽高比，以及通过 CameraView 进行屏幕 ↔ 世界坐标转换。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+场景通过相机渲染：相机是带 `Camera` 组件的实体。相机定义投影方式、缩放，以及世界绘制到的屏幕矩形。相机的位置与朝向由其实体的 `Transform` 决定。
+
+{/* SHOT: cam-component-details | Details panel of a selected 2D camera entity: Transform card and the Camera card with Projection Type Orthographic, Ortho Size 540, Is Active on, Viewport, Clear Flags and Culling Mask visible; scene view behind it showing the camera's view rectangle gizmo */}
+
+## 活动相机
+
+场景中可以有任意数量的相机实体。在设置了 `isActive` 且覆盖整个屏幕的相机中，`priority` 最高的一台为**活动相机**，世界经由它渲染到其 `viewport` 中。切换活动相机、相机间混合以及同优先级时的判定规则见[混合与切换](/docs/zh-cn/graphics/camera/blending/#按优先级切换相机)。`viewport` 较小或设置了 `renderTarget` 的相机会在活动相机之外另行绘制（[多相机与大世界](/docs/zh-cn/graphics/camera/multiple-cameras/)）。
+
+2D 场景使用**正交（Orthographic）**投影。其 `orthoSize` 为可见半高（世界单位），即缩放：数值越小，画面越放大。
+
+<Aside type="note">
+  相机无需额外安装插件。跟随、混合与震屏系统在编辑器与标准运行时中均会运行。
+</Aside>
+
+## 创建相机
+
+```typescript
+import { defineSystem, Commands, Transform, Camera, ProjectionType } from 'esengine';
+
+const spawnCamera = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Camera, {
+      projectionType: ProjectionType.Orthographic,
+      orthoSize: 540,        // half-height in world units → zoom
+      isActive: true,
+    });
+});
+```
+
+## 创建菜单中的相机组合
+
+编辑器的**创建**菜单（以及 agent 带 `template` 的 `create` 操作）提供预先配置的相机组合。每一项都是已添加流水线组件的 `Camera`，目标在 Details 面板中指定。
+
+{/* SHOT: cam-create-menu | Scene view Create menu opened on its Camera category, listing Follow Camera 2D, Tracking Camera, Look-At Camera, Handheld Camera, Dolly Camera with Track, Target Group Camera 2D, Target Group Camera, State-Driven Camera, Impulse Source and Camera Brain */}
+
+| 菜单项 | 模板 | 内容 |
+|---|---|---|
+| Follow Camera 2D | `camera:follow-2d` | 带 `PositionComposer` 的正交相机：目标可在死区内移动，且始终不离开软区。 |
+| Tracking Camera | `camera:tracking` | 透视相机，位于目标后上方（`FollowTarget`），对目标构图（`LookAtTarget`）并保持目标可见（`CameraDeoccluder`）。 |
+| Look-At Camera | `camera:look-at` | 位置固定、转向目标的相机。 |
+| Handheld Camera | `camera:handheld` | 带轻微 `CameraNoise` 的相机。 |
+| Dolly Camera with Track | `camera:dolly` | 一条 `Spline` 轨道及其上的相机（`CameraDolly`，Track Target），相机看向目标。 |
+| Target Group Camera 2D | `camera:group-2d` | 一个 `CameraTargetGroup` 及对其构图的正交相机（`PositionComposer`、`GroupFraming` 缩放）。 |
+| Target Group Camera | `camera:group-3d` | 一个 `CameraTargetGroup` 及跟随、看向并框住它的透视相机（`GroupFraming` 先推拉后缩放）。 |
+| State-Driven Camera | `camera:state-driven` | 一个 `StateDrivenCamera`：按 Animator 状态选取活动相机。 |
+| Impulse Source | `camera:impulse` | 一个 `CameraImpulseSource`，从其所在位置发出震动。 |
+| Camera Brain | `camera:brain` | 场景的 `CameraBrain`：切换相机时混合而非硬切。 |
+
+各组件的说明见[跟随与构图](/docs/zh-cn/graphics/camera/follow/)、[噪声、震屏与冲击](/docs/zh-cn/graphics/camera/shake/)与[混合与切换](/docs/zh-cn/graphics/camera/blending/)。
+
+## `Camera` 组件
+
+SDK 的创作默认值面向 2D：正交、活动、`orthoSize` 为 540。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `projectionType` | `ProjectionType` | `Orthographic` | `Orthographic`（2D）或 `Perspective`。 |
+| `orthoSize` | number | `540` | 可见半高（世界单位，正交），即缩放。可动画。 |
+| `fov` | number | `60` | 视场角，单位为度（仅透视；1–179）。 |
+| `nearPlane` | number | `0.1` | 近裁剪距离（仅透视）。 |
+| `farPlane` | number | `1000` | 远裁剪距离。正交相机没有近裁剪面，渲染范围为对称的 `±farPlane` 盒体，因此该值即其两个方向上的范围。 |
+| `aspectRatio` | number | `1.77` | 宽 / 高。`0` 表示由视口推算。 |
+| `isActive` | boolean | `true` | 该相机是否可成为活动相机。 |
+| `priority` | number | `0` | 活动相机之间的选取顺序（高者优先）。 |
+| `viewport` | Vec4 | `{0,0,1,1}` | 屏幕矩形，取值 0–1：`x`、`y`，宽度存于 `z`，高度存于 `w`。 |
+| `clearFlags` | `ClearFlags` | `ColorAndDepth` | 渲染前清除的缓冲：`Nothing` / `Color` / `Depth` / `ColorAndDepth`。 |
+| `pixelPerfect` | boolean | `false` | 将相机吸附到世界像素网格，使像素画渲染时没有亚像素闪烁（正交）。 |
+| `cullingMask` | number | 全部层 | 该相机渲染的排序层位掩码（第 *i* 位对应第 *i* 层）。 |
+| `renderTarget` | number | `0` | 相机绘制到的 `RenderTexture` 句柄，代替屏幕（`0` 为屏幕）；运行时由脚本设置。 |
+| `showFrustum` | boolean | `false` | 仅编辑器：绘制相机完整的视锥体，从近面到远面。关闭时，gizmo 仅勾勒相机在内容平面上的取景范围；相机背向该平面时该范围为空。 |
+
+## 缩放与投影
+
+缩放由 `orthoSize` 控制：减半即屏幕上的尺寸加倍。缩放应通过 `orthoSize` 调整，而不是通过相机实体 `Transform` 的缩放，后者会使渲染变形。`orthoSize` 可动画，因此可用补间完成缩放（[动画](/docs/zh-cn/animation/overview/)）：
+
+```typescript
+import { defineSystem, Res, Tween, TweenTarget } from 'esengine';
+
+const zoomIn = defineSystem([Res(Tween)], (tween) => {
+  tween.to(cameraEntity, TweenTarget.CameraOrthoSize, 540, 270, 0.5);   // from 540 to 270 (2×) over 0.5 s
+});
+```
+
+`Orthographic` 下尺寸不随深度变化，是 2D 场景所用的投影。`Perspective` 用于 3D 场景及分层的伪 3D 场景。
+
+## 设计分辨率适配
+
+引擎每帧解析一个*适配源*。存在适配源时，主相机会适配实际屏幕的宽高比：`orthoSize` 是相机**在设计宽高比下**的半高，缩放模式决定屏幕更宽或更窄时的结果（保持高度、保持宽度、扩展、收缩或按比例匹配）。适配源依次为：
+
+1. **`ScreenScaling`** 资源（**设置 → 项目 → 游戏 → 显示 → 相机适配**），当其 `scaleMode` 为某种缩放模式（`≥ 0`）时；
+2. 否则为场景中的 **`Canvas`** 组件（若存在）；
+3. 否则无适配：相机按原始 `orthoSize` 渲染。
+
+适配生效时，`orthoSize` 仍是缩放，不会被设计高度取代；场景中存在 `Canvas` 时上述补间同样适用。UI 不随缩放变化：UI 在适配到屏幕的设计分辨率中布局，缩放相机不会使其重新排版，屏幕空间 UI 也使用独立的投影绘制。
+
+`orthoSize` 取 `designResolution.y / 2` 时恰好显示设计画面；默认值 `540` 对应默认的 1080 像素设计高度。缩放模式、黑边示例与 `ScreenScaling` 字段见[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。
+
+## 匹配画布宽高比
+
+`updateCameraAspectRatio(world, aspect)` 将 `aspectRatio` 写入世界中**每个** `Camera` 组件。发布运行时在启动时以画布的 `width / height` 调用它，使创作字段与实际表面保持一致。渲染每帧由当前视口推导宽高比，不读取 `aspectRatio`。
+
+```typescript
+import { updateCameraAspectRatio } from 'esengine';
+
+updateCameraAspectRatio(app.world, canvas.width / canvas.height);
+```
+
+## 屏幕 ↔ 世界坐标
+
+`CameraView` 资源在屏幕空间与世界空间之间转换，例如将实体放到指针下方或检测可见性。没有相机时，各方法均返回 `null`。
+
+```typescript
+import { defineSystem, Res, CameraView, Input } from 'esengine';
+
+const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
+  const world  = view.pointerToWorld(input.mouseX, input.mouseY);  // { x, y } | null
+  const screen = view.worldToScreen(x, y);                         // { x, y } | null
+  const mouse  = view.getWorldMousePosition();                     // { x, y } | null
+  const bounds = view.getWorldBounds();   // { left, right, bottom, top } | null
+});
+```
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `pointerToWorld(px, py, planeZ = 0)` | `{x, y} \| null` | `Input` 报告的指针位置（CSS 像素，y 向下）→ `planeZ` 平面上的世界位置。 |
+| `screenToWorld(sx, sy, planeZ = 0)` | `{x, y} \| null` | 帧缓冲像素（y 自底边向上）→ `planeZ` 平面上的世界位置。正交相机忽略该平面；透视相机下应传入目标所在的 z。将指针坐标传入此方法会得到关于视口中心镜像的结果，指针坐标应使用 `pointerToWorld`。 |
+| `worldToScreen(wx, wy, wz = 0)` | `{x, y} \| null` | 世界位置 → 帧缓冲像素。没有相机或该点位于眼睛处或其后方时为 `null`；视口之外的点仍返回坐标。 |
+| `screenRay(sx, sy)` / `pointerRay(px, py)` | `{origin, dir} \| null` | 经过某帧缓冲像素或指针位置的世界射线，用于与 z 平面以外的平面求交。 |
+| `getWorldMousePosition()` | `{x, y} \| null` | 世界空间中的光标位置。 |
+| `getWorldBounds()` | `{left, right, bottom, top} \| null` | 可见的世界矩形。 |
+
+转换使用相机导演解析出的、未叠加震屏的主视图（见[相机导演](/docs/zh-cn/graphics/camera/blending/#相机导演)）。
+
+## 另请参阅
+
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)：设计分辨率适配、缩放模式、`ScreenScaling` 与 `pixelPerfect`。
+- [动画](/docs/zh-cn/animation/overview/)：对 `orthoSize` 做补间。
+- [输入](/docs/zh-cn/scripting/input/)：用于拾取的指针输入。
+- [UI](/docs/zh-cn/ui/overview/)：UI 在屏幕空间渲染，与相机无关。

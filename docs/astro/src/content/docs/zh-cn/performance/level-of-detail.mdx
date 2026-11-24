@@ -150,5 +150,5 @@ world.insert(tree, Impostor, { screenSize: 0.06, frames: 8, resolution: 1024 });
 不会加载也不会卸载;小到 `cullSize` 以下的物体只是不画,并没有从世界里移走。
 把远处的物体合并成一个代理(HLOD),以及把世界分块加载,都是另外的题目;流送世界的格子由上面的烘焙得到远景代理。
 现有的是针对具体内容的:植物的远景版本(`Foliage`、`PlacedFoliage`,见[植被](/docs/zh-cn/graphics/foliage/))、
-地形自己按距离切分的四叉树([地形](/docs/zh-cn/graphics/terrain/)),以及[静态合批](/docs/zh-cn/performance/static-batching/)
+地形自己按距离切分的四叉树([地形](/docs/zh-cn/graphics/terrain/overview/)),以及[静态合批](/docs/zh-cn/performance/static-batching/)
 (把不同网格合并以省绘制调用,但不会让它们在远处变便宜)。

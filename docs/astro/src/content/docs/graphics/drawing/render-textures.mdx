@@ -1,0 +1,161 @@
+---
+title: Render Textures
+description: Offscreen render targets — RenderTexture for drawing or rendering a camera into a texture, TextureAtlas for packing textures onto one canvas at run time, and TextureCanvas for composing textures at known positions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+All three APIs produce an ordinary texture handle usable as `Sprite.texture`, in `Draw.texture` or as a material
+texture parameter.
+
+| API | Content |
+|---|---|
+| `RenderTexture` | Whatever is drawn between `begin` / `end`, or the scene as seen by a camera. |
+| `TextureAtlas` | Several textures packed automatically onto one canvas. |
+| `TextureCanvas` | Textures pasted at positions given by the caller. |
+
+## Offscreen targets: `RenderTexture`
+
+`RenderTexture.create` allocates an offscreen render target. Draw commands issued between `begin` and `end` render
+into it, under a view-projection matrix supplied by the caller.
+
+```typescript
+import { RenderTexture, Draw } from 'esengine';
+
+const rt = RenderTexture.create({ width: 256, height: 256, filter: 'linear' });
+
+RenderTexture.begin(rt, viewProjection);   // an orthographic view-projection
+Draw.circle({ x: 0, y: 0 }, 80, { r: 1, g: 0.5, b: 0, a: 1 });
+RenderTexture.end();
+
+sprite.texture = rt.texture;
+```
+
+`begin` / `end` redirect drawing only; they do not render the scene.
+
+### Rendering a camera into a target
+
+Setting `Camera.renderTarget` to the target's render-target handle (`rt._handle`, not `rt.texture`) makes that camera
+render into the target instead of the screen.
+
+- Target cameras render before the screen cameras and do not compete to be the main view.
+- `Camera.cullingMask` selects the sorting layers the camera sees, so a minimap camera and the player camera can show
+  different parts of the same world.
+- A render target can be shown on a `Sprite` on both backends. The pixel check of this path runs on WebGL2 only; on
+  WebGPU a frame readback returns empty when one frame contains both an offscreen and a surface pass.
+
+### `RenderTextureOptions`
+
+| Field | Default | Description |
+|---|---|---|
+| `width` / `height` | — | Target size in pixels (required). |
+| `depth` | `true` | Attaches a depth buffer. Disable for pure 2D compositing to save memory. |
+| `filter` | `'nearest'` | Sampling filter of the result: `'nearest'` or `'linear'`. |
+| `floatColor` | `false` | Requests a blendable half-float colour target, for linear radiance or data. |
+
+### Methods
+
+| Method | Effect |
+|---|---|
+| `create(options)` | Allocates the target. Returns a handle with `texture` (resource-table handle for components), `textureId` (raw device id for low-level paths), `width`, `height`. |
+| `begin(rt, viewProjection, { data? })` | Redirects subsequent draws into the target. `data: true` stores what is drawn as data, bypassing the project's post chain (linear capture, output transform, exposure). |
+| `end()` | Ends offscreen rendering. |
+| `resize(rt, width, height)` | Releases and re-creates the target. Returns a new handle; the `texture` handle changes. |
+| `getDepthTexture(rt)` | The depth attachment as a sampleable texture handle. |
+| `contentLost(rt)` / `contentDrawn(rt)` | Whether the device was rebuilt since the target was last drawn (the storage is zero-filled); `contentDrawn` clears the flag after redrawing. Needed for targets drawn once, such as a baked mask. |
+| `release(rt)` | Frees the target and its textures. |
+
+{/* SHOT: draw-minimap-camera | Scene view with a second camera whose Render Target is set and whose Culling Mask excludes the UI layers, and a sprite in the corner showing that camera's render texture as a minimap; Details shows the Camera card with Render Target and Culling Mask */}
+
+## Atlas packing: `TextureAtlas`
+
+Sprites that share a texture draw in one batch. `TextureAtlas.pack` draws separately obtained textures — icons from a
+server, character parts, player-selected images — onto one canvas at run time and reports where each landed.
+
+![Four coloured cards as separate sprites along the bottom, and the one canvas they were packed onto, drawn small beside them](@/assets/guides/en/texture-atlas.png)
+
+*Each card is a sprite cut from the same canvas (shown small on the right). The white square at each card's top-left
+and the dark bar along its bottom confirm the orientation.*
+
+```typescript
+import { TextureAtlas } from 'esengine';
+
+// In a Schedule.Update system: the canvas is painted in a pass of its own.
+const atlas = TextureAtlas.pack([iconA, iconB, iconC], { padding: 2 });
+if (!atlas) return;                      // renderer not ready; retry next frame
+
+world.insert(entity, Sprite, { ...atlas.sprite(iconB), size: { x: 64, y: 64 } });
+```
+
+`sources` are texture handles (the values `Sprite.texture` holds).
+
+| Member | Returns / effect |
+|---|---|
+| `atlas.sprite(source)` | `{ texture, uvOffset, uvScale }` for a `Sprite`. |
+| `atlas.get(source)` | The entry: pixel rectangle (`x`, `y` from the top, `width`, `height`) and its UV window, or `undefined`. |
+| `atlas.texture`, `atlas.width`, `atlas.height` | The canvas texture handle and size. |
+| `atlas.repaint()` | Redraws the canvas from the sources (after a source changes). |
+| `atlas.release()` | Frees the canvas. Sources are not affected. |
+
+| Option | Default | Description |
+|---|---|---|
+| `maxSize` | `2048` | Largest canvas edge to try, in pixels. `pack` throws if the textures do not fit. |
+| `padding` | `2` | Transparent pixels between pictures, so filtered edges do not sample a neighbour. |
+| `filter` | `'linear'` | Canvas sampling: `'linear'` or `'nearest'` (pixel art). |
+
+Behaviour:
+
+- The canvas is the smallest power-of-two size that holds all sources, widening before it grows taller. Pictures are
+  copied without blending, so transparency is preserved exactly.
+- A handle passed twice is packed once.
+- The source textures must stay alive while the atlas is in use; after a lost graphics device the canvas is redrawn
+  from them automatically.
+- `pack` returns `null` while the renderer is not ready, and throws when a handle has no size. Call it from a
+  `Schedule.Update` system, not a draw callback.
+- As with `RenderTexture`, the pixel check of showing the canvas on a `Sprite` runs on WebGL2 only.
+
+The [Render Texture example](https://github.com/esengine/estella/tree/master/examples/render-texture) builds four cards
+and packs them (`src/systems/atlas.ts`).
+
+## Composing at known positions: `TextureCanvas`
+
+`TextureCanvas` creates a blank canvas into which textures are pasted at given positions, for example a character
+built from parts or a card with an icon and a frame. The result is shown on a `Sprite`.
+
+```typescript
+import { TextureCanvas } from 'esengine';
+
+// In a Schedule.Update system: each paste is a pass of its own.
+const canvas = TextureCanvas.create(256, 256);       // blank, transparent
+if (!canvas) return;                                 // renderer not ready; retry next frame
+canvas.draw(body, 96, 100);                          // (x, y) = the picture's top-left corner
+canvas.draw(head, 104, 46);
+canvas.draw(head, 190, 20, 24, 24);                  // optional width and height scale it
+world.insert(entity, Sprite, { texture: canvas.texture, size: { x: 512, y: 512 } });
+```
+
+| Member | Effect |
+|---|---|
+| `TextureCanvas.create(width, height, { filter? })` | A transparent canvas; `filter` is `'linear'` (default) or `'nearest'`. `null` while the renderer is not ready. Call from a `Schedule.Update` system, not a draw callback. |
+| `canvas.draw(source, x, y, width?, height?)` | Pastes `source` with its top-left at (`x`, `y`) in pixels from the canvas's top-left, y pointing down. Drawn at its own size unless `width` and `height` are given. Pastes blend over earlier ones in order. |
+| `canvas.clear()` | Returns to transparent and forgets all pastes. |
+| `canvas.release()` | Frees the canvas. Pasted textures are not affected. |
+| `canvas.texture`, `canvas.width`, `canvas.height` | Texture handle and size. |
+
+- The pasted textures must stay alive; after a lost graphics device the canvas is redrawn from them in the same order.
+- The canvas is an ordinary texture and is shown without `flipY`.
+- For pictures without predetermined positions, use `TextureAtlas.pack`.
+
+The [Texture Canvas example](https://github.com/esengine/estella/tree/master/examples/texture-canvas) builds a figure
+from seven pastes.
+
+<Aside type="note">
+  `TextureAtlas` and `TextureCanvas` are built on `RenderTexture`; each paints in a pass of its own, which is why both
+  are called from `Schedule.Update` systems rather than from draw callbacks.
+</Aside>
+
+## See also
+
+- [Custom Drawing](/docs/graphics/drawing/overview/) — draw callbacks and the `Draw` API.
+- [Texture Regions & Sampling](/docs/graphics/sprites/textures/) — `uvOffset` / `uvScale` and filtering.
+- [Camera](/docs/graphics/camera/multiple-cameras/#render-targets-and-layers) — `renderTarget` and `cullingMask`.

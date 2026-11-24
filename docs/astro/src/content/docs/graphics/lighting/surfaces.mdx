@@ -1,0 +1,157 @@
+---
+title: Lit Surfaces
+description: How renderers receive light — the lit flag, Lit-domain materials and their shader helpers, normal maps, metallic and roughness through applyLightingPBR, and environment lighting from flat, hemisphere and baked .hdr ambients.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Renderers are unlit by default and ignore every `Light`. A renderer receives light through the `lit` flag or through a
+material whose shader declares the **Lit** domain. All lit surfaces (3D meshes, sprites and `applyLightingPBR` in a
+material) use the same BRDF.
+
+{/* SHOT: light-lit-sprite-normal-map | Scene view with Preview FX on: two copies of the same sprite under one Point light, the left with the Lit checkbox only (flat), the right with a material from the Lit template and a normal map showing relief; Details shows the right sprite's material with its normal map parameter. */}
+
+## The `lit` flag
+
+`Sprite` and `MeshRenderer` have a `lit` field (the **Lit** checkbox in Details). It lights the renderer without a
+material; a sprite is lit with a flat normal, and every light type, falloff and shadow applies. A custom material
+overrides the flag. The effect of `lit` on a mesh with a lightmap is described in
+[Baked Lighting](/docs/graphics/lighting/baked/#lit-and-baked-light).
+
+```typescript
+app.world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: hero, lit: true });
+```
+
+## Lit materials
+
+For a tint parameter, a normal map or custom surface logic, use a material whose shader declares `#pragma domain Lit`.
+The engine injects the `LightConstants` block and the lighting helpers. The vertex stage is optional for 2D shaders:
+
+```glsl
+#pragma shader "MyLit"
+#pragma version 300 es
+#pragma domain Lit
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+uniform sampler2D u_textures[8];
+out vec4 fragColor;
+
+// #pragma domain Lit injects the LightConstants block and applyLighting2D().
+void main() {
+  vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+  vec3 N = vec3(0.0, 0.0, 1.0);                 // flat normal, facing the camera
+  vec3 lit = applyLighting2D(base.rgb, N, v_worldPos);
+  fragColor = vec4(lit, base.a);
+}
+#pragma end
+```
+
+In the editor, **Content Browser → New Material → Lit** creates a lit material with a tint and an optional normal map.
+A Material Graph with its domain set to `Lit` produces the same kind of material
+([Materials & Shaders](/docs/graphics/materials/overview/)). From code:
+
+```typescript
+import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const litMat = Material.create({ shader: Material.compileShader(myLitSource) });
+
+const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [, sprite] of q) sprite.material = litMat;
+});
+```
+
+Every renderer with a `material` field (`Sprite`, `SpineAnimation`, `ParticleEmitter`, `MeshRenderer`, `UIVisual`) is
+lit the same way.
+
+### Normal maps
+
+`N` passed to `applyLighting2D` is the surface normal. A constant `vec3(0, 0, 1)` gives evenly lit, flat surfaces. A
+normal sampled from a **normal map** gives per-pixel relief: the same base colour receives highlights and shading from
+each light's direction. Declare the normal texture with `#pragma param … texture`
+([Materials & Shaders](/docs/graphics/materials/esshader/#declaring-parameters)).
+
+### Metallic, roughness and specular
+
+`applyLighting2D` is the non-reflective case. The general form evaluates the same lights through a microfacet BRDF and
+can be called from any Lit shader:
+
+```glsl
+highp vec3 P = vec3(v_worldPos, 0.0);
+highp vec3 lit = applyLightingPBR(
+  base.rgb,                 // albedo
+  N,                        // surface normal
+  P,                        // world position
+  viewDirection(P),         // toward the camera, from the frame block
+  u_metallic,               // 0 = dielectric, 1 = metal
+  u_roughness,              // 0 = mirror, 1 = fully diffuse
+  u_specular,               // glTF specularFactor: 0 removes the highlight
+  1.0                       // ambient occlusion
+);
+```
+
+| Helper | Description |
+|---|---|
+| `applyLighting2D(albedo, N, worldPos)` | `applyLightingPBR` with `metallic = 0`, `roughness = 1`, `specular = 0`. |
+| `applyLighting2DLayer(albedo, N, worldPos, layer)` | As above, honouring lights' layer ranges ([Layer range](/docs/graphics/lighting/lights/#layer-range)). |
+| `applyLightingPBR(albedo, N, P, V, metallic, roughness, specular, ao)` | Full BRDF. |
+| `viewDirection(worldPos)` | Unit vector toward the camera, from the eye position in the frame block. Constant for an orthographic camera; per-pixel for a perspective one. |
+
+A metal has no diffuse term and reflects only. In the absence of an environment it reflects the scene's ambient light,
+treated as arriving equally from every direction, so a metal with no `Ambient` light is black wherever no light points
+at it.
+
+A material with `specular` 0 skips the specular lobe for every light, which is cheaper on a phone
+([Color Space & Quality](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)).
+
+## Environment lighting
+
+An `Ambient` light's term has three forms:
+
+| Form | Fields | Result |
+|---|---|---|
+| Flat | `color`, `intensity` | The same colour from every direction. |
+| Hemisphere | `hemisphere`, `color`, `groundColor` | `color` from above, `groundColor` from below, blended by surface facing. |
+| Environment | `environment` | A baked panorama: diffuse light by facing direction and a prefiltered reflection for metals and glossy surfaces. Replaces the flat and hemisphere terms. |
+
+The first `Ambient` light carrying an `environment` is the frame's environment. `color` and `intensity` scale it.
+
+### Importing an `.hdr` panorama
+
+| Method | Result |
+|---|---|
+| Drag a `.hdr` onto the Content Browser | The file is copied into the project and baked. |
+| Place one in the project folder | The editor detects and bakes it. |
+| `estella import-hdr <file> [outDir]` | The same bake from the command line. `--face-size <n>` sets the resolution of the sharpest reflection level. |
+
+The bake writes two files beside the source:
+
+- **`<name>.esenv`** — the diffuse half as nine irradiance coefficients (no texture).
+- **`<name>_env.png`** — a prefiltered reflection atlas with one mip per roughness level.
+
+The panorama itself is not shipped; a light references the `.esenv`.
+
+```typescript
+cmds.spawn().insert(Light, {
+  type: LightType.Ambient,
+  environment: 'assets/sky.esenv',
+  intensity: 1,
+});
+```
+
+`environmentRotation` turns sky, diffuse light and reflection together. `drawEnvironment` also draws the panorama as the
+background (the camera still decides whether a background is drawn). `diffuseScale` and `diffuseTint` change the light
+given to surfaces without changing reflections or the drawn sky.
+
+{/* SHOT: light-environment-ambient | Details of an Ambient Light with Environment set to a baked .esenv, Environment Rotation and Draw Environment visible; the scene view behind shows a metallic sphere reflecting the panorama with the environment drawn as sky. */}
+
+## See also
+
+- [Lights](/docs/graphics/lighting/lights/)
+- [Materials & Shaders](/docs/graphics/materials/overview/)
+- [Sprites](/docs/graphics/sprites/overview/)

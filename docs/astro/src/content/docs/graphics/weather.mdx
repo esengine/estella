@@ -1,110 +1,116 @@
 ---
 title: Weather
-description: A Weather component that puts a scene under clear, mist, overcast, rain, storm or snow, turns between them, and cycles by itself.
+description: Weather component reference — Clear, Mist, Overcast, Rain, Storm and Snow presets, transitions and cycles, what a weather drives (lights, shadows, fog, rain, snow, reflections, sky, wind, grade, exposure, sound), custom presets, and the deterministic scene clock.
 ---
 
-A scene's weather is not a pile of effect parameters. A project's fog is in its own units and its sun is as bright
-as its author made it, so a weather is expressed as **multipliers of what the scene already says** — the sun at a
-quarter of its strength, the fog five times as thick, the picture a little greyer — plus a few levels that mean the same
-everywhere: how hard it rains, how wet the ground is. The same preset then fits any project.
+A weather is expressed as **multipliers of what the scene already authors** — the sun at a quarter of its strength, fog
+five times as dense, the image slightly greyer — plus a few absolute levels with the same meaning in every project, such
+as rain intensity and ground wetness. The same preset therefore fits any project regardless of its fog units or sun
+brightness.
 
-## Start from the whole environment
+## Outdoor environment
 
-The parts of an outdoor scene point at one another: the clock moves the sun, the sky draws clouds that cast shadows, the fog reads those
-clouds so a gap in them is a beam, and the weather scales it all. **Create → Rendering → Outdoor Environment** makes the working arrangement
-at once, in one root: a sun, a sky light, a clock, a weather and a global volume with the sky, the haze and a plain grade, set for the engine's
-own scale of a hundred units to the metre. Change a number in any of them, or delete what you do not want; it is an ordinary set of entities.
+The parts of an outdoor scene depend on one another: the clock moves the sun, the sky draws clouds that cast shadows, the
+fog reads those clouds so gaps become light shafts, and the weather scales all of it. **Create → Rendering → Outdoor
+Environment** creates this arrangement under one root: a sun, a sky light, a `TimeOfDay`, a `Weather`, and a global
+Post Process Volume with sky, height fog and a neutral grade, set for the engine's reference scale of 100 units per
+metre. The result is an ordinary set of entities; edit or delete any part.
 
-## The component
+{/* SHOT: weather-outdoor-environment | The Create menu open at Rendering → Outdoor Environment, and beside it the Hierarchy showing the created root with Sun, Sky Light, Time Of Day, Weather and the global Post Process Volume */}
 
-Add a `Weather` component to one entity.
+## Component
 
-| Field | What it does |
+Add `Weather` to one entity.
+
+| Field | Description |
 |---|---|
-| `preset` | The weather the scene is in: Clear, Mist, Overcast, Rain, Storm, Snow. Default Clear. |
-| `target` | The weather it is turning into; None for none (the default). |
-| `progress` | How far along that turn it is (0–1, default 0). The game advances it; set it in the editor to preview a half-turn. |
-| `duration` | Seconds a turn takes (default 6). |
-| `sequence` | Presets to cycle through by themselves, comma separated — `clear,mist,rain,clear`. Empty (the default) stays put. |
-| `hold` | Seconds each weather of the sequence holds before the next turn (default 20). |
+| `preset` | Current weather: Clear, Mist, Overcast, Rain, Storm, Snow. Default Clear. |
+| `target` | Weather being transitioned to; None (default) for no transition. |
+| `progress` | Transition progress, 0–1 (default 0). Advanced by the system during play; set in the editor to preview a partial transition. |
+| `duration` | Transition time in seconds (default 6). |
+| `sequence` | Presets to cycle through automatically, comma separated, e.g. `clear,mist,rain,clear`. Empty (default) holds the current weather. |
+| `hold` | Seconds each weather in the sequence holds before the next transition (default 20). |
 | `drive` | What the weather drives: Lights, Fog, Rain, Grade, Exposure, Reflections, Sound, Wind. All by default. |
-| `soundSource` | An entity with a looping `AudioSource` — the sound of the rain. The weather raises its `playing` while it rains and sets its volume to the authored one times how hard it rains. |
+| `soundSource` | An entity with a looping `AudioSource` for rain sound. The weather raises its `playing` while it rains and sets its volume to the authored volume × rain intensity. |
 
-A turn is eased, so it starts and ends gently, and a finished turn lands on its target and clears itself.
+Transitions are eased in and out. A finished transition sets `preset` to the target and clears `target`.
 
 ![Details of a Weather component with the weathers, the transition target and progress](@/assets/guides/en/details-weather.png)
 
-*The **Weather** component: the weathers to switch between, and the transition below them.*
+*The **Weather** component: the presets, and the transition below them.*
 
 ## In the editor
 
-The Details panel shows the built-in weathers as buttons (a project's own preset id still works and shows as Custom), the
-move toward the next one as a progress you can drag, the cycle and what the weather drives, and a readout of what it is doing
-to the picture right now — the key light's scale, the fog's, the wetness and the rain. Rain and fog reach the picture through a
-Post Process Volume, which the panel says.
+Details shows the built-in weathers as buttons (a project's own preset id still works and shows as **Custom**), the
+transition progress as a draggable value, the cycle and the drive flags, and a live readout of the current effect on the
+image: key-light scale, fog scale, wetness and rain. Rain and fog reach the image through a Post Process Volume, which
+the panel indicates.
 
-## What a weather changes
+## What a weather drives
 
-- **Lights.** Directional lights are scaled (and tinted) and the ambient light is scaled, from the strengths they were
-  authored with — the weather scales your number, never its own last answer — and they are put back when the weather
-  is taken away or `Lights` is switched off. Only while the game runs: in the editor the lights are left alone, so
-  previewing a weather never changes the scene you save.
-- **Shadows.** The directional light's shadows get softer (a source `shadowSoftness` suns wide) and lighter (`shadowStrength` times
-  the authored darkness) as the sky clouds over, the way an overcast sky's shadows fade into the ground.
-- **Fog.** Height Fog's density, its sun glow and the volumetric light it carries are scaled, its sky haze is raised, and
-  its colour moves toward the weather's.
-- **Snow.** The [Snow Cover](/docs/graphics/terrain/#blending-what-stands-on-the-ground) effect is brought with the weather (when the scene has none) and lies on whatever faces the sky, and the Rain effect's `snowfall` draws the flakes coming down. It goes with the same `Rain` drive.
-- **Rain.** The Rain effect is brought with the weather (when the scene has none) at the preset's strength, and Rain and
-  Screen Space Reflections are given the wetness and puddles it leaves. Where the scene authored its own rain, the
-  weather can only raise it.
-- **Reflections.** A baked reflection probe shows the sky it was baked under, so a rainy street would mirror a sunny one.
-  The ambient light carries `reflectionScale` and `reflectionSaturation` for exactly this: what baked probes show is
-  multiplied by the first and drained of colour by the second, and the weather turns both down.
-- **Sky.** A Sky Atmosphere effect takes the preset's `overcast` as cloud coverage and haze: the clouds thicken and join up, and the sun, moon and stars behind them are hidden by the same transmittance.
-- **Wind.** The preset's `wind` scales how fast a Sky Atmosphere's clouds drift and how far plants sway (a Foliage material's `u_windStrength`, a Sway sprite's `u_swayWind`) and `waves` scales the height of the waves on every body of water, in what is drawn and in what the surface answers.
-- **Grade and exposure.** Colour Grade's saturation and contrast are scaled, and Auto Exposure's compensation raised.
+| Drive | Effect |
+|---|---|
+| **Lights** | Directional lights are scaled and tinted and the ambient light is scaled, from their authored values (the weather always scales the authored number, never its own previous result). They are restored when the weather is removed or `Lights` is switched off. Applied only during play; in the editor lights are left alone, so previewing a weather never changes the saved scene. As the sky clouds over, directional shadows become softer (the `shadowSoftness` multiplier widens the sun's source) and lighter (`shadowStrength` × the authored darkness). |
+| **Fog** | Height Fog density, sun glow and carried volumetric light are scaled, sky haze is raised, and the fog colour moves toward the weather's. |
+| **Rain** | The Rain effect is added (if the scene has none) at the preset's intensity, and Rain and Screen Space Reflections receive the resulting wetness and puddles. Where the scene authors its own rain, the weather can only increase it. **Snow** uses the same drive: the [Snow Cover](/docs/graphics/terrain/overview/#snow-and-wet-surfaces) effect is added (if the scene has none) and lies on sky-facing surfaces, and the Rain effect's `snowfall` draws falling flakes. |
+| **Reflections** | A baked reflection probe shows the sky it was baked under, so a rainy street would reflect a sunny one. The ambient light's `reflectionScale` and `reflectionSaturation` multiply and desaturate what baked probes show, and the weather lowers both. |
+| **Wind** | The preset's `wind` scales Sky Atmosphere cloud drift and plant sway (a Foliage material's `u_windStrength`, a Sway sprite's `u_swayWind`); `waves` scales wave height on every water body, both drawn and as returned by surface queries. |
+| **Grade**, **Exposure** | Colour Grade saturation and contrast are scaled, and Auto Exposure compensation is raised. |
+| **Sound** | The `soundSource` volume and playback follow rain intensity. |
 
-The effects are applied after the scene's volumes have blended, so a scene that fogs itself thinly stays thinner than
-one that fogs itself thickly in the same rain.
+A Sky Atmosphere effect also takes the preset's `overcast` as cloud coverage and haze: clouds thicken and join, and the
+sun, moon and stars behind them are hidden by the same transmittance.
 
-## Your own weathers
+Effects are applied after the scene's volumes have blended, so a scene with thin fog remains thinner than one with thick
+fog under the same rain.
+
+## Custom presets
 
 ```ts
-import { registerWeatherPreset, WEATHER_CLEAR } from 'esengine';
+import { registerWeatherPreset } from 'esengine';
 
-// A preset names only what it changes; everything else is neutral.
+// A preset names only what it changes; everything else stays neutral.
 const sandstorm = registerWeatherPreset('sandstorm', {
   sun: 0.5, fogDensity: 10, fogTint: [0.82, 0.62, 0.38], fogTintAmount: 0.85,
   saturation: 0.8, exposure: 0.4,
 });
 ```
 
-A custom preset answers to its name in a `sequence`, and to the id `registerWeatherPreset` returns in `preset` and
-`target`. Registering a built-in name again retunes it.
+`registerWeatherPreset(name, preset)` returns the preset's id. A custom preset is referenced by name in `sequence`, and
+by the returned id in `preset` and `target`. Registering a built-in name again retunes that preset.
 
-## Turning by code
+## Transitions from code
 
-The component is data: write `target` and `progress: 0` and the system does the rest.
+The component is data: write `target` and `progress: 0`, and the system performs the transition.
 
 ```ts
+import { Weather, WEATHER_RAIN } from 'esengine';
+
 world.insert(weatherEntity, Weather, { target: WEATHER_RAIN, progress: 0, duration: 10 });
 ```
 
-## A moment, not a sum of frames
+## Scene clock
 
-Where a Weather is comes from where its run began and how long it has run: the scene clock, the game's own seconds of play (a paused
-game stands, a slowed one slows). Any moment can be worked out without playing up to it, the same `t` is the same weather on every machine,
-and a cutscene or a replay can move the clock where it likes.
+A weather's state derives from when its run began and how long it has run, measured on the scene clock: the game's own
+seconds of play (a paused game stands still; a slowed game slows). Any moment can be computed without playing up to it,
+the same `t` gives the same weather on every machine, and a cutscene or replay can move the clock freely.
 
 ```ts
-import { seekSceneClock, sceneClock, weatherAt, hourAt } from 'esengine';
+import { seekSceneClock, sceneClock, weatherAt, WEATHER_CLEAR, WEATHER_NONE } from 'esengine';
 
-seekSceneClock(240);   // the weather, the hour and the clouds as four minutes in, from the next frame
+seekSceneClock(240);   // weather, hour and clouds as at four minutes, from the next frame
 sceneClock();          // seconds of play the clock has run
 
-// Or ask without moving anything: where a Weather that began as `start` is 90 s later.
+// Query without moving anything: a Weather that began as `start`, 90 s later.
 weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 10, sequence: 'clear,mist,rain', hold: 8 }, 90);
 ```
 
-Writing the component by hand (as above) begins a new run from what was written, so a script's turn and the clock agree. The clouds go to where
-the sky's wind, summed over the weather's changes of strength, would have carried them.
+| Function | Description |
+|---|---|
+| `seekSceneClock(t)` | Moves the scene clock to `t` seconds, effective from the next frame. |
+| `sceneClock()` | Seconds of play the clock has run. |
+| `weatherAt(start, t)` | `{ preset, target, progress }` of a weather that began as `start`, `t` seconds later. |
+
+Writing the component directly (as in [Transitions from code](#transitions-from-code)) starts a new run from the written
+values, so a script's transition and the clock agree. Clouds are placed where the sky's wind, integrated over the
+weather's changes of strength, would have carried them.

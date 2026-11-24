@@ -1,0 +1,134 @@
+---
+title: 阴影
+description: 阴影参考——网格阴影图（meshShadows、级联、图集分块、偏移）、ShadowCaster2D 遮挡体产生的 2D 阴影及其柔和度、通道上限与开销，以及作为无阴影图方案的 BlobShadow 圆片。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 有三种阴影机制：
+
+| 机制 | 启用方式 | 阴影对象 | 投射者 |
+|---|---|---|---|
+| 网格阴影图 | `Light.meshShadows` | 3D 几何体 | GPU 常驻的 `MeshRenderer` 几何体 |
+| 2D 阴影 | 遮挡体上的 `ShadowCaster2D`；Directional 光上的 `shadowDistance` | 受光表面，在 XY 平面内 | `ShadowCaster2D` 轮廓 |
+| 圆片阴影 | 实体上的 `BlobShadow` | 地面上的圆片 | 实体本身（与光源无关） |
+
+一盏光源可以同时投射网格阴影和 2D 阴影。光源的 `shadowStrength` 对两者都起作用。
+
+## 网格阴影
+
+在 `Directional`、`Spot` 或 `Point` 光上开启 **`meshShadows`** 后，引擎从光源视角渲染网格深度，使几何体遮挡照向其他表面的光。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // 光线方向
+  .insert(Light, {
+    type: LightType.Directional,
+    meshShadows: true,
+  });
+```
+
+| 光源类型 | 阴影图 |
+|---|---|
+| Directional | 覆盖视野的级联，或设置 `shadowExtent` 时的单张固定图。 |
+| Spot | 一张覆盖光锥的图。 |
+| Point | 六张图（立方体）。 |
+
+- **共享预算。** 投影光源共享一张图集，每帧最多十六张阴影图（画质设置 **阴影贴图数**：低 / 中 / 高为 8 / 12 / 16）。一级级联、一盏 Spot 光、云影各占一张；一盏 Point 光占六张。Point 与 Spot 光先分配，要么得到全部所需，要么一张也没有；随后 Directional 光从最远的级联开始让出。图集空间是另一项限制，因为方向光的阴影图占用更大的区域。
+- **投射与接收。** 只有 GPU 常驻的 `MeshRenderer` 几何体参与投射和接收。精灵受同一光源照亮，但通过 `ShadowCaster2D` 产生阴影。`MeshRenderer` 上的 `castShadows: false` 使其不投射阴影。
+- **覆盖范围。** 级联跟随相机。`shadowExtent` 将其替换为以投影网格为中心、该半径的单张图，以分辨率换取范围。为远处背景设置 `castShadows: false`，它就不会把阴影图从前景拉开。
+- **半影。** Directional 光的半影宽度取自 `sourceAngle`；Point 或 Spot 光取自 `shadowSoftness`。柔和网格阴影需要完整 3D 光照；直接级别下有尺寸的光源投射硬阴影（[3D 光照级别](/docs/zh-cn/graphics/lighting/color-and-quality/#3d-光照级别)）。
+- **痤疮与脱开。** `shadowBias` 与 `shadowSlopeFloor` 调整深度比较（[阴影字段](/docs/zh-cn/graphics/lighting/lights/#阴影)）。
+- **分块光源**不投射网格阴影（[每帧光源上限](/docs/zh-cn/graphics/lighting/lights/#每帧光源上限)）。
+
+<Aside type="caution">
+  每张阴影图都要重新渲染投射到其中的网格；Point 光要渲染六次。只照射锥形区域的灯具应使用 Spot 光。Details 中的 Light Status 显示分配到的阴影图数以及不足的原因。新的分配失败会输出警告；相同的失败不会每帧重复输出。
+</Aside>
+
+{/* SHOT: light-mesh-shadows-status | A 3D scene with a Directional light (Mesh Shadows on) and a Point light casting mesh shadows; the Point light selected, its Light card in Details showing the Light Status line with granted shadow maps and the Mesh Shadows, Shadow Bias and Shadow Slope Floor fields. */}
+
+## 2D 阴影
+
+**`ShadowCaster2D`** 使实体成为 2D 光源的遮挡体：
+
+```typescript
+import { ShadowCaster2D } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(Sprite, { /* …一个受光材质… */ })
+  .insert(ShadowCaster2D, { size: { x: 64, y: 64 } });
+```
+
+### `ShadowCaster2D` 字段
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `size` | `{32,32}` | 遮挡体方框，世界单位，以实体为中心并随之旋转。设置 `path` 时忽略。 |
+| `path` | `[]` | 遮挡体的局部轮廓：三个及以上沿形状顺序排列的点。取代方框。 |
+| `enabled` | `true` | 启用阴影投射。 |
+
+实体需要 `Transform`。在 Details 中，**描出精灵轮廓**（Trace Sprite）用从实体精灵 alpha 描出的剪影替换轮廓。
+
+{/* SHOT: light-shadow-caster-2d | A sprite with ShadowCaster2D selected in the scene view, its traced outline drawn as a gizmo, a Point light nearby casting the shadow; Details shows the Shadow Caster 2D card with the Trace Sprite button. */}
+
+### 光源设置
+
+阴影质量在光源上设置，而不是在遮挡体上：
+
+| `Light` 字段 | 说明 |
+|---|---|
+| `shadowSoftness` | 光源尺寸。`0` 为硬边；更大的值产生更宽的半影，遮挡体越靠近被投影表面，边缘越锐利。 |
+| `shadowDistance` | 仅 Directional 光：阴影从遮挡体延伸的距离。`0`（默认）不投射 2D 阴影。Point 与 Spot 光的阴影延伸到 `radius`。 |
+| `shadowStrength` | 阴影去除的光照比例，0–1。小于 1 的值近似阴影区域内的反弹光。 |
+
+半影是沿光源绘制的多个剪影之和。数量由画质设置 **2D 软阴影采样数**（`shadowSoftSamples`，1–32；低 / 中 / 高为 8 / 12 / 16；关闭画质系统时为 16）决定，位于 **项目设置 → 渲染 → 画质**。采样越少开销越低，边缘出现条带；达到十六时条带不再显得像多道独立的阴影。
+
+### 通道与开销
+
+2D 阴影是绘制出来的，而非逐像素求解。每帧引擎取出所有启用遮挡体的边，将它们对每个投影光源遮住的区域绘制到一张屏幕大小的遮罩中，受光表面读取其中一个纹素。因此遮挡体数量是三角形数量，而不是着色器常量。
+
+限制作用于互相重叠的投影光源：
+
+- 遮罩共有 **八个通道**（两张遮罩各四个）。某帧中有光源带 cookie 时，第二张遮罩的纹理单元由 cookie 遮罩占用，只剩 **四个** 通道。
+- 两盏光源的照射范围都不触及对方的阴影时，可以共用一个通道。分散的光源都能投影；同一处的八盏光源会占满通道。
+- 带 `shadowDistance` 的 Directional 光覆盖整个屏幕，独占一个通道。
+- 照射范围内没有遮挡体的 Point 或 Spot 光不占用通道。
+- 通道按亮度顺序在逐像素光源和分块光源中分配。未分到通道的光源仍照亮场景，但不投射 2D 阴影。
+- 性能分析计数器 `render.shadow2d.unplaced` 报告未分到通道的光源数。
+
+要腾出通道，可关闭不需要的阴影（Directional 光设 `shadowDistance: 0`），或减小 `radius` 使光源不再重叠。
+
+## 圆片阴影
+
+**`BlobShadow`** 在实体下方的地面上绘制一个柔和的深色圆片，不需要阴影图、光源或额外的渲染 pass。适用于手机、人群以及光源不移动的场景。
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 40, z: 0 } })
+  .insert(MeshRenderer, { mesh })
+  .insert(BlobShadow, { radius: 60, opacity: 0.6, groundY: 0 });
+```
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `radius` | `50` | 圆片在地面上的半径，世界单位。 |
+| `opacity` | `0.5` | 中心的深浅，0–1。 |
+| `softness` | `0.6` | 边缘柔和度：`0` 为硬边，`1` 从中心开始渐隐。 |
+| `groundY` | `0` | 平坦地面的高度。 |
+| `fadeHeight` | `200` | 离地多高时阴影完全淡出；`0` 不淡出。 |
+| `shrink` | `0.5` | 到达 `fadeHeight` 时圆片的缩小程度：`0` 保持尺寸，`1` 缩至消失。 |
+| `lift` | `0.5` | 圆片高出地面的距离，用于避免深度冲突闪烁。 |
+| `enabled` | `true` | 启用圆片。 |
+
+地面不平坦时，`setBlobShadowGround(app, (x, z) => height)` 提供每个实体下方的地面高度；返回 `null` 时退回 `groundY`，传入 `null` 则移除该函数。
+
+圆片会被其前方的几何体遮挡，自身不写入深度。它不随光源拉伸，不会落在台阶或墙面上；只在需要落地感时使用。圆片是一个独立实体，不随场景保存。
+
+{/* SHOT: light-blob-shadow | A 3D character mid-jump above flat ground with a BlobShadow disc under it, smaller and fainter than at rest; Details shows the Blob Shadow card with Radius, Opacity, Softness, Ground Y, Fade Height and Shrink. */}
+
+## 参见
+
+- [光源](/docs/zh-cn/graphics/lighting/lights/)
+- [色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/)
+- [烘焙光照](/docs/zh-cn/graphics/lighting/baked/)

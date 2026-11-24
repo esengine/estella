@@ -1,0 +1,191 @@
+---
+title: Draw Order & Sorting
+description: Draw order of sprites and other 2D renderables — sorting layers, order within a layer, SortingGroup, scene order, y-sorted, hierarchy-order and depth-sorted layers, and SpriteMask clipping.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Overlapping sprites and other 2D renderables are drawn back to front by the following keys, highest priority first:
+
+| Key | Set by | Notes |
+|---|---|---|
+| Sorting layer | `layer` (`SortingGroup.layer` for group members) | Lower layers draw first (behind). |
+| Order | `Sprite.order` (`SortingGroup.order` for a group) | −128…127; higher draws on top. |
+| Layer ordering | Project settings per layer | z (default), world Y (y-sorted), hierarchy order, or the depth buffer (depth-sorted). |
+| Scene order | Entity order in the scene | Breaks remaining ties; later entities draw on top. |
+
+![Left: three sorting layers stacked so a higher layer draws in front. Right: on a Y-sorted layer a sprite lower on screen draws in front of one higher up.](@/assets/guides/sprite-sort.svg)
+
+## Sorting layers
+
+`layer` assigns a renderable to a sorting layer. Layers are named in **Settings → Project → Rendering → Layer names**;
+the inspector then shows `layer` as a dropdown (*Background*, *Default*, *Foreground*, …).
+
+- Up to 32 slots can be named. A slot's index is its draw position.
+- Names are labels only. The field accepts a number outside the list, and with no names defined `layer` is a plain
+  number field. The renderer sorts any integer.
+
+```typescript
+sprite.layer = 0;   // e.g. "Background"
+sprite.layer = 2;   // e.g. "Foreground", drawn on top
+```
+
+{/* SHOT: spr-sorting-settings | Settings → Project → Rendering: Layer names filled in (Background, Default, Gameplay, Foreground), Advanced settings shown with the Y-sorted layers and Depth-sorted layers checkbox lists, Gameplay checked as y-sorted */}
+
+## Order within a layer
+
+`Sprite.order` positions a sprite within its sorting layer: higher draws on top, range −128…127. `0` expresses no
+preference. A non-zero order overrides the layer's own ordering — z on a default layer, world Y on a y-sorted layer,
+depth on a depth-sorted layer.
+
+```typescript
+shadow.order = -1;  // under its owner at any position
+weapon.order = 1;   // over the hand holding it
+```
+
+On a y-sorted layer `order` is the only override, because z does not participate in the sort key.
+
+## Sorting groups
+
+`SortingGroup` makes an entity and its whole subtree sort as one unit. The group states the layer and order of the
+assembly; each member's `Sprite.order` becomes its position inside the group. No renderable outside the group is drawn
+between two members.
+
+| Field | Default | Description |
+|---|---|---|
+| `layer` | `0` | Sorting layer of the entire group; members no longer state their own. |
+| `order` | `0` | Order of the group within its layer, −128…127. |
+| `enabled` | `true` | Disables the group. |
+
+```typescript
+world.insert(character, SortingGroup, { layer: 2, order: 5 });
+// Inside the group, member orders only rank the parts against each other.
+world.update(body, Sprite, (s) => { s.order = 0; });
+world.update(arm, Sprite, (s) => { s.order = 1; });
+```
+
+Two grouped characters are ordered against each other by their groups only; their parts never interleave.
+
+Groups nest. A prefab with its own `SortingGroup` parented under an arm stays one block wherever the arm goes; the
+outer group still owns the layer, and the inner block is not split around a sibling of the arm.
+
+<Aside type="caution">
+  Members of a group and an ungrouped renderable with the same layer and order as the group interleave in an
+  unspecified way. Give each group a layer/order position of its own.
+</Aside>
+
+## Scene order
+
+When layer, order and the layer's ordering key are equal, entities draw in scene order: an entity further down the
+World Outliner draws on top. Dragging a row in the Outliner changes the result immediately in the scene view, matching
+the running game. A dragged parent moves its children with it.
+
+At run time, `world.applyEntityOrder(entities)` reorders the world's storage so that iteration — and therefore
+drawing within equal keys — follows the given list:
+
+```typescript
+// Among these three, `card` is drawn last.
+world.applyEntityOrder([other, another, card]);
+```
+
+- Listed entities iterate first, in the given order. Entities not listed keep their relative order after them.
+- Entity ids and component values are unchanged.
+- The call is ignored while a query is iterating.
+
+## Y-sorted layers
+
+Layers checked under **Settings → Project → Rendering → Advanced → Y-sorted layers** draw sprites, shapes and text in
+world-Y order: entities lower on screen draw on top, so a character below a tree is drawn in front of it.
+
+<Aside type="note">
+  Within a y-sorted layer, paint order takes precedence over material batching; overlapping draws that alternate
+  materials cannot merge into one draw call. Enable y-sort only on the layers that need it.
+</Aside>
+
+## Hierarchy-order layers
+
+`Renderer.setTreeSortLayers(mask)` selects layers (bits 0–31) whose sprites, labels and shapes stack in hierarchy
+order instead of by shader and depth: a parent before its children, an earlier sibling's subtree before a later
+sibling's. Used where a panel must cover the text of the panel beneath it.
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.setTreeSortLayers(1 << 3);   // layer 3 stacks in hierarchy order
+```
+
+## Depth-sorted layers (2.5D)
+
+Layers checked under **Settings → Project → Rendering → Advanced → Depth-sorted layers** resolve occlusion with the
+depth buffer, using each entity's `Transform` z, instead of paint order. With a perspective camera this gives 2.5D:
+sprites at different depths occlude each other correctly from any angle.
+
+Participation is determined by the material's blend mode:
+
+| Blend mode | Behaviour in a depth-sorted layer |
+|---|---|
+| `None` (opaque) | Writes depth; occluded by anything nearer, regardless of draw order. |
+| Any other (translucent) | Tests depth but does not write it; remains in back-to-front paint order. |
+
+The split is fixed: a translucent sprite that wrote depth would cut hard edges into the sprites behind it. A sprite
+that must occlude correctly needs an opaque material.
+
+The scene toolbar's **2D / 3D** button switches the editor view to a perspective camera for inspecting depth layers.
+It affects the editor view only; the Game view always uses the scene camera. Picking and dragging follow the
+perspective view, so a sprite at z = −400 is selected where it is drawn.
+
+<Aside type="note">
+  A layer is either y-sorted or depth-sorted. A layer checked in both lists is y-sorted. The usable z range is
+  ±`farPlane` under an orthographic camera (±1000 by default) and `nearPlane`…`farPlane` under a perspective camera;
+  content outside it is clipped.
+</Aside>
+
+## Sprite masks
+
+`SpriteMask` turns the entity's own `Sprite` into a stencil. Sprites drawn after it that opt in are clipped by its
+shape. The mask uses the sprite's texture, size, pivot, flips and 9-slice as authored, and the masking sprite itself
+is not drawn.
+
+| Field | Default | Description |
+|---|---|---|
+| `alphaCutoff` | `0` | 0–1. Above 0, fragments below this alpha do not mask, so the mask follows the sprite's shape instead of its rectangle. |
+| `limitRange` | `false` | Limits the mask's reach. Off: every sprite drawn after it. |
+| `rangeEndLayer` | `0` | Last sorting layer the mask reaches (with `limitRange`). |
+| `rangeEndOrder` | `0` | Last order inside that layer the mask reaches, inclusive (with `limitRange`). |
+| `enabled` | `true` | Disables the mask. |
+
+Masking is opt-in per sprite through `Sprite.maskInteraction`, so adding a mask never hides unrelated sprites:
+
+| `SpriteMaskInteraction` | Visible part |
+|---|---|
+| `None` (default) | Whole sprite; masks are ignored. |
+| `VisibleInside` | Only the part over the mask (a window). |
+| `VisibleOutside` | Only the part outside the mask (a hole). |
+
+```typescript
+import { SpriteMask, SpriteMaskInteraction, Sprite } from 'esengine';
+
+world.insert(hole, SpriteMask, { alphaCutoff: 0.5 });
+world.update(fog, Sprite, (s) => {
+  s.maskInteraction = SpriteMaskInteraction.VisibleOutside;  // a hole in the fog
+});
+```
+
+Reach and precedence:
+
+- A mask affects sprites drawn after it, in layer and order sequence. A sprite at the same layer and order as the mask
+  is not clipped.
+- Where two masks overlap, the nearer one (written last) determines the stencil, so each sprite is clipped by at most
+  one mask.
+- Masks affect rendering only. Picking, physics and spatial queries ignore them.
+
+{/* SHOT: spr-sprite-mask | Scene view: a dark fog sprite with Mask Interaction VisibleOutside and a round SpriteMask (Alpha Cutoff 0.5) cutting a circular hole in it; Details shows the SpriteMask card of the mask entity */}
+
+UI nodes use `UIMask` instead ([Masks & Visibility](/docs/ui/masks/)).
+
+## See also
+
+- [Sprites](/docs/graphics/sprites/overview/) — the `Sprite` component.
+- [Occlusion, Sight & Ground Effects](/docs/graphics/sprites/visibility/) — fading roofs, line of sight, fog of war.
+- [Project Settings](/docs/editor/settings/) — sorting layer names and per-layer ordering.
+- [Transforms](/docs/core-concepts/transforms/) — z, hierarchy and world space.

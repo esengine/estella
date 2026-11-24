@@ -1,0 +1,130 @@
+---
+title: Meshes
+description: Custom triangle meshes — MeshRenderer inline geometry and mesh assets, the MeshRenderers resource for run-time geometry, Billboard cards that face the camera, and the handle-based Geometry API drawn with Draw.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+| API | Model | Typical use |
+|---|---|---|
+| `MeshRenderer` | Component: sorted, saved, inspectable. | Procedural terrain slices, radial health arcs, water surfaces, imported meshes. |
+| `Geometry` | Immediate: a vertex-buffer handle drawn in a draw callback. | Custom vertex layouts paired with a material or shader. |
+
+## Custom meshes: `MeshRenderer`
+
+`MeshRenderer` renders an indexed triangle list. Geometry can be authored inline on the component: positions as x, y
+pairs, optional per-vertex UVs and colours, and indices.
+
+```typescript
+import { Transform, MeshRenderer } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(MeshRenderer, {
+    geometry: {
+      positions: [0, 0,  100, 0,  50, 80],
+      colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
+      indices: [0, 1, 2],
+    },
+  });
+```
+
+The component shares the standard renderable fields: `texture`, `color`, `layer`, `lit`, `parallax` and `material`.
+
+### Geometry sources
+
+| Source | Behaviour |
+|---|---|
+| Inline `geometry` | Run-time data supplied by code. Not an inspector field and not reachable through the editor's `set_field`; the edit viewport does not show geometry built by a script. |
+| `mesh` field | Geometry the entity keeps: a built-in shape (`builtin:cube`, `builtin:sphere`, `builtin:plane`, `builtin:quad`, …), an `.esmesh` asset, or at run time a handle from `assets.createMesh(data)`. |
+
+### Changing geometry at run time
+
+Inline geometry set in a scene or at spawn uploads automatically. Later changes go through the `MeshRenderers`
+resource; writing the `geometry` field alone is not detected.
+
+| Method | Effect |
+|---|---|
+| `setGeometry(entity, geometry)` | Replaces and re-uploads the geometry. Indices are validated by the engine. |
+| `getGeometry(entity)` | Returns the current geometry, or `undefined`. |
+| `clearGeometry(entity)` | Removes the geometry. |
+
+### Cards that face the camera: `Billboard`
+
+`Billboard` next to a `MeshRenderer` turns the mesh toward each view that draws it: signs, character sprites in a 3D
+world, distant trees on cards, lens glints.
+
+```typescript
+import { MeshRenderer, Billboard, BillboardMode } from 'esengine';
+
+world.insert(card, MeshRenderer, { mesh: 'builtin:quad', texture: tree, lit: false });
+world.insert(card, Billboard, { mode: BillboardMode.Upright });
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `mode` | `ViewPlane` | `ViewPlane`: lies flat in the view like a particle; every card in a view faces the same way. `Upright`: turns about world up only and stays standing as the camera looks down (trees, signs, characters). |
+| `enabled` | `true` | Off: the mesh keeps the entity's own rotation. |
+
+Behaviour:
+
+- The mesh's +Z is turned toward the viewer and its +Y up, which is how `builtin:quad` stands.
+- The rotation is computed per view at draw time; two cameras each see the card face-on. The entity's `Transform` is
+  never written, so scripts, physics and the editor gizmo read the authored rotation.
+- A shadow map is a view: the card turns toward the light there and casts its full outline.
+- A `Billboard` is not merged by [static batching](/docs/performance/static-batching/), and `MeshInstances`
+  placements are not turned.
+
+{/* SHOT: draw-billboard | Scene view in 3D with the camera looking down at an angle: several textured builtin:quad tree cards standing upright on the ground; Details shows the MeshRenderer card (Mesh builtin:quad) and the Billboard card with Mode Upright */}
+
+## Custom geometry: the `Geometry` API
+
+`Geometry` uploads an indexed vertex buffer and returns a handle, drawn in a draw callback with a
+[material](/docs/graphics/materials/code/) through `Draw.drawMeshWithMaterial(geometry, material, transform?)`, or with a
+raw shader through `Draw.drawMesh(geometry, shader, transform)`.
+
+```typescript
+import { Geometry, Draw, Material, registerDrawCallback } from 'esengine';
+
+const quad = Geometry.createQuad(120, 120);                  // 1 unit = 1 design pixel
+const mat = Material.create({ shader });                     // a compiled shader
+
+registerDrawCallback('custom-mesh', () => {
+  Draw.drawMeshWithMaterial(quad, mat);                      // identity transform
+});
+```
+
+### `GeometryOptions`
+
+| Field | Default | Description |
+|---|---|---|
+| `vertices` | — | Interleaved vertex data in one `Float32Array` (at most 64K floats per upload). |
+| `layout` | — | `VertexAttributeDescriptor[]`: one `{ name, type }` per attribute, in buffer order. |
+| `indices` | — | `Uint16Array` or `Uint32Array` triangle list (at most 16K indices per upload). |
+| `dynamic` | `false` | Allocates for frequent updates through `updateVertices`. |
+
+`DataType` gives each attribute's shape: `Float`, `Float2`, `Float3`, `Float4`, `Int`, `Int2`, `Int3`, `Int4`.
+
+### Methods and helpers
+
+| Method | Effect |
+|---|---|
+| `create(options)` | Uploads the mesh and returns a `GeometryHandle`. Throws on failure or oversized data. |
+| `updateVertices(handle, vertices, offset?)` | Rewrites vertex data of a `dynamic` geometry; `offset` in floats. |
+| `release(handle)` / `isValid(handle)` | Frees / checks a handle. |
+| `createQuad(width?, height?)` | Centred quad, default 1×1. Layout `a_position` + `a_texCoord`. |
+| `createCircle(radius?, segments?)` | Triangle-fan circle, defaults 1 and 32. Same layout. |
+| `createPolygon(points)` | Fan-triangulated polygon from `{ x, y }` points; UVs from its bounding box. Same layout. |
+
+The helper meshes use a `Float2` position and a `Float2` UV, matching fragment-only `.esshader` materials.
+
+<Aside type="note">
+  Triangles that only need per-vertex colour are simpler to draw with `Draw.triangles` or `Draw.createTriangles`
+  ([The `Draw` API](/docs/graphics/drawing/overview/#the-draw-api)).
+</Aside>
+
+## See also
+
+- [Vector Paths](/docs/graphics/drawing/vector-paths/) — `setPath` builds `MeshRenderer` geometry from paths.
+- [Materials & Shaders](/docs/graphics/materials/overview/) — materials for `MeshRenderer` and `Geometry`.
+- [Models](/docs/assets/models/) — imported meshes, skinning and morph targets.

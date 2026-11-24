@@ -1,0 +1,171 @@
+---
+title: .esshader 格式
+description: .esshader 着色器文件参考——pragma、着色器域、顶点与片元阶段、GLSL 到 WGSL 的派生、#pragma param 声明及其子句、纹理单元、注入的 uniform 与辅助函数、帧纹理、开关与预处理条件。
+---
+
+`.esshader` 文件在一个文件中容纳着色器的所有阶段及其元数据，各部分以 `#pragma` 行分隔。阶段以 GLSL ES 3.0 编写；WGSL 版本自动派生。
+
+```glsl
+#pragma shader "Tinted Sprite"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_tint color default(1,1,1,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+}
+#pragma end
+```
+
+{/* SHOT: mat-esshader-params | Split view: an .esshader open in the script editor with three #pragma param lines (a color, a float with range(0,4) ui(slider), a texture) and, beside it, the Details panel of a material bound to that shader showing the resulting colour picker, slider and texture slot. */}
+
+## Pragma
+
+| Pragma | 含义 |
+|---|---|
+| `#pragma shader "Name"` | 显示名称。 |
+| `#pragma version 300 es` | 所有阶段的 GLSL 版本行。 |
+| `#pragma domain <D>` | `Unlit`（默认）、`Lit`、`PostProcess`、`UI`。`Lit` 注入光照 uniform 与辅助函数。旧写法 `Unlit2D` / `Lit2D` 按 `Unlit` / `Lit` 加载。 |
+| `#pragma param …` | 反射的材质参数（[声明参数](#声明参数)）。 |
+| `#pragma switch NAME [default(on)]` | 面向材质的静态排列开关（一个 `#define`）。 |
+| `#pragma feature NAME` | 由引擎选择的编译期变体关键字。 |
+| `#pragma lighting direct` | `Lit` 着色器只接受光源块中的十六盏灯，且只有硬边阴影。编译时去除十六盏之外的分块光源、2D 光照遮罩、软阴影与头发阴影；无论场景是否使用，这些分支在手机上都会让每个像素付出代价。有尺寸的光源（太阳的 `sourceAngle`）在此投射硬阴影。Water 着色器声明了它；画质的 `low` 与 `medium` 级别会以此方式编译所有受光网格（[3D 光照级别](/docs/zh-cn/graphics/lighting/color-and-quality/#3d-光照级别)）。 |
+| `#pragma coverage PARAM` | 浮点参数 `PARAM` 大于零时，输出 alpha 即为覆盖率：镂空的 alpha 在裁剪值附近锐化到约一个像素宽（`cutoutCoverage(alpha, cutoff, fwidth(alpha))`）。不透明绘制写入多重采样目标时，覆盖率转为多重采样覆盖，镂空边缘因此抗锯齿；无多重采样时为硬切。任何距离下都在裁剪值处切割，与 glTF `MASK` 的定义一致：镂空缩小显示时仍保持面积，是因为 cook 将每级 mip 的 alpha 缩放到原图在裁剪值处的覆盖率。内置 Unlit、Model、Toon、Matcap 与 Hair 着色器声明了 `u_alphaCutoff`。 |
+| `#pragma tips PARAM` | 浮点参数 `PARAM` 大于零时，由第二遍混合绘制画出 alpha 低于裁剪值且在该范围内的区域。内置 Hair 着色器声明了 `u_tipSoftness`。 |
+| `#pragma hairshadow PARAM` | 浮点参数 `PARAM` 大于零时，使用该材质的网格在阴影中视为头发：太阳级联额外增加一个只拟合这些网格的级联；着色器若在计算光照前设置 `g_hairShadow`，阴影按沿光线的密度读取，而非硬比较。参数值即密度。内置 Hair 着色器声明了 `u_hairShadow`。 |
+| `#pragma gbuffer` | `PostProcess` 着色器在 `u_gbuffer` 处读取场景的表面记录（[G-buffer](/docs/zh-cn/graphics/post-processing/lighting/#g-buffer)）。只有链中有着色器声明了它，帧才会绘制 G-buffer。 |
+| `#pragma vertex` / `#pragma fragment` … `#pragma end` | 阶段代码体。`#pragma fragment wgsl` 开启一个手写的 WGSL 片元段。 |
+| `#include "path"` | 文本包含，由宿主解析。 |
+
+若 `#pragma param` 的名称与引擎已为该着色器域声明的名称相同，着色器在加载时被拒绝，所有平台一致：所有域中的 `u_time`、`u_viewport`、`u_projection`，以及 `Lit` 着色器中光源块的 `u_ambient`、`u_lights`、`u_shadowMatrix` 等。WebGL 中所有块成员共用一个命名空间，重复声明在该平台无法编译。
+
+## 阶段
+
+| 域 | 顶点阶段 |
+|---|---|
+| `Unlit`、`Lit` | 可选。无 `#pragma vertex` 时，引擎注入标准批处理顶点阶段。 |
+| `PostProcess` | 可选。无 `#pragma vertex` 时，引擎注入标准全屏顶点阶段。 |
+| `UI` | 必需。缺少顶点阶段的 `UI` 着色器加载失败（*Missing vertex shader stage*）。 |
+
+所有域都必须有片元阶段。
+
+### 只写片元
+
+2D 精灵将世界变换烘焙进批处理顶点，因此所有 2D 着色器共享同一个顶点阶段。只写片元的 `Unlit` 或 `Lit` 着色器可使用以下 varying：
+
+| Varying | 类型 | 值 |
+|---|---|---|
+| `v_color` | `vec4` | 每实例色调（精灵的 `color`）。 |
+| `v_texCoord` | `vec2` | 纹理 UV。 |
+| `v_worldPos` | `highp vec2` | 世界坐标（仅 `Lit` 域）。 |
+
+在带第二套 UV 的**网格**上（`MESH_LIGHTMAP` 变体），顶点阶段还会传递 `v_texCoord1`（`vec2`）：即原样的第二套 UV，与引擎由其推导出的光照贴图坐标并列。非烘焙材质可用它读取遮罩或溶解贴图。
+
+精灵纹理为 `u_textures[0]`。声明 `uniform sampler2D u_textures[8];`；单元 0–7 归批处理所有，纹理参数绑定在其上方（[纹理单元](#纹理单元)）。
+
+## GLSL 与 WGSL
+
+编辑器视口通过 WebGPU 绘制，网页构建也可能使用 WebGPU，因此每个着色器都需要 WGSL 版本。该版本由 GLSL 派生：编辑器在读取着色器时派生，每次导出在打包着色器时派生（与 GLSL 不再一致的已生成版本会重新派生）。带手写 `#pragma fragment wgsl` 块的着色器保留该块不变。若某个 GLSL 结构无法转换，构建会发出警告，该着色器仅在 WebGL2 路径上运行。
+
+`#if` 与 `#elif` 条件可使用 `defined`、`!`、`&&`、`||` 与括号，在 WGSL 版本中与在 GLSL 中按同样方式求值，因此使用引擎顶点阶段的受光材质或受光 2D 着色器在 WebGPU 上与在 WebGL2 上绘制结果一致。
+
+## 声明参数
+
+```glsl
+#pragma param u_tint      color   default(1, 1, 1, 1)
+#pragma param u_intensity float   default(1.0) range(0, 4) ui(slider)
+#pragma param u_mask      texture default(white)
+
+// … GLSL fragment code reading u_tint / u_intensity / u_mask …
+```
+
+语法：`#pragma param <name> <type> [clauses…]`。
+
+| 类型 | GLSL | 值的形式 | 备注 |
+|---|---|---|---|
+| `float` / `int` | `float` / `int` | `number` | 标量。 |
+| `vec2` / `vec3` / `vec4` | 同名 | `[x, y, …]` | 向量。 |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA，0–1；检视器中显示取色器。 |
+| `texture` | `sampler2D` | 纹理句柄 | 见下方 `default(…)` 与 `texel(data)`。 |
+
+| 子句 | 适用于 | 含义 |
+|---|---|---|
+| `default(…)` | 全部 | 初始值。纹理为未设置时的回退值：`white`、`black`、`flatnormal` 或 `ripples`（引擎自带的可平铺风浪波纹图：RG 与 BA 各存一组法线）。 |
+| `range(min, max)` | 数值 | 检视器中的范围。 |
+| `ui(slider)` | 数值 | 在检视器中显示滑块。 |
+| `texel(data)` | 纹理 | 着色器将纹素作为数值读取（法线贴图、打包的粗糙度）。项目健康检查会标记绑定在此处但仍标为 sRGB 的纹理，线性管线会将其按颜色解码。 |
+| `group(Name)` | 全部 | 检视器分区（[参数](/docs/zh-cn/graphics/materials/overview/#参数)）。 |
+| `unit(length)` / `unit(perLength)` | 数值 | 世界距离，或每单位距离的比率。见下文。 |
+
+参数存放在引擎生成的 std140 块中，并以其 `default(…)` 值初始化，因此从未设置某参数的材质也能正确绘制。
+
+### 世界单位
+
+表示世界距离的参数声明 `unit(length)`；表示每单位距离比率（雾或水的密度）的参数声明 `unit(perLength)`。其默认值与范围按引擎基准（每米 100 个世界单位）书写，并随项目的 **Units per Metre**（项目设置 → Physics → 3D）换算：`default(250) unit(length)` 表示 2.5 m，在厘米项目中为 250，在米项目中为 2.5。检视器显示项目单位下的数值，材质中写明的数值不会被缩放。组件长度与后处理效果的长度遵循同一规则。
+
+```glsl
+#pragma param u_foamWidth float default(120)    range(0, 2000) ui(slider) unit(length)
+#pragma param u_density   float default(0.0012) range(0, 0.04)            unit(perLength)
+```
+
+## 纹理单元
+
+在引擎面向的所有设备上，一次绘制有十六个纹理单元（WebGL2 与 WebGPU 均不保证更多），最高的一个保留给引擎。纹理参数按声明顺序占用单元 8–14。超过七个后，每多一个纹理参数便占用一个 8 号以下、且**本**着色器不采样其引擎纹理的单元。
+
+| 着色器 | 可供纹理参数使用的单元 |
+|---|---|
+| `Lit` | 8–14，以及 1 与 0：共九个。其余单元由阴影贴图、反射、形变增量、烘焙与两张 2D 遮罩占用。 |
+| `Unlit` | 除形变增量的单元（4）外全部可用：共十四个。 |
+| 读取 `u_textures` 的着色器 | 8–14；单元 0–7 保留给批处理。 |
+| `PostProcess` | 七个。 |
+
+在 WGSL 版本中，`t` 或 `s` 后跟数字（`t1`、`s0`）即为单元名称，同名局部变量也计入；使用此类名称的局部变量会使该单元保留给引擎。超出可用单元的参数以默认值绘制，控制台会指出未分配到单元的参数。
+
+## 注入的 uniform 与辅助函数
+
+引擎向每个编译的 `.esshader` 注入以下内容；着色器不得自行声明：
+
+| 注入项 | 可用范围 | 说明 |
+|---|---|---|
+| `u_time` | 总是 | `vec4` 帧时钟：`.x` 累计秒数，`.y` 帧间隔秒数。 |
+| `u_viewport` | 总是 | `vec4` 画布：`.xy` 像素尺寸，`.zw` = 1/尺寸（屏幕 UV = `gl_FragCoord.xy * u_viewport.zw`）。 |
+| MaterialConstants 块 | 着色器有参数时 | `#pragma param` 的值。 |
+| `applyLighting2D(albedo, N, worldPos)` | `Lit` | 应用场景所有灯光（含阴影），返回受光颜色。 |
+| `applyLighting2DAO(albedo, N, worldPos, ao)` | `Lit` | 同上，环境光项乘以 `ao`（1 = 无遮蔽）。 |
+| `applyLightingSurface(…)` | `Lit` | 带着色层的 PBR 光照（[在自定义着色器中使用着色层](/docs/zh-cn/graphics/materials/surface-shaders/#在自定义着色器中使用着色层)）。 |
+| `sampleNormal(map, uv)` | `Lit` | 解包切线空间法线贴图（RGB → [−1, 1]，归一化）。 |
+| `shadowFactor2D(worldPos, target, softness)` | `Lit` | 朝向某点的遮挡系数（由 `applyLighting2D` 使用）。 |
+| `distanceToEye(worldPos)` | 总是 | 世界坐标到相机的距离，与场景深度副本存储的量相同。 |
+| `sceneUv(worldPos)` | 总是 | 世界坐标在屏幕上对应的 UV，用于采样下文的帧纹理。 |
+| `sceneDistance(texel)` | 总是 | 将 `u_sceneDepthMap` 的一个采样解码为距离。`sceneDistance(texture(u_sceneDepthMap, sceneUv(P))) - distanceToEye(P)` 即不透明场景位于 P 之后的距离。 |
+
+## 帧纹理
+
+着色器以下列名称之一声明纹理参数时，绘制时会获得当前帧的画面。该帧必须经过后处理链。
+
+| 参数 | 内容 | 绘制时机 |
+|---|---|---|
+| `u_sceneColor` | 表面之后的不透明场景：水、折射玻璃。 | 不透明场景之后；其他混合绘制按深度叠加在其上。 |
+| `u_sceneDepthMap` | 不透明场景各像素到相机的距离（`texel(data)`）。 | 不透明场景之后。 |
+| `u_screenColor` | 截至此时已绘制的整帧画面，含混合绘制与粒子：扭曲、热浪。用于屏幕 UI 时，为其所在层之下的画面，带 mip 以供模糊（[UI 总览](/docs/zh-cn/ui/overview/)）。 | 所有其他绘制之后。 |
+
+## 开关与特性
+
+`#pragma switch` 声明一个由材质选择的静态排列。材质启用的开关（`.esmaterial` 的 `switches` 字段，或 `Material.compileShader` 的 `features` 参数）以 `#define` 形式编译进着色器。`#pragma feature` 关键字由引擎选择，而非由材质选择。
+
+## 另请参阅
+
+- [材质](/docs/zh-cn/graphics/materials/overview/)
+- [代码中的材质](/docs/zh-cn/graphics/materials/code/)
+- [受光表面](/docs/zh-cn/graphics/lighting/surfaces/) —— `Lit` 着色器与法线贴图。
+- [后处理](/docs/zh-cn/graphics/post-processing/scripting/#效果着色器) —— `PostProcess` 着色器。

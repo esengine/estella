@@ -346,7 +346,7 @@ whose components alone outlast the budget still costs its frame. A cell's far pr
 (above) carries its static meshes only: what moves, blends or is not a mesh
 (sprites, particles, lights) is not drawn while the cell is absent, and a
 proxy has one level, not a chain of coarser ones further out. Some content has a far version of its own:
-the ground ([Terrain](/docs/graphics/terrain/) is a distance-based quadtree out to
+the ground ([Terrain](/docs/graphics/terrain/overview/) is a distance-based quadtree out to
 `drawDistance`; tiled ground draws its distance from an overview that is always
 in memory and reads full-detail tiles only near the view; a planet is drawn down
 to its horizon), and plants (the far cards of [Foliage](/docs/graphics/foliage/)
@@ -356,7 +356,7 @@ at once. Mesh textures are held at the size their views need
 Navigation is baked a tile per square and follows residency (see
 [Navigation](/docs/gameplay/ai/navigation/#in-a-streamed-world)), but agents walk only where the world is loaded; and
 the world origin is never rebased (`setRenderOriginStep` keeps *drawing* precise
-far from zero, see [Camera](/docs/graphics/camera/)): how far that reaches is measured below.
+far from zero, see [Camera](/docs/graphics/camera/multiple-cameras/#large-worlds)): how far that reaches is measured below.
 
 ### How far from the origin a world stays precise
 

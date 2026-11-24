@@ -1,0 +1,179 @@
+---
+title: 脚本与自定义效果
+description: 在代码中使用后处理——PostProcess 资源与效果栈、多 pass 效果与子 pass 读取、纹理参数、效果注册表、WebGPU 上的计算效果，以及用 defineSkyEffect 定义的自定义天空。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`PostProcessVolume` 会自动解析效果、多 pass 布局、默认值和纹理引用（[后处理](/docs/zh-cn/graphics/post-processing/overview/)）。在代码中为相机构建固定的管线时，
+直接使用 **`PostProcess`** 资源。新效果通过 `registerEffect` 或 `defineSkyEffect` 加入共享注册表，随后与内置效果一样出现在编辑器的添加菜单中。
+
+{/* SHOT: pp-custom-effect-menu | PostProcessVolume Inspector with the add-effect menu open, showing a project-defined sky ("Dusk Sky", registered with defineSkyEffect) listed among the built-in Atmosphere effects. */}
+
+## 效果栈
+
+效果栈初始为空，每个单 pass 效果对应一个 **pass**。用 `getEffectDef(type).factory()` 从注册表获取效果的着色器，设置其带 `u_` 前缀的 uniform，再将效果栈绑定到相机：
+
+```typescript
+import { defineSystem, Query, Res, Camera, PostProcess, getEffectDef } from 'esengine';
+
+const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  const grade = getEffectDef('colorGrade')!;
+  for (const [camera] of q) {
+    const stack = pp.createStack();
+    stack.addPass('colorGrade', grade.factory!())
+         .setUniform('colorGrade', 'u_saturation', 1.3)
+         .setUniform('colorGrade', 'u_contrast', 1.1);
+    pp.bind(camera, stack);   // pp.unbind(camera) to remove
+  }
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `PostProcess.createStack()` | 创建一个空效果栈。 |
+| `stack.addPass(name, shader, scale?, continuesEffect?, minScale?)` | 追加一个 pass。`scale` 为其绘制尺寸占效果链尺寸的比例（默认 1）。可链式调用。 |
+| `stack.setUniform(pass, uniform, value)` | 设置浮点参数（带 `u_` 前缀）。可链式调用。 |
+| `stack.setTexture(pass, uniform, handle)` | 绑定纹理参数，例如 LUT。可链式调用。 |
+| `stack.setEnabled(name, on)` | 启用或禁用已添加的 pass。可链式调用。 |
+| `stack.removePass(name)` / `stack.clearPasses()` | 移除一个 pass 或全部 pass。可链式调用。 |
+| `stack.setDisplayLut(texture, amount)` | 设置最后一个 pass 的[显示 LUT](/docs/zh-cn/graphics/post-processing/color/#显示-lut)；`amount` 为 0–1，纹理为 0 时清除。可链式调用。 |
+| `PostProcess.bind(camera, stack)` / `unbind(camera)` | 为相机附加或移除效果栈。 |
+| `PostProcess.getStack(camera)` | 绑定到相机的效果栈，或 `null`。 |
+| `getEffectDef(type)` / `getAllEffectDefs()` / `getEffectTypes()` | 查询效果定义：着色器工厂、参数、子 pass。 |
+
+计算效果、引擎原生效果和输出阶段效果（`sharpen`、`voxelGI`、`displayLut`）没有 `factory`；这些效果由体积处理。仅在脚本中使用的效果，需要在包中导入其着色器组
+（[包中的效果](/docs/zh-cn/graphics/post-processing/overview/#包中的效果)）。
+
+## 多 pass 效果
+
+多 pass 效果（`bloom`、`ssao`、`depthOfField`、`heightFog`）在 `def.multiPass` 中列出其子 pass。按体积的做法添加每个子 pass 及其比例，并将第一个之后的子 pass
+标记为延续该效果：
+
+```typescript
+const bloom = getEffectDef('bloom')!;
+bloom.multiPass!.forEach((p, i) => stack.addPass(p.name, p.factory(), p.scale ?? 1, i > 0, p.minScale));
+```
+
+`scale` 小于 1 的子 pass 以效果链尺寸的该比例绘制。效果链的最后一个 pass 始终以全尺寸绘制。
+
+**读取更早的子 pass。** 子 pass 可以读取同一效果中任何更早的 pass，而不只是前一个：声明一个名为 `u_pass_<名称>` 的纹理参数
+（`#pragma param u_pass_bloom_down_2 texture default(black)`），效果链便会绑定名为 `<名称>` 的 pass 的输出，并使其保留到本 pass 执行完毕。泛光的升采样 pass
+即以此方式加回同尺寸的降采样结果。
+
+## 纹理参数
+
+部分效果接受纹理：`lutGrade` 与 `displayLut` 接受查找表，`palette` 接受色板条图，`skyAtmosphere` 接受云遮罩，`rain` 接受精灵纹理。在效果栈上用 `setTexture` 绑定；
+在 `PostProcessVolume` 上，将其作为资源引用列在该效果的 `textures` 下。
+
+```typescript
+stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory!())
+     .setTexture('lutGrade', 'u_lut', lutHandle)
+     .setUniform('lutGrade', 'u_intensity', 1);
+```
+
+## 效果着色器
+
+效果链中效果的片元着色器是 `PostProcess` 域着色器（`#pragma domain PostProcess`）。它在 `v_texCoord` 处以 `u_texture` 读取到目前为止的画面，可使用 `u_time` 和
+`u_viewport`，并用 `#pragma param` 声明参数（`#pragma param u_amount float default(1) range(0,1)`）。声明了 `#pragma gbuffer` 的效果会让帧写入
+[G-buffer](/docs/zh-cn/graphics/post-processing/lighting/#g-buffer)，并在 `u_gbuffer` 处读取。用 `Material.compileShader` 编译源码，并从效果的 `factory` 返回该句柄。
+
+## 注册效果
+
+`registerEffect(def)` 将一个效果类型加入编辑器与运行时共用的注册表。`EffectDef` 的主要字段：
+
+| 字段 | 说明 |
+|---|---|
+| `type`、`label` | 体积中存储的类型名；检视器标签。 |
+| `factory` | 编译效果的片元着色器（`PostProcess` 域着色器）。 |
+| `compute` | 代替 `factory`：WGSL 计算着色器（[计算效果](#计算效果)）。 |
+| `fallback` | 在没有计算阶段的设备上替代计算效果的片元 pass。 |
+| `multiPass` | 子 pass，每项为 `{ name, factory, scale?, minScale? }`。 |
+| `uniforms` | 浮点参数：`{ name, label, min, max, step, defaultValue, neutralValue? }`。`neutralValue` 为效果不产生作用的值（默认 0），供体积混合使用。 |
+| `textures` | 纹理参数：`{ name, label }`。 |
+| `colors` | 颜色参数：`{ name, label, defaultValue }`。 |
+
+## 计算效果
+
+效果可以是对整张画面运行的 WGSL **计算着色器**，而非一次绘制。这适合需要读取大量邻居或保留自身结果的效果。`sharpen` 即为一例。
+
+计算效果需要具有计算阶段的设备，即 **WebGPU**。在 WebGL2 上，带有 `fallback`（同样算术的片元 pass，`sharpen` 即有）的效果运行其 fallback；没有 fallback 的效果被移出
+效果链，画面原样通过。不带 fallback 的计算效果只应用于精修已经完整的画面。检视器将计算效果标为**仅 WebGPU**。运行时，引擎绑定 `postprocess_supportsCompute()`
+报告设备是否具有计算阶段。
+
+用 `compute` 代替 `factory` 注册：
+
+```ts
+import { registerEffect } from 'esengine';
+
+registerEffect({
+  type: 'myInvert',
+  label: 'Invert',
+  compute: { source: INVERT_WGSL, workgroupSize: [8, 8] },
+  // The params block: these, as f32s, in this order.
+  uniforms: [{ name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1 }],
+});
+```
+
+着色器在 group 0 接收以下绑定，声明其用到的绑定，入口函数名为 `main`：
+
+| 绑定 | 内容 | 声明为 |
+|---|---|---|
+| 0 | 到目前为止的画面 | `texture_2d<f32>` |
+| 1 | 输出画面，尺寸相同 | `texture_storage_2d<rgba16float, write>` |
+| 2 | 效果的 `uniforms`，按列出顺序作为 f32 | 以它们开头的结构体的 `var<uniform>` |
+| 3 | 尺寸，`vec4f(w, h, 1/w, 1/h)` | `var<uniform>` |
+| 4 | 场景深度 | `texture_depth_2d` |
+| 5 | 线性夹取采样器 | `sampler` |
+
+它以 `workgroupSize`（默认 8 × 8）为一组覆盖整张画面进行调度，因此着色器必须检查其像素是否位于图像内。
+
+## 自定义天空
+
+`defineSkyEffect` 将一个函数（天空沿某方向的辐亮度）转换为效果，`PostProcessVolume` 像携带其他效果一样携带它。天空绘制在场景之后。开启 **Light the Scene** 时，
+引擎约每秒读回一次它的小全景图，并将其作为场景的环境（漫反射光与反射），与 Sky Atmosphere 的做法相同。
+
+```typescript
+import { defineSkyEffect } from 'esengine';
+
+defineSkyEffect({
+    type: 'duskSky',
+    label: 'Dusk Sky',
+    colors: [{ name: 'u_horizon', label: 'Horizon', defaultValue: { r: 0.95, g: 0.55, b: 0.28, a: 1 } }],
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+        return mix(u_horizon.rgb, vec3(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+        return mix(mc.u_horizon.rgb, vec3f(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+});
+```
+
+| 选项 | 说明 |
+|---|---|
+| `type`、`label` | 效果类型与检视器标签。 |
+| `glsl`、`wgsl` | 各语言中的声明与 `skyRadiance`。返回线性辐亮度。 |
+| `uniforms` | 浮点参数。Brightness（`u_intensity`）与 Light the Scene（`u_lightScene`）自动添加。 |
+| `colors` | 颜色参数（vec4）。 |
+| `textures` | 天空自带的纹理（噪声表），按采样器名称给出，每项为一个返回像素的函数；平铺的表使用 `wrap: 'repeat'`。 |
+| `groundShadow` | 源码中同时定义 `skyShadow`；天空为地面投影（见下文）。 |
+| `over` | 其光叠加在场景背后已绘制的天空（环境全景图）之上，而不仅限于未绘制的位置。 |
+| `still` | 天空在参数变化之间保持静止：画质低于高档位时，它被绘制一次到全景图中（每帧一个条带），天空 pass 读取该全景图。 |
+
+在 `skyRadiance` 中，`sun` 为第一盏平行光的方向，`sunColor` 为其颜色乘以强度。绘制环境全景图时 `env` 为 1；此时应省略太阳圆盘，因为平行光已提供太阳的直射光。
+参数是 uniform（WGSL 中带 `mc.` 前缀），时间为 `u_time.x`。
+
+**地面阴影。** 设置 `groundShadow: true` 后，在第一个函数旁再写一个 `float skyShadow(vec3 world, vec3 sun)`（WGSL 为
+`fn skyShadow(world : vec3f, sun : vec3f) -> f32`），返回某个世界位置上剩余的太阳光比例，1 为全部。引擎在场景之前将其绘制到太阳的云影图中，与 Sky Atmosphere 的
+[Cloud Shadows](/docs/zh-cn/graphics/post-processing/sky-and-weather/#云影) 做法相同，第一盏平行光在为每个表面着色时被其削弱。天空光和自发光不被削弱。值为 0 时只剩天空光。
+`u_cloudShadowExtentKm`（默认 16 千米）为云影图在相机周围覆盖的范围。
+
+<Aside type="note">
+  `CanvasEffect` UI 材质使用与效果链效果相同的 `PostProcess` 域着色器模型（[CanvasEffect](/docs/zh-cn/ui/world-ui/#canvaseffect--经由一个材质画出的-canvas)）。
+</Aside>
+
+## 参见
+
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 着色器指令，包括 `#pragma gbuffer`。
+- [相机](/docs/zh-cn/graphics/camera/overview/)

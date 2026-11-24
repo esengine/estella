@@ -1,0 +1,150 @@
+---
+title: 遮挡、视野与地面效果
+description: 作用于精灵的俯视 2D 组件——用于屋顶与树冠的 CoverFade、用于 2D 雨的 RainShelter 与 RainUpright、SightViewer 与 SightTarget 视线、FogOfWar，以及 Footsteps 与 StepSurface。
+---
+
+本页的组件在俯视 2D 场景中把精灵视为一块地面，并根据站在其上或能看见它的对象，改变精灵的不透明度或绘制在该地面上的效果。
+
+| 组件 | 放置位置 | 作用 |
+|---|---|---|
+| `CoverFade` / `CoverFadeTarget` | 屋顶或树冠 / 玩家 | 目标站在下方时淡化遮挡的精灵。 |
+| `RainShelter` / `RainUpright` | 屋顶或树冠 / 直立的精灵 | 让 2D 雨不落在遮蔽的地面上 / 不画在直立的精灵上。 |
+| `SightViewer` / `SightTarget` | 玩家 / 不受光的精灵 | 隐藏被 `ShadowCaster2D` 墙挡住视线的精灵。 |
+| `FogOfWar` | 任意带 `Transform` 的实体 | 为 `fog2d` 效果提供未探索、已记住与可见的地面。 |
+| `Footsteps` / `StepSurface` | 行走者 / 地面精灵 | 沿行走路径留下水面涟漪与脚印。 |
+
+## 遮挡淡出
+
+绘制在所覆盖地面之上的屋顶或树冠会挡住从下方走过的实体。在遮挡的精灵上加 `CoverFade`、在必须保持可见的实体上加 `CoverFadeTarget` 后，目标站在其地面上时精灵会淡化：在 `fadeTime` 内过渡到自身 alpha 的 `opacity` 倍，目标离开后恢复。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `opacity` | `0.25` | 目标位于下方时，精灵 alpha 占自身的比例。 |
+| `fadeTime` | `0.25` | 淡出或恢复所需的秒数。 |
+| `margin` | `0` | 精灵边缘以外仍算作下方的地面宽度（世界单位）；目标到达边缘时即开始淡出。 |
+| `round` | `false` | 覆盖范围取矩形内接的椭圆（树冠），而不是整个矩形（屋顶）。 |
+| `enabled` | `true` | 禁用该组件。 |
+
+`CoverFadeTarget` 是没有字段的标签。覆盖范围为精灵的 `size` 与 `pivot` 乘以实体缩放，不读取旋转。淡化只在运行时生效。
+
+{/* SHOT: spr-cover-fade | Game view during Play: the player standing under a roof sprite with CoverFade, the roof faded to 25% showing the room beneath; Details shows the roof's CoverFade card */}
+
+## 遮雨
+
+2D 雨无法判断某一点上方有什么，因此由遮挡的精灵自行声明。场景的后处理体积中有 `rain2d` 效果时，带 `RainShelter` 的精灵所覆盖的地面保持干燥：没有雨线、涟漪与积水。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `round` | `false` | 覆盖范围取矩形内接的椭圆（树冠），而不是整个矩形（屋顶）。 |
+| `margin` | `0` | 精灵边缘以外同样保持干燥的地面宽度（世界单位），即屋檐。 |
+| `enabled` | `true` | 禁用该组件。 |
+
+干燥程度取决于被遮蔽地面的可见程度。不透明的屋顶显示的是屋顶，雨落在屋顶上；同一屋顶被 `CoverFade` 淡化后露出的房间是干燥的。因此屋顶同时带有这两个组件，房间显现时室内的雨随之停止。
+
+遮雨遮罩：
+
+- 每一帧，视野内的遮雨区被画入一张覆盖视野的遮罩（每个遮雨区一个矩形，椭圆由若干横条组成）。雨每个像素只读取遮罩中的一个纹素，因此开销不随遮雨区数量增长。
+- 遮罩默认宽 512 个纹素；遮雨区边缘的柔和程度约为视野尺寸除以该分辨率。
+- 效果的 **Shelter Mask Size**（`maskSize`，64–2048）设置分辨率。画质档位的 `shelterMaskSize` 为每档设定上限：低 256、中 512、高 1024（**项目设置 → 渲染 → 画质**）。
+
+### 直立的精灵
+
+雨合成在完成的画面之上，无法区分角色与地面。在站立于地面的精灵（角色、树干、箱子）上加 `RainUpright`，可去除其矩形范围内的涟漪、溅花、积水与潮湿变暗。下落的雨线仍会穿过它。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `inset` | `0` | 把受保护矩形四边各内缩该距离（世界单位），使脚边的地面仍然潮湿。 |
+| `enabled` | `true` | 禁用该组件。 |
+
+被 `CoverFade` 淡化的精灵按其可见程度阻挡雨。
+
+## 视线
+
+墙后受光的精灵本来就是暗的，因为墙的 `ShadowCaster2D` 挡住了光。不受光的内容则不然——不受光的敌人、它的血条、自发光的拾取物。`SightViewer` 与 `SightTarget` 在 CPU 上对同样的墙进行测试，用于这类内容：没有任何 `SightViewer` 对其有通畅视线时，`SightTarget` 精灵过渡到 `hiddenOpacity`。
+
+| 字段 | 所在组件 | 默认值 | 说明 |
+|---|---|---|---|
+| `radius` | `SightViewer` | `0` | 视距（世界单位）。`0` 表示不限，只有墙能阻挡。 |
+| `hiddenOpacity` | `SightTarget` | `0` | 无观察者看见时，精灵 alpha 占自身的比例。 |
+| `fadeTime` | `SightTarget` | `0.15` | 淡出或恢复所需的秒数。 |
+
+规则：
+
+- 包含观察者或目标的墙不阻挡这一对（站在灌木中的观察者能看到外面）。
+- 场景中没有观察者时，所有目标均隐藏。
+- `SightTarget` 与 `CoverFade` 不得放在同一精灵上，二者都控制其 alpha。
+
+供玩法代码使用的函数，结果与精灵所用的一致：
+
+| 函数 | 返回值 |
+|---|---|
+| `currentSightRings()` | 上一帧读取的墙体轮廓。 |
+| `segmentBlocked(from, to, rings)` | 线段是否被墙穿过。 |
+| `seesPoint(viewer, radius, target, rings)` | `target` 是否在 `radius`（0 为不限）之内且未被阻挡。 |
+
+视线只描述当前可见的内容。看过又离开的地面由战争迷雾记录。
+
+## 战争迷雾
+
+在带 `Transform` 的实体上加 `FogOfWar`，并在场景的后处理体积中加 `fog2d` 效果后，地面按 `SightViewer` 的所见着色：
+
+| 地面 | 外观 |
+|---|---|
+| 从未看见 | 未探索颜色。 |
+| 看见后离开 | 已记住：变暗并降低饱和度。 |
+| 视野内 | 按原样绘制。 |
+
+每一帧，每个观察者的视野通过向 `ShadowCaster2D` 墙投射射线求得，并画入覆盖组件矩形的两张图：当前可见，以及曾经可见。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `width`、`height` | `4096` | 迷雾覆盖的世界矩形，以实体为中心。可玩区域必须位于其中。 |
+| `texels` | `512` | 每边的图分辨率，32–2048：边缘更细，绘制开销更高。 |
+| `viewRadius` | `400` | `radius` 为 0 的观察者的视距。 |
+| `rays` | `256` | 每个观察者投射的射线数，16–1024：视野边缘的精细度。 |
+| `enabled` | `true` | 禁用该组件。 |
+
+`fog2d` 效果的 **Remembered Brightness**、**Remembered Desaturation** 与 **Unexplored Colour** 决定外观。没有 `FogOfWar` 的场景会关闭其 `fog2d` 效果，而不是渲染成黑色。
+
+持久化：
+
+| 函数 | 作用 |
+|---|---|
+| `exploredToString()` | 把已探索的图序列化为字符串，用于存档。 |
+| `exploredFromString(text)` | 恢复该图并重绘迷雾。数据与迷雾的 `texels` 不符时返回 `false`。 |
+
+图形设备丢失后，也由同一网格恢复两张图。
+
+{/* SHOT: spr-fog-of-war | Game view during Play with FogOfWar and a fog2d effect: dark unexplored ground, a dimmed desaturated explored corridor, and the clear field of view around the player cut by walls */}
+
+## 脚印与涟漪
+
+在行走者上加 `Footsteps`、在地面精灵上加 `StepSurface` 后，行走路径上会留下痕迹。行走者每移动 `stride` 个世界单位迈出一步，沿前进方向左右交替。
+
+| 表面 `kind` | 痕迹 |
+|---|---|
+| `Water`（默认） | 从三分之一大小开始扩散、在 `rippleLife` 内淡出的涟漪。 |
+| `Print` | 保持原大小、在 `printLife` 内淡出的脚印。 |
+| 无表面 | 不留痕迹，除非行走者设置了 `onBareGround`（脚印）。 |
+
+表面覆盖其精灵的矩形，设置 `round` 时为内接椭圆。两个表面覆盖同一点时，以精灵层更高者为准。
+
+| 字段 | 所在组件 | 默认值 | 说明 |
+|---|---|---|---|
+| `stride` | `Footsteps` | `28` | 两步之间的距离（世界单位）。 |
+| `width` | `Footsteps` | `10` | 左右脚之间的距离。 |
+| `printSize`、`printLife`、`printColor` | `Footsteps` | `14`、`6`、黑色 α 0.4 | 脚印长度、存续秒数、颜色（alpha 为峰值）。 |
+| `rippleSize`、`rippleLife`、`rippleColor` | `Footsteps` | `64`、`1.4`、白色 α 0.7 | 涟漪完全扩散时的宽度、存续秒数、颜色。 |
+| `layer` | `Footsteps` | `1` | 痕迹所在的精灵层：在地面之上、行走者之下。 |
+| `onBareGround` | `Footsteps` | `false` | 在没有 `StepSurface` 的地方也留下脚印。 |
+| `printTexture`、`rippleTexture` | `Footsteps` | `0` | 自定义纹理句柄；`0` 使用引擎绘制的椭圆与圆环。 |
+| `kind` | `StepSurface` | `Water` | `Water` 或 `Print`。 |
+| `round`、`margin` | `StepSurface` | `false`、`0` | 内接椭圆；边缘以外仍算作表面的地面宽度。 |
+
+每个痕迹都是引擎生成的精灵，不会被保存；所有行走者合计最多同时存在 256 个。行走者跨越世界的跳跃（瞬移）不产生步伐。
+
+## 另请参阅
+
+- [绘制顺序与排序](/docs/zh-cn/graphics/sprites/sorting/) —— 俯视场景的排序层与 Y 排序。
+- [阴影](/docs/zh-cn/graphics/lighting/shadows/#2d-阴影) —— `ShadowCaster2D` 墙。
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/) —— 后处理体积与效果。

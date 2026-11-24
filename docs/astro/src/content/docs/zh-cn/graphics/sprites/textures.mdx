@@ -1,0 +1,113 @@
+---
+title: 纹理区域与采样
+description: Sprite 如何映射纹理——翻转、UV 子区域与图集单元、uvRectFromPixels、UV 滚动、Simple / Tiled / NineSlice 绘制模式，以及逐纹理的过滤与环绕模式。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Sprite` 显示纹理中由 `uvOffset` / `uvScale` 选定、由 `flipX` / `flipY` 镜像的区域，并按 `drawMode` 将其排布到四边形上。纹理的采样方式（过滤与环绕）属于纹理句柄，而非精灵。
+
+## 翻转
+
+`flipX` 与 `flipY` 水平、垂直镜像显示区域，例如用一张纹理让角色朝左或朝右。翻转作用于 UV 矩形，不改变 `size`、`pivot` 或变换。
+
+## 子区域与图集单元
+
+`uvOffset` 与 `uvScale` 选定纹理的归一化子区域。默认值 `{0,0}` / `{1,1}` 显示整张纹理。
+
+UV 空间 Y 轴朝上：`v = 0` 是图像最下一行，`v = 1` 是最上一行，与图像编辑器的像素坐标相反。`uvRectFromPixels` 把以左上角为原点量出的像素矩形换算为 UV 窗口：
+
+```typescript
+import { uvRectFromPixels } from 'esengine';
+
+// 256×128 精灵表中位于像素 (64, 0) 的 32×32 单元。
+world.insert(entity, Sprite, {
+  texture: sheet.handle,
+  size: { x: 32, y: 32 },
+  ...uvRectFromPixels({ x: 64, y: 0, width: 32, height: 32 }, 256, 128),
+});
+```
+
+| 函数 | 返回值 |
+|---|---|
+| `uvRectFromPixels(rect, textureWidth, textureHeight)` | `rect`（像素单位的 `x`、`y`、`width`、`height`，`y` 自顶边向下量）对应的 `{ uvOffset, uvScale }`。 |
+
+<Aside type="caution">
+  手工计算 `uvOffset.y = y / height` 会选中上下镜像的单元。显示整张纹理的精灵上看不出该错误，只有图集单元会出错。
+</Aside>
+
+相关内容：
+
+- 分散的纹理可在运行时用 [`TextureAtlas`](/docs/zh-cn/graphics/drawing/render-textures/#图集打包textureatlas) 打包到一张画布上，它返回每个源的 `{ texture, uvOffset, uvScale }`。
+- 逐帧动画通过 [Animator](/docs/zh-cn/animation/overview/) 驱动这些字段。
+
+## 滚动
+
+随时间改变 `uvOffset` 会让纹理在精灵上滚动（水面、传送带）。此时 UV 超出 0–1 范围，纹理的环绕模式必须为 `Repeat`（[过滤与环绕](#过滤与环绕)）。
+
+## 绘制模式：平铺与九宫格
+
+`drawMode` 决定区域如何排布到四边形上：
+
+| `SpriteDrawMode` | 几何 |
+|---|---|
+| `Auto`（默认） | `tileSize` 两个分量都大于 0 时为 `Tiled`；否则纹理带九宫格边界时为 `NineSlice`；否则为 `Simple`。`tileSize` 优先于九宫格边界。 |
+| `Simple` | 一个四边形，区域拉伸到 `size`。 |
+| `Tiled` | 区域每隔 `tileSize` 重复一次，间隔 `tileSpacing`。需要 `tileSize`，未设置时按 `Simple` 绘制。 |
+| `NineSlice` | 四角保持 1:1，边沿单轴拉伸，中心双轴拉伸。需要纹理带九宫格边界，否则按 `Simple` 绘制。 |
+
+平铺行为：
+
+- `tileSize` 与 `tileSpacing` 以精灵本地单位计，并乘以变换缩放。
+- 每个瓦片作为独立的四边形输出，显示完整区域；远端边缘的瓦片会被裁切。因此平铺不依赖纹理的环绕模式。
+- 超过 16384 个瓦片的网格改为绘制一个拉伸的四边形。
+
+九宫格边界是纹理元数据，在纹理资源检视器中设置（[纹理](/docs/zh-cn/assets/textures/)）。
+
+{/* SHOT: spr-draw-modes | Scene view with three sprites of the same non-square size using one bordered texture: Draw Mode Simple (stretched), Tiled (Tile Size set) and NineSlice (texture with a slice border); Details of the Tiled sprite showing Draw Mode, Tile Size and Tile Spacing */}
+
+## 过滤与环绕
+
+采样参数按纹理句柄设置，作用于使用该纹理的所有精灵、材质与绘制。
+
+![同一张 16×16 纹理放大：Nearest 保留硬像素边缘，Linear 把它们混成平滑渐变](@/assets/guides/texture-filter.png)
+
+*同一张纹理放大约 15 倍。`Nearest` 保持纹素边缘清晰（像素画）；`Linear` 在纹素间插值（默认）。*
+
+| 枚举 | 取值 | 含义 |
+|---|---|---|
+| `TextureFilter` | `Nearest`、`Linear` | `Nearest`：纹素边缘清晰。`Linear`：平滑插值（默认）。 |
+| `TextureWrap` | `Repeat`、`ClampToEdge`、`MirroredRepeat` | 0–1 之外 UV 的采样方式：重复纹理、延伸边缘纹素、镜像重复。 |
+
+![各环绕模式对 0–1 之外 UV 的采样：Repeat 平铺纹理，Clamp to edge 拉伸边缘像素，Mirror 每隔一块翻转](@/assets/guides/texture-wrap.png)
+
+*0–1 之外的 UV（中间一块为纹理本身）：`Repeat` 平铺，`ClampToEdge` 延伸边缘纹素，`MirroredRepeat` 每隔一块镜像。*
+
+| 函数 | 作用 |
+|---|---|
+| `setTextureFilter(textureId, filter)` | 设置缩小与放大过滤。将环绕重置为 `ClampToEdge`。 |
+| `setTextureWrap(textureId, wrap)` | 设置两轴环绕。将过滤重置为 `Linear`。 |
+| `setTextureParams(textureId, minFilter, magFilter, wrapS, wrapT)` | 设置全部四个参数。 |
+
+```typescript
+import { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from 'esengine';
+
+setTextureFilter(tex.handle, TextureFilter.Nearest);   // 像素画
+setTextureWrap(tex.handle, TextureWrap.Repeat);        // UV 滚动
+
+// 同时设置过滤与环绕：
+setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
+                 TextureWrap.Repeat, TextureWrap.Repeat);
+```
+
+过滤与环绕的导入默认值属于纹理导入设置（[纹理](/docs/zh-cn/assets/textures/)）。
+
+<Aside type="tip">
+  `TextureFilter.Nearest` 让纹素保持清晰，但无法消除相机位于小数坐标时的闪烁。请配合相机的 `pixelPerfect` 标志，它把正交相机吸附到像素网格（[相机](/docs/zh-cn/graphics/camera/overview/#camera-组件)）。
+</Aside>
+
+## 另请参阅
+
+- [精灵](/docs/zh-cn/graphics/sprites/overview/) —— `Sprite` 组件及其字段。
+- [纹理](/docs/zh-cn/assets/textures/) —— 格式、导入设置与九宫格边界编辑器。
+- [渲染纹理](/docs/zh-cn/graphics/drawing/render-textures/) —— `TextureAtlas` 与 `TextureCanvas`。

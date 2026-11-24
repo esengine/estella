@@ -1,0 +1,104 @@
+---
+title: 噪声、震屏与冲击
+description: 画面扰动参考——CameraNoise 手持漂移、shakeCamera 瞬时震屏及其选项、CameraImpulseSource 与 CameraImpulseListener 按距离衰减的冲击，以及 fireImpulse。
+---
+
+噪声、震屏与冲击只移动**最终绘制的**画面，从不修改相机的 `Transform`。扰动不会累积，相机总会回到静止姿态，跟随、轨道与看向等阶段也都按相机的实际位置计算。
+
+| 机制 | 来源 | 作用范围 | 施加时机 |
+|---|---|---|---|
+| `CameraNoise` | 相机上的组件 | 该相机，持续作用 | 逐相机，混合之前 |
+| `CameraImpulseSource` / `CameraImpulseListener` | 在某位置发出的组件 | 监听的相机，按距离衰减 | 逐相机，混合之前 |
+| `shakeCamera` | 函数调用 | 解析出的主视图 | 混合之后 |
+
+{/* SHOT: cam-impulse-source-details | Scene view with an Impulse Source entity selected next to a Follow Camera 2D: Details panel showing the CameraImpulseSource card (Amplitude, Rotation, Frequency, Attack, Sustain, Decay, Radius, Dissipation, Fire) */}
+
+## 手持噪声
+
+`CameraNoise` 使相机像手持拍摄那样漂移和转动，或像在载具上那样摇晃：六个通道的平滑 Perlin 噪声，其中三个沿画面自身的右、上、前方向平移，三个绕相同的轴旋转。
+
+```typescript
+import { CameraNoise } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraNoise, { rotation: 0.5, frequency: 0.3 });              // 手持
+cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, frequency: 2 });     // 载具
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `amplitude` | number | `0` | 漂移距离，世界单位。 |
+| `rotation` | number | `0.5` | 转动角度，单位为度。约 `0.5` 对应手持相机。 |
+| `frequency` | number | `0.3` | 漂移改变方向的频率（Hz）：手持约 `0.3`，载具约 `2`。 |
+| `seed` | number | `0` | 噪声样式；`0` 由实体派生，因此任意两台相机的晃动都不相同。 |
+
+噪声在导演于相机间混合之前逐相机施加，因此从晃动的相机混合到稳定的相机时，晃动会逐渐平息。2D 相机在屏幕平面内漂移并翻滚。噪声遵循游戏时钟，游戏暂停时停止。与相机流水线的其余部分相同，它仅在播放模式下运行。
+
+## 震屏
+
+`shakeCamera` 为渲染的画面叠加一个逐渐衰减的扰动：
+
+```typescript
+import { shakeCamera } from 'esengine';
+
+shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
+```
+
+`shakeCamera` 与 `setViewTarget` 的第一个参数可以是 `App`（宿主代码），也可以是 `CameraDirector` 资源状态。在系统内部，传入 `Res(CameraDirector)` 的值：
+
+```typescript
+import { defineSystem, Res, Input, CameraDirector, shakeCamera } from 'esengine';
+
+const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, director) => {
+  if (input.isKeyPressed('Space')) shakeCamera(director, { amplitude: 16 });
+});
+```
+
+| 选项 | 默认值 | 说明 |
+|---|---|---|
+| `amplitude` | `12` | 峰值位置偏移（世界单位）。 |
+| `rotation` | `0` | 峰值旋转偏移（弧度）。 |
+| `frequency` | `22` | 每秒振荡次数。 |
+| `duration` | `0.4` | 衰减到零所需的秒数。 |
+
+冲击效果以震屏表达，而不是移动相机，因此画面总能恢复。进行中的震屏列于导演的 `shakes` 字段（[相机导演](/docs/zh-cn/graphics/camera/blending/#相机导演)）。
+
+## 冲击：来自某处的震动
+
+`shakeCamera` 不论起因位于何处，都以相同方式震动画面。冲击则按距离感受：靠近源的相机受到完整的冲击，较远的相机受到较弱的冲击或不受影响。`CameraImpulseSource` 发出冲击，每台带 `CameraImpulseListener` 的相机按其距离接收。
+
+```typescript
+import { CameraImpulseSource, CameraImpulseListener, fireImpulse } from 'esengine';
+
+cmds.entity(barrel).insert(CameraImpulseSource, { amplitude: 30, frequency: 8, decay: 0.6, radius: 300, dissipation: 2000 });
+cmds.entity(cameraEntity).insert(CameraImpulseListener, { gain: 1 });
+
+// 爆炸时：
+fireImpulse(world, barrel, 1.5);   // 设定强度的 1.5 倍
+```
+
+`fireImpulse(world, source, force = 1)` 从源实体的位置发出冲击；该实体没有 `CameraImpulseSource` 或 `Transform` 时返回 `false`。
+
+| `CameraImpulseSource` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `amplitude` | number | `20` | 满强度时画面的位移，世界单位。 |
+| `rotation` | number | `1` | 满强度时画面的转动，单位为度。 |
+| `frequency` | number | `8` | 抖动频率（Hz）。 |
+| `attack` / `sustain` / `decay` | number | `0.02` / `0.1` / `0.6` | 达到满强度、保持、衰减各需的秒数。 |
+| `radius` | number | `300` | 在此距离内以满强度感受到。 |
+| `dissipation` | number | `2000` | 超出半径后衰减到零所经过的距离。 |
+| `propagationSpeed` | number | `0` | 传播速度（世界单位/秒），远处的相机稍后才感受到；`0` 表示同时到达各处。 |
+| `channels` | bitmask | `1` | 能感受到它的监听者：通道位有交集者。 |
+| `fire` | boolean | `false` | 设为 true 即从该实体发出（由时间轴、可视化脚本，或播放时的 Details 面板设置）；发出后自动清除。 |
+
+| `CameraImpulseListener` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `channels` | bitmask | `1` | 该相机感受的冲击：通道位有交集者。 |
+| `gain` | number | `1` | 强度倍数：`1` 为原始强度，`0` 为不感受。 |
+| `use2DDistance` | boolean | `false` | 只在 X/Y 平面上度量距离，适用于离开所拍平面的 2D 相机。 |
+
+创建菜单中的 Impulse Source 会创建一个冲击源。Follow Camera 2D、Tracking Camera 与目标组相机组合均包含监听者。时间轴可通过轨道触发冲击源（[时间轴](/docs/zh-cn/animation/timeline/#相机震动)）。
+
+## 另请参阅
+
+- [跟随与构图](/docs/zh-cn/graphics/camera/follow/)：噪声之前的流水线阶段。
+- [混合与切换](/docs/zh-cn/graphics/camera/blending/)：施加震屏的导演。

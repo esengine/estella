@@ -1,0 +1,174 @@
+---
+title: 表面着色器
+description: 核心模板之外的内置表面着色器参考——Water、Model 着色器的潮湿地面贴图与着色层，以及 Skin、Hair、Eye 角色着色器的参数、行为与限制。
+---
+
+Model 着色器是金属/粗糙度表面，可选潮湿地面项与着色层。Skin、Hair 与 Eye 着色器用于金属/粗糙度参数无法描述的角色表面。它们与 Water 着色器都使用与所有 `Lit` 着色器相同的光照核心，因此阴影、基于图像的光照及其他光照效果均适用。
+
+{/* SHOT: mat-shading-layers | Details panel showing a Model material: the Shader section (Built-in · Model), the Base/UV/Normal groups collapsed, and the shading-layer sections Clear Coat and Sheen expanded with their header switches on; a sphere using the material visible in the inspector preview. */}
+
+## 水
+
+**Water** 着色器（`builtin:water`，模块 `esengine/water`）绘制水体：按实测水深折射，以及反射与泡沫。`WaterBody` 组件定义海洋、湖泊或河流的位置；`WaterZone` 将它们烘焙为一个用此着色器绘制的水面，以波浪抬升几何体，并响应代码中的水面查询。见[水](/docs/zh-cn/graphics/water/overview/)。
+
+## 潮湿地面
+
+Model 材质可在地面上叠加一张**潮湿贴图**，使表面部分区域潮湿、部分区域积水，而非整片同一粗糙度。
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `u_wetness` | `0` | 总体强度，0–1。为 `0` 时该项关闭，代价为一次比较。 |
+| `u_wetMask` | `black` | 按世界 X、Z 读取的潮湿贴图。红色：积水（0 为干，1 为水坑）。绿色：潮湿度。属于数据纹理（`texel(data)`），导入时关闭 sRGB。 |
+| `u_wetOrigin` | `(0, 0)` | 贴图起始的世界角点。 |
+| `u_wetSize` | `(0, 0)` | 贴图的世界尺寸。为 `0` 时不启用潮湿。 |
+| `u_wetDarken` | `0.4` | 潮湿区域的变暗量。 |
+| `u_wetRoughness` | `0.3` | 潮湿区域趋近的粗糙度。 |
+
+| 贴图取值 | 表面 |
+|---|---|
+| 潮湿（绿色或红色） | 按 `u_wetDarken` 变暗（孔隙中的水吸收了干燥表面会散射的光），并向 `u_wetRoughness` 变光滑。 |
+| 水坑（红色） | 变平（忽略法线贴图），近乎镜面，粗糙度 0.05。 |
+| 贴图范围外 | 干燥。 |
+
+贴图按平面图从自身角点读取的方式铺放：最左列位于原点的 X 处，**最上一行为远端（Z 最大）的边缘**，因此以 +Z 朝上绘制的贴图与世界对齐。
+
+在同一网格上添加 **Planar Reflection** 后，水坑会反射场景（[平面反射](/docs/zh-cn/graphics/lighting/planar-reflections/)）。
+
+## 角色着色器
+
+Skin、Hair 与 Eye 着色器属于 `esengine/character-shaders` 模块。Skin 与 Hair 与 Model 着色器一样，从网格自身的纹理获取基础色，并将 `u_normalMap` 与 `u_ormMap`（红色为遮蔽，绿色为粗糙度）作为**数据**纹理读取。两者导入时须**关闭** sRGB，否则颜色曲线会扭曲法线贴图，表面出现斑块。
+
+Skin 与 Hair 共有的参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `u_tint` | `(1, 1, 1, 1)` | 与基础色相乘。 |
+| `u_normalMap` | `flatnormal` | 切线空间法线贴图（数据）。 |
+| `u_normalScale` | `1` | 法线贴图强度，−4–4。 |
+| `u_ormMap` | `white` | 遮蔽（R）与粗糙度（G）（数据）。 |
+| `u_occlusionStrength` | `1` | 遮蔽强度，0–1。 |
+
+### 皮肤
+
+**Skin**（`builtin:skin`）按颜色通道柔化曲面的受光一侧，且不模糊画面：漫反射光取自比表面法线更柔和的法线，红色最柔和，因此毛孔与高光保持清晰。每个像素进行三次光照计算；该着色器用于近景角色，不适用于人群。
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `u_blurRed` / `u_blurGreen` | `3.2` / `1.6` | 漫反射法线相对表面法线的柔化程度，分别用于红色与绿/蓝色，以法线贴图的 mip 级别计。 |
+| `u_sssColor` | `(0.95, 0.4, 0.3, 1)` | 明暗交界线的颜色。 |
+| `u_sssWrap` | `0.45` | 光越过明暗交界线的距离。 |
+| `u_translucency` | `0.5` | 薄处或曲率大处的透光（耳朵、鼻翼、手指）。 |
+| `u_thinness` | `0.5` | 多大的曲率视为薄。 |
+| `u_roughness` | `1` | 贴图粗糙度的缩放，0–2。 |
+| `u_specular` | `1` | 高光强度，0–2。 |
+| `u_lobe2` / `u_lobe2Roughness` | `0.18` / `0.4` | 第二层更紧的高光瓣：权重与粗糙度。 |
+| `u_fuzz` | `0.1` | 照亮边缘的淡绒毛光。 |
+| `u_preIntegrate` | `0` | 预积分散射：越过明暗交界线的包裹光按颜色分离（红色最远），并在表面急转处变宽，使鼻翼、耳朵边缘透光而平坦的脸颊保持清晰。 |
+| `u_curvature` | `8` | 每世界单位内多快的转折视为急转。 |
+| `u_detailMap` | `flatnormal` | 平铺在表面上的第二张细节法线贴图，用于烘焙贴图纹素不足以表现的毛孔与皮纹。叠加在高光读取的锐利法线上，不叠加在柔和的漫反射法线上。导入时关闭 sRGB，包裹模式设为重复。 |
+| `u_detailStrength` | `0` | 细节贴图强度，0–2。为 `0` 时不使用。 |
+| `u_detailTile` | `16` | 细节贴图的重复次数。 |
+| `u_subsurface` | `0` | 将表面标记给[次表面散射](/docs/zh-cn/graphics/post-processing/lighting/#次表面散射)效果，该效果在更大尺度上扩散剩余的光，并模糊画面。 |
+
+### 头发
+
+**Hair**（`builtin:hair`）以发丝模型为发片与发带着色。漫反射为 Kajiya-Kay（发丝的受光程度取决于光线与发丝方向的夹角）；高光为两条沿发丝的窄高光，由偏移贴图相互错开：一条白色高光靠近表面，一条着色高光位于其下。
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `u_flowMap` | `white` | 发丝方向：红、绿通道为纹理上的方向（数据）。 |
+| `u_shiftMap` | `white` | 沿发丝逐处偏移高光（数据）。 |
+| `u_shiftAmount` / `u_shiftTile` | `0.35` / `6` | 偏移强度与偏移贴图的重复次数。 |
+| `u_shiftPrimary` / `u_shiftSecondary` | `-0.1` / `0.2` | 两条高光各自偏离发丝中线的距离。 |
+| `u_secondaryTint` | `(0.75, 0.45, 0.25, 1)` | 第二条高光的颜色。 |
+| `u_roughness` | `0.3` | 高光宽度；越低越窄。 |
+| `u_specular` | `1` | 高光强度，含环境反射。 |
+| `u_lobeGain` | `1` | 灯光绘制的发丝高光强度，与环境反射分开（环境反射仅由 `u_specular` 决定）。 |
+| `u_translucency` | `0.4` | 从背后透过发丝的光。 |
+| `u_strandDiffuse` | `0.6` | 漫反射中发丝项相对表面 N·L 的占比。`0` 为 Principled 着色器的漫反射，发片背光时变暗。 |
+| `u_anisotropy` | `0` | 大于 0 时，以 Principled 着色器的高光替代两条发丝高光：按此各向异性（Blender 的定义）沿发丝拉伸的 GGX，`u_specular` 作为镜面系数。从 Blender 导出且带各向异性的发片按此方式导入。 |
+| `u_sharpen` | `-0.8` | 颜色纹理的负 mip 偏移；防止细发丝在掠射角下被冲淡。 |
+| `u_rootDark` | `0.5` | 按遮蔽贴图压暗发根。 |
+| `u_clumpCount` | `0` | 将发片的发丝沿宽度绘制为该数量的发束。`0` 保持发片原样。 |
+| `u_clumpTone` / `u_clumpShift` / `u_clumpGap` | `0.25` / `0.3` / `0.3` | 每束的明暗差异、每束的高光偏移，以及束间接缝的变暗量。 |
+| `u_alphaCutoff` | `0` | 按纹理 alpha 镂空发片；MSAA 下由 alpha-to-coverage 柔化边缘。此时发片向阴影图投射自身形状，而非其矩形。 |
+| `u_tipSoftness` | `0` | 柔和外缘：alpha 低于裁剪值且在该范围内的区域，由第二遍混合绘制渐隐地画出发梢，与其他混合绘制一起排序。为 `0` 时不使用。 |
+| `u_hairShadow` | `0` | 沿光线方向每世界单位头发吸收的光量。大于 0 时，帧会为头发单独拟合一个阴影级联（排在太阳级联列表首位），使相隔几毫米的发片得以区分，透过的光随所穿过头发的深度衰减，与深度阴影图的读取方式一致。 |
+| `u_coverageMap`、`u_depthMap`、`u_attributeMap` | `white` | 毛发组烘焙的发丝纹理：覆盖率（R，与颜色 alpha 相乘）、发片下的深度（R）、属性（R 为从根部起沿发丝的位置，G 为每根发丝的值）。 |
+| `u_depthShade` | `0.5` | 发片下最深处发丝的变暗量。 |
+| `u_strandTone` / `u_strandShift` | `0` / `0` | 每根发丝的明暗与高光差异。 |
+| `u_strandNormal` | `0` | 为 `1` 时，每个纹素按 Strands 着色器为毛发组发丝打光的方式受光。 |
+| `u_rootColor` | `(1, 1, 1, 1)` | 根部颜色，按属性贴图的红色通道向尖端的 tint 过渡。 |
+
+头发模型通常由发片或发带构成而非真实发丝；该着色器为几何体补充其不具备的发丝着色。
+
+### 眼睛
+
+**Eye**（`builtin:eye`）由两张贴图和一组数值构成眼睛。视线在角膜处折射并下行至虹膜，因此眼球转动时虹膜在表面之后移动。角膜近似镜面，每盏灯与天空都会形成眼神光。网格上绘制的眼睛纹理与结果相乘。
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `u_depthMap` | `black` | 在虹膜与角膜穹顶上为白色（数据）。 |
+| `u_irisNormalMap` | `flatnormal` | 角膜穹顶的法线（数据）。 |
+| `u_ior` | `1.336` | 角膜折射率。 |
+| `u_irisDepth` | `0.06` | 虹膜在角膜之后的深度，以 UV 计。 |
+| `u_irisColor` / `u_irisColor2` | `(0.22, 0.4, 0.52, 1)` / `(0.08, 0.17, 0.22, 1)` | 从瞳孔边缘到角膜缘的虹膜颜色；带纤维纹理绘制。 |
+| `u_irisSize` | `0.42` | 虹膜大小。 |
+| `u_pupilSize` | `0.3` | 瞳孔大小。 |
+| `u_limbal` | `0.7` | 角膜缘环的暗度。 |
+| `u_scleraColor` | `(0.92, 0.9, 0.87, 1)` | 眼白颜色。 |
+| `u_scleraWrap` | `0.35` | 巩膜上越过明暗交界线的包裹光。 |
+| `u_corneaRoughness` / `u_scleraRoughness` | `0.04` / `0.45` | 角膜与巩膜的粗糙度。 |
+| `u_specular` | `1` | 高光强度。 |
+| `u_lidMap` | `white` | 手绘遮蔽贴图，眼睛睁开处为白色（数据）。 |
+| `u_lidShadow` | `0.5` | 在表面从 `u_lidStart` 到正上方朝上的区域变暗，并淡化角膜反射：头部直立时即上眼睑。 |
+| `u_lidStart` | `0.2` | 眼睑阴影的起点，以与世界向上轴的点积表示。 |
+
+## 着色层
+
+**Model** 着色器是金属/粗糙度表面，其上可叠加可选的着色层。每层在默认值下关闭；强度为零的层不产生开销，未设置任何层的材质即为普通表面。
+
+| 层 | 参数 | 说明 |
+|---|---|---|
+| 清漆（Clear coat） | `u_clearcoat`、`u_clearcoatRoughness` | 表面上的一层光滑漆：第二个更锐利的高光、底层按清漆反射的部分变暗，以及独立的环境反射。清漆使用表面自身的法线着色，因此凹凸贴图只使底层变粗糙，不影响清漆。车漆、清漆木材、湿石头。 |
+| 绒面（Sheen） | `u_sheenColor`、`u_sheenRoughness` | 布料在掠射角反射的柔光（Charlie 瓣），从底层中扣除，不增加能量。天鹅绒、缎面、毛毡。 |
+| 各向异性 | `u_anisotropy`（−1–1）、`u_anisotropyRotation` | 高光沿垂直于纹路的方向拉伸：拉丝金属、纤维、光盘。纹路方向为按 `u_anisotropyRotation` 旋转后的 UV 坐标系；环境反射按同一方向弯折。 |
+| 半透（Translucency） | `u_translucency`、`u_translucencyColor`、`u_thickness` | 散射进薄表面的光：受光面越过明暗交界线延伸，背后的灯光透过并带上颜色，表面越厚越弱。树叶、纸、蜡、灯罩、耳部皮肤。 |
+| 次表面 | `u_subsurface` | 将表面标记给[次表面散射](/docs/zh-cn/graphics/post-processing/lighting/#次表面散射)效果：体积中启用该效果时，受光颜色沿表面被模糊，红色最远。皮肤、蜡、大理石。 |
+| 薄膜干涉 | `u_iridescence`、`u_iridescenceIor`、`u_iridescenceThickness`（nm） | 反射色相随观察角度变化：肥皂泡、油膜、甲虫壳、镀膜玻璃。 |
+| 折射率 | `u_ior`、`u_specular` | 非金属正对时的反射率（玻璃与大多数塑料为 1.5，宝石为 2.4），以及反射的总体缩放。 |
+| 透射（Transmission） | `u_transmission`、`u_attenuationColor`、`u_thickness`、`u_refractionStrength` | 玻璃与水：表面显示其后方的内容，经折射（越厚折射越强）、着色并按粗糙度柔化；掠射角处反射增强。 |
+
+模型导入根据同名 glTF 扩展写出这些参数（`KHR_materials_clearcoat`、`_sheen`、`_anisotropy`、`_ior`、`_specular`、`_iridescence`、`_transmission`、`_volume`、`_diffuse_transmission`）。见[模型](/docs/zh-cn/assets/models/)。
+
+### 在检视器中编辑着色层
+
+Model 材质将每个着色层显示为一个分区，标题栏带开关。关闭开关会将该层强度设为 0（绒面则将颜色设为黑色）；开启开关会设置一个可见的强度。分区内的字段用于调节该层。反射率（折射率与镜面缩放）没有开关。
+
+### 限制
+
+- **透射只折射不透明场景。** `u_transmission` 大于 0 的材质在场景其余部分之后绘制，读取此前刚拍下的画面副本：光线穿过表面厚度后弯折，在落点处读取副本。玻璃不会折射另一块玻璃，薄壳对画面的偏移为固定量，而不会像透镜那样翻转画面。副本需要后处理链处于运行状态（任一效果、输出变换，或渲染比例小于 1）；否则表面退回 alpha 混合覆盖，背景不发生扭曲。
+- **半透是着色项，不是模糊。** 它使光越过明暗交界线延伸，并让背后的灯光透过，但从某点进入的光仍从该点射出。扩散由次表面散射效果完成，该效果模糊被标记表面的整个受光颜色，包括锐利的高光。
+- **不读取着色层的纹理。** 每一层对整个材质为常量（Model 着色器已无剩余纹理单元）。glTF 扩展的贴图在导入时报告，其系数保留。
+- **绒面与薄膜为拟合。** 绒面的能量损失与薄膜干涉为解析近似，替代烘焙的查找表。
+- **不提供：** Marschner 式发丝模型、清漆独立的法线贴图、多于一层的清漆。
+
+## 在自定义着色器中使用着色层
+
+`Lit` 着色器通过 `applyLightingSurface(albedo, N, worldPos, V, metallic, roughness, specular, ao, ext)` 使用同一套光照，即带着色层的 `applyLightingPBR`。以 `surfaceExtNone(N)` 初始化 `ext`，再设置所用字段：
+
+| 字段 | 含义 |
+|---|---|
+| `ext.coat` | `x` 强度，`y` 感知粗糙度；`ext.coatN.xyz` 为清漆的法线 |
+| `ext.sheen` | `rgb` 颜色（黑色为关闭），`a` 感知粗糙度 |
+| `ext.aniso` | `xyz` 切线（单位向量，垂直于 `N`），`w` 强度 −1–1（0 为关闭） |
+| `ext.scatter` | `rgb` 散射光的颜色，`a` 包裹 0–1；`ext.trans.x` 透过量，`ext.trans.y` 厚度 0–1 |
+| `ext.film` | `x` 强度，`y` 薄膜折射率，`z` 厚度（纳米） |
+| `ext.misc.x` | 非金属正对时的反射率（折射率 1.5 对应 0.04） |
+
+## 另请参阅
+
+- [材质](/docs/zh-cn/graphics/materials/overview/) —— 模板与材质检视器。
+- [`.esshader` 格式](/docs/zh-cn/graphics/materials/esshader/) —— `#pragma coverage` 与 `#pragma hairshadow`。
+- [水](/docs/zh-cn/graphics/water/overview/)
+- [模型](/docs/zh-cn/assets/models/)

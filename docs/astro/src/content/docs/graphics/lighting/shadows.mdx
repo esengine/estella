@@ -1,0 +1,162 @@
+---
+title: Shadows
+description: Shadow reference — mesh shadow maps (meshShadows, cascades, atlas tiles, bias), 2D shadows from ShadowCaster2D occluders with their softness, channel limits and cost, and BlobShadow discs as a map-free alternative.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella has three shadow mechanisms:
+
+| Mechanism | Enabled by | Shadows | Cast by |
+|---|---|---|---|
+| Mesh shadow maps | `Light.meshShadows` | 3D geometry | `MeshRenderer` geometry resident on the GPU |
+| 2D shadows | `ShadowCaster2D` on the occluder; `shadowDistance` on a Directional light | Lit surfaces, in the XY plane | `ShadowCaster2D` outlines |
+| Blob shadows | `BlobShadow` on the entity | A disc on the ground | The entity itself (no light involved) |
+
+One light can cast both mesh and 2D shadows. `shadowStrength` on the light applies to both.
+
+## Mesh shadows
+
+Setting **`meshShadows`** on a `Directional`, `Spot` or `Point` light renders mesh depth from the light's views, so
+geometry blocks light from reaching other surfaces.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { rotation: lightAimRotation({ x: 0.5, y: 0, z: -1 }) })  // direction of the rays
+  .insert(Light, {
+    type: LightType.Directional,
+    meshShadows: true,
+  });
+```
+
+| Light type | Shadow maps |
+|---|---|
+| Directional | Cascades over the view, or one fixed map with `shadowExtent`. |
+| Spot | One map covering the cone. |
+| Point | Six maps (a cube). |
+
+- **Shared budget.** Shadow-casting lights share one atlas and a limit of up to sixteen maps per frame (the quality
+  setting **Shadow maps**: 8 / 12 / 16 at low / medium / high). A cascade, a Spot light and a cloud shadow take one map
+  each; a Point light takes six. Point and Spot lights are allocated first and receive all the maps they need or none;
+  the Directional light then gives up its farthest cascades. Atlas space is a separate limit, since a directional map
+  occupies a larger block.
+- **Casters and receivers.** Only `MeshRenderer` geometry resident on the GPU casts and receives. Sprites are lit by the
+  same light but are shadowed through `ShadowCaster2D`. `castShadows: false` on a `MeshRenderer` excludes it from
+  casting.
+- **Coverage.** Cascades follow the camera. `shadowExtent` replaces them with one map of that radius centred on the
+  shadow-casting meshes, trading resolution for reach. A distant backdrop with `castShadows: false` does not pull the
+  map away from the foreground.
+- **Penumbra.** A Directional light's penumbra width comes from `sourceAngle`; a Point or Spot light's from
+  `shadowSoftness`. Soft mesh shadows require Full 3D lighting; at Direct a light with a size casts a hard shadow
+  ([3D lighting level](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)).
+- **Acne and detachment.** `shadowBias` and `shadowSlopeFloor` tune the depth test
+  ([Shadow fields](/docs/graphics/lighting/lights/#shadows)).
+- **Tiled lights** cast no mesh shadows ([Light limits per frame](/docs/graphics/lighting/lights/#light-limits-per-frame)).
+
+<Aside type="caution">
+  Each shadow map re-renders the meshes that cast into it; a Point light renders six. Use a Spot light for a fixture
+  that lights a cone. The Light Status in Details reports the maps granted and the reason for a shortfall. A new denial
+  logs a warning; an unchanged denial is not logged every frame.
+</Aside>
+
+{/* SHOT: light-mesh-shadows-status | A 3D scene with a Directional light (Mesh Shadows on) and a Point light casting mesh shadows; the Point light selected, its Light card in Details showing the Light Status line with granted shadow maps and the Mesh Shadows, Shadow Bias and Shadow Slope Floor fields. */}
+
+## 2D shadows
+
+A **`ShadowCaster2D`** makes an entity an occluder for 2D lights:
+
+```typescript
+import { ShadowCaster2D } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 100, y: 0, z: 0 } })
+  .insert(Sprite, { /* … a lit material … */ })
+  .insert(ShadowCaster2D, { size: { x: 64, y: 64 } });
+```
+
+### `ShadowCaster2D` fields
+
+| Field | Default | Description |
+|---|---|---|
+| `size` | `{32,32}` | Occluder box in world units, centred on the entity and rotating with it. Ignored when `path` is set. |
+| `path` | `[]` | Occluder outline in local units: three or more points in order around the shape. Replaces the box. |
+| `enabled` | `true` | Enables shadow casting. |
+
+The entity requires a `Transform`. In Details, **Trace Sprite** replaces the outline with the silhouette traced from the
+entity's sprite alpha.
+
+{/* SHOT: light-shadow-caster-2d | A sprite with ShadowCaster2D selected in the scene view, its traced outline drawn as a gizmo, a Point light nearby casting the shadow; Details shows the Shadow Caster 2D card with the Trace Sprite button. */}
+
+### Light settings
+
+Shadow quality is set on the light, not on the caster:
+
+| `Light` field | Description |
+|---|---|
+| `shadowSoftness` | Light-source size. `0` is a hard edge; larger values give a wider penumbra, sharpening as the caster approaches the surface it shadows. |
+| `shadowDistance` | Directional lights only: how far shadows extend from their casters. `0` (default) casts no 2D shadow. Point and Spot shadows reach as far as `radius`. |
+| `shadowStrength` | Fraction of the light a shadow removes, 0–1. Values below 1 approximate bounce light in the shaded area. |
+
+The penumbra is the sum of several silhouettes drawn across the light source. The number is the quality setting
+**2D soft-shadow samples** (`shadowSoftSamples`, 1–32; 8 / 12 / 16 at low / medium / high; 16 with the quality system
+off), under **Project Settings → Rendering → Quality**. Fewer samples cost less and show banding at the edge; banding
+stops reading as separate shadows at sixteen.
+
+### Channels and cost
+
+2D shadows are drawn, not solved per pixel. Each frame the engine takes the edges of every enabled caster, draws the
+regions they hide from each casting light into a screen-sized mask, and a lit surface reads one texel of it. The number
+of occluders is therefore a triangle count, not a shader constant.
+
+The limit is on casting lights that overlap:
+
+- The masks have **eight channels** (two masks of four). In a frame where a light has a cookie, the second mask's texture
+  unit is taken by the cookie mask and **four** channels remain.
+- Two lights may share a channel when neither's reach touches the other's shadows. Lights spread apart can all cast; eight
+  lights in one place fill the channels.
+- A Directional light with `shadowDistance` covers the whole screen and takes a channel to itself.
+- A Point or Spot light that reaches no caster takes no channel.
+- Channels are assigned in brightness order across the per-pixel lights and the tiled lights. A light left without a
+  channel still lights the scene but casts no 2D shadow.
+- The profiler counter `render.shadow2d.unplaced` reports the lights left without a channel.
+
+To free channels, disable shadows that are not needed (`shadowDistance: 0` on a Directional light) or reduce `radius` so
+lights stop overlapping.
+
+## Blob shadows
+
+A **`BlobShadow`** draws a soft dark disc on the ground under an entity, with no shadow map, no light and no extra pass.
+It suits phones, crowds and scenes whose light does not move.
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 40, z: 0 } })
+  .insert(MeshRenderer, { mesh })
+  .insert(BlobShadow, { radius: 60, opacity: 0.6, groundY: 0 });
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `radius` | `50` | Radius of the disc on the ground, in world units. |
+| `opacity` | `0.5` | Darkness at the centre, 0–1. |
+| `softness` | `0.6` | Edge softness: `0` hard, `1` fading from the centre. |
+| `groundY` | `0` | Height of flat ground. |
+| `fadeHeight` | `200` | Height above the ground at which the shadow has faded out; `0` never fades. |
+| `shrink` | `0.5` | How much the disc shrinks by `fadeHeight`: `0` keeps its size, `1` shrinks it to nothing. |
+| `lift` | `0.5` | Distance above the ground the disc is drawn, to avoid z-fighting. |
+| `enabled` | `true` | Enables the disc. |
+
+For uneven ground, `setBlobShadowGround(app, (x, z) => height)` supplies the ground height under each entity; returning
+`null` falls back to `groundY`, and passing `null` removes the function.
+
+The disc is occluded by geometry in front of it and writes no depth. It does not stretch with the light, fall across
+steps or land on walls; use it where a grounding cue is sufficient. The disc is a separate entity that is never saved
+with the scene.
+
+{/* SHOT: light-blob-shadow | A 3D character mid-jump above flat ground with a BlobShadow disc under it, smaller and fainter than at rest; Details shows the Blob Shadow card with Radius, Opacity, Softness, Ground Y, Fade Height and Shrink. */}
+
+## See also
+
+- [Lights](/docs/graphics/lighting/lights/)
+- [Color Space & Quality](/docs/graphics/lighting/color-and-quality/)
+- [Baked Lighting](/docs/graphics/lighting/baked/)

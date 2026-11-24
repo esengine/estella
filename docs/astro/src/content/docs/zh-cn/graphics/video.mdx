@@ -1,34 +1,17 @@
 ---
 title: 视频
-description: 视频完整指南——声明式 Video 组件、在精灵/UI/网格上播放、命令式 VideoPlayer、一条流喂多个表面、导入设置,以及微信的 wasm 解码路径。
+description: 视频参考——Video 组件及其驱动的渲染组件、多个表面共享一条视频流、VideoPlayer 资源、视频导入设置、cook 生成的 .esv 格式，以及各平台使用的解码器。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella 通过声明式的 `Video` 组件把视频播放到任何可绘制的东西上——*一个纹理活着的精灵*。
-一条解码流驱动一张每帧刷新的活 GPU 纹理。在 Web 和桌面端由 `HTMLVideoElement` 解码
-(WebGL2 上零拷贝);在微信上则由引擎自带的 MPEG-1 wasm 解码器跑**完全相同**的纹理泵——
-手机、PC、无头环境一视同仁。
+`Video` 组件将视频片段解码为一张逐帧刷新的 GPU 纹理，并将该纹理写入同一实体上的渲染组件：`Sprite`、`UIVisual` 或 `MeshRenderer`。在网页上由 `HTMLVideoElement` 解码；在原生与小游戏目标上，由引擎自带、编译为 wasm 的 MPEG-1 解码器解码 cook 生成的副本。纹理契约在所有平台上一致。
 
-## 工作原理
-
-给一个同时带有可绘制组件(`Sprite`、`UIVisual` 或 `MeshRenderer`)的实体加上 `Video` 组件,
-视频系统就会把 `source` 解码成一张纹理,并每帧把该纹理句柄写到那个可绘制组件上。这张帧纹理
-是**无路径的**(永不淘汰)且稳定的,所以写一次的句柄在整条流的生命周期内一直有效。
-
-视频解码**只在运行模式下进行**——编辑时不解码,编辑器因此保持流畅。这个插件和音频一样默认
-已注册:无需加插件。
-
-<Aside type="note">
-  静音的片段在任何地方都能自动播放。非静音的自动播放会被拦截,直到有用户手势(浏览器策略),
-  所以带声音的播放要从点击或按键开始。`Video` 需要一个 `Sprite` / `UIVisual` / `MeshRenderer`
-  兄弟组件来显示——单独存在时它会解码,但没有可绘制的目标。
-</Aside>
+{/* SHOT: video-component | Details panel of an entity with Transform, Sprite and Video components; the Video card shows Source set to an .mp4 asset, Autoplay, Loop and Muted ticked, Volume 1, Playback Rate 1, Fit Size ticked; the viewport behind shows the entity in Play mode displaying a video frame. */}
 
 ## `Video` 组件
 
-在编辑器里,给一个带 **Sprite** 的实体加上 **Video** 组件并设置它的 **Source**。在代码里,
-把它和可绘制组件一起插入:
+在编辑器中，为带 **Sprite** 的实体添加 **Video** 组件并设置其 **Source**。在代码中，将其与渲染组件一同插入：
 
 ```typescript
 import { defineSystem, Commands, Transform, Sprite, Video } from 'esengine';
@@ -43,45 +26,63 @@ const spawnScreen = defineSystem([Commands()], (cmds) => {
 
 | 属性 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `source` | 资产 | `''` | 要播放的视频片段。 |
-| `autoplay` | boolean | `true` | 首帧就绪后立即开始。 |
-| `loop` | boolean | `true` | 播完后从头重新开始。 |
-| `muted` | boolean | `true` | 静音。静音片段可自动播放;非静音需要用户手势。 |
-| `volume` | number | `1.0` | 音量,0..1(`muted` 时忽略)。 |
-| `playbackRate` | number | `1.0` | 播放速度 / 音高(`1` = 正常)。 |
-| `fitSize` | boolean | `true` | 首帧时把 Sprite 调整为视频的原生像素尺寸。 |
-| `enabled` | boolean | `true` | 关闭即停止并释放流,而不移除组件。 |
+| `source` | 资源 | `''` | 视频片段。修改后停止当前流并开始播放新片段。 |
+| `autoplay` | boolean | `true` | 首帧就绪后立即开始播放。 |
+| `loop` | boolean | `true` | 播放结束后从头开始。 |
+| `muted` | boolean | `true` | 静音。静音片段可自动播放；非静音播放需要用户手势。 |
+| `volume` | number | `1.0` | 音量，0–1（`muted` 时忽略）。 |
+| `playbackRate` | number | `1.0` | 播放速度与音高（`1` 为正常）。 |
+| `fitSize` | boolean | `true` | 帧到达后将 `Sprite` 调整为视频的原生像素尺寸。仅作用于 `Sprite`。 |
+| `enabled` | boolean | `true` | 为 `false` 时停止并释放视频流，不移除组件。 |
 
-同一个组件会驱动它找到的第一个可绘制组件,顺序为 **`Sprite` → `UIVisual` → `MeshRenderer`**:
-把 `Video` 放到 `UIVisual` 上做 HUD 里的视频面板,或放到 `MeshRenderer` 上把片段映射到自定义几何。
+`volume`、`muted`、`loop` 与 `playbackRate` 修改后立即作用于正在播放的流。清空 `source`、禁用组件或销毁实体会停止并释放视频流。
 
-## 一条流,多个表面
+### 渲染组件
 
-帧纹理只是一个普通句柄,所以任意多个精灵都能共享它——读取正在播放的精灵的 `texture` 再赋给
-其他精灵即可。每个表面再用 Sprite 的 `uvOffset` / `uvScale` 挑选帧的一个**区域**(与图集帧
-相同的约定,`v = 0` 是图像的底行)。一次解码喂饱所有表面——没有逐表面解码,也没有额外 API。
+视频系统将帧纹理写入在实体上找到的第一个渲染组件，顺序如下：
+
+| 渲染组件 | 写入的字段 | 用途 |
+|---|---|---|
+| `Sprite` | `texture`；设置了 `fitSize` 时还有 `size` | 世界中的视频。 |
+| `UIVisual` | `texture`；`visualType` 设为 `Image` | 屏幕 UI 中的视频面板。 |
+| `MeshRenderer` | `texture` | 映射到自定义几何体上的片段。 |
+
+带 `Video` 但没有渲染组件的实体会解码但不显示任何内容，控制台对该实体输出一次警告。
+
+### 行为
+
+- 视频**只在运行模式下**解码；编辑场景时不解码。
+- 视频插件与音频插件一样属于默认插件集，无需额外添加。
+- 帧纹理是**无路径的**（永不淘汰），其句柄在视频流生命周期内保持不变，因此写入一次的句柄始终有效。
+
+<Aside type="note">
+  静音片段在所有平台上都能自动播放。浏览器在用户手势之前会阻止非静音的自动播放，因此带声音的播放应由点击或按键触发。
+</Aside>
+
+## 多个表面共享一条视频流
+
+帧纹理是普通的纹理句柄，任意数量的精灵都可以使用：读取正在播放的精灵的 `texture`，赋给其他精灵。每个表面通过 Sprite 的 `uvOffset` / `uvScale` 选取帧的一个**区域**（与图集帧相同的约定，`v = 0` 为图像底行）。一次解码供所有表面使用。
 
 ```typescript
-// 把活视频纹理镜像到每个瓦片上,然后每个采样 1/N 的区域。
+// 将活动视频纹理镜像到每个瓦片上；每个瓦片采样 1/N 区域。
 const shareVideoTexture = defineSystem(
   [Query(Sprite, Video), Query(Mut(Sprite), PuzzlePiece)],
   (preview, pieces) => {
     let texture = 0;
     for (const [, sprite] of preview) { texture = sprite.texture; break; }
-    if (!texture) return;                       // 首帧还没解码
+    if (!texture) return;                       // 首帧尚未解码
     for (const [, sprite] of pieces) {
-      if (sprite.texture !== texture) sprite.texture = texture;   // 每片写一次
+      if (sprite.texture !== texture) sprite.texture = texture;   // 每片写入一次
     }
   },
 );
 ```
 
-**video-puzzle** 示例正是这样把单个片段变成一整块由活瓦片组成、可交换的拼图板。
+**video-puzzle** 示例以此方式将一个片段变为一整块可交换的实时拼图瓦片。
 
-## 命令式播放 —— `VideoPlayer`
+## `VideoPlayer`
 
-对于不用组件、由代码驱动的视频,`VideoPlayer` 资源播放一个源并交回一个**流句柄**,你可以把它的
-`textureHandle` 放到任何精灵或材质上:
+`VideoPlayer` 资源无需组件即可播放视频源，并返回一个**流句柄**，其 `textureHandle` 可赋给任何精灵或材质：
 
 ```typescript
 import { defineSystem, Res, VideoPlayer } from 'esengine';
@@ -89,66 +90,78 @@ import { defineSystem, Res, VideoPlayer } from 'esengine';
 const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
   const stream = video.play('assets/intro.mp4', { loop: false, muted: true });
   stream.onEnded = () => { /* 跳过片头 */ };
-  // stream.isReady 后把 stream.textureHandle 赋到某个 Sprite/MeshRenderer 上
+  // stream.isReady 后将 stream.textureHandle 赋给某个 Sprite/MeshRenderer
 });
 ```
 
+| `VideoPlayer` 方法 | 说明 |
+|---|---|
+| `play(source, options?)` | 开始一条视频流并返回其句柄。 |
+| `stop(handle)` | 停止并释放一条视频流。 |
+| `stopAll()` | 停止所有视频流。 |
+
+`play` 的选项与组件相同，但默认值不同：
+
+| 选项 | 默认值 |
+|---|---|
+| `autoplay` | `true` |
+| `loop` | `false` |
+| `muted` | `false` |
+| `volume` | `1` |
+| `playbackRate` | `1` |
+
+流句柄成员：
+
 | 成员 | 种类 | 说明 |
 |---|---|---|
-| `play()` / `pause()` / `stop()` | 方法 | 传输控制。 |
-| `seek(seconds)` | 方法 | 跳到某个时间。 |
-| `setVolume(v)` / `setMuted(m)` | 方法 | 实时调整音频。 |
-| `setLoop(l)` / `setPlaybackRate(r)` | 方法 | 实时调整循环 / 速度。 |
-| `textureHandle` | 只读 | 活帧纹理——首帧前为 `0`,之后无路径(永不淘汰)。 |
+| `play()` / `pause()` / `stop()` | 方法 | 播放控制。 |
+| `seek(seconds)` | 方法 | 跳转到指定时间。 |
+| `setVolume(v)` / `setMuted(m)` | 方法 | 调整音频。 |
+| `setLoop(l)` / `setPlaybackRate(r)` | 方法 | 调整循环与速度。 |
+| `textureHandle` | 只读 | 实时帧纹理：首帧前为 `0`，之后无路径（永不淘汰）。 |
 | `width` / `height` | 只读 | 原生像素尺寸。 |
 | `isReady` | 只读 | 首帧已解码。 |
 | `isPlaying` | 只读 | 正在播放。 |
 | `currentTime` / `duration` | 只读 | 秒。 |
 | `onReady` / `onEnded` / `onError` | 回调 | 生命周期钩子。 |
 
-`video.play(source, options)` 接受与组件相同的选项(`autoplay`、`loop`、`muted`、
-`volume`、`playbackRate`),但默认值不同:
-`autoplay: true`、`loop: false`、`muted: false`、`volume: 1`、`playbackRate: 1`;`video.stop(handle)` 结束一条流,`video.stopAll()` 结束所有流。
+## 导入设置
 
-## 导入设置与烹饪后的视频
-
-选中一个视频资产会显示预览以及**导入设置**。`Autoplay`、`Loop`、`Muted` 是把片段拖到
-`Video` 组件上时套用的建议状态。两个**高级**设置控制微信的转码:
+选中视频资源后显示循环、静音的预览及其**导入设置**。播放设置（自动播放、循环、静音）属于 `Video` 组件，不属于资源。两项**高级**设置控制 wasm 解码路径的转码：
 
 | 设置 | 范围 | 默认值 | 说明 |
 |---|---|---|---|
-| **Cook Quality** | `2`–`31` | `4` | wasm 解码路径的 MPEG-1 量化器——越低画质越高、文件越大。 |
-| **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | 解复用出的音轨的 AAC 码率。 |
+| **Cook Quality** | `2`–`31` | `4` | MPEG-1 量化器。`2` 接近无损、文件最大；`31` 文件最小。 |
+| **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | 分离出的音轨的 AAC 码率。 |
 
-导出时,烹饪会把每个随包发布的视频转码成一个带编解码标记的 **`.esv`**(MPEG-1 程序流)加上一个
-**`.m4a`** 音轨兄弟文件——这正是 wasm 解码器读取的格式,音轨通过音频管线播放并作为视频的时钟。
-在 Web 和桌面端,原始文件原样播放。
+{/* SHOT: video-import-settings | Details panel with an .mp4 video asset selected in the Content Browser: the video preview at the top and the Import Settings with the Advanced group expanded, showing Cook Quality 4 and Cook Audio Bitrate 128 kbps. */}
+
+视频资源包括 `.mp4`、`.m4v`、`.mov` 容器，MPEG-1 `.mpg` / `.mpeg` 源文件，以及 cook 生成的 `.esv` 文件。`.webm` 文件默认归为音频，除非其 `.meta` 类型为 `video`。
+
+## Cook 后的视频
+
+面向 Android、iOS、原生桌面、微信及其他小游戏平台的导出，会将每个随包发布的视频转码为带编解码标记的 **`.esv`**（MPEG-1 程序流）以及一个 **`.m4a`** 音轨文件。这是 wasm 解码器读取的格式；音轨通过音频管线播放，并作为视频的时钟。网页导出原样发布原始文件。
 
 ## 平台后端
 
-纹理句柄契约在每个后端上都完全一致——同一个场景、同一个组件、同一套句柄共享——只有解码器不同:
+纹理句柄契约在所有后端上一致，只有解码器不同。
 
 | 平台 | 解码器 | 说明 |
 |---|---|---|
-| Web / 桌面 | `HTMLVideoElement` | 任何浏览器支持的编解码(H.264 `.mp4`、WebM……)。WebGL2 逐帧零拷贝上传;WebGPU 走 canvas 回读。 |
-| 原生(Android / iOS) | 同一个引擎自带的 wasm 解码器,作为侧模块取得 | 播放烹饪后的 `.esv` + `.m4a`;设备上没有别的视频路径。 |
-| 其他小游戏平台 | 同一个引擎自带的 wasm 解码器,在每个厂商上都是默认路径 | 宿主自带的视频解码器在 PC 客户端上缺失、在手机上不可靠,所以取唯一确定的那条路径。 |
-| 微信 | 引擎自带 MPEG-1 wasm(`videodec`,pl_mpeg) | 每个设备上都确定——`wx.createVideoDecoder` 在 PC 上缺失、在手机上不可靠。场景一旦用到 `Video` 就自动随包;播放烹饪后的 `.esv` + `.m4a`。 |
+| 网页、编辑器运行 | `HTMLVideoElement` | 浏览器支持的任意编解码格式（H.264 `.mp4`、WebM 等）。WebGL2 逐帧零拷贝上传；WebGPU 通过 canvas 回读。 |
+| 原生（Android、iOS、桌面） | 引擎自带的 wasm 解码器，以侧模块方式获取 | 播放 cook 生成的 `.esv` + `.m4a`；设备上没有其他视频路径。 |
+| 微信 | 引擎自带的 MPEG-1 wasm 解码器（`videodec`，pl_mpeg） | 在所有设备上结果确定；`wx.createVideoDecoder` 在 PC 上缺失、在手机上不可靠。场景使用 `Video` 时自动随包；播放 cook 生成的 `.esv` + `.m4a`。 |
+| 其他小游戏平台 | 同一个引擎自带的 wasm 解码器，在所有厂商上均为默认 | 宿主视频解码器在 PC 客户端上缺失，在手机上不可靠。 |
 
-## 最佳实践
+## 使用准则
 
-- **自动播放就保持 `muted: true`**——带声音的播放要从用户手势开始,否则浏览器会拦截。
-- **共享一条流**给多个表面(用纹理句柄 + `uvOffset` / `uvScale`),而不是用多个 `Video` 组件
-  重复解码同一个片段。
-- **给 Video 一个可绘制组件**——`Sprite`(世界)、`UIVisual`(HUD)或 `MeshRenderer`(自定义几何)
-  ——才能真正显示帧。
-- **注意 `fitSize`**——它会在首帧把 Sprite 贴到片段的原生像素;当你设了明确尺寸(比如固定的
-  屏幕)时把它关掉。
-- **尽早面向微信**——烹饪会替你完成 MPEG-1 转码,但把片段控制得短小、分辨率适中:软解码和下载
-  都随尺寸增长。
+- 自动播放时保持 `muted: true`；带声音的播放由用户手势触发。
+- 通过纹理句柄与 `uvOffset` / `uvScale` 在多个表面间共享一条视频流，而不是用多个 `Video` 组件解码同一片段。
+- Sprite 有明确尺寸（固定屏幕）时关闭 `fitSize`。
+- 面向原生与小游戏目标时，片段应短小、分辨率适中：软件解码开销与下载体积都随分辨率增长。
 
-## 参见
+## 另请参阅
 
-- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— Video 写入的纹理及其 `uvOffset` / `uvScale`。
+- [纹理区域与采样](/docs/zh-cn/graphics/sprites/textures/) —— Video 写入的纹理及其 `uvOffset` / `uvScale`。
 - [资源](/docs/zh-cn/assets/overview/) —— 加载与打包视频片段。
 - [微信小游戏](/docs/zh-cn/publishing/wechat/) —— wasm 解码路径与导出。

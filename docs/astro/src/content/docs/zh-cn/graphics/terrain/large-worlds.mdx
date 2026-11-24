@@ -1,0 +1,124 @@
+---
+title: 星球与大地形
+description: 用于超出内存容量的高度图的分块地形（.esterrain），以及 Planet 组件——由基于方向的生成器给出的球面地面、星球查询与重力、生成世界、图层、碰撞、海洋与天空。
+---
+
+本页介绍基于[地形](/docs/zh-cn/graphics/terrain/overview/)机制的两种大型地面：用于超大区域的分块高度图，以及球面地面 `Planet`。
+
+## 分块地面
+
+高度图整体读取：8193 × 8193 的场约占 256 MiB。将地形的 `tiles` 设为 `.esterrain` 文件后，地面以 513 × 513 样本的分块
+（相邻分块共享边缘行）加一张低细节总览存储。
+
+- 远处地面由总览绘制，总览始终驻留内存。
+- 全细节分块只在视点或运动刚体附近读取。超出 256 MiB 预算时释放最久未用的分块。尚未读取分块的地方高度未知，碰撞与查询会
+  等待它。
+- 地形雕刻面板中的 **拆分为分块**（Split into Tiles）将高度图地形转换为分块。
+- 分块地面与其他地面一样可雕刻和绘制，作用于驻留的分块：落在尚未读取分块上的笔刷会被跳过并触发读取该分块。修改过的分块在
+  保存前一直驻留；保存只写入修改过的分块和总览。
+- 雕刻面板可将高度导出为一张与区域等大的图像，也可导入一张覆盖到分块上。选择 **已加载分块**（Loaded tiles）时不读取未驻留
+  的分块：导出时这部分取自总览，导入时只写入驻留分块和总览。**全部分块**（All tiles）读写每一块。存在未保存修改时拒绝导入。
+- 分块图像只由 `.esterrain` 引用，与 `heightmap` 一样按数据读取，不上传为纹理。
+
+在编辑器中对 4096 单位区域测得：8193 × 8193 的场以分块打开占 36 MiB，贴近地面时为 45 MiB。
+
+{/* SHOT: terrain-sculpt-tiles | The terrain sculpt panel for a tiled terrain (Terrain with a .esterrain in Tiles): the tile section with Split into Tiles, the heightmap export/import buttons and the Loaded tiles / All tiles scope selector visible */}
+
+## 星球
+
+`Planet` 是球面上的地面。它使用与平面地形相同的机制，作用于一个立方体：六个面各为一棵四叉树，每个点被投影到半径处。最细的
+单元在视点下方；从远处看，星球只是少量粗节点。从地表和从太空绘制的是同一地面，无需切换。
+
+{/* SHOT: terrain-planet-details | Details panel of a Planet entity with the Shape, Layers, Sea and Physics groups expanded (Sea ticked), and the scene view showing the planet from orbit with its sea */}
+
+### 字段
+
+| 字段 | 说明 |
+|---|---|
+| `radius` | 半径，米。星球位于其实体处，不旋转、不缩放。 |
+| `provider`、`world`、`generatorVersion`、`seed` | 生成器（用 `registerPlanetProvider` 注册）、世界名、版本和种子。四者相同则处处得到相同地面。生成器不再列出的版本会使星球失败。 |
+| `cellSize`、`detail` | 最细网格单元（米），以及最细单元覆盖的范围（大于 1 更远）。 |
+| `layerColor0`–`3` | 草、泥土、雪和岩石的颜色。 |
+| `macroScale`、`macroVariation` | 叠加在图层上的亮度变化的尺寸（米）和强度（0–1）。 |
+| `layers` | 至多四个 `.esterrainlayer` 文件。留空时绘制四种颜色。 |
+| `tintLayers` | 用四种图层颜色乘以图层纹理，使灰度颗粒纹理呈现各星球的颜色。关闭时图层按自身颜色绘制。 |
+| `collision`、`collisionDistance`、`collisionLayer`、`friction` | 同平面地形：是否碰撞、每个运动刚体周围的构建半径（米）、碰撞层与摩擦。 |
+| `gravity` | 地表处指向球心的引力，m/s²（地球为 9.81）。0（默认）不产生引力。需要 3D 物理。 |
+| `sea`、`seaLevel`、`seaColor`、`seaOpacity` | 是否有海洋、海面高出半径的高度（米）、颜色及不透明度（0–1）。 |
+| `seaWaveLength`、`seaWaveSteepness` | 最长波浪的波峰间距（米，更短的波列叠加其上），以及波浪陡度（0 为镜面）。 |
+| `seaShallowDepth` | 海底被水色完全掩盖时的水深（米）。更浅的水更清澈、更浅色，并在岸边泛白破碎。 |
+
+画质档位的 **星球绘制层级上限**（高 12、中 11、低 10）限制从整个面往下绘制的层级数。碰撞与查询仍使用设定的 `cellSize`。
+
+### 生成器
+
+星球生成器回答的是**方向**而非位置：它接收从星球中心出发的单位方向和半径，返回每个方向高出半径的高度，以及可选的四个图层
+权重。球面没有 x 和 z，因此生成器在该点采样三维噪声，既无接缝也无极点。
+
+```typescript
+import { registerPlanetProvider } from 'esengine/terrain';
+
+registerPlanetProvider({
+    id: 'my-game:planet',
+    versions: [1],
+    range: () => [-40, 200],
+    sample({ seed, radius, directions, count }) {
+        const heights = new Float32Array(count);
+        for (let i = 0; i < count; i++) heights[i] = myHeight(seed, radius, directions[i * 3]!, directions[i * 3 + 1]!, directions[i * 3 + 2]!);
+        return { heights };
+    },
+});
+```
+
+生成器还可设置 `workerSource`：一个自包含纯 JavaScript 模块的文本，其默认导出提供 `sample`、`fields`、`versions` 和 `id`。
+此时世界布局和地面绘制在 worker 线程上进行，主线程只负责放置每个结果。没有它时，这些工作在主线程上执行。
+
+### 查询与重力
+
+`PlanetRegistryRes` 回答球形世界的常见问题：
+
+| 方法 | 返回 |
+|---|---|
+| `nearest(x, y, z)` | 表面离该点最近的星球。 |
+| `up(planet, x, y, z)` | 背离星球中心的单位方向。 |
+| `altitude(planet, x, y, z)` | 高出半径的高度。 |
+| `groundHeight(planet, x, y, z)` | 该位置下方的生成器高度（异步生成器尚未回答时为 `null`）。 |
+| `groundPoint(planet, x, y, z)` | 该位置下方地面上的点。 |
+
+设置 `gravity` 后，3D 物理将每个动态刚体拉向最近的有引力星球中心：从刚体上去掉世界重力，并在每个固定步以力的形式施加星球
+引力。世界重力为零时，刚体朝星球坠落。
+
+### 星球上的生成世界
+
+在 `Planet` 实体上放置 `surface` 设为 **Planet** 的 `WorldGen`，即可在球面上布局[生成世界](/docs/zh-cn/world/generation/)。立方体
+每个面以米为单位、按与平面世界相同的规则（生物群系覆盖字段、配方、图层）布局；一个方向按其所在的面规划，放置的内容沿星球
+的上方向站立。
+
+- 可用字段：地面高度、坡度、三维噪声（跨面边缘无缝）、每个星球图层的 `paint.<layer>`，以及生成器在 `fields` 中声明的字段。
+- 生物群系绘制地面（`paintGround`），因此绘制的内容与生长的内容来自同一张图。
+- `seaLevel` 为海面高度，更低的地面位于水下。
+- `WorldZone` 位于某个世界位置，并保持在其所在的面上。
+
+### 碰撞与图层
+
+每个运动 3D 刚体和角色周围 `collisionDistance` 内的最细节点，以绘制地面所用的同一组样本构建为碰撞几何。星球的变换只有位置：
+旋转或缩放的星球，其碰撞位于未旋转时的位置。
+
+每个图层按地面朝向各世界轴平面的程度投影到这些平面上，远处混入更宽的平铺。图层与 Terrain Layers 着色器使用相同代码绘制，
+因此图层遮罩在星球上同样减弱天光（包括其 `occlusion`）。Planet 材质具有相同的 `u_heightBlend`、`u_blendNoise` 和
+`u_antiTile`，默认均为 0。
+
+### 海洋与天空
+
+开启 `sea` 后，星球在半径之上 `seaLevel` 处有一个半透明、受光照的球面，更低的地面位于其中。海面带有以表面坡度叠加在球面上的
+波列，浅水处更清澈、更浅色，并在岸边泛白破碎。
+
+天空随星球曲率变化：将星球的半径和中心提供给 `skyAtmosphere` 和 `heightFog`，它们会为相机下方的地面计算天空与雾霭。太阳是
+固定方向，因此昼夜取决于相机位于星球上的位置。
+
+## 限制
+
+- **星球海洋不移动几何体。** 波浪仅体现在表面坡度上，球面网格过粗无法承载位移。平面[水体](/docs/zh-cn/graphics/water/overview/)系统的
+  位移、涟漪和焦散不适用于它。
+- **星球的变换只有位置。** 旋转和缩放被忽略。
+- **尚未读取的分块没有高度。** 其上的查询和碰撞会等待分块加载完成。

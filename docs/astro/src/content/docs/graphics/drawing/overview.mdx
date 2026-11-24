@@ -1,0 +1,86 @@
+---
+title: Custom Drawing
+description: Drawing outside the component renderers — choosing between Draw, Graphics, setPath, MeshRenderer and Geometry, registering draw callbacks, and the immediate-mode Draw API reference.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Most visuals are components: [sprites](/docs/graphics/sprites/overview/), tilemaps, particles. For debug overlays,
+procedural shapes and custom geometry the engine exposes its drawing layer directly.
+
+![The Drawing demo example: an immediate-mode radar made with Draw, a retained star made with Graphics, and a procedural ribbon made with Mesh2D](@/assets/guides/en/play-drawing.png)
+
+*The Drawing demo example: `Draw` (the radar), `Graphics` (the star) and a `MeshRenderer` ribbon.*
+
+## Choosing an API
+
+| API | Model | Use for | Reference |
+|---|---|---|---|
+| `Draw` | Immediate, global; commands are batched and cleared every frame. | Debug overlays, gizmos, content redrawn each frame. | [The `Draw` API](#the-draw-api) |
+| `Graphics` | Retained path recorder; tessellated once, drawn through `Draw` with `flush()`. | Vector shapes from paths, curves and arcs, drawn many times. | [Vector Paths](/docs/graphics/drawing/vector-paths/) |
+| `setPath` | Path geometry stored on an entity's `MeshRenderer`. | Filled and stroked shapes that belong to the scene. | [Vector Paths](/docs/graphics/drawing/vector-paths/#scene-paths-setpath) |
+| `ShapeRenderer` / `MeshRenderer` | Components with sorting layers, materials and editor gizmos. | Shapes and meshes that are part of the scene. | [Meshes](/docs/graphics/drawing/meshes/), [ShapeRenderer](/docs/graphics/sprites/effects/#shapes-shaperenderer) |
+| `Geometry` | Handle-based vertex buffers drawn with a material. | Custom vertex layouts and shaders. | [Meshes](/docs/graphics/drawing/meshes/#custom-geometry-the-geometry-api) |
+| `RenderTexture`, `TextureAtlas`, `TextureCanvas` | Offscreen targets. | Minimaps, portraits, run-time atlases, composed textures. | [Render Textures](/docs/graphics/drawing/render-textures/) |
+
+A visual that belongs to the scene — sorted, saved and inspectable — is a component. A visual that belongs to a frame —
+debug output, overlays, procedural effects — is drawn in a callback.
+
+## Draw callbacks
+
+A draw callback runs inside the render pass every frame with the camera's view-projection already bound. Coordinates
+are world-space.
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+
+registerDrawCallback('debug-overlay', (elapsed) => {
+  Draw.line({ x: 0, y: 0 }, { x: 100, y: 50 }, { r: 1, g: 0, b: 0, a: 1 }, 2);
+  Draw.circleOutline({ x: 0, y: 0 }, aggroRadius, { r: 1, g: 1, b: 0, a: 0.5 });
+});
+```
+
+| Function | Draws | Callback receives |
+|---|---|---|
+| `registerDrawCallback(id, fn, scene?)` | Over the scene. | `(elapsed, { viewProjection, width, height })` |
+| `registerPreSceneDrawCallback(id, fn, options?)` | Under the scene; scene renderables occlude it. | `{ width, height, elapsed }` |
+| `registerOverScreenDrawCallback(id, fn, options?)` | Over everything the frame shows, including the screen overlay, through the view of the last camera drawn to the screen. | `(elapsed, { viewProjection, width, height })` |
+
+- Registering an existing `id` replaces that callback. Each register function returns a function that removes the
+  registration.
+- Removal by id: `unregisterDrawCallback(id)`, `unregisterPreSceneDrawCallback(id)`,
+  `unregisterOverScreenDrawCallback(id)`.
+- The optional third argument limits a callback to a scene name, or to `{ world, scene }`.
+
+<Aside type="tip">
+  A callback registered through a scene's context — `sceneContext.registerDrawCallback(id, fn)` on the context
+  returned by `loadAdditive` — draws only while that scene is active and is removed when it unloads.
+</Aside>
+
+## The `Draw` API
+
+`Draw` is an immediate-mode singleton. Commands are batched automatically and cleared every frame; a shape is visible
+only in frames in which it is drawn.
+
+| Method | Draws |
+|---|---|
+| `line(from, to, color, thickness?)` | A line segment; thickness in pixels, default `1`. |
+| `rect(pos, size, color, filled?)` / `rectOutline(pos, size, color, thickness?)` | A rectangle centred on `pos`; `filled` defaults to `true`. |
+| `circle(center, radius, color, filled?, segments?)` / `circleOutline(center, radius, color, thickness?, segments?)` | A circle; `32` segments by default. |
+| `texture(pos, size, textureHandle, tint?)` | A textured quad. |
+| `textureRotated(pos, size, rotation, textureHandle, tint?)` | A textured quad rotated by `rotation` radians. |
+| `triangles(mesh, { tint?, transform? })` | Vertex-coloured triangles (`positions` as x, y pairs, `indices`, optional `colors`), moved by a 2D affine `[xx, xy, yx, yy, tx, ty]`, multiplied by `tint`, and batched with the other primitives. `Graphics.flush()` draws through it. |
+| `createTriangles(mesh)` | Uploads a mesh to the GPU once and returns a buffer that `triangles()` draws by reference. Each copy is transformed and tinted on the GPU at a cost of one 28-byte record; consecutive copies of one buffer form one instanced draw. Call `release()` on the buffer when it is no longer drawn. |
+| `trianglesMany(buffer, copies, count?)` | Many copies of one buffer in one call: `DRAW_COPY_STRIDE` (10) numbers per copy — the affine `xx, xy, yx, yy, tx, ty`, then the tint `r, g, b, a`. Same result as one `triangles()` call per copy, without a call into the engine per copy. |
+| `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A [`Geometry`](/docs/graphics/drawing/meshes/#custom-geometry-the-geometry-api) handle with a raw shader or a material. |
+| `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
+| `setBlendMode(mode)` / `setDepthTest(enabled)` | Blend and depth state of subsequent commands. |
+| `withDepthState({ test, write }, draw)` | Runs synchronous drawing with temporary depth test and write state, restored even if `draw` throws. Returns `false` without calling `draw` on cores without scoped depth support. |
+| `getDrawCallCount()` / `getPrimitiveCount()` | Frame statistics. |
+
+## See also
+
+- [Vector Paths](/docs/graphics/drawing/vector-paths/) — `Graphics` and `setPath`.
+- [Meshes](/docs/graphics/drawing/meshes/) — `MeshRenderer`, `Billboard` and `Geometry`.
+- [Render Textures](/docs/graphics/drawing/render-textures/) — offscreen targets and run-time atlases.
+- [Camera](/docs/graphics/camera/overview/) — the view-projection callbacks draw under.

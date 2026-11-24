@@ -1,0 +1,346 @@
+---
+title: Sky, fog & weather
+description: Atmosphere effects reference — Sky Atmosphere with volumetric clouds, baked clouds, cloud masks and cloud shadows, Starfield, Height Fog with volumetric light, Distance Fog, Light Shafts, Rain and snowfall, Snow Cover, and the 2D Mist, Fog of War and Rain effects.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These effects draw the sky, the air and precipitation. In the Inspector they carry the **Atmosphere** tag (`lightShafts`
+carries **Light**). [Time of Day](/docs/graphics/time-of-day/) and [Weather](/docs/graphics/weather/) components drive
+several of their parameters. Fog colours are authored in **sRGB** and converted in a linear project, like clear and light
+colours, so the chosen colour is what a fully fogged surface shows.
+
+{/* SHOT: pp-sky-atmosphere | A 3D outdoor scene in the Game view at low sun with Sky Atmosphere (Cloud Coverage about 0.5, Cloud Shadows above 0) and Height Fog with Volumetric Light: lit cloud edges, patchy cloud shadow on the ground, light shafts in the haze; the Sky Atmosphere entry unfolded in the Inspector. */}
+
+## Sky Atmosphere
+
+`skyAtmosphere` draws an atmosphere that scatters the sun's light, with a sun, a moon, stars and volumetric clouds, where no
+surface was drawn. The clouds are computed at half size and composited by a full-size pass that also draws the dome, sun,
+moon and stars.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Brightness | 1 | Sky brightness. |
+| `u_lightScene` | Light the Scene | 0 | 1: every Ambient light that names no environment of its own is lit by this sky (diffuse light and reflections), updated as the sky changes. |
+| `u_panorama` | Keep Background | 0 | Share of the background behind the scene (a panorama, a clear colour) that is kept. 0 replaces it. |
+| `u_overcast` | Overcast | 0 | 1 is a sky with no break. A Weather component drives it. |
+| `u_groundAlbedo` | Ground Albedo | 0.2 | Light the ground returns into the scene lighting when Light the Scene is on. |
+| `u_haze` | Haze | 1 | Mie scattering: more is a whiter, glarier sky and a redder sunset. |
+| `u_altitude` | Altitude | 0.1 | Camera height above the ground, kilometres. |
+| `u_sunSize`, `u_sunBrightness` | Sun Size / Sun Brightness | 1 / 40 | Sun disc size and brightness. |
+| `u_moon`, `u_stars` | Moon / Stars | 1 / 1 | Moon and star brightness. |
+| `u_followSun` | Follow Scene Sun | 1 | 1: the sun is the scene's directional light. 0: the two angles below. A Time of Day component writes them. |
+| `u_sunAzimuth`, `u_sunElevation` | Sun Azimuth / Elevation | 40 / 35 | Sun direction in degrees (azimuth from +Z toward +X). |
+| `u_planetRadius` | Planet Radius | 0 | Above 0, the sky belongs to a planet of that radius centred at Planet Centre X/Y/Z. |
+
+Cloud parameters are listed under [Clouds](#clouds).
+
+### Sky and thin geometry
+
+The sky is drawn after the scene and laid under it. While the effect is in the chain, the scene is cleared to transparent
+and its alpha records how much of each pixel geometry covers, so the sky is blended under a sub-pixel wire or railing by that
+coverage instead of replacing the pixel. The effect outputs alpha 1, so later effects do not see this. With **Keep
+Background** above 0 the scene is cleared to the camera's colour again.
+
+### Clouds
+
+The clouds are ray-marched through the air and lit from inside: each step measures how much cloud lies between it and the
+sun, so the far side of a deep cloud is dark and its thin edge bright.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_clouds` | Cloud Coverage | 0.45 | Share of the sky the main layer covers. A Weather component raises it. |
+| `u_cloudBase`, `u_cloudThickness` | Cloud Base / Cloud Thickness | 1.5 / 2.5 | Height and depth of the main layer, kilometres. |
+| `u_cloudBrightness` | Cloud Brightness | 1 | Cloud brightness. |
+| `u_cloudScale` | Cloud Scale | 1 | Cloud size; 2 is half as wide. |
+| `u_cloudSoftness` | Cloud Softness | 0.22 | Edge softness. |
+| `u_cloudChange` | Cloud Change | 0.004 | Rate at which cloud shapes change while drifting. 0 keeps each cloud's shape. |
+| `u_cloudSilver` | Silver Lining | 0.6 | Brightness of a cloud's edge near the sun. |
+| `u_windSpeed`, `u_windDirection` | Wind Speed / Wind Direction | 0.05 / 60 | Drift in kilometres per second; direction in degrees from +Z toward +X. |
+| `u_cloud2Coverage` | Upper Layer Coverage | 0 | A second layer. 0 costs nothing. |
+| `u_cloud2Base`, `u_cloud2Thickness`, `u_cloud2Scale` | Upper Layer Base / Thickness / Scale | 6 / 0.6 / 1.8 | The second layer's height, depth and grain. |
+| `u_cloud2Wind` | Upper Layer Wind | 1.6 | Multiplier on the wind for the second layer. |
+
+The second layer is usually high, thin and faster. Set below the main layer, it stands in front of it. It casts a shadow too.
+
+**Cloud clock.** Cloud positions are the wind's accumulated displacement, summed frame by frame on the game clock. A stronger
+or turning wind carries the clouds on from where they are, and a [Weather](/docs/graphics/weather/) transition can change the
+wind with no jump. A paused game has a still sky, and the same steps produce the same sky. The fog's cloud shafts read the same
+positions. To restore a sky from a save, store `skyClockState()` and pass it to `setSkyClockState()`.
+
+### Cloud masks
+
+A **Cloud Mask** (`u_cloudMask`) gives the clouds their shape: a tileable coverage texture (linear data, one channel,
+repeating; 0 clear, 1 dense). `u_cloudMaskTile` is the kilometres of cloud layer one repeat covers (0 leaves the clouds to the
+noise). Clouds are drawn where the mask says, and the noise only erodes the edges. A second, softer and higher mask
+(`u_cloudMask2`, `u_cloudMask2Tile`) is folded in at a third.
+
+The same mask-shaped clouds cast the cloud shadow and light the fog's beams, which read the masks from the sky. Import a mask
+as data: no sRGB, no compression. A mask carries no height, so keep `u_cloudThickness` below about a kilometre; seen at a low
+angle, a thick masked layer smears into streaks along the line of sight.
+
+### Baked clouds
+
+**Baked Clouds** (`u_bakedClouds: 1`) is the low-cost tier for phones and mini-games. Instead of marching the clouds for every
+pixel, the clouds are marched into a 512 × 512 panorama of the dome, a sixteenth of it per frame, and each sky pixel reads its
+direction from the panorama. The dome is refreshed every sixteen frames. Until the panorama is complete, and for a sky on a
+planet, the clouds are marched per pixel. Once it is complete, the cloud pass is a shader that only reads it.
+
+```ts
+world.insert(volume, PostProcessVolume, { effects: [{ type: 'skyAtmosphere', enabled: true, uniforms: { u_bakedClouds: 1 } }] });
+```
+
+| Measurement (Wilds, 3840 × 2160) | Cloud pass |
+|---|---|
+| Marched | 3.9–4.4 ms |
+| Baked | 1.2–2.1 ms, plus 0.07 ms for the panorama strip |
+
+The two produce matching skies on both backends (render checks `sky-clouds-marched` and `sky-clouds-baked`). The panorama is
+8 bits per channel and read through a small blur, so baked clouds are slightly softer.
+
+### Cloud shadows
+
+With **Cloud Shadows** (`u_cloudShadow`) above 0, the sky draws a cloud shadow map before the scene: over a square of 16 km
+each way around the camera, the share of sunlight left after its ray crosses the cloud layer, against the same density the sky
+draws. The first directional light reads it when shading each surface, so the ground is darker and patchy under clouds and lit
+where the sky is open.
+
+- Only the sun's direct light is reduced. Sky light (ambient and reflections), other lights and emission are not, so a shaded
+  field keeps its sky colour and unlit or emissive objects are unchanged.
+- Casting shadows fixes the clouds to the world instead of carrying them with the camera, so walking under a cloud and out of
+  it works.
+- The sky is measured in kilometres and the scene in its own units. **World Units per km** (`u_unitsPerKm`) sets the
+  conversion; left unset it follows the project's Units per Metre (100 000 in a centimetre project, 1000 in a metre project).
+- The map is one tile of the sun's shadow atlas. When the atlas is full (the High quality level's four cascades fill it), the
+  sun gives up its farthest cascade for it.
+- The stored value is the light left at the camera's height on each ray: exact below the cloud layer, an estimate for a camera
+  inside it. Beyond 16 km, and where no sky casts clouds, the sun is not dimmed.
+
+At 0 (the default) no shadow map is drawn.
+
+### Limits of the clouds
+
+- **Seen from below only.** A camera above the cloud layer sees none of it; there are no cloud tops.
+- **Grain.** The march's jitter is filtered on upsampling; a faint pattern can remain near the horizon or at a large Cloud
+  Scale.
+- **Fog shafts follow the main layer only.** The upper layer makes no beams.
+- **The key light does not follow individual clouds.** Cloud shadow is applied to surfaces; the light's own strength follows
+  the weather, not the cloud in front of the sun.
+- **Not measured on a device.** The upper layer adds 12 density samples per half-size pixel it covers (64 for the main layer),
+  and nothing at 0.
+
+## Starfield
+
+`starfield` draws stars one or two pixels across at any resolution, in three brightness layers, added over the sky already
+drawn (an environment panorama, or a sky effect earlier in the chain). With Sun Size above 0 it also draws the first
+directional light as a disc with a glow.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Brightness | 1 | Star brightness. |
+| `u_density` | Density | 1 | Star count. |
+| `u_size` | Size (pixels) | 1 | Star size in pixels. |
+| `u_band`, `u_bandTilt`, `u_bandTurn` | Band / Band Tilt / Band Turn | 0.5 / 25 / 0 | Strength and orientation (degrees) of the band of denser stars. |
+| `u_sunSize`, `u_sunGlow` | Sun Size (degrees) / Sun Glow | 0 / 1 | Sun disc size and glow. 0 draws no disc. |
+
+A `starfield`, and any sky defined with `over` ([Custom skies](/docs/graphics/post-processing/scripting/#custom-skies)), is
+laid under the scene the same way as Sky Atmosphere. It reads geometry coverage from the scene as drawn before any sky effect
+ran, so a blended surface in front of the sky (a planet's ring, glass, smoke) hides the stars by its own opacity. Where the
+environment's panorama is drawn as the background, the panorama is part of the scene, and stars are added wherever depth is
+still the far plane.
+
+## Height Fog
+
+`heightFog` thins with height: valleys fill and hilltops clear. Density falls off exponentially with height, so the fog a ray
+crosses has a closed form with no marching. The same formula makes the horizon hazy and the zenith clear. Sky pixels use a very
+long ray; Sky Haze sets how much of that haze the sky keeps. Looking toward the sun, the haze takes the Sun Colour.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_density` | Density | 0.0015 | Per world unit at the base height: the share of light a unit of fog removes. |
+| `u_heightFalloff` | Height Falloff | 0.003 | How fast the fog thins with height. 0 is uniform density. |
+| `u_baseHeight` | Base Height | 0 | World height of the reference density. |
+| `u_startDistance` | Start Distance | 0 | World distance from the camera before fog starts. |
+| `u_maxOpacity` | Max Opacity | 1 | Upper limit of fog opacity. |
+| `u_followSun` | Follow Scene Sun | 1 | 1: direction and colour come from the first shining directional light. 0: the angles below. |
+| `u_sunAzimuth`, `u_sunElevation` | Sun Azimuth / Elevation | 40 / 25 | Sun direction in degrees, used when not following, or when the scene has no directional light. |
+| `u_inscatter` | Sun Glow | 0.6 | Strength of the haze toward the sun. |
+| `u_sunExponent` | Glow Sharpness | 8 | Concentration of the glow around the sun. |
+| `u_skyFog` | Sky Haze | 0.8 | Share of horizon haze the sky keeps. 0 leaves the sky untouched. |
+| `u_volumetric` | Volumetric Light | 0 | Share of in-scattered sunlight computed against the shadow map. |
+| `u_volumeRange` | Volumetric Range | 3000 | World distance from the camera over which the air is marched. |
+| `u_cloudShade` | Cloud Shafts | 0 | How much the sky's clouds cut the beams. |
+| `u_fogColor`, `u_sunColor` | Colour / Sun Colour | — | Colour parameters: fog colour and haze colour toward the sun. |
+| `u_planetRadius` | Planet Radius | 0 | Above 0, height is measured above a planet's sphere instead of world Y. |
+
+### Volumetric light
+
+**Volumetric Light** makes the haze carry the sun's shadows. The air between the camera and each surface is marched in 24
+steps against the sun's shadow map, and each step in light scatters some of it toward the eye: a building's shadow is dark fog
+and the gap between two buildings a beam. It requires a directional light that casts shadows. Beyond Volumetric Range the fog
+still dims but has no shafts. The volumetric part is computed at half size.
+
+**Cloud Shafts** make the beams follow the sky's clouds, so a gap in the clouds is a shaft standing in the air in any view
+direction. The fog marches the sun's ray up through the cloud layer of a `skyAtmosphere` with Cloud Shadows above 0, against
+the same density the sky draws; what the clouds cover is dark air. The beams extend as far as Volumetric Range: beams through
+clouds kilometres up need a low Height Falloff and a Volumetric Range of a few kilometres. The sky's coverage, height,
+thickness, wind and masks are copied to the fog each frame; they are not fog settings.
+
+## Distance Fog
+
+`distanceFog` is linear fog by distance from the camera.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_fogNear` | Near | 10 | Distance where fog starts. |
+| `u_fogFar` | Far | 60 | Distance where fog is full. |
+| `u_intensity` | Intensity | 1 | Maximum fog amount. |
+| `u_fogColor` | Colour | (0.6, 0.68, 0.78) | Colour parameter: fog colour. |
+
+## Light Shafts
+
+`lightShafts` renders sun rays through whatever stands in front of the sun, in screen space: each pixel marches toward the
+sun's position on screen and counts how much of the way is open sky. The sun must be on screen or just off it, and only what
+the depth buffer holds casts a shaft. For shadowed volumetric light, use Height Fog's Volumetric Light; the two together give
+the haze-and-rays look of a low sun.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.6 | Shaft strength. |
+| `u_followSun` | Follow Scene Sun | 1 | 1: the scene's directional light. 0: the angles below. |
+| `u_sunAzimuth`, `u_sunElevation` | Sun Azimuth / Elevation | 40 / 25 | Sun direction in degrees when not following. |
+| `u_decay` | Decay | 0.96 | Fade per march step; lower shortens the shafts. |
+| `u_reach` | Reach | 0.6 | Share of the way to the sun each pixel marches. |
+| `u_sunColor` | Sun Colour | (1, 0.85, 0.6) | Colour parameter: shaft colour. |
+
+## Rain and snow
+
+A `rain` effect, on a volume or applied by a [Weather](/docs/graphics/weather/), produces rain or snowfall in two parts:
+
+- **Falling drops and flakes** are drawn in the world, in a box around the camera, with the scene's depth, so nearer
+  geometry hides them. A raindrop is a quad stretched along its velocity and turned to face the eye; seen along its fall it
+  is a dot. **Snowfall** draws soft round flakes that sway as they fall, about a metre per second, carried further by the wind
+  than rain. Snow does not wet the ground or leave ripples.
+- **The effect itself** darkens wet surfaces, draws puddles, and opens ripples on the puddles.
+
+Where a drop lands is decided by one world-space lattice shared by the splashes, the ripples on puddles and the rain rings of
+the Water shader, so a drop's splash and its ring are one landing. A **splash** is a bright point and a few droplets thrown up
+and pulled back by the project's gravity. **Ripples** need drops: with `u_intensity` at 0 the ground is wet and still.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Amount of rain: the share of the lattice's drops that fall. |
+| `u_wetness` | Wetness | 1 | How far surfaces darken and how clearly ripples read. |
+| `u_wind`, `u_speed` | Wind / Speed | 0.15 / 1.6 | Slant and speed of the fall. |
+| `u_streakLength` | Streak Length | 0.3 | Length of a raindrop streak. |
+| `u_puddles` | Puddles | 0.3 | Share of flat ground under standing water. |
+| `u_puddleScale` | Puddle Size | 350 | World size of the pools. |
+| `u_snowfall` | Snowfall | 0 | Amount of snow. 0 is none. |
+| `u_shelterRange` | Shelter Range | 3000 | World distance each way around the camera covered by the shelter map. |
+| `u_streakWidth`, `u_streakBrightness` | Streak Width / Brightness | 0.012 / 0.35 | Raindrop look; widths in metres. |
+| `u_flakeSize`, `u_flakeBrightness` | Flake Size / Brightness | 0.04 / 0.9 | Snowflake look; size in metres. |
+| `u_splashDroplets`, `u_splashSize`, `u_splashBrightness`, `u_splashSpeed`, `u_splashLife` | Splash … | 4 / 0.03 / 0.9 / 1 / 0.3 | Droplets per splash, size (metres), brightness, throw speed (1 is a raindrop's), lifetime (seconds). 0 droplets leaves only the bright point. |
+| `u_ringSpeed`, `u_ringLife`, `u_ringWidth`, `u_ringStrength` | Ring … | 0.25 / 0.5 / 0.006 / 1 | Ripple speed (m/s), lifetime (s), crest width (m) and strength. |
+| `u_streakTexture`, `u_flakeTexture`, `u_splashTexture` | Streak / Flake / Splash Texture | — | Texture parameters replacing the built-in soft streak and dot: alpha is the shape, colour tints it. A streak texture runs tail (v 0) to head (v 1). |
+| `u_streakColor`, `u_flakeColor`, `u_splashColor` | Streak / Flake / Splash Colour | (0.78, 0.82, 0.9) | Colour parameters. |
+
+The look parameters are in metres and seconds, so a look holds at any world scale. The effect is animated by the engine clock
+and has no time parameters.
+
+### Wet ground and puddles
+
+Wet surfaces are darkened by Wetness, because water in the pores absorbs light a dry surface scatters. Darkening is full on
+surfaces that face the sky and decreases to 0.6 of it on surfaces that face away; orientation comes from the G-buffer normal
+where one exists (a leaf) and from the depth buffer elsewhere, so slopes and plants darken with the flat ground beside them.
+
+Standing water needs **flat ground**: a surface that faces up and is flat enough to hold water. A pool is darker than wet
+ground and is where drops leave ripples. Pool placement is a function of world position and surrounding ground: noise
+places the pools, and the depth buffer marks low places. A point lower than the ground within a pool's reach holds more water,
+a point on a rise holds less, and flat ground keeps the given coverage. Pools gather against kerbs, in dips and at the foot of
+slopes, and do not move with the camera.
+
+A puddle is also a mirror, which is the [reflections](/docs/graphics/post-processing/lighting/#screen-space-reflections)
+effect's part: give `ssr` the same `u_puddles` and `u_puddleScale` and the pools the rain darkens are the pools that reflect.
+Wet ground in general is shinier than dry; raise `ssr`'s intensity during rain.
+
+### Shelter
+
+Rain does not fall through a roof. While a `rain` effect is in the chain, the frame draws the scene once from straight
+above, depth only, into a 1024² map covering Shelter Range world units each way around the camera: the highest surface at each
+place. A falling drop ends at the highest surface under it, so none falls under an awning. Ground under cover stays dry and
+still (no wetness, puddles or ripples), and the cover itself is open to the sky and gets wet. The cost is a depth-only draw of
+the resident meshes in range; keep Shelter Range to the reach needed. Ground outside the map is treated as open.
+
+**Limits.** The ground's shape is read from what the camera sees; a hollow behind a wall is unknown.
+
+### Snow Cover
+
+`snowCover` lays snow on whatever faces the sky and stands under nothing, terrain and the objects on it alike, without
+changing any material. It thins with slope and below the snow line, and it is lit by what the picture already shows of the
+place, so a shadow on the ground is a shadow on the snow. It uses the same shelter map as the rain. The Snow weather applies it
+([Snow and wet ground on terrain](/docs/graphics/terrain/overview/)).
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_amount` | Amount | 1 | From a dusting in low places to everything covered. |
+| `u_snowLine` | Snow Line | −100000 | World height below which no snow lies. |
+| `u_snowLineBand` | Snow Line Band | 100 | World height over which snow thins in above the snow line. |
+| `u_slopeLimit` | Slope Limit | 0.55 | How much a surface must face up to hold snow: 1 only flat ground, 0 nearly vertical. |
+| `u_grainScale` | Drift Size | 120 | World size of the drifts. |
+| `u_shelterRange` | Shelter Range | 3000 | As for rain. |
+| `u_snowColor` | Snow Colour | (0.92, 0.95, 1) | Colour parameter: snow colour. |
+
+## 2D atmosphere
+
+Three effects work in scenes without a depth buffer. Their lengths are in world units, so they stay on the ground as the
+camera moves.
+
+### Mist 2D
+
+`mist2d` lays drifting banks of mist over the ground. Lit areas glow through it.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_density` | Density | 0.55 | Thickness where the mist is thickest. |
+| `u_coverage` | Coverage | 0.6 | Share of the ground covered: 0 none, 1 nearly all. |
+| `u_scale` | Scale | 520 | World size of the banks. |
+| `u_speed` | Speed | 18 | Drift speed, world units per second. |
+| `u_direction` | Direction | 25 | Drift direction, degrees from +X. |
+| `u_glow` | Glow | 0.6 | How much lit areas scatter in the mist. |
+| `u_fogColor` | Colour | (0.62, 0.72, 0.76) | Colour parameter: mist colour. |
+
+### Fog of War 2D
+
+`fog2d` is fog of war: ground never seen is dark, ground seen and left is remembered dimmed and desaturated, and ground in view
+is shown as drawn. It requires a `FogOfWar` component, whose system supplies the explored and visible maps each frame.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_forgetLight` | Remembered Brightness | 0.4 | Brightness of remembered ground. |
+| `u_forgetDesat` | Remembered Desaturation | 0.7 | Colour removed from remembered ground. |
+| `u_unexploredColor` | Unexplored Colour | black | Colour parameter: colour of unexplored ground. |
+
+### Rain 2D
+
+`rain2d` draws rain streaks, with rings, splashes and puddles on the ground; areas under a `RainShelter` sprite stay dry.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Amount of rain. |
+| `u_wetness` | Wetness | 1 | Ground darkening and ring clarity. |
+| `u_puddles`, `u_puddleScale` | Puddles / Puddle Size | 0.4 / 220 | Share of ground under water; world size of the pools. |
+| `u_rippleScale` | Ripple Scale | 36 | World size of the grid cell each ring occupies. |
+| `u_wind`, `u_speed`, `u_streakLength` | Wind / Speed / Streak Length | 0.15 / 1.6 / 0.3 | Streak slant, speed and length. |
+| `u_maskSize` | Shelter Mask Size | 512 | Texels per side of the shelter mask, redrawn every frame. Larger is finer and costs more; a quality level can lower it. |
+| `u_streakColor` | Streak Colour | (0.78, 0.82, 0.9) | Colour parameter: streak colour. |
+
+<Aside type="tip">
+  Height fog and light shafts leave per-pixel noise. With `taa` in the chain, place it after them
+  ([Temporal anti-aliasing](/docs/graphics/post-processing/image-effects/#temporal-anti-aliasing)).
+</Aside>
+
+## See also
+
+- [Weather](/docs/graphics/weather/)
+- [Time of Day](/docs/graphics/time-of-day/)
+- [Post-processing](/docs/graphics/post-processing/overview/)

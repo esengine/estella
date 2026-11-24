@@ -1,0 +1,172 @@
+---
+title: 屏幕空间光照
+description: 光照效果参考——G-buffer、SSAO 与 GTAO 环境光遮蔽、Contact Shadows、Screen Space GI、Voxel GI、Screen Space Reflections 与 Subsurface Scattering 的参数、要求与限制。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+这些效果根据帧的深度缓冲和 G-buffer 所记录的信息补充或修正光照。它们在检视器中带有**光照**标签，并读取场景深度。环境光遮蔽、接触阴影和全局光照属于
+画质级别的全局光照组，`ssr` 属于反射组（[画质级别](/docs/zh-cn/performance/quality-levels/)）。标为世界长度的参数在未设置时跟随项目的 Units per Metre
+（[世界单位参数](/docs/zh-cn/graphics/post-processing/overview/#世界单位参数)）。
+
+{/* SHOT: pp-ambient-occlusion | Split comparison of a 3D interior in the Game view: left half with no ambient occlusion, right half with Ground-Truth Ambient Occlusion enabled (darkened creases under furniture and in room corners); the GTAO entry unfolded in the Inspector. */}
+
+## G-buffer
+
+有些效果需要知道表面是什么，而不只是它的颜色。着色器中声明了 `#pragma gbuffer` 的效果会让这一帧在场景颜色旁多绘制一个颜色附件，在同一个 pass 中、由同样的着色器写入：
+
+| 通道 | 内容 |
+|---|---|
+| `r`、`g` | 八面体编码的法线 |
+| `b` | 粗糙度 |
+| `a` | 有表面写入处为 `0.75 + 0.25 × 金属度`；无写入处为 0 |
+
+该附件为 RGBA8。`a` 通道的编码使效果能够区分写入过的表面与被多重采样和未写入像素平均过的边缘（最多 0.5）。效果在 `u_gbuffer`（GLSL）或 `t6`（WGSL，用
+`textureLoad` 读取）处读取它。
+
+- **开销。** 一个额外的 RGBA8 目标和每像素一次额外写入，且仅在有已启用效果声明它时产生。没有此类效果的帧没有该附件，也不编译变体。
+- **写入者。** 内置 **Model** 着色器（导入的 glTF 材质所转换成的材质），粗糙度、金属度和法线贴图均按材质定义；以及引擎的普通受光网格，它记录为粗糙的电介质。
+  精灵、混合表面、不受光网格和自定义着色器将其保留为 0；效果把 0 视为未知并保持像素不变，`ssr` 即如此处理。
+- **自定义着色器。** pass 带有该附件时，着色器编译时定义 `ES_GBUFFER`；着色器随后声明第二个输出（`layout(location = 1) out vec4`，WGSL 中为结构体返回值），
+  并按相同编码写入。
+- **多重采样。** 在 WebGL2 和 WebGPU 上，该附件与场景一起多重采样、一起解析。混合绘制从不写入它，场景背景将其清为 0。
+
+## 环境光遮蔽
+
+两种估计器共用一套模糊和合成。两者都读取场景深度、以半分辨率运行，并且模糊时不跨越深度边缘。
+
+- **`ssao`**（Ambient Occlusion）统计周围一圈点中有多少高于表面。它是两者中较便宜的一个，需要偏移量来避免平坦地面遮蔽自身。
+- **`gtao`**（Ground-Truth Ambient Occlusion）沿穿过每个像素的若干切片平面在深度缓冲中步进，找出两侧的地平线，并按表面法线对剩余的开阔弧段积分。它没有偏移量：
+  平坦地面保持白色，夹角处按其实际封闭程度变暗。
+
+| 效果 | 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|---|
+| `ssao` | `u_radius` | Radius | 60 | 世界长度：一个点周围的邻域。 |
+| | `u_intensity` | Intensity | 1 | 遮蔽强度。 |
+| | `u_bias` | Bias | 0.12 | 采样点需高出切平面多少才计入。 |
+| | `u_power` | Power | 1.6 | 结果的对比度。 |
+| `gtao` | `u_radius` | Radius | 80 | 世界长度：地平线搜索距离。 |
+| | `u_intensity` | Intensity | 1 | 遮蔽强度。 |
+| | `u_power` | Power | 1.4 | 结果的对比度。 |
+| | `u_thickness` | Thickness | 0.5 | 0 将每个遮挡物视为实心；1 允许越过薄遮挡物（栏杆、树叶）。 |
+
+画质级别通过同一个环境光遮蔽开关管理两者；低档位不包含 `gtao`。
+
+## 接触阴影
+
+`contactShadows`（Contact Shadows）从每个像素朝太阳在深度缓冲中步进一条短射线，射线刚好经过可见表面后方时将像素压暗。它补充阴影贴图过于粗糙而无法表现的部分
+（灯脚、衣褶、门下的缝隙），并施加在完成的画面上，是接触处的修正，而非第二套阴影系统。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.6 | 接触阴影的暗度。 |
+| `u_length` | Length | 60 | 射线的世界长度。 |
+| `u_thickness` | Thickness | 8 | 物体仍能投影的世界厚度上限。 |
+| `u_followSun` | Follow Scene Sun | 1 | 1：太阳为场景的第一盏平行光。0：使用下面两个角度。 |
+| `u_sunAzimuth`、`u_sunElevation` | Sun Azimuth / Elevation | 40 / 35 | 不跟随场景光源时的太阳方向，单位为度。 |
+
+## 屏幕空间全局光照
+
+`ssgi`（Screen Space GI）添加来自屏幕上表面的一次漫反射光弹射。它需要 [G-buffer](#g-buffer)。每个表面绕存储的法线向半球发出八条射线，每条在深度缓冲中最多步进
+六步、最远 `u_radius`，所落到的表面贡献其颜色。收集以半尺寸写入浮点目标；第二个 pass 对同一表面上的邻居取平均，并加上光乘以接收者颜色的结果，因此红墙会把旁边的
+白色地面染红。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 添加的弹射光量。 |
+| `u_radius` | Radius | 150 | 射线搜索的世界长度。 |
+| `u_thickness` | Thickness | 30 | 命中表面可具有的世界厚度，避免远处的墙被误认作近处的墙。 |
+| `u_maxBounce` | Max Bounce | 3 | 亮度上限，超过后表面不再增加弹射，避免单个灯像素照亮整条街。 |
+
+限制：只有屏幕上的表面参与贡献。弹射读取场景自身的受光颜色，因此会跨帧自我叠加。单帧噪点较多；应在其后放置 `taa`。移动的光会照亮其周围，这是烘焙光照做不到的。
+
+## 体素 GI
+
+`voxelGI`（Voxel GI）基于**世界空间体素缓存**添加漫反射全局光照。相机周围一个 128 × 64 × 128 的体素网格（每个体素 `u_voxelSize` 世界单位）存储每个体素内表面的
+平均辐射度与朝向：
+
+- 每帧将受光画面写入其可见表面所在的体素，原有内容按 `u_decay` 衰减。
+- 太阳照亮的表面也从太阳的阴影贴图写入，无论相机是否看见它们。阴影贴图不含颜色，因此这些表面按 **Off-screen Sun Albedo** 的反照率处理。
+- 从每个可见表面发出若干条余弦加权射线，逐格步进；射线遇到朝向它的体素时，接收该体素的辐射度。
+- 收集以画面尺寸的 `1 / u_divisor` 运行，跨帧混合，并借助深度上采样，因此不会越过边缘渗色。
+
+由于缓存属于世界，已离开画面的明亮墙面仍会为旁边的地面染色，只被其他表面照亮的表面也会被照亮，移动的光会照亮其周围。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 添加的收集光量。 |
+| `u_rays` | Rays | 8 | 每个表面点的射线数。开销与其成正比。 |
+| `u_voxelSize` | Voxel Size | 40 | 体素的世界尺寸；决定缓存的覆盖范围与精度。 |
+| `u_range` | Range | 48 | 射线长度，单位为体素。 |
+| `u_maxBounce` | Max Bounce | 3 | 亮度上限，超过后表面不再发出更多光。 |
+| `u_decay` | Memory | 0.93 | 每帧保留的缓存比例。越低越快跟随移动的光；越高越稳定。 |
+| `u_bias` | Start Bias | 1.2 | 射线起点偏移，单位为体素，避免表面照亮自身。 |
+| `u_divisor` | Resolution Divisor | 2 | 收集在每个轴上以画面尺寸的 1/divisor 运行。 |
+| `u_blend` | Temporal Blend | 0.2 | 每帧收集结果的混入比例。 |
+| `u_debug` | Show GI Only | 0 | 为 1 时仅显示收集到的光。 |
+| `u_sunAlbedo` | Off-screen Sun Albedo | 0.6 | 从阴影贴图写入的受光表面所假定的反照率。0 表示不使用太阳；此时缓存只知道画面所显示的内容。 |
+| `u_bounceFeedback` | Multi-bounce | 1 | 表面将接收到的光再次发出的比例，使光传播到第一次弹射之后。0 为单次弹射。 |
+
+默认值按每米 100 个世界单位声明，未设置时跟随项目的 Units per Metre。在一个单位为一米的项目中拍摄近景角色时：`u_voxelSize` 取 0.03（缓存约四米见方），
+`u_range` 取 48；`ssgi` 的 `u_radius` 取 0.4，`u_thickness` 取 0.15。
+
+**后端。** 在 WebGPU 上它以计算 pass 运行。WebGL2 没有计算阶段，同样的缓存由片元 pass 写入一张半浮点图集（2048 × 1024，32 MB）：图集的每个纹素从画面中查询
+其体素内有什么。结果与 WebGPU 一致，但收集固定为半尺寸（`u_divisor` 被忽略），掠射角看到的表面在缓存中更薄，开销也更高。WebGL2 上 `low` 画质档位不包含它。
+由于存在计算版本，检视器将其标为**仅 WebGPU**。
+
+**限制。**
+
+- 它不是对场景几何体的追踪。既未被相机看见、也未被太阳照亮的表面不发光，薄表面与一个体素一样厚。没有距离场或硬件光线追踪，也没有场景网格的表面缓存。
+- 仅漫反射传输；没有光泽反射。
+- 它所读取的画面带有上一帧的光，因此明亮表面会轻微地为自身供光。
+- 内存：一个约 32 MB 的网格、每帧若干 pass、每个相机一份缓存。
+
+## 屏幕空间反射
+
+`ssr`（Screen Space Reflections）将屏幕上已有的内容反射到反光表面中：湿润的街道、抛光地板、湖岸。反射射线在世界中步进，每一步投影回屏幕；落在可见表面刚好后方
+的一步即为命中。命中的颜色按 Schlick 菲涅尔项混合：正对时弱，掠射时强。越远的命中模糊越多。
+
+表面数据来自 [G-buffer](#g-buffer)：表面自身的法线（含法线贴图细节）、粗糙度与金属度。粗糙表面的反射暗而模糊；粗糙度高于 `u_maxRoughness` 的表面在步进前即被跳过，
+这省去了大部分开销。金属几乎反射全部入射光；电介质正对时反射 4%。没有写入表面记录的地方（精灵、混合或不受光表面、自定义着色器）像素保持不变。
+
+射线离开画面或到达天空时，表面反射帧中网格所反射的环境，清晰度由其粗糙度决定，并按 `u_skyReflection` 缩放。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | 反射强度。 |
+| `u_maxDistance` | Max Distance | 400 | 射线可行进的世界长度。步数固定，因此距离越长步进越粗。 |
+| `u_thickness` | Thickness | 12 | 可见表面后方仍算命中的世界深度。 |
+| `u_floorBias` | Floor Bias | 0 | 1：仅朝上的表面反射。0：任何足够光滑的表面都反射。 |
+| `u_maxRoughness` | Max Roughness | 0.75 | 粗糙度高于此值的表面不反射，也不产生开销。 |
+| `u_wetness` | Wetness | 0 | 湿润地面更光滑，因而反射。设为 Rain 效果的湿度。 |
+| `u_puddles`、`u_puddleScale` | Puddles / Puddle Size | 0 / 350 | 积水：平坦且如镜面。与 Rain 效果取相同的值即反射相同的水坑。 |
+| `u_skyReflection` | Sky Reflection | 1 | 射线在屏幕上找不到内容时的环境反射。0 表示关闭。 |
+
+逐像素的起点偏移用于掩盖固定步数造成的条带，由 `taa` 平均消除。二者应配合使用。下雨时，将 [Rain](/docs/zh-cn/graphics/post-processing/sky-and-weather/#雨与雪)
+效果的 `u_puddles`、`u_puddleScale` 和 `u_wetness` 赋给 `ssr`，并提高其强度。
+
+## 次表面散射
+
+`subsurface`（Subsurface Scattering）沿被标记的表面柔化受光画面，各颜色通道的扩散距离不同：红色最远。它以 x、y 两个 pass 作用于完成的画面。
+
+哪些表面参与由材质决定：`u_subsurface` 大于 0 的 Model 材质以 alpha 0.996 绘制其像素作为标记，这在屏幕上不可见，效果会将其还原为 1
+（[材质](/docs/zh-cn/graphics/materials/overview/)）。扩散距离由效果决定。被标记的像素只从同一表面上被标记的邻居处采样，因此耳朵不会渗到身后的墙上。
+
+| 参数 | 标签 | 默认值 | 说明 |
+|---|---|---|---|
+| `u_width` | Width | 8 | 扩散最远的颜色所传播的世界长度。 |
+| `u_strength` | Strength | 1 | 混入的模糊比例。 |
+| `u_color` | Scatter Colour | (1, 0.45, 0.25) | 颜色参数：各通道之间的比例；最亮的通道传播完整宽度。 |
+
+受光颜色按原样被模糊，包括高光，因此散射表面上锐利的高光也会被柔化。宽度属于效果，视野内所有散射材质共用同一宽度。低画质档位不包含该效果。
+
+<Aside>
+  环境光遮蔽、接触阴影、SSGI 和 SSR 会留下逐像素噪点。应在它们之后放置 `taa`
+  （[时间性抗锯齿](/docs/zh-cn/graphics/post-processing/image-effects/#时间性抗锯齿)）。
+</Aside>
+
+## 参见
+
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)
+- [光源](/docs/zh-cn/graphics/lighting/lights/)
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— `u_subsurface` 以及从着色器输出 G-buffer。

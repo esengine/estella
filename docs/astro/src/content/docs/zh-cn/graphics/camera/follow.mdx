@@ -1,0 +1,261 @@
+---
+title: 跟随与构图
+description: 相机流水线参考——阶段顺序、FollowTarget、PositionComposer、LookAtTarget 及其构图参考线、CameraDolly 轨道、CameraTargetGroup 与 GroupFraming、CameraDeoccluder，以及 CameraBounds。
+---
+
+每个 `Camera` 都是一台虚拟相机：由场景描述的一个视角。本页的组件每帧移动相机，使其跟随目标、对目标构图并保持目标可见，游戏中无需编写相机代码。
+
+## 相机流水线
+
+每帧在选出视图之前，每台相机都按其携带的组件依固定顺序移动：
+
+| 阶段 | 作用 | 组件 |
+|---|---|---|
+| 1. 位置 | 相机所在位置 | `FollowTarget`、`CameraDolly` 或 `PositionComposer`（每台相机一种） |
+| 2. 朝向 | 相机看向何处 | `LookAtTarget` |
+| 3. 收尾 | 对结果的限制 | `GroupFraming`、`CameraDeoccluder`、`CameraBounds` |
+| 4. 噪声 | 最终画面上的漂移 | `CameraNoise`、`CameraImpulseListener`（[噪声、震屏与冲击](/docs/zh-cn/graphics/camera/shake/)） |
+
+行为：
+
+- 流水线在游戏的 Update 系统之后运行，读取各目标在当前帧的位置。
+- 每个阶段在世界空间中计算，并经由相机的父节点写回。后续阶段读取同一帧中先前阶段写入的结果，因此同时跟随并看向同一角色的相机，是从它在本帧所处的位置瞄准的。
+- 噪声只移动最终画面，逐相机施加，发生在混合之前。随后[相机导演](/docs/zh-cn/graphics/camera/blending/#相机导演)选出一台活动相机并混合过去。震屏在此之后施加，只作用于最终画面，从不修改相机的 `Transform`。
+- 流水线**仅在播放模式下**运行；编辑器的导航视图不受其影响。
+
+示例 `camera-shots` 不编写相机代码即组合了全部阶段：轨道上的跟拍、环形轨道上的摇臂镜头和一个远景。
+
+## 跟随目标
+
+`FollowTarget` 使相机跟随一个实体。跟随是与帧率无关的阻尼移动，带有死区：目标在死区内移动时相机不动，离开死区后相机平滑跟上。死区可避免细小移动引起的抖动；`damping` 越大，跟随越慢。
+
+![相机把目标保持在离视图中心固定的 offset；目标在死区圆内自由移动，一旦离开相机就阻尼跟上](@/assets/guides/camera-follow.svg)
+
+```typescript
+import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
+
+const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
+  for (const [cameraEntity] of cameras) {
+    cmds.entity(cameraEntity).insert(FollowTarget, {
+      target: playerEntity,   // the Entity to follow
+      offsetY: 40,
+      deadzone: 24,
+      damping: 0.25,
+    });
+  }
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 跟随的实体（`0` 表示无；旧场景中的 `-1` 同样视为无）。 |
+| `offsetX` | number | `0` | 相对目标的世界空间 X 偏移（在父节点下同样按世界空间计算）。 |
+| `offsetY` | number | `0` | 相对目标的世界空间 Y 偏移。 |
+| `offsetZ` | number | `0` | 相对目标的世界空间 Z 偏移（3D 跟随使用）。 |
+| `followZ` | boolean | `false` | 同时跟随目标的深度。平面场景中保持关闭，此时相机的 z 是其与平面的后退距离。 |
+| `deadzone` | number | `0` | 相机开始移动前目标可移动的半径（世界单位；3D 中为球体）。 |
+| `damping` | number | `0.25` | 平滑时间常数，单位为秒（越大越慢；`0` 表示立即吸附）。 |
+
+数据形状导出为 `FollowTargetData` 类型。跟随直接写入相机的 `Transform`，因此导演混合的是已完成跟随的视图。
+
+![第三人称示例：相机跟在角色身后，前方是树木之间的台阶](@/assets/guides/zh/play-third-person.png)
+
+*第三人称示例：相机从角色身后跟随。*
+
+## 移动相机来构图
+
+`PositionComposer` 通过移动相机（而非转动相机）将目标保持在某个屏幕点上，是常用的 2D 跟随相机。目标在死区内移动时相机不动；超出死区后相机按 `damping` 平滑追上；软区是外层界限，越过其边缘时相机立即移动。3D 相机还会沿视线方向与目标保持 `cameraDistance` 的距离。
+
+```typescript
+import { PositionComposer } from 'esengine';
+
+cmds.entity(cameraEntity).insert(PositionComposer, {
+  target: player,
+  screenX: 0.4, screenY: 0.4,              // 偏左下：为玩家前方留出视野
+  deadzoneWidth: 0.1, deadzoneHeight: 0.2, // 走动不会带动相机
+  softzoneWidth: 0.6, softzoneHeight: 0.6, // 冲刺也不会让玩家越过此处
+  damping: 0.25,
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 构图的实体（`0` 表示无）。 |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | 构图点，即相对目标的世界空间偏移。 |
+| `screenX` / `screenY` | number | `0.5` | 目标被保持的位置：`0` 为左或下边缘，`1` 为右或上边缘。 |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | 相机不动时目标可移动的屏幕占比。 |
+| `softzoneWidth` / `softzoneHeight` | number | `0.8` | 目标被限制在内的屏幕占比；越过其边缘相机立即移动。 |
+| `damping` | number | `0.3` | 在屏幕方向上追上大部分距离所需的秒数（`0` 表示立即）。 |
+| `cameraDistance` | number | `0` | 3D：目标在相机前方保持的距离。`0` 保持当前距离。 |
+| `depthDamping` | number | `0.3` | 3D：追上该距离大部分所需的秒数。 |
+
+相机沿自身屏幕平面（右方向与上方向）移动，因此旋转过的相机以推轨方式移动。正交相机的屏幕在任何深度下高度均为 `orthoSize`。`PositionComposer` 属于位置阶段：一台相机使用它、`FollowTarget` 或 `CameraDolly` 之一。选中相机时，其视口预览会绘制死区与软区。Follow Camera 2D 组合使用此组件。
+
+{/* SHOT: cam-position-composer-zones | Scene view with the Follow Camera 2D rig selected and a player sprite as its target: the camera preview inset shows the composer's dead zone and soft zone rectangles over the framed player, Details panel shows the PositionComposer card */}
+
+## 看向目标
+
+`FollowTarget` 决定相机所在位置，`LookAtTarget` 决定相机看向何处。在透视相机上，`LookAtTarget` 转动相机，使目标位于指定的屏幕点。目标在该点周围的死区内移动时相机不转动；离开死区后，相机只转动到使目标回到死区边缘为止，并按 `damping` 平滑。
+
+```typescript
+import { LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity).insert(LookAtTarget, {
+  target: hero,
+  offsetY: 160,          // 看向头部而非脚下
+  screenX: 0.5,          // 水平居中……
+  screenY: 0.6,          // ……略高于中心
+  deadzoneWidth: 0.1,    // 可在画面宽度的十分之一内自由移动
+  deadzoneHeight: 0.1,
+  damping: 0.2,
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 看向的实体（`0` 表示无）。 |
+| `offsetX` / `offsetY` / `offsetZ` | number | `0` | 看向的点，即相对目标的世界空间偏移。 |
+| `screenX` | number | `0.5` | 目标在屏幕上的水平位置：`0` 为左边缘，`0.5` 为中心，`1` 为右边缘。 |
+| `screenY` | number | `0.5` | 目标在屏幕上的竖直位置：`0` 为下边缘，`0.5` 为中心，`1` 为上边缘。 |
+| `deadzoneWidth` / `deadzoneHeight` | number | `0` | 相机不转动时目标可移动的屏幕占比。 |
+| `damping` | number | `0.1` | 转向目标大部分角度所需的秒数（`0` 表示立即）。与帧率无关。 |
+
+约束：
+
+- 相机只绕世界上方向和自身右方向转动，因此不会发生翻滚。
+- 父节点下的相机在世界空间中转动，其本地旋转经由父节点换算得出。
+- 正交相机不会被转动：它绘制的是一个平面，转动会露出平面的边缘。
+- 屏幕点按相机自身 `viewport` 所占的屏幕部分度量，因此在任意屏幕宽高比下构图一致。
+
+### 构图参考线
+
+选中带 `LookAtTarget` 的相机时，其视口预览会绘制构图：目标被保持的屏幕点及其周围的死区。拖动该点可设置 `screenX`/`screenY`；拖动死区的边可以该点为中心调整死区大小。每次拖动为一个撤销步骤。
+
+{/* SHOT: cam-composition-guides | Scene view with a Tracking Camera selected in a 3D scene: the camera preview inset shows the composition guides (target point and dead-zone rectangle) over the framed character, mouse cursor on a dead-zone edge */}
+
+## 沿轨道移动
+
+`CameraDolly` 将相机放在一条轨道上：场景中的一个 `Spline` 实体。它属于位置阶段，用于代替 `FollowTarget` 或 `PositionComposer`。`mode` 决定相机在轨道上的位置：
+
+| 模式 | 轨道上的位置 |
+|---|---|
+| `DollyMode.Fixed` | 位于 `position`，由脚本或动画移动。 |
+| `DollyMode.TrackTarget` | 位于轨道上离 `target` 最近的点，再沿轨道偏移 `offset`。 |
+| `DollyMode.Speed` | 以 `speed` 前进，在闭合轨道上循环，在开放轨道上行至终点。 |
+
+```typescript
+import { CameraDolly, DollyMode, LookAtTarget } from 'esengine';
+
+cmds.entity(cameraEntity)
+  .insert(CameraDolly, { spline: railEntity, mode: DollyMode.TrackTarget, target: runner, offset: -150, damping: 0.4 })
+  .insert(LookAtTarget, { target: runner });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `spline` | Entity | `0` | 其 `Spline` 作为轨道的实体。 |
+| `mode` | number | `Fixed` | 轨道位置的选取方式（`DollyMode`）。 |
+| `position` | number | `0` | 在轨道上的位置，从起点算起的世界单位。每帧在所有模式下都会写回。 |
+| `target` | Entity | `0` | Track Target 模式下相机保持对齐的实体。 |
+| `offset` | number | `0` | 位于离目标最近点之前（负值为之后）的世界单位数。 |
+| `speed` | number | `0` | Speed 模式下每秒沿轨道前进的世界单位；负值为倒退。 |
+| `damping` | number | `0.3` | Track Target 模式下追上大部分距离所需的秒数；`0` 表示立即。 |
+
+距离沿曲线以世界单位度量，因此缩放后的样条更长。在闭合轨道上，Track Target 推轨取较短的一侧，目标跨过接缝时相机不会绕整圈。该轨道与 `PathFollower` 使用的是同一条曲线。
+
+{/* SHOT: cam-dolly-track | Scene view after Create → Dolly Camera with Track: the spline track drawn with its control points, the dolly camera's gizmo on the track, Details panel showing the CameraDolly card with Mode Track Target */}
+
+## 同时框住多个目标
+
+`CameraTargetGroup` 将多个实体作为一个目标。每帧组实体被放到成员的中心，因此任何接受目标的阶段（`FollowTarget`、`LookAtTarget`、`PositionComposer`、`CameraDolly`）只要以组实体为目标，即可框住整组。相机上的 `GroupFraming` 再确定画面大小：包住所有成员（每个成员为半径等于组 `radius` 的球体）的盒体被调整为占据屏幕的 `framingSize`，方式为缩放镜头或推拉相机。
+
+```typescript
+import { CameraTargetGroup, GroupFraming, PositionComposer, FramingAdjustment } from 'esengine';
+
+const players = cmds.spawn()
+  .insert(Transform, {})
+  .insert(CameraTargetGroup, { members: [p1, p2], weights: [1, 1], radius: 40 })
+  .id();
+
+cmds.entity(cameraEntity)
+  .insert(PositionComposer, { target: players })
+  .insert(GroupFraming, { framingSize: 0.7, adjustment: FramingAdjustment.Zoom });
+```
+
+| `CameraTargetGroup` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `members` | Entity[] | `[]` | 一同被框住的实体。 |
+| `weights` | number[] | `[]` | 按顺序对应各成员的权重；缺省为 `1`，`0` 表示排除该成员。 |
+| `radius` | number | `50` | 每个成员的大小，以其原点为中心的球体表示：取景时保留在画面中的范围。 |
+| `center` | number | `Bounds` | 组的位置：`GroupCenter.Bounds`（盒体中心）或 `GroupCenter.Average`（加权平均）。 |
+
+| `GroupFraming` | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `group` | Entity | `0` | 被框住的组。`0` 取相机的构图、看向或跟随所指向的组。 |
+| `framingSize` | number | `0.8` | 组占据的屏幕比例。 |
+| `mode` | number | `Both` | 按宽度 `FramingMode.Horizontal`、按高度 `Vertical`，或取需要空间更大的一方（`Both`）。 |
+| `adjustment` | number | `Zoom` | `FramingAdjustment.Zoom` 改变镜头（`orthoSize` 或视场角）；`DollyThenZoom` 先沿视线方向移动相机，距离范围不足的部分再缩放。 |
+| `damping` | number | `0.5` | 追上大部分所需的秒数（`0` 表示立即）。 |
+| `minFov` / `maxFov` | number | `10` / `80` | 镜头范围，单位为度。 |
+| `minOrthoSize` / `maxOrthoSize` | number | `1` / `5000` | 正交相机的范围。 |
+| `minDistance` / `maxDistance` | number | `100` / `5000` | 推拉时离组中心的最近与最远距离。 |
+
+推拉量与相机组合给出的位置分开保存，因此同时跟随该组的相机会平滑后退，而不是每帧被移动一步。Target Group Camera 2D 与 Target Group Camera 组合会创建一个组及一台框住它的相机。
+
+## 保持目标可见
+
+当几何体出现在 3D 相机与其目标之间时，`CameraDeoccluder` 保持目标可见。从目标向相机组合放置的位置扫掠一个球体；碰到物体时，相机沿该直线移近到碰撞点之前。沿该直线移动可使目标保持在构图的屏幕位置。遮挡消失后，相机平滑退回到相机组合放置的位置；相机组合自身的各阶段始终不会看到被拉近的位置。
+
+```typescript
+import { CameraDeoccluder } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraDeoccluder, {
+  radius: 15,               // 在墙前此距离处停下
+  minimumDistance: 30,      // 离目标不近于此距离
+  dampingWhenOccluded: 0,   // 立即拉近，不会看穿墙体
+  damping: 0.4,             // 约 0.4 秒退回
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | Entity | `0` | 保持可见的实体。`0` 取 `LookAtTarget` 的目标（含偏移），否则取 `FollowTarget` 的目标。 |
+| `radius` | number | `15` | 扫掠球体的半径：相机在墙前停下的距离。 |
+| `layers` | number | `0` | 会遮挡目标的物理层；`0` 表示全部层。 |
+| `minimumDistance` | number | `30` | 相机与目标之间的最小距离。 |
+| `dampingWhenOccluded` | number | `0` | 目标被遮挡时移近所需的秒数；`0` 表示立即。 |
+| `damping` | number | `0.4` | 遮挡消失后退回所需的秒数。 |
+
+扫掠查询的是 3D 物理世界，因此只有带 3D 碰撞体的物体会遮挡目标；没有 3D 物理的场景中，相机停留在相机组合放置的位置。Tracking Camera 组合包含此组件。
+
+## 把相机限制在关卡内
+
+`CameraBounds` 将相机视野限制在一个世界矩形内，使关卡边缘停留在屏幕边缘。
+
+```typescript
+import { CameraBounds } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraBounds, {
+  minX: -1280, maxX: 1280,   // 关卡的世界矩形
+  minY: -768,  maxY: 768,
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `minX` / `maxX` | number | `0` | 视野保持在其中的水平区间。 |
+| `minY` / `maxY` | number | `0` | 视野保持在其中的竖直区间。 |
+
+行为：
+
+- 某个轴只有在给出有效区间（`max > min`）时才受约束。保持 `0`/`0` 或 `max ≤ min` 的轴不受约束。横向无限滚动的关卡只约束竖直轴。
+- 区间比视野窄时，整个区间居中显示。
+- 该限制在所有移动相机的阶段（包括 `FollowTarget`）之后执行：它约束相机在本帧结束时的位置，与移动相机的来源无关。
+- 仅作用于正交相机。透视相机的半尺寸取决于与被拍摄物的距离，而没有任何相机属性描述该距离。
+- 仅在播放模式下运行。
+
+## 另请参阅
+
+- [相机基础](/docs/zh-cn/graphics/camera/overview/)
+- [噪声、震屏与冲击](/docs/zh-cn/graphics/camera/shake/)
+- [混合与切换](/docs/zh-cn/graphics/camera/blending/)

@@ -1,0 +1,222 @@
+---
+title: Blending & switching
+description: Camera switching reference — setViewTarget blends, BlendCurve, priority-based switching with CameraBrain default and custom blends, StateDrivenCamera, the CameraDirector state, cameraDirectorReport, CameraEvent, and CameraPOV.
+---
+
+The **camera director** resolves one main view per frame from the cameras that cover the whole screen. A change of
+live camera is either a cut or a blend. A blend is requested explicitly with `setViewTarget`, or applied by a
+`CameraBrain` when the live camera changes by priority, by activation or by a `StateDrivenCamera`.
+
+## Blending between cameras
+
+`setViewTarget` switches the view to another camera entity, cutting or **blending** over `time` seconds:
+
+```typescript
+import { setViewTarget, BlendCurve } from 'esengine';
+
+// Cut:
+setViewTarget(app, cutsceneCamera);
+// Blend over 1.5 s:
+setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `time` | `0` | Blend duration in seconds. `time <= 0`, or no prior view, is a cut. |
+| `curve` | `BlendCurve.EaseInOut` | Easing: `Linear`, `EaseIn`, `EaseOut` or `EaseInOut`. |
+
+The request is applied on the next frame, starting from the current view. During a blend, position, zoom and rotation
+interpolate; a 3D camera's orientation turns the short way round; `projection` and `pixelPerfect` switch at the
+midpoint; `viewport`, `clearFlags`, `priority`, `cullingMask` and `renderTarget` take the target camera's values.
+Blends are preferred over moving a camera for scene and cutscene transitions. While a timeline's camera track holds the
+view, `setViewTarget` waits.
+
+## Switching cameras by priority
+
+Among the active cameras that cover the whole screen, the one with the highest `priority` is live. On a tie, the camera
+activated most recently is live; cameras present when the scene loads count as activated together, so the first of them
+is live. Raising a camera's priority, or turning a camera on or off, changes the live camera.
+
+Without a `CameraBrain`, such a change cuts. With a `CameraBrain` on any entity of the scene, the view blends:
+
+```typescript
+import { CameraBrain, BlendCurve } from 'esengine';
+
+cmds.spawn().insert(CameraBrain, { defaultBlend: 1.2, blendCurve: BlendCurve.EaseInOut });
+
+// This camera becomes live; the view blends to it over 1.2 s.
+cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `defaultBlend` | number | `1` | Seconds the view takes to move to a camera that becomes live without a `setViewTarget` request. `0` cuts. |
+| `blendCurve` | number | `EaseInOut` | Easing of that blend: `BlendCurve.Linear`, `EaseIn`, `EaseOut` or `EaseInOut`. |
+| `customBlends` | records | `[]` | Blends for particular camera changes, by camera name (`from`, `to`; empty = any camera), each with its `time` and `curve`. |
+
+Custom blends override the default for specific changes, for example a cut from a wide shot to a close-up and a slow
+blend back out. Resolution order: an entry naming both cameras, then one naming the camera blended to, then one naming
+the camera blended from; any other change takes the default. A `time` of `0` cuts. The Details panel edits the list as a
+table.
+
+```typescript
+cmds.spawn().insert(CameraBrain, {
+  defaultBlend: 1,
+  customBlends: [
+    { from: 'Wide', to: 'Close', time: 0, curve: BlendCurve.Linear },   // cut in
+    { from: '', to: 'Wide', time: 2.5, curve: BlendCurve.EaseInOut },  // ease back out from any camera
+  ],
+});
+```
+
+{/* SHOT: cam-brain-custom-blends | Details panel of a Camera Brain entity: Default Blend 1, Blend Curve Ease in and out, and the Custom Blends table with two rows (Wide → Close 0 s Linear; Any camera → Wide 2.5 s Ease in and out) */}
+
+Constraints:
+
+- When the live camera changes during a blend, the new blend starts from the current view, so the view does not jump.
+- A `setViewTarget` call uses its own blend time and is not affected by the brain.
+- One brain per scene: the first `CameraBrain` found is used. A scene without one cuts.
+- Camera names are `Name` component values; a custom blend naming a camera that does not exist is ignored.
+
+## Cameras by animation state
+
+`StateDrivenCamera` selects the live camera from an `Animator`'s state, for example one camera for walking, a lower,
+wider one for running and an over-the-shoulder one for aiming. It turns on the camera named for the current state and
+turns off the other cameras it names. The brain blends into the new camera as into any camera that becomes live
+(default or custom blend), and a `CameraEvent` is sent.
+
+```typescript
+import { StateDrivenCamera } from 'esengine';
+
+cmds.spawn().insert(StateDrivenCamera, {
+  animator: hero,
+  defaultCamera: 'Walk Cam',
+  rules: [
+    { state: 'Run', camera: 'Run Cam', wait: 0.25, minDuration: 0 },  // a brief run does not switch the view
+    { state: 'Aim', camera: 'Aim Cam', wait: 0, minDuration: 1 },     // the aim camera stays live at least 1 s
+  ],
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `animator` | Entity | `0` | Entity whose `Animator` is watched. |
+| `layer` | number | `0` | Controller layer; `0` is the base layer. |
+| `rules` | records | `[]` | Per state (full path, as the Animator reports it): the camera by name, seconds the state must last before the change (`wait`), and minimum seconds the camera stays live (`minDuration`). |
+| `defaultCamera` | string | `''` | Camera for a state no rule names; empty leaves the view unchanged. |
+
+Only the cameras it names are switched; other cameras keep their own `isActive`. The Details panel edits the rules as a
+table. The State-Driven Camera item in the Create menu creates one.
+
+## The camera director
+
+`setViewTarget` and `shakeCamera` are the API of the **camera director**, a per-app resource (`CameraDirector`). Each
+frame it resolves one main view from the full-screen camera candidates: the committed view target (or the
+active/priority camera), blended toward a new target while a blend is in progress, with shakes applied to the rendered
+view only. Its state (`CameraDirectorState`) is readable and is treated as **read-only**; changes go through
+`setViewTarget` and `shakeCamera`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `target` | number | `-1` | Committed view-target entity; `-1` = the `isActive` / highest-`priority` selection. |
+| `blending` | boolean | `false` | A blend is in progress. |
+| `duration` / `curve` | number | `0` / `EaseInOut` | Length (seconds) and easing of the active blend. |
+| `currentMain` | `CameraPOV \| null` | `null` | The last resolved main view, **before shake**; also the view screen ↔ world conversion uses. |
+| `shakes` | `ActiveShake[]` | `[]` | Active shakes (added by `shakeCamera`, removed when they decay). |
+| `timelineShot` / `timelineOwner` | `TimelineShot \| null` / number | `null` / `-1` | The view a playing timeline's camera track holds, and the player that set it. |
+
+The remaining fields are internal bookkeeping: the pending request (`hasPending`, `pendingTarget`, `pendingTime`,
+`pendingCurve`), the blend start (`from`, `startTime`), shake numbering (`shakeSeq`), the brain's settings
+(`defaultBlend`, `defaultCurve`, `customBlends`), live-camera tracking (`lastLive`, `blendFrom`, `candidates`,
+`lastNow`, `activation`, `activationSeq`) and event state (`announced`, `pendingEvents`).
+
+```typescript
+import { defineSystem, Res, CameraDirector } from 'esengine';
+
+const watchDirector = defineSystem([Res(CameraDirector)], (director) => {
+  if (director.blending) { /* e.g. suppress player input during the transition */ }
+  const pov = director.currentMain;   // CameraPOV | null: the view being rendered
+  if (pov) { /* pov.x, pov.y, pov.orthoSize, ... */ }
+});
+```
+
+`cameraDirectorReport(app)` summarises the director for a tool or a test.
+
+```typescript
+import { cameraDirectorReport } from 'esengine';
+
+const { live, blend } = cameraDirectorReport(app);
+if (blend) console.log(`blending ${blend.from} → ${blend.to}: ${Math.round(blend.progress * 100)}%`);
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `live` | number \| null | The camera the view is, or blends into; `null` with no camera. |
+| `blend` | object \| null | The blend in progress: `from` (camera, or `null` when it left a view part-way between two), `to`, `progress` (0–1) and `duration`. |
+| `timeline` | boolean | A timeline's camera track holds the view. |
+| `cameras` | array | The candidates: `entity`, `priority` and `active` for each. |
+
+### Live camera in the editor
+
+While the game runs in the editor, the Outliner marks the live camera **LIVE** (with the blend's progress while a blend
+is in progress) and the camera a blend is leaving **OUT**. In Inspect mode the game view names them as well.
+
+{/* SHOT: cam-outliner-live | Editor in play mode during a camera blend: Outliner with two camera rows, one tagged LIVE with a blend percentage and the other tagged OUT, game view in the scene view behind */}
+
+### Camera events
+
+`CameraEvent` reports changes of the live camera: a camera becoming live, and a blend into it finishing. Typical uses
+are showing a shot's HUD when its camera goes live and returning control once the blend has finished. Events are sent
+as the frame is drawn, so a system reads them on the next frame.
+
+```typescript
+import { defineSystem, EventReader, CameraEvent, CameraEventKind } from 'esengine';
+
+const onCameraChange = defineSystem([EventReader(CameraEvent)], (events) => {
+  for (const e of events) {
+    if (e.kind === CameraEventKind.Activated) console.log(`live: ${e.camera} (from ${e.previous}, ${e.blendTime}s)`);
+    if (e.kind === CameraEventKind.BlendFinished) console.log(`settled on ${e.camera}`);
+  }
+});
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | number | `CameraEventKind.Activated` when a camera becomes live (cut or blend), `BlendFinished` when the blend into it ends. |
+| `camera` | Entity | The camera the view is, or moves to. |
+| `previous` | Entity | The camera it left; `0` for none, or for a view part-way between two cameras. |
+| `blendTime` | number | Seconds the blend into it takes; `0` for a cut. |
+
+### `CameraPOV`
+
+A `CameraPOV` is a camera's view parameters as one plain snapshot: the unit the director blends and the shape stored in
+`currentMain`.
+
+| Field | Type | Description |
+|---|---|---|
+| `entity` | number | Source camera entity, or `-1` for a synthetic view (the editor view). |
+| `isActive` | boolean | The camera's `isActive` flag (director input). |
+| `x` / `y` / `z` | number | Camera position (world units). |
+| `rotation` | number | Z rotation in radians. |
+| `tilt` | quaternion, optional | Full orientation of a camera turned off the 2D plane; absent for a rotation about Z only. |
+| `orbit` | `{yaw, pitch, focusZ}`, optional | Orbit about a focus point (the editor view); absent for scene cameras. |
+| `projection` | number | A `ProjectionType` value. |
+| `orthoSize` | number | Authored orthographic half-height (world units). |
+| `fov` | number | Field of view in degrees (Perspective). |
+| `near` / `far` | number | Clip distances. |
+| `viewport` | `{x, y, z, w}` | Screen rectangle in 0–1 (`z`/`w` are width/height). |
+| `clearFlags` | number | A `ClearFlags` value. |
+| `priority` | number | Selection order among active cameras. |
+| `pixelPerfect` | boolean | Pixel-grid snapping flag. |
+| `cullingMask` | number | Sorting layers rendered (bit *i* = layer *i*). |
+| `renderTarget` | number | Offscreen target; `0` = the screen. |
+
+During a blend, continuous fields (position, `rotation` along the shortest angular path, `tilt` by spherical
+interpolation, `orthoSize`, `fov`, `near`/`far`) interpolate; `projection` and `pixelPerfect` switch at the midpoint;
+`viewport`, `clearFlags`, `priority`, `cullingMask` and `renderTarget` take the target's values.
+
+## See also
+
+- [Camera basics](/docs/graphics/camera/overview/)
+- [Noise, shake & impulses](/docs/graphics/camera/shake/)
+- [Timeline](/docs/animation/timeline/#cameras-and-sequences): camera tracks.

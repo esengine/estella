@@ -1,96 +1,106 @@
 ---
 title: 天气
-description: 一个 Weather 组件,让场景处于晴、薄雾、阴天、雨、暴风雨或雪之下,在它们之间过渡,并能自己循环。
+description: Weather 组件参考——Clear、Mist、Overcast、Rain、Storm、Snow 预设，过渡与循环，天气驱动的内容（灯光、阴影、雾、雨、雪、反射、天空、风、调色、曝光、声音），自定义预设，以及确定性的场景时钟。
 ---
 
-场景的天气不是一堆特效参数。项目的雾有它自己的单位,太阳有作者给它的亮度,所以天气表达成**场景已有设定的倍率**——
-太阳降到四分之一、雾厚五倍、画面灰一点——再加几个在哪里都含义相同的量:雨下多大、地面多湿。同一个预设于是适配任何项目。
+天气以**场景已编写数值的乘数**表示——太阳为原强度的四分之一、雾浓五倍、画面略灰——再加上少数在任何项目中含义相同的绝对量，
+如降雨强度和地面湿度。因此同一预设适用于任何项目，与其雾的单位或太阳亮度无关。
 
-## 从整套环境开始
+## 户外环境
 
-户外场景的各个部分是互相指向的:时钟带动太阳,天空画出会投影的云,雾读取这些云,所以云的缺口就是一道光束,天气再整体缩放。
-**创建 → 渲染 → Outdoor Environment** 一次做出这套可用的搭配,放在同一个根下:太阳、天空光、时钟、天气,以及一个带天空、雾霾和基础调色的
-全局体积,数值按引擎自己的尺度(一米一百个单位)设置。想改哪个数就改哪个,不要的直接删,它们就是一组普通实体。
+户外场景的各部分相互依赖：时钟移动太阳，天空绘制投射阴影的云，雾读取这些云使云隙成为光柱，天气则缩放这一切。**创建 → 渲染
+→ 户外环境**（Create → Rendering → Outdoor Environment）在一个根节点下创建这套组合：太阳、天光、`TimeOfDay`、`Weather`，以及
+带天空、高度雾和中性调色的全局后处理体积，按引擎参考比例每米 100 单位设置。结果是普通实体，任何部分都可编辑或删除。
+
+{/* SHOT: weather-outdoor-environment | The Create menu open at Rendering → Outdoor Environment, and beside it the Hierarchy showing the created root with Sun, Sky Light, Time Of Day, Weather and the global Post Process Volume */}
 
 ## 组件
 
-给某个实体加一个 `Weather` 组件。
+为一个实体添加 `Weather`。
 
-| 字段 | 作用 |
+| 字段 | 说明 |
 |---|---|
-| `preset` | 场景所处的天气:晴、薄雾、阴天、雨、暴风雨、雪。默认晴。 |
-| `target` | 正在转向的天气;无则为 None(默认)。 |
-| `progress` | 这次转变走了多远(0–1,默认 0)。游戏会推进它;在编辑器里设置它可以预览转到一半。 |
-| `duration` | 一次转变用多少秒(默认 6)。 |
-| `sequence` | 自己循环经过的预设,逗号分隔——`clear,mist,rain,clear`。为空(默认)则不动。 |
-| `hold` | 序列里每种天气停留多少秒再开始下一次转变(默认 20)。 |
-| `drive` | 天气驱动什么:灯光、雾、雨、调色、曝光、反射、声音、风。默认全部。 |
-| `soundSource` | 一个带循环 `AudioSource` 的实体——雨声。下雨时天气会抬起它的 `playing`,并把音量设为创作时的音量乘以雨的大小。 |
+| `preset` | 当前天气：Clear、Mist、Overcast、Rain、Storm、Snow。默认 Clear。 |
+| `target` | 正在过渡到的天气；None（默认）表示没有过渡。 |
+| `progress` | 过渡进度，0–1（默认 0）。运行时由系统推进；在编辑器中设置以预览部分过渡。 |
+| `duration` | 过渡时长，秒（默认 6）。 |
+| `sequence` | 自动循环的预设，逗号分隔，例如 `clear,mist,rain,clear`。留空（默认）保持当前天气。 |
+| `hold` | 序列中每种天气在下一次过渡前保持的秒数（默认 20）。 |
+| `drive` | 天气驱动的内容：Lights、Fog、Rain、Grade、Exposure、Reflections、Sound、Wind。默认全部。 |
+| `soundSource` | 带循环 `AudioSource` 的实体，用作雨声。下雨时天气将其 `playing` 置为开启，并将音量设为编写音量 × 降雨强度。 |
 
-转变带缓动,开始和结束都平缓,完成的转变落在目标上并清空自己。
+过渡有缓入缓出。过渡完成后 `preset` 设为目标，`target` 被清除。
 
-![Weather 组件的 Details:可切换的内建天气和下面的过渡](@/assets/guides/zh/details-weather.png)
+![Weather 组件的 Details：可切换的内建天气和下面的过渡](@/assets/guides/zh/details-weather.png)
 
-***Weather** 组件:可切换的内建天气,以及下面的过渡。*
+*`Weather` 组件：预设，以及其下的过渡。*
 
-## 在编辑器里
+## 在编辑器中
 
-Details 面板把内建天气显示为按钮(项目自己的预设 id 仍然有效,显示为自定义),把向下一种天气的过渡显示为可拖动的进度,还有循环、它驱动的内容,以及它此刻对画面做了什么的读数——主光的缩放、雾的缩放、潮湿和降雨。雨和雾通过 Post Process Volume 进入画面,面板里会这样说明。
+Details 以按钮显示内置天气（项目自定义的预设 id 仍然有效，显示为 **Custom**），以可拖动的值显示过渡进度，并显示循环和驱动开关，
+以及对画面当前作用的实时读数：主光缩放、雾缩放、湿度和降雨。雨和雾通过后处理体积作用于画面，面板会提示这一点。
 
-## 天气改变什么
+## 天气驱动的内容
 
-- **灯光。** 方向光被缩放(并着色),环境光被缩放,依据的是它们创作时的强度——天气缩放的是你的数字,而不是它自己上一次的结果——
-  天气被拿走或关掉 `Lights` 时它们会被还原。只在游戏运行时:编辑器里灯光不动,所以预览天气不会改动你要保存的场景。
-- **阴影。** 随着天空阴下来,方向光的阴影变得更软(光源宽 `shadowSoftness` 个太阳)、更淡(创作的深浅乘以 `shadowStrength`),
-  就像阴天的影子融进地面。
-- **雾。** Height Fog 的密度、太阳辉光和它带的体积光被缩放,天空雾霾被提高,颜色向天气的颜色移动。
-- **雪。** 场景没有 Snow Cover 效果时天气会带来一个,雪落在所有朝天的表面上,雨效果的 `snowfall` 画出正在飘落的雪花,详见[地形](/docs/zh-cn/graphics/terrain/)。它和雨共用 `Rain` 驱动。
-- **雨。** 场景没有 Rain 效果时天气会带来一个,强度按预设;Rain 和屏幕空间反射还会得到天气留下的湿度和水坑。场景自己创作了雨,
-  天气只能把它提高。
-- **反射。** 烘焙的反射探针显示的是它烘焙时的天空,所以下雨的街道会映出晴天的街道。环境光带有 `reflectionScale` 和
-  `reflectionSaturation` 就是为此:探针显示的内容乘以前者、按后者褪色,天气会把两者调低。
-- **天空。** Sky Atmosphere 特效把预设的 `overcast` 当作云量和雾霾:云变厚并连成一片,后面的太阳、月亮和星星被同一份透射率遮住。
-- **风。** 预设的 `wind` 缩放 Sky Atmosphere 的云漂移速度和植物摇摆的幅度(Foliage 材质的 `u_windStrength`、Sway 精灵的 `u_swayWind`),`waves` 缩放每片水体的浪高——画出来的和水面查询回答的都一起变。
-- **调色与曝光。** Colour Grade 的饱和度和对比度被缩放,Auto Exposure 的补偿被提高。
+| 驱动 | 作用 |
+|---|---|
+| **Lights** | 方向光按其编写值缩放并着色，环境光按其编写值缩放（天气始终缩放编写的数值，而非自己上一次的结果）。移除天气或关闭 `Lights` 时恢复。只在运行时生效；在编辑器中不修改灯光，因此预览天气不会改变保存的场景。随着天空转阴，方向光阴影变柔（`shadowSoftness` 乘数加宽太阳光源）、变淡（`shadowStrength` × 编写的暗度）。 |
+| **Fog** | 缩放 Height Fog 的密度、太阳辉光和携带的体积光，提高天空雾霭，并使雾色趋向天气的颜色。 |
+| **Rain** | 按预设强度添加 Rain 效果（场景中没有时），Rain 与屏幕空间反射获得相应的湿度和水洼。场景自行编写了雨时，天气只能使其增强。**Snow** 使用同一驱动：添加 [Snow Cover](/docs/zh-cn/graphics/terrain/overview/#积雪与湿润表面) 效果（场景中没有时），铺在朝天的表面上，并由 Rain 效果的 `snowfall` 绘制飘落的雪花。 |
+| **Reflections** | 烘焙的反射探针显示其烘焙时的天空，雨天街道会映出晴天。环境光的 `reflectionScale` 和 `reflectionSaturation` 对烘焙探针显示的内容做乘法和去饱和，天气会降低这两项。 |
+| **Wind** | 预设的 `wind` 缩放 Sky Atmosphere 云的漂移和植物摆动（Foliage 材质的 `u_windStrength`、Sway 精灵的 `u_swayWind`）；`waves` 缩放所有水体的波高，绘制结果和水面查询都受影响。 |
+| **Grade**、**Exposure** | 缩放 Colour Grade 的饱和度和对比度，提高 Auto Exposure 补偿。 |
+| **Sound** | `soundSource` 的音量和播放跟随降雨强度。 |
 
-这些效果在场景的体积混合之后才施加,所以在同一场雨里,雾设得薄的场景仍然比雾设得厚的场景薄。
+Sky Atmosphere 效果还将预设的 `overcast` 作为云量和雾霭：云层增厚并连成一片，云后的太阳、月亮和星星以相同的透射率被遮住。
 
-## 自己的天气
+效果在场景的体积混合之后施加，因此雾薄的场景在同样的雨中仍比雾浓的场景更薄。
+
+## 自定义预设
 
 ```ts
 import { registerWeatherPreset } from 'esengine';
 
-// 预设只写它要改的;其余保持中性。
+// 预设只列出它改变的项，其余保持中性。
 const sandstorm = registerWeatherPreset('sandstorm', {
   sun: 0.5, fogDensity: 10, fogTint: [0.82, 0.62, 0.38], fogTintAmount: 0.85,
   saturation: 0.8, exposure: 0.4,
 });
 ```
 
-自定义预设在 `sequence` 里按名字使用,在 `preset` 和 `target` 里按 `registerWeatherPreset` 返回的 id 使用。
-重新注册内置名字就是重新调它。
+`registerWeatherPreset(name, preset)` 返回预设的 id。自定义预设在 `sequence` 中按名称引用，在 `preset` 和 `target` 中按返回的
+id 引用。再次注册内置名称会重新调整该预设。
 
-## 用代码转变
+## 从代码过渡
 
-组件就是数据:写入 `target` 和 `progress: 0`,系统会做剩下的事。
+组件是数据：写入 `target` 和 `progress: 0`，系统即执行过渡。
 
 ```ts
+import { Weather, WEATHER_RAIN } from 'esengine';
+
 world.insert(weatherEntity, Weather, { target: WEATHER_RAIN, progress: 0, duration: 10 });
 ```
 
-## 某一时刻，而不是逐帧累加
+## 场景时钟
 
-天气处在什么状态，由它这一轮从哪里开始、已经运行了多久决定：也就是场景时钟，即游戏自己的运行秒数（游戏暂停时它停，减速时它变慢）。
-任何时刻都可以直接算出来，不必从头播到那里；同样的 `t` 在任何机器上都是同样的天气；过场动画或回放可以把时钟拨到任意位置。
+天气状态取决于其运行开始的时间和已运行的时长，以场景时钟度量：即游戏自身的游玩秒数（暂停时静止，减速时变慢）。任意时刻都可
+直接计算而无需播放到那一刻，同一 `t` 在每台机器上得到相同天气，过场动画或回放可以任意移动时钟。
 
 ```ts
-import { seekSceneClock, sceneClock, weatherAt, hourAt } from 'esengine';
+import { seekSceneClock, sceneClock, weatherAt, WEATHER_CLEAR, WEATHER_NONE } from 'esengine';
 
-seekSceneClock(240);   // 从下一帧起，天气、钟点和云都是第四分钟时的样子
-sceneClock();          // 场景时钟已经走了多少秒
+seekSceneClock(240);   // 从下一帧起，天气、钟点和云处于四分钟时的状态
+sceneClock();          // 时钟已运行的游玩秒数
 
-// 也可以只查询、不改变任何东西：以 `start` 开始的天气在 90 秒后处于什么状态。
+// 不移动任何东西进行查询：以 `start` 开始的 Weather 在 90 秒后的状态。
 weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 10, sequence: 'clear,mist,rain', hold: 8 }, 90);
 ```
 
-像上面那样手动写入组件，会以写入的值重新开始一轮，所以脚本的转变和时钟是一致的。云会移到天空的风（按天气强度的变化累计）应该把它们带到的位置。
+| 函数 | 说明 |
+|---|---|
+| `seekSceneClock(t)` | 将场景时钟移到 `t` 秒，从下一帧起生效。 |
+| `sceneClock()` | 时钟已运行的游玩秒数。 |
+| `weatherAt(start, t)` | 以 `start` 开始的天气在 `t` 秒后的 `{ preset, target, progress }`。 |
+
+直接写入组件（如[从代码过渡](#从代码过渡)）会从写入的值开始一次新的运行，因此脚本的过渡与时钟保持一致。云被放在天空的风
+（对天气强度变化积分）本应将其带到的位置。

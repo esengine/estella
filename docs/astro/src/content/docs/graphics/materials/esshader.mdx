@@ -1,0 +1,197 @@
+---
+title: The .esshader Format
+description: "Reference for the .esshader shader file — pragmas, shader domains, vertex and fragment stages, GLSL-to-WGSL derivation, #pragma param declarations and clauses, texture units, injected uniforms and helpers, frame textures, switches and preprocessor conditions."
+---
+
+An `.esshader` file holds every stage of a shader and its metadata, separated by `#pragma` lines. Stages are written in
+GLSL ES 3.0; the WGSL version is derived.
+
+```glsl
+#pragma shader "Tinted Sprite"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_tint color default(1,1,1,1)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+}
+#pragma end
+```
+
+{/* SHOT: mat-esshader-params | Split view: an .esshader open in the script editor with three #pragma param lines (a color, a float with range(0,4) ui(slider), a texture) and, beside it, the Details panel of a material bound to that shader showing the resulting colour picker, slider and texture slot. */}
+
+## Pragmas
+
+| Pragma | Meaning |
+|---|---|
+| `#pragma shader "Name"` | Display name. |
+| `#pragma version 300 es` | GLSL version line for every stage. |
+| `#pragma domain <D>` | `Unlit` (default), `Lit`, `PostProcess`, `UI`. `Lit` injects the lighting uniforms and helpers. The older spellings `Unlit2D` / `Lit2D` load as `Unlit` / `Lit`. |
+| `#pragma param …` | A reflected material parameter ([Declaring parameters](#declaring-parameters)). |
+| `#pragma switch NAME [default(on)]` | Material-facing static permutation toggle (a `#define`). |
+| `#pragma feature NAME` | Engine-chosen compile-time variant keyword. |
+| `#pragma lighting direct` | A `Lit` shader lit by the sixteen lights of the light block with hard-edged shadows only. It compiles without the tiled lights beyond those sixteen, the 2D light masks, and soft and hair shadows, which every pixel pays for on a phone whether or not the scene uses them. A light with a size (a sun's `sourceAngle`) casts a hard shadow. The Water shader declares it, and the `low` and `medium` quality levels compile every lit mesh this way ([3D lighting level](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)). |
+| `#pragma coverage PARAM` | While the float param `PARAM` is above zero, the output alpha is coverage: a cutout's alpha sharpened to about one pixel around the cutoff (`cutoutCoverage(alpha, cutoff, fwidth(alpha))`). An opaque draw into a multisampled target turns it into multisample coverage, so the cutout edge is antialiased; without multisampling it is a hard cut. The cut is at the cutoff at every distance, as glTF's `MASK` defines it: a cutout seen small keeps its area because the cook rescales each mip's alpha to the coverage the full image has at the cutoff. The built-in Unlit, Model, Toon, Matcap and Hair shaders declare `u_alphaCutoff`. |
+| `#pragma tips PARAM` | While the float param `PARAM` is above zero, a second, blended pass draws the band where alpha falls below the cutoff by up to that amount. The built-in Hair shader declares `u_tipSoftness`. |
+| `#pragma hairshadow PARAM` | While the float param `PARAM` is above zero, meshes drawn with the material are hair for shadows: the sun's cascades gain one fitted to them alone, and a shader that sets `g_hairShadow` before lighting reads the shadow as a density along the light instead of a hard compare. The value is the density. The built-in Hair shader declares `u_hairShadow`. |
+| `#pragma gbuffer` | A `PostProcess` shader reads the scene's surface record at `u_gbuffer` ([The G-buffer](/docs/graphics/post-processing/lighting/#the-g-buffer)). The frame draws a G-buffer only when a shader in the chain declares this. |
+| `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage bodies. `#pragma fragment wgsl` opens a hand-written WGSL fragment. |
+| `#include "path"` | Textual include, resolved by the host. |
+
+A `#pragma param` whose name the engine already declares for the shader's domain is refused when the shader loads, on
+every platform: `u_time`, `u_viewport` and `u_projection` in every domain, and the light block's `u_ambient`,
+`u_lights`, `u_shadowMatrix` and the rest in a `Lit` shader. WebGL keeps every block member in one namespace, so a
+second declaration would not compile there.
+
+## Stages
+
+| Domain | Vertex stage |
+|---|---|
+| `Unlit`, `Lit` | Optional. Without `#pragma vertex`, the engine injects the canonical batch vertex stage. |
+| `PostProcess` | Optional. Without `#pragma vertex`, the engine injects the canonical full-screen vertex stage. |
+| `UI` | Required. A `UI` shader without a vertex stage fails to load (*Missing vertex shader stage*). |
+
+A fragment stage is required in every domain.
+
+### Fragment-only authoring
+
+2D sprites bake their world transform into the batch vertices, so every 2D shader shares one vertex stage. A
+fragment-only `Unlit` or `Lit` shader receives these varyings:
+
+| Varying | Type | Value |
+|---|---|---|
+| `v_color` | `vec4` | Per-instance tint (the sprite's `color`). |
+| `v_texCoord` | `vec2` | Texture UV. |
+| `v_worldPos` | `highp vec2` | World-space position (`Lit` domain only). |
+
+On a **mesh** with a second UV set (the `MESH_LIGHTMAP` variant), the vertex stage also passes `v_texCoord1` (`vec2`):
+the second UV set as authored, alongside the lightmap coordinates the engine derives from it. A material that is not a
+bake can read it for a mask or a dissolve map.
+
+The sprite's texture is `u_textures[0]`. Declare `uniform sampler2D u_textures[8];`; units 0–7 belong to the batch, and
+texture params bind above them ([Texture units](#texture-units)).
+
+## GLSL and WGSL
+
+The editor's viewport draws through WebGPU, and a web build may too, so every shader also needs a WGSL version. It is
+derived from the GLSL: the editor derives it when it reads the shader, and every export derives it when the shader is
+packaged (a generated twin that no longer matches the GLSL is derived again). A shader with a hand-written
+`#pragma fragment wgsl` block keeps that block unchanged. If a GLSL construct cannot be translated, the build warns
+and that shader runs on the WebGL2 path only.
+
+`#if` and `#elif` conditions may use `defined`, `!`, `&&`, `||` and parentheses, and resolve the same way in the WGSL
+twin as in the GLSL, so a lit material on the engine's vertex stage, or a lit 2D shader, draws the same on WebGPU as on
+WebGL2.
+
+## Declaring parameters
+
+```glsl
+#pragma param u_tint      color   default(1, 1, 1, 1)
+#pragma param u_intensity float   default(1.0) range(0, 4) ui(slider)
+#pragma param u_mask      texture default(white)
+
+// … GLSL fragment code reading u_tint / u_intensity / u_mask …
+```
+
+Syntax: `#pragma param <name> <type> [clauses…]`.
+
+| Type | GLSL | Value shape | Notes |
+|---|---|---|---|
+| `float` / `int` | `float` / `int` | `number` | Scalar. |
+| `vec2` / `vec3` / `vec4` | same | `[x, y, …]` | Vector. |
+| `color` | `vec4` | `[r, g, b, a]` | RGBA, 0–1; a color picker in the inspector. |
+| `texture` | `sampler2D` | texture handle | See `default(…)` and `texel(data)` below. |
+
+| Clause | Applies to | Meaning |
+|---|---|---|
+| `default(…)` | all | Initial value. For a texture, the fallback when unset: `white`, `black`, `flatnormal` or `ripples` (the engine's tiling map of wind ripples: two fields of normals, in RG and in BA). |
+| `range(min, max)` | numbers | Inspector range. |
+| `ui(slider)` | numbers | Shows a slider in the inspector. |
+| `texel(data)` | textures | The shader reads the texels as numbers (a normal map, packed roughness). Project Health flags a texture bound here that is still marked sRGB, which the linear pipeline would decode as colour. |
+| `group(Name)` | all | Inspector section ([Parameters](/docs/graphics/materials/overview/#parameters)). |
+| `unit(length)` / `unit(perLength)` | numbers | A world distance, or a rate per distance. See below. |
+
+Params live in an engine-generated std140 block initialised from their `default(…)` values, so a material that never
+sets a param still draws correctly.
+
+### World units
+
+A param that is a distance in the world declares `unit(length)`; a rate per distance (a fog or water density) declares
+`unit(perLength)`. Its default and range are then written at the engine's reference of 100 world units per metre and
+follow the project's **Units per Metre** (Project Settings → Physics → 3D): `default(250) unit(length)` is 2.5 m, which
+is 250 in a centimetre project and 2.5 in a metre project. The inspector shows the project's values, and a value a
+material states is never scaled. Component lengths and post-process effect lengths follow the same rule.
+
+```glsl
+#pragma param u_foamWidth float default(120)    range(0, 2000) ui(slider) unit(length)
+#pragma param u_density   float default(0.0012) range(0, 0.04)            unit(perLength)
+```
+
+## Texture units
+
+A draw has sixteen texture units on every device the engine targets (WebGL2 and WebGPU guarantee no more); the top one
+is reserved for the engine. Texture params take units 8–14 in declaration order. Beyond seven, each further texture
+param takes a unit below 8 whose engine texture **this** shader does not sample.
+
+| Shader | Units available to texture params |
+|---|---|
+| `Lit` | 8–14, plus 1 and 0: nine in total. The shadow map, reflections, morph deltas, bake and both 2D masks occupy the rest. |
+| `Unlit` | Every unit except the morph deltas' (4): fourteen in total. |
+| Reads `u_textures` | 8–14; units 0–7 stay with the batch. |
+| `PostProcess` | Seven. |
+
+In a WGSL twin, a `t` or `s` followed by a number (`t1`, `s0`) names a unit, a local variable of that name included;
+a local with such a name keeps that unit reserved for the engine. A param beyond the available units draws its
+default, and the console names the param that found no unit.
+
+## Injected uniforms and helpers
+
+The engine injects these into every compiled `.esshader`; they must not be declared by the shader:
+
+| Injected | Available | Description |
+|---|---|---|
+| `u_time` | always | `vec4` frame clock: `.x` elapsed seconds, `.y` delta seconds. |
+| `u_viewport` | always | `vec4` canvas: `.xy` size in pixels, `.zw` = 1/size (screen UV = `gl_FragCoord.xy * u_viewport.zw`). |
+| MaterialConstants block | when the shader has params | The `#pragma param` values. |
+| `applyLighting2D(albedo, N, worldPos)` | `Lit` | Applies every scene light, with shadows; returns the lit color. |
+| `applyLighting2DAO(albedo, N, worldPos, ao)` | `Lit` | The same, with the ambient term scaled by `ao` (1 = unoccluded). |
+| `applyLightingSurface(…)` | `Lit` | PBR lighting with shading layers ([Layers in a custom shader](/docs/graphics/materials/surface-shaders/#layers-in-a-custom-shader)). |
+| `sampleNormal(map, uv)` | `Lit` | Unpacks a tangent-space normal map (RGB → [−1, 1], normalised). |
+| `shadowFactor2D(worldPos, target, softness)` | `Lit` | Occlusion factor toward a point (used by `applyLighting2D`). |
+| `distanceToEye(worldPos)` | always | Distance from a world position to the camera; the quantity the scene's depth copy stores. |
+| `sceneUv(worldPos)` | always | The screen UV a world position lands on, for sampling the frame textures below. |
+| `sceneDistance(texel)` | always | Decodes one sample of `u_sceneDepthMap` into a distance. `sceneDistance(texture(u_sceneDepthMap, sceneUv(P))) - distanceToEye(P)` is how far the opaque scene lies behind P. |
+
+## Frame textures
+
+A shader that declares a texture param with one of these names receives the current frame's image when it draws. The
+frame must go through the post-processing chain.
+
+| Param | Contents | When the draw is made |
+|---|---|---|
+| `u_sceneColor` | The opaque scene behind the surface: water, refracting glass. | After the opaque scene; other blended draws land over it by depth. |
+| `u_sceneDepthMap` | The opaque scene's distance from the camera at each pixel (`texel(data)`). | After the opaque scene. |
+| `u_screenColor` | The whole frame drawn so far, blended draws and particles included: distortion, heat haze. On screen UI, the frame under its layer, with mips for a blur ([UI overview](/docs/ui/overview/)). | After every other draw. |
+
+## Switches and features
+
+A `#pragma switch` declares a static permutation that the material selects. The material's enabled switches (the
+`switches` field of the `.esmaterial`, or the `features` argument of `Material.compileShader`) are compiled in as
+`#define`s. A `#pragma feature` keyword is chosen by the engine, not by the material.
+
+## See also
+
+- [Materials](/docs/graphics/materials/overview/)
+- [Materials in code](/docs/graphics/materials/code/)
+- [Lit Surfaces](/docs/graphics/lighting/surfaces/) — `Lit` shaders and normal maps.
+- [Post-processing](/docs/graphics/post-processing/scripting/#effect-shaders) — `PostProcess` shaders.

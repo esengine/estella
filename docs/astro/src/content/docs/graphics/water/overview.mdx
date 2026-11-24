@@ -1,0 +1,241 @@
+---
+title: Water
+description: Water reference — WaterBody forms and fields, the WaterZone that bakes all bodies into one field, the shared waves and surf, the tiled surface mesh and far distance mesh, quality levels, editor tools and limits.
+---
+
+Water consists of three parts:
+
+| Part | Role |
+|---|---|
+| **`WaterBody`** | Declares where water is: ocean, lake, river, island, exclusion volume or custom shape. A body is an input; it is not drawn by itself. |
+| **`WaterZone`** | Bakes every body in its region into one field, draws one surface from it lifted by waves, and answers surface queries from the same data, so scripts read what is drawn. |
+| **Water shader** (`builtin:water`) | The surface look: refraction, depth, reflection, foam, caustics. |
+
+Water is an optional module (`esengine/water`). A package includes it only when a scene contains a `WaterBody` or a
+script imports the module.
+
+| Page | Contents |
+|---|---|
+| Water (this page) | Bodies, zone, waves, surf, surface mesh, quality, editor. |
+| [Lakes, Rivers & Waterfalls](/docs/graphics/water/rivers-and-shores/) | Shores, terrain shaping, basins, rivers, splines, waterfalls. |
+| [Interaction & Shader](/docs/graphics/water/interaction-and-shader/) | Surface queries, floating, ripples, underwater view, Water shader parameters. |
+
+{/* SHOT: water-body-details | Details panel of a WaterBody with Form = Lake selected: the Shape, Waves, Look, Rendering, Underwater and Terrain groups, the Boundary row showing its point count, and the Water Body Islands / Exclusion Volumes / zone rows; the scene view shows the lake with its outline handles */}
+
+## Water bodies
+
+Add `WaterBody` to an entity. The entity places the body; it may be rotated about its up axis but not tilted. Moving a
+body, editing its fields, outline or spline, or changing the terrain under it rebakes the zone immediately.
+
+| `form` | Shape |
+|---|---|
+| **Ocean** | No edge. At the entity's height wherever the ground is lower and connected to the open sea; continues past the zone. |
+| **Lake** | A `sizeX` × `sizeZ` rectangle centred on the entity, or the outline in `boundary`, at the entity's height. |
+| **River** | Follows the `Spline` on the same entity. See [Rivers](/docs/graphics/water/rivers-and-shores/#rivers). |
+| **Island** | Raises the terrain inside its rectangle or outline to the entity's height, out of the surrounding water. |
+| **Exclusion Volume** | A box (`sizeX` × `sizeY` × `sizeZ`, or an outline with height `sizeY`) kept free of water: the surface is not drawn over it and nothing inside it is under water. For a dry room under the sea or a boat's hold. |
+| **Custom** | The shape of `shapeMesh` seen from above (a fountain bowl, a pool of any outline), with the water at the mesh's top. The mesh is a shape only and is not drawn. |
+
+### Shape
+
+| Field | Forms | Description |
+|---|---|---|
+| `bodyId` | all | Stable name used by queries across sessions (entity numbers are not stable). Empty: the body is named by its entity. |
+| `sizeX`, `sizeZ` | Lake, Island, Exclusion | Extent when there is no `boundary`. |
+| `sizeY` | Exclusion | Height of the volume, centred on the entity. |
+| `boundary` | Lake, Island, Exclusion | Outline: three or more points on the body's own xz plane. Empty uses the rectangle. |
+| `shapeMesh` | Custom | Mesh whose top-down triangles are the water. |
+| `shoreWidth` | Ocean, Lake, River, Island, Custom | Distance in from the shore over which waves grow to full height (0: full height to the edge). On an island, how far past its outline its slope runs down to the ground. |
+| `bedDepth` | Lake, River | Depth the water cuts into the terrain: a river's bed at its middle, a lake's floor under its outline. Cuts only; 0 leaves the ground unchanged. |
+| `shapeDilation` | Lake, River, Custom | How far the water reaches past its outline. Grows bodies narrower than a few zone texels (a stream, a small pond) that would otherwise come out thin or broken. |
+
+Exclusion volumes also have `excludeAllOverlapping` (keep every overlapping body out; default on) and `excludeBodies`
+(the bodies to keep out when it is off).
+
+### Waves
+
+| Field | Forms | Description |
+|---|---|---|
+| `waveHeight` | Ocean, Lake, Custom (rivers keep the stored value) | Height of the tallest wave, in world units. Wave length, speed and heading are the zone's. |
+| `waveAttenuationDepth` | Ocean, Lake, River, Custom | Depth below which waves are full height; shallower water calms them progressively, flat at the edge. 0 disables depth calming (`shoreWidth` still applies). |
+| `flowSpeed` | River | Current speed, in world units per second, where the river is at its widest. |
+
+### Look and rendering
+
+| Field | Description |
+|---|---|
+| `surfaceLook` | **Zone Material**: the zone water material's colour. **Own**: the body's `waterColor`. Where a body with its own colour meets another, the colours blend across the junction. |
+| `waterColor` | Colour of this body's shallow water; deep water darkens it as the material's deep colour does. |
+| `overlapPriority` | Where bodies overlap, the higher priority provides the colour, blending only across its own edge. Equal priorities blend by how far inside each the point is. |
+| `waterMaterial` | Material instance for this body on the shared surface. Empty inherits the zone material. |
+| `underwaterMaterial` | Post-process material for the submerged part of the lens. Empty uses the built-in underwater shader. |
+| `riverToLakeMaterial`, `riverToOceanMaterial` | River only. Materials on the shared surface where the river meets a lake or the open sea. |
+
+Surface materials share the Water shader's displacement contract and meet on the same geometry. Underwater fields are
+described in [Under the surface](/docs/graphics/water/interaction-and-shader/#under-the-surface); terrain-shaping fields in
+[Terrain shaping](/docs/graphics/water/rivers-and-shores/#terrain-shaping).
+
+## Water zone
+
+`WaterZone` defines where water is drawn, at what resolution, and what all bodies share. Its region is `sizeX` × `sizeZ`
+centred on the entity (only x and z are used).
+
+| Group | Field | Description |
+|---|---|---|
+| Region | `sizeX`, `sizeZ` | The baked region. Water outside it is not drawn, except the ocean. |
+| Region | `resolution` | Texels along the region's longer side (32–1024): how finely shores and rivers are traced. |
+| Look | `material` | Default surface material for bodies without an override. Empty uses the stock Water shader. |
+| Waves | `waveLength`, `waveSpeed`, `waveDirection` | Length of the longest wave, speed multiplier, and heading in degrees. See [Waves](#waves). |
+| Waves | `surf`, `surfLength`, `surfSpread` | Breaker height relative to the body's waves (0: none), surf wavelength, and directional spread of incoming crests (0 straight, 1 crossing swell). See [Surf](#surf). |
+| Mesh | `tileSize`, `extentInTiles` | Base tile width in world units (0 derives it from the legacy cell settings), and tile counts from the zone centre to each edge along X and Z. |
+| Mesh | `tessellationFactor` | A tile has 2^`tessellationFactor` cells per side (1–6). |
+| Mesh | `lodScale` | Split distance in tile widths (0.5–4). Larger keeps more detail further out. |
+| Mesh | `forceCollapseDensityLevel` | First level allowed to merge partly wet shoreline tiles. −1 preserves the shoreline. |
+| Detail | `cellSize`, `cells`, `rings` | Legacy ring mesh, used only while `tileSize` is 0. |
+| Ripples | `ripples`, `rippleSize`, `rippleSpeed`, `rippleDamping`, `foamFade` | See [Ripples](/docs/graphics/water/interaction-and-shader/#ripples). |
+| Far Distance | `farDistance`, `farDistanceExtent`, `farDistanceMaterial`, `farMeshWithoutOcean` | See [Surface mesh](#surface-mesh). |
+
+### The bake
+
+The zone bakes every body over its region into a grid. Each texel stores:
+
+- the surface **height**: a lake's level, the height of a river's curve at its nearest point, the ocean's level;
+- the signed **distance to the nearest shore**, positive on water: where the surface is cut and where it foams;
+- the **wave height** there: the body's `waveHeight`, calmed toward its shore and as water shallows;
+- the **current** (rivers) and the **depth** of water over the ground.
+
+Where two bodies meet, each texel weights each body by how far inside it the texel is, over one and a half texels, so
+values run continuously from one to the other: a river reaches its lake's level at the mouth, its current fades into
+still water, and its banks run into the lake's shores without a seam. Lakes and rivers take precedence over the ocean.
+A texel no body holds keeps the height of the nearest water, so the surface edge cut by the shore is not pulled down.
+Which body owns a point does not depend on the order bodies were added.
+
+A scene without a `WaterZone` receives one over every lake and river (with a margin for shores) using the component
+defaults, at half the finest cell per texel (32–1024 texels along the longer side). A scene with only an ocean needs no
+region. When several `WaterZone`s exist, the first found is used.
+
+The bake runs on the CPU and needs no renderer, so a server or a headless test can query the surface. It is redone
+whole when a body, the zone or the terrain changes; its cost is proportional to texels × bodies.
+
+## Waves
+
+Eight peaked sines (`exp(sin(θ) − 1)`: crests narrower than troughs) are spread about the wind direction, each shorter
+than the previous, with length, height and speed as shares of the zone's `waveLength`, `waveSpeed` and `waveDirection`.
+All bodies share them. The local height is the field's value: the body's `waveHeight` × the share the shore leaves ×
+the weather's wave multiplier.
+
+A `Weather` that drives wind scales waves by how exposed the water is: wind waves grow with fetch, so the sea takes the
+weather's multiplier in full, a lake more the wider it is relative to eight `waveLength`s, and a river hardly at all.
+
+Waves **displace the geometry**: each vertex is lifted by the wave height, and the fragment shader evaluates the slope per
+pixel from the same formula, so the lit surface and the silhouette against the sky match. Waves are measured on the
+world xz plane and lift the surface vertically. Wavelength and height are in world units; gravity is 9.8 m/s² converted
+to world units, so a given physical wavelength has the same period in metre and centimetre projects.
+
+## Surf
+
+Where water meets ground, the zone measures each texel's distance to the nearest shore across the ground (the same for
+an ocean over a beach as for a lake). Over the last four `surfLength`s of water, surf rises on that distance: waves with
+a steep face toward the shore and a long back, travelling in at the deep-water speed for their length × `waveSpeed`.
+
+- Surf grows as water shoals, turns white where it breaks in the inner part of the band, and stays white behind the
+  crest for a while.
+- Past the shore it runs up the ground: the surface is drawn slightly above rest height there, and the depth test cuts it
+  where the ground rises, so the waterline climbs a beach and retreats.
+- Breaker height is `surf` × the body's `waveHeight` (including the weather's waves) × the water's exposure. Surf is
+  swell from open water, so a lake's shore laps where the sea's breaks; a current carries none, so rivers and river
+  mouths stay calm.
+- Crests are contour lines of their own distance field (the open water's edge, with river water treated as land,
+  smoothed over one `surfLength`), so they come in straight from open water and turn to the shore only near it, and run
+  straight across a river mouth. Where they rise, break and run up follows the real shore.
+- The zone bakes each shore's steepness: waves burst and foam against rock and cliffs, wash up a gentle beach in a thin
+  line, and run up only a short way.
+
+`Waters.sample` includes the same surf, so floating objects near a beach ride it.
+
+## Surface mesh
+
+The zone traverses a quadtree of tiles over the shared ocean, river and lake surface. Fully dry tiles are skipped. The
+active view sees fine tiles near the eye and coarser ones in the distance. Triangles alternate diagonals; fine edges use
+their coarse neighbours' actual vertices, and vertices move gradually onto the parent lattice as the camera travels.
+With `forceCollapseDensityLevel` at −1, mixed shoreline tiles stay detailed. The final shoreline follows the baked field.
+
+A base tile has `2 ** tessellationFactor` cells per side. `lodScale` changes split distance independently of tile size
+and extent. A scene saved with only `cellSize`, `cells` and `rings` keeps its previous scale and coverage.
+
+**Water Zone → Mesh → Water mesh view** switches between **Shaded**, **Displaced wireframe** and **Base-height
+wireframe**. Both wireframes show the indexed triangles submitted by the renderer, with tile and triangle counts.
+
+**Far Distance** extends the ocean from the tiled region out to `farDistanceExtent` with a flat eight-triangle mesh just
+below sea level, so the ocean reaches the horizon. It is drawn with `farDistanceMaterial` (empty: the zone water's deep
+colour and sky reflection) and only where the zone has an ocean, unless `farMeshWithoutOcean` is on.
+
+{/* SHOT: water-zone-mesh-wireframe | A WaterZone selected with Water mesh view set to Displaced wireframe: the scene view shows the tiled wave mesh fine near the camera and coarser toward the horizon along a shoreline; the Mesh group in Details shows the tile and triangle counts */}
+
+## Quality levels
+
+Water uses what the project's quality level allows. The settings are part of each level's profile (`project.esproject`,
+`features.rendering.quality.profiles`) and can be changed per project. **Project Settings → Rendering → Level · Water**
+edits them for the level selected under **Editing level**; the group is hidden while quality is off or the project
+excludes the water module.
+
+| Setting | Low | Medium | High | Description |
+|---|---|---|---|---|
+| `waterWaves` | 3 | 5 | 8 | Waves summed, longest first: in the geometry, the shading and `Waters.sample`. |
+| `waterRippleCells` | 32 | 64 | 128 | Maximum cells per side of the ripple grid; the zone's `ripples` is clamped to it. 0 keeps none. |
+| `waterDisplacement` | off | on | on | Whether waves lift the geometry. Off is **lite water**: a surface at rest height with waves in the shading only. |
+| `waterMirror` | off | on | on | Whether the surface seen from below mirrors the world under it (screen-space march). |
+| `waterReflectionSteps` | 8 | 12 | 20 | Steps of the reflection march, above and below the surface. Fewer, longer steps reach as far with less precision. |
+| `waterCaustics` | off | on | on | Whether caustics are drawn on what lies under the water and, from below, light shafts. |
+| `waterCausticFieldSize` | 0 | 128 | 256 | Samples per side of the projected wave field. 0 uses the procedural approximation. |
+| `waterCausticLayers` | 2 | 3 | 3 | Noise scales of the procedural approximation (field size 0). |
+| `waterShaftSteps` | 16 | 16 | 24 | Samples per pixel along the ray under water for light shafts. Steps are jittered, so fewer steps show as noise rather than banding. |
+
+Code follows what is drawn: without displacement the surface is at rest for `Waters.sample` and floating objects sit on
+it, and fewer waves are fewer waves for both. With a quality policy running, the active level decides. Without one, a
+**minigame** gets the Low profile's water and other platforms get High. Lite water costs no vertex work for waves and
+the shading still moves, so it reads as water at a distance.
+
+## In the editor
+
+Details shows a water body only the fields its form uses. A lake's **Boundary** row reports its point count (or that it
+is the rectangle of its size) and resets it to the rectangle. The body also lists **Water Body Islands** and **Water Body
+Exclusion Volumes** acting on it and the zone it belongs to. **Create water material** makes a material on the Water shader
+for the body or zone and assigns it; **Edit material** opens an assigned one.
+
+Selecting a lake or a river shows its points as viewport handles, edited like a polygon collider's vertices:
+
+- **Lake.** A square on each outline point and a circle at each edge midpoint. Drag a point to move it on the lake's
+  plane; drag an edge circle to insert a point; press and release a point in place to delete it. A lake keeps at least
+  three points; with none, the rectangle's four corners are the points, and moving one converts the rectangle to a
+  boundary.
+- **River.** The same handles on its `Spline`, plus a width handle at each point, offset across the river by half its
+  width; drag it to set the width there. A river keeps at least two points. The last pressed point is edited in Details
+  under the Spline (see [Splines](/docs/graphics/water/rivers-and-shores/#splines)).
+- Each gesture is one undo step. Points are written back during the drag, so the water follows. The handles are the
+  **Water** entry of the Gizmo menu.
+
+A zone's region has no handles; set its size in Details.
+
+## Limits
+
+- **Water is horizontal.** A body may rotate about its up axis but not tilt; the surface has one height per position, so
+  there is no water over water.
+- **One zone.** The first `WaterZone` found is used, with one ocean (the first found). Water outside the zone's region is
+  not drawn, except the ocean.
+- **Field resolution.** Shores and rivers are traced at the zone's `resolution`: a river one or two texels wide, or outline
+  detail finer than a texel, is lost unless grown with `shapeDilation`. A large region needs a high `resolution`.
+- **Extent.** The tiled extent along each axis is measured from the zone centre. An ocean authored with legacy ring
+  parameters keeps a moving window.
+- **Waves are a sum of sines,** not a simulated spectrum, and lift the surface vertically without horizontal
+  displacement.
+- **The surface needs a scene copy.** Refraction uses the same engine-copied scene as glass (a post-process chain must be
+  running) and float render targets for depth. Without the chain the water is drawn over the scene as a translucent
+  surface; without float targets the depth is `u_fallbackDepth` everywhere, so colour does not vary with depth and only
+  the zone's baked shore foams.
+- **Blended draws and water.** When a frame has both, it is drawn in layers (opaque scene; blended draws over it for the
+  picture the water refracts; opaque scene restored and water drawn; blended draws again, depth-tested against the
+  water). A blended object under the surface is seen through it, one in front lies on it, and away from water it is
+  blended once. This costs two more full-screen copies and a second pass over blended draws, only in frames with both. A
+  blended draw without depth test, or one crossing the surface, is drawn whole on both sides; one in front of the water is
+  also faintly visible a second time through it.

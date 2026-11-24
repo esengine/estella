@@ -1,0 +1,176 @@
+---
+title: Post-processing
+description: Post-processing overview — the effect chain, the PostProcessVolume component and volume blending, the effect catalogue, effect order, the HDR chain, world-unit parameters, and the effect groups a package carries.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Post-processing applies full-screen effects to the rendered scene before it reaches the display. Effects are added to a
+**`PostProcessVolume`** in the editor or in a scene file, or to a **`PostProcess`** stack in code
+([Scripting & custom effects](/docs/graphics/post-processing/scripting/)). The effect list is a registry shared by the
+editor and the runtime.
+
+![The Post-process Effects example with Bloom on: bright squares bleed a soft glow](@/assets/guides/en/play-postprocess.png)
+
+*The Post-process Effects example: **Bloom** makes bright pixels bleed a soft glow.*
+
+## Effect chain
+
+The effects of a camera form one chain and run in list order. A single-pass effect draws from one of two shared
+ping-pong targets into the other; a multi-pass effect draws its sub-passes at their own scales (half size, 1/64 size)
+and ends on a full-size pass. Each pass is a full-screen draw.
+
+After the chain, the frame's last pass applies the [output transform](/docs/graphics/post-processing/color/#output-transform)
+and the [Display LUT](/docs/graphics/post-processing/color/#display-lut) once, then encodes for the display.
+
+Geometry edges are anti-aliased by MSAA on the scene target, before the chain
+([Anti-aliasing](/docs/graphics/post-processing/image-effects/#anti-aliasing)).
+
+## PostProcessVolume
+
+*Add Component → Post Process Volume* adds the component. The Inspector lists the volume's effects in the order they run.
+Each entry has an enable switch, its parameters (colour and texture parameters included), a fold control, and a category
+tag: **Lens**, **Colour**, **Light**, **Atmosphere**, **Anti-aliasing**, **Stylize** or **Other**. Effects with a compute or
+engine-native implementation carry a **WebGPU only** tag. The add menu groups effects by the same categories.
+
+{/* SHOT: pp-volume-inspector | Inspector of an entity with a PostProcessVolume holding Auto Exposure, Bloom, Color Grade and Vignette in that order; Bloom unfolded with Threshold, Intensity and Radius visible; category tags visible on every entry. */}
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `effects` | list | `[]` | One `{ type, enabled, uniforms, textures?, colors? }` per effect, in chain order. `uniforms` holds float parameters, `textures` texture references (LUTs, masks), `colors` colour parameters. |
+| `isGlobal` | boolean | `true` | Applies everywhere. `false` restricts the volume to its shape. |
+| `shape` | `'box' \| 'sphere'` | `'box'` | Shape of a local volume. |
+| `size` | `{ x, y, z? }` | `{5, 5}` | Half-extents of a local volume; a sphere uses `x` as its radius. `z` is a box's half-depth; `0` or absent is unbounded in depth. |
+| `priority` | number | `0` | Blend order where volumes overlap; higher priority is applied later and wins. |
+| `weight` | number | `1` | Blend weight of the whole volume, 0–1. |
+| `blendDistance` | number | `0` | Falloff distance outside a local volume's shape. `0` is a hard edge. |
+
+```typescript
+import { PostProcessVolume } from 'esengine';
+
+world.insert(volume, PostProcessVolume, {
+  effects: [
+    { type: 'bloom', enabled: true, uniforms: { u_threshold: 1.2, u_intensity: 1 } },
+    { type: 'vignette', enabled: true, uniforms: { u_intensity: 0.4 } },
+  ],
+});
+```
+
+### Volume blending
+
+A global volume contributes its `weight`. A local volume contributes its `weight` inside its shape, falls off linearly to 0
+over `blendDistance` outside it, and contributes nothing beyond that. Volumes are applied in ascending `priority`; each
+enabled effect is blended per parameter by the volume's factor:
+
+- A float parameter blends from the effect's neutral value (the value at which the effect does nothing: 0 for intensities,
+  1 for multiplicative parameters such as contrast, saturation and zoom), or from the value an earlier volume set.
+- A colour parameter blends from the effect's declared default colour.
+- Texture parameters are not blended; the last volume that names one supplies it.
+
+Parameters are named with a `u_` prefix in scene data and in code (`u_intensity`, `u_exposure`). A parameter a volume does
+not state takes the effect's default.
+
+### World-unit parameters
+
+Parameters that are world lengths (an occlusion radius, a fog height, a focus distance) declare their defaults at 100 world
+units per metre. When a volume leaves such a parameter unset, its default and range follow the project's **Units per Metre**;
+a value the volume states is used as written. The Inspector shows defaults and ranges in project units.
+
+## Effect catalogue
+
+| Effect | Category | Description | Page |
+|---|---|---|---|
+| `tonemap` | Colour | ACES tone curve inside the chain | [Color & exposure](/docs/graphics/post-processing/color/#tonemap) |
+| `agx` | Colour | AgX view transform | [Color & exposure](/docs/graphics/post-processing/color/#agx) |
+| `colorGrade` | Colour | Exposure, contrast, saturation, white balance, split toning, gain/offset, lift | [Color & exposure](/docs/graphics/post-processing/color/#color-grade) |
+| `lutGrade` | Colour | Lookup-table grade on scene values | [Color & exposure](/docs/graphics/post-processing/color/#lut-grade) |
+| `displayLut` | Colour | Lookup-table grade on display values, after the output transform | [Color & exposure](/docs/graphics/post-processing/color/#display-lut) |
+| `autoExposure` | Colour | Exposure adapted to picture brightness | [Color & exposure](/docs/graphics/post-processing/color/#auto-exposure) |
+| `grayscale` | Colour | Desaturation | [Color & exposure](/docs/graphics/post-processing/color/#grayscale) |
+| `bloom` | Lens | Glow around bright areas | [Lens & image effects](/docs/graphics/post-processing/image-effects/#bloom) |
+| `depthOfField` | Lens | Blur by distance from a focus | [Lens & image effects](/docs/graphics/post-processing/image-effects/#depth-of-field) |
+| `motionBlur` | Lens | Camera and object motion blur | [Lens & image effects](/docs/graphics/post-processing/image-effects/#motion-blur) |
+| `lensFlare` | Lens | Ghosts and halo from bright sources | [Lens & image effects](/docs/graphics/post-processing/image-effects/#lens-flare) |
+| `filmGrain` | Lens | Mid-tone film grain | [Lens & image effects](/docs/graphics/post-processing/image-effects/#film-grain) |
+| `chromaticAberration`, `lensDistortion`, `vignette` | Lens | Colour fringing, barrel/pincushion warp, darkened edges | [Lens & image effects](/docs/graphics/post-processing/image-effects/#lens-imperfections) |
+| `sharpen` | Lens | Halo-free sharpening | [Lens & image effects](/docs/graphics/post-processing/image-effects/#sharpen) |
+| `fxaa`, `taa` | Anti-aliasing | Fast approximate and temporal anti-aliasing | [Lens & image effects](/docs/graphics/post-processing/image-effects/#anti-aliasing) |
+| `blur`, `pixelate`, `palette`, `outline`, `depthOutline`, `edgeOutline` | Stylize | Blur, block quantization, palette reduction, outlines | [Lens & image effects](/docs/graphics/post-processing/image-effects/#stylize) |
+| `ssao`, `gtao` | Light | Screen-space ambient occlusion | [Screen-space lighting](/docs/graphics/post-processing/lighting/#ambient-occlusion) |
+| `contactShadows` | Light | Short ray-marched contact shadows | [Screen-space lighting](/docs/graphics/post-processing/lighting/#contact-shadows) |
+| `ssgi` | Light | One bounce of diffuse light from on-screen surfaces | [Screen-space lighting](/docs/graphics/post-processing/lighting/#screen-space-global-illumination) |
+| `voxelGI` | Light | Diffuse global illumination from a world-space voxel cache | [Screen-space lighting](/docs/graphics/post-processing/lighting/#voxel-gi) |
+| `ssr` | Light | Screen-space reflections | [Screen-space lighting](/docs/graphics/post-processing/lighting/#screen-space-reflections) |
+| `subsurface` | Light | Subsurface scattering on marked surfaces | [Screen-space lighting](/docs/graphics/post-processing/lighting/#subsurface-scattering) |
+| `lightShafts` | Light | Screen-space sun rays | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#light-shafts) |
+| `skyAtmosphere` | Atmosphere | Scattering sky with sun, moon, stars and volumetric clouds | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#sky-atmosphere) |
+| `starfield` | Atmosphere | Stars and a sun disc added over an existing sky | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#starfield) |
+| `heightFog`, `distanceFog` | Atmosphere | Exponential height fog, linear distance fog | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#height-fog) |
+| `rain`, `snowCover` | Atmosphere | Rain and snowfall, wet ground and puddles; snow on up-facing surfaces | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#rain-and-snow) |
+| `mist2d`, `fog2d`, `rain2d` | Atmosphere | Mist, fog of war and rain for scenes without depth | [Sky, fog & weather](/docs/graphics/post-processing/sky-and-weather/#2d-atmosphere) |
+
+Effects defined with `registerEffect` or `defineSkyEffect` appear in the same list
+([Scripting & custom effects](/docs/graphics/post-processing/scripting/)).
+
+## Effect order
+
+Effects run in the order of `effects[]` on a volume, or the order passes are added to a stack. Order rules:
+
+| Effect | Position | Reason |
+|---|---|---|
+| `autoExposure` | Before `bloom` | Bloom then sees the adapted exposure. |
+| `colorGrade` (split toning, gain/offset, lift) | After `tonemap` | These controls act on display-range values. |
+| `taa` | After every effect whose noise it averages | A temporal pass resolves only what runs before it. |
+| `agx`, `palette` | Last | AgX outputs display-linear values; Palette quantizes the final picture. |
+
+A typical chain: `autoExposure` → `bloom` → `tonemap` → `colorGrade` → `vignette`.
+
+Effects that are identity at their defaults: `colorGrade`, `lensDistortion`, `lutGrade` with no table bound. Effects visible
+at their defaults: `grayscale` (full desaturation), `vignette`, `bloom`, `blur` (intensity 2), `chromaticAberration` (3),
+`pixelate` (4), `outline`, `tonemap`.
+
+To fade an effect in or out, animate the volume's `weight` instead of toggling `enabled`.
+
+## HDR chain
+
+With the project in the **linear** colour space ([Color Space and Quality](/docs/graphics/lighting/color-and-quality/#linear-color-space)), the chain runs on half-float
+targets wherever float render targets are available: always on WebGPU, and on WebGL2 with `EXT_color_buffer_float`. Light
+above `1.0` (a `Light` with `intensity` above 1) reaches the chain unclamped:
+
+- **`bloom` with `u_threshold` above 1** blooms only over-range energy; ordinary LDR art stays sharp. A typical emissive-glow
+  setup raises a light's `intensity` and sets `u_threshold` to about 1.2–1.5.
+- **`tonemap`** receives HDR input, so its curve rolls off highlights instead of shaping clamped values.
+- Without a tone curve (no `tonemap`, no output transform), over-range values clip at the final linear-to-sRGB encode.
+
+In the gamma colour space, or without float render targets, the chain is LDR (8 bits per channel); a bloom `u_threshold`
+above about 0.75 then never triggers.
+
+## Effects in a package
+
+Every package contains the effect definitions (names and parameters). The shaders are installed in four groups, and a
+package includes a group only when its content uses one of the group's effects:
+
+| Group | Subpath | Effects |
+|---|---|---|
+| Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, palette, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
+| Atmosphere | `esengine/fx-atmosphere` | mist2d, rain2d, fog2d, skyAtmosphere, starfield, heightFog, distanceFog, rain, snowCover |
+| Lighting | `esengine/fx-lighting` | ssao, gtao, ssr, ssgi, voxelGI, contactShadows, lightShafts, autoExposure, depthOfField, subsurface, taa |
+| AgX | `esengine/fx-agx` | agx (Blender's AgX tables, about 80 KB) |
+
+The export reads the effects named by `PostProcessVolume` components, and by `Weather` and `TimeOfDay` components (which
+drive the atmosphere group), and imports the groups they need. An effect added from a script
+(`getEffectDef('bloom')!.factory()`) leaves no trace in the content: import its group (`import 'esengine/fx-basic'`) or set
+the module to **Include** in Project Settings. Otherwise the effect reports the group it needs when it is first used. The
+editor, and any entry that is not lean, includes all four groups.
+
+<Aside type="tip">
+  Each pass is a full-screen draw. On low-end and mobile devices keep the chain short and prefer effects that run at reduced
+  resolution.
+</Aside>
+
+## See also
+
+- [Color & exposure](/docs/graphics/post-processing/color/)
+- [Scripting & custom effects](/docs/graphics/post-processing/scripting/)
+- [Materials & Shaders](/docs/graphics/materials/overview/) — per-object shaders, a separate path.
+- [Camera](/docs/graphics/camera/overview/)

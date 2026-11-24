@@ -377,7 +377,7 @@ cmds.spawn()
 ## 逐粒子拖尾
 
 打开 `trailEnabled`,每个粒子都会沿最近的运动轨迹拖出一条渐细的 ribbon —— 彗星火花、
-曳光弹、旋绕的魔法尾迹。这和独立的 [`TrailRenderer`](/docs/zh-cn/graphics/sprites/#拖尾) *不同*:后者
+曳光弹、旋绕的魔法尾迹。这和独立的 [`TrailRenderer`](/docs/zh-cn/graphics/sprites/effects/#拖尾trailrenderer) *不同*:后者
 给单个实体拖尾,而这里(可达数千个)每个粒子都有自己的尾迹。
 
 ```typescript
@@ -675,6 +675,6 @@ kernel 把发生的事追加到一个缓冲里：`subEmitterTrigger` 要的出�
 
 ## 参见
 
-- [材质与着色器](/docs/zh-cn/graphics/materials/) —— 自定义粒子材质。
-- [后处理](/docs/zh-cn/graphics/post-processing/) —— 在 additive 粒子上叠加泛光。
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 自定义粒子材质。
+- [后处理](/docs/zh-cn/graphics/post-processing/image-effects/#泛光) —— 在 additive 粒子上叠加泛光。
 - [资源](/docs/zh-cn/assets/overview/) —— 加载粒子贴图与图集。

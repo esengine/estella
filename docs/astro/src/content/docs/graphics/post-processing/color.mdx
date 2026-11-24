@@ -1,0 +1,155 @@
+---
+title: Color & exposure
+description: Tone and colour reference — the output transform project setting, the Tonemap and AgX effects, Color Grade with split toning and lifted blacks, LUT Grade, Display LUT, Auto Exposure and Grayscale.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A scene lit in linear space can hold values brighter than a display shows. The **output transform** maps the finished
+frame to the display once, after every effect. The effects on this page shape tone and colour inside the chain
+(`tonemap`, `agx`, `colorGrade`, `lutGrade`, `autoExposure`, `grayscale`) or on display values after the output transform
+(`displayLut`). All of them carry the **Colour** tag in the Inspector.
+
+{/* SHOT: pp-color-grade | A lit 3D scene in the viewport beside the Inspector of a PostProcessVolume with Tonemap followed by an unfolded Color Grade (Shadow Tint teal, Highlight Tint warm, S-Curve above 0); the graded look visible in the viewport. */}
+
+## Output transform
+
+The output transform is a project setting, not an effect: **Settings → Project → Rendering → Output transform**. It applies
+to the editor viewport, Play and every export, and changing it takes effect without a reload.
+
+{/* SHOT: pp-output-transform-setting | Settings window, Project → Rendering section, with the Output transform dropdown open showing None, ACES and Neutral. */}
+
+| Transform | Behaviour | Use |
+| --- | --- | --- |
+| **None** | Encodes only. Values above 1 clip. | Flat 2D art, UI, content that must round-trip exactly. |
+| **ACES** | Filmic shoulder: highlights roll off, shadows deepen. Desaturates as it compresses, so a very bright red drifts toward cream. | Lit 3D scenes with a filmic look. |
+| **Neutral** | Khronos PBR Neutral: the same roll-off with hue and saturation preserved. A sunlit red stays red. | Product shots, stylized art, content where colour accuracy matters. |
+
+In code: `createWebApp(module, { outputTransform: 'none' | 'aces' | 'neutral' })`.
+
+<Aside>
+  The `tonemap` effect is a separate, optional ACES pass inside the chain. With an output transform set, leave `tonemap`
+  off; two curves in a row compress highlights twice.
+</Aside>
+
+## Tonemap
+
+`tonemap` applies an ACES curve inside the chain, so effects after it see display-range values. With the HDR chain it
+receives over-range input ([HDR chain](/docs/graphics/post-processing/overview/#hdr-chain)).
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_exposure` | Exposure | 0 | Exposure in stops, applied before the curve. |
+| `u_curve` | Fitted ACES | 0 | 1 replaces the engine's curve with the fitted ACES curve that three.js calls ACES Filmic. |
+
+The fitted curve mixes the channels before the curve: a bright colour goes to white where the engine's curve keeps its hue,
+and shadows are deeper. three.js also multiplies exposure by 1/0.6 before this curve; the equivalent here is `u_exposure`
+0.74.
+
+## AgX
+
+`agx` is the AgX view transform used by Blender. It takes scene-linear input and outputs display-linear values, so it runs
+last in the chain with the output transform set to **None**. It brings its own lookup tables (the `esengine/fx-agx` group).
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_contrast` | Contrast (Look) | 1 | The look: 1 is AgX Base, 1.2 is Medium High Contrast. |
+
+## Color Grade
+
+`colorGrade` is identity at its defaults.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_exposure` | Exposure | 0 | Exposure in stops. |
+| `u_contrast` | Contrast | 1 | Contrast. In a linear project, a power curve about mid-grey (0.18). |
+| `u_saturation` | Saturation | 1 | Saturation. |
+| `u_temperature` | Temperature | 0 | White balance, cool (−1) to warm (1). |
+| `u_tint` | Tint | 0 | White balance, magenta (−1) to green (1). |
+| `u_toneLow` | Tone Low | 0.03 | Luma below which Shadow Tint applies in full. |
+| `u_toneHigh` | Tone High | 0.55 | Luma above which Highlight Tint applies in full. |
+| `u_curve` | S-Curve | 0 | Blend toward a smoothstep across the picture's range. 0 is off. |
+| `u_gain` | Gain | 1 | Slope: every tone is multiplied by it. |
+| `u_offset` | Offset | 0 | Added after the gain. |
+| `u_shadowTint` | Shadow Tint | white | Colour multiplier for dark tones. |
+| `u_highlightTint` | Highlight Tint | white | Colour multiplier for bright tones. |
+| `u_lift` | Lift | black | Tinted black level, added at a tenth of its value. |
+
+### Split toning and lifted blacks
+
+Shadow Tint, Highlight Tint, S-Curve, Gain, Offset and Lift act on the picture as the display shows it. Place Color Grade
+**after `tonemap`**; before it, 0–1 is only part of the scene's range.
+
+- **Shadow Tint** and **Highlight Tint** multiply dark and bright tones, blended by luma between Tone Low and Tone High.
+  White is no change. They are multipliers, not colour-managed, and may exceed 1: `(0.80, 1.01, 1.13)` in the shadows with
+  `(1.07, 1.0, 0.90)` in the highlights is a teal-and-warm split.
+- **S-Curve** sinks shadows slightly and lifts highlights.
+- **Gain** and **Offset**: every tone is multiplied by the gain, then the offset is added. A negative offset sinks the blacks
+  and clips everything darker than it to black; a linear-project contrast leaves black in place. A contrast written as
+  `(c - 0.5) * k + 0.5` is a gain of `k` and an offset of `0.5 - 0.5 * k`: a contrast of 1.04 is `u_gain` 1.04 and `u_offset`
+  −0.02.
+- **Lift** adds a tenth of its colour to every tone: `(0.06, 0.085, 0.11)` raises the blacks by about
+  `(0.006, 0.0085, 0.011)` toward teal.
+
+## LUT Grade
+
+`lutGrade` grades scene values in the chain through a colour lookup table: a 2D-packed `1024×32` image holding 32 slices of a
+32³ cube. With no table bound it is identity.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_lut` | LUT (1024x32, 32 slices) | — | Texture parameter: the table. |
+| `u_intensity` | Intensity | 1 | Mix between the input and the graded result. |
+
+On a volume, the table is listed under the effect's `textures`: `{ type: 'lutGrade', enabled: true, uniforms: { u_intensity: 1 }, textures: { u_lut: <ref> } }`.
+In code, bind it with `stack.setTexture` ([Texture parameters](/docs/graphics/post-processing/scripting/#texture-parameters)).
+
+## Display LUT
+
+A look authored against the finished picture (a colourist's LUT, a film emulation) belongs after the output transform, where
+no chain effect runs. `displayLut` is a stage of the frame's last pass: the picture is curved by the output transform,
+encoded for the display, then looked up in the table by the colour it will display. It adds one texture read to a pass that
+runs anyway, whatever the output transform.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_lut` | LUT (1024x32, 32 slices, as the display shows it) | — | Texture parameter: the table. |
+| `u_intensity` | Intensity | 1 | Mix between the input and the looked-up result. |
+
+Table layout: 1024×32, 32 slices along x; blue selects the slice, red runs along a slice, green runs up the image (rows are
+read from the bottom). A table is data: no compression, no mipmaps, no sRGB. An image of that shape (N slices of N×N, so
+1024×32 for N = 32) is imported with those settings automatically, in the editor and from the command line.
+
+In code: `stack.setDisplayLut(textureHandle, amount)`.
+
+## Auto Exposure
+
+`autoExposure` adapts exposure so the picture averages to middle grey. It measures the average of the **log** of luminance,
+ignoring pixels darker than 2⁻⁸, then moves the exposure toward the target from the previous frame's value at a rate per
+second, independent of frame rate.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_bias` | Compensation (EV) | 0 | Stops added to the measured exposure. |
+| `u_speedUp` | Brighten Speed | 3 | Adaptation rate toward a brighter exposure. |
+| `u_speedDown` | Darken Speed | 1 | Adaptation rate toward a darker exposure. |
+| `u_minEV` | Min EV | −4 | Lower exposure bound. |
+| `u_maxEV` | Max EV | 4 | Upper exposure bound. |
+| `u_metering` | Metering (0 avg, 1 centre, 2 spot) | 0 | 0: whole picture. 1: centre-weighted, soft falloff of radius Meter Size. 2: spot, a disc of that radius only. |
+| `u_meterSize` | Meter Size | 0.35 | Radius of the centre weighting or the spot, as a share of the picture. |
+
+The measurement and the adapted exposure are kept in float targets wherever the device can render to one, so adaptation
+behaves the same in an 8-bit chain (the exposed picture itself is still clamped there). Place it before `bloom`.
+
+## Grayscale
+
+`grayscale` desaturates the picture.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Amount of desaturation; 1 is fully grey. |
+
+## See also
+
+- [Post-processing](/docs/graphics/post-processing/overview/)
+- [Color Space and Quality](/docs/graphics/lighting/color-and-quality/) — linear colour space; [Lights](/docs/graphics/lighting/lights/#intensity-units) — light intensity.

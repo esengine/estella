@@ -1,0 +1,194 @@
+---
+title: 混合与切换
+description: 相机切换参考——setViewTarget 混合、BlendCurve、按优先级切换与 CameraBrain 的默认及自定义混合、StateDrivenCamera、CameraDirector 状态、cameraDirectorReport、CameraEvent，以及 CameraPOV。
+---
+
+**相机导演**每帧从覆盖整个屏幕的相机中解析出一个主视图。活动相机的切换可以是硬切，也可以是混合。混合可以用 `setViewTarget` 显式请求，也可以在活动相机因优先级、激活状态或 `StateDrivenCamera` 而改变时由 `CameraBrain` 施加。
+
+## 相机间混合
+
+`setViewTarget` 将视图切换到另一个相机实体，可硬切，也可在 `time` 秒内**混合**：
+
+```typescript
+import { setViewTarget, BlendCurve } from 'esengine';
+
+// Cut:
+setViewTarget(app, cutsceneCamera);
+// Blend over 1.5 s:
+setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
+```
+
+| 选项 | 默认值 | 说明 |
+|---|---|---|
+| `time` | `0` | 混合时长（秒）。`time <= 0` 或没有先前视图时为硬切。 |
+| `curve` | `BlendCurve.EaseInOut` | 缓动：`Linear`、`EaseIn`、`EaseOut` 或 `EaseInOut`。 |
+
+请求在下一帧生效，从当前视图开始。混合期间，位置、缩放与旋转进行插值；3D 相机的朝向沿较短路径转动；`projection` 与 `pixelPerfect` 在中点切换；`viewport`、`clearFlags`、`priority`、`cullingMask` 与 `renderTarget` 直接取目标相机的值。场景与过场切换应优先使用混合，而不是直接移动相机。时间轴的相机轨道占用视图期间，`setViewTarget` 会等待。
+
+## 按优先级切换相机
+
+在覆盖整个屏幕的活动相机中，`priority` 最高的一台为活动相机。优先级相同时，最近激活的相机为活动相机；场景加载时已存在的相机视为同时激活，因此取其中第一台。提高某台相机的优先级，或打开、关闭某台相机，都会改变活动相机。
+
+没有 `CameraBrain` 时，此类切换为硬切。场景中任意实体上存在 `CameraBrain` 时，视图改为混合：
+
+```typescript
+import { CameraBrain, BlendCurve } from 'esengine';
+
+cmds.spawn().insert(CameraBrain, { defaultBlend: 1.2, blendCurve: BlendCurve.EaseInOut });
+
+// 该相机成为活动相机，视图在 1.2 秒内混合过去。
+cmds.entity(bossCamera).insert(Camera, { ...bossCameraData, priority: 10 });
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `defaultBlend` | number | `1` | 相机在没有 `setViewTarget` 请求的情况下成为活动相机时，视图过渡所需的秒数。`0` 为硬切。 |
+| `blendCurve` | number | `EaseInOut` | 该混合的缓动：`BlendCurve.Linear`、`EaseIn`、`EaseOut` 或 `EaseInOut`。 |
+| `customBlends` | records | `[]` | 针对特定相机切换的混合，按相机名指定（`from`、`to`；留空表示任意相机），各自带 `time` 与 `curve`。 |
+
+自定义混合为特定切换覆盖默认混合，例如从全景硬切到特写、再缓慢退回。匹配顺序：同时写明两台相机的条目优先，其次是写明目标相机的条目，再次是写明来源相机的条目；其余切换使用默认混合。`time` 为 `0` 时硬切。Details 面板以表格编辑该列表。
+
+```typescript
+cmds.spawn().insert(CameraBrain, {
+  defaultBlend: 1,
+  customBlends: [
+    { from: 'Wide', to: 'Close', time: 0, curve: BlendCurve.Linear },   // 硬切进入
+    { from: '', to: 'Wide', time: 2.5, curve: BlendCurve.EaseInOut },  // 从任意相机缓慢退回
+  ],
+});
+```
+
+{/* SHOT: cam-brain-custom-blends | Details panel of a Camera Brain entity: Default Blend 1, Blend Curve Ease in and out, and the Custom Blends table with two rows (Wide → Close 0 s Linear; Any camera → Wide 2.5 s Ease in and out) */}
+
+约束：
+
+- 混合进行中活动相机再次改变时，新混合从当前视图开始，视图不会跳变。
+- `setViewTarget` 调用使用自身的混合时长，不受大脑影响。
+- 每个场景一个大脑：使用找到的第一个 `CameraBrain`。没有大脑的场景直接硬切。
+- 相机名即 `Name` 组件的值；引用不存在的相机名的自定义混合会被忽略。
+
+## 按动画状态切换相机
+
+`StateDrivenCamera` 根据 `Animator` 的状态选取活动相机，例如行走时使用一台相机，奔跑时使用更低更广的一台，瞄准时使用越肩视角的一台。它打开当前状态对应的相机，并关闭它所指定的其他相机。大脑像对待任何新成为活动的相机一样混合过去（默认或自定义混合），并发出 `CameraEvent`。
+
+```typescript
+import { StateDrivenCamera } from 'esengine';
+
+cmds.spawn().insert(StateDrivenCamera, {
+  animator: hero,
+  defaultCamera: 'Walk Cam',
+  rules: [
+    { state: 'Run', camera: 'Run Cam', wait: 0.25, minDuration: 0 },  // 短暂奔跑不会切换画面
+    { state: 'Aim', camera: 'Aim Cam', wait: 0, minDuration: 1 },     // 瞄准相机至少保持 1 秒
+  ],
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `animator` | Entity | `0` | 被监视的 `Animator` 所在的实体。 |
+| `layer` | number | `0` | 控制器层；`0` 为基础层。 |
+| `rules` | records | `[]` | 每个状态（Animator 报告的完整路径）对应：相机名、切换前状态需持续的秒数（`wait`），以及相机至少保持活动的秒数（`minDuration`）。 |
+| `defaultCamera` | string | `''` | 没有规则命中的状态所用的相机；留空则保持视图不变。 |
+
+只有它所指定的相机会被开关，其他相机保留各自的 `isActive`。Details 面板以表格编辑规则。创建菜单中的 State-Driven Camera 会创建一个。
+
+## 相机导演
+
+`setViewTarget` 与 `shakeCamera` 是**相机导演**的 API。相机导演是每个 App 一份的资源（`CameraDirector`），每帧从覆盖全屏的相机候选中解析出一个主视图：已提交的视图目标（或按活动状态与优先级选出的相机），混合进行中则向新目标混合，震屏只叠加在渲染的画面上。其状态（`CameraDirectorState`）可读，应视为**只读**；修改通过 `setViewTarget` 与 `shakeCamera` 进行。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | number | `-1` | 已提交的视图目标实体；`-1` 表示按 `isActive` / 最高 `priority` 选取。 |
+| `blending` | boolean | `false` | 混合正在进行。 |
+| `duration` / `curve` | number | `0` / `EaseInOut` | 当前混合的时长（秒）与缓动。 |
+| `currentMain` | `CameraPOV \| null` | `null` | 最近解析出的主视图，**未叠加震屏**；屏幕 ↔ 世界转换也使用该视图。 |
+| `shakes` | `ActiveShake[]` | `[]` | 进行中的震屏（由 `shakeCamera` 添加，衰减结束后移除）。 |
+| `timelineShot` / `timelineOwner` | `TimelineShot \| null` / number | `null` / `-1` | 播放中的时间轴相机轨道所占用的视图，以及设置它的播放器。 |
+
+其余字段为内部记录：待处理请求（`hasPending`、`pendingTarget`、`pendingTime`、`pendingCurve`）、混合起点（`from`、`startTime`）、震屏编号（`shakeSeq`）、大脑设置（`defaultBlend`、`defaultCurve`、`customBlends`）、活动相机跟踪（`lastLive`、`blendFrom`、`candidates`、`lastNow`、`activation`、`activationSeq`）以及事件状态（`announced`、`pendingEvents`）。
+
+```typescript
+import { defineSystem, Res, CameraDirector } from 'esengine';
+
+const watchDirector = defineSystem([Res(CameraDirector)], (director) => {
+  if (director.blending) { /* e.g. suppress player input during the transition */ }
+  const pov = director.currentMain;   // CameraPOV | null: the view being rendered
+  if (pov) { /* pov.x, pov.y, pov.orthoSize, ... */ }
+});
+```
+
+`cameraDirectorReport(app)` 为工具或测试汇总导演状态。
+
+```typescript
+import { cameraDirectorReport } from 'esengine';
+
+const { live, blend } = cameraDirectorReport(app);
+if (blend) console.log(`混合 ${blend.from} → ${blend.to}：${Math.round(blend.progress * 100)}%`);
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `live` | number \| null | 视图当前所在或正在混合进入的相机；没有相机时为 `null`。 |
+| `blend` | object \| null | 进行中的混合：`from`（相机；从两台相机之间的中途视图离开时为 `null`）、`to`、`progress`（0–1）与 `duration`。 |
+| `timeline` | boolean | 时间轴的相机轨道正占用视图。 |
+| `cameras` | array | 候选相机，每项含 `entity`、`priority` 与 `active`。 |
+
+### 编辑器中的活动相机
+
+在编辑器中运行游戏时，大纲视图将活动相机标记为**当前**（混合进行中时显示进度），将混合正在离开的相机标记为**淡出**。在 Inspect 模式下，游戏画面上也会标出它们。
+
+{/* SHOT: cam-outliner-live | Editor in play mode during a camera blend: Outliner with two camera rows, one tagged LIVE with a blend percentage and the other tagged OUT, game view in the scene view behind */}
+
+### 相机事件
+
+`CameraEvent` 报告活动相机的变化：某台相机成为活动相机，以及混合进入它的过程结束。典型用途是在某个镜头的相机成为活动相机时显示其 HUD，以及在混合结束后交还控制。事件在绘制帧时发出，因此系统在下一帧读取。
+
+```typescript
+import { defineSystem, EventReader, CameraEvent, CameraEventKind } from 'esengine';
+
+const onCameraChange = defineSystem([EventReader(CameraEvent)], (events) => {
+  for (const e of events) {
+    if (e.kind === CameraEventKind.Activated) console.log(`当前相机：${e.camera}（来自 ${e.previous}，${e.blendTime} 秒）`);
+    if (e.kind === CameraEventKind.BlendFinished) console.log(`已停在 ${e.camera}`);
+  }
+});
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `kind` | number | 相机成为活动相机（硬切或混合）时为 `CameraEventKind.Activated`，混合进入结束时为 `BlendFinished`。 |
+| `camera` | Entity | 视图当前所在或将要到达的相机。 |
+| `previous` | Entity | 离开的相机；没有相机，或视图处于两台相机之间时为 `0`。 |
+| `blendTime` | number | 混合进入所需的秒数；硬切为 `0`。 |
+
+### `CameraPOV`
+
+`CameraPOV` 是相机视图参数的一个纯数据快照：导演混合的单位，也是 `currentMain` 存储的形状。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `entity` | number | 来源相机实体；合成视图（编辑器视图）为 `-1`。 |
+| `isActive` | boolean | 相机的 `isActive` 标志（导演的输入）。 |
+| `x` / `y` / `z` | number | 相机位置（世界单位）。 |
+| `rotation` | number | 绕 Z 轴的旋转，弧度。 |
+| `tilt` | 四元数，可选 | 偏离 2D 平面的相机的完整朝向；仅绕 Z 轴旋转时不存在。 |
+| `orbit` | `{yaw, pitch, focusZ}`，可选 | 绕焦点的环绕（编辑器视图）；场景相机不存在。 |
+| `projection` | number | 一个 `ProjectionType` 值。 |
+| `orthoSize` | number | 创作的正交半高（世界单位）。 |
+| `fov` | number | 视场角，单位为度（透视）。 |
+| `near` / `far` | number | 裁剪距离。 |
+| `viewport` | `{x, y, z, w}` | 屏幕矩形，取值 0–1（`z`/`w` 为宽/高）。 |
+| `clearFlags` | number | 一个 `ClearFlags` 值。 |
+| `priority` | number | 活动相机之间的选取顺序。 |
+| `pixelPerfect` | boolean | 像素网格吸附标志。 |
+| `cullingMask` | number | 渲染的排序层（第 *i* 位对应第 *i* 层）。 |
+| `renderTarget` | number | 离屏目标；`0` 为屏幕。 |
+
+混合期间，连续字段（位置、沿最短角度路径的 `rotation`、按球面插值的 `tilt`、`orthoSize`、`fov`、`near`/`far`）进行插值；`projection` 与 `pixelPerfect` 在中点切换；`viewport`、`clearFlags`、`priority`、`cullingMask` 与 `renderTarget` 取目标的值。
+
+## 另请参阅
+
+- [相机基础](/docs/zh-cn/graphics/camera/overview/)
+- [噪声、震屏与冲击](/docs/zh-cn/graphics/camera/shake/)
+- [时间轴](/docs/zh-cn/animation/timeline/#相机与子序列)：相机轨道。

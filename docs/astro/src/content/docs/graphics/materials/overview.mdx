@@ -1,0 +1,167 @@
+---
+title: Materials
+description: Material reference — the renderers that take a material, the .esmaterial asset, the built-in shader templates, and the material inspector (shader picker, parameters, render state, material instances).
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A material is a shader, a set of parameter values for it, and a render state. A renderer with a `material` field draws
+with the assigned material in place of its default shader.
+
+![The material inspector's Shader section and parameter list](@/assets/guides/en/material-shader.png)
+
+*The material inspector: the **Shader** section with its picker (here `dissolve.esshader`), above the **Parameters**
+reflected from that shader's `#pragma param`s.*
+
+## Renderers that take a material
+
+| Component | Field | Reference |
+|---|---|---|
+| `Sprite` | `material` | [Sprite effects](/docs/graphics/sprites/effects/#materials-and-lighting) |
+| `SpineAnimation` | `material` | — |
+| `ParticleEmitter` | `material` | [Particle materials](/docs/world/particles/#particle-materials) |
+| `MeshRenderer` | `material` | — |
+| `UIVisual` | `material` | [Images](/docs/ui/images/#custom-material) |
+
+A `material` of `0` draws with the renderer's built-in shader. `ShapeRenderer` and `TilemapLayer` have no `material`
+field. Geometry drawn from code takes a material per draw call
+([Custom geometry](/docs/graphics/materials/code/#custom-geometry)).
+
+## How a material is built
+
+A shader is an `.esshader` file that declares its tunable parameters with `#pragma param`
+([The .esshader format](/docs/graphics/materials/esshader/)). The engine reflects those declarations into a std140
+uniform block, so parameters are set by name from the CPU. A material binds one compiled shader to a set of parameter
+values and a render state; assigning the material's handle to a renderer's `material` field draws that renderer with it.
+
+## The `.esmaterial` asset
+
+A material asset is a JSON file:
+
+| Field | Type | Description |
+|---|---|---|
+| `version` | string | Format version, `"1.0"`. |
+| `type` | string | Always `"material"`. |
+| `shader` | string | `builtin:<id>` for a built-in template, or a path **relative to the material** for a project `.esshader`. |
+| `properties` | object | Parameter values by name. |
+| `blendMode`, `depthTest`, `depthWrite`, `cull`, `depthBias` | number / boolean | Render state. Absent fields take the engine defaults on load. |
+| `switches` | object | Enabled `#pragma switch` names; selects the shader permutation at load. |
+| `instanceOf` | string | Parent material, on a material instance. The parent supplies the shader and any render state the instance does not set; `shader` is ignored and `properties` holds only the overridden parameters. |
+
+The shader reference is a relative path, not a `@uuid`. If a referenced `.esshader` is renamed or moved, the material
+inspector reports the reference as missing and the shader is picked again there.
+
+## Built-in shader templates
+
+The built-in templates are listed in code as `BUILTIN_SHADER_TEMPLATES`. A material that uses one stores
+`shader: "builtin:<id>"`; no shader file is written to disk. The runtime loader, the cook step and the editor resolve
+`builtin:<id>` to the in-code source in the same way.
+
+### Core templates
+
+| Template | `builtin:` id | Description |
+|---|---|---|
+| **Unlit** | `sprite-unlit` | Texture × vertex color × `u_tint`. The default. |
+| **Lit** | `sprite-lit` | Lit by the scene's 2D lights; `u_tint` and an optional `u_normalMap`. |
+| **Lit Particle** | `particle-lit` | Particles lit by sun, sky and lamps where they are (mist, smoke, dust); light from behind passes through by `u_translucency`. |
+| **Sway** | `sprite-sway` | Leans in the wind with the foot fixed and the tip free: grass, reeds, hanging cloth. `u_swayStrength` is the lean as a share of the sprite's width; the weather's `wind` scales it. Lit, with an optional normal map. A `SwayPusher` on a character makes the plants lean away from it as it passes through them (the eight nearest the camera; `u_swayPushStrength` is how far they lean). |
+| **Hit Flash** | `sprite-hit-flash` | Blends toward `u_flashColor` by `u_flash`; driven from code for damage blinks. |
+| **Outline** | `sprite-outline` | Colored silhouette outline (`u_outlineColor`, `u_outlineWidth` in texels). |
+| **Dissolve** | `sprite-dissolve` | Noise burn-away with a glowing edge (`u_progress` 0→1). |
+| **Pixelate** | `sprite-pixelate` | Quantizes UVs to a `u_pixels` grid. |
+| **UV Scroll** | `sprite-uv-scroll` | Scrolls the texture by `u_scrollSpeed` × time. |
+| **Model** | `model` | The glTF material beyond base color: `u_normalMap`, `u_emissive` (+ `u_emissiveMap`), `u_occlusionMap` + `u_occlusionStrength`, `u_alphaCutoff`, `u_metallic` / `u_roughness` (+ `u_metallicRoughnessMap`), wet ground, and the [shading layers](/docs/graphics/materials/surface-shaders/#shading-layers): clear coat, sheen, anisotropy, translucency, thin film, index of refraction, transmission. Written by model import. |
+| **Ground Blend** | `ground-blend` | The Model shader for objects that stand in the ground: fades into the picture behind it where it meets it ([Ground blending](/docs/graphics/terrain/overview/#ground-blending)). |
+| **Toon** | `toon` | Stepped lighting: each lamp's light is cut into `u_bands` flat bands (`u_bandSoftness` softens the step); `u_shadeColor` is the colour where no lamp reaches; a flat highlight of `u_specColor` above `u_specThreshold` (`u_specSize` sets the glossiness); a rim (`u_rimColor`, `u_rimWidth`, `u_rimStrength`). A lamp's shadow is part of its step. Uses the sixteen lamps of the frame and carries the lamp loop as Model does. |
+| **Matcap** | `matcap` | Colour looked up in a picture of a lit sphere (`u_matcap`) by the direction the surface faces the camera. No lamps and no shadow reads: one texture read, suited to phones. `u_baseBlend` multiplies the base colour in. |
+| **Particle** | `particle` | For a `ParticleEmitter`: a particle fades as it nears the scene behind it (`u_softness`, world units) and its texture erodes with age (`u_erosion`, `u_erosionEdge`). See [Particle materials](/docs/world/particles/#particle-materials). |
+| **Distortion** | `distortion` | Bends the picture already drawn behind it: heat haze, a shockwave, a lens. The texture's alpha sets where and how much (`u_strength`, `u_radial`, `u_dispersion`). Works on particles and meshes. |
+
+### Module templates
+
+These templates are registered by their module and appear in the lists only when the project installs that module.
+
+| Template | `builtin:` id | Module | Description |
+|---|---|---|---|
+| **Water** | `water` | `esengine/water` | A horizontal body of water: travelling waves and ripples, refraction tinted by depth, reflections and foam. See [Water](/docs/graphics/materials/surface-shaders/#water). |
+| **Underwater** | `underwater` | `esengine/water` | Submerged lens, scattering and wave caustics. |
+| **Waterfall** | `waterfall` | `esengine/water` | Falling water for a Waterfall: glass at the lip, then strands and veils on the way down. |
+| **Terrain** | `terrain` | `esengine/terrain` | Four texture layers (grass, dirt, snow, rock) weighted by the [Terrain](/docs/graphics/terrain/overview/) component and tiled by world position. |
+| **Terrain Layers** | `terrain-layers` | `esengine/terrain` | Up to eight terrain layers (albedo, normal and mask arrays) weighted by the Terrain component, blended by height, projected on slopes. |
+| **Terrain Surface Bake** | `terrain-surface-bake` | `esengine/terrain` | The unlit result of Terrain Layers for a node of ground, drawn into the node's page of the runtime virtual texture. |
+| **Planet** | `planet` | `esengine/terrain` | Ground on a sphere from a Planet component's quadtree nodes, painted by four layer colours. |
+| **Planet Sea** | `planet-sea` | `esengine/terrain` | The sea of a planet: a lit, translucent surface in one colour. |
+| **Voxel Ground** | `voxel-ground` | `esengine/voxel` | The Model shader for ground with no UVs: up to four materials weighted by the vertex colour, each projected from three sides by world position. |
+| **Foliage** | `foliage` | `esengine/foliage` | Plants that sway in the wind: a vertex bend by weights painted in the vertex colour, two-sided and translucent, with an optional cutout texture. See [Foliage](/docs/graphics/foliage/). |
+| **Strands** | `strands` | `esengine/groom` | A groom's curves drawn as camera-facing ribbons, as wide as the group sets from root to tip, lit along the strand. |
+| **Hair** | `hair` | `esengine/character-shaders` | Strand lighting on hair cards. See [Hair](/docs/graphics/materials/surface-shaders/#hair). |
+| **Skin** | `skin` | `esengine/character-shaders` | Soft per-colour diffuse, warm terminator, transmission through thin parts, two specular lobes and a fuzz, without blurring the picture. See [Skin](/docs/graphics/materials/surface-shaders/#skin). |
+| **Eye** | `eye` | `esengine/character-shaders` | Refraction through the cornea, iris, limbal ring, pupil, sclera and lid shadow. See [Eye](/docs/graphics/materials/surface-shaders/#eye). |
+
+## Creating materials and shaders
+
+The Content Browser's create menu has these entries:
+
+| Entry | Result |
+|---|---|
+| **New Material** ▸ *template* | `New<Template>Material.esmaterial`, referencing `builtin:<id>`. No shader file is written. |
+| **New Shader** ▸ *template* | `New<Template>Shader.esshader`, a copy of the template's source, selectable from any material's Shader picker. |
+| **New Material Graph** | A `.esmatgraph` material graph ([Material graphs in code](/docs/graphics/materials/code/#material-graphs-in-code)). |
+| **New Material Subgraph** | A `.esmatsub` graph used as a node inside other graphs. |
+| **Create Material Instance** (context menu of a material) | `<Material> Instance.esmaterial` with `instanceOf` set to the material and no overrides. |
+
+{/* SHOT: mat-new-material-menu | Content Browser create menu open with the New Material submenu expanded, listing the core templates (Unlit, Lit, Lit Particle, Sway, …, Distortion) followed by module templates; a 3D project with the water and character-shaders modules installed. */}
+
+## Material inspector
+
+Selecting a material in the Content Browser opens it in the Details panel. The inspector has three parts: **Shader**,
+the parameter sections, and **Render State**.
+
+### Shader
+
+| Control | Description |
+|---|---|
+| **Shader** dropdown | Lists every built-in template as *Built-in · &lt;Label&gt;* and every `.esshader` in the project. Selecting one rebinds the material. |
+| **Convert to Unique Shader…** | Shown while the material references a `builtin:` template. Writes the template's source to `<material>.esshader` beside the material and points the material at it. Parameter values are kept. |
+| Missing-shader notice | Shown when the referenced `.esshader` no longer exists. |
+
+Changing the shader re-runs reflection: the parameter sections are rebuilt from the new shader's `#pragma param`s.
+The material's parameter values and enabled switches are cleared, because they belong to the previous shader.
+
+Several materials can reference the same `.esshader` (asset badge **SHD**). They share one compiled shader, and an edit
+to the source applies to all of them.
+
+### Parameters
+
+Parameters with a `group(Name)` clause appear in a section per group (the Model shader's groups are Base, UV, Normal,
+Emissive, Occlusion, Wetness and Detail); parameters without a group appear under **Parameters**. Field labels are
+derived from the parameter name: `u_uvTiling` is shown as **UV Tiling**. On a Model material each
+[shading layer](/docs/graphics/materials/surface-shaders/#editing-layers-in-the-inspector) is a section with a switch in its header.
+
+### Render State
+
+| Field | Values |
+|---|---|
+| **Blend Mode** | Normal, Additive, Multiply, Screen, Premultiplied |
+| **Depth Test** | On / off |
+| **Depth Write** | On / off |
+| **Cull** | None, Back, Front |
+
+### Material instances
+
+A material instance (`instanceOf` another material) shows *Shader inherited from the parent material* in place of the
+Shader picker, and a checkbox before each parameter. A ticked parameter is set by the instance; a cleared one takes the
+parent's value, shown greyed and read-only. Ticking keeps the value currently shown until it is edited, including when
+that value is the parent's.
+
+<Aside type="note">
+  A material instance stores only the overridden parameters and render state. A change to the parent applies to every
+  instance that does not override it.
+</Aside>
+
+## See also
+
+- [Surface shaders](/docs/graphics/materials/surface-shaders/) — water, wet ground, skin, hair, eye and the Model shader's shading layers.
+- [The .esshader format](/docs/graphics/materials/esshader/) — pragmas, parameters, injected uniforms.
+- [Materials in code](/docs/graphics/materials/code/) — the `Material` API and material graphs.
+- [Post-processing](/docs/graphics/post-processing/overview/) — full-screen effects (a separate pipeline).

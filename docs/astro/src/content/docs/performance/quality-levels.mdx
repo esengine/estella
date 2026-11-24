@@ -72,7 +72,7 @@ shading to the end of a tile it is geometry paid for twice. It is off at Low and
 
 **3D lighting** is Full or Direct. Direct compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights of
 the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
-(see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
+(see [3D lighting level](/docs/graphics/lighting/color-and-quality/#3d-lighting-level)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
 
 **Per-pixel lights** is how many lights every lit pixel works out in turn, at most the sixteen the light block holds: the sun and the
 lights that cast a shadow are kept first, then the brightest. A point or spot light past them that casts no shadow goes to **Tiled

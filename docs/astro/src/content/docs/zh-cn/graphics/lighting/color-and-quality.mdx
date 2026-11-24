@@ -1,0 +1,84 @@
+---
+title: 色彩空间与画质
+description: 伽马与线性色彩空间、HDR 光照、线性项目中颜色的存储方式、完整与直接两种 3D 光照级别及其在手机上的实测开销，以及与光照相关的画质设置。
+---
+
+## 线性色彩空间
+
+引擎默认在**伽马空间**渲染：颜色按创作值混合。项目可以切换到**线性**管线：纹理在采样时由硬件从 sRGB 解码为线性值，光照与着色在线性空间中混合，最终 blit 时将画面编码回 sRGB。
+
+线性混合改变光照的叠加方式：衰减不再压暗至纯黑，重叠的光源像光一样相加，而不是像颜料。不受光的美术资源不变，因为解码后再编码是恒等变换；差异只出现在颜色相互混合的地方。
+
+### HDR
+
+线性模式启用 **HDR**。在浮点渲染目标可用时（WebGPU 始终可用；WebGL2 需要 `EXT_color_buffer_float`），后处理链以半精度浮点运行，`intensity` 大于 1 的光源会将超范围能量带入 [bloom 与色调映射](/docs/zh-cn/graphics/post-processing/overview/#hdr-链路)。
+
+### 启用
+
+**设置 → 项目 → 渲染 → 色彩空间 → 线性。** 着色器按该模式编译，因此它在引擎启动时确定，编辑器会提示重新加载。该设置保存在项目清单中：场景视图、运行预览和所有导出（Web、桌面、微信、playable）使用同一管线。纯代码项目在创建应用时传入：
+
+```typescript
+const app = createWebApp(module, { colorSpace: 'linear' });
+```
+
+{/* SHOT: light-color-space-setting | Settings → Project → Rendering with the Color space field set to Linear and the reload prompt shown. */}
+
+### 颜色存储
+
+两种模式下拾色器显示的都是屏幕上的颜色。线性项目中：
+
+| 颜色 | 存储方式 |
+|---|---|
+| `Sprite.color`、`Light.color` | sRGB；由引擎解码。 |
+| 常驻网格的 `MeshRenderer.color`、材质颜色 | 线性；原样传给着色器。场景文件中的 `0.25` 在拾色器中显示为 `#89`。 |
+
+从代码写入网格的颜色必须是线性值。
+
+## 3D 光照级别
+
+光照模型只有一套。画质档的 **3D 光照** 设置（`lighting`）决定受光网格着色器编译时包含多少引擎光照：
+
+| 级别 | 受光网格包含 |
+|---|---|
+| `full`（完整） | 逐像素光源、分块光源、有尺寸光源的软阴影、头发阴影以及 2D 光照遮罩。 |
+| `direct`（直接） | 仅逐像素光源和硬阴影，等同于 `#pragma lighting direct` 的编译方式（[材质与着色器](/docs/zh-cn/graphics/materials/esshader/#pragma)）。 |
+
+默认值：低档和中档为 `direct`（项目未指定档位时手机使用中档），高档为 `full`，关闭画质系统时为 `full`。精灵在所有级别都保留 2D 光照，包括 2D 阴影和 cookie。
+
+可在 **项目设置 → 渲染 → 画质 → 3D 光照** 中按档位修改，或在代码中设置：
+
+```typescript
+quality: { profiles: { medium: { lighting: 'full' } } }
+```
+
+{/* SHOT: light-quality-3d-lighting | Project Settings → Rendering → Quality with the Lights group expanded: 3D lighting (Full / Direct), Per-pixel lights and Tiled lights for the low, medium and high columns. */}
+
+`direct` 节省的主要来自着色器体积，而不是跳过的计算：包含分块光源和软阴影搜索的程序即使这些分支不执行，也会占用更多寄存器，并行处理的像素更少。在骁龙 8 Elite 上实测：一块铺满全屏的受光地板绘制十五层，太阳为默认 `sourceAngle`，其他设置相同：
+
+| | `full` | `direct` |
+|---|---|---|
+| 内置网格着色器，软阴影太阳 | 57 ms | 24 ms |
+| 内置网格着色器，硬阴影太阳（`sourceAngle: 0`） | 33 ms | 25 ms |
+| `specular` 为 0 的材质，软阴影太阳 | 41 ms | 低于 17 ms（60 帧上限） |
+
+级别不改变材质。`specular` 为 0 的材质对每盏光源都跳过高光项。此外，开销最低的阴影是移动物体使用[圆片阴影](/docs/zh-cn/graphics/lighting/shadows/#圆片阴影)，静态物体使用[烘焙光照](/docs/zh-cn/graphics/lighting/baked/)。
+
+## 光照画质设置
+
+| 设置 | 键 | 低 / 中 / 高 | 说明 |
+|---|---|---|---|
+| 3D 光照 | `lighting` | direct / direct / full | 见上文。 |
+| 逐像素光源数 | `loopLights` | 8 / 12 / 16 | 每个受光像素计算的光源数（[光源上限](/docs/zh-cn/graphics/lighting/lights/#每帧光源上限)）。 |
+| 分块光源数 | `tiledLights` | 32 / 64 / 96 | 逐像素集合之外的 Point 与 Spot 光；仅完整光照。 |
+| 阴影贴图数 | `shadowTiles` | 8 / 12 / 16 | 每帧网格阴影图数（[网格阴影](/docs/zh-cn/graphics/lighting/shadows/#网格阴影)）。 |
+| 2D 软阴影采样数 | `shadowSoftSamples` | 8 / 12 / 16 | 柔和 2D 阴影叠加的剪影数。 |
+| 逐像素光照探针 | `probesPerPixel` | 关 / 开 / 开 | 探针体积按像素或按对象读取（[烘焙光照](/docs/zh-cn/graphics/lighting/baked/#逐像素与逐对象读取)）。 |
+| 平面反射比例 / 最大尺寸 / 更新次数 | `planarReflection*` | 见[平面反射](/docs/zh-cn/graphics/lighting/planar-reflections/#画质) | |
+
+完整列表见[画质等级](/docs/zh-cn/performance/quality-levels/)。
+
+## 参见
+
+- [后处理](/docs/zh-cn/graphics/post-processing/overview/)
+- [画质等级](/docs/zh-cn/performance/quality-levels/)
+- [光源](/docs/zh-cn/graphics/lighting/lights/)

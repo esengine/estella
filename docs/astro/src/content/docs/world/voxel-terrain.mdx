@@ -3,7 +3,7 @@ title: Voxel Terrain
 description: Ground that is a volume, so it can hold caves and overhangs — carved while the game runs, with its collision following and its changes saved chunk by chunk.
 ---
 
-A [Terrain](/docs/graphics/terrain/) has one height for each place, so it cannot hold a cave, an overhang or a hole. A `VoxelTerrain` stores a signed distance at every point of a 3D grid, so it can. Use it where the ground itself is what the game changes: mining, survival, a world that can be blown apart. It stands beside Terrain and does not replace it, and it is an optional module (`esengine/voxel`) that a game without one does not carry.
+A [Terrain](/docs/graphics/terrain/overview/) has one height for each place, so it cannot hold a cave, an overhang or a hole. A `VoxelTerrain` stores a signed distance at every point of a 3D grid, so it can. Use it where the ground itself is what the game changes: mining, survival, a world that can be blown apart. It stands beside Terrain and does not replace it, and it is an optional module (`esengine/voxel`) that a game without one does not carry.
 
 ## Add one
 
@@ -88,7 +88,7 @@ The seed or source must be the one the save was made with. A save cut from anoth
 
 ## Limits
 
-- **No levels of detail.** Every chunk within `drawDistance` is drawn at full detail. The stock ground at `drawDistance` 96 and `cellSize` 1 is about 170 chunks and 240 000 triangles, so far views cost more than a [Terrain](/docs/graphics/terrain/) does.
+- **No levels of detail.** Every chunk within `drawDistance` is drawn at full detail. The stock ground at `drawDistance` 96 and `cellSize` 1 is about 170 chunks and 240 000 triangles, so far views cost more than a [Terrain](/docs/graphics/terrain/overview/) does.
 - **No brush in the editor.** The volume is drawn while a scene is laid out, but changes are made from code at run time.
 - **It does not cut a hole in a Terrain.** The two are separate grounds. To dig into a Terrain's shape, make a volume of it with `heightVoxelSource` and draw that instead.
 - **Edited chunks are held in memory whole,** about 35 KB each at the default 24 cells, for as long as the game runs.

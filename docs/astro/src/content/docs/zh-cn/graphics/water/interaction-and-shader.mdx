@@ -1,0 +1,188 @@
+---
+title: 水体交互与着色器
+description: 查询水面（Waters / WatersRes）、Floating 组件、涟漪网格与扰动、水下视图及其逐水体设置，以及 Water 着色器的参数。
+---
+
+本页介绍脚本和物理从[水面](/docs/zh-cn/graphics/water/overview/)读取的内容、物体如何扰动水面、水下视图，以及 Water 着色器。
+
+## 查询水面
+
+`WatersRes` 资源（`esengine/water`）根据水体区域烘焙的场和着色器使用的同一波浪公式，在当前帧时间上作答。
+
+```ts
+import { WatersRes } from 'esengine/water';
+
+const waters = app.getResource(WatersRes);
+const s = waters.sample(x, y, z);
+if (s && s.depth < 0) {
+    // 该点位于水面下 -s.depth 个世界单位
+}
+```
+
+| 方法 | 返回 |
+|---|---|
+| `sample(x, y, z)` | `WaterSample`（见下），无水处（所有岸线之外、无海洋的区域之外）或排除体积内为 `null`。 |
+| `heightAt(x, z)` | 水面的世界高度，或 `null`。 |
+| `depthAt(x, z, y)` | 静止水面在世界高度 `y` 之上的水深：水下为正，无水处为 `null`。 |
+| `bodyAt(x, z)` | `{ entity, bodyId, form, level }`：该处所属水体及其静止水位，或 `null`。 |
+| `shoreAt(x, z)` | 沿地面到水边的距离：陆地为正，水上为负。区域之外为开阔海的值（深入海中）；没有任何烘焙时为 `null`。 |
+| `disturb(x, y, z, radius, strength)` | 向涟漪网格添加扰动，见[涟漪](#涟漪)。 |
+| `rippleAt(x, y, z)` | 涟漪在该点增加的高度，见[涟漪](#涟漪)。 |
+
+| `WaterSample` 字段 | 说明 |
+|---|---|
+| `entity`、`bodyId` | 该处占水最多的水体（两者相接处取点更深入其内部的一个）及其 `bodyId`。 |
+| `depth` | 点高出水面的高度（水下为负），世界单位。 |
+| `normal` | 水面法线，世界空间。 |
+| `surface` | 点正上方或正下方水面上的世界位置。 |
+| `flow` | 水的速度，世界单位/秒（河流的水流；静水为零）。 |
+| `waterDepth` | 从静止水面到地面（河床、湖底）的深度。没有已知地面的开阔海及区域外的海返回 1e6。 |
+| `audioIntensity` | 水声响度：河流沿样条的 `audioIntensity`，静水为 1。 |
+| `inside` | 非 null 结果始终为 `true`。 |
+
+`sample` 按场给出的高度包含波浪和拍岸浪，并遵循画质档位（见[画质档位](/docs/zh-cn/graphics/water/overview/#画质档位)）。它不包含涟漪，
+因为涟漪跟随相机、在不同机器上不同。短于最细网格单元所能承载的波浪只存在于着色中，也被排除。在地平线附近，粗网格绘制的短波
+较少，绘制的水面与 `sample` 之间可能相差这些短波。
+
+## 漂浮
+
+在带有 `RigidBody3D` 和碰撞体的实体上添加 `Floating`，水会托起并携带它。它根据 `Waters.sample` 在刚体的若干点上施加力，因此
+不需要渲染器：服务器、测试或无头构建中物体同样漂浮。
+
+| 字段 | 说明 |
+|---|---|
+| `buoyancy` | 水相对刚体的密度（0–20，默认 2）。1 在完全没入时恰好托住刚体；2 使其半没入漂浮。 |
+| `drag` | 水对穿行运动的阻力，每秒（默认 1）。使刚体在静水中停下，并随水流移动。 |
+| `radius` | 点完全浸湿所需的水下深度，世界单位。 |
+| `points` | 刚体自身空间中的采样点，世界单位。将其分散布置（船体四角），波浪就能使刚体倾斜。留空：原点。 |
+| `wake` | 刚体在有涟漪的水中产生的涟漪强度（0–10）。0 不产生涟漪。 |
+
+在每个点上，没入比例（水面处为 0，自 `radius` 深起为 1）产生一个与重力相反、大小为 `mass * g * buoyancy * share / points`
+的浮力，作用于该点；以及一个与该点相对水的速度（刚体速度加上其旋转在该点贡献的速度，再减去水流）相反的阻力。这些力在物理
+世界每个固定步推进之前施加。`buoyancy` 为 2、只有一个点的刚体，其中心稳定在水面下 `radius / 2` 处。
+
+它需要带有 `_physics3d_addForce` 和 `_physics3d_getBodyDynamics` 的 3D 物理模块构建；缺少时警告一次且不产生漂浮。漂浮模型为
+单一刚体处于单一流体中：没有附加质量，没有来自船体形状的水动力升力，完全没入的刚体只受水流推动。
+
+## 涟漪
+
+水体区域的 `ripples` 大于 0 时，区域维护一张扰动网格：一个宽 `rippleSize` 世界单位、每边 `ripples` 格的方形水面窗口，按波动
+方程步进。一处隆起以 `rippleSpeed` 扩散成环，每秒损失 `rippleDamping` 比例的高度并逐渐消失。网格还保存**泡沫**：扰动处补充
+泡沫，并以每秒 `foamFade` 的速度消退，因此水花留下的白水会停留一段时间。
+
+| 字段 | 说明 |
+|---|---|
+| `ripples` | 每边格数（0–256）。0 表示不保留。受画质档位 `waterRippleCells` 限制。 |
+| `rippleSize` | 窗口边长，世界单位。窗口跟随相机。 |
+| `rippleSpeed` | 扩散速度，世界单位/秒。 |
+| `rippleDamping` | 每秒损失的高度比例。 |
+| `foamFade` | 泡沫每秒消退的速度。 |
+
+- **来源。** `Waters.disturb(x, y, z, radius, strength)` 在 `radius` 范围内添加高 `strength` 世界单位的隆起（负值为凹陷）；
+  无水或没有涟漪网格时不起作用。`Floating` 刚体在入水、出水或沿水面移动时按其速度 × `wake` 自行扰动水面。
+- **对水面的作用。** Water 着色器读取该网格：涟漪坡度弯曲用于光照、反射和折射的法线；泡沫使水面泛白；在网格足够细能承载时，
+  涟漪高度还会抬升顶点（最短涟漪对应三个网格单元起开始，六个单元起完全生效）。更粗的环只在着色中保留涟漪。
+- **步进。** 网格在 GPU 上以固定子步步进（每个子步短到波最多越过半格），在一对 RGBA16F 目标之间往返；区域有水流处网格随水流
+  平流，因此河中的尾迹会向下游漂移。到达窗口边缘的波直接离开，不发生反射。
+- **窗口。** 窗口以整格为单位跟随当前相机，因此任意大小的水只需一张由所有水体共享的网格，就能在可见处产生涟漪。窗口离开的
+  部分被丢弃，移入的部分是静水。
+- **读回。** `Waters.rippleAt(x, y, z)` 从 GPU 读回的打包副本返回涟漪高度，延迟一到两帧。用于视觉效果（随尾迹起伏的浮标），
+  不用于物理；`Waters.sample` 不包含涟漪。
+
+网格可容纳的高度为 `max(2 * 最高波浪, rippleSize / 50)`（最高波浪为场中最高波高 × 天气乘数）；持续的扰动在此饱和。一格为
+`rippleSize / ripples` 世界单位，窄于一两格的涟漪不会被绘制。开销与每个子步的 `ripples`² 成正比：128 格约为 16 000 个单元。
+
+## 水面之下
+
+当前相机位于水体之下时，水模块每帧（根据 `Waters.sample`）报告相机位置，后处理体积系统在其没入期间添加 **Underwater** 效果，
+与天气添加降雨的方式相同。
+
+- **按穿过的水量起雾。** 每个像素的光从其光源传到眼睛穿过的距离（天空取 `u_range`，即透过水所能看到的最远距离）。水按通道
+  吸收光，红色最先，使用与水面材质相同的 `u_absorption` 和 `u_density`，并加入水自身的颜色。水下的白墙呈蓝绿色，越远越明显。
+- **随深度变暗。** 水自身的颜色随相机深度变暗（`u_lightFalloff`），因为光从上方到达。
+- **横穿镜头的水线。** 每个像素检测其在相机近平面上的位置是否位于水面以下，因此半没入的镜头上半部干燥、下半部湿润，中间是
+  一条柔和的线（`u_band`，约为近平面距离的 0.08）。穿过水面时这条线在镜头上滑过。
+- **焦散。** 渲染器让阳光穿过当前波面场折射，并在多个受光深度上累积透射通量。水底和水下物体在其位置采样该场；表面朝向、阴影
+  以及沿光路的吸收决定到达各受光点的光量。
+- **光柱。** 每条视线上的水将阳光散射向相机。焦散纹样沿视线步进（`waterShaftSteps`：高档 24，中、低档 16），每一步在阴影贴图
+  显示有阳光处、按其上方水量受光（`u_shaftStrength`、`u_shaftRange`）。
+- **自行编写的效果优先。** 在体积中编写了 `underwater` 效果的场景保留其数值，只填入相机深度和没入程度。
+
+从下方看，水面以相反方向折射：水中超过临界角（约 49°）的光线发生全反射，因此头顶的天空呈现为镜面中的一扇窗，菲涅耳项随之
+变化。窗的边缘是折射失效之处，而不是绘制的圆。镜面映出下方的世界：反射光线在复制的场景画面中步进（`waterReflectionSteps`，
+至多 20 步，步长递增），其所遇到的颜色即为反射，因此水底的物体会出现在其上方的水面中。光线在屏幕上未遇到任何内容时，镜面
+显示水自身散射的光（以水色返回的天光与阳光）。
+
+从上方看，Water 着色器透过水面照亮水下物体：找到折射光线的终点、阳光射向该点时穿过水面的位置，并按该处的焦散纹样和阴影
+贴图照亮，因此纹样随波浪弯曲。
+
+{/* SHOT: water-underwater-waterline | Game view with the camera half submerged at a lake surface: dry upper half, blue-green fogged lower half with caustics on the bed, and the soft waterline across the lens */}
+
+### 逐水体水下设置
+
+| 字段 | 说明 |
+|---|---|
+| `underwaterEnabled` | 相机位于该水体之下时是否呈现水下效果。游戏永不潜入的水应关闭。 |
+| `underwaterLook` | **Zone Material**：使用区域水材质的外观。**Own**：使用下列设置，使同一区域中的浑浊池塘与清澈海水各有其外观。 |
+| `underwaterColor` | 水返回的颜色，随相机深度加深。 |
+| `underwaterAbsorption` | 光穿过水时按通道的吸收（清澈海水中红色最先）。 |
+| `underwaterDensity` | 每米密度（0–4）。0.12 为清澈海水：按默认吸收，10 m 后约保留 58 % 的红、90 % 的绿和 94 % 的蓝。 |
+| `underwaterCaustics` | 水下表面上的焦散亮度。0 不绘制。 |
+| `underwaterPriority` | 相机同时位于两个水体之下时，优先级较高者的外观按其混合权重叠加在较低者之上。 |
+| `underwaterBlendRadius` | 水体外观越过轮廓向外渐入的距离，在水体之间游动时混合外观。 |
+| `underwaterBlendWeight` | 本水体外观的量，0–1。 |
+
+## Water 着色器
+
+`builtin:water` 也可独立用于任意网格。`u_waveSpace` 为默认值（0）时，波浪在世界 xz 平面上计算，不抬升任何顶点，并假定水面
+平坦。水体区域将其设为 1：网格的 UV 即其 x 和 z，`u_origin` 为网格跟随相机移动到的位置，顶点被抬升到区域的水面和波浪上。
+
+**波浪。** `u_waveLength`、`u_waveHeight`、`u_waveSpeed` 和 `u_waveDirection` 在材质编辑器中隐藏。在区域水面上由区域每帧写入
+（区域自身的波长、速度和方向，以及作为高度的天气比例，由每处的场高度相乘）。
+
+| 分组 | 参数 | 说明 |
+|---|---|---|
+| Ripples | `u_rippleStrength`、`u_rippleLength` | 叠加在波浪上的风生涟漪：一张可平铺涟漪贴图（`default(ripples)`，或材质的 `u_detailMap`）以互不成倍数的三种尺寸读取三层，各自顺风移动，mipmap 抹平像素无法分辨的细节。 |
+| Ripples | `u_rippleTile`、`u_rippleFineSize`、`u_rippleWideSize` | 以涟漪长度计的贴图重复；另外两层的尺寸为其比例。 |
+| Ripples | `u_rippleWeight`、`u_rippleFineWeight`、`u_rippleWideWeight`、`u_rippleTurn` | 各层贡献，以及其中两层偏离风向的角度（度）。 |
+| Ripples | `u_rippleGusts`、`u_gustCalm`、`u_gustRuffle`、`u_gustSize` | 阵风使水面成片起皱，其间留下平滑带：阵风量（0 为均匀海面）、平滑带与起皱区的涟漪乘数，以及斑块尺寸。 |
+| Ripples | `u_flowCycle` | 沿水流输送的两份水面副本中每一份在另一份接替前的存续秒数。 |
+| Colour | `u_bodyShading` | 涟漪对水体自身颜色的明暗影响（0.25；为 1 时每道涟漪都使其背面变暗，如同涂漆表面）。水色作为来自水面下方的光照亮，水面按涟漪反射。 |
+| Surface | `u_reflectance` | 垂直入射时的反射率（水为 0.0204）。 |
+| Depth | `u_density`、`u_absorption` | 光沿水柱的吸收，红色最先。水柱为像素下方沿光在水中路径（与竖直方向最多 49°）的深度，而非视线到水底的长度，因此低角度看去的潟湖与从上方看一样清澈。 |
+| Depth | `u_shallowColor`、`u_deepColor`、`u_deepening` | 水自身从浅到深的颜色，以及转变的快慢（密度的比例；越低潟湖在较深处越保持青绿）。 |
+| Depth | `u_bedShade` | 水底被其光线向下穿过的水所减弱的程度（1，符合水的特性；0 按干燥照亮）。 |
+| Surface | `u_fallbackDepth` | 不支持浮点渲染目标时各处使用的深度。 |
+| Detail | `u_detailMap` | 一张纹理中的两张可平铺法线贴图，按数据读取：红/绿为第一张的 x/z 坡度（0.5 为平），蓝/alpha 为第二张。 |
+| Detail | `u_detailTile0`、`u_detailTile1` | 每张贴图重复一次的世界单位。 |
+| Detail | `u_detailStrength0`、`u_detailStrength1` | 每张贴图的坡度乘数（0–8）。0（默认）不使用。 |
+| Detail | `u_detailFlow0`、`u_detailFlow1` | 每张贴图的漂移，世界单位/秒（vec2）。 |
+| Foam | `u_foamWidth`、`u_foamCrest` | 水柱浅于 `u_foamWidth` 处（岸边、岩石、栈桥桩）以及波峰上的泡沫，由移动噪声打散。在区域水面上，烘焙的岸线也在距岸线或浅水 `u_foamWidth` 内起泡，覆盖无法测量深度的地方。 |
+| Caustics | `u_causticStrength`、`u_causticScale`、`u_causticSpeed` | 两侧受光强度。`waterCausticFieldSize` 为正时，纹样随波形、时间和阳光变化；尺度、速度和噪声层只作用于程序近似（场大小为 0）。 |
+
+**细节高光。** 细节贴图在小坡面上产生阳光闪烁。闪烁是这些坡面的镜面受光响应，而非白色纹理，因此只在太阳、视线与坡面对齐处
+出现，并随光线减弱。它们只存在于片元着色中：几何和 `Waters.sample` 不包含它们。
+
+**折射与深度。** 水下内容为复制的不透明场景，按水深比例随波浪偏移。深度是**测量**得到的：绘制水之前，帧复制场景深度，像素处
+的水深即该值与水面自身距离之差。
+
+**反射。** 天空、灯光和环境以菲涅耳项反射（折射率 1.333）：俯视时清澈，掠射时如镜面。若需反射场景本身，在体积中添加屏幕空间
+反射。
+
+**降雨。** `Weather` 驱动降雨时，雨滴在水面上激起圆环（`u_rain`，由区域写入）：扩散并消失的环，每个 `u_rippleLength` 内若干个，
+雨越大越多，水面略显粗糙。这些环是绘制的而非模拟的：不进入涟漪网格，不产生泡沫，并随距离淡出。
+
+**区域写入的参数。** 以下参数由水体区域和画质系统写入，隐藏且不供编辑：`u_waveSpace`、`u_origin`、`u_waveGravity`、`u_metre`、
+`u_rain`、`u_rainRing`、`u_cellSize`；烘焙场（`u_zoneOn`、`u_zoneHeights`、`u_zoneSurfaceData`、`u_zoneExposure`、`u_zoneOrigin`、
+`u_zoneSize`、`u_zoneHeight`、`u_zoneRange`）；区域外的海洋（`u_oceanOn`、`u_oceanLevel`、`u_oceanWaves`、`u_oceanLook`）；拍岸浪
+（`u_surfHeight`、`u_surfLength`、`u_surfSpeed`）；分块网格（`u_tileMorph`、`u_tileEye`、`u_waterMeshView`、`u_farSurface`、
+`u_geoWaves`，轻量水为 0）；画质（`u_waveCount`、`u_mirror`、`u_causticOn`、`u_reflectSteps`、`u_reflectGrowth`、`u_causticLayers`）；
+以及涟漪（`u_rippleOn`、`u_rippleMap`、`u_rippleOrigin`、`u_rippleSize`、`u_rippleTexel`）。
+
+## 限制
+
+- **焦散和光柱使用第一个方向光。** 局部投影场覆盖主视图周围三个波长，含十六个间隔为八分之一波长的深度切片，并在边缘淡出。
+  受光点的位置和法线来自不透明深度。
+- **水下镜面是屏幕空间的。** 只显示屏幕上的内容；离开画面或未遇到内容的光线显示水自身散射的光。
+- **涟漪只有一个相机窗口。** 远离相机的水没有涟漪；分屏时两个视图共用第一个相机的窗口。
+- **只有漂浮。** 物体可以漂浮并留下尾迹；没有游泳行为。

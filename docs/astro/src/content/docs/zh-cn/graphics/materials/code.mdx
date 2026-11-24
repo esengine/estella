@@ -1,0 +1,197 @@
+---
+title: 代码中的材质
+description: 在 TypeScript 中创建与驱动材质的参考——Material API、MaterialOptions 与渲染状态、材质实例、ShaderSources、以 compileMaterialGraph 将数据构建的材质图编译为着色器，以及用材质绘制自定义几何体。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`Material` 对象负责编译着色器、创建材质并在运行时设置其参数。材质图是普通数据，可编译为 `.esshader` 源码。
+
+{/* SHOT: mat-graph-editor | The material graph editor with a .esmatgraph open: a Texture node (u_albedo) and a Color node (u_tint) wired into a Multiply node, its result wired to the Output node's color input; the node palette visible. */}
+
+## 创建并应用材质
+
+着色器只编译一次（不要每帧编译），创建材质，再将其句柄赋给渲染组件：
+
+```typescript
+import { Material } from 'esengine';
+
+const shader = Material.compileShader(tintShaderSource);
+const tintMat = Material.create({
+  shader,
+  uniforms: { u_tint: [1, 0.6, 0.2, 1], u_intensity: 1.5 },
+});
+```
+
+```typescript
+import { defineSystem, Query, Mut, Sprite } from 'esengine';
+
+const applyMaterial = defineSystem([Query(Mut(Sprite))], (q) => {
+  for (const [entity, sprite] of q) {
+    sprite.material = tintMat;   // the material handle
+  }
+});
+```
+
+## 更新参数
+
+```typescript
+Material.setUniform(tintMat, 'u_intensity', 2.5);
+const v = Material.getUniform(tintMat, 'u_intensity');
+```
+
+纹理值以 `Material.tex(textureId)` 传入。
+
+## `Material` API
+
+| 方法 | 说明 |
+|---|---|
+| `compileShader(esshaderSource, features?)` | 编译 `.esshader`（反射 `#pragma param`），返回着色器句柄。`features` 列出启用的 `#pragma switch` 名称。 |
+| `createShader(vertexSrc, fragmentSrc)` | 编译一对原始 GLSL 顶点/片元源码（无反射参数）。 |
+| `releaseShader(shader)` | 释放着色器句柄。 |
+| `create(options)` | 由 [`MaterialOptions`](#materialoptions) 创建材质。 |
+| `createInstance(source)` | 创建一个实例，继承 `source` 的全部内容，只存储在其上设置的值。 |
+| `setUniform(material, name, value)` | 设置参数。 |
+| `getUniform(material, name)` | 读取参数的当前值。 |
+| `getUniforms(material)` | 全部参数值，含实例继承的值。 |
+| `tex(textureId, slot?)` | 用作参数值的纹理引用。 |
+| `setBlendMode` / `getBlendMode` | 混合模式。 |
+| `setDepthTest`、`setDepthWrite`、`setDepthBias`、`setCull` | 渲染状态设置函数。 |
+| `getShader(material)` | 材质的着色器句柄。 |
+| `isValid(material)` | 句柄是否指向有效材质。 |
+| `release(material)` | 释放材质。 |
+
+### `MaterialOptions`
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `shader` | — | `compileShader` / `createShader` 返回的着色器句柄（必填）。 |
+| `uniforms` | — | 按名称给出的初始参数值；纹理使用 `Material.tex(textureId)`。 |
+| `blendMode` | `BlendMode.Normal` | 材质的合成方式。 |
+| `depthTest` | `false` | 进行深度测试。 |
+| `depthWrite` | `true` | 写入深度缓冲。 |
+| `cull` | `CullMode.None` | 三角形剔除模式。 |
+| `depthBias` | `0` | 朝向视点的深度缓冲单位；决定两个共面表面中哪个在前（墙上的贴花）。 |
+| `switches` | `{}` | 启用的 `#pragma switch` 名称，用于查看与序列化。排列本身在编译着色器时选定。 |
+
+### `BlendMode`
+
+| 值 | 混合因子 | 用途 |
+|---|---|---|
+| `BlendMode.Normal` | SrcAlpha, OneMinusSrcAlpha | 默认。 |
+| `BlendMode.Additive` | SrcAlpha, One | 辉光、粒子。 |
+| `BlendMode.Multiply` | DstColor, OneMinusSrcAlpha | 阴影、正片叠底。 |
+| `BlendMode.Screen` | One, OneMinusSrcColor | 提亮。 |
+| `BlendMode.PremultipliedAlpha` | One, OneMinusSrcAlpha | 预乘 alpha 的源。 |
+
+### `CullMode`
+
+| 值 | 含义 |
+|---|---|
+| `CullMode.None` | 双面绘制（2D 默认）。 |
+| `CullMode.Back` | 剔除背面。 |
+| `CullMode.Front` | 剔除正面。 |
+
+### `ShaderSources`
+
+用于原始 `createShader` 路径时，`ShaderSources` 提供使用批处理顶点布局的 ES 3.0 GLSL（`vec3` position + `vec4` color + `vec2` texCoord，带 `u_projection` / `u_model` uniform）。顶点源码与片元源码配对使用：
+
+| 源 | 阶段 | 说明 |
+|---|---|---|
+| `ShaderSources.SPRITE_VERTEX` | 顶点 | 透传位置、颜色与 UV。 |
+| `ShaderSources.SPRITE_FRAGMENT` | 片元 | `texture(u_texture, uv) × v_color`。 |
+| `ShaderSources.COLOR_VERTEX` | 顶点 | 仅位置与颜色（无 UV）。 |
+| `ShaderSources.COLOR_FRAGMENT` | 片元 | 平涂顶点色。 |
+
+它们不是 `.esshader` 模板，没有 `#pragma param` 反射。
+
+## 代码中的材质图
+
+编辑器的材质图会生成 `.esshader`。`compileMaterialGraph(graph)` 从输出节点遍历节点图，生成与手写着色器相同的源码（GLSL 片元及其 WGSL 版本），因此图材质可在两种后端上运行，其常量与纹理节点成为普通的反射 `#pragma param`。图是普通数据：
+
+```typescript
+import { compileMaterialGraph, Material, type MaterialGraph } from 'esengine';
+
+const graph: MaterialGraph = {
+  name: 'TintedSprite',
+  output: 'out',                     // 输出节点的 id
+  nodes: [
+    { id: 'tex',  type: 'textureSample', params: { name: 'u_albedo', default: 'white' } },
+    { id: 'tint', type: 'constColor',    params: { name: 'u_tint', value: [1, 0.6, 0.2, 1] } },
+    { id: 'mul',  type: 'multiply',      inputs: { a: 'tex', b: 'tint' } },
+    { id: 'out',  type: 'output',        inputs: { color: 'mul' } },
+  ],
+};
+
+const shader = Material.compileShader(compileMaterialGraph(graph));
+const mat = Material.create({ shader });
+Material.setUniform(mat, 'u_tint', [1, 0, 0, 1]);   // 图参数即普通参数
+```
+
+| `MaterialGraph` 字段 | 说明 |
+|---|---|
+| `name` | 着色器名称。 |
+| `domain` | 着色器域，默认 `Unlit`。受光材质设为 `Lit`。 |
+| `output` | `output` 节点的 id，即编译根节点。 |
+| `nodes` | 节点：`id`、`type`、`params`（字面量）、`inputs`（输入槽 → 源节点 id）、`x` / `y`（画布位置，编译器忽略）。 |
+| `kind` | `.esmatsub` 为 `'subgraph'`：作为单个节点使用的图，以 `subOutput` 结尾。 |
+
+`compileMaterialGraph(graph, resolve?)` 在以下情况抛出错误：存在环、缺少节点或输入、`output` 未指向 output 节点，或存在 `subgraph` 节点但未提供用于查找子图的 `resolve` 函数。
+
+### 节点类型
+
+`GraphNodeType` 列出节点类型；`NODE_SPECS` 保存每种类型的端口与可编辑字面量，即编辑器节点面板读取的结构定义。
+
+| 节点 | 输出 | 说明 |
+|---|---|---|
+| `output` | — | 根节点。输入：`color`、`normal`、`metallic`、`roughness`、`occlusion`、`emission`、`alpha`、`vertexOffset`。 |
+| `uv` / `screenUV` | `vec2` | 纹理 UV / 按画布归一化的屏幕 UV（0–1，y 朝上）。 |
+| `vertexColor` | `vec4` | 精灵的每实例色调。 |
+| `time` | `float` | 引擎帧时钟，单位秒。 |
+| `constFloat` / `constColor` | `float` / `vec4` | 反射的材质参数（`params: { name, value }`）。 |
+| `textureSample` | `vec4` | 在某 UV 处采样纹理参数（`params: { name, default }`）。 |
+| `normalMap` | `vec3` | 以数据方式采样切线空间法线贴图参数（`params: { name }`）。 |
+| `channel` | `float` | 取值的单个分量（`r`/`g`/`b`/`a`）。 |
+| `uvTransform` | `vec2` | UV × 平铺 + 偏移（字面量 `tileX`、`tileY`、`offsetX`、`offsetY`）。 |
+| `switch` | `vec4` | 两个输入（`on`、`off`）之一，由 `#pragma switch` 选择（`feature`：大写字母、数字与下划线；`default`）。 |
+| `multiply` / `add` / `lerp` | 拓宽类型 / `vec4` | 算术运算；标量对向量广播。 |
+| `oneMinus` / `saturate` / `sin` | 同输入类型 | `1 − x` / 钳制到 0–1 / 正弦。 |
+| `smoothstep` | 同输入类型 | `smoothstep(edge0, edge1, x)`；边界为节点字面量。 |
+| `noise` | `float` | 基于 UV 的程序化值噪声（字面量 `scale`）。 |
+| `panner` | `vec2` | `uv + time × speed`（字面量 `speedX` / `speedY`）。 |
+| `subgraph` / `subInput` / `subOutput` | 取决于子图 | 作为节点使用的子图，以及子图内部的输入与结果节点。 |
+
+### 编辑操作
+
+SDK 导出一组作用于图的纯函数；每个函数返回新图，不修改输入：
+
+| 函数 | 说明 |
+|---|---|
+| `newMaterialGraph()` | 起始图：一个白色 `textureSample` 连接到 `output`。 |
+| `addNode(g, type, x, y)` | 添加带默认字面量的节点；返回 `{ graph, id }`。 |
+| `connect(g, fromId, toId, toSlot)` | 连接一条边；若会形成环或槽位未知，则原样返回 `g`。 |
+| `disconnect(g, toId, toSlot)` | 清除一个输入连接。 |
+| `moveNode(g, id, x, y)` | 仅用于画布布局；编译器忽略位置。 |
+| `removeNode(g, id)` | 移除节点及与其相连的所有边。`output` 节点不可移除。 |
+
+## 自定义几何
+
+**`Geometry`** API（`Geometry.create` 加 `GeometryOptions` 顶点布局，以及 `createQuad`、`createCircle`、`createPolygon` 辅助函数）构建基于句柄的网格，用 `Draw.drawMeshWithMaterial(geometry, material)` 立即绘制。见[自定义绘制](/docs/zh-cn/graphics/drawing/meshes/#自定义几何geometry-api)。
+
+## 使用准则
+
+- 在启动时编译着色器并复用句柄；不要在每帧执行的系统中编译。
+- 使用相同着色器与参数的渲染组件共享一个材质，以合批为更少的绘制调用。
+- 动画效果对共享材质调用 `setUniform`，而不是创建新材质。
+- 编辑器的材质图可满足大多数编写需求；代码 API 用于程序化材质。
+
+<Aside type="note">
+  无反射参数的原始着色器使用 `Material.createShader(vertexSrc, fragmentSrc)`，而非 `compileShader`。
+</Aside>
+
+## 另请参阅
+
+- [材质](/docs/zh-cn/graphics/materials/overview/)
+- [`.esshader` 格式](/docs/zh-cn/graphics/materials/esshader/)
+- [资源](/docs/zh-cn/assets/overview/) —— `loadMaterial` 与着色器句柄。
+- [粒子](/docs/zh-cn/world/particles/) —— 为发射器指定自定义 `material`。

@@ -1,0 +1,221 @@
+---
+title: Water Interaction & Shader
+description: Querying the water surface (Waters / WatersRes), the Floating component, the ripple grid and disturbances, the underwater view and its per-body settings, and the parameters of the Water shader.
+---
+
+This page covers what scripts and physics read from the [water](/docs/graphics/water/overview/) surface, how objects disturb it,
+the view from under it, and the Water shader.
+
+## Asking the surface
+
+The `WatersRes` resource (`esengine/water`) answers from the zone's baked field and the same wave formula the shader
+draws, evaluated at the frame time.
+
+```ts
+import { WatersRes } from 'esengine/water';
+
+const waters = app.getResource(WatersRes);
+const s = waters.sample(x, y, z);
+if (s && s.depth < 0) {
+    // the point is -s.depth world units under the surface
+}
+```
+
+| Method | Returns |
+|---|---|
+| `sample(x, y, z)` | A `WaterSample` (below), or `null` over no water (outside every shore, past the zone with no ocean) or inside an exclusion volume. |
+| `heightAt(x, z)` | World height of the surface, or `null`. |
+| `depthAt(x, z, y)` | Depth of water at rest over world height `y`: positive under water, `null` where there is none. |
+| `bodyAt(x, z)` | `{ entity, bodyId, form, level }`: the body a place belongs to and its rest level, or `null`. |
+| `shoreAt(x, z)` | Distance to the water's edge across the ground: positive on land, negative on water. Past the zone it is the open sea's, deep in; `null` where nothing is baked. |
+| `disturb(x, y, z, radius, strength)` | Adds a disturbance to the ripple grid; see [Ripples](#ripples). |
+| `rippleAt(x, y, z)` | Height the ripples add at the point; see [Ripples](#ripples). |
+
+| `WaterSample` field | Description |
+|---|---|
+| `entity`, `bodyId` | The body holding most of the water there (where two meet, the one the point is further inside), and its `bodyId`. |
+| `depth` | Height of the point above the surface (negative under it), in world units. |
+| `normal` | Surface normal, world space. |
+| `surface` | World position on the surface directly above or below the point. |
+| `flow` | Water velocity in world units per second (a river's current; zero for still water). |
+| `waterDepth` | Depth from the rest surface to the ground (river bed, lake floor). Open sea with no known ground, and sea past the zone, return 1e6. |
+| `audioIntensity` | Loudness for water sound: a river's `audioIntensity` along its spline, 1 for still water. |
+| `inside` | Always `true` for a non-null result. |
+
+`sample` includes the waves and the surf at the heights the field gives, following the quality level (see
+[Quality levels](/docs/graphics/water/overview/#quality-levels)). It does not include ripples, which follow the camera and differ
+between machines. Waves shorter than the finest mesh cell can hold are in the shading only and are excluded. Near the
+horizon, where the coarse mesh draws fewer short waves, the drawn surface and `sample` can differ by those short waves.
+
+## Floating
+
+`Floating` on an entity with a `RigidBody3D` and a collider makes the water hold it up and carry it. It applies forces
+from `Waters.sample` at a few points of the body, so it needs no renderer: a server, a test or a headless build floats
+objects identically.
+
+| Field | Description |
+|---|---|
+| `buoyancy` | Water density relative to the body's (0–20, default 2). 1 holds the body up exactly when fully submerged; 2 floats it half under. |
+| `drag` | Resistance to motion through the water, per second (default 1). Brings a body to rest in still water and carries it with a current. |
+| `radius` | Depth below the surface, in world units, at which a point is fully wet. |
+| `points` | Sample points in the body's own space, in world units. Spread them (hull corners) and waves tip the body. Empty: the origin. |
+| `wake` | Ripple strength the body makes in water with ripples (0–10). 0 makes none. |
+
+At each point the submerged share (0 at the surface, 1 from `radius` down) produces a buoyant force against gravity of
+`mass * g * buoyancy * share / points`, applied at the point, and a drag against the point's velocity relative to the
+water (the body's velocity plus the contribution of its rotation at the point, minus the current). Forces are applied
+every fixed step before the physics world steps. A body with `buoyancy` 2 and one point settles with its centre
+`radius / 2` below the surface.
+
+It requires the 3D physics module built with `_physics3d_addForce` and `_physics3d_getBodyDynamics`; without them it
+warns once and floats nothing. Floating models one rigid body in one fluid: there is no added mass, no hydrodynamic lift
+from hull shape, and a fully submerged body is pushed only by the current.
+
+## Ripples
+
+When the zone's `ripples` is above 0, the zone keeps a grid of disturbances: a square window of the surface `rippleSize`
+world units wide with `ripples` cells per side, stepped with the wave equation. A bump spreads as a ring at
+`rippleSpeed`, loses `rippleDamping` of its height per second, and fades. The grid also holds **foam**: a disturbance
+feeds it and it fades at `foamFade` per second, so a splash leaves lingering white water.
+
+| Field | Description |
+|---|---|
+| `ripples` | Cells per side (0–256). 0 keeps none. Clamped to the quality level's `waterRippleCells`. |
+| `rippleSize` | Window side in world units. The window follows the camera. |
+| `rippleSpeed` | Spread speed, in world units per second. |
+| `rippleDamping` | Share of height lost per second. |
+| `foamFade` | Rate at which foam fades, per second. |
+
+- **Sources.** `Waters.disturb(x, y, z, radius, strength)` adds a bump of `strength` world units (negative is a dip)
+  over `radius`; it does nothing where there is no water or no ripple grid. A `Floating` body disturbs the water itself
+  when it enters, leaves or moves along the surface, by its speed × `wake`.
+- **Effect on the surface.** The Water shader reads the grid: ripple slope bends the normal used for lighting,
+  reflection and refraction; foam whitens the surface; and ripple height lifts the vertices where the mesh is fine
+  enough to carry them (from three mesh cells per shortest ripple, fully from six). Coarser rings keep them in the
+  shading only.
+- **Stepping.** The grid is stepped on the GPU in fixed substeps (each short enough that a wave crosses at most half a
+  cell) over a pair of RGBA16F targets, and is carried along the current where the zone has one, so a wake in a river
+  drifts downstream. A wave reaching the window edge leaves without reflecting.
+- **Window.** The window follows the active camera in whole cells, so water of any size has ripples where they are seen
+  for the cost of one grid shared by all bodies. What the window leaves is discarded; what it moves onto is still water.
+- **Reading back.** `Waters.rippleAt(x, y, z)` returns the ripple height from a packed copy read back from the GPU, one or
+  two frames old. Use it for visuals (a float bobbing on a wake), not physics; `Waters.sample` excludes ripples.
+
+The grid holds heights up to `max(2 * tallest waves, rippleSize / 50)` (tallest waves in the field × the weather's
+multiplier); a continuing disturbance saturates there. A cell is `rippleSize / ripples` world units, so ripples narrower
+than one or two cells are not drawn. Cost scales with `ripples`² per substep: 128 cells is about 16 000.
+
+## Under the surface
+
+When the active camera is under a body of water, the water module reports the camera's position each frame (from
+`Waters.sample`) and the post-process volume system adds an **Underwater** effect for as long as it is submerged, as a
+weather adds its rain.
+
+- **Fog by water crossed.** Each pixel's light has crossed the distance from the eye to its source (for the sky, `u_range`,
+  the longest distance seen through water). The water absorbs it per channel, red first, by the same `u_absorption` and
+  `u_density` the surface material uses, and adds its own colour. A white wall under water appears blue-green, more so
+  further away.
+- **Depth dimming.** The water's own colour dims with camera depth (`u_lightFalloff`), since light arrives from above.
+- **Waterline across the lens.** Each pixel tests whether its point on the camera's near plane is below the surface, so a
+  half-submerged lens shows a dry upper half and a wet lower half with a soft line (`u_band`, set to about 0.08 of the
+  near-plane distance). Crossing the surface slides the line across the lens.
+- **Caustics.** The renderer refracts sunlight through the current wave field and accumulates transmitted flux at
+  several receiver depths. The bed and submerged objects sample this field at their positions; surface orientation,
+  shadows and absorption along the optical path determine the light reaching each receiver.
+- **Light shafts.** The water along each view ray scatters the sun toward the camera. The caustic pattern is marched along
+  the ray (`waterShaftSteps`: 24 at High, 16 at Medium and Low), each step lit where the shadow map shows sun and by how
+  much water lies above it (`u_shaftStrength`, `u_shaftRange`).
+- **Authored effects take precedence.** A scene that authors an `underwater` effect in a volume keeps its values; only the
+  camera depth and immersion are filled in.
+
+Seen from below, the surface refracts the other way: rays from inside the water beyond the critical angle (about 49°) are
+totally reflected, so the sky appears as a window overhead within a mirror, with the Fresnel term following. The window's
+edge is where refraction runs out, not a drawn circle. The mirror shows the world below: the reflected ray is marched
+through the copied scene (`waterReflectionSteps`, up to 20 growing steps) and the colour it meets is reflected, so an
+object on the bottom appears in the surface above it. Where the ray meets nothing on screen, the mirror shows the light
+the water itself scatters (sky and sun light returned in the water's colour).
+
+Seen from above, the Water shader lights what is under the water through the surface: it finds where the refracted ray
+ends, where the sun's ray to that point crossed the surface, and lights it by the caustic pattern there and the shadow
+map, so the pattern bends with the waves.
+
+{/* SHOT: water-underwater-waterline | Game view with the camera half submerged at a lake surface: dry upper half, blue-green fogged lower half with caustics on the bed, and the soft waterline across the lens */}
+
+### Per-body underwater settings
+
+| Field | Description |
+|---|---|
+| `underwaterEnabled` | Whether a camera under this body sees the underwater look. Off for water the game never goes under. |
+| `underwaterLook` | **Zone Material**: the look of the zone water material. **Own**: the settings below, so a murky pond and a clear sea in one zone each look their own. |
+| `underwaterColor` | Colour the water gives back, deepening with camera depth. |
+| `underwaterAbsorption` | Per-channel absorption as light crosses the water (red first in clear sea water). |
+| `underwaterDensity` | Density per metre (0–4). 0.12 is clear sea water: with the default absorption, 10 m keeps about 58 % of red, 90 % of green and 94 % of blue. |
+| `underwaterCaustics` | Caustic brightness on submerged surfaces. 0 draws none. |
+| `underwaterPriority` | Where the camera is under two bodies at once, the higher priority's look is laid over the lower's by its blend weight. |
+| `underwaterBlendRadius` | Distance past the outline over which the body's look fades in, blending looks when swimming between bodies. |
+| `underwaterBlendWeight` | Amount of this body's look, 0–1. |
+
+## Water shader
+
+`builtin:water` also works standalone on any mesh. With `u_waveSpace` at its default (0) waves are measured on the world
+xz plane, nothing is lifted, and the surface is assumed flat. The zone sets it to 1: the mesh's UV is its x and z,
+`u_origin` is where the mesh was moved as it follows the camera, and vertices are lifted to the zone's water and waves.
+
+**Waves.** `u_waveLength`, `u_waveHeight`, `u_waveSpeed` and `u_waveDirection` are hidden in the material editor. On a
+zone surface the zone writes them every frame (its own length, speed and heading, and the weather's share as the height,
+which each place's field height multiplies).
+
+| Group | Parameters | Description |
+|---|---|---|
+| Ripples | `u_rippleStrength`, `u_rippleLength` | Wind ripples riding on the waves: three layers of a tiling ripple map (`default(ripples)`, or the material's `u_detailMap`) at mutually non-multiple sizes, each carried downwind, with mipmaps flattening what a pixel cannot resolve. |
+| Ripples | `u_rippleTile`, `u_rippleFineSize`, `u_rippleWideSize` | Map repeat in ripple lengths; the other two layers' sizes as shares of it. |
+| Ripples | `u_rippleWeight`, `u_rippleFineWeight`, `u_rippleWideWeight`, `u_rippleTurn` | Each layer's contribution, and how far off the wind two layers run (degrees). |
+| Ripples | `u_rippleGusts`, `u_gustCalm`, `u_gustRuffle`, `u_gustSize` | Gusts ruffle the water in slow patches with slicks between: gust amount (0 for an even sea), ripple multipliers in slicks and ruffled patches, and patch size. |
+| Ripples | `u_flowCycle` | Lifetime, in seconds, of each of the two surface copies carried down a current before the other takes over. |
+| Colour | `u_bodyShading` | How much ripples also shade the water's own colour (0.25; at 1 every ripple darkens its far side, like a painted surface). The water colour is lit as light from under the surface, and the surface mirrors by the ripples. |
+| Surface | `u_reflectance` | Reflectance at normal incidence (water: 0.0204). |
+| Depth | `u_density`, `u_absorption` | Absorption of light along the water column, red first. The column is the depth under the pixel along the slope light takes in water (at most 49° from vertical), not the eye's line to the bed, so a lagoon seen at a low angle is as clear as from above. |
+| Depth | `u_shallowColor`, `u_deepColor`, `u_deepening` | The water's own colour from shallow to deep, and how soon it turns (a share of density; lower keeps a lagoon turquoise over deeper water). |
+| Depth | `u_bedShade` | How much the bed is dimmed by the water its light came down through (1, as water does; 0 lights it as dry). |
+| Surface | `u_fallbackDepth` | Depth used everywhere when float render targets are unavailable. |
+| Detail | `u_detailMap` | Two tiled normal maps in one texture, read as data: red/green are the first map's x/z slope (0.5 flat), blue/alpha the second's. |
+| Detail | `u_detailTile0`, `u_detailTile1` | World units per repeat of each map. |
+| Detail | `u_detailStrength0`, `u_detailStrength1` | Slope multiplier of each map (0–8). 0 leaves it out, which is the default. |
+| Detail | `u_detailFlow0`, `u_detailFlow1` | Drift of each map, world units per second (vec2). |
+| Foam | `u_foamWidth`, `u_foamCrest` | Foam where the water column is shallower than `u_foamWidth` (shores, rocks, pier legs), and on wave crests, broken up by moving noise. On a zone surface the baked shore also foams within `u_foamWidth` of the shore or of shallow water, where depth cannot be measured. |
+| Caustics | `u_causticStrength`, `u_causticScale`, `u_causticSpeed` | Receiver light strength from either side. With a positive `waterCausticFieldSize`, wave shape, time and sunlight move the pattern; scale, speed and noise layers apply to the procedural approximation (field size 0). |
+
+**Detail glints.** The detail maps produce the sun's glints on small slopes. Glints are the lit specular response of
+those slopes, not a white texture, so they appear where sun, eye and slope align and fade with the light. They are
+fragment-only: geometry and `Waters.sample` do not include them.
+
+**Refraction and depth.** What lies under the water is the copied opaque scene, offset by the waves in proportion to the
+water's depth. Depth is **measured**: before water is drawn the frame copies scene depth, and the water depth at a pixel
+is the difference between that and the water's own distance.
+
+**Reflection.** Sky, lights and environment reflect with a Fresnel term (IOR 1.333): clear looking down, mirror-like at
+grazing angles. Add Screen Space Reflections to the volume for reflections of the scene itself.
+
+**Rain.** When a `Weather` drives rain, drops ring on the surface (`u_rain`, written by the zone): rings that spread and
+fade, a few per `u_rippleLength`, more as rain intensifies, with the surface slightly rougher. Rings are drawn, not
+simulated: they add nothing to the ripple grid, make no foam, and fade with distance.
+
+**Zone-written parameters.** The zone and the quality system write these; they are hidden and not authored:
+`u_waveSpace`, `u_origin`, `u_waveGravity`, `u_metre`, `u_rain`, `u_rainRing`, `u_cellSize`; the baked field
+(`u_zoneOn`, `u_zoneHeights`, `u_zoneSurfaceData`, `u_zoneExposure`, `u_zoneOrigin`, `u_zoneSize`, `u_zoneHeight`,
+`u_zoneRange`); the ocean past the region (`u_oceanOn`, `u_oceanLevel`, `u_oceanWaves`, `u_oceanLook`); surf
+(`u_surfHeight`, `u_surfLength`, `u_surfSpeed`); the tiled mesh (`u_tileMorph`, `u_tileEye`, `u_waterMeshView`,
+`u_farSurface`, `u_geoWaves`, 0 for lite water); quality (`u_waveCount`, `u_mirror`, `u_causticOn`, `u_reflectSteps`,
+`u_reflectGrowth`, `u_causticLayers`); and ripples (`u_rippleOn`, `u_rippleMap`, `u_rippleOrigin`, `u_rippleSize`,
+`u_rippleTexel`).
+
+## Limits
+
+- **Caustics and shafts use the first directional light.** The local projected field spans three wavelengths around the
+  primary view, with sixteen depth slices spaced one eighth of a wavelength apart, and fades at its edge. Opaque depth
+  supplies the receiver position and normal.
+- **The mirror from below is screen-space.** It shows only what is on screen; a ray that leaves the picture or meets
+  nothing shows the light the water itself scatters.
+- **Ripples are one camera window.** Water far from the camera keeps none, and in a split screen both views share the
+  first camera's window.
+- **Floating bodies only.** Objects float and leave wakes; there is no swimming behaviour.

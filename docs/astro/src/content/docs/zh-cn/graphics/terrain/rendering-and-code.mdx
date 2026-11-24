@@ -1,0 +1,209 @@
+---
+title: 地形绘制与代码
+description: Terrain 的绘制方式（四叉树、几何渐变、高度页、分帧构建、虚拟纹理）及其运行时 API——高度与法线查询、状态、碰撞分块、射线检测、修改器、路径搜索和地形生成器。
+---
+
+本页说明[地形](/docs/zh-cn/graphics/terrain/overview/)的绘制方式，以及脚本用于查询和修改地形的 `TerrainsRes` API。
+
+{/* SHOT: terrain-detail-group | Details panel of a Terrain that has layers, with the Detail group expanded: Cell Size, Detail, Virtual Texture ticked, Virtual Texture From 1; the scene view behind shows the terrain from a low angle */}
+
+## 四叉树
+
+地面由四叉树划分。每一层级的每个节点都用同一块 32 × 32 单元的面片绘制，并缩放到节点的方块大小：0 级节点宽
+`32 * cellSize`，每升一级宽度加倍，单元也加倍。
+
+每个层级有一个距视点的范围。0 级范围为 `2.5 * 32 * cellSize * detail`，再乘以画质档位的 **细节距离**（高 1、中 0.8、低
+0.5）；每级范围是下一级的两倍。节点距视点比下一级范围更近时被拆分为四个子节点，因此地面在视点周围最细，随距离逐级变粗。
+区域型地面的层级数使顶层节点覆盖整个区域；无限地面的层级数使顶层范围达到 `drawDistance`。
+
+节点是地形实体下普通的 `MeshRenderer` 子实体，共用一个网格和一个材质，以实例方式绘制：整片地面只需少量绘制调用。面片本身
+是平的；Terrain 着色器从节点的页中读取高度抬升每个顶点，并从同一页取得法线。
+
+**几何渐变。** 在本层级范围末端，着色器把每个顶点逐渐滑到上一级的网格上。到范围边缘时，细节点的每个顶点都落在相邻粗节点的
+顶点上，相邻层级沿同一条线相接：没有裂缝，无需裙边，视点移动时也没有跳变。
+
+## 页
+
+节点绘制所用的高度存储在**页**中：节点方块每边采样 64 次（每个面片单元两个样本），并在每条边外多采一个样本以获得边缘坡度。
+一页在一张图集纹理中存储以地面高度范围编码的 16 位高度和法线，在另一张中存储四个图层权重。
+
+| 画质档位 | 地形页图集 | 每图集页数 |
+|---|---|---|
+| 高、中 | 2048 × 2048 | 900 |
+| 低 | 1024 × 1024 | 225 |
+
+设备最大纹理尺寸小于图集边长两倍时使用 1024。粗节点的页以同样的 64 个样本覆盖更大地面，其细节随单元一同下降。
+
+页按需生成，每帧在时间预算内生成若干页，粗页和近处的页优先。节点的页生成前，由拥有页的最近祖先节点代为绘制，因此地面立即
+出现并随页到达逐渐清晰。图集满时淘汰最久未绘制的页。
+
+图集是同时绘制的节点的预算：代替更细页的粗页与其更细的邻居边缘不吻合，地面会沿此开裂。请求的节点数超出图集容量的 `detail`
+（在多数视点下、1.5 m 单元时约为 4）会按可容纳的范围比例绘制，每次取其 0.9，并输出一次警告说明实际使用的细节值。
+
+## 分帧构建
+
+生成页和侵蚀区域都分摊到多帧执行，不会卡住某一帧。运行期间它们连同进度（"Building the terrain"、"Eroding the terrain"）
+显示在编辑器状态栏中。游戏可读取同一列表来显示加载画面。
+
+## 虚拟纹理
+
+对有图层的地形开启 **Virtual Texture**（`virtualTexture`）后，表面被烘焙为页。从 **Virtual Texture From**
+（`virtualTextureFrom`，默认 1）层级向外，每个四叉树节点获得一页，内容为 Terrain Layers 着色器在光照之前的输出——颜色、
+粗糙度、含图层法线贴图的法线以及遮蔽——在 GPU 上渲染一次。此后该节点从这一页绘制，以两次纹理读取取代每像素读取全部图层。
+页通过地面自身的材质渲染，因此其参数（颜色图、湿润带、岩层、各图层设置）在烘焙与实时绘制下结果一致。光照、阴影和天空保持
+实时。
+
+| 设置 | 高 | 中 | 低 |
+|---|---|---|---|
+| 页边长（**地形表面烘焙页尺寸**） | 256 | 256 | 128 |
+| 每帧烘焙页数 | 2 | 2 | 1 |
+
+没有画质策略的小游戏使用低档值。一页覆盖其节点，所含细节与节点的绘制精度相当；各层级的节点在屏幕上大小大致相同。默认最近
+一级保持实时绘制，那里图层细节最明显；`virtualTextureFrom` 为 0 时也烘焙它。比 Terrain Layers 材质的 `u_surfaceUp`
+（默认 0.65，约 50°）更陡的地面实时绘制，因为从上方看的页会沿悬崖被拉长。页尚未就绪的节点实时绘制，不会突然出现。
+
+页由近及远烘焙，显示为 "Baking the ground's surface"；节点的高度与绘制页重新生成时（雕刻、修改器、世界绘制地面）或图层重新
+打包时会重新烘焙。运行时修改材质参数的脚本需调用 `TerrainsRes` 上的 `repaint()` 让页跟随。图集容纳 63 页（256 纹素时
+33 MB，128 时 8 MB），淘汰最久未绘制的页。
+
+在地形与水面示例上测得（RTX 3060，1080p，WebGL2）：默认相机下地面着色从 2.1 ms 降至 0.8 ms，整帧从 15.1 ms 降至 13.5 ms；
+湖边从 2.6 ms 降至 1.8 ms（同时烘焙 0 级时为 1.2 ms）。
+
+## 高度查询
+
+```ts
+import { TerrainsRes } from 'esengine/terrain';
+
+const terrains = app.getResource(TerrainsRes);
+const y = terrains.heightAt(x, z);       // 世界高度；没有地形处为 null
+const n = terrains.normalAt(x, z);       // 该处三角形的单位法线，或 null
+```
+
+查询读取由 `cellSize` 单元组成的表面网格，每个单元沿从 (1, 0) 角到 (0, 1) 角的对角线分为两个三角形。这正是视点附近绘制的
+最细层级，也是刚体碰撞的几何，因此查询、射线和绘制的三角形一致（精度受 GPU 的 16 位高度编码限制：数百单位高度下为几毫米），
+且结果与相机无关。无论某点的页是否已生成，查询都能回答。
+
+| 成员 | 说明 |
+|---|---|
+| `heightAt(x, z)` | 地面世界高度，或 `null`。区域的图像读取和侵蚀完成前返回 `null`；异步回答的生成器在周围样本到达前该点为 `null`。 |
+| `normalAt(x, z)` | 该点表面三角形的单位法线，或 `null`。 |
+| `heightBeneathAt(x, z)` | 生成时的地面高度，不含任何修改器。 |
+| `loading` | 仍有地形在读取图像或侵蚀时为 `true`。 |
+| `status(entity)` | `loading`、`ready`，或带 `reason` 的 `failed`。 |
+| `raycast(origin, direction, maxDistance)` | 在任意位置与同一组三角形求交，不经过物理世界。 |
+| `collisionReadyAt(x, z)` | 该点下方的碰撞几何是否已构建。 |
+| `findPath(from, to, options)` | 可行走路径搜索，见[路径搜索](#路径搜索)。 |
+| `setModifier(modifier)`、`deleteModifier(id)` | 见[修改器](#修改器)。 |
+| `repaint()` | 重新生成所有页，用于绘制结果已改变的情况。 |
+
+高度图无法读取、生成器未注册或 `generatorVersion` 不再被生成器列出时，地形失败。失败的地形不绘制任何内容并返回 `null`，
+而不会在游戏期望自有地面的地方生成噪声。
+
+## 碰撞
+
+开启 `collision` 后，地面以 32 个单元为一块加入 3D 物理世界，范围是每个运动 3D 刚体和每个角色周围 `collisionDistance`
+以内。脚下的分块立即构建，其余每帧构建几块、由近及远，周围无物体时释放。每块是地形实体拥有的静态网格刚体，因此命中地面的
+射线或接触报告的是地形。重建期间旧分块保留到新分块替换为止，站在地面上的物体不会掉落。
+
+`collisionReadyAt(x, z)` 报告某点下方的地面是否已构建；在该处投放物体前应等待它。异步回答的生成器在样本到达后才构建分块。
+远离运动物体的地方物理世界中没有地面；远距离视线、拾取和落点请使用 `raycast`。
+
+分块使用三角形网格而非压缩高度场形状：高度场形状会量化样本并以自己的方式划分单元，碰撞将不再与绘制和查询的地面一致。
+
+分块通过 `CollisionGeometry` 资源（`esengine`）注册，任何在运行时生成静态几何的系统都可使用；3D 物理世界为每块几何保留一个
+静态刚体。
+
+## 修改器
+
+修改器在局部改变地面——平整的建筑地块、平台、路基。修改器是世界位置和当前高度的函数，作用于世界中的一个方形区域。修改器按
+设置顺序叠加在地形的地面上，所有读取方都遵循它们：绘制、`heightAt`、`normalAt`、射线和碰撞。只重建修改器触及的页和碰撞分块，
+地面上放置的内容（植物、水、生成世界）会重新放置。
+
+```ts
+import { TerrainsRes, flattenModifier } from 'esengine/terrain';
+
+const terrains = app.getResource(TerrainsRes);
+const level = terrains.heightBeneathAt(x, z)!;          // 生成时的地面，不含任何修改器
+terrains.setModifier(flattenModifier('plot 1', { type: 'rect', x, z, halfX: 40, halfZ: 30, yaw }, level, 12));
+terrains.deleteModifier('plot 1');                       // 恢复地面
+```
+
+`flattenModifier(id, shape, height, falloff)` 接受 `circle`（`x`、`z`、`radius`）或 `rect`（`x`、`z`、`halfX`、`halfZ`、
+可选 `yaw`）。带 `flatten` 的 `WorldZone` 通过修改器平整其地面。
+
+## 路径搜索
+
+`findPath` 在地面上搜索一条受最大坡度限制的行走者可以通过的路线，用于在生成世界中校验出生点、任务目标或聚落。它沿搜索读取
+地面（包括修改器），因此无需烘焙数据，也适用于无限地面。
+
+```ts
+import { TerrainsRes } from 'esengine/terrain';
+import { WatersRes } from 'esengine/water';
+
+const terrains = app.getResource(TerrainsRes);
+const waters = app.getResource(WatersRes);
+const way = terrains.findPath(spawn, village, {
+    maxSlope: 32,                                         // 度，相对水平面
+    step: 8,                                              // 搜索单元，世界单位
+    blocked: (x, z) => (waters.shoreAt(x, z) ?? 1) < 0,   // 排除水面
+});
+if (way.state !== 'reached') regenerate();              // 'unreachable'、'exhausted'（达到 maxCells）或 'noGround'
+```
+
+| 选项 | 说明 |
+|---|---|
+| `step` | 搜索单元尺寸，世界单位（默认 4）。越小越能找到窄道，开销越大。 |
+| `maxSlope` | 行走者能攀爬的最陡地面，相对水平面的度数（默认 35）。 |
+| `blocked` | 除过陡地面外行走者不能站立的位置判定（深水、保留区域）。 |
+| `maxCells` | 放弃前可展开的单元数（默认 200 000）；达到时返回 `exhausted`。 |
+| `detour` | 搜索可越出两端包围盒的距离，以两端距离的比例表示（默认 1）。 |
+
+| `state` | 含义 |
+|---|---|
+| `reached` | 找到路径。 |
+| `unreachable` | 已遍历搜索范围内从起点出发的所有路线，均无法到达终点。 |
+| `exhausted` | 判定前已用完单元数。 |
+| `noGround` | 某一端没有已知地面、过陡或被阻挡。 |
+
+返回的路径在可直行处被拉直，并给出沿地面的长度。它用于校验和规划，不适合每帧调用：几百米的路径耗时数毫秒。每帧移动的智能体
+使用[导航](/docs/zh-cn/gameplay/ai/navigation/)。
+
+## 生成器与版本
+
+无限地面（以及没有高度图的区域）由生成器给出：一个关于世界位置的确定性函数。向生成器请求一个区域——世界、种子、版本、以世界
+单位表示的角点、间距和每边样本数——它返回高度，以及可选的每个样本四个图层权重。每个区域都是同一函数在其他点上的采样，因此
+相邻页共享边缘样本，粗页与细页在样本重合处一致，页的生成顺序不影响结果。位置是世界位置：在同一世界上分开放置的两个地形
+显示相同的地面。
+
+```ts
+import { registerTerrainProvider, type TerrainProvider } from 'esengine/terrain';
+
+const planet: TerrainProvider = {
+    id: 'mygame:planet',
+    versions: [1, 2],                          // 已保存的世界可能引用的所有版本
+    range: (seed, version) => [-200, 900],     // 最低与最高高度，GPU 在此范围内编码
+    sample({ world, seed, version, x0, z0, spacing, count }) {
+        const heights = new Float32Array(count * count);
+        // ... heights[j * count + i] 位于 (x0 + i * spacing, z0 + j * spacing)
+        return { heights };                    // 或一个 Promise，来自 worker 或服务器
+    },
+};
+registerTerrainProvider(planet);
+```
+
+| 成员 | 说明 |
+|---|---|
+| `id` | `Terrain.provider` 引用的名称。 |
+| `versions` | 已保存世界可能引用的所有算法版本。 |
+| `range(seed, version)` | 最低与最高高度；GPU 在此范围内编码高度。 |
+| `sample(region)` | 区域的高度（及可选权重），同步返回或返回 `Promise`。 |
+| `heightAt(world, seed, version, x, z)` | 可选。立即回答单个点；没有它时，点由最细单元尺寸的小采样块回答。 |
+
+版本永久标识一种算法。已保存的世界存有 `generatorVersion`；算法改变时应新增版本并保留旧版本，使建在旧地面上的内容仍然立于
+其上。引擎自带噪声为 `estella:noise`，版本 1。
+
+## 限制
+
+- **碰撞使用最细层级。** 远处地面的绘制比碰撞更粗，但在发生碰撞的位置看不出差别。只有运动刚体在 `collisionDistance` 内拥有
+  可碰撞的地面。
+- **每帧只生成少量页。** 最初几帧或视点跳跃后，地面会短暂以粗精度绘制再变清晰，而不会卡住一帧。

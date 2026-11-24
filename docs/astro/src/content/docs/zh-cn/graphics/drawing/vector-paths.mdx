@@ -1,0 +1,153 @@
+---
+title: 矢量路径
+description: 由路径构成的矢量形状——保留式 Graphics 记录器（路径、曲线、填充、描边、羽化，以及用 flush 与 flushMany 绘制副本），以及把填充与描边路径存放到 MeshRenderer 上的 setPath / buildPathGeometry。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+两个 API 把路径转换为三角形：
+
+| API | 绘制方式 | 生命周期 |
+|---|---|---|
+| `Graphics` | 在绘制回调中经 `Draw` 绘制于场景之上。 | 保留在 `Graphics` 对象中；每帧由 `flush()` 绘制。 |
+| `setPath` | 由实体的 `MeshRenderer` 绘制，与其他渲染组件一起排序与合批。 | 存放在实体上，随场景保存。 |
+
+## `Graphics`
+
+`Graphics` 记录路径与形状，三角化一次，并在 `flush()` 时经 `Draw` 绘制这些三角形。
+
+```typescript
+import { Graphics, registerDrawCallback } from 'esengine';
+
+const g = new Graphics();
+g.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+g.beginFill({ r: 0, g: 0.5, b: 1, a: 1 });
+g.drawRoundRect(-50, -25, 100, 50, 8);
+g.endFill();
+g.moveTo(0, 0);
+g.curveTo(50, 80, 100, 0);           // 二次贝塞尔
+
+registerDrawCallback('hud-shape', () => g.flush());
+```
+
+### 记录
+
+| 方法 | 作用 |
+|---|---|
+| `moveTo(x, y)` / `lineTo(x, y)` / `closePath()` | 构建路径。 |
+| `curveTo(cpx, cpy, x, y, segments?)` | 二次贝塞尔。 |
+| `cubicCurveTo(cp1x, cp1y, cp2x, cp2y, x, y, segments?)` | 三次贝塞尔。 |
+| `arc(cx, cy, radius, startAngle, endAngle, anticlockwise?, segments?)` | 圆弧。 |
+| `drawRect`、`drawRoundRect`、`drawCircle`、`drawEllipse`、`drawPolygon(points)` | 完整形状。 |
+| `lineStyle(thickness, color, { join?, cap?, miterLimit? })` | 描边样式。`join`：`'miter'`（默认）、`'round'`、`'bevel'`。`cap`：`'butt'`、`'round'`、`'square'`。粗细为 `0` 时不描边。 |
+| `beginFill(color)` / `endFill()` | 填充两者之间绘制的全部内容，包括 `moveTo` / `lineTo` 路径与凹轮廓。 |
+| `feather`（属性） | 每条外边缘渐隐到透明的宽度（绘制单位）：用于不开 MSAA 的画质档位的抗锯齿。 |
+| `clear()` | 丢弃记录内容。 |
+
+路径采用其结束时生效的样式。新的 `moveTo`、样式变更、形状、`closePath()` 或绘制都会结束当前路径。在一条线中途变更样式时，从同一点继续绘制。
+
+### 三角化与 GPU 内存
+
+- 绘制内容在变更后首次绘制时三角化；此后 `flush()` 是一次 `Draw.triangles` 调用。
+- 三角形在首次绘制时上传到 GPU 并保留。每次 flush 只发送副本的变换与着色；顶点由 GPU 变换，连续的 flush 合成一次实例化绘制。
+- `dispose()` 提前释放 GPU 内存。未调用 `dispose()` 的 `Graphics` 在被垃圾回收时释放。
+- `geometry()` 以 `MeshRenderer` 几何的形式返回这些三角形，供需要保留它们的 `MeshRenderer` 使用。
+
+### 绘制副本
+
+`flush({ x, y, rotation, scale, alpha, tint })` 把同一组三角形平移、旋转、绕绘制原点缩放并淡化后绘制。不重建任何内容，也不创建纹理。
+
+| 选项 | 作用 |
+|---|---|
+| `x`、`y` | 在旋转与缩放之后施加的偏移。 |
+| `rotation` | 绕绘制原点的旋转，弧度。 |
+| `scale` | 绕绘制原点的缩放：单一系数，或 `{ x, y }`。 |
+| `alpha` | 与每种颜色的 alpha 相乘。 |
+| `tint` | 与每种颜色相乘。 |
+
+```typescript
+const hexagon = new Graphics();
+hexagon.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+hexagon.beginFill({ r: 1, g: 0.85, b: 0.4, a: 0.6 });
+hexagon.drawPolygon(Array.from({ length: 6 }, (_, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2) * 26,
+  y: Math.sin((i / 6) * Math.PI * 2) * 26,
+})));
+hexagon.endFill();
+
+registerDrawCallback('hit-flashes', () => {
+  for (const hit of hits) {
+    hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
+  }
+});
+```
+
+`flushMany(copies, count?)` 一次调用绘制多个副本。`copies` 中每个副本占 `GRAPHICS_COPY_STRIDE`（8）个数：`x, y, rotation, scale, r, g, b, alpha`。结果等同于每个副本调用一次 `flush()`，但无需每个副本调用一次引擎。跨帧复用同一数组：
+
+```typescript
+import { GRAPHICS_COPY_STRIDE } from 'esengine';
+
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
+});
+```
+
+<Aside type="caution">
+  用 `alpha` 或 `tint` 淡化形状，而不是把形状重新渲染进纹理。每次不透明度变化都上传一张新纹理，意味着每帧一次纹理上传，在移动 GPU 上开销很高。
+</Aside>
+
+## 场景路径：`setPath`
+
+`setPath(app, entity, points, style)` 生成路径几何并存放到实体的 `MeshRenderer` 上，实体没有该组件时会添加。形状随后像其他渲染组件一样排序、合批与裁切，场景将其作为网格几何保存。
+
+```typescript
+import { setPath, circlePoints, cubicBezier } from 'esengine';
+
+// 带圆孔的星形，橙色填充，尖角描边。
+setPath(app, entity, starPoints, {
+  fill: { color: [1, 0.55, 0.1, 1], holes: [circlePoints(0, 0, 14)] },
+  stroke: { color: [0.2, 0.1, 0.05, 1], width: 8, join: 'miter' },
+  closed: true,
+});
+
+// 圆头圆角的开放曲线。
+setPath(app, other, cubicBezier(p0, p1, p2, p3), {
+  stroke: { color: [0.2, 0.8, 0.9, 1], width: 14, join: 'round', cap: 'round' },
+});
+```
+
+| 函数 | 作用 |
+|---|---|
+| `setPath(app, entity, points, style)` | 生成并上传几何。以新的点再次调用即替换形状；开销为一次三角化，路径不变时无开销。结果不含三角形时清除几何。 |
+| `clearPath(app, entity)` | 移除路径几何；`MeshRenderer` 保留。 |
+| `buildPathGeometry(points, style)` | 不经实体，直接返回几何。 |
+| `cubicBezier(p0, p1, p2, p3, tolerance?)` / `quadraticBezier(p0, p1, p2, tolerance?)` | 把曲线展平为点。 |
+| `circlePoints(cx, cy, radius, segments?, startAngle?, endAngle?)` | 圆或圆弧上的点。 |
+
+### `PathStyle`
+
+| 字段 | 说明 |
+|---|---|
+| `fill: { color, holes? }` | 对任意简单多边形（含凹多边形）做耳切填充。`holes` 是从中挖去的环。 |
+| `stroke: { color, width, join?, cap?, miterLimit? }` | `join`：`'miter'`（默认）、`'round'`、`'bevel'`；尖角长度超过 `miterLimit`（默认 4）个半宽时改为斜角。`cap`：`'butt'`（默认）、`'round'`、`'square'`。描边在拐角处不自我重叠，因此半透明描边也均匀。 |
+| `closed` | 把最后一点连回第一点；描边没有端帽。填充始终闭合。 |
+| `feather` | 沿每条外边缘在该宽度内渐隐到透明；用于不开多重采样的画质档位的抗锯齿。默认 `0`。 |
+| `arcStep` | 圆角或圆头每一段的最大角度，弧度。默认 `0.25`。 |
+
+约束：
+
+- 自交多边形按耳切结果填充；八字形会丢失交叉部分。
+- 孔必须位于外轮廓内部。
+
+{/* SHOT: draw-set-path | Game view during Play: entities drawn with setPath — an orange star with a round hole and a mitered dark outline, and an open cyan curve with round caps — beside a sprite to show they sort with scene renderables */}
+
+## 另请参阅
+
+- [自定义绘制](/docs/zh-cn/graphics/drawing/overview/) —— 绘制回调与 `Draw` API。
+- [网格](/docs/zh-cn/graphics/drawing/meshes/) —— `MeshRenderer` 几何与 `MeshRenderers` 资源。

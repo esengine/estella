@@ -1,0 +1,79 @@
+---
+title: 自定义绘制
+description: 组件渲染器之外的绘制——在 Draw、Graphics、setPath、MeshRenderer 与 Geometry 之间选择，注册绘制回调，以及即时模式 Draw API 参考。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+大多数视觉内容是组件：[精灵](/docs/zh-cn/graphics/sprites/overview/)、瓦片地图、粒子。对于调试覆盖层、程序化形状与自定义几何，引擎直接开放其绘制层。
+
+![绘制示例：用 Draw 画的即时模式雷达、用 Graphics 画的留存星形，以及用 Mesh2D 生成的彩带](@/assets/guides/zh/play-drawing.png)
+
+*绘制示例：`Draw`（雷达）、`Graphics`（星形）与 `MeshRenderer` 彩带。*
+
+## 选择 API
+
+| API | 模型 | 用途 | 参考 |
+|---|---|---|---|
+| `Draw` | 即时模式、全局；命令自动合批并每帧清空。 | 调试覆盖层、Gizmo、每帧重绘的内容。 | [`Draw` API](#draw-api) |
+| `Graphics` | 保留式路径记录器；三角化一次，`flush()` 时经 `Draw` 绘制。 | 由路径、曲线与圆弧构成、需多次绘制的矢量形状。 | [矢量路径](/docs/zh-cn/graphics/drawing/vector-paths/) |
+| `setPath` | 存放在实体 `MeshRenderer` 上的路径几何。 | 属于场景的填充与描边形状。 | [矢量路径](/docs/zh-cn/graphics/drawing/vector-paths/#场景路径setpath) |
+| `ShapeRenderer` / `MeshRenderer` | 带排序层、材质与编辑器 Gizmo 的组件。 | 属于场景的图形与网格。 | [网格](/docs/zh-cn/graphics/drawing/meshes/)、[ShapeRenderer](/docs/zh-cn/graphics/sprites/effects/#图元shaperenderer) |
+| `Geometry` | 以句柄表示、配合材质绘制的顶点缓冲。 | 自定义顶点布局与着色器。 | [网格](/docs/zh-cn/graphics/drawing/meshes/#自定义几何geometry-api) |
+| `RenderTexture`、`TextureAtlas`、`TextureCanvas` | 离屏目标。 | 小地图、头像、运行时图集、拼合纹理。 | [渲染纹理](/docs/zh-cn/graphics/drawing/render-textures/) |
+
+属于场景的视觉内容（参与排序、可保存、可检视）使用组件；属于某一帧的视觉内容（调试输出、覆盖层、程序化效果）在回调中绘制。
+
+## 绘制回调
+
+绘制回调每帧在渲染通道内执行，相机的 view-projection 已经绑定。坐标为世界空间。
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+
+registerDrawCallback('debug-overlay', (elapsed) => {
+  Draw.line({ x: 0, y: 0 }, { x: 100, y: 50 }, { r: 1, g: 0, b: 0, a: 1 }, 2);
+  Draw.circleOutline({ x: 0, y: 0 }, aggroRadius, { r: 1, g: 1, b: 0, a: 0.5 });
+});
+```
+
+| 函数 | 绘制位置 | 回调参数 |
+|---|---|---|
+| `registerDrawCallback(id, fn, scene?)` | 场景之上。 | `(elapsed, { viewProjection, width, height })` |
+| `registerPreSceneDrawCallback(id, fn, options?)` | 场景之下；场景中的渲染组件会遮挡它。 | `{ width, height, elapsed }` |
+| `registerOverScreenDrawCallback(id, fn, options?)` | 帧中所有内容之上（包括屏幕覆盖层），使用最后一台绘制到屏幕的相机的视图。 | `(elapsed, { viewProjection, width, height })` |
+
+- 以已存在的 `id` 注册会替换该回调。每个注册函数都返回一个用于移除该注册的函数。
+- 按 id 移除：`unregisterDrawCallback(id)`、`unregisterPreSceneDrawCallback(id)`、`unregisterOverScreenDrawCallback(id)`。
+- 可选的第三个参数把回调限定到某个场景名，或 `{ world, scene }`。
+
+<Aside type="tip">
+  通过场景上下文注册的回调——在 `loadAdditive` 返回的上下文上调用 `sceneContext.registerDrawCallback(id, fn)`——只在该场景激活时绘制，并在场景卸载时移除。
+</Aside>
+
+## `Draw` API
+
+`Draw` 是即时模式单例。命令自动合批并每帧清空；形状只在绘制它的帧中可见。
+
+| 方法 | 绘制内容 |
+|---|---|
+| `line(from, to, color, thickness?)` | 线段；粗细以像素计，默认 `1`。 |
+| `rect(pos, size, color, filled?)` / `rectOutline(pos, size, color, thickness?)` | 以 `pos` 为中心的矩形；`filled` 默认为 `true`。 |
+| `circle(center, radius, color, filled?, segments?)` / `circleOutline(center, radius, color, thickness?, segments?)` | 圆；默认 `32` 段。 |
+| `texture(pos, size, textureHandle, tint?)` | 带纹理的四边形。 |
+| `textureRotated(pos, size, rotation, textureHandle, tint?)` | 旋转 `rotation` 弧度的带纹理四边形。 |
+| `triangles(mesh, { tint?, transform? })` | 逐顶点着色的三角形（`positions` 为 x、y 坐标对，`indices`，可选 `colors`），经二维仿射 `[xx, xy, yx, yy, tx, ty]` 变换并乘以 `tint`，与其他图元一起合批。`Graphics.flush()` 通过它绘制。 |
+| `createTriangles(mesh)` | 把网格一次性上传到 GPU，返回一个由 `triangles()` 按引用绘制的缓冲。每个副本在 GPU 上变换与着色，开销为一条 28 字节的记录；同一缓冲的连续副本合成一次实例化绘制。不再绘制时对缓冲调用 `release()`。 |
+| `trianglesMany(buffer, copies, count?)` | 一次调用绘制同一缓冲的多个副本：每个副本 `DRAW_COPY_STRIDE`（10）个数——仿射 `xx, xy, yx, yy, tx, ty`，然后是着色 `r, g, b, a`。结果与每个副本调用一次 `triangles()` 相同，但无需每个副本调用一次引擎。 |
+| `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | 以原始着色器或材质绘制 [`Geometry`](/docs/zh-cn/graphics/drawing/meshes/#自定义几何geometry-api) 句柄。 |
+| `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
+| `setBlendMode(mode)` / `setDepthTest(enabled)` | 后续命令的混合与深度状态。 |
+| `withDepthState({ test, write }, draw)` | 以临时的深度测试与写入状态执行同步绘制，即使 `draw` 抛出异常也会恢复。内核不支持作用域深度状态时返回 `false`，且不调用 `draw`。 |
+| `getDrawCallCount()` / `getPrimitiveCount()` | 本帧统计。 |
+
+## 另请参阅
+
+- [矢量路径](/docs/zh-cn/graphics/drawing/vector-paths/) —— `Graphics` 与 `setPath`。
+- [网格](/docs/zh-cn/graphics/drawing/meshes/) —— `MeshRenderer`、`Billboard` 与 `Geometry`。
+- [渲染纹理](/docs/zh-cn/graphics/drawing/render-textures/) —— 离屏目标与运行时图集。
+- [相机基础](/docs/zh-cn/graphics/camera/overview/) —— 回调所用的 view-projection。

@@ -1,0 +1,138 @@
+---
+title: Effects & 2D Renderers
+description: Sprite materials and 2D lighting, SpriteFilter outline / glow / drop-shadow materials, and the related 2D renderers — ShapeRenderer primitives, TrailRenderer motion trails and world-space BitmapText.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A sprite's look beyond tint is controlled by its material and the `lit` flag. Three further components draw 2D content
+without a sprite texture; they share the sorting `layer`, `color` and `parallax` conventions of `Sprite`.
+
+## Materials and lighting
+
+`Sprite.material` replaces the built-in sprite shader with a custom material (tint, dissolve, distortion); see
+[Materials & Shaders](/docs/graphics/materials/overview/).
+
+| Option | Result |
+|---|---|
+| `Sprite.lit = true` | The sprite receives `Light` entities with a flat normal. No material required. |
+| Lit-2D material | Normal maps and custom lit shading. Overrides `lit`. |
+
+Both are described in [Lit Surfaces](/docs/graphics/lighting/surfaces/).
+
+![The Effects Gallery example: the same character with no filter, an outline, a glow, a drop shadow and a pixelate filter](@/assets/guides/en/play-effects.png)
+
+*The Effects Gallery example: one sprite with different `SpriteFilter` materials.*
+
+## Sprite filters
+
+`SpriteFilter` creates ready-made materials for common per-sprite effects. The result is assigned to
+`Sprite.material`.
+
+```typescript
+import { SpriteFilter } from 'esengine';
+
+sprite.material = SpriteFilter.createOutline({ color: { r: 1, g: 1, b: 1, a: 1 }, width: 2 });
+sprite.material = SpriteFilter.createGlow();
+sprite.material = SpriteFilter.createDropShadow({ offsetX: 3, offsetY: 3, blur: 2 });
+```
+
+| Method | Options and defaults |
+|---|---|
+| `createOutline(options?)` | `color` (white), `width` (`1`), `texelSize`. |
+| `createGlow(options?)` | An outline with defaults `color` warm yellow `{1, 0.8, 0.2, 0.8}` and `width` `2`. |
+| `createDropShadow(options?)` | `color` (black α 0.6), `offsetX` / `offsetY` (`3`), `blur` (`2`), `texelSize`. |
+| `setOutlineColor(material, color)` / `setOutlineWidth(material, width)` | Update an outline or glow material in place. |
+| `setShadowOffset(material, x, y)` / `setShadowBlur(material, blur)` | Update a drop-shadow material in place. |
+
+- Each `create*` call creates a new material. Sprites with the same look should share one handle.
+- `texelSize` defaults to `1/512` per axis. For exact pixel widths on a texture of another size, pass
+  `texelSize: { x: 1 / texWidth, y: 1 / texHeight }`.
+
+## Shapes: `ShapeRenderer`
+
+`ShapeRenderer` draws a filled primitive without a texture: placeholders, bars, debug markers.
+
+| Field | Default | Description |
+|---|---|---|
+| `shapeType` | `Circle` | `ShapeType.Circle`, `Capsule` or `RoundedRect`. |
+| `color` | `{1,1,1,1}` | Fill colour. |
+| `size` | `{100,100}` | Size in world units. |
+| `cornerRadius` | `0` | Corner radius of a `RoundedRect`. |
+| `layer` | `0` | Sorting layer. |
+| `parallax` | `{1,1}` | Parallax scroll factor. |
+| `enabled` | `true` | Hides the shape without removing the component. |
+
+```typescript
+import { Transform, ShapeRenderer, ShapeType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ShapeRenderer, {
+    shapeType: ShapeType.RoundedRect,
+    size: { x: 200, y: 80 },
+    cornerRadius: 12,
+    color: { r: 0.2, g: 0.6, b: 1, a: 1 },
+  });
+```
+
+Arbitrary outlines, strokes and polygons with holes are built with [vector paths](/docs/graphics/drawing/vector-paths/).
+
+## Motion trails: `TrailRenderer`
+
+`TrailRenderer` draws a world-space ribbon along the entity's recent path: sword swipes, dashes, projectile streaks.
+The engine records the position history and builds the tapered ribbon each frame.
+
+![The Trail Renderer example: a comet with a long additive trail and a dasher leaving a short one](@/assets/guides/en/play-trail.png)
+
+*The Trail Renderer example: the comet's additive trail follows its path.*
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(TrailRenderer, { time: 0.4, startWidth: 24, blendMode: 1 });  // additive
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `time` | `0.5` | Lifetime of each recorded point, in seconds, before it fades out of the tail. |
+| `minVertexDistance` | `5` | Minimum world distance moved before a new point is recorded; `0` records every frame. |
+| `emitting` | `true` | `false` stops recording; the existing streak detaches and fades in place. |
+| `startWidth` / `endWidth` | `20` / `0` | Ribbon width at the head / tail; `0` tapers to a line. |
+| `startColor` / `endColor` | white / white α 0 | Colour interpolated from head to tail. Animatable. |
+| `texture` | `0` | Texture along the ribbon (U runs head to tail, V across the width); `0` uses vertex colours only. |
+| `blendMode` | `0` | `0` Normal, `1` Additive, `2` Multiply. |
+| `layer` / `material` | `0` / `0` | Sorting layer / custom material. |
+| `enabled` | `true` | Hides the trail. |
+
+The `Trail` resource (`Res(Trail)`) provides `clear(entity)`, which discards an entity's history immediately — for
+example on a teleport, so the ribbon does not streak across the map.
+
+Particle emitters have their own per-particle trails ([Particles](/docs/world/particles/)).
+
+## World-space text: `BitmapText`
+
+`BitmapText` renders text in world space from a prebaked bitmap font: damage numbers, name tags, retro UI. `font`
+references a BMFont asset (`.fnt` text or `.bmfont` JSON).
+
+| Field | Default | Description |
+|---|---|---|
+| `text` | `''` | String to draw. |
+| `font` | `0` | Bitmap font asset (`.fnt` / `.bmfont`). |
+| `fontSize` | `1` | Scale over the font's authored size; minimum 1. |
+| `align` | `Left` | `Left`, `Center`, `Right`. |
+| `spacing` | `0` | Extra spacing per character. |
+| `color` | `{1,1,1,1}` | Tint. Animatable. |
+| `layer` / `parallax` | `0` / `{1,1}` | Sorting layer / parallax factor, as on `Sprite`. |
+| `enabled` | `true` | Hides the text. |
+
+<Aside type="note">
+  Screen-space text with layout, wrapping and SDF rendering is the UI `Text` component ([Text](/docs/ui/text/)).
+</Aside>
+
+## See also
+
+- [Sprites](/docs/graphics/sprites/overview/) — the `Sprite` component.
+- [Materials & Shaders](/docs/graphics/materials/overview/) — custom shaders for any renderable.
+- [Lights](/docs/graphics/lighting/lights/), [Lit Surfaces](/docs/graphics/lighting/surfaces/) and [Shadows](/docs/graphics/lighting/shadows/) — lights, normal maps and shadow casters.
+- [Custom Drawing](/docs/graphics/drawing/overview/) — immediate-mode drawing and custom meshes.

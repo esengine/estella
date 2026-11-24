@@ -1,39 +1,21 @@
 ---
 title: Video
-description: The complete guide to video — the declarative Video component, playing on Sprites, UI and meshes, the imperative VideoPlayer, sharing one stream across many surfaces, import settings, and the WeChat wasm decode path.
+description: Video reference — the Video component and the renderables it drives, sharing one stream across surfaces, the VideoPlayer resource, video import settings, the cooked .esv format, and the decoder used on each platform.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Estella plays video onto anything you can draw through the declarative `Video`
-component — *a Sprite whose texture is alive*. One decoded stream drives a live
-GPU texture that refreshes every frame. On web and desktop an `HTMLVideoElement`
-decodes (zero-copy on WebGL2); on WeChat an engine-owned MPEG-1 wasm decoder runs
-the **identical** texture pump on every device — phone, PC, and headless alike.
+The `Video` component decodes a clip into a GPU texture that is refreshed every frame and writes that texture to a
+renderable on the same entity: a `Sprite`, a `UIVisual` or a `MeshRenderer`. On the web an `HTMLVideoElement` decodes
+the clip; on native and mini-game targets an engine-owned MPEG-1 decoder compiled to wasm decodes a cooked copy. The
+texture contract is the same on every platform.
 
-## How it works
-
-Add a `Video` component to an entity that also has a renderable — a `Sprite`,
-`UIVisual`, or `MeshRenderer` — and the video system decodes `source` into a texture and
-writes that texture handle onto the renderable every frame. The frame texture is
-**pathless** (never evicted) and stable, so a handle written once stays live for
-the life of the stream.
-
-Video decoding runs in **play mode only** — nothing decodes while you edit, so the
-editor stays responsive. The plugin is registered by default, like audio: there's
-no plugin to add.
-
-<Aside type="note">
-  Muted clips autoplay everywhere. Unmuted autoplay is blocked until a user
-  gesture (browser policy), so start sound-on playback from a tap or key. A
-  `Video` needs a `Sprite` / `UIVisual` / `MeshRenderer` sibling to show on — on its own
-  it decodes but has nothing to draw to.
-</Aside>
+{/* SHOT: video-component | Details panel of an entity with Transform, Sprite and Video components; the Video card shows Source set to an .mp4 asset, Autoplay, Loop and Muted ticked, Volume 1, Playback Rate 1, Fit Size ticked; the viewport behind shows the entity in Play mode displaying a video frame. */}
 
 ## The `Video` component
 
-In the editor, add a **Video** component to an entity with a **Sprite** and set its
-**Source**. In code, insert it alongside the renderable:
+In the editor, add a **Video** component to an entity that has a **Sprite** and set its **Source**. In code, insert it
+alongside the renderable:
 
 ```typescript
 import { defineSystem, Commands, Transform, Sprite, Video } from 'esengine';
@@ -48,29 +30,50 @@ const spawnScreen = defineSystem([Commands()], (cmds) => {
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `source` | asset | `''` | The video clip to play. |
+| `source` | asset | `''` | The video clip. Changing it stops the current stream and starts the new clip. |
 | `autoplay` | boolean | `true` | Start as soon as the first frame is ready. |
 | `loop` | boolean | `true` | Restart from the beginning at the end. |
-| `muted` | boolean | `true` | Mute audio. Muted clips autoplay; unmuted needs a user gesture. |
-| `volume` | number | `1.0` | Audio volume, 0..1 (ignored while `muted`). |
-| `playbackRate` | number | `1.0` | Playback speed / pitch (`1` = normal). |
-| `fitSize` | boolean | `true` | On the first frame, resize the Sprite to the video's native pixels. |
-| `enabled` | boolean | `true` | Disable to stop and release the stream without removing the component. |
+| `muted` | boolean | `true` | Mute audio. Muted clips autoplay; unmuted playback needs a user gesture. |
+| `volume` | number | `1.0` | Audio volume, 0–1 (ignored while `muted`). |
+| `playbackRate` | number | `1.0` | Playback speed and pitch (`1` = normal). |
+| `fitSize` | boolean | `true` | Resize the `Sprite` to the video's native pixel size once frames arrive. Applies to `Sprite` only. |
+| `enabled` | boolean | `true` | `false` stops and releases the stream without removing the component. |
 
-The same component drives whichever renderable it finds, in order **`Sprite` →
-`UIVisual` → `MeshRenderer`**: put a `Video` on a `UIVisual` for a video panel in your
-HUD, or on a `MeshRenderer` to map a clip onto custom geometry.
+`volume`, `muted`, `loop` and `playbackRate` are applied to the running stream when they change. Clearing `source`,
+disabling the component or despawning the entity stops and releases the stream.
 
-## One stream, many surfaces
+### Renderables
 
-The frame texture is a plain handle, so any number of sprites can share it — read
-the playing sprite's `texture` and assign it to others. Each surface then picks a
-**region** of the frame with the Sprite's `uvOffset` / `uvScale` (the same
-convention atlas frames use, where `v = 0` is the image's bottom row). One decode
-feeds them all — no per-surface decoding, no extra API.
+The video system writes the frame texture to the first renderable it finds on the entity, in this order:
+
+| Renderable | Written fields | Use |
+|---|---|---|
+| `Sprite` | `texture`; `size` when `fitSize` is set | Video in the world. |
+| `UIVisual` | `texture`; `visualType` set to `Image` | A video panel in screen UI. |
+| `MeshRenderer` | `texture` | A clip mapped onto custom geometry. |
+
+An entity with a `Video` and no renderable decodes but displays nothing, and the console logs a warning once for it.
+
+### Behaviour
+
+- Video decodes in **play mode only**; nothing decodes while the scene is being edited.
+- The video plugin is part of the default plugin set, as audio is; no plugin needs to be added.
+- The frame texture is **pathless** (never evicted) and its handle is stable for the life of the stream, so a handle
+  written once stays valid.
+
+<Aside type="note">
+  Muted clips autoplay on every platform. Unmuted autoplay is blocked by browsers until a user gesture, so sound-on
+  playback starts from a tap or a key press.
+</Aside>
+
+## Sharing one stream across surfaces
+
+The frame texture is a plain texture handle, so any number of sprites can use it: read the playing sprite's `texture`
+and assign it to the others. Each surface selects a **region** of the frame with the Sprite's `uvOffset` / `uvScale`
+(the convention atlas frames use, where `v = 0` is the image's bottom row). One decode feeds every surface.
 
 ```typescript
-// Mirror the live video texture onto every tile, then each samples a 1/N region.
+// Mirror the live video texture onto every tile; each tile samples a 1/N region.
 const shareVideoTexture = defineSystem(
   [Query(Sprite, Video), Query(Mut(Sprite), PuzzlePiece)],
   (preview, pieces) => {
@@ -84,14 +87,12 @@ const shareVideoTexture = defineSystem(
 );
 ```
 
-This is exactly how the **video-puzzle** example turns a single clip into a board
-of live, swappable tiles.
+The **video-puzzle** example uses this pattern to turn one clip into a board of live, swappable tiles.
 
-## Imperative playback — `VideoPlayer`
+## `VideoPlayer`
 
-For code-driven video with no component, the `VideoPlayer` resource plays a source
-and hands back a **stream handle** whose `textureHandle` you can put on any sprite
-or material:
+The `VideoPlayer` resource plays a source without a component and returns a **stream handle** whose `textureHandle`
+can be assigned to any sprite or material:
 
 ```typescript
 import { defineSystem, Res, VideoPlayer } from 'esengine';
@@ -103,68 +104,82 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 });
 ```
 
+| `VideoPlayer` method | Description |
+|---|---|
+| `play(source, options?)` | Starts a stream and returns its handle. |
+| `stop(handle)` | Stops and releases one stream. |
+| `stopAll()` | Stops every stream. |
+
+`play` options are those of the component, with different defaults:
+
+| Option | Default |
+|---|---|
+| `autoplay` | `true` |
+| `loop` | `false` |
+| `muted` | `false` |
+| `volume` | `1` |
+| `playbackRate` | `1` |
+
+Stream handle members:
+
 | Member | Kind | Description |
 |---|---|---|
 | `play()` / `pause()` / `stop()` | method | Transport control. |
 | `seek(seconds)` | method | Jump to a time. |
-| `setVolume(v)` / `setMuted(m)` | method | Live audio adjust. |
-| `setLoop(l)` / `setPlaybackRate(r)` | method | Live loop / speed adjust. |
-| `textureHandle` | readonly | The live frame texture — `0` until the first frame, then pathless (never evicted). |
+| `setVolume(v)` / `setMuted(m)` | method | Audio adjustment. |
+| `setLoop(l)` / `setPlaybackRate(r)` | method | Loop and speed adjustment. |
+| `textureHandle` | readonly | The live frame texture: `0` until the first frame, then pathless (never evicted). |
 | `width` / `height` | readonly | Native pixel size. |
 | `isReady` | readonly | The first frame has decoded. |
 | `isPlaying` | readonly | Currently playing. |
 | `currentTime` / `duration` | readonly | Seconds. |
 | `onReady` / `onEnded` / `onError` | callback | Lifecycle hooks. |
 
-`video.play(source, options)` takes the same options as the component
-(`autoplay`, `loop`, `muted`, `volume`, `playbackRate`) but with its own defaults:
-`autoplay: true`, `loop: false`, `muted: false`, `volume: 1`, `playbackRate: 1`; `video.stop(handle)` ends
-one stream and `video.stopAll()` ends every stream.
+## Import settings
 
-## Import settings & cooked video
-
-Selecting a video asset shows a preview plus **Import Settings**. `Autoplay`,
-`Loop`, and `Muted` are the suggested states applied when the clip is dropped onto
-a `Video` component. Two **advanced** settings control the WeChat transcode:
+Selecting a video asset shows a looping, muted preview and its **Import Settings**. Playback settings (autoplay, loop,
+muted) belong to the `Video` component, not to the asset. Two **advanced** settings control the transcode for the wasm
+decode path:
 
 | Setting | Range | Default | Description |
 |---|---|---|---|
-| **Cook Quality** | `2`–`31` | `4` | MPEG-1 quantizer for the wasm decode path — lower is higher quality and a larger file. |
+| **Cook Quality** | `2`–`31` | `4` | MPEG-1 quantizer. `2` is near-lossless with the largest file; `31` is the smallest. |
 | **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | AAC bitrate of the demuxed audio track. |
 
-On export the cook transcodes each shipped video into a codec-tagged **`.esv`**
-(MPEG-1 Program Stream) plus an **`.m4a`** audio-track sibling — the format the wasm
-decoder reads, with the audio track played through the audio pipeline and slaved as
-the video's clock. On web and desktop the original file plays untouched.
+{/* SHOT: video-import-settings | Details panel with an .mp4 video asset selected in the Content Browser: the video preview at the top and the Import Settings with the Advanced group expanded, showing Cook Quality 4 and Cook Audio Bitrate 128 kbps. */}
+
+Video assets are `.mp4`, `.m4v` and `.mov` containers, MPEG-1 `.mpg` / `.mpeg` sources, and cooked `.esv` files. A
+`.webm` file is classified as audio unless its `.meta` type is `video`.
+
+## Cooked video
+
+Exports for Android, iOS, native desktop, WeChat and the other mini-game platforms transcode each shipped video into a
+codec-tagged **`.esv`** (MPEG-1 Program Stream) plus an **`.m4a`** audio-track sibling. This is the format the wasm
+decoder reads; the audio track plays through the audio pipeline and serves as the video's clock. Web exports ship the
+original file unchanged.
 
 ## Platform backends
 
-The texture-handle contract is identical on every backend — the same scene, the
-same component, the same handle sharing — only the decoder differs:
+The texture-handle contract is the same on every backend; only the decoder differs.
 
 | Platform | Decoder | Notes |
 |---|---|---|
-| Web / Desktop | `HTMLVideoElement` | Any browser-supported codec (H.264 `.mp4`, WebM…). WebGL2 uploads each frame zero-copy; WebGPU via a canvas readback. |
-| Native (Android / iOS) | The same engine-owned wasm decoder, acquired as a side module | Plays the cooked `.esv` + `.m4a`; a device has no other video path. |
-| Other mini-game platforms | The same engine-owned wasm decoder, by default on every vendor | Host video decoders are absent on desktop clients and unreliable on phones, so the one deterministic path wins. |
-| WeChat | Engine-owned MPEG-1 wasm (`videodec`, pl_mpeg) | Deterministic on every device — `wx.createVideoDecoder` is absent on PC and unreliable on phones. Ships automatically when a scene uses `Video`; plays the cooked `.esv` + `.m4a`. |
+| Web, editor Play | `HTMLVideoElement` | Any browser-supported codec (H.264 `.mp4`, WebM, …). WebGL2 uploads each frame zero-copy; WebGPU uses a canvas readback. |
+| Native (Android, iOS, desktop) | The engine-owned wasm decoder, acquired as a side module | Plays the cooked `.esv` + `.m4a`; there is no other video path on a device. |
+| WeChat | Engine-owned MPEG-1 wasm decoder (`videodec`, pl_mpeg) | Deterministic on every device; `wx.createVideoDecoder` is absent on PC and unreliable on phones. Ships automatically when a scene uses `Video`; plays the cooked `.esv` + `.m4a`. |
+| Other mini-game platforms | The same engine-owned wasm decoder, by default on every vendor | Host video decoders are absent on desktop clients and unreliable on phones. |
 
-## Best practices
+## Guidelines
 
-- **Keep `muted: true` for autoplay** — start sound-on playback from a user
-  gesture, or the browser will block it.
-- **Share one stream** across many surfaces via the texture handle +
-  `uvOffset` / `uvScale`, rather than many `Video` components decoding the same clip.
-- **Give the Video a renderable** — a `Sprite` (world), `UIVisual` (HUD), or
-  `MeshRenderer` (custom geometry) — to actually show a frame.
-- **Mind `fitSize`** — it snaps the Sprite to the clip's native pixels on the first
-  frame; turn it off when you set an explicit size (e.g. a fixed screen).
-- **Target WeChat early** — the cook handles the MPEG-1 transcode for you, but keep
-  clips short and modest in resolution: software decode and download both scale with
-  size.
+- Keep `muted: true` for autoplay; start sound-on playback from a user gesture.
+- Share one stream across surfaces through the texture handle and `uvOffset` / `uvScale`, rather than several `Video`
+  components decoding the same clip.
+- Turn `fitSize` off when the Sprite has an explicit size (a fixed screen).
+- Keep clips short and modest in resolution for native and mini-game targets: software decode cost and download size
+  both grow with resolution.
 
 ## See also
 
-- [Sprites & Rendering](/docs/graphics/sprites/) — the texture a Video writes to and its `uvOffset` / `uvScale`.
+- [Texture Regions & Sampling](/docs/graphics/sprites/textures/) — the texture a Video writes to and its `uvOffset` / `uvScale`.
 - [Assets](/docs/assets/overview/) — loading and bundling video clips.
 - [WeChat MiniGame](/docs/publishing/wechat/) — the wasm decode path and export.

@@ -1,0 +1,157 @@
+---
+title: 后处理
+description: 后处理总览——效果链、PostProcessVolume 组件与体积混合、效果目录、效果顺序、HDR 链路、世界单位参数，以及包中携带的效果组。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+后处理在渲染完成的场景送往显示器之前对其施加全屏效果。效果可添加到编辑器或场景文件中的 **`PostProcessVolume`**，也可在代码中添加到
+**`PostProcess`** 效果栈（[脚本与自定义效果](/docs/zh-cn/graphics/post-processing/scripting/)）。效果列表是编辑器与运行时共用的注册表。
+
+![后处理示例开启 Bloom：明亮的方块向外溢出柔和的光晕](@/assets/guides/zh/play-postprocess.png)
+
+*后处理示例：**Bloom** 使明亮像素溢出柔和的光晕。*
+
+## 效果链
+
+一个相机的全部效果构成一条效果链，按列表顺序执行。单 pass 效果在两个共享的 ping-pong 目标之间读写；多 pass 效果按各自的比例（半尺寸、1/64
+尺寸）绘制子 pass，并以一个全尺寸 pass 结束。每个 pass 都是一次全屏绘制。
+
+效果链之后，帧的最后一个 pass 依次应用[输出变换](/docs/zh-cn/graphics/post-processing/color/#输出变换)和[显示 LUT](/docs/zh-cn/graphics/post-processing/color/#显示-lut)（各一次），然后为显示器编码。
+
+几何边缘由场景目标上的 MSAA 在效果链之前完成抗锯齿（[抗锯齿](/docs/zh-cn/graphics/post-processing/image-effects/#抗锯齿)）。
+
+## PostProcessVolume
+
+*添加组件 → Post Process Volume* 添加该组件。检视器按执行顺序列出体积的效果，每一项包含启用开关、参数（含颜色参数与纹理参数）、折叠控件和分类标签：
+**镜头**、**色彩**、**光照**、**大气**、**抗锯齿**、**风格化**或**其他**。具有计算着色器实现或引擎原生实现的效果带有**仅 WebGPU** 标签。添加菜单按相同的分类分组。
+
+{/* SHOT: pp-volume-inspector | Inspector of an entity with a PostProcessVolume holding Auto Exposure, Bloom, Color Grade and Vignette in that order; Bloom unfolded with Threshold, Intensity and Radius visible; category tags visible on every entry. */}
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `effects` | list | `[]` | 每个效果一项 `{ type, enabled, uniforms, textures?, colors? }`，按效果链顺序排列。`uniforms` 存放浮点参数，`textures` 存放纹理引用（查找表、遮罩），`colors` 存放颜色参数。 |
+| `isGlobal` | boolean | `true` | 全局生效。为 `false` 时仅在体积形状内生效。 |
+| `shape` | `'box' \| 'sphere'` | `'box'` | 局部体积的形状。 |
+| `size` | `{ x, y, z? }` | `{5, 5}` | 局部体积的半尺寸；球体以 `x` 为半径。`z` 为盒体的半深度，`0` 或缺省表示深度方向不设限。 |
+| `priority` | number | `0` | 体积重叠时的混合顺序；优先级高者后应用并胜出。 |
+| `weight` | number | `1` | 整个体积的混合权重，0–1。 |
+| `blendDistance` | number | `0` | 局部体积形状外的衰减距离。`0` 为硬边界。 |
+
+```typescript
+import { PostProcessVolume } from 'esengine';
+
+world.insert(volume, PostProcessVolume, {
+  effects: [
+    { type: 'bloom', enabled: true, uniforms: { u_threshold: 1.2, u_intensity: 1 } },
+    { type: 'vignette', enabled: true, uniforms: { u_intensity: 0.4 } },
+  ],
+});
+```
+
+### 体积混合
+
+全局体积贡献其 `weight`。局部体积在形状内贡献其 `weight`，在形状外 `blendDistance` 范围内线性衰减至 0，超出该范围不贡献。体积按 `priority`
+升序应用；每个已启用效果的每个参数按体积的系数混合：
+
+- 浮点参数从效果的中性值（效果不产生作用的值：强度类为 0，对比度、饱和度、缩放等乘性参数为 1）或前一个体积设定的值开始混合。
+- 颜色参数从效果声明的默认颜色开始混合。
+- 纹理参数不混合，由最后一个指定它的体积提供。
+
+场景数据和代码中的参数名带 `u_` 前缀（`u_intensity`、`u_exposure`）。体积未指定的参数取效果的默认值。
+
+### 世界单位参数
+
+表示世界长度的参数（遮蔽半径、雾高度、对焦距离）以每米 100 个世界单位声明默认值。体积未设置此类参数时，其默认值和范围跟随项目的
+**Units per Metre**；体积写明的值按原样使用。检视器以项目单位显示默认值和范围。
+
+## 效果目录
+
+| 效果 | 分类 | 说明 | 页面 |
+|---|---|---|---|
+| `tonemap` | 色彩 | 效果链内的 ACES 色调曲线 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#色调映射) |
+| `agx` | 色彩 | AgX 视图变换 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#agx) |
+| `colorGrade` | 色彩 | 曝光、对比度、饱和度、白平衡、分离色调、增益/偏移、抬升 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#调色) |
+| `lutGrade` | 色彩 | 作用于场景值的查找表调色 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#调色-lut) |
+| `displayLut` | 色彩 | 作用于显示值、位于输出变换之后的查找表调色 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#显示-lut) |
+| `autoExposure` | 色彩 | 随画面亮度自适应的曝光 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#自动曝光) |
+| `grayscale` | 色彩 | 去色 | [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/#灰度) |
+| `bloom` | 镜头 | 亮部辉光 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#泛光) |
+| `depthOfField` | 镜头 | 按到焦点的距离模糊 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#景深) |
+| `motionBlur` | 镜头 | 相机与物体运动模糊 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#运动模糊) |
+| `lensFlare` | 镜头 | 明亮光源产生的鬼影与光晕 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#镜头光晕) |
+| `filmGrain` | 镜头 | 集中于中间调的胶片颗粒 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#胶片颗粒) |
+| `chromaticAberration`、`lensDistortion`、`vignette` | 镜头 | 色散、桶形/枕形畸变、边缘压暗 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#镜头瑕疵) |
+| `sharpen` | 镜头 | 无光晕锐化 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#锐化) |
+| `fxaa`、`taa` | 抗锯齿 | 快速近似抗锯齿与时间性抗锯齿 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#抗锯齿) |
+| `blur`、`pixelate`、`palette`、`outline`、`depthOutline`、`edgeOutline` | 风格化 | 模糊、块状量化、调色板缩减、描边 | [镜头与画面效果](/docs/zh-cn/graphics/post-processing/image-effects/#风格化) |
+| `ssao`、`gtao` | 光照 | 屏幕空间环境光遮蔽 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#环境光遮蔽) |
+| `contactShadows` | 光照 | 短距离步进的接触阴影 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#接触阴影) |
+| `ssgi` | 光照 | 屏幕上表面之间的一次漫反射弹射 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#屏幕空间全局光照) |
+| `voxelGI` | 光照 | 基于世界空间体素缓存的漫反射全局光照 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#体素-gi) |
+| `ssr` | 光照 | 屏幕空间反射 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#屏幕空间反射) |
+| `subsurface` | 光照 | 被标记表面上的次表面散射 | [屏幕空间光照](/docs/zh-cn/graphics/post-processing/lighting/#次表面散射) |
+| `lightShafts` | 光照 | 屏幕空间太阳光束 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#光束) |
+| `skyAtmosphere` | 大气 | 带太阳、月亮、星星和体积云的散射天空 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#天空大气) |
+| `starfield` | 大气 | 叠加在已有天空上的星点与太阳圆盘 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#星空) |
+| `heightFog`、`distanceFog` | 大气 | 指数高度雾、线性距离雾 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#高度雾) |
+| `rain`、`snowCover` | 大气 | 降雨与降雪、潮湿地面与水坑；朝上表面上的积雪 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#雨与雪) |
+| `mist2d`、`fog2d`、`rain2d` | 大气 | 无深度场景的薄雾、战争迷雾与雨 | [天空、雾与天气](/docs/zh-cn/graphics/post-processing/sky-and-weather/#2d-大气) |
+
+用 `registerEffect` 或 `defineSkyEffect` 定义的效果出现在同一列表中（[脚本与自定义效果](/docs/zh-cn/graphics/post-processing/scripting/)）。
+
+## 效果顺序
+
+效果按体积 `effects[]` 的顺序执行，或按 pass 加入效果栈的顺序执行。顺序规则：
+
+| 效果 | 位置 | 原因 |
+|---|---|---|
+| `autoExposure` | `bloom` 之前 | 泛光由此获得适应后的曝光。 |
+| `colorGrade`（分离色调、增益/偏移、抬升） | `tonemap` 之后 | 这些控制作用于显示范围的值。 |
+| `taa` | 所有需要它平均噪点的效果之后 | 时间性 pass 只处理排在它之前的效果。 |
+| `agx`、`palette` | 最后 | AgX 输出显示线性值；Palette 对最终画面做量化。 |
+
+典型的效果链：`autoExposure` → `bloom` → `tonemap` → `colorGrade` → `vignette`。
+
+默认值下为恒等的效果：`colorGrade`、`lensDistortion`、未绑定查找表的 `lutGrade`。默认值下即可见的效果：`grayscale`（完全去色）、`vignette`、
+`bloom`、`blur`（强度 2）、`chromaticAberration`（3）、`pixelate`（4）、`outline`、`tonemap`。
+
+需要淡入淡出效果时，对体积的 `weight` 做动画，而非切换 `enabled`。
+
+## HDR 链路
+
+项目使用**线性**色彩空间时（[色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/#线性色彩空间)），只要浮点渲染目标可用，效果链即运行在半浮点目标上：WebGPU
+始终可用，WebGL2 需要 `EXT_color_buffer_float`。超过 `1.0` 的光（`intensity` 大于 1 的 `Light`）不经截断进入效果链：
+
+- **`u_threshold` 大于 1 的 `bloom`** 只对超范围能量产生辉光，普通 LDR 美术保持清晰。典型的自发光辉光设置为调高灯光的 `intensity`，并将
+  `u_threshold` 设在约 1.2–1.5。
+- **`tonemap`** 接收 HDR 输入，其曲线压缩高光，而不是对已截断的值整形。
+- 没有色调曲线时（既无 `tonemap` 也无输出变换），超范围值在最终的线性→sRGB 编码处被截断。
+
+在伽马色彩空间中，或没有浮点渲染目标时，效果链为 LDR（每通道 8 位）；此时泛光的 `u_threshold` 超过约 0.75 便不再触发。
+
+## 包中的效果
+
+每个包都包含效果定义（名称与参数）。着色器分为四组安装，包仅在其内容用到某组中的效果时才包含该组：
+
+| 组 | 子路径 | 效果 |
+|---|---|---|
+| 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、palette、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
+| 大气 | `esengine/fx-atmosphere` | mist2d、rain2d、fog2d、skyAtmosphere、starfield、heightFog、distanceFog、rain、snowCover |
+| 光照 | `esengine/fx-lighting` | ssao、gtao、ssr、ssgi、voxelGI、contactShadows、lightShafts、autoExposure、depthOfField、subsurface、taa |
+| AgX | `esengine/fx-agx` | agx（Blender 的 AgX 表，约 80 KB） |
+
+导出时读取 `PostProcessVolume` 组件中写明的效果，以及 `Weather` 和 `TimeOfDay` 组件（二者驱动大气组），并导入所需的组。从脚本添加的效果
+（`getEffectDef('bloom')!.factory()`）在内容中不留痕迹：需导入其所在组（`import 'esengine/fx-basic'`），或在项目设置中将该模块设为**包含**。否则该效果在首次使用时
+报告所需的组。编辑器以及任何非精简入口包含全部四组。
+
+<Aside type="tip">
+  每个 pass 都是一次全屏绘制。在低端设备和移动设备上应保持效果链简短，并优先选用以降低分辨率运行的效果。
+</Aside>
+
+## 参见
+
+- [色彩与曝光](/docs/zh-cn/graphics/post-processing/color/)
+- [脚本与自定义效果](/docs/zh-cn/graphics/post-processing/scripting/)
+- [材质与着色器](/docs/zh-cn/graphics/materials/overview/) —— 逐物体着色器，独立的路径。
+- [相机](/docs/zh-cn/graphics/camera/overview/)

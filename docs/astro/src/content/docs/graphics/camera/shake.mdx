@@ -1,0 +1,117 @@
+---
+title: Noise, shake & impulses
+description: View-perturbation reference — CameraNoise handheld drift, shakeCamera transient shakes and their options, CameraImpulseSource and CameraImpulseListener distance-based impulses, and fireImpulse.
+---
+
+Noise, shake and impulses move only the **drawn** view, never a camera's `Transform`. The perturbation does not
+accumulate, the camera always returns to its rest pose, and follow, dolly and look-at stages work from the camera's
+actual position.
+
+| Mechanism | Source | Scope | Applied |
+|---|---|---|---|
+| `CameraNoise` | Component on a camera | That camera, continuously | Per camera, before the blend |
+| `CameraImpulseSource` / `CameraImpulseListener` | Component fired at a position | Listening cameras, by distance | Per camera, before the blend |
+| `shakeCamera` | Function call | The resolved main view | After the blend |
+
+{/* SHOT: cam-impulse-source-details | Scene view with an Impulse Source entity selected next to a Follow Camera 2D: Details panel showing the CameraImpulseSource card (Amplitude, Rotation, Frequency, Attack, Sustain, Decay, Radius, Dissipation, Fire) */}
+
+## Handheld noise
+
+`CameraNoise` makes a camera drift and turn like a hand-held camera, or sway like one on a vehicle: six channels of
+smooth Perlin noise, three translating the view along its own right, up and forward axes and three rotating it about
+the same axes.
+
+```typescript
+import { CameraNoise } from 'esengine';
+
+cmds.entity(cameraEntity).insert(CameraNoise, { rotation: 0.5, frequency: 0.3 });              // handheld
+cmds.entity(carCamera).insert(CameraNoise, { amplitude: 4, rotation: 1.5, frequency: 2 });     // on a vehicle
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `amplitude` | number | `0` | Drift distance, in world units. |
+| `rotation` | number | `0.5` | Rotation, in degrees. About `0.5` corresponds to a hand-held camera. |
+| `frequency` | number | `0.3` | Rate at which the drift changes direction, in Hz: about `0.3` hand-held, `2` on a vehicle. |
+| `seed` | number | `0` | Noise pattern; `0` derives one from the entity, so no two cameras move alike. |
+
+Noise is applied to each camera before the director blends between cameras, so a blend from a shaking camera to a
+steady one settles. A 2D camera drifts across the screen and rolls. Noise follows the game clock and stops while the
+game is paused. Like the rest of the camera pipeline, it runs in play mode only.
+
+## Camera shake
+
+`shakeCamera` adds a decaying perturbation to the rendered view:
+
+```typescript
+import { shakeCamera } from 'esengine';
+
+shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
+```
+
+The first argument of `shakeCamera` and `setViewTarget` is either the `App` (host code) or the `CameraDirector`
+resource state. Inside a system, pass the value of `Res(CameraDirector)`:
+
+```typescript
+import { defineSystem, Res, Input, CameraDirector, shakeCamera } from 'esengine';
+
+const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, director) => {
+  if (input.isKeyPressed('Space')) shakeCamera(director, { amplitude: 16 });
+});
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `amplitude` | `12` | Peak positional offset (world units). |
+| `rotation` | `0` | Peak rotational offset (radians). |
+| `frequency` | `22` | Oscillations per second. |
+| `duration` | `0.4` | Seconds to decay to zero. |
+
+Impacts are expressed with a shake rather than by moving the camera, so the view always recovers. Active shakes are
+listed in the director's `shakes` field ([The camera director](/docs/graphics/camera/blending/#the-camera-director)).
+
+## Impulses: shakes from a place
+
+`shakeCamera` shakes the view regardless of where the cause is. An impulse is felt by distance: a camera near the source
+receives the full jolt, a distant one a weaker one or none. A `CameraImpulseSource` fires the impulse, and each camera
+with a `CameraImpulseListener` receives it according to its distance.
+
+```typescript
+import { CameraImpulseSource, CameraImpulseListener, fireImpulse } from 'esengine';
+
+cmds.entity(barrel).insert(CameraImpulseSource, { amplitude: 30, frequency: 8, decay: 0.6, radius: 300, dissipation: 2000 });
+cmds.entity(cameraEntity).insert(CameraImpulseListener, { gain: 1 });
+
+// On detonation:
+fireImpulse(world, barrel, 1.5);   // 1.5 × the authored strength
+```
+
+`fireImpulse(world, source, force = 1)` fires from the source entity's position and returns `false` when the entity
+has no `CameraImpulseSource` or `Transform`.
+
+| `CameraImpulseSource` | Type | Default | Description |
+|---|---|---|---|
+| `amplitude` | number | `20` | Displacement of the view at full strength, in world units. |
+| `rotation` | number | `1` | Rotation of the view at full strength, in degrees. |
+| `frequency` | number | `8` | Tremble frequency, in Hz. |
+| `attack` / `sustain` / `decay` | number | `0.02` / `0.1` / `0.6` | Seconds to reach full strength, to hold it, and to die away. |
+| `radius` | number | `300` | Distance within which the impulse is felt at full strength. |
+| `dissipation` | number | `2000` | Distance beyond the radius over which it fades to zero. |
+| `propagationSpeed` | number | `0` | Travel speed in world units per second, so a distant camera feels it later; `0` is everywhere at once. |
+| `channels` | bitmask | `1` | Listeners that feel it: those sharing a channel bit. |
+| `fire` | boolean | `false` | Set to fire from this entity (from a timeline, a visual script, or the Details panel during play); cleared once fired. |
+
+| `CameraImpulseListener` | Type | Default | Description |
+|---|---|---|---|
+| `channels` | bitmask | `1` | Impulses this camera feels: those sharing a channel bit. |
+| `gain` | number | `1` | Strength multiplier: `1` as fired, `0` none. |
+| `use2DDistance` | boolean | `false` | Measure distance on the X/Y plane only, for a 2D camera standing off the plane it shows. |
+
+The Impulse Source item in the Create menu creates a source. The Follow Camera 2D, Tracking Camera and target-group
+camera rigs include a listener. A timeline can fire an impulse source from a track
+([Timeline](/docs/animation/timeline/#camera-shakes)).
+
+## See also
+
+- [Following & framing](/docs/graphics/camera/follow/): the pipeline stages before noise.
+- [Blending & switching](/docs/graphics/camera/blending/): the director that applies shakes.

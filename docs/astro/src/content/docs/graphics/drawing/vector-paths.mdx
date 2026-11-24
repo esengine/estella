@@ -1,0 +1,161 @@
+---
+title: Vector Paths
+description: Vector shapes from paths — the retained Graphics recorder (paths, curves, fills, strokes, feathering, drawing copies with flush and flushMany) and setPath / buildPathGeometry for filled and stroked paths stored on a MeshRenderer.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Two APIs turn paths into triangles:
+
+| API | Drawn | Lifetime |
+|---|---|---|
+| `Graphics` | In a draw callback, over the scene, through `Draw`. | Retained in the `Graphics` object; drawn each frame by `flush()`. |
+| `setPath` | By the entity's `MeshRenderer`, sorted and batched with other renderables. | Stored on the entity; saved with the scene. |
+
+## `Graphics`
+
+`Graphics` records paths and shapes, tessellates them once, and draws the triangles through `Draw` on `flush()`.
+
+```typescript
+import { Graphics, registerDrawCallback } from 'esengine';
+
+const g = new Graphics();
+g.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+g.beginFill({ r: 0, g: 0.5, b: 1, a: 1 });
+g.drawRoundRect(-50, -25, 100, 50, 8);
+g.endFill();
+g.moveTo(0, 0);
+g.curveTo(50, 80, 100, 0);           // quadratic Bézier
+
+registerDrawCallback('hud-shape', () => g.flush());
+```
+
+### Recording
+
+| Method | Effect |
+|---|---|
+| `moveTo(x, y)` / `lineTo(x, y)` / `closePath()` | Path construction. |
+| `curveTo(cpx, cpy, x, y, segments?)` | Quadratic Bézier. |
+| `cubicCurveTo(cp1x, cp1y, cp2x, cp2y, x, y, segments?)` | Cubic Bézier. |
+| `arc(cx, cy, radius, startAngle, endAngle, anticlockwise?, segments?)` | Arc. |
+| `drawRect`, `drawRoundRect`, `drawCircle`, `drawEllipse`, `drawPolygon(points)` | Complete shapes. |
+| `lineStyle(thickness, color, { join?, cap?, miterLimit? })` | Stroke style. `join`: `'miter'` (default), `'round'`, `'bevel'`. `cap`: `'butt'`, `'round'`, `'square'`. Thickness `0` draws no stroke. |
+| `beginFill(color)` / `endFill()` | Fills everything drawn between them, including `moveTo` / `lineTo` paths and concave outlines. |
+| `feather` (property) | Width, in drawing units, over which every outer edge fades to transparent: anti-aliasing for quality levels without MSAA. |
+| `clear()` | Discards the recording. |
+
+A path takes the style in force when it ends. A path ends at a new `moveTo`, a style change, a shape, `closePath()` or
+a draw. A style change part-way along a line continues from the same point.
+
+### Tessellation and GPU memory
+
+- The drawing is tessellated the first time it is drawn after a change; `flush()` is then one `Draw.triangles` call.
+- The triangles are uploaded to the GPU on that first draw and stay there. A flush sends only the copy's transform and
+  tint; the GPU transforms the vertices, and consecutive flushes form one instanced draw.
+- `dispose()` releases the GPU memory early. An undisposed `Graphics` releases it when garbage-collected.
+- `geometry()` returns the triangles as `MeshRenderer` geometry, for a `MeshRenderer` that should keep them.
+
+### Drawing copies
+
+`flush({ x, y, rotation, scale, alpha, tint })` draws the same triangles moved, rotated, scaled about the drawing's own
+origin, and faded. Nothing is rebuilt and no texture is created.
+
+| Option | Effect |
+|---|---|
+| `x`, `y` | Offset applied after rotation and scale. |
+| `rotation` | Rotation about the drawing's origin, in radians. |
+| `scale` | Scale about the drawing's origin: one factor, or `{ x, y }`. |
+| `alpha` | Multiplies every colour's alpha. |
+| `tint` | Multiplies every colour. |
+
+```typescript
+const hexagon = new Graphics();
+hexagon.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+hexagon.beginFill({ r: 1, g: 0.85, b: 0.4, a: 0.6 });
+hexagon.drawPolygon(Array.from({ length: 6 }, (_, i) => ({
+  x: Math.cos((i / 6) * Math.PI * 2) * 26,
+  y: Math.sin((i / 6) * Math.PI * 2) * 26,
+})));
+hexagon.endFill();
+
+registerDrawCallback('hit-flashes', () => {
+  for (const hit of hits) {
+    hexagon.flush({ x: hit.x, y: hit.y, scale: 0.7 + hit.age * 0.6, alpha: 1 - hit.age });
+  }
+});
+```
+
+`flushMany(copies, count?)` draws many copies in one call. `copies` holds `GRAPHICS_COPY_STRIDE` (8) numbers per copy:
+`x, y, rotation, scale, r, g, b, alpha`. The result equals one `flush()` per copy without a call into the engine per
+copy. Reuse one array across frames:
+
+```typescript
+import { GRAPHICS_COPY_STRIDE } from 'esengine';
+
+const copies = new Float32Array(MAX_HITS * GRAPHICS_COPY_STRIDE);
+
+registerDrawCallback('hit-flashes', () => {
+  let n = 0;
+  for (const hit of hits) {
+    copies.set([hit.x, hit.y, 0, 0.7 + hit.age * 0.6, 1, 1, 1, 1 - hit.age], n++ * GRAPHICS_COPY_STRIDE);
+  }
+  hexagon.flushMany(copies, n);
+});
+```
+
+<Aside type="caution">
+  Fade shapes with `alpha` or `tint`, not by re-rendering them into a texture. Uploading a new texture whenever the
+  opacity changes costs a texture upload per frame, which is expensive on mobile GPUs.
+</Aside>
+
+## Scene paths: `setPath`
+
+`setPath(app, entity, points, style)` builds a path's geometry and stores it on the entity's `MeshRenderer`, adding the
+component if absent. The shape then sorts, batches and clips like any other renderable, and the scene saves it as mesh
+geometry.
+
+```typescript
+import { setPath, circlePoints, cubicBezier } from 'esengine';
+
+// A star with a round hole, filled orange and outlined with mitered corners.
+setPath(app, entity, starPoints, {
+  fill: { color: [1, 0.55, 0.1, 1], holes: [circlePoints(0, 0, 14)] },
+  stroke: { color: [0.2, 0.1, 0.05, 1], width: 8, join: 'miter' },
+  closed: true,
+});
+
+// An open curve with round caps and joins.
+setPath(app, other, cubicBezier(p0, p1, p2, p3), {
+  stroke: { color: [0.2, 0.8, 0.9, 1], width: 14, join: 'round', cap: 'round' },
+});
+```
+
+| Function | Effect |
+|---|---|
+| `setPath(app, entity, points, style)` | Builds and uploads the geometry. Calling it again with new points replaces the shape; the cost is one tessellation, and nothing while the path is unchanged. A result with no triangles clears the geometry. |
+| `clearPath(app, entity)` | Removes the path geometry; the `MeshRenderer` remains. |
+| `buildPathGeometry(points, style)` | Returns the geometry without an entity. |
+| `cubicBezier(p0, p1, p2, p3, tolerance?)` / `quadraticBezier(p0, p1, p2, tolerance?)` | Flattens a curve into points. |
+| `circlePoints(cx, cy, radius, segments?, startAngle?, endAngle?)` | Points on a circle or arc. |
+
+### `PathStyle`
+
+| Field | Description |
+|---|---|
+| `fill: { color, holes? }` | Ear-clipped fill of any simple polygon, concave included. `holes` are rings cut out of it. |
+| `stroke: { color, width, join?, cap?, miterLimit? }` | `join`: `'miter'` (default), `'round'`, `'bevel'`; a miter longer than `miterLimit` (default 4) half-widths is bevelled. `cap`: `'butt'` (default), `'round'`, `'square'`. The stroke does not overlap itself at corners, so translucent strokes are even. |
+| `closed` | Joins the last point to the first; the stroke has no caps. Fills are always closed. |
+| `feather` | Fade to transparent over this many units along every outer edge; anti-aliasing for quality levels without multisampling. Default `0`. |
+| `arcStep` | Maximum angle, in radians, of one segment of a round join or cap. Default `0.25`. |
+
+Constraints:
+
+- Self-intersecting polygons are filled by their ear clip; a figure-eight loses its crossing.
+- A hole must lie inside the outline.
+
+{/* SHOT: draw-set-path | Game view during Play: entities drawn with setPath — an orange star with a round hole and a mitered dark outline, and an open cyan curve with round caps — beside a sprite to show they sort with scene renderables */}
+
+## See also
+
+- [Custom Drawing](/docs/graphics/drawing/overview/) — draw callbacks and the `Draw` API.
+- [Meshes](/docs/graphics/drawing/meshes/) — `MeshRenderer` geometry and the `MeshRenderers` resource.

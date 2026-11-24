@@ -1,0 +1,201 @@
+---
+title: Lakes, Rivers & Waterfalls
+description: Lake and ocean shores, how water bodies shape the terrain (built-in and Curve Channel), basin and drainage analysis, rivers and their current, the Spline component and SplineCurve, and the Waterfall and WaterfallAnchor components.
+---
+
+This page covers the shape-specific behaviour of [water bodies](/docs/graphics/water/overview/#water-bodies): where lakes and the
+ocean meet the ground, how bodies cut the terrain, rivers along splines, and waterfalls.
+
+{/* SHOT: water-river-handles | A river WaterBody selected in the scene view over terrain: spline point squares, edge-midpoint circles and width handles offset across the river; Details shows the Spline point editor (Point, Type, Location, Width, Depth, Velocity, Audio Intensity) for the selected point */}
+
+## Lakes and shores
+
+A lake is its outline at its entity's height. The zone computes the signed distance to the outline and, with a `Terrain`
+in the scene, the depth of water over it; from these it derives the share of the waves each point keeps (none at the
+edge or in shallow water, all from `shoreWidth` in). The surface is cut along the outline (traced at the zone's
+resolution, not the mesh's cells), geometry and shading calm toward the shore, and the shore foams.
+
+The water fills low ground and meets hills where they cross it; waves die out as it shallows. A body is water only where
+its surface is above its ground: a hill or bank inside a lake outline or river width that stands above the water is land,
+both for rendering and for queries. Over no terrain, a lake has unlimited depth. The outline must not self-intersect.
+
+The ocean takes its shore from the terrain the same way: inside the zone it is cut where the ground stands above its
+level, and its waves calm over `shoreWidth` of depth. The ocean is the open sea beyond the zone's edge: low ground is sea
+only where low ground connects it to that edge, so a hollow below sea level enclosed by higher ground stays dry (or holds
+a lake of its own). Beyond the zone the ocean is everywhere at its level with full waves.
+
+Where bodies overlap, a lake holds the water over a river (a river entering a lake takes the lake's level there, its
+current fading into still water) and both hold it over the ocean. The water surface casts no shadow: the sun lights what
+is under it through the caustics.
+
+## Terrain shaping
+
+Lakes, rivers and islands change the terrain under and around them when `affectsTerrain` is on (default). Changes are
+laid as [terrain modifiers](/docs/graphics/terrain/rendering-and-code/#modifiers), so the drawn ground, its queries and
+collision all follow, and editing a body rebuilds only the ground it covers.
+
+- A **lake** with `bedDepth` cuts its floor under its outline, sloping down from the shore.
+- A **river** with `bedDepth` (or per-point `depth`, see [Splines](#splines)) cuts a trough `bedDepth` below the surface at its middle, reaching the surface at its edge;
+  the banks continue at the same slope until they meet the ground, at most two widths out. Each stretch of river is one
+  modifier, so editing the spline rebuilds only the ground along it. Ground already lower than the bed is left alone.
+- An **island** raises the ground inside its outline to its own height, with its slope running down over `shoreWidth`.
+- Ground a game carves itself (a heightmap that already contains its rivers) keeps `bedDepth` at 0, or `affectsTerrain`
+  off.
+
+`channelShape` selects the cut profile: **Built In** (above), or **Curve Channel**, configured by the fields below.
+
+| Field | Description |
+|---|---|
+| `elevationCurve` | Bed profile across the ramp: from the curve start (0, at the shore plus `channelEdgeOffset`) to the ramp end (1), the share of full depth cut. Keep its end at 1 so the body's depth (or a river point's) is reached. |
+| `channelEdgeOffset` | Distance in from the shore where the curve starts. Negative starts it on the bank, widening the cut past the water. |
+| `curveRampWidth` | Width over which the curve ramps from its start to full depth. |
+| `terrainBlend` | **Alpha Blend** (default): cuts higher ground and raises lower ground, so the water always has ground at its level. **Min**: cuts only (for a river entering a lake, so it does not raise the lake floor). **Max**: raises only. **Additive**: adds the cut a flat ground would receive, keeping the ground's own detail and slope but not exact bed heights. |
+| `falloffMode` | **Width**: the bank returns to the terrain over `falloffWidth`. **Angle**: the bank runs out at `falloffAngle` until it meets the ground, at most `falloffWidth`. |
+| `falloffWidth`, `falloffAngle` | Falloff width (or maximum reach), and bank slope in degrees from level. |
+| `falloffEdgeOffset` | Flat edge at water level before the falloff starts: a level bank even where a river cuts through a hill. |
+| `terrainZOffset` | Raises (or, negative, lowers) the whole cut relative to the water surface. |
+| `terraceAlpha`, `terraceSpacing`, `terraceSmoothness` | Terraces over the cut: amount (0 none, 1 fully stepped), rise per terrace, and edge roundness (0 sheer, 1 no steps). |
+| `terraceMaskLength`, `terraceMaskStartOffset` | Restrict terraces to a span of distance out from the water's edge, starting at the offset. Length 0 terraces everywhere. |
+| `blurRadius` | Averages the cut over this radius, softening edges and corners. 0: none. |
+| `curlAmount1`, `curlTiling1`, `curlAmount2`, `curlTiling2` | Two octaves of curl noise bending the cut outline: displacement and swirl size. |
+| `innerSmoothDistance`, `outerSmoothDistance` | Rounds the inner edge (bed to bank) over a width, and the outer edge (bank to ground) over a height. |
+
+All lengths are in world units.
+
+## Basins and drainage
+
+Placing a world's lakes and rivers is the game's (or its generator's) decision. `findBasins(grid, ground, { seaLevel })`
+(`esengine/water`) provides the terrain analysis from one priority flood over a grid:
+
+| Result | Description |
+|---|---|
+| `basins` | Each hollow, with the `level` water would fill it to (the lowest point of its rim), its `deepest` point, and its `outlet` where it overflows. |
+| `filled` | Height water would stand at over each texel. |
+| `basin` | Which basin each texel belongs to. |
+| `downstream`, `accumulation` | Where each texel drains to (down to the region edge) and how much drains through it — where rivers run. |
+| `sea` | With a sea level, the low ground the sea reaches from the edge. |
+
+`drainPath(map, x, z)` follows the drainage from a point. A lake placed at a basin's `level` over its outline fills it to
+the brim; a river from its `outlet` along `drainPath` runs where water would.
+
+## Rivers
+
+A river follows the `Spline` on its own entity: its width is the curve's width at each point and its surface is the
+curve's height at the nearest point, so a river runs downhill. Put a `Spline` and a `WaterBody` with `form` **River** on
+one entity and the zone bakes it.
+
+- **Current.** `flowSpeed` is the speed where the river is at its widest. A narrower reach runs faster and a wider one
+  slower, between a quarter and double that speed, as the same discharge through a different width. The direction is
+  the curve's. The current fades in over one width from the river's start and out over one width into whatever it
+  enters, so a river mouth is still water. A spline point's `velocity` overrides `flowSpeed` locally.
+- **Advected surface.** The shader carries waves and ripples downstream: two copies of the surface move along the
+  current a cycle at a time, each fading in as the other fades out, so the reset of one is hidden and the surface does
+  not stretch at bends.
+- **Waves.** A river has its own `waveHeight`, calmed toward its banks over `shoreWidth`, like any body. `Waters.sample`
+  returns the current in `flow` (world units per second, along the river; zero elsewhere).
+- **Banks and mouths.** A bank is where the field's shore distance crosses zero, traced at the zone's resolution. Where a
+  river enters a lake, the sea or another river, the two are blended over one and a half texels: no seam, no shore across
+  the mouth, no step in height.
+
+## Splines
+
+`Spline` is data; nothing draws it. A river reads the spline on its entity; any other system that follows a path can
+read it with `SplineCurve` (`esengine/spline`, an optional module).
+
+| Field | Description |
+|---|---|
+| `points` | Points the curve passes through, in order, in the entity's own space. |
+| `closed` | Joins the end to the start (three or more points). |
+
+| Point property | Description |
+|---|---|
+| `x`, `y`, `z` | Position in the entity's space. |
+| `width` | Width of whatever follows the curve here, eased to the next point's. |
+| `type` | Segment to the next point: `curve` (default), `customTangent`, `linear` or `constant`. |
+| `arriveTangent`, `leaveTangent` | With `customTangent`: direction and pull entering and leaving the point. |
+| `depth`, `velocity`, `audioIntensity` | Optional per-point river values, eased along the curve. Absent: the body's `bedDepth` and `flowSpeed`, and loudness 1. |
+
+```ts
+import { SplineCurve } from 'esengine/spline';
+
+const curve = new SplineCurve(spline.points, spline.closed);
+curve.position(s);   // the point at distance s along the curve
+curve.tangent(s);    // direction of travel there
+curve.width(s);      // width there, eased between points
+curve.nearest(x, z); // nearest place in the xz plane: s, distance, side
+```
+
+The default segment is a centripetal Catmull-Rom curve: it passes through every point and does not loop or cusp where
+points are unevenly spaced. It is parameterised by distance, so `s` is in world units from the start rather than a
+parameter that runs fast where points are close. Beyond either end an open curve clamps to the end; a closed curve
+wraps.
+
+In Details, the Spline section lists the point count, steps through points (first, previous, next, last), and edits the
+selected point's input key, location, type, tangents, width and, on a river, depth, velocity and audio intensity.
+
+## Waterfalls
+
+A river's surface is a field over the ground and cannot stand vertically, so a river reaching a cliff stops at its edge.
+A **`Waterfall`** continues from there. Place it on an entity at the lip, facing the direction the water leaves (its
+forward). Water is thrown level at `speed` and pulled down by gravity; each sheet ends where it meets the ground, water
+other than the water it left, or `maxDrop` below the lip. It is drawn as the entity's own `MeshRenderer` and rebuilt when
+its fields, its position or what lies under it change.
+
+{/* SHOT: water-waterfall | A Waterfall at a cliff lip in the scene view, three sheets falling into a pool with a foot-mist ParticleEmitter on a WaterfallAnchor child; Details shows the Waterfall fields */}
+
+| Field | Description |
+|---|---|
+| `width` | Width of the water at the lip. |
+| `speed` | Exit speed, level along the entity's forward. Faster throws the water further from the cliff. |
+| `flare` | Extra width at a sheet's foot, as a share of its width (1 is twice as wide). |
+| `sheets`, `sheetGap` | Number of sheets (1–5), one behind another along the throw, and their spacing at the lip. The middle sheet is full width; the others are narrower. |
+| `maxDrop` | Drop below the lip at which a fall that meets nothing ends. |
+| `rows`, `across` | Rows down a sheet (2–256) and cells across it (1–32). |
+
+Only the entity's rotation about the vertical aims the fall; keep it upright and unscaled.
+
+**Waterfall shader.** With no material on the `MeshRenderer`, the stock **Waterfall** shader is used: clear water at the
+lip that tears into strands and then veils, the pattern travelling down with the water.
+
+| Parameter | Description |
+|---|---|
+| `u_water`, `u_foam` | Colour at the lip, and the white it breaks into. |
+| `u_strands` | Strands across half a sheet. |
+| `u_run` | Times per second of fall a strand changes (fewer: longer strands). |
+| `u_veil`, `u_tearBy` | Share of the sheet gone at its foot, and how far down it is torn that much. |
+| `u_opacity`, `u_roughness` | Opacity and roughness. |
+| `u_translucency` | Light transmitted through the sheet, lit from whichever side the sun is on. 0 lights it as an opaque surface. |
+
+A custom material can read the mesh data: `uv.x` across the sheet, `uv.y` seconds the water there has been falling,
+vertex colour red the share of the fall completed, green a per-sheet number.
+
+### WaterfallAnchor
+
+Content belonging to a place on the fall is a child entity with **`WaterfallAnchor`**. The fall keeps that child on the
+middle of its path, `lift` above it:
+
+| Field | Description |
+|---|---|
+| `at` | Position on the fall as a share of the fall time: 0 the lip, 1 (default) the foot, wherever the water lands. |
+| `lift` | Height above the fall's path. |
+
+A [`ParticleEmitter`](/docs/world/particles/) on the child provides mist, which moves with the foot when the ground or the
+water under the fall changes:
+
+```json
+{ "name": "Foot Mist", "parent": 31, "components": [
+  { "type": "Transform", "data": {} },
+  { "type": "WaterfallAnchor", "data": { "at": 1 } },
+  { "type": "ParticleEmitter", "data": { "shape": 5, "shapeRadius": 700, "rate": 22, "speedMin": 150, "speedMax": 600,
+      "lifetimeMin": 4, "lifetimeMax": 8, "startSizeMin": 400, "startSizeMax": 800, "endSizeMin": 1400, "endSizeMax": 2400,
+      "blendMode": 0, "startColor": { "r": 1, "g": 1, "b": 1, "a": 0.12 }, "endColor": { "r": 1, "g": 1, "b": 1, "a": 0 } } } ] }
+```
+
+The anchor sets the child's position only, in the fall's own space; its rotation and scale are left as authored.
+
+## Limits
+
+- **Lake outlines are planar polygons.** They do not follow a curved shore.
+- **No flow-driven foam.** Rapids and falls are not foamed by water speed or steepness.
+- **Beds are cut only on request.** A lake cuts its floor only with `bedDepth` above zero; a river only where `bedDepth`
+  or a point's `depth` is above zero. Both require `affectsTerrain`.

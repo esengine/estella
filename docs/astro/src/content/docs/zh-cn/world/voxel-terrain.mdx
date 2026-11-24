@@ -3,7 +3,7 @@ title: 体积地形
 description: 地面是一个体积，所以能有洞穴和悬垂结构；游戏运行时可以开挖，碰撞随之更新，改动按块存档。
 ---
 
-[Terrain](/docs/zh-cn/graphics/terrain/) 每个位置只有一个高度，所以表现不了洞穴、悬垂和孔洞。`VoxelTerrain` 在三维网格的每个点上存一个有符号距离，所以可以。适合地面本身就是玩法的游戏：采矿、生存、可破坏世界。它和 Terrain 并存，不替换 Terrain；它是可选模块（`esengine/voxel`），不用它的游戏不会带上它。
+[Terrain](/docs/zh-cn/graphics/terrain/overview/) 每个位置只有一个高度，所以表现不了洞穴、悬垂和孔洞。`VoxelTerrain` 在三维网格的每个点上存一个有符号距离，所以可以。适合地面本身就是玩法的游戏：采矿、生存、可破坏世界。它和 Terrain 并存，不替换 Terrain；它是可选模块（`esengine/voxel`），不用它的游戏不会带上它。
 
 ## 添加
 
@@ -88,7 +88,7 @@ voxels.restore(entity, delta, true);                   // 把这些块叠加到�
 
 ## 限制
 
-- **没有 LOD。** `drawDistance` 内的块都是全精度绘制。默认地面在 `drawDistance` 96、`cellSize` 1 时约 170 块、24 万三角形，远景开销比 [Terrain](/docs/zh-cn/graphics/terrain/) 高。
+- **没有 LOD。** `drawDistance` 内的块都是全精度绘制。默认地面在 `drawDistance` 96、`cellSize` 1 时约 170 块、24 万三角形，远景开销比 [Terrain](/docs/zh-cn/graphics/terrain/overview/) 高。
 - **编辑器里没有笔刷。** 布置场景时体积会被绘制，但改动只能在运行时用代码完成。
 - **不能在 Terrain 上开洞。** 两者是各自独立的地面。想挖 Terrain 的形状，用 `heightVoxelSource` 生成体积，并改为绘制体积。
 - **编辑过的块完整保存在内存里，** 默认 24 格时每块约 35 KB，游戏运行期间一直保留。

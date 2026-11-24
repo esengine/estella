@@ -1,0 +1,151 @@
+---
+title: 烘焙光照
+description: 烘焙光照参考——通过 MeshLightmap 与第二套 UV 使用光照贴图、lit 与烘焙的关系、在编辑器和命令行中烘焙、BakedLighting 设置、带稀疏分块和运行时捕获的光照探针体积，以及反射探针。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+烘焙将不移动的光照离线计算一次并存入纹理。运行时表面读取一个纹素，而不是逐盏计算光源，因此烘焙光源的数量不影响帧开销，也不受[每帧光源上限](/docs/zh-cn/graphics/lighting/lights/#每帧光源上限)约束。
+
+| 组件 | 保存内容 | 读取者 |
+|---|---|---|
+| `MeshLightmap` | 光照贴图图集及本对象在其中的矩形 | 带第二套 UV 的静态网格 |
+| `LightProbeVolume` | 盒内按网格烘焙的辐照度 | 移动物体、角色以及没有光照贴图 UV 的网格 |
+| `ReflectionProbe` | 盒内的烘焙反射 | 盒内的光滑和金属表面 |
+| `BakedLighting` | 场景的烘焙设置及上次烘焙的指纹 | 烘焙器和光照面板 |
+
+## 光照贴图
+
+光照贴图需要两样东西：
+
+- **带第二套 UV 的网格。** 第一套 UV 用于包裹美术资源，可以重叠；光照贴图要求每个表面拥有独立区域。模型带第二套 UV 时，两个导入器都会保留它（glTF 的 `TEXCOORD_1`、FBX 的第二个 UV 层）。模型导入器也可以生成一套（[模型](/docs/zh-cn/assets/models/)）。
+- **`MeshLightmap` 组件**，由烘焙写入。
+
+### `MeshLightmap`
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `lightmap` | — | 烘焙图集。未设置表示没有烘焙：对象保留实时光照。 |
+| `scaleOffset` | `(1, 1, 0, 0)` | 图集中的矩形：`xy` 缩放第二套 UV，`zw` 偏移它。`(1, 1, 0, 0)` 读取整张纹理，即单对象烘焙的结果。 |
+
+矩形按实体而不是按网格设置：同一网格放置两次，两处光照不同。网格带第二套 UV 但没有 `MeshLightmap` 的对象渲染不变；零矩形被视为“没有烘焙”，而不是全黑的图集。
+
+### `lit` 与烘焙光
+
+光照贴图的含义取决于渲染组件的 `lit` 开关：
+
+| `lit` | 有 `MeshLightmap` | 没有 |
+| --- | --- | --- |
+| 开 | 实时光照**加上**烘焙，烘焙提供间接光项 | 仅实时光照 |
+| 关 | 烘焙就是表面光照的**全部** | 不受光：纹理原样显示 |
+
+`lit` 关闭时，所有光源都已烘焙的场景不承担逐光源开销。
+
+蒙皮网格不使用烘焙。烘焙场景中的角色由实时光源和探针体积照亮。
+
+## 烘焙
+
+| 方式 | 说明 |
+|---|---|
+| **光照**面板 → **烘焙光照**（也可使用 **烘焙光照** 命令） | 在场景旁写出图集，并填写所有 `MeshLightmap`、探针体积和反射探针。整体为一个撤销步骤。 |
+| `node pipeline/bin/estella.mjs bake-scene <scene.esscene>` | 命令行上的同一烘焙。`--check` 校验已提交的结果是否为该场景的烘焙。含父子层级实体或预制体实例的场景必须在编辑器中烘焙。 |
+
+其他工具产生的光照贴图（Blender Cycles、Substance 烘焙、任何写出光照贴图及其 UV 布局的渲染器）以同样方式读取：约定在组件上，与烘焙器无关。
+
+光照面板显示场景处于 **尚未烘焙**、**已是最新** 还是 **已过期**（烘焙读取的内容在此后发生了变化），烘焙表面、移动物体和探针体积的数量，烘焙设置，以及所选对象的光照来源（光照贴图、探针体积、实时光源或仅环境光），在对象没有烘焙光时给出原因。
+
+{/* SHOT: light-lighting-panel | The Lighting panel docked on the left with a baked scene: state Up to date, the surface / moving / probe volume counts, the Bake settings group (Atlas size, Texels / unit, Bounces, Samples, Probe samples, Probe levels, Sky occlusion), the Bake Lighting button, and the Selected object section for a static mesh reporting baked light from the lightmap atlas. */}
+
+### 烘焙设置
+
+`BakedLighting` 组件保存场景的烘焙设置。没有它时烘焙使用默认值；光照面板中的 **添加光照设置** 会添加它。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `atlasSize` | `1024` | 正方形图集的边长，纹素。 |
+| `texelsPerUnit` | `0.25` | 光照贴图密度，每世界单位的纹素数（一个世界单位为一个设计像素）。 |
+| `bounces` | `8` | 模拟的光线反弹次数。`0` 只有直接光。浅色墙面的封闭房间需要 8 次或更多。 |
+| `samples` | `64` | 每个光照贴图纹素每次反弹采集的射线数。 |
+| `probeSamples` | `128` | 每个探针在整个球面上采集的方向数。 |
+| `skyOcclusion` | `false` | 探针记录能看到多少天空而不是天空本身，使运行时的天空（大气、天气）照亮探针，室内保持暗。 |
+| `probeLevels` | `1` | 探针体积可使用的分块尺寸数（1–4）；见[稀疏分块](#稀疏分块)。 |
+| `bakedFrom` | `''` | 上次烘焙所读输入的指纹，由烘焙器写入。 |
+
+## 光照探针体积
+
+**`LightProbeVolume`** 是按网格烘焙辐照度的盒子。盒内的物体从周围的探针获取间接光，而不是从本帧唯一的环境获取。它照亮光照贴图无法处理的对象：移动物体、角色以及没有光照贴图 UV 的网格。
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `probes` | — | 烘焙网格（`.esprobes`）。未设置：尚未烘焙，盒内物体与没有体积时一样受光。 |
+| `halfExtents` | `{100,100,100}` | 从实体位置起的盒子半尺寸，世界单位。 |
+| `spacing` | `100` | 下次烘焙的探针间距，世界单位。修改后要到下次烘焙才生效。 |
+| `capture` | `false` | 在运行时从盒子中心的捕获填充，代替 `probes`。 |
+| `captureInterval` | `0` | 配合 `capture`：两次捕获之间的秒数；`0` 只捕获一次。 |
+| `enabled` | `true` | 禁用的体积被跳过。 |
+
+盒子在实体世界位置处轴对齐；不读取旋转和缩放。
+
+### 稀疏分块
+
+网格以 4 × 4 × 4 个单元的**分块**存储在 3D 图集中，每个分块通过一个索引单元定位。**`BakedLighting.probeLevels`** 大于 1 时（光照面板中的 **探针层级**），烘焙只在靠近几何体的分块中保持体积的 `spacing`，空旷处按其 2、4 或 8 倍采样。沿地面和墙面间距很细的大体积因此用少得多的探针即可烘焙，每个体积的探针上限每增加一级扩大八倍。细分块与粗分块相邻时，细分块的那一面取粗分块的值，因此间距变化处没有接缝。所有分块都是最细级别时，网格按密集方式写出，与一级时相同。
+
+在编辑器中选中体积会显示已加载的网格：稀疏网格绘制其分块，最细的为紫色，较粗的依次为琥珀色（2 倍）、淡黄色（4 倍）和灰色（8 倍）；密集网格在每个探针处绘制一个十字。显示内容反映引擎已加载的网格，而不是组件当前的 `spacing`。
+
+{/* SHOT: light-probe-bricks | A baked LightProbeVolume selected in the scene view of an interior with Probe levels 3: violet fine bricks along the floor and walls, amber and pale yellow coarser bricks in the open air; Details shows the Light Probe Volume card. */}
+
+### 逐像素与逐对象读取
+
+| 读取者 | 读取方式 |
+|---|---|
+| **没有**光照贴图 UV 的网格，画质设置 **逐像素光照探针** 开启 | 在每个像素处读取网格：每次查询十次纹理读取（索引单元，再加每个系数一次过滤读取）。 |
+| **有**光照贴图 UV 的网格，或 **逐像素光照探针** 关闭时的任意网格 | 在对象位置读取一个值。GPU 上不保留图集。 |
+
+**逐像素光照探针**（`probesPerPixel`）在低档关闭，中档和高档开启，关闭画质系统时开启。逐对象读取时，从明亮院子伸入暗棚的长网格整体受到相同光照。`get_stats` 和帧统计报告 `probes`：逐像素和逐对象读取的绘制数，以及图集占用的字节数。
+
+### 运行时捕获
+
+烘焙只能看到它能保存的内容：没有光照贴图 UV 的网格在烘焙中为黑色，因此照亮这类墙面的灯对探针没有贡献。开启 **`capture`** 后，`LightProbeVolume` 改为在运行时填充：从盒子中心向各方向渲染场景（当前受光的墙面、透过开口看到的天空），盒内物体读取这份光照代替烘焙。这相当于实时天空光或反射捕获。
+
+```ts
+entity.insert(LightProbeVolume, { halfExtents: { x: 22, y: 7, z: 11 }, capture: true, captureInterval: 2 });
+```
+
+- 每帧渲染一个 32 像素的面：一次捕获相当于分摊在六帧中的六次小规模场景绘制。
+- 每次捕获看到的是上次捕获照亮的房间，因此重复捕获会增加反弹次数。
+- 一个盒子只有一个采样点：适合一个房间，不适合两端差异很大的长厅。应使用多个盒子。
+- 盒内光滑表面的**反射**也来自这次捕获，并投影到盒子的墙面上。场景中有烘焙的 `ReflectionProbe` 时仍使用烘焙结果；一帧只绑定一张反射图集。
+- 盒子中心应保持空旷：包围该点的物体会占满整个捕获。
+
+## 反射探针
+
+光照贴图提供漫反射光。没有探针时，光滑和金属表面反射天空，室内也是如此。**`ReflectionProbe`** 是一个反射来自烘焙的盒子，与 `LightProbeVolume` 由同一次烘焙填充。
+
+```typescript
+world.insert(room, ReflectionProbe, { halfExtents: { x: 400, y: 220, z: 400 } });
+```
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `halfExtents` | `{200,200,200}` | 从实体位置起的盒子半尺寸。 |
+| `reflection` | — | 场景的烘焙反射图集（`.esenv`），由烘焙器写入。 |
+| `slot` | `0` | 本探针在图集中的列。第 0 列为环境；`0` 表示尚未烘焙。由烘焙器写入。 |
+| `enabled` | `true` | 关闭时盒内表面反射天空。 |
+
+烘焙器从探针位置捕获整个球面，针对每个粗糙度级别预过滤，并将场景中所有探针写入光照贴图旁的同一张图集。只需摆放盒子。
+
+- **反射投影到盒子上**，因此视角移动时反射在表面上滑动。盒子按房间而不是按物体确定尺寸。
+- **盒子重叠时，较小的盒子优先。**
+- **不要将探针放在光滑物体内部。** 捕获从探针位置进行。
+- 盒子是轴对齐的。
+- 本帧 Ambient 光上的 `reflectionScale` 与 `reflectionSaturation` 调整探针显示的内容，例如在天气变化时（[Ambient 字段](/docs/zh-cn/graphics/lighting/lights/#ambient)）。
+
+<Aside type="tip">
+  探针读取的是求解后的光照，因此应先烘焙光照再评估反射。移动探针会改变烘焙指纹，光照面板会报告场景已过期。
+</Aside>
+
+## 参见
+
+- [光源](/docs/zh-cn/graphics/lighting/lights/)
+- [平面反射](/docs/zh-cn/graphics/lighting/planar-reflections/)
+- [模型](/docs/zh-cn/assets/models/)

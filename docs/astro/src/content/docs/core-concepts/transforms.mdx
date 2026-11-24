@@ -71,14 +71,14 @@ can key them), and `position` / `rotation` / `scale` are replicated by
   axes stay Y-up and `z` is ordinary space: cameras and lights look down `-Z`, and the
   ground plane is XZ. For 2D sprites, rendering orders coarsely
   by each renderer's sorting `layer`; within a layer, use `z` for fine ordering
-  (or a [y-sorted layer](/docs/graphics/sprites/#draw-order--sorting-layers) for
+  (or a [y-sorted layer](/docs/graphics/sprites/sorting/#y-sorted-layers) for
   top-down depth). It does not foreshorten or scale sprites.
 - **Screen space is Y-down**: pointer coordinates (`Input.mouseX/mouseY`, UI hit
   testing) are pixels from the **top-left** of the canvas, Y increasing
   downward.
 
 Convert between the two with the `CameraView` resource (see
-[Camera](/docs/graphics/camera/#screen--world-coordinates) for the full API):
+[Camera](/docs/graphics/camera/overview/#screen--world-coordinates) for the full API):
 
 ```typescript
 import { defineSystem, Res, CameraView, Input } from 'esengine';
@@ -306,7 +306,7 @@ world space).
 ## See also
 
 - [Components](/docs/core-concepts/components/) — how components declare and store data.
-- [Camera](/docs/graphics/camera/) — orthoSize, follow, and screen ↔ world conversion.
-- [Sprites & Rendering](/docs/graphics/sprites/) — sorting layers, y-sort, and draw order.
+- [Camera](/docs/graphics/camera/overview/) — orthoSize, follow, and screen ↔ world conversion.
+- [Draw Order & Sorting](/docs/graphics/sprites/sorting/) — sorting layers, y-sort, and draw order.
 - [Physics](/docs/gameplay/physics/) — the meter-based side of the unit system.
 - [Math Helpers](/docs/scripting/math/) — vector and rotation math on the canonical types.

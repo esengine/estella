@@ -37,7 +37,7 @@ Editor entry points:
 | Size | `Sprite.size` | `UINode.width` / `height` in `px`, `percent` or `auto` |
 | Camera dependency | Rendered through the camera | Independent of the camera (screen Canvas) |
 | Screen adaptation | None; the camera fit determines the visible region | Anchors and relative sizes follow the screen ([Canvas](/docs/ui/canvas/)) |
-| Draw order | Sorting layer, then `order` ([Sprites](/docs/graphics/sprites/)) | Position in the UI tree; later siblings render on top |
+| Draw order | Sorting layer, then `order` ([Draw Order & Sorting](/docs/graphics/sprites/sorting/)) | Position in the UI tree; later siblings render on top |
 | 9-slice, tiling | Supported (`drawMode`) | Supported, plus linear and radial fill ([Images](/docs/ui/images/)) |
 | Clipping | `SpriteMask` | `UIMask` ([Masks & Visibility](/docs/ui/masks/)) |
 | Pointer input | `Interactable`, hit-tested on the sprite plane | `Interactable` with `UIEvents`, focus and widgets ([Interaction](/docs/ui/interaction/)) |
@@ -88,4 +88,4 @@ world.insert(coin, Sprite, { texture: coinTexture, size: { x: 40, y: 40 } });
 
 - [Your First Screen](/docs/ui/first-screen/) — authoring a Canvas, image, title and button in the editor.
 - [Images](/docs/ui/images/) — `UIVisual` modes, fit, 9-slice, tiling and fill.
-- [Sprites & Rendering](/docs/graphics/sprites/) — the `Sprite` component reference.
+- [Sprites](/docs/graphics/sprites/overview/) — the `Sprite` component reference.

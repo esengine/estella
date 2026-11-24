@@ -1,0 +1,208 @@
+---
+title: Surface Shaders
+description: Reference for the built-in surface shaders beyond the core templates — Water, the Model shader's wet-ground map and shading layers, and the Skin, Hair and Eye character shaders — with their parameters, behaviour and limits.
+---
+
+The Model shader is a metal/rough surface with optional wet-ground and shading-layer terms. The Skin, Hair and Eye
+shaders cover character surfaces that a metal/rough pair does not describe. All of them, and the Water shader, use the
+same lighting core as every `Lit` shader, so shadows, image-based light and the other lighting effects apply.
+
+{/* SHOT: mat-shading-layers | Details panel showing a Model material: the Shader section (Built-in · Model), the Base/UV/Normal groups collapsed, and the shading-layer sections Clear Coat and Sheen expanded with their header switches on; a sphere using the material visible in the inspector preview. */}
+
+## Water
+
+The **Water** shader (`builtin:water`, module `esengine/water`) draws a body of water: refraction by measured depth,
+reflection and foam. `WaterBody` components define where an ocean, a lake or a river is; a `WaterZone` bakes them into
+one surface drawn with this shader, displaces the geometry with waves, and answers surface queries from code. See
+[Water](/docs/graphics/water/overview/).
+
+## Wet ground
+
+A Model material can apply a **wet map** to the ground, so that a surface is damp in some places and has standing water
+in others instead of one roughness throughout.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `u_wetness` | `0` | Overall strength, 0–1. At `0` the term is off and costs one comparison. |
+| `u_wetMask` | `black` | Wet map read in world X and Z. Red: standing water (0 dry, 1 puddle). Green: dampness. A data texture (`texel(data)`); import it with sRGB off. |
+| `u_wetOrigin` | `(0, 0)` | World corner where the map starts. |
+| `u_wetSize` | `(0, 0)` | World size of the map. `0` disables wetness. |
+| `u_wetDarken` | `0.4` | Darkening of damp areas. |
+| `u_wetRoughness` | `0.3` | Roughness that damp areas approach. |
+
+| Map value | Surface |
+|---|---|
+| Damp (green, or red) | Darkens by `u_wetDarken` (water in the pores absorbs light a dry surface scatters) and becomes smoother, toward `u_wetRoughness`. |
+| Puddle (red) | Flat (the normal map is ignored) and nearly a mirror, roughness 0.05. |
+| Outside the map | Dry. |
+
+The map is laid out like a plan read from its own corner: its left column is at the origin's X and its **top row is the
+far (largest Z) edge**, so a map painted with +Z up aligns with the world.
+
+A **Planar Reflection** on the same mesh makes the puddles reflect the scene ([Planar Reflections](/docs/graphics/lighting/planar-reflections/)).
+
+## Character shaders
+
+The Skin, Hair and Eye shaders belong to the `esengine/character-shaders` module. Skin and Hair take the base colour
+from the mesh's own texture, as the Model shader does, and read `u_normalMap` and `u_ormMap` (occlusion in red,
+roughness in green) as **data** textures. Import both with sRGB **off**; otherwise the colour curve distorts the normal
+map and the surface appears blotched.
+
+Parameters shared by Skin and Hair:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `u_tint` | `(1, 1, 1, 1)` | Multiplies the base colour. |
+| `u_normalMap` | `flatnormal` | Tangent-space normal map (data). |
+| `u_normalScale` | `1` | Normal map strength, −4–4. |
+| `u_ormMap` | `white` | Occlusion (R) and roughness (G) (data). |
+| `u_occlusionStrength` | `1` | Occlusion strength, 0–1. |
+
+### Skin
+
+**Skin** (`builtin:skin`) softens the lit side of curved surfaces per colour channel without blurring the image:
+diffuse light is computed from a normal softer than the surface normal, softest for red, so pores and highlights stay
+sharp. Each pixel is shaded with three lighting passes; the shader is intended for characters in close view, not for
+crowds.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `u_blurRed` / `u_blurGreen` | `3.2` / `1.6` | How much softer the diffuse normal is than the surface normal, for red and for green/blue, in mip levels of the normal map. |
+| `u_sssColor` | `(0.95, 0.4, 0.3, 1)` | Colour of the terminator. |
+| `u_sssWrap` | `0.45` | How far light wraps past the terminator. |
+| `u_translucency` | `0.5` | Light transmitted through thin or strongly curved parts (ears, nostrils, fingers). |
+| `u_thinness` | `0.5` | How much curvature counts as thin. |
+| `u_roughness` | `1` | Scale on the map's roughness, 0–2. |
+| `u_specular` | `1` | Specular strength, 0–2. |
+| `u_lobe2` / `u_lobe2Roughness` | `0.18` / `0.4` | Second, tighter specular lobe: weight and roughness. |
+| `u_fuzz` | `0.1` | Faint fuzz that lights the rim. |
+| `u_preIntegrate` | `0` | Pre-integrated scattering: the wrap past the terminator is taken per colour (red furthest) and widens where the surface turns sharply, so the edges of a nose or an ear glow while a flat cheek stays crisp. |
+| `u_curvature` | `8` | How fast a turn counts as sharp, per world unit. |
+| `u_detailMap` | `flatnormal` | Second, fine normal map tiled over the surface for pores and creases that the baked map lacks texels for. Applied to the sharp normal that the specular reads, not to the soft diffuse normals. Import with sRGB off and wrap mode repeat. |
+| `u_detailStrength` | `0` | Detail map strength, 0–2. `0` disables it. |
+| `u_detailTile` | `16` | Detail map repeat count. |
+| `u_subsurface` | `0` | Marks the surface for the [Subsurface Scattering](/docs/graphics/post-processing/lighting/#subsurface-scattering) effect, which spreads the remaining light on a larger scale and blurs the image. |
+
+### Hair
+
+**Hair** (`builtin:hair`) shades hair cards and ribbons with a strand model. Diffuse is Kajiya-Kay (a strand is lit by
+the angle between the light and the strand direction); the specular is two narrow highlights along the strand, offset
+from each other by a shift map: a white one near the surface and a tinted one beneath it.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `u_flowMap` | `white` | Strand direction: red and green are a direction across the texture (data). |
+| `u_shiftMap` | `white` | Shifts the highlight along the strand from place to place (data). |
+| `u_shiftAmount` / `u_shiftTile` | `0.35` / `6` | Shift strength and the shift map's repeat count. |
+| `u_shiftPrimary` / `u_shiftSecondary` | `-0.1` / `0.2` | Offset of each highlight from the strand's centre line. |
+| `u_secondaryTint` | `(0.75, 0.45, 0.25, 1)` | Colour of the second highlight. |
+| `u_roughness` | `0.3` | Highlight width; lower is narrower. |
+| `u_specular` | `1` | Specular strength, including the environment reflection. |
+| `u_lobeGain` | `1` | Strength of the strand highlight drawn by lamps, separate from the environment reflection (set by `u_specular` alone). |
+| `u_translucency` | `0.4` | Light through the strands from behind. |
+| `u_strandDiffuse` | `0.6` | Share of the diffuse that is the strand term against surface N·L. `0` is the Principled shader's diffuse, which darkens where a card turns from the light. |
+| `u_anisotropy` | `0` | Above zero, replaces the two strand highlights with the Principled shader's: GGX stretched along the strand by this anisotropy (Blender's definition), with `u_specular` as the specular factor. Cards exported from Blender with an anisotropy are imported this way. |
+| `u_sharpen` | `-0.8` | Negative mip bias on the colour texture; keeps fine strands from washing out at grazing angles. |
+| `u_rootDark` | `0.5` | Darkens the roots by the occlusion map. |
+| `u_clumpCount` | `0` | Draws a card's strands as this many locks across its width. `0` leaves the card as authored. |
+| `u_clumpTone` / `u_clumpShift` / `u_clumpGap` | `0.25` / `0.3` / `0.3` | Per-lock brightness variation, per-lock highlight offset, and darkening of the seam between locks. |
+| `u_alphaCutoff` | `0` | Cuts the card out by its texture's alpha; feathered by alpha-to-coverage under MSAA. The card then casts its own shape, not its rectangle, into shadow maps. |
+| `u_tipSoftness` | `0` | Soft outer band: where alpha falls below the cutoff by up to this amount, a second, blended pass draws the strand tips fading out, sorted with other blended draws. `0` disables it. |
+| `u_hairShadow` | `0` | Light absorbed per world unit of hair along the light. Above zero the frame fits a shadow cascade to the hair alone (first in the sun's list), so cards a few millimetres apart are resolved, and transmitted light falls off with the depth of hair, as a deep shadow map is read. |
+| `u_coverageMap`, `u_depthMap`, `u_attributeMap` | `white` | A groom's baked strand textures: coverage (R, times the colour's alpha), depth under the card (R), attributes (R along the strand from the root, G per strand). |
+| `u_depthShade` | `0.5` | Darkening of strands deepest under the card. |
+| `u_strandTone` / `u_strandShift` | `0` / `0` | Per-strand brightness and highlight variation. |
+| `u_strandNormal` | `0` | `1` lights each texel as the groom's strands are lit by the Strands shader. |
+| `u_rootColor` | `(1, 1, 1, 1)` | Colour at the root, blending to the tint at the tip by the attribute map's red. |
+
+A hair model is usually cards or ribbons, not strands; the shader supplies the shading of a strand that the geometry
+does not have.
+
+### Eye
+
+**Eye** (`builtin:eye`) builds an eye from two maps and a set of values. The view ray is refracted at the cornea and
+carried down to the iris, so the iris moves behind the surface as the eye turns. The cornea is nearly a mirror, so every
+light and the sky appear as catchlights. A painted eye texture on the mesh multiplies the result.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `u_depthMap` | `black` | White over the iris and the dome of the cornea (data). |
+| `u_irisNormalMap` | `flatnormal` | Normals of the cornea dome (data). |
+| `u_ior` | `1.336` | Cornea index of refraction. |
+| `u_irisDepth` | `0.06` | Depth of the iris behind the cornea, in UV. |
+| `u_irisColor` / `u_irisColor2` | `(0.22, 0.4, 0.52, 1)` / `(0.08, 0.17, 0.22, 1)` | Iris colour from the pupil's edge out to the limbus; drawn with fibres. |
+| `u_irisSize` | `0.42` | Iris size. |
+| `u_pupilSize` | `0.3` | Pupil size. |
+| `u_limbal` | `0.7` | Darkness of the limbal ring. |
+| `u_scleraColor` | `(0.92, 0.9, 0.87, 1)` | Colour of the white of the eye. |
+| `u_scleraWrap` | `0.35` | Light wrap past the terminator on the sclera. |
+| `u_corneaRoughness` / `u_scleraRoughness` | `0.04` / `0.45` | Roughness of the cornea and the sclera. |
+| `u_specular` | `1` | Specular strength. |
+| `u_lidMap` | `white` | Authored occlusion map, white where the eye is open (data). |
+| `u_lidShadow` | `0.5` | Darkens, and fades the cornea's reflections, where the surface faces up from `u_lidStart` to straight up: the upper lid on an upright head. |
+| `u_lidStart` | `0.2` | Start of the lid shadow, as a dot product with the world's up axis. |
+
+## Shading layers
+
+The **Model** shader is a metal/rough surface with optional layers on top. Every layer is off at its default value; a
+layer at zero costs nothing, and a material that sets none of them is the plain surface.
+
+| Layer | Parameters | Description |
+|---|---|---|
+| Clear coat | `u_clearcoat`, `u_clearcoatRoughness` | A smooth lacquer over the surface: a second, sharper highlight, the base darkened by what the coat reflects, and a separate environment reflection. The coat is lit by the surface's own normal, so a bump map roughens the base and not the lacquer. Car paint, varnished wood, wet stone. |
+| Sheen | `u_sheenColor`, `u_sheenRoughness` | Soft light that cloth reflects at grazing angles (a Charlie lobe), subtracted from the base so it adds no energy. Velvet, satin, felt. |
+| Anisotropy | `u_anisotropy` (−1–1), `u_anisotropyRotation` | A highlight stretched across the grooves: brushed metal, fibres, CDs. The grooves follow the UV frame rotated by `u_anisotropyRotation`; the environment reflection is bent the same way. |
+| Translucency | `u_translucency`, `u_translucencyColor`, `u_thickness` | Light scattered into a thin surface: the lit side wraps past the terminator, and a lamp behind shows through, tinted, less the thicker the surface. Leaves, paper, wax, lampshades, skin at the ears. |
+| Subsurface | `u_subsurface` | Marks the surface for the [Subsurface Scattering](/docs/graphics/post-processing/lighting/#subsurface-scattering) effect: with the effect in the volume, the lit colour is blurred along the surface, red furthest. Skin, wax, marble. |
+| Thin film | `u_iridescence`, `u_iridescenceIor`, `u_iridescenceThickness` (nm) | Reflection hue varies with the viewing angle: soap, oil, beetle shell, coated glass. |
+| Index of refraction | `u_ior`, `u_specular` | Head-on reflectance of a non-metal (1.5 for glass and most plastics; 2.4 for a gemstone) and a master scale on the reflection. |
+| Transmission | `u_transmission`, `u_attenuationColor`, `u_thickness`, `u_refractionStrength` | Glass and water: the surface shows what is behind it, refracted (more with thickness), tinted and softened by roughness; reflection increases at grazing angles. |
+
+Model import writes these parameters from the glTF extensions of the same names (`KHR_materials_clearcoat`, `_sheen`,
+`_anisotropy`, `_ior`, `_specular`, `_iridescence`, `_transmission`, `_volume`, `_diffuse_transmission`). See
+[Models](/docs/assets/models/).
+
+### Editing layers in the inspector
+
+A Model material shows each layer as a section with a switch in its header. Turning the switch off sets the layer's
+strength to 0 (for sheen, its colour to black); turning it on sets a strength at which the layer is visible. The
+section's fields tune the layer. Reflectance (index of refraction and specular scale) has no switch.
+
+### Limits
+
+- **Transmission refracts the opaque scene only.** A material with `u_transmission` above zero is drawn after the rest
+  of the scene, from a copy of the image taken just before: the ray is bent through the surface's thickness and the
+  copy is read where it lands. Glass does not refract other glass, and a thin shell offsets the image by a fixed amount
+  rather than inverting it as a lens would. The copy requires a running post-process chain (any effect, an output
+  transform, or a render scale below 1); without one the surface falls back to alpha-blended coverage and shows the
+  background undistorted.
+- **Translucency is a shading term, not a blur.** It wraps light past the terminator and lets a lamp behind show
+  through, but light entering at a point leaves at that point. Spreading is done by the Subsurface Scattering effect,
+  which blurs the whole lit colour of the marked surface, including sharp highlights.
+- **Layer textures are not read.** Each layer is a constant for the whole material (the Model shader has no texture
+  unit left for more). The maps of a glTF extension are reported at import; its factors are kept.
+- **Sheen and thin film are fits.** Sheen energy loss and thin-film interference are analytic approximations in place
+  of baked lookup tables.
+- **Not provided:** a Marschner-style strand model, a separate normal map for the coat, more than one coat layer.
+
+## Layers in a custom shader
+
+A `Lit` shader reaches the same lighting through
+`applyLightingSurface(albedo, N, worldPos, V, metallic, roughness, specular, ao, ext)`, which is `applyLightingPBR`
+with the layers. Start `ext` from `surfaceExtNone(N)` and set the fields in use:
+
+| Field | Holds |
+|---|---|
+| `ext.coat` | `x` strength, `y` perceptual roughness; `ext.coatN.xyz` the coat's normal |
+| `ext.sheen` | `rgb` colour (black is off), `a` perceptual roughness |
+| `ext.aniso` | `xyz` tangent (unit, perpendicular to `N`), `w` strength −1–1 (0 is off) |
+| `ext.scatter` | `rgb` colour of the scattered light, `a` wrap 0–1; `ext.trans.x` transmitted amount, `ext.trans.y` thickness 0–1 |
+| `ext.film` | `x` strength, `y` film index, `z` thickness in nanometres |
+| `ext.misc.x` | Reflectance at normal incidence of a non-metal (0.04 for an index of 1.5) |
+
+## See also
+
+- [Materials](/docs/graphics/materials/overview/) — templates and the material inspector.
+- [The .esshader format](/docs/graphics/materials/esshader/) — `#pragma coverage` and `#pragma hairshadow`.
+- [Water](/docs/graphics/water/overview/)
+- [Models](/docs/assets/models/)

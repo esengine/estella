@@ -1,0 +1,171 @@
+---
+title: Occlusion, Sight & Ground Effects
+description: Top-down 2D components that act on sprites — CoverFade for roofs and crowns, RainShelter and RainUpright for 2D rain, SightViewer and SightTarget line of sight, FogOfWar, and Footsteps with StepSurface.
+---
+
+The components on this page treat sprites as areas of ground in a top-down 2D scene and change a sprite's opacity, or
+the effects drawn over that ground, from what stands on it or can see it.
+
+| Component | Placed on | Effect |
+|---|---|---|
+| `CoverFade` / `CoverFadeTarget` | Roof or crown / player | Fades the covering sprite while a target stands under it. |
+| `RainShelter` / `RainUpright` | Roof or crown / standing sprite | Keeps 2D rain off sheltered ground / off upright sprites. |
+| `SightViewer` / `SightTarget` | Player / unlit sprite | Hides sprites with no line of sight past `ShadowCaster2D` walls. |
+| `FogOfWar` | Any entity with `Transform` | Unexplored, remembered and visible ground for a `fog2d` effect. |
+| `Footsteps` / `StepSurface` | Walker / ground sprite | Water rings and footprints along a walker's path. |
+
+## Cover fade
+
+A roof or tree crown drawn over the ground it covers hides entities walking underneath. `CoverFade` on the covering
+sprite and `CoverFadeTarget` on the entity that must stay visible fade the sprite while a target stands on its ground:
+the sprite eases to `opacity` of its own alpha over `fadeTime`, and back when the target leaves.
+
+| Field | Default | Description |
+|---|---|---|
+| `opacity` | `0.25` | Sprite alpha, as a share of its own, while a target is under it. |
+| `fadeTime` | `0.25` | Duration of the fade in either direction, in seconds. |
+| `margin` | `0` | Ground beyond the sprite's edge, in world units, that counts as under it; the fade starts as a target reaches the edge. |
+| `round` | `false` | Covered ground is the ellipse inside the rectangle (crown) instead of the whole rectangle (roof). |
+| `enabled` | `true` | Disables the component. |
+
+`CoverFadeTarget` is a tag with no fields. The covered ground is the sprite's `size` and `pivot` under the entity's
+scale; rotation is not read. The fade runs in Play only.
+
+{/* SHOT: spr-cover-fade | Game view during Play: the player standing under a roof sprite with CoverFade, the roof faded to 25% showing the room beneath; Details shows the roof's CoverFade card */}
+
+## Rain shelter
+
+2D rain cannot determine what covers a point, so covering sprites declare it. With a `rain2d` effect in the scene's
+post-process volume, the ground covered by a sprite with `RainShelter` is dry: no streak, ring or puddle.
+
+| Field | Default | Description |
+|---|---|---|
+| `round` | `false` | Covered ground is the ellipse inside the rectangle (crown) instead of the whole rectangle (roof). |
+| `margin` | `0` | Ground beyond the sprite's edge, in world units, that also stays dry (eaves). |
+| `enabled` | `true` | Disables the component. |
+
+Dryness follows how much of the sheltered ground is visible. An opaque roof shows the roof, which receives rain; the
+same roof faded by `CoverFade` reveals a dry room. A roof therefore carries both components, and rain stops inside as
+the room appears.
+
+Shelter mask:
+
+- Each frame the shelters in view are painted into a mask over the view (one rectangle each; an ellipse as a few
+  strips). The rain reads one texel of it per pixel, so the cost does not grow with the number of shelters.
+- The mask is 512 texels across by default; a shelter's edge is soft by roughly the view size divided by that
+  resolution.
+- The effect's **Shelter Mask Size** (`maskSize`, 64–2048) sets the resolution. The quality profile's
+  `shelterMaskSize` caps it per level: 256 low, 512 medium, 1024 high (**Project Settings → Rendering → Quality**).
+
+### Upright sprites
+
+The rain is composited over the finished frame and cannot distinguish a character from the floor. `RainUpright` on a
+sprite standing on the ground (a character, a trunk, a crate) suppresses rings, splashes, puddles and wet darkening
+over its rectangle. Falling streaks still cross it.
+
+| Field | Default | Description |
+|---|---|---|
+| `inset` | `0` | Shrinks the protected rectangle on every side, in world units, so the ground at the feet stays wet. |
+| `enabled` | `true` | Disables the component. |
+
+A sprite faded by `CoverFade` keeps rain off only in proportion to its visibility.
+
+## Line of sight
+
+A lit sprite behind a wall is already dark, because the wall's `ShadowCaster2D` blocks the light. Unlit content — an
+unlit enemy, its health bar, a self-illuminated pickup — is not. `SightViewer` and `SightTarget` test the same walls on
+the CPU for such content: a `SightTarget` sprite eases to `hiddenOpacity` while no `SightViewer` has a clear line
+to it.
+
+| Field | On | Default | Description |
+|---|---|---|---|
+| `radius` | `SightViewer` | `0` | Viewing distance in world units. `0` is unlimited; only walls block. |
+| `hiddenOpacity` | `SightTarget` | `0` | Sprite alpha, as a share of its own, while no viewer sees it. |
+| `fadeTime` | `SightTarget` | `0.15` | Duration of the fade in either direction, in seconds. |
+
+Rules:
+
+- A wall that contains the viewer or the target does not block that pair (a viewer inside a bush sees out).
+- With no viewer in the scene, every target is hidden.
+- `SightTarget` and `CoverFade` must not share a sprite; both own its alpha.
+
+Functions for gameplay code, returning the same result the sprites use:
+
+| Function | Returns |
+|---|---|
+| `currentSightRings()` | The wall outlines read by the last frame. |
+| `segmentBlocked(from, to, rings)` | Whether a wall crosses the segment. |
+| `seesPoint(viewer, radius, target, rings)` | Whether `target` is within `radius` (0 = unlimited) and unblocked. |
+
+Line of sight covers what is visible now. Ground that was seen and left is tracked by fog of war.
+
+## Fog of war
+
+`FogOfWar` on an entity with a `Transform`, together with a `fog2d` effect in the scene's post-process volume, shades
+the ground by what `SightViewer`s have seen:
+
+| Ground | Appearance |
+|---|---|
+| Never seen | Unexplored colour. |
+| Seen and left | Remembered: dimmed and desaturated. |
+| In view | As drawn. |
+
+Each frame every viewer's field of view is computed by casting rays against the `ShadowCaster2D` walls and painted
+into two maps over the component's rectangle: currently visible, and ever visible.
+
+| Field | Default | Description |
+|---|---|---|
+| `width`, `height` | `4096` | World rectangle the fog covers, centred on the entity. The playable world must fit inside it. |
+| `texels` | `512` | Map resolution per side, 32–2048: finer edges at a higher painting cost. |
+| `viewRadius` | `400` | Viewing distance of a viewer whose `radius` is 0. |
+| `rays` | `256` | Rays cast per viewer, 16–1024: resolution of the field-of-view edge. |
+| `enabled` | `true` | Disables the component. |
+
+The `fog2d` effect's **Remembered Brightness**, **Remembered Desaturation** and **Unexplored Colour** set the
+appearance. A scene without `FogOfWar` turns its `fog2d` effect off instead of rendering black.
+
+Persistence:
+
+| Function | Effect |
+|---|---|
+| `exploredToString()` | Serializes the explored map to a string for a save file. |
+| `exploredFromString(text)` | Restores it and repaints the fog. Returns `false` when the data does not match the fog's `texels`. |
+
+The same grid restores the maps after a lost graphics device.
+
+{/* SHOT: spr-fog-of-war | Game view during Play with FogOfWar and a fog2d effect: dark unexplored ground, a dimmed desaturated explored corridor, and the clear field of view around the player cut by walls */}
+
+## Footsteps and ripples
+
+`Footsteps` on a walker and `StepSurface` on ground sprites leave marks along the walker's path. Every `stride` world
+units the walker takes a step, alternating left and right of its heading.
+
+| Surface `kind` | Mark |
+|---|---|
+| `Water` (default) | A ring spreading from a third of its size and fading over `rippleLife`. |
+| `Print` | A footprint at full size, fading over `printLife`. |
+| No surface | Nothing, unless the walker sets `onBareGround` (footprint). |
+
+A surface covers its sprite's rectangle, or the inscribed ellipse with `round`. Where two surfaces cover a point, the
+one on the higher sprite layer applies.
+
+| Field | On | Default | Description |
+|---|---|---|---|
+| `stride` | `Footsteps` | `28` | Distance between two steps, in world units. |
+| `width` | `Footsteps` | `10` | Distance between the left and right feet. |
+| `printSize`, `printLife`, `printColor` | `Footsteps` | `14`, `6`, black α 0.4 | Footprint length, lifetime in seconds, colour (alpha is the peak). |
+| `rippleSize`, `rippleLife`, `rippleColor` | `Footsteps` | `64`, `1.4`, white α 0.7 | Ring width when fully spread, lifetime in seconds, colour. |
+| `layer` | `Footsteps` | `1` | Sprite layer the marks are drawn on: above the ground, below walkers. |
+| `onBareGround` | `Footsteps` | `false` | Leaves footprints where there is no `StepSurface`. |
+| `printTexture`, `rippleTexture` | `Footsteps` | `0` | Custom texture handles; `0` uses the engine-drawn oval and ring. |
+| `kind` | `StepSurface` | `Water` | `Water` or `Print`. |
+| `round`, `margin` | `StepSurface` | `false`, `0` | Inscribed ellipse; ground beyond the edge that counts as on the surface. |
+
+Each mark is an engine-spawned sprite that is never saved; at most 256 exist at once across all walkers. A walker that
+jumps across the world (a teleport) produces no steps for the jump.
+
+## See also
+
+- [Draw Order & Sorting](/docs/graphics/sprites/sorting/) — sorting layers and y-sort for top-down scenes.
+- [Shadows](/docs/graphics/lighting/shadows/#2d-shadows) — `ShadowCaster2D` walls.
+- [Post-processing](/docs/graphics/post-processing/overview/) — post-process volumes and effects.

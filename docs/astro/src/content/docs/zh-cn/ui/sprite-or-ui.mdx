@@ -33,7 +33,7 @@ import { Aside } from '@astrojs/starlight/components';
 | 尺寸 | `Sprite.size` | `UINode.width` / `height`，单位 `px`、`percent` 或 `auto` |
 | 与相机的关系 | 经相机渲染 | 与相机无关（屏幕画布） |
 | 屏幕适配 | 无；可见区域由相机适配决定 | 锚点与相对尺寸随屏幕变化（[画布](/docs/zh-cn/ui/canvas/)） |
-| 绘制顺序 | 排序层，其次 `order`（[精灵](/docs/zh-cn/graphics/sprites/)） | UI 树中的顺序；后序兄弟节点在上层 |
+| 绘制顺序 | 排序层，其次 `order`（[绘制顺序与排序](/docs/zh-cn/graphics/sprites/sorting/)） | UI 树中的顺序；后序兄弟节点在上层 |
 | 九宫格、平铺 | 支持（`drawMode`） | 支持，另有线性与径向填充（[图片](/docs/zh-cn/ui/images/)） |
 | 裁切 | `SpriteMask` | `UIMask`（[遮罩与显隐](/docs/zh-cn/ui/masks/)） |
 | 指针输入 | `Interactable`，在精灵所在平面上做命中测试 | `Interactable`，配合 `UIEvents`、焦点与控件（[交互](/docs/zh-cn/ui/interaction/)） |
@@ -80,4 +80,4 @@ world.insert(coin, Sprite, { texture: coinTexture, size: { x: 40, y: 40 } });
 
 - [第一个界面](/docs/zh-cn/ui/first-screen/) —— 在编辑器中创建画布、图片、标题与按钮。
 - [图片](/docs/zh-cn/ui/images/) —— `UIVisual` 的显示模式、适配、九宫格、平铺与填充。
-- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— `Sprite` 组件参考。
+- [精灵](/docs/zh-cn/graphics/sprites/overview/) —— `Sprite` 组件参考。

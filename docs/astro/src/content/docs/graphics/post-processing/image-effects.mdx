@@ -1,0 +1,213 @@
+---
+title: Lens & image effects
+description: Lens, anti-aliasing and stylize effects reference — Bloom, Depth of Field, Motion Blur, Lens Flare, Film Grain, Chromatic Aberration, Lens Distortion, Vignette, Sharpen, MSAA, FXAA, TAA, Blur, Pixelate, Palette and the outline effects.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These effects model a camera lens, remove aliasing, or stylize the picture. In the Inspector they carry the **Lens**,
+**Anti-aliasing** or **Stylize** tag. Parameter names are the `u_`-prefixed names used in scene data and code.
+
+{/* SHOT: pp-depth-of-field | A 3D scene in the Game view with Depth of Field enabled: a sharp subject in the middle distance, a blurred foreground and background with hexagonal bokeh on a bright light (Aperture Blades 6, Highlight Boost above 0); the Depth of Field entry unfolded in the Inspector. */}
+
+## Bloom
+
+`bloom` adds a glow around pixels brighter than a threshold. The over-range light is extracted at half size, downsampled in
+five steps to 1/64 size and upsampled back, each step adding the level of its own size. The glow falls off round and soft
+with a long faint tail.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_threshold` | Threshold | 0.4 | Brightness above which pixels bloom. Values above 1 require the [HDR chain](/docs/graphics/post-processing/overview/#hdr-chain). |
+| `u_intensity` | Intensity | 1.5 | Strength of the glow. |
+| `u_radius` | Radius | 1 | Widens the whole glow. |
+
+Keep a bright sky below the threshold; otherwise every dark edge against the sky takes the sky's glow.
+
+## Depth of Field
+
+`depthOfField` blurs what lies outside a slab `u_focusRange` deep around the focus. It runs three passes: the first settles
+where the lens is focused, the second computes each pixel's blur radius into a float target, the third gathers the blur.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_focusDistance` | Focus Distance | 600 | World length from the camera to the focus when Auto Focus is off. |
+| `u_autoFocus` | Auto Focus | 0 | 1: focus on the surface under the focus point. |
+| `u_focusX`, `u_focusY` | Focus Point X / Y | 0.5 | Focus point as a share of screen width from the left and height from the top. |
+| `u_focusSpeed` | Focus Speed | 5 | Rate at which the focus moves to a new distance. |
+| `u_focusRange` | Focus Range | 100 | World depth of the sharp slab. |
+| `u_aperture` | Aperture (px) | 24 | Blur radius in pixels of an infinitely distant object. |
+| `u_maxBlur` | Max Blur (px) | 14 | Upper limit of the blur radius in pixels. |
+| `u_blades` | Aperture Blades (0 = round) | 0 | 0: round aperture. 3 or more: a polygon with that many sides. |
+| `u_bokehRotation` | Blade Rotation | 0 | Rotation of the polygonal aperture, degrees. |
+| `u_highlight` | Highlight Boost | 0 | Extra weight of bright taps, so an out-of-focus light reads as a bright aperture shape. |
+
+**Focus.** With Auto Focus on, the focus distance is the depth under the focus point, sampled with nine taps. The lens moves
+toward it at Focus Speed in log-distance, so a focus change is a glide. Where only sky lies under the point, the focus does
+not change.
+
+**Blur.** The blur radius grows with a surface's distance from the focus as a share of its own distance, up to Max Blur;
+the sky counts as infinitely far. Each pixel gathers neighbours within its own radius and counts a neighbour only as far as
+that neighbour's blur reaches back: a sharp foreground object does not bleed into a blurred background, and a blurred
+foreground spreads over what is behind it. The 64 taps are offset along their spiral per pixel, which leaves a fine grain
+that `taa` removes.
+
+## Motion Blur
+
+`motionBlur` smears pixels along their motion since the previous frame. Camera motion is reconstructed from the depth
+buffer; a mesh that moves by itself is followed by the motion pass that `taa` also uses, so it smears along its own path.
+It needs no other setup.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Shutter | 0.5 | Share of a frame's motion the streak covers. 0.5 is a 180° shutter, 1 a full frame. |
+| `u_maxBlur` | Max Blur | 0.05 | Longest streak as a fraction of the picture, which limits the smear on a cut or teleport. |
+| `u_objectMotion` | Object Motion | 1 | 1: moving meshes follow their own motion. 0: camera motion only. |
+
+With a still camera and no moving meshes the picture is unchanged. Motion blur applies no sub-pixel jitter and does not
+require `taa`.
+
+## Lens Flare
+
+`lensFlare` throws ghosts and a halo with a colour fringe from pixels brighter than a threshold. It reads the picture
+itself, so it needs values above `u_threshold` in the picture: a bright sun disc, a lamp, an emissive surface in HDR. It is
+computed at half size and composited at full size.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.4 | Strength of the flare. |
+| `u_threshold` | Threshold | 1.2 | Brightness, in the picture's units (HDR included), above which pixels flare. |
+| `u_ghosts` | Ghosts | 5 | Number of ghosts. |
+| `u_dispersal` | Dispersal | 0.35 | Spacing of the ghosts. |
+| `u_haloWidth` | Halo Width | 0.45 | Radius of the halo. |
+| `u_chromatic` | Colour Fringe | 0.012 | Channel separation of the fringe. |
+| `u_tint` | Tint | (1, 0.85, 0.7) | Colour parameter: tint of the flare. |
+
+## Film Grain
+
+`filmGrain` adds noise the size of a film crystal, animated with the clock.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.15 | Strength of the grain. |
+| `u_size` | Grain Size | 1.6 | Grain size. |
+| `u_response` | Mid-tone Response | 0.8 | 1 concentrates the grain in the mid-tones; 0 spreads it evenly, blacks and whites included. |
+
+## Lens imperfections
+
+| Effect | Parameter | Label | Default | Description |
+|---|---|---|---|---|
+| `chromaticAberration` | `u_intensity` | Intensity | 3 | RGB fringing strength. |
+| `lensDistortion` | `u_strength` | Strength | 0 | Barrel (positive) or pincushion (negative) warp. |
+| | `u_zoom` | Zoom | 1 | Rescales the warped picture to keep its edges in frame. |
+| `vignette` | `u_intensity` | Intensity | 0.6 | Darkening at full strength. |
+| | `u_radius` | Radius | 1 | Distance at which darkening reaches full strength. |
+| | `u_softness` | Softness | 0.5 | Width of the gradient inside the radius. |
+| | `u_roundness` | Roundness | 0 | 0 follows the frame's shape (1 is the middle of an edge); 1 is a circle on which 1 is the corner. |
+
+`lensDistortion` is identity at its defaults.
+
+## Sharpen
+
+`sharpen` pushes each pixel away from the mean of its neighbours, then clamps it to the range those neighbours span, so
+edges get steeper without a halo. On WebGPU it is a compute pass; on WebGL2 a fragment pass of the same arithmetic draws an
+identical picture. The Inspector marks it **WebGPU only** because of the compute version.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.5 | How far a pixel is pushed from the neighbourhood mean. 0 leaves the picture unchanged. |
+| `u_limit` | Overshoot Limit | 0.25 | How far past the neighbourhood range a pixel may go, as a share of that range. 0 allows no overshoot. |
+
+## Anti-aliasing
+
+| Method | Where | Removes | Cost |
+|---|---|---|---|
+| MSAA | Scene target, before the chain | Geometry edges | Fill rate per sample |
+| `fxaa` | Chain effect | Edges, approximately; softens the picture | One full-screen pass |
+| `taa` | Chain effect | Shader aliasing, thin geometry, the noise of screen-space effects | One pass, a history target per camera, a motion pass for moving meshes |
+
+### MSAA
+
+Geometry edges are smoothed by multisampling the scene itself, 4× by default, on WebGL2 and on WebGPU; native builds run on
+WebGPU. `createWebApp(module, { msaaSamples })` sets the sample count and `msaaSamples: 1` disables it. The device clamps the
+requested count.
+
+### FXAA
+
+`fxaa` is a cheaper, softer alternative for devices where extra samples are too expensive.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Mix between the input and the anti-aliased result. |
+
+### Temporal anti-aliasing
+
+`taa` accumulates frames. While it is in the chain, the engine shifts the picture by a different sub-pixel offset each frame
+(eight positions, repeating), keeps the effect's previous output, and blends the two. History is located by reprojection:
+each pixel is unprojected to the world with the depth buffer and projected with the previous frame's camera. Each camera has
+its own history. MSAA stays enabled alongside it; the two combine.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_blend` | Blend | 0.1 | Share of each frame that is new. Lower is smoother and slower to follow change; 1 disables accumulation. |
+| `u_objectMotion` | Object Motion | 1 | 1: moving meshes are reprojected by their own motion. 0: camera motion only. |
+
+**Order.** Place `taa` after every effect whose noise it should average: ambient occlusion, contact shadows, global
+illumination, reflections, light shafts, height fog. Noise added after `taa` reaches the screen unchanged. The Inspector shows
+a warning tag on a `taa` entry that has such an effect after it.
+
+{/* SHOT: pp-taa-order-warning | PostProcessVolume Inspector with Temporal Anti-Aliasing above Ambient Occlusion and Height Fog; the "!" warning tag on the TAA entry with its tooltip open, listing the effects that run after it. */}
+
+**Moving meshes.** While `taa` is in the chain, meshes that moved are drawn a second time into a motion target recording how
+far each pixel travelled since the previous frame; the effect follows that motion where the moving surface is the one on
+screen. A thin, fast mover keeps its contrast instead of fading into the background. The cost is one extra draw of what moved
+(nothing when nothing moved) and an RGBA32F target the size of the scene; on a device without float render targets the pass
+is skipped. A skinned mesh is followed through its bones: the frame keeps the palette each one was last drawn with. Blended
+surfaces and motion added by a material's vertex hook are not followed; they use the camera's motion, clipped to the colours
+around the pixel.
+
+TAA reads scene depth, as SSAO does; on WebGPU it cannot run on a multisampled scene that has no depth resolve.
+
+## Stylize
+
+| Effect | Parameter | Label | Default | Description |
+|---|---|---|---|---|
+| `blur` | `u_intensity` | Intensity | 2 | Gaussian blur strength. |
+| `pixelate` | `u_pixelSize` | Pixel Size | 4 | Block size in pixels. |
+| `outline` | `u_intensity` | Intensity | 1 | Ink edges from Sobel edge detection on luma. |
+| | `u_threshold` | Threshold | 0.2 | Edge strength that draws a line. |
+| | `u_thickness` | Thickness | 1 | Line width. |
+| `depthOutline` | `u_intensity` | Intensity | 1 | Black line where depth steps: silhouettes, not shading. |
+| | `u_threshold` | Threshold | 0.01 | Depth step that draws a line. |
+| | `u_thickness` | Thickness | 1 | Line width in pixels. |
+| `edgeOutline` | `u_intensity` | Intensity | 1 | Coloured line at silhouettes and creases. |
+| | `u_depthThreshold` | Depth Threshold | 0.01 | Silhouette: how far a neighbour lies behind, as a share of its own depth. |
+| | `u_normalThreshold` | Crease Threshold | 0.4 | Crease: how far two surface normals turn apart (0 same direction, 1 right angle, 2 opposite). |
+| | `u_thickness` | Thickness | 1 | Line width in pixels. |
+| | `u_lineColor` | Line Colour | black | Colour parameter: line colour. |
+
+`edgeOutline` detects creases from surface normals, so it needs surfaces that write a normal to the
+[G-buffer](/docs/graphics/post-processing/lighting/#the-g-buffer): lit meshes, Model, Toon.
+
+### Palette
+
+`palette` restricts the picture to a palette: each pixel becomes the nearest colour of a strip image (N×1 pixels, one
+colour per pixel, up to 64 colours) after an ordered dither. Place it last in the chain and import the palette image with
+nearest filtering.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_palette` | Palette (N x 1 image, one colour a pixel, up to 64) | — | Texture parameter: the palette strip. |
+| `u_strength` | Strength | 1 | Mix between the input and the quantized result. |
+| `u_dither` | Dither | 0.5 | How far the choice spreads between neighbouring colours. |
+| `u_ditherScale` | Dither Scale | 1 | Dither cell size in device pixels; match the art's pixel size. |
+
+<Aside type="tip">
+  For pixel art that must stay on one palette under changing light and weather, put `palette` after every lighting and
+  atmosphere effect.
+</Aside>
+
+## See also
+
+- [Post-processing](/docs/graphics/post-processing/overview/)
+- [Screen-space lighting](/docs/graphics/post-processing/lighting/)

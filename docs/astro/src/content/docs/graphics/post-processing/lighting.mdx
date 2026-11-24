@@ -1,0 +1,206 @@
+---
+title: Screen-space lighting
+description: Lighting effects reference — the G-buffer, SSAO and GTAO ambient occlusion, Contact Shadows, Screen Space GI, Voxel GI, Screen Space Reflections and Subsurface Scattering, with their parameters, requirements and limits.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+These effects add or correct lighting from what the frame's depth buffer and G-buffer record. They carry the **Light** tag in
+the Inspector and read scene depth. Ambient occlusion, contact shadows and global illumination belong to the quality
+levels' global-illumination group, `ssr` to the reflections group
+([Quality levels](/docs/performance/quality-levels/)). Parameters marked as world lengths follow the project's Units per
+Metre when left unset ([World-unit parameters](/docs/graphics/post-processing/overview/#world-unit-parameters)).
+
+{/* SHOT: pp-ambient-occlusion | Split comparison of a 3D interior in the Game view: left half with no ambient occlusion, right half with Ground-Truth Ambient Occlusion enabled (darkened creases under furniture and in room corners); the GTAO entry unfolded in the Inspector. */}
+
+## The G-buffer
+
+Some effects need to know what a surface is, not only its colour. An effect whose shader declares `#pragma gbuffer` makes
+the frame draw a second colour attachment beside the scene's, in the same pass and from the same shaders:
+
+| Channel | Content |
+|---|---|
+| `r`, `g` | Octahedral-encoded normal |
+| `b` | Roughness |
+| `a` | `0.75 + 0.25 × metalness` where a surface wrote; 0 where nothing wrote |
+
+The attachment is RGBA8. The `a` encoding lets an effect tell a written surface from an edge that multisampling averaged
+with an unwritten pixel (at most 0.5). Effects read it at `u_gbuffer` (GLSL) or `t6` (WGSL, read with `textureLoad`).
+
+- **Cost.** One extra RGBA8 target and one extra write per pixel, only while an enabled effect declares it. A frame with no
+  such effect has no attachment and compiles no variant.
+- **Writers.** The built-in **Model** shader (the material an imported glTF material becomes), with roughness, metalness and
+  normal map as the material defines them, and the engine's plain lit mesh, which records a rough dielectric. Sprites,
+  blended surfaces, unlit meshes and custom shaders leave it at 0; an effect treats 0 as unknown and leaves the pixel alone,
+  as `ssr` does.
+- **Custom shaders.** A shader is compiled with `ES_GBUFFER` defined when the pass has the attachment; it then declares a
+  second output (`layout(location = 1) out vec4`, or a struct return in WGSL) and writes the same encoding.
+- **Multisampling.** On WebGL2 and WebGPU the attachment is multisampled and resolved with the scene. Blended draws never
+  write it, and the scene's background clears it to 0.
+
+## Ambient occlusion
+
+Two estimators share one blur and one composite. Both read scene depth, run at half resolution, and blur without crossing
+depth edges.
+
+- **`ssao`** (Ambient Occlusion) counts how many of a ring of nearby points stand above the surface. It is the cheaper of the
+  two and needs a bias so that a flat floor does not occlude itself.
+- **`gtao`** (Ground-Truth Ambient Occlusion) marches the depth buffer along a few slice planes through each pixel, finds the
+  horizon on both sides, and integrates the open arc weighted by the surface normal. It has no bias: a flat floor stays
+  white and a crease darkens by how closed it is.
+
+| Effect | Parameter | Label | Default | Description |
+|---|---|---|---|---|
+| `ssao` | `u_radius` | Radius | 60 | World length: the neighbourhood around a point. |
+| | `u_intensity` | Intensity | 1 | Strength of the occlusion. |
+| | `u_bias` | Bias | 0.12 | Height above the tangent plane a sample must reach to count. |
+| | `u_power` | Power | 1.6 | Contrast of the result. |
+| `gtao` | `u_radius` | Radius | 80 | World length: the horizon search distance. |
+| | `u_intensity` | Intensity | 1 | Strength of the occlusion. |
+| | `u_power` | Power | 1.4 | Contrast of the result. |
+| | `u_thickness` | Thickness | 0.5 | 0 treats every occluder as solid; 1 lets thin occluders (a railing, a leaf) be seen past. |
+
+The quality levels govern both through one ambient-occlusion switch; the low level leaves `gtao` out.
+
+## Contact Shadows
+
+`contactShadows` marches a short ray from each pixel toward the sun through the depth buffer and darkens the pixel where the
+ray passes just behind a visible surface. It covers what a shadow map is too coarse to hold (a lamp's foot, a fold of cloth,
+the gap under a door) and is applied over the finished picture, as a correction at contacts rather than a second shadow
+system.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 0.6 | Darkness of a contact shadow. |
+| `u_length` | Length | 60 | World length of the ray. |
+| `u_thickness` | Thickness | 8 | World thickness an object may have and still cast. |
+| `u_followSun` | Follow Scene Sun | 1 | 1: the sun is the scene's first directional light. 0: the two angles below. |
+| `u_sunAzimuth`, `u_sunElevation` | Sun Azimuth / Elevation | 40 / 35 | Sun direction in degrees when not following the scene's light. |
+
+## Screen-space global illumination
+
+`ssgi` (Screen Space GI) adds one bounce of diffuse light from the surfaces on screen. It requires the
+[G-buffer](#the-g-buffer). From each surface eight rays leave over the hemisphere around the stored normal; each is marched
+six steps, up to `u_radius`, through the depth buffer, and the surface it lands on contributes its colour. The gather runs at
+half size into a float target; a second pass averages neighbours on the same surface and adds the light multiplied by the
+receiver's colour, so a red wall tints a white floor beside it.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Amount of bounced light added. |
+| `u_radius` | Radius | 150 | World length the rays search. |
+| `u_thickness` | Thickness | 30 | World thickness a hit surface may have, so a distant wall is not mistaken for a near one. |
+| `u_maxBounce` | Max Bounce | 3 | Brightness above which a surface does not bounce more, so a single lamp pixel does not light a street. |
+
+Limits: only surfaces on screen contribute. The bounce reads the scene's own lit colour, so it feeds itself over frames. A
+single frame is noisy; place `taa` after it. Moving lights light their surroundings, which baked lighting cannot do.
+
+## Voxel GI
+
+`voxelGI` adds diffuse global illumination from a **world-space voxel cache**. A grid of 128 × 64 × 128 voxels around the
+camera, `u_voxelSize` world units each, stores the average radiance and orientation of the surfaces in each voxel:
+
+- Every frame the lit picture is written into the voxels its visible surfaces occupy, and the previous contents fade by
+  `u_decay`.
+- Surfaces the sun lights are also written from the sun's shadow map, whether or not the camera sees them. The shadow map
+  holds no colour, so such a surface is taken to have the albedo **Off-screen Sun Albedo**.
+- From each visible surface a number of cosine-weighted rays are marched cell by cell; a ray that meets a voxel facing it
+  receives that voxel's radiance.
+- The gather runs at `1 / u_divisor` of the picture's size, is blended over frames, and is upsampled with depth so it does not
+  bleed across edges.
+
+Because the cache belongs to the world, a bright wall that has left the picture still tints the floor beside it, a surface lit
+only by another surface is lit, and a moving light lights its surroundings.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Amount of gathered light added. |
+| `u_rays` | Rays | 8 | Rays per surface point. Cost scales with it. |
+| `u_voxelSize` | Voxel Size | 40 | World size of a voxel; sets the cache's reach and resolution. |
+| `u_range` | Range | 48 | Ray length in voxels. |
+| `u_maxBounce` | Max Bounce | 3 | Brightness above which a surface gives out no more light. |
+| `u_decay` | Memory | 0.93 | Share of the cache kept each frame. Lower follows moving lights faster; higher is steadier. |
+| `u_bias` | Start Bias | 1.2 | Ray start offset in voxels, so a surface does not light itself. |
+| `u_divisor` | Resolution Divisor | 2 | The gather runs at 1/divisor of the picture's size per axis. |
+| `u_blend` | Temporal Blend | 0.2 | Share of each frame's gather blended in. |
+| `u_debug` | Show GI Only | 0 | 1 shows the gathered light alone. |
+| `u_sunAlbedo` | Off-screen Sun Albedo | 0.6 | Albedo assumed for sunlit surfaces written from the shadow map. 0 leaves the sun out; the cache then knows only what the picture shows. |
+| `u_bounceFeedback` | Multi-bounce | 1 | Share of received light a surface gives off again, which carries light past the first bounce. 0 is one bounce. |
+
+Defaults are stated at 100 world units per metre and follow the project's Units per Metre when unset. For a close character
+shot in a project of one unit per metre: `u_voxelSize` 0.03 (a cache about four metres across) with `u_range` 48, and for
+`ssgi` a `u_radius` of 0.4 and a `u_thickness` of 0.15.
+
+**Backends.** On WebGPU it runs as compute passes. On WebGL2, which has no compute stage, the same cache is built by fragment
+passes into one half-float atlas (2048 × 1024, 32 MB): each atlas texel samples the picture for what stands in its voxel.
+The result matches WebGPU, but the gather is fixed at half size (`u_divisor` is ignored), surfaces seen at grazing angles are
+thinner in the cache, and the cost is higher. The `low` quality level leaves it out on WebGL2. The Inspector marks it
+**WebGPU only** because of the compute version.
+
+**Limits.**
+
+- It is not a trace of scene geometry. A surface neither seen by the camera nor lit by the sun sends no light, and a thin
+  surface is as thick as a voxel. There is no distance-field or hardware ray tracing and no surface cache of the scene's
+  meshes.
+- Diffuse transport only; no glossy reflection.
+- The picture it is fed from carries the previous frame's light, so a bright surface feeds itself slightly.
+- Memory: a grid of about 32 MB, several passes per frame, one cache per camera.
+
+## Screen Space Reflections
+
+`ssr` reflects what is on screen in reflective surfaces: wet streets, polished floors, a lake's edge. The reflected ray is
+marched through the world and projected back at each step; a step that lands just behind the visible surface is a hit. The
+hit colour is blended by a Schlick Fresnel term, faint face-on and strong at grazing angles. A farther hit is blurred more.
+
+Surface data comes from the [G-buffer](#the-g-buffer): the surface's own normal (including normal-map detail), roughness
+and metalness. A rough surface reflects dimly and blurred; a surface rougher than `u_maxRoughness` is skipped before marching,
+which removes most of the cost. A metal reflects nearly all it receives; a dielectric reflects 4% face-on. Where no surface
+record was written (sprites, blended or unlit surfaces, custom shaders) the pixel is left unchanged.
+
+Where the ray leaves the picture or reaches the sky, the surface reflects the environment the frame's meshes reflect, at the
+sharpness its roughness gives, scaled by `u_skyReflection`.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_intensity` | Intensity | 1 | Reflection strength. |
+| `u_maxDistance` | Max Distance | 400 | World length a ray may travel. The step count is fixed, so a longer reach is a coarser march. |
+| `u_thickness` | Thickness | 12 | World depth behind a visible surface that still counts as a hit. |
+| `u_floorBias` | Floor Bias | 0 | 1: only up-facing surfaces reflect. 0: any surface smooth enough reflects. |
+| `u_maxRoughness` | Max Roughness | 0.75 | Surfaces rougher than this reflect nothing and cost nothing. |
+| `u_wetness` | Wetness | 0 | Wet ground is smoother, so it reflects. Set it to the Rain effect's wetness. |
+| `u_puddles`, `u_puddleScale` | Puddles / Puddle Size | 0 / 350 | Standing water: flat and mirror-like. The same values as the Rain effect reflect the same pools. |
+| `u_skyReflection` | Sky Reflection | 1 | Environment reflection where the ray finds nothing on screen. 0 disables it. |
+
+A per-pixel start offset hides banding from the fixed step count; `taa` averages it away. Use the two together. During rain,
+give `ssr` the [Rain](/docs/graphics/post-processing/sky-and-weather/#rain-and-snow) effect's `u_puddles`, `u_puddleScale`
+and `u_wetness`, and raise its intensity.
+
+## Subsurface Scattering
+
+`subsurface` softens the lit picture along marked surfaces, each colour channel by a different distance: red travels
+furthest. It runs as an x pass and a y pass over the finished picture.
+
+Materials choose which surfaces take part: a Model material with `u_subsurface` above 0 marks its pixels by drawing them with
+alpha 0.996, which is not visible and which the effect restores to 1 ([Materials](/docs/graphics/materials/overview/)). The effect
+sets the distance. A marked pixel gathers only from marked neighbours on the same surface, so an ear does not bleed into the
+wall behind it.
+
+| Parameter | Label | Default | Description |
+|---|---|---|---|
+| `u_width` | Width | 8 | World length the widest-travelling colour spreads. |
+| `u_strength` | Strength | 1 | Share of the blur mixed in. |
+| `u_color` | Scatter Colour | (1, 0.45, 0.25) | Colour parameter: proportions between channels; the brightest travels the full width. |
+
+The lit colour is blurred as it stands, specular included, so a sharp highlight on a scattering surface is softened too. The
+width belongs to the effect, so every scattering material in view shares it. The low quality level leaves the effect out.
+
+<Aside>
+  Ambient occlusion, contact shadows, SSGI and SSR leave per-pixel noise. Place `taa` after them
+  ([Temporal anti-aliasing](/docs/graphics/post-processing/image-effects/#temporal-anti-aliasing)).
+</Aside>
+
+## See also
+
+- [Post-processing](/docs/graphics/post-processing/overview/)
+- [Lights](/docs/graphics/lighting/lights/)
+- [Materials & Shaders](/docs/graphics/materials/overview/) — `u_subsurface` and G-buffer output from a shader.
