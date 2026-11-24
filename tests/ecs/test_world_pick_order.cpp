@@ -34,14 +34,14 @@ TEST_CASE("world picks follow directly authored child lists, including missing a
     for (usize i = 0; i < children.size(); ++i) listed[i] = children[(i * 73) % children.size()];
     const Entity last = listed.back();
     listed.push_back(listed.front());
-    CHECK(pick() == last);
+    CHECK_EQ(pick().raw, last.raw);
 
     // An unlisted child ranks past the list; a stale handle is a different child.
     const Entity omitted = listed[3];
     listed[3] = Entity::make(omitted.index(), omitted.generation() + 1);
-    CHECK(pick() == omitted);
+    CHECK_EQ(pick().raw, omitted.raw);
     registry.remove<Children>(parent);
-    CHECK(pick() == children.back());
+    CHECK_EQ(pick().raw, children.back().raw);
     registry.get<Parent>(children.front()).entity = Entity::make(parent.index(), parent.generation() + 1);
-    CHECK(pick() == children.front());
+    CHECK_EQ(pick().raw, children.front().raw);
 }
