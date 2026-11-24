@@ -32,7 +32,7 @@ import type { Pose } from './pose';
 import type { MotionParams } from './motion';
 
 /** What an IK constraint does to the joint it names. */
-export type AnimatorIKKind = 'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock' | 'stride-warp';
+export type AnimatorIKKind = 'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock' | 'stride-warp' | 'orientation-warp';
 
 export interface AnimatorIK {
     kind: AnimatorIKKind;
@@ -70,6 +70,13 @@ export interface AnimatorIK {
     stretch?: number;
     /** foot-lock: how far the body may turn over a standing foot before the foot takes a step, in degrees. Default 40. */
     twist?: number;
+    /**
+     * orientation-warp: the joints above the hips that turn back by as much as the hips turn, shared out among them in
+     * order, so the chest still faces the way the character does. The `tip` is the hips.
+     */
+    spine?: string[];
+    /** orientation-warp: the most the hips are turned, degrees either way. Default 90. */
+    maxAngle?: number;
     /** stride-warp: the shortest a stride is drawn in to, as a share of the clip's. Default 0.5. */
     minStride?: number;
     /** stride-warp: the longest a stride is let out to, as a share of the clip's. Default 1.6. */
@@ -127,7 +134,7 @@ export interface GroundContext {
      * How the character's speed over the ground compares with the speed its motion travels (1 = the clip's own), and
      * which way it went, in the world. What a stride warp fits the legs to; the animator measures it.
      */
-    stride?: { ratio: number; direction: Vec3 };
+    stride?: { ratio: number; direction: Vec3; angle?: number };
 }
 
 interface Vec3 { x: number; y: number; z: number }
@@ -670,6 +677,36 @@ function warpStrides(
 }
 
 /**
+ * Legs turned to the way the character is going. A clip runs straight ahead; a character moved by its controller goes
+ * off at an angle to that while it turns, and with the legs still running ahead the feet slide sideways. This turns the
+ * hips about up by that angle, so the legs run the way it goes, and turns the spine back by as much, shared out joint by
+ * joint, so the chest keeps facing where the character faces.
+ */
+function warpOrientation(
+    world: World, pose: Pose, rigRoot: Entity, warps: readonly { ik: AnimatorIK; weight: number }[],
+    resolveJoint: JointResolver, angle: number,
+): void {
+    for (const { ik, weight } of warps) {
+        const limit = (ik.maxAngle ?? 90) * Math.PI / 180;
+        const turn = Math.max(-limit, Math.min(limit, angle)) * weight;
+        if (Math.abs(turn) < 1e-4) continue;
+        const hips = resolveJoint(rigRoot, ik.tip);
+        if (hips === null) continue;
+        const pHips = place(world, pose, rigRoot, hips);
+        if (!pHips) continue;
+        leanJoint(world, pose, hips, pHips.parentRotation, q.normalize(q.mul(yawTurn(turn), pHips.rotation)), 1);
+        const spine = (ik.spine ?? []).map((path) => resolveJoint(rigRoot, path)).filter((e): e is Entity => e !== null);
+        if (spine.length === 0) continue;
+        const back = yawTurn(-turn / spine.length);
+        for (const joint of spine) {
+            const placed = place(world, pose, rigRoot, joint);
+            if (!placed) continue;
+            leanJoint(world, pose, joint, placed.parentRotation, q.normalize(q.mul(back, placed.rotation)), 1);
+        }
+    }
+}
+
+/**
  * Apply every constraint to the stack's answer, in the order they are declared:
  * one can move a joint another then reads, and an author who wrote them in an
  * order meant it. Foot-plants go first, together: where the feet land moves the
@@ -681,7 +718,12 @@ export function solveAnimatorIK(
     resolveJoint: JointResolver = (root, path) => resolveChildEntity(world, root, path),
     ground?: GroundContext,
 ): void {
-    // Strides first: where a foot lands at this speed is what a foot-plant then sets on the ground.
+    // The legs turned to the way it goes first, then their strides along it, then the feet set on the ground.
+    if (ground?.stride?.angle) {
+        const warps = constraints.filter((ik) => ik.kind === 'orientation-warp')
+            .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
+        if (warps.length) warpOrientation(world, pose, rigRoot, warps, resolveJoint, ground.stride.angle);
+    }
     if (ground?.stride) {
         const feet = constraints.filter((ik) => ik.kind === 'stride-warp')
             .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
@@ -702,7 +744,7 @@ export function solveAnimatorIK(
         if (held.length) lockFeet(world, pose, rigRoot, held, resolveJoint, ground);
     }
     for (const ik of constraints) {
-        if (ik.kind === 'foot-plant' || ik.kind === 'foot-lock' || ik.kind === 'stride-warp') continue;
+        if (ik.kind === 'foot-plant' || ik.kind === 'foot-lock' || ik.kind === 'stride-warp' || ik.kind === 'orientation-warp') continue;
         const weight = weightOf(ik, params);
         if (weight <= 0) continue;
         if (ik.kind === 'look-at') solveLookAt(world, pose, rigRoot, ik, weight, resolveJoint);

@@ -1022,7 +1022,7 @@ export class AnimatorControllerAPI {
         }
         if (index === 0) {
             this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot, travel);
-            rt.motionSpeed = this.travelSpeed(world, entity, ctx, motion, span, dt, travel);
+            rt.motionSpeed = this.travelSpeed(world, entity, ctx, motion, span, dt, travel, rt);
         }
         return posed !== null;
     }
@@ -1174,7 +1174,7 @@ export class AnimatorControllerAPI {
      */
     private travelSpeed(
         world: World, entity: Entity, ctx: MotionContext, motion: AnimatorMotion | null, span: MotionSpan,
-        dt: number, travel: number,
+        dt: number, travel: number, rt: AnimatorRuntime,
     ): number {
         if (motion === null || dt <= 0) return 0;
         const out = this.speedScratch_;
@@ -1183,7 +1183,10 @@ export class AnimatorControllerAPI {
         const rigRoot = this.rigRootOf(world, entity, world.get(entity, Animator) as AnimatorData);
         if (rigRoot !== entity) moved = inFrameOf(world, rigRoot, moved);
         moved = inFrameOf(world, entity, moved);
-        return Math.hypot(moved.x, moved.z) * travel / dt;
+        const ground = Math.hypot(moved.x, moved.z);
+        // Which way the motion goes, in the world: what an orientation warp turns the legs from.
+        if (ground > 1e-9) rt.motionDirection = { x: moved.x / ground, z: moved.z / ground };
+        return ground * travel / dt;
     }
 
     /**
@@ -1205,9 +1208,18 @@ export class AnimatorControllerAPI {
         const wanted = goes > 1e-3 && went > 1e-3 ? went / goes : 1;
         const was = ground.stride?.ratio ?? 1;
         const k = 1 - Math.exp(-dt / STRIDE_EASE);
+        // How far the way it went is turned from the way its motion goes, about up: what an orientation warp turns the
+        // legs by. Nothing while either stands still.
+        const from = rt.motionDirection;
+        let turned = 0;
+        if (from && goes > 1e-3 && went > 1e-3) {
+            turned = Math.atan2(from.z * vx - from.x * vz, from.x * vx + from.z * vz);
+        }
+        const wasTurned = ground.stride?.angle ?? 0;
         ground.stride = {
             ratio: was + (wanted - was) * k,
             direction: went > 1e-3 ? { x: vx / went, y: 0, z: vz / went } : ground.stride?.direction ?? { x: 0, y: 0, z: 1 },
+            angle: wasTurned + (turned - wasTurned) * k,
         };
     }
 
@@ -1404,6 +1416,8 @@ interface AnimatorRuntime {
     ground?: GroundContext;
     /** How fast the base layer's motion travels, world units a second, as of this frame. */
     motionSpeed?: number;
+    /** Which way it travels over the ground, in the world; the last way it did while it stands. */
+    motionDirection?: { x: number; z: number };
     /** Where the character stood last frame, over the ground. */
     lastAt?: { x: number; z: number };
     /** One per layer, the base layer at 0. */
