@@ -7,9 +7,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 这些效果模拟相机镜头、消除锯齿或对画面做风格化处理。它们在检视器中带有**镜头**、**抗锯齿**或**风格化**标签。参数名为场景数据和代码中使用的带 `u_`
 前缀的名称。
-
-{/* SHOT: pp-depth-of-field | A 3D scene in the Game view with Depth of Field enabled: a sharp subject in the middle distance, a blurred foreground and background with hexagonal bokeh on a bright light (Aperture Blades 6, Highlight Boost above 0); the Depth of Field entry unfolded in the Inspector. */}
-
 ## 泛光
 
 `bloom` 在亮于阈值的像素周围添加辉光。超范围的光以半尺寸提取，分五步降采样至 1/64 尺寸，再逐级升采样回来，每一级加回同尺寸的降采样结果。辉光衰减圆润柔和，
@@ -142,9 +139,6 @@ HDR 下的自发光表面。它以半尺寸计算，以全尺寸合成。
 
 **顺序。** 将 `taa` 放在所有需要它平均噪点的效果之后：环境光遮蔽、接触阴影、全局光照、反射、光束、高度雾。排在 `taa` 之后的效果所带来的噪点会原样到达屏幕。
 若 `taa` 之后还有此类效果，检视器在该 `taa` 条目上显示警告标签。
-
-{/* SHOT: pp-taa-order-warning | PostProcessVolume Inspector with Temporal Anti-Aliasing above Ambient Occlusion and Height Fog; the "!" warning tag on the TAA entry with its tooltip open, listing the effects that run after it. */}
-
 **移动网格。** `taa` 在效果链中时，发生移动的网格会再绘制一遍到运动目标中，记录每个像素自上一帧移动的距离；在移动表面就是屏幕上可见表面的位置，效果跟随该运动。
 细而快的移动物体因此保持对比度，而不会淡入背景。开销为对发生移动的物体多绘制一次（没有物体移动时为零）以及一张与场景同尺寸的 RGBA32F 目标；不支持浮点渲染目标的设备
 会跳过该 pass。蒙皮网格通过骨骼跟随：帧会保留每个骨骼上次绘制时的调色板。混合表面以及材质顶点钩子添加的运动不被跟随；它们使用相机运动，并被限制在像素周围的颜色范围内。

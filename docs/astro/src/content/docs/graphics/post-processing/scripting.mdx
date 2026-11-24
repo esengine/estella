@@ -9,9 +9,6 @@ A `PostProcessVolume` resolves effects, multi-pass layouts, defaults and texture
 ([Post-processing](/docs/graphics/post-processing/overview/)). For a fixed per-camera pipeline built in code, use the
 **`PostProcess`** resource directly. New effects are added to the shared registry with `registerEffect` or `defineSkyEffect`
 and then appear in the editor's add menu like built-in ones.
-
-{/* SHOT: pp-custom-effect-menu | PostProcessVolume Inspector with the add-effect menu open, showing a project-defined sky ("Dusk Sky", registered with defineSkyEffect) listed among the built-in Atmosphere effects. */}
-
 ## Effect stacks
 
 A stack starts empty and holds one **pass** per single-pass effect. Get the effect's shader from the registry with

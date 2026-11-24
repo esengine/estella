@@ -45,8 +45,7 @@ cmds.spawn()
   每张阴影图都要重新渲染投射到其中的网格；Point 光要渲染六次。只照射锥形区域的灯具应使用 Spot 光。Details 中的 Light Status 显示分配到的阴影图数以及不足的原因。新的分配失败会输出警告；相同的失败不会每帧重复输出。
 </Aside>
 
-{/* SHOT: light-mesh-shadows-status | A 3D scene with a Directional light (Mesh Shadows on) and a Point light casting mesh shadows; the Point light selected, its Light card in Details showing the Light Status line with granted shadow maps and the Mesh Shadows, Shadow Bias and Shadow Slope Floor fields. */}
-
+![3D 入门模板中方向光的细节面板：Light 卡片](@/assets/guides/zh/light-mesh-shadows-status.png)
 ## 2D 阴影
 
 **`ShadowCaster2D`** 使实体成为 2D 光源的遮挡体：
@@ -70,8 +69,7 @@ cmds.spawn()
 
 实体需要 `Transform`。在 Details 中，**描出精灵轮廓**（Trace Sprite）用从实体精灵 alpha 描出的剪影替换轮廓。
 
-{/* SHOT: light-shadow-caster-2d | A sprite with ShadowCaster2D selected in the scene view, its traced outline drawn as a gizmo, a Point light nearby casting the shadow; Details shows the Shadow Caster 2D card with the Trace Sprite button. */}
-
+![2D 光照示例中选中的柱子：细节面板中的 Shadow Caster 2D 组件，以及场景视图中点光源投下的阴影](@/assets/guides/zh/light-shadow-caster-2d.png)
 ### 光源设置
 
 阴影质量在光源上设置，而不是在遮挡体上：
@@ -125,8 +123,7 @@ cmds.spawn()
 
 圆片会被其前方的几何体遮挡，自身不写入深度。它不随光源拉伸，不会落在台阶或墙面上；只在需要落地感时使用。圆片是一个独立实体，不随场景保存。
 
-{/* SHOT: light-blob-shadow | A 3D character mid-jump above flat ground with a BlobShadow disc under it, smaller and fainter than at rest; Details shows the Blob Shadow card with Radius, Opacity, Softness, Ground Y, Fade Height and Shrink. */}
-
+![带 Blob Shadow 卡片的实体的细节面板及其字段](@/assets/guides/zh/light-blob-shadow.png)
 ## 参见
 
 - [光源](/docs/zh-cn/graphics/lighting/lights/)

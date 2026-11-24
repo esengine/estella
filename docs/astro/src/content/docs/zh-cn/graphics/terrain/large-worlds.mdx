@@ -5,6 +5,8 @@ description: 用于超出内存容量的高度图的分块地形（.esterrain）
 
 本页介绍基于[地形](/docs/zh-cn/graphics/terrain/overview/)机制的两种大型地面：用于超大区域的分块高度图，以及球面地面 `Planet`。
 
+![运行中的 worldgen 示例：带植被、延伸至地平线的生成地形](@/assets/guides/zh/terrain-worldgen-play.png)
+
 ## 分块地面
 
 高度图整体读取：8193 × 8193 的场约占 256 MiB。将地形的 `tiles` 设为 `.esterrain` 文件后，地面以 513 × 513 样本的分块
@@ -21,16 +23,10 @@ description: 用于超出内存容量的高度图的分块地形（.esterrain）
 - 分块图像只由 `.esterrain` 引用，与 `heightmap` 一样按数据读取，不上传为纹理。
 
 在编辑器中对 4096 单位区域测得：8193 × 8193 的场以分块打开占 36 MiB，贴近地面时为 45 MiB。
-
-{/* SHOT: terrain-sculpt-tiles | The terrain sculpt panel for a tiled terrain (Terrain with a .esterrain in Tiles): the tile section with Split into Tiles, the heightmap export/import buttons and the Loaded tiles / All tiles scope selector visible */}
-
 ## 星球
 
 `Planet` 是球面上的地面。它使用与平面地形相同的机制，作用于一个立方体：六个面各为一棵四叉树，每个点被投影到半径处。最细的
 单元在视点下方；从远处看，星球只是少量粗节点。从地表和从太空绘制的是同一地面，无需切换。
-
-{/* SHOT: terrain-planet-details | Details panel of a Planet entity with the Shape, Layers, Sea and Physics groups expanded (Sea ticked), and the scene view showing the planet from orbit with its sea */}
-
 ### 字段
 
 | 字段 | 说明 |

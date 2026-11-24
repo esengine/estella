@@ -9,16 +9,12 @@ A scene lit in linear space can hold values brighter than a display shows. The *
 frame to the display once, after every effect. The effects on this page shape tone and colour inside the chain
 (`tonemap`, `agx`, `colorGrade`, `lutGrade`, `autoExposure`, `grayscale`) or on display values after the output transform
 (`displayLut`). All of them carry the **Colour** tag in the Inspector.
-
-{/* SHOT: pp-color-grade | A lit 3D scene in the viewport beside the Inspector of a PostProcessVolume with Tonemap followed by an unfolded Color Grade (Shadow Tint teal, Highlight Tint warm, S-Curve above 0); the graded look visible in the viewport. */}
-
 ## Output transform
 
 The output transform is a project setting, not an effect: **Settings → Project → Rendering → Output transform**. It applies
 to the editor viewport, Play and every export, and changing it takes effect without a reload.
 
-{/* SHOT: pp-output-transform-setting | Settings window, Project → Rendering section, with the Output transform dropdown open showing None, ACES and Neutral. */}
-
+![Settings → Project → Rendering: the Output transform switch (None / ACES / Neutral)](@/assets/guides/en/pp-output-transform-setting.png)
 | Transform | Behaviour | Use |
 | --- | --- | --- |
 | **None** | Encodes only. Values above 1 clip. | Flat 2D art, UI, content that must round-trip exactly. |

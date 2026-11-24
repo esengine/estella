@@ -7,9 +7,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 `PostProcessVolume` 会自动解析效果、多 pass 布局、默认值和纹理引用（[后处理](/docs/zh-cn/graphics/post-processing/overview/)）。在代码中为相机构建固定的管线时，
 直接使用 **`PostProcess`** 资源。新效果通过 `registerEffect` 或 `defineSkyEffect` 加入共享注册表，随后与内置效果一样出现在编辑器的添加菜单中。
-
-{/* SHOT: pp-custom-effect-menu | PostProcessVolume Inspector with the add-effect menu open, showing a project-defined sky ("Dusk Sky", registered with defineSkyEffect) listed among the built-in Atmosphere effects. */}
-
 ## 效果栈
 
 效果栈初始为空，每个单 pass 效果对应一个 **pass**。用 `getEffectDef(type).factory()` 从注册表获取效果的着色器，设置其带 `u_` 前缀的 uniform，再将效果栈绑定到相机：

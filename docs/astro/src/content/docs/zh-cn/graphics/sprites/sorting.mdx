@@ -28,8 +28,7 @@ sprite.layer = 0;   // 例如 "Background"
 sprite.layer = 2;   // 例如 "Foreground"，绘制在上
 ```
 
-{/* SHOT: spr-sorting-settings | Settings → Project → Rendering: Layer names filled in (Background, Default, Gameplay, Foreground), Advanced settings shown with the Y-sorted layers and Depth-sorted layers checkbox lists, Gameplay checked as y-sorted */}
-
+![设置 → 项目 → 渲染：排序层分组与 32 个层名称字段](@/assets/guides/zh/spr-sorting-settings.png)
 ## 层内次序
 
 `Sprite.order` 决定精灵在其排序层内的位置：值越大越靠上，范围 −128…127。`0` 表示不指定。非零次序覆盖该层自身的排序方式——默认层的 z、Y 排序层的世界 Y、深度排序层的深度。
@@ -152,9 +151,6 @@ world.update(fog, Sprite, (s) => {
 - 遮罩作用于按层与次序在其之后绘制的精灵。与遮罩层和次序都相同的精灵不会被裁切。
 - 两个遮罩重叠处，由更近（最后写入）的遮罩决定模板，因此每个精灵至多被一个遮罩裁切。
 - 遮罩只影响渲染。拾取、物理与空间查询不受其影响。
-
-{/* SHOT: spr-sprite-mask | Scene view: a dark fog sprite with Mask Interaction VisibleOutside and a round SpriteMask (Alpha Cutoff 0.5) cutting a circular hole in it; Details shows the SpriteMask card of the mask entity */}
-
 UI 节点改用 `UIMask`（[遮罩与显隐](/docs/zh-cn/ui/masks/)）。
 
 ## 另请参阅

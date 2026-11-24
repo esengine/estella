@@ -54,8 +54,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 光照面板显示场景处于 **尚未烘焙**、**已是最新** 还是 **已过期**（烘焙读取的内容在此后发生了变化），烘焙表面、移动物体和探针体积的数量，烘焙设置，以及所选对象的光照来源（光照贴图、探针体积、实时光源或仅环境光），在对象没有烘焙光时给出原因。
 
-{/* SHOT: light-lighting-panel | The Lighting panel docked on the left with a baked scene: state Up to date, the surface / moving / probe volume counts, the Bake settings group (Atlas size, Texels / unit, Bounces, Samples, Probe samples, Probe levels, Sky occlusion), the Bake Lighting button, and the Selected object section for a static mesh reporting baked light from the lightmap atlas. */}
-
+![光照面板：预览光照、环境、所选对象、烘焙状态与“烘焙光照”按钮](@/assets/guides/zh/light-lighting-panel.png)
 ### 烘焙设置
 
 `BakedLighting` 组件保存场景的烘焙设置。没有它时烘焙使用默认值；光照面板中的 **添加光照设置** 会添加它。
@@ -91,9 +90,6 @@ import { Aside } from '@astrojs/starlight/components';
 网格以 4 × 4 × 4 个单元的**分块**存储在 3D 图集中，每个分块通过一个索引单元定位。**`BakedLighting.probeLevels`** 大于 1 时（光照面板中的 **探针层级**），烘焙只在靠近几何体的分块中保持体积的 `spacing`，空旷处按其 2、4 或 8 倍采样。沿地面和墙面间距很细的大体积因此用少得多的探针即可烘焙，每个体积的探针上限每增加一级扩大八倍。细分块与粗分块相邻时，细分块的那一面取粗分块的值，因此间距变化处没有接缝。所有分块都是最细级别时，网格按密集方式写出，与一级时相同。
 
 在编辑器中选中体积会显示已加载的网格：稀疏网格绘制其分块，最细的为紫色，较粗的依次为琥珀色（2 倍）、淡黄色（4 倍）和灰色（8 倍）；密集网格在每个探针处绘制一个十字。显示内容反映引擎已加载的网格，而不是组件当前的 `spacing`。
-
-{/* SHOT: light-probe-bricks | A baked LightProbeVolume selected in the scene view of an interior with Probe levels 3: violet fine bricks along the floor and walls, amber and pale yellow coarser bricks in the open air; Details shows the Light Probe Volume card. */}
-
 ### 逐像素与逐对象读取
 
 | 读取者 | 读取方式 |

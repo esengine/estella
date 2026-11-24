@@ -11,8 +11,7 @@ description: 画面扰动参考——CameraNoise 手持漂移、shakeCamera 瞬�
 | `CameraImpulseSource` / `CameraImpulseListener` | 在某位置发出的组件 | 监听的相机，按距离衰减 | 逐相机，混合之前 |
 | `shakeCamera` | 函数调用 | 解析出的主视图 | 混合之后 |
 
-{/* SHOT: cam-impulse-source-details | Scene view with an Impulse Source entity selected next to a Follow Camera 2D: Details panel showing the CameraImpulseSource card (Amplitude, Rotation, Frequency, Attack, Sustain, Decay, Radius, Dissipation, Fire) */}
-
+![带 Camera Impulse Source 卡片的实体的细节面板及其字段](@/assets/guides/zh/cam-impulse-source-details.png)
 ## 手持噪声
 
 `CameraNoise` 使相机像手持拍摄那样漂移和转动，或像在载具上那样摇晃：六个通道的平滑 Perlin 噪声，其中三个沿画面自身的右、上、前方向平移，三个绕相同的轴旋转。

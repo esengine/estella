@@ -26,8 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
 *添加组件 → Post Process Volume* 添加该组件。检视器按执行顺序列出体积的效果，每一项包含启用开关、参数（含颜色参数与纹理参数）、折叠控件和分类标签：
 **镜头**、**色彩**、**光照**、**大气**、**抗锯齿**、**风格化**或**其他**。具有计算着色器实现或引擎原生实现的效果带有**仅 WebGPU** 标签。添加菜单按相同的分类分组。
 
-{/* SHOT: pp-volume-inspector | Inspector of an entity with a PostProcessVolume holding Auto Exposure, Bloom, Color Grade and Vignette in that order; Bloom unfolded with Threshold, Intensity and Radius visible; category tags visible on every entry. */}
-
+![后处理示例中 PostProcessVolume 实体的细节面板：Post Process Volume 卡片，含 Effects（添加效果）、Is Global、Shape、Size、Priority、Weight 与 Blend Distance](@/assets/guides/zh/pp-volume-inspector.png)
 | 属性 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `effects` | list | `[]` | 每个效果一项 `{ type, enabled, uniforms, textures?, colors? }`，按效果链顺序排列。`uniforms` 存放浮点参数，`textures` 存放纹理引用（查找表、遮罩），`colors` 存放颜色参数。 |

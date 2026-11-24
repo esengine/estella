@@ -26,9 +26,6 @@ description: 作用于精灵的俯视 2D 组件——用于屋顶与树冠的 Co
 | `enabled` | `true` | 禁用该组件。 |
 
 `CoverFadeTarget` 是没有字段的标签。覆盖范围为精灵的 `size` 与 `pivot` 乘以实体缩放，不读取旋转。淡化只在运行时生效。
-
-{/* SHOT: spr-cover-fade | Game view during Play: the player standing under a roof sprite with CoverFade, the roof faded to 25% showing the room beneath; Details shows the roof's CoverFade card */}
-
 ## 遮雨
 
 2D 雨无法判断某一点上方有什么，因此由遮挡的精灵自行声明。场景的后处理体积中有 `rain2d` 效果时，带 `RainShelter` 的精灵所覆盖的地面保持干燥：没有雨线、涟漪与积水。
@@ -114,9 +111,6 @@ description: 作用于精灵的俯视 2D 组件——用于屋顶与树冠的 Co
 | `exploredFromString(text)` | 恢复该图并重绘迷雾。数据与迷雾的 `texels` 不符时返回 `false`。 |
 
 图形设备丢失后，也由同一网格恢复两张图。
-
-{/* SHOT: spr-fog-of-war | Game view during Play with FogOfWar and a fog2d effect: dark unexplored ground, a dimmed desaturated explored corridor, and the clear field of view around the player cut by walls */}
-
 ## 脚印与涟漪
 
 在行走者上加 `Footsteps`、在地面精灵上加 `StepSurface` 后，行走路径上会留下痕迹。行走者每移动 `stride` 个世界单位迈出一步，沿前进方向左右交替。

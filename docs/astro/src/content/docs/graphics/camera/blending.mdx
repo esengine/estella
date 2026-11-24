@@ -69,8 +69,7 @@ cmds.spawn().insert(CameraBrain, {
 });
 ```
 
-{/* SHOT: cam-brain-custom-blends | Details panel of a Camera Brain entity: Default Blend 1, Blend Curve Ease in and out, and the Custom Blends table with two rows (Wide → Close 0 s Linear; Any camera → Wide 2.5 s Ease in and out) */}
-
+![Details of the Camera Brain entity in the camera-shots example: default blend, blend curve and custom blends](@/assets/guides/en/cam-brain-custom-blends.png)
 Constraints:
 
 - When the live camera changes during a blend, the new blend starts from the current view, so the view does not jump.
@@ -160,9 +159,6 @@ if (blend) console.log(`blending ${blend.from} → ${blend.to}: ${Math.round(ble
 
 While the game runs in the editor, the Outliner marks the live camera **LIVE** (with the blend's progress while a blend
 is in progress) and the camera a blend is leaving **OUT**. In Inspect mode the game view names them as well.
-
-{/* SHOT: cam-outliner-live | Editor in play mode during a camera blend: Outliner with two camera rows, one tagged LIVE with a blend percentage and the other tagged OUT, game view in the scene view behind */}
-
 ### Camera events
 
 `CameraEvent` reports changes of the live camera: a camera becoming live, and a blend into it finishing. Typical uses

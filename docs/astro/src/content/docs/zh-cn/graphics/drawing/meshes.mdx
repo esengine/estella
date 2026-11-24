@@ -10,6 +10,8 @@ import { Aside } from '@astrojs/starlight/components';
 | `MeshRenderer` | 组件：参与排序、可保存、可检视。 | 程序化地形切片、径向血条弧、水面、导入的网格。 |
 | `Geometry` | 即时：在绘制回调中绘制的顶点缓冲句柄。 | 配合材质或着色器的自定义顶点布局。 |
 
+![运行中的 drawing-demo 示例：右侧是用代码构建的程序化带状网格](@/assets/guides/zh/draw-set-path.png)
+
 ## 自定义网格：`MeshRenderer`
 
 `MeshRenderer` 渲染一个带索引的三角形列表。几何可以内联写在组件上：位置为 x、y 坐标对，可选的逐顶点 UV 与颜色，以及索引。
@@ -69,9 +71,6 @@ world.insert(card, Billboard, { mode: BillboardMode.Upright });
 - 旋转在绘制时按视图分别计算，两台相机都能看到卡片正面。实体的 `Transform` 从不被写入，脚本、物理与编辑器 Gizmo 读取的都是编辑时设定的旋转。
 - 阴影贴图也是一个视图：卡片在其中转向光源，投下完整轮廓。
 - `Billboard` 不参与[静态合批](/docs/zh-cn/performance/static-batching/)，`MeshInstances` 的摆放实例也不会被转动。
-
-{/* SHOT: draw-billboard | Scene view in 3D with the camera looking down at an angle: several textured builtin:quad tree cards standing upright on the ground; Details shows the MeshRenderer card (Mesh builtin:quad) and the Billboard card with Mode Upright */}
-
 ## 自定义几何：`Geometry` API
 
 `Geometry` 上传带索引的顶点缓冲并返回句柄，在绘制回调中通过 `Draw.drawMeshWithMaterial(geometry, material, transform?)` 配合[材质](/docs/zh-cn/graphics/materials/code/)绘制，或通过 `Draw.drawMesh(geometry, shader, transform)` 配合原始着色器绘制。

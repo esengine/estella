@@ -91,8 +91,7 @@ cmds.entity(cameraEntity).insert(PositionComposer, {
 
 相机沿自身屏幕平面（右方向与上方向）移动，因此旋转过的相机以推轨方式移动。正交相机的屏幕在任何深度下高度均为 `orthoSize`。`PositionComposer` 属于位置阶段：一台相机使用它、`FollowTarget` 或 `CameraDolly` 之一。选中相机时，其视口预览会绘制死区与软区。Follow Camera 2D 组合使用此组件。
 
-{/* SHOT: cam-position-composer-zones | Scene view with the Follow Camera 2D rig selected and a player sprite as its target: the camera preview inset shows the composer's dead zone and soft zone rectangles over the framed player, Details panel shows the PositionComposer card */}
-
+![在平台跳跃场景中创建的 Follow Camera 2D：场景视图中的相机预览小窗，细节面板中的 Camera、Position Composer 与 Camera Impulse Listener 组件](@/assets/guides/zh/cam-position-composer-zones.png)
 ## 看向目标
 
 `FollowTarget` 决定相机所在位置，`LookAtTarget` 决定相机看向何处。在透视相机上，`LookAtTarget` 转动相机，使目标位于指定的屏幕点。目标在该点周围的死区内移动时相机不转动；离开死区后，相机只转动到使目标回到死区边缘为止，并按 `damping` 平滑。
@@ -131,8 +130,7 @@ cmds.entity(cameraEntity).insert(LookAtTarget, {
 
 选中带 `LookAtTarget` 的相机时，其视口预览会绘制构图：目标被保持的屏幕点及其周围的死区。拖动该点可设置 `screenX`/`screenY`；拖动死区的边可以该点为中心调整死区大小。每次拖动为一个撤销步骤。
 
-{/* SHOT: cam-composition-guides | Scene view with a Tracking Camera selected in a 3D scene: the camera preview inset shows the composition guides (target point and dead-zone rectangle) over the framed character, mouse cursor on a dead-zone edge */}
-
+![在 3D 场景中创建的 Tracking Camera：场景视图中选中的相机装置及其相机预览小窗](@/assets/guides/zh/cam-composition-guides.png)
 ## 沿轨道移动
 
 `CameraDolly` 将相机放在一条轨道上：场景中的一个 `Spline` 实体。它属于位置阶段，用于代替 `FollowTarget` 或 `PositionComposer`。`mode` 决定相机在轨道上的位置：
@@ -163,8 +161,7 @@ cmds.entity(cameraEntity)
 
 距离沿曲线以世界单位度量，因此缩放后的样条更长。在闭合轨道上，Track Target 推轨取较短的一侧，目标跨过接缝时相机不会绕整圈。该轨道与 `PathFollower` 使用的是同一条曲线。
 
-{/* SHOT: cam-dolly-track | Scene view after Create → Dolly Camera with Track: the spline track drawn with its control points, the dolly camera's gizmo on the track, Details panel showing the CameraDolly card with Mode Track Target */}
-
+![camera-shots 示例中选中的跟踪相机：细节面板中的 Camera、Camera Dolly、Look At Target、Camera Noise 与 Shot 组件，以及相机预览小窗](@/assets/guides/zh/cam-dolly-track.png)
 ## 同时框住多个目标
 
 `CameraTargetGroup` 将多个实体作为一个目标。每帧组实体被放到成员的中心，因此任何接受目标的阶段（`FollowTarget`、`LookAtTarget`、`PositionComposer`、`CameraDolly`）只要以组实体为目标，即可框住整组。相机上的 `GroupFraming` 再确定画面大小：包住所有成员（每个成员为半径等于组 `radius` 的球体）的盒体被调整为占据屏幕的 `framingSize`，方式为缩放镜头或推拉相机。

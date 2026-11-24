@@ -45,8 +45,7 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 
 ## Sprite fields
 
-{/* SHOT: spr-sprite-details | Details panel with a sprite entity selected: the Sprite card expanded showing Texture, Color, Size, Pivot (with its 3×3 preset grid and the frac / px switch), Layer as a dropdown of named sorting layers, Order and Draw Mode */}
-
+![Details of a sprite entity: the Sprite card with Texture, Color, Size, Pivot, Layer, Order and Draw Mode](@/assets/guides/en/spr-sprite-details.png)
 | Field | Default | Description |
 |---|---|---|
 | `texture` | `0` | Texture handle. `0` draws an untextured white quad. An asset path assigned at run time (`insert(Sprite, { texture: 'assets/hero.png' })`) is loaded and replaced by its handle; the field reads `0` until the load completes. |
@@ -200,8 +199,7 @@ lights display gizmos in the scene view ([Scene view](/docs/editor/viewport/)).
 | `frac` / `px` switch on the row | `px` displays `pivot × size` and converts typed pixels back to a fraction (`32` stores `32 / size`). The scene always stores the fraction. |
 | Pivot handle in the scene view | Shown for a single selected sprite under the **Select** (`Q`) and **Rect** (`T`) tools. Dragging it moves the pivot without moving the artwork; the transform position compensates. Hidden under Move, Rotate, Scale and Universal, whose centre handle occupies the same point. |
 
-{/* SHOT: spr-pivot-handle | Scene view, Select tool (Q), one sprite selected: the pivot handle dragged to the sprite's bottom centre (the feet), artwork unchanged */}
-
+![Scene view with the Select tool: the player sprite with its pivot set to the bottom centre (0.5, 0) and the pivot handle at that point](@/assets/guides/en/spr-pivot-handle.png)
 ## See also
 
 - [Texture Regions & Sampling](/docs/graphics/sprites/textures/) — flipping, atlases, scrolling, tiling, filtering.

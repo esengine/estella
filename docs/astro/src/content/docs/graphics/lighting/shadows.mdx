@@ -59,8 +59,7 @@ cmds.spawn()
   logs a warning; an unchanged denial is not logged every frame.
 </Aside>
 
-{/* SHOT: light-mesh-shadows-status | A 3D scene with a Directional light (Mesh Shadows on) and a Point light casting mesh shadows; the Point light selected, its Light card in Details showing the Light Status line with granted shadow maps and the Mesh Shadows, Shadow Bias and Shadow Slope Floor fields. */}
-
+![Details of the directional light in the 3D Starter template: the Light card](@/assets/guides/en/light-mesh-shadows-status.png)
 ## 2D shadows
 
 A **`ShadowCaster2D`** makes an entity an occluder for 2D lights:
@@ -85,8 +84,7 @@ cmds.spawn()
 The entity requires a `Transform`. In Details, **Trace Sprite** replaces the outline with the silhouette traced from the
 entity's sprite alpha.
 
-{/* SHOT: light-shadow-caster-2d | A sprite with ShadowCaster2D selected in the scene view, its traced outline drawn as a gizmo, a Point light nearby casting the shadow; Details shows the Shadow Caster 2D card with the Trace Sprite button. */}
-
+![The 2D Lighting example with a pillar selected: its Shadow Caster 2D component in Details and the point light's shadow in the scene view](@/assets/guides/en/light-shadow-caster-2d.png)
 ### Light settings
 
 Shadow quality is set on the light, not on the caster:
@@ -153,8 +151,7 @@ The disc is occluded by geometry in front of it and writes no depth. It does not
 steps or land on walls; use it where a grounding cue is sufficient. The disc is a separate entity that is never saved
 with the scene.
 
-{/* SHOT: light-blob-shadow | A 3D character mid-jump above flat ground with a BlobShadow disc under it, smaller and fainter than at rest; Details shows the Blob Shadow card with Radius, Opacity, Softness, Ground Y, Fade Height and Shrink. */}
-
+![Details of an entity with a Blob Shadow card and its fields](@/assets/guides/en/light-blob-shadow.png)
 ## See also
 
 - [Lights](/docs/graphics/lighting/lights/)

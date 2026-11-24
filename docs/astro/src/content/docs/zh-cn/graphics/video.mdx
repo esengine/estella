@@ -7,8 +7,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 `Video` 组件将视频片段解码为一张逐帧刷新的 GPU 纹理，并将该纹理写入同一实体上的渲染组件：`Sprite`、`UIVisual` 或 `MeshRenderer`。在网页上由 `HTMLVideoElement` 解码；在原生与小游戏目标上，由引擎自带、编译为 wasm 的 MPEG-1 解码器解码 cook 生成的副本。纹理契约在所有平台上一致。
 
-{/* SHOT: video-component | Details panel of an entity with Transform, Sprite and Video components; the Video card shows Source set to an .mp4 asset, Autoplay, Loop and Muted ticked, Volume 1, Playback Rate 1, Fit Size ticked; the viewport behind shows the entity in Play mode displaying a video frame. */}
-
+![video-playback 示例中视频实体的细节面板：Video 卡片](@/assets/guides/zh/video-component.png)
 ## `Video` 组件
 
 在编辑器中，为带 **Sprite** 的实体添加 **Video** 组件并设置其 **Source**。在代码中，将其与渲染组件一同插入：
@@ -134,8 +133,7 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 | **Cook Quality** | `2`–`31` | `4` | MPEG-1 量化器。`2` 接近无损、文件最大；`31` 文件最小。 |
 | **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | 分离出的音轨的 AAC 码率。 |
 
-{/* SHOT: video-import-settings | Details panel with an .mp4 video asset selected in the Content Browser: the video preview at the top and the Import Settings with the Advanced group expanded, showing Cook Quality 4 and Cook Audio Bitrate 128 kbps. */}
-
+![clip.mp4 资源的细节面板：视频预览与导入设置，Cook Quality 为 4，Cook Audio Bitrate 为 128 kbps](@/assets/guides/zh/video-import-settings.png)
 视频资源包括 `.mp4`、`.m4v`、`.mov` 容器，MPEG-1 `.mpg` / `.mpeg` 源文件，以及 cook 生成的 `.esv` 文件。`.webm` 文件默认归为音频，除非其 `.meta` 类型为 `video`。
 
 ## Cook 后的视频

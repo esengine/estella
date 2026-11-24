@@ -30,9 +30,6 @@ the sprite eases to `opacity` of its own alpha over `fadeTime`, and back when th
 
 `CoverFadeTarget` is a tag with no fields. The covered ground is the sprite's `size` and `pivot` under the entity's
 scale; rotation is not read. The fade runs in Play only.
-
-{/* SHOT: spr-cover-fade | Game view during Play: the player standing under a roof sprite with CoverFade, the roof faded to 25% showing the room beneath; Details shows the roof's CoverFade card */}
-
 ## Rain shelter
 
 2D rain cannot determine what covers a point, so covering sprites declare it. With a `rain2d` effect in the scene's
@@ -132,9 +129,6 @@ Persistence:
 | `exploredFromString(text)` | Restores it and repaints the fog. Returns `false` when the data does not match the fog's `texels`. |
 
 The same grid restores the maps after a lost graphics device.
-
-{/* SHOT: spr-fog-of-war | Game view during Play with FogOfWar and a fog2d effect: dark unexplored ground, a dimmed desaturated explored corridor, and the clear field of view around the player cut by walls */}
-
 ## Footsteps and ripples
 
 `Footsteps` on a walker and `StepSurface` on ground sprites leave marks along the walker's path. Every `stride` world

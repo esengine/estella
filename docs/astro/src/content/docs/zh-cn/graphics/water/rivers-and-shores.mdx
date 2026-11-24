@@ -5,8 +5,7 @@ description: 湖泊与海洋的岸线、水体如何塑造地形（内置剖面�
 
 本页介绍[水体](/docs/zh-cn/graphics/water/overview/#水体)与形状相关的行为：湖泊和海洋与地面的交界、水体如何切削地形、沿样条的河流，以及瀑布。
 
-{/* SHOT: water-river-handles | A river WaterBody selected in the scene view over terrain: spline point squares, edge-midpoint circles and width handles offset across the river; Details shows the Spline point editor (Point, Type, Location, Width, Depth, Velocity, Audio Intensity) for the selected point */}
-
+![地形与水示例中选中的河流“River In”：细节面板中的 Spline（6 个点）与 Water Body（Form 为 River）卡片](@/assets/guides/zh/water-river-handles.png)
 ## 湖泊与岸线
 
 湖泊是位于其实体高度的轮廓。水体区域计算到轮廓的有符号距离，场景中有 `Terrain` 时还计算其上的水深；由此得出每个点保留的波浪
@@ -125,9 +124,6 @@ curve.nearest(x, z); // xz 平面上的最近位置：s、距离、所在侧
 河流水面是地面上的一张场，无法竖立，因此流到悬崖的河流止于崖边。**`Waterfall`** 从那里继续。将其放在崖口处的实体上，朝向
 水流离开的方向（实体前方）。水以 `speed` 水平抛出并受重力下落；每片水幕在遇到地面、遇到非其来源的水，或落到崖口下方
 `maxDrop` 处时结束。它作为实体自身的 `MeshRenderer` 绘制，并在其字段、位置或下方内容变化时重建。
-
-{/* SHOT: water-waterfall | A Waterfall at a cliff lip in the scene view, three sheets falling into a pool with a foot-mist ParticleEmitter on a WaterfallAnchor child; Details shows the Waterfall fields */}
-
 | 字段 | 说明 |
 |---|---|
 | `width` | 水在崖口处的宽度。 |

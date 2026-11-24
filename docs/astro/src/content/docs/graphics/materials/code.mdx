@@ -7,9 +7,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 The `Material` object compiles shaders, creates materials and sets their parameters at runtime. Material graphs are
 plain data that compile to `.esshader` source.
-
-{/* SHOT: mat-graph-editor | The material graph editor with a .esmatgraph open: a Texture node (u_albedo) and a Color node (u_tint) wired into a Multiply node, its result wired to the Output node's color input; the node palette visible. */}
-
 ## Creating and applying a material
 
 Compile the shader once (not per frame), create a material, then assign its handle to a renderer:

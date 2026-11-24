@@ -6,8 +6,7 @@ description: 渲染组件如何接受光照——lit 开关、Lit 域材质及�
 import { Aside } from '@astrojs/starlight/components';
 
 渲染组件默认不受光，忽略所有 `Light`。渲染组件通过 `lit` 开关或着色器声明了 **Lit** 域的材质接受光照。所有受光表面（3D 网格、精灵和材质中的 `applyLightingPBR`）使用同一个 BRDF。
-
-{/* SHOT: light-lit-sprite-normal-map | Scene view with Preview FX on: two copies of the same sprite under one Point light, the left with the Lit checkbox only (flat), the right with a material from the Lit template and a normal map showing relief; Details shows the right sprite's material with its normal map parameter. */}
+![运行中的 lighting-3d 示例：受光照着色的网格，并在墙上投下阴影](@/assets/guides/zh/light-lit-scene.png)
 
 ## `lit` 开关
 
@@ -129,9 +128,6 @@ cmds.spawn().insert(Light, {
 ```
 
 `environmentRotation` 同时旋转天空、漫反射光和反射。`drawEnvironment` 同时将全景图绘制为背景（是否绘制背景仍由相机决定）。`diffuseScale` 与 `diffuseTint` 改变照到表面上的光，不改变反射和绘制的天空。
-
-{/* SHOT: light-environment-ambient | Details of an Ambient Light with Environment set to a baked .esenv, Environment Rotation and Draw Environment visible; the scene view behind shows a metallic sphere reflecting the panorama with the environment drawn as sky. */}
-
 ## 参见
 
 - [光源](/docs/zh-cn/graphics/lighting/lights/)

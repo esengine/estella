@@ -6,8 +6,7 @@ description: How Terrain is drawn (quadtree, geomorphing, height pages, building
 This page covers how a [Terrain](/docs/graphics/terrain/overview/) is drawn and the `TerrainsRes` API scripts use to query and
 modify it.
 
-{/* SHOT: terrain-detail-group | Details panel of a Terrain that has layers, with the Detail group expanded: Cell Size, Detail, Virtual Texture ticked, Virtual Texture From 1; the scene view behind shows the terrain from a low angle */}
-
+![Details of the Terrain in the Terrain & Water example: the Detail and Virtual Texture fields, Collision and Noise groups](@/assets/guides/en/terrain-detail-group.png)
 ## Quadtree
 
 The ground is divided by a quadtree. Every node at every level is drawn with the same 32 × 32-cell patch, scaled to the

@@ -21,8 +21,7 @@ description: 伽马与线性色彩空间、HDR 光照、线性项目中颜色的
 const app = createWebApp(module, { colorSpace: 'linear' });
 ```
 
-{/* SHOT: light-color-space-setting | Settings → Project → Rendering with the Color space field set to Linear and the reload prompt shown. */}
-
+![设置 → 项目 → 渲染的色彩空间分组：输出变换与色彩空间](@/assets/guides/zh/light-color-space-setting.png)
 ### 颜色存储
 
 两种模式下拾色器显示的都是屏幕上的颜色。线性项目中：
@@ -50,9 +49,6 @@ const app = createWebApp(module, { colorSpace: 'linear' });
 ```typescript
 quality: { profiles: { medium: { lighting: 'full' } } }
 ```
-
-{/* SHOT: light-quality-3d-lighting | Project Settings → Rendering → Quality with the Lights group expanded: 3D lighting (Full / Direct), Per-pixel lights and Tiled lights for the low, medium and high columns. */}
-
 `direct` 节省的主要来自着色器体积，而不是跳过的计算：包含分块光源和软阴影搜索的程序即使这些分支不执行，也会占用更多寄存器，并行处理的像素更少。在骁龙 8 Elite 上实测：一块铺满全屏的受光地板绘制十五层，太阳为默认 `sourceAngle`，其他设置相同：
 
 | | `full` | `direct` |

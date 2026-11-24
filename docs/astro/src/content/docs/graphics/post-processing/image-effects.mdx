@@ -7,9 +7,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 These effects model a camera lens, remove aliasing, or stylize the picture. In the Inspector they carry the **Lens**,
 **Anti-aliasing** or **Stylize** tag. Parameter names are the `u_`-prefixed names used in scene data and code.
-
-{/* SHOT: pp-depth-of-field | A 3D scene in the Game view with Depth of Field enabled: a sharp subject in the middle distance, a blurred foreground and background with hexagonal bokeh on a bright light (Aperture Blades 6, Highlight Boost above 0); the Depth of Field entry unfolded in the Inspector. */}
-
 ## Bloom
 
 `bloom` adds a glow around pixels brighter than a threshold. The over-range light is extracted at half size, downsampled in
@@ -155,9 +152,6 @@ its own history. MSAA stays enabled alongside it; the two combine.
 **Order.** Place `taa` after every effect whose noise it should average: ambient occlusion, contact shadows, global
 illumination, reflections, light shafts, height fog. Noise added after `taa` reaches the screen unchanged. The Inspector shows
 a warning tag on a `taa` entry that has such an effect after it.
-
-{/* SHOT: pp-taa-order-warning | PostProcessVolume Inspector with Temporal Anti-Aliasing above Ambient Occlusion and Height Fog; the "!" warning tag on the TAA entry with its tooltip open, listing the effects that run after it. */}
-
 **Moving meshes.** While `taa` is in the chain, meshes that moved are drawn a second time into a motion target recording how
 far each pixel travelled since the previous frame; the effect follows that motion where the moving surface is the one on
 screen. A thin, fast mover keeps its contrast instead of fading into the background. The cost is one extra draw of what moved

@@ -64,8 +64,7 @@ reads has changed since), counts of baked surfaces, moving objects and probe vol
 selected object the source of its light (lightmap, probe volume, real-time lights or environment only) with the reason
 when it receives no baked light.
 
-{/* SHOT: light-lighting-panel | The Lighting panel docked on the left with a baked scene: state Up to date, the surface / moving / probe volume counts, the Bake settings group (Atlas size, Texels / unit, Bounces, Samples, Probe samples, Probe levels, Sky occlusion), the Bake Lighting button, and the Selected object section for a static mesh reporting baked light from the lightmap atlas. */}
-
+![The Lighting panel: preview lighting, the environment, the selected object, bake state and the Bake Lighting button](@/assets/guides/en/light-lighting-panel.png)
 ### Bake settings
 
 The `BakedLighting` component carries the scene's bake settings. Without it a bake uses the defaults; **Add lighting
@@ -111,9 +110,6 @@ A grid whose bricks would all be fine is written dense, as with one level.
 Selecting a volume in the editor shows the loaded grid: a sparse grid draws its bricks, finest in violet, then amber
 (2×), pale yellow (4×) and grey (8×); a dense grid draws a cross at every probe. The display reflects the grid the engine
 loaded, not the component's current `spacing`.
-
-{/* SHOT: light-probe-bricks | A baked LightProbeVolume selected in the scene view of an interior with Probe levels 3: violet fine bricks along the floor and walls, amber and pale yellow coarser bricks in the open air; Details shows the Light Probe Volume card. */}
-
 ### Per-pixel and per-object reads
 
 | Reader | Read |

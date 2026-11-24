@@ -6,6 +6,8 @@ description: Querying the water surface (Waters / WatersRes), the Floating compo
 This page covers what scripts and physics read from the [water](/docs/graphics/water/overview/) surface, how objects disturb it,
 the view from under it, and the Water shader.
 
+![The Terrain & Water example: a river running to the sea, with floating crates](@/assets/guides/en/play-terrain-water.png)
+
 ## Asking the surface
 
 The `WatersRes` resource (`esengine/water`) answers from the zone's baked field and the same wave formula the shader
@@ -138,9 +140,6 @@ the water itself scatters (sky and sun light returned in the water's colour).
 Seen from above, the Water shader lights what is under the water through the surface: it finds where the refracted ray
 ends, where the sun's ray to that point crossed the surface, and lights it by the caustic pattern there and the shadow
 map, so the pattern bends with the waves.
-
-{/* SHOT: water-underwater-waterline | Game view with the camera half submerged at a lake surface: dry upper half, blue-green fogged lower half with caustics on the bed, and the soft waterline across the lens */}
-
 ### Per-body underwater settings
 
 | Field | Description |

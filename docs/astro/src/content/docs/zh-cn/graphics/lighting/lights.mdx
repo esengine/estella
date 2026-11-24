@@ -206,9 +206,6 @@ entity.insert(Light, {
 - 每帧最多 **四盏** 带形状的光源。超出的光源不带形状绘制。
 
 cookie 被绘制到屏幕空间遮罩中，每盏带形状的光源占一个通道，机制与 2D 阴影相同；每个 cookie 的开销是一个四边形，而不是一个纹理槽位。
-
-{/* SHOT: light-cookie | A Point light with a cookie texture (irregular lantern glow) lighting a lit floor in the scene view, Preview FX on; the Light card in Details visible with Cookie and Cookie Size fields filled. */}
-
 ## 强度单位
 
 `intensity` 不含 π 因子：强度为 `1` 的 Directional 光正对表面时给出完整颜色。three.js（r155 及以后）将漫反射光除以 π，因此取自 three.js 场景的强度约亮三倍，应除以 π。three.js 的 `HemisphereLight` 对应开启 `hemisphere` 的 `Ambient` 光。

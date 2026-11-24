@@ -6,6 +6,8 @@ description: Tiled terrain for heightmaps too large to hold in memory (.esterrai
 This page covers two forms of large ground built on the [Terrain](/docs/graphics/terrain/overview/) machinery: tiled heightmaps
 for very large areas, and `Planet`, ground on a sphere.
 
+![The worldgen example running: generated terrain with foliage extending to the horizon](@/assets/guides/en/terrain-worldgen-play.png)
+
 ## Tiled ground
 
 A heightmap is read whole: an 8193 × 8193 field occupies about 256 MiB. Set the terrain's `tiles` to a `.esterrain` file
@@ -27,17 +29,11 @@ and the ground is stored as tiles of 513 × 513 samples (neighbours share their 
 
 Measured in the editor on a 4096-unit area: an 8193 × 8193 field opened as tiles holds 36 MiB, and 45 MiB close to the
 ground.
-
-{/* SHOT: terrain-sculpt-tiles | The terrain sculpt panel for a tiled terrain (Terrain with a .esterrain in Tiles): the tile section with Split into Tiles, the heightmap export/import buttons and the Loaded tiles / All tiles scope selector visible */}
-
 ## Planet
 
 `Planet` is ground on a sphere. It uses the same machinery as flat terrain over a cube whose six faces are each a
 quadtree, with every point projected out to the radius. The finest cells are under the eye; a planet seen from far away
 is a handful of coarse nodes. The same ground is drawn from the surface and from space with no transition.
-
-{/* SHOT: terrain-planet-details | Details panel of a Planet entity with the Shape, Layers, Sea and Physics groups expanded (Sea ticked), and the scene view showing the planet from orbit with its sea */}
-
 ### Fields
 
 | Field | Description |

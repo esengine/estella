@@ -29,8 +29,7 @@ every export (web, desktop, WeChat, playable) use the same pipeline. Code-first 
 const app = createWebApp(module, { colorSpace: 'linear' });
 ```
 
-{/* SHOT: light-color-space-setting | Settings → Project → Rendering with the Color space field set to Linear and the reload prompt shown. */}
-
+![Settings → Project → Rendering, at the Color Space group: Output transform and Color space](@/assets/guides/en/light-color-space-setting.png)
 ### Colour storage
 
 Colour pickers show the on-screen colour in both modes. In a linear project:
@@ -60,9 +59,6 @@ Change it per level under **Project Settings → Rendering → Quality → 3D li
 ```typescript
 quality: { profiles: { medium: { lighting: 'full' } } }
 ```
-
-{/* SHOT: light-quality-3d-lighting | Project Settings → Rendering → Quality with the Lights group expanded: 3D lighting (Full / Direct), Per-pixel lights and Tiled lights for the low, medium and high columns. */}
-
 Most of the saving from `direct` comes from shader size rather than skipped work: a program containing tiled lights and
 the soft-shadow search keeps more registers live and runs fewer pixels in parallel even where those branches do not
 execute. Measured on a Snapdragon 8 Elite, a full-screen lit floor drawn fifteen times under a sun at the default

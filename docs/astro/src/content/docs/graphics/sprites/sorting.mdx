@@ -30,8 +30,7 @@ sprite.layer = 0;   // e.g. "Background"
 sprite.layer = 2;   // e.g. "Foreground", drawn on top
 ```
 
-{/* SHOT: spr-sorting-settings | Settings → Project → Rendering: Layer names filled in (Background, Default, Gameplay, Foreground), Advanced settings shown with the Y-sorted layers and Depth-sorted layers checkbox lists, Gameplay checked as y-sorted */}
-
+![Settings → Project → Rendering: the Sorting Layers group with the 32 layer name fields](@/assets/guides/en/spr-sorting-settings.png)
 ## Order within a layer
 
 `Sprite.order` positions a sprite within its sorting layer: higher draws on top, range −128…127. `0` expresses no
@@ -178,9 +177,6 @@ Reach and precedence:
 - Where two masks overlap, the nearer one (written last) determines the stencil, so each sprite is clipped by at most
   one mask.
 - Masks affect rendering only. Picking, physics and spatial queries ignore them.
-
-{/* SHOT: spr-sprite-mask | Scene view: a dark fog sprite with Mask Interaction VisibleOutside and a round SpriteMask (Alpha Cutoff 0.5) cutting a circular hole in it; Details shows the SpriteMask card of the mask entity */}
-
 UI nodes use `UIMask` instead ([Masks & Visibility](/docs/ui/masks/)).
 
 ## See also

@@ -7,15 +7,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 在线性空间中打光的场景可以包含超出显示器显示范围的值。**输出变换**在所有效果之后将完成的帧映射到显示器，仅执行一次。本页的效果在效果链内塑造色调与颜色
 （`tonemap`、`agx`、`colorGrade`、`lutGrade`、`autoExposure`、`grayscale`），或在输出变换之后作用于显示值（`displayLut`）。它们在检视器中均带有**色彩**标签。
-
-{/* SHOT: pp-color-grade | A lit 3D scene in the viewport beside the Inspector of a PostProcessVolume with Tonemap followed by an unfolded Color Grade (Shadow Tint teal, Highlight Tint warm, S-Curve above 0); the graded look visible in the viewport. */}
-
 ## 输出变换
 
 输出变换是项目设置，而非效果：**设置 → 项目 → 渲染 → 输出变换**。它作用于编辑器视口、运行预览和所有导出，修改后无需重新加载即可生效。
 
-{/* SHOT: pp-output-transform-setting | Settings window, Project → Rendering section, with the Output transform dropdown open showing None, ACES and Neutral. */}
-
+![设置 → 项目 → 渲染：输出变换开关（None / ACES / Neutral）](@/assets/guides/zh/pp-output-transform-setting.png)
 | 变换 | 行为 | 适用 |
 | --- | --- | --- |
 | **无** | 仅编码。大于 1 的值被截断。 | 平面 2D 美术、UI，以及必须原样往返的内容。 |

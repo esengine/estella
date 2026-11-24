@@ -6,9 +6,6 @@ description: 在 TypeScript 中创建与驱动材质的参考——Material API�
 import { Aside } from '@astrojs/starlight/components';
 
 `Material` 对象负责编译着色器、创建材质并在运行时设置其参数。材质图是普通数据，可编译为 `.esshader` 源码。
-
-{/* SHOT: mat-graph-editor | The material graph editor with a .esmatgraph open: a Texture node (u_albedo) and a Color node (u_tint) wired into a Multiply node, its result wired to the Output node's color input; the node palette visible. */}
-
 ## 创建并应用材质
 
 着色器只编译一次（不要每帧编译），创建材质，再将其句柄赋给渲染组件：

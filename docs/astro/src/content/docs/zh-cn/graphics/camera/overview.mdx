@@ -7,8 +7,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 场景通过相机渲染：相机是带 `Camera` 组件的实体。相机定义投影方式、缩放，以及世界绘制到的屏幕矩形。相机的位置与朝向由其实体的 `Transform` 决定。
 
-{/* SHOT: cam-component-details | Details panel of a selected 2D camera entity: Transform card and the Camera card with Projection Type Orthographic, Ortho Size 540, Is Active on, Viewport, Clear Flags and Culling Mask visible; scene view behind it showing the camera's view rectangle gizmo */}
-
+![相机实体的细节面板：Camera 卡片，含 Projection Type、Ortho Size、Viewport、Clear Flags 与 Culling Mask](@/assets/guides/zh/cam-component-details.png)
 ## 活动相机
 
 场景中可以有任意数量的相机实体。在设置了 `isActive` 且覆盖整个屏幕的相机中，`priority` 最高的一台为**活动相机**，世界经由它渲染到其 `viewport` 中。切换活动相机、相机间混合以及同优先级时的判定规则见[混合与切换](/docs/zh-cn/graphics/camera/blending/#按优先级切换相机)。`viewport` 较小或设置了 `renderTarget` 的相机会在活动相机之外另行绘制（[多相机与大世界](/docs/zh-cn/graphics/camera/multiple-cameras/)）。
@@ -39,8 +38,7 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 
 编辑器的**创建**菜单（以及 agent 带 `template` 的 `create` 操作）提供预先配置的相机组合。每一项都是已添加流水线组件的 `Camera`，目标在 Details 面板中指定。
 
-{/* SHOT: cam-create-menu | Scene view Create menu opened on its Camera category, listing Follow Camera 2D, Tracking Camera, Look-At Camera, Handheld Camera, Dolly Camera with Track, Target Group Camera 2D, Target Group Camera, State-Driven Camera, Impulse Source and Camera Brain */}
-
+![按“Camera”筛选的创建实体弹窗：Camera、Follow Camera 2D、Tracking Camera、Look-At Camera、Handheld Camera、Dolly Camera with Track、Target Group Camera 2D、Target Group Camera、Impulse Source、State-Driven Camera、Camera Brain](@/assets/guides/zh/cam-create-menu.png)
 | 菜单项 | 模板 | 内容 |
 |---|---|---|
 | Follow Camera 2D | `camera:follow-2d` | 带 `PositionComposer` 的正交相机：目标可在死区内移动，且始终不离开软区。 |

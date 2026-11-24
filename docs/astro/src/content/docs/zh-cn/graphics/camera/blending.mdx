@@ -58,8 +58,7 @@ cmds.spawn().insert(CameraBrain, {
 });
 ```
 
-{/* SHOT: cam-brain-custom-blends | Details panel of a Camera Brain entity: Default Blend 1, Blend Curve Ease in and out, and the Custom Blends table with two rows (Wide → Close 0 s Linear; Any camera → Wide 2.5 s Ease in and out) */}
-
+![camera-shots 示例中 Camera Brain 实体的细节面板：默认混合、混合曲线与自定义混合](@/assets/guides/zh/cam-brain-custom-blends.png)
 约束：
 
 - 混合进行中活动相机再次改变时，新混合从当前视图开始，视图不会跳变。
@@ -137,9 +136,6 @@ if (blend) console.log(`混合 ${blend.from} → ${blend.to}：${Math.round(blen
 ### 编辑器中的活动相机
 
 在编辑器中运行游戏时，大纲视图将活动相机标记为**当前**（混合进行中时显示进度），将混合正在离开的相机标记为**淡出**。在 Inspect 模式下，游戏画面上也会标出它们。
-
-{/* SHOT: cam-outliner-live | Editor in play mode during a camera blend: Outliner with two camera rows, one tagged LIVE with a blend percentage and the other tagged OUT, game view in the scene view behind */}
-
 ### 相机事件
 
 `CameraEvent` 报告活动相机的变化：某台相机成为活动相机，以及混合进入它的过程结束。典型用途是在某个镜头的相机成为活动相机时显示其 HUD，以及在混合结束后交还控制。事件在绘制帧时发出，因此系统在下一帧读取。

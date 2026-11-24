@@ -10,8 +10,7 @@ renderable on the same entity: a `Sprite`, a `UIVisual` or a `MeshRenderer`. On 
 the clip; on native and mini-game targets an engine-owned MPEG-1 decoder compiled to wasm decodes a cooked copy. The
 texture contract is the same on every platform.
 
-{/* SHOT: video-component | Details panel of an entity with Transform, Sprite and Video components; the Video card shows Source set to an .mp4 asset, Autoplay, Loop and Muted ticked, Volume 1, Playback Rate 1, Fit Size ticked; the viewport behind shows the entity in Play mode displaying a video frame. */}
-
+![Details of the video entity in the video-playback example: the Video card](@/assets/guides/en/video-component.png)
 ## The `Video` component
 
 In the editor, add a **Video** component to an entity that has a **Sprite** and set its **Source**. In code, insert it
@@ -146,8 +145,7 @@ decode path:
 | **Cook Quality** | `2`–`31` | `4` | MPEG-1 quantizer. `2` is near-lossless with the largest file; `31` is the smallest. |
 | **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | AAC bitrate of the demuxed audio track. |
 
-{/* SHOT: video-import-settings | Details panel with an .mp4 video asset selected in the Content Browser: the video preview at the top and the Import Settings with the Advanced group expanded, showing Cook Quality 4 and Cook Audio Bitrate 128 kbps. */}
-
+![Details of the clip.mp4 asset: the video preview and Import Settings with Cook Quality 4 and Cook Audio Bitrate 128 kbps](@/assets/guides/en/video-import-settings.png)
 Video assets are `.mp4`, `.m4v` and `.mov` containers, MPEG-1 `.mpg` / `.mpeg` sources, and cooked `.esv` files. A
 `.webm` file is classified as audio unless its `.meta` type is `video`.
 

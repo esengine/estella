@@ -60,8 +60,7 @@ sprite.texture = rt.texture;
 | `contentLost(rt)` / `contentDrawn(rt)` | 自目标上次绘制以来设备是否重建（存储被清零）；重绘后用 `contentDrawn` 清除该标志。适用于只绘制一次的目标，例如烘焙遮罩。 |
 | `release(rt)` | 释放目标及其纹理。 |
 
-{/* SHOT: draw-minimap-camera | Scene view with a second camera whose Render Target is set and whose Culling Mask excludes the UI layers, and a sprite in the corner showing that camera's render texture as a minimap; Details shows the Camera card with Render Target and Culling Mask */}
-
+![运行中的 render-texture 示例：第二台相机渲染到纹理，并作为右上角的小地图显示](@/assets/guides/zh/draw-minimap-camera.png)
 ## 图集打包：`TextureAtlas`
 
 共用同一纹理的精灵在一个批次中绘制。`TextureAtlas.pack` 在运行时把分别获得的纹理——来自服务器的图标、角色部件、玩家选择的图片——绘制到一张画布上，并给出每张的位置。

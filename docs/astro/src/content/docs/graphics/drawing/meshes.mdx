@@ -10,6 +10,8 @@ import { Aside } from '@astrojs/starlight/components';
 | `MeshRenderer` | Component: sorted, saved, inspectable. | Procedural terrain slices, radial health arcs, water surfaces, imported meshes. |
 | `Geometry` | Immediate: a vertex-buffer handle drawn in a draw callback. | Custom vertex layouts paired with a material or shader. |
 
+![The drawing-demo example running: on the right, a procedural ribbon mesh built in code](@/assets/guides/en/draw-set-path.png)
+
 ## Custom meshes: `MeshRenderer`
 
 `MeshRenderer` renders an indexed triangle list. Geometry can be authored inline on the component: positions as x, y
@@ -74,9 +76,6 @@ Behaviour:
 - A shadow map is a view: the card turns toward the light there and casts its full outline.
 - A `Billboard` is not merged by [static batching](/docs/performance/static-batching/), and `MeshInstances`
   placements are not turned.
-
-{/* SHOT: draw-billboard | Scene view in 3D with the camera looking down at an angle: several textured builtin:quad tree cards standing upright on the ground; Details shows the MeshRenderer card (Mesh builtin:quad) and the Billboard card with Mode Upright */}
-
 ## Custom geometry: the `Geometry` API
 
 `Geometry` uploads an indexed vertex buffer and returns a handle, drawn in a draw callback with a

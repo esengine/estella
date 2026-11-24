@@ -8,9 +8,6 @@ import { Aside } from '@astrojs/starlight/components';
 这些效果根据帧的深度缓冲和 G-buffer 所记录的信息补充或修正光照。它们在检视器中带有**光照**标签，并读取场景深度。环境光遮蔽、接触阴影和全局光照属于
 画质级别的全局光照组，`ssr` 属于反射组（[画质级别](/docs/zh-cn/performance/quality-levels/)）。标为世界长度的参数在未设置时跟随项目的 Units per Metre
 （[世界单位参数](/docs/zh-cn/graphics/post-processing/overview/#世界单位参数)）。
-
-{/* SHOT: pp-ambient-occlusion | Split comparison of a 3D interior in the Game view: left half with no ambient occlusion, right half with Ground-Truth Ambient Occlusion enabled (darkened creases under furniture and in room corners); the GTAO entry unfolded in the Inspector. */}
-
 ## G-buffer
 
 有些效果需要知道表面是什么，而不只是它的颜色。着色器中声明了 `#pragma gbuffer` 的效果会让这一帧在场景颜色旁多绘制一个颜色附件，在同一个 pass 中、由同样的着色器写入：

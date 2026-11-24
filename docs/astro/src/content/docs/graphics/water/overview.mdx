@@ -20,8 +20,7 @@ script imports the module.
 | [Lakes, Rivers & Waterfalls](/docs/graphics/water/rivers-and-shores/) | Shores, terrain shaping, basins, rivers, splines, waterfalls. |
 | [Interaction & Shader](/docs/graphics/water/interaction-and-shader/) | Surface queries, floating, ripples, underwater view, Water shader parameters. |
 
-{/* SHOT: water-body-details | Details panel of a WaterBody with Form = Lake selected: the Shape, Waves, Look, Rendering, Underwater and Terrain groups, the Boundary row showing its point count, and the Water Body Islands / Exclusion Volumes / zone rows; the scene view shows the lake with its outline handles */}
-
+![Details of a WaterBody in the Terrain & Water example: the Water Body card and its groups](@/assets/guides/en/water-body-details.png)
 ## Water bodies
 
 Add `WaterBody` to an entity. The entity places the body; it may be rotated about its up axis but not tilted. Moving a
@@ -170,8 +169,7 @@ wireframe**. Both wireframes show the indexed triangles submitted by the rendere
 below sea level, so the ocean reaches the horizon. It is drawn with `farDistanceMaterial` (empty: the zone water's deep
 colour and sky reflection) and only where the zone has an ocean, unless `farMeshWithoutOcean` is on.
 
-{/* SHOT: water-zone-mesh-wireframe | A WaterZone selected with Water mesh view set to Displaced wireframe: the scene view shows the tiled wave mesh fine near the camera and coarser toward the horizon along a shoreline; the Mesh group in Details shows the tile and triangle counts */}
-
+![Details of the WaterZone in the Terrain & Water example: the Water Zone card and its groups](@/assets/guides/en/water-zone-mesh-wireframe.png)
 ## Quality levels
 
 Water uses what the project's quality level allows. The settings are part of each level's profile (`project.esproject`,

@@ -5,8 +5,7 @@ description: Terrain 的绘制方式（四叉树、几何渐变、高度页、�
 
 本页说明[地形](/docs/zh-cn/graphics/terrain/overview/)的绘制方式，以及脚本用于查询和修改地形的 `TerrainsRes` API。
 
-{/* SHOT: terrain-detail-group | Details panel of a Terrain that has layers, with the Detail group expanded: Cell Size, Detail, Virtual Texture ticked, Virtual Texture From 1; the scene view behind shows the terrain from a low angle */}
-
+![地形与水示例中地形的细节面板：Detail 与 Virtual Texture 字段、Collision 与 Noise 分组](@/assets/guides/zh/terrain-detail-group.png)
 ## 四叉树
 
 地面由四叉树划分。每一层级的每个节点都用同一块 32 × 32 单元的面片绘制，并缩放到节点的方块大小：0 级节点宽

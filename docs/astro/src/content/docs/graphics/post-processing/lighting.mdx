@@ -10,9 +10,6 @@ the Inspector and read scene depth. Ambient occlusion, contact shadows and globa
 levels' global-illumination group, `ssr` to the reflections group
 ([Quality levels](/docs/performance/quality-levels/)). Parameters marked as world lengths follow the project's Units per
 Metre when left unset ([World-unit parameters](/docs/graphics/post-processing/overview/#world-unit-parameters)).
-
-{/* SHOT: pp-ambient-occlusion | Split comparison of a 3D interior in the Game view: left half with no ambient occlusion, right half with Ground-Truth Ambient Occlusion enabled (darkened creases under furniture and in room corners); the GTAO entry unfolded in the Inspector. */}
-
 ## The G-buffer
 
 Some effects need to know what a surface is, not only its colour. An effect whose shader declares `#pragma gbuffer` makes

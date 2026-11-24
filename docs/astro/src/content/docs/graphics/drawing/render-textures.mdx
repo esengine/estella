@@ -65,8 +65,7 @@ render into the target instead of the screen.
 | `contentLost(rt)` / `contentDrawn(rt)` | Whether the device was rebuilt since the target was last drawn (the storage is zero-filled); `contentDrawn` clears the flag after redrawing. Needed for targets drawn once, such as a baked mask. |
 | `release(rt)` | Frees the target and its textures. |
 
-{/* SHOT: draw-minimap-camera | Scene view with a second camera whose Render Target is set and whose Culling Mask excludes the UI layers, and a sprite in the corner showing that camera's render texture as a minimap; Details shows the Camera card with Render Target and Culling Mask */}
-
+![The render-texture example running: a second camera rendering into a texture shown as a minimap in the top-right corner](@/assets/guides/en/draw-minimap-camera.png)
 ## Atlas packing: `TextureAtlas`
 
 Sprites that share a texture draw in one batch. `TextureAtlas.pack` draws separately obtained textures — icons from a

@@ -3,6 +3,8 @@ title: 多相机与大世界
 description: 多相机参考——主视图的选取、用于分屏与画中画的子视口相机、叠加层相机、渲染目标相机、剔除掩码，以及由 setRenderOriginStep 设置的浮动渲染原点。
 ---
 
+![运行中的 render-texture 示例：第二台相机渲染到纹理，并作为右上角的小地图显示](@/assets/guides/zh/draw-minimap-camera.png)
+
 ## 多相机与分屏
 
 每帧屏幕上的相机被划分为主视图和叠加在其上的层：
@@ -22,9 +24,6 @@ description: 多相机参考——主视图的选取、用于分屏与画中画�
 ```
 
 构图类组件（`PositionComposer`、`LookAtTarget`、`GroupFraming`、`CameraBounds`）按每台相机自身 `viewport` 所占的屏幕部分度量。
-
-{/* SHOT: cam-split-screen | Game view of a two-player scene in play mode with two cameras, each with a half-width viewport (left and right halves), each following a different player; Outliner showing both camera entities */}
-
 ## 渲染目标与层
 
 `renderTarget` 非零的相机绘制到该 `RenderTexture`，而不是屏幕（小地图、镜子、只渲染一次的头像）。该句柄在运行时创建，因此该字段由脚本设置。相机的 `viewport` 覆盖整个目标，分辨率由目标自身的尺寸决定。绘制到纹理的相机先于主视图渲染，因此主视图可以采样它们绘制的内容。目标的创建与句柄的指定见[渲染纹理](/docs/zh-cn/graphics/drawing/render-textures/)。

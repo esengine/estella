@@ -33,8 +33,7 @@ Each entry has an enable switch, its parameters (colour and texture parameters i
 tag: **Lens**, **Colour**, **Light**, **Atmosphere**, **Anti-aliasing**, **Stylize** or **Other**. Effects with a compute or
 engine-native implementation carry a **WebGPU only** tag. The add menu groups effects by the same categories.
 
-{/* SHOT: pp-volume-inspector | Inspector of an entity with a PostProcessVolume holding Auto Exposure, Bloom, Color Grade and Vignette in that order; Bloom unfolded with Threshold, Intensity and Radius visible; category tags visible on every entry. */}
-
+![Details of the PostProcessVolume entity in the post-process example: the Post Process Volume card with Effects (Add Effect), Is Global, Shape, Size, Priority, Weight and Blend Distance](@/assets/guides/en/pp-volume-inspector.png)
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `effects` | list | `[]` | One `{ type, enabled, uniforms, textures?, colors? }` per effect, in chain order. `uniforms` holds float parameters, `textures` texture references (LUTs, masks), `colors` colour parameters. |

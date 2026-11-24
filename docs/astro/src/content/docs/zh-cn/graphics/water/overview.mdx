@@ -19,8 +19,7 @@ description: 水体参考——WaterBody 的形态与字段、将所有水体烘
 | [湖泊、河流与瀑布](/docs/zh-cn/graphics/water/rivers-and-shores/) | 岸线、地形塑形、盆地、河流、样条、瀑布。 |
 | [交互与着色器](/docs/zh-cn/graphics/water/interaction-and-shader/) | 水面查询、漂浮、涟漪、水下视图、Water 着色器参数。 |
 
-{/* SHOT: water-body-details | Details panel of a WaterBody with Form = Lake selected: the Shape, Waves, Look, Rendering, Underwater and Terrain groups, the Boundary row showing its point count, and the Water Body Islands / Exclusion Volumes / zone rows; the scene view shows the lake with its outline handles */}
-
+![地形与水示例中 WaterBody 的细节面板：Water Body 卡片及其分组](@/assets/guides/zh/water-body-details.png)
 ## 水体
 
 为实体添加 `WaterBody`。实体决定水体的位置；水体可绕自身上方向旋转，但不能倾斜。移动水体、编辑其字段、轮廓或样条，或修改
@@ -153,8 +152,7 @@ description: 水体参考——WaterBody 的形态与字段、将所有水体烘
 地平线。它使用 `farDistanceMaterial` 绘制（留空时使用区域水材质的深水色和天空反射），且只在区域有海洋时绘制，除非开启
 `farMeshWithoutOcean`。
 
-{/* SHOT: water-zone-mesh-wireframe | A WaterZone selected with Water mesh view set to Displaced wireframe: the scene view shows the tiled wave mesh fine near the camera and coarser toward the horizon along a shoreline; the Mesh group in Details shows the tile and triangle counts */}
-
+![地形与水示例中 WaterZone 的细节面板：Water Zone 卡片及其分组](@/assets/guides/zh/water-zone-mesh-wireframe.png)
 ## 画质档位
 
 水按项目画质档位允许的开销绘制。这些设置属于每个档位的配置（`project.esproject`、`features.rendering.quality.profiles`），

@@ -5,6 +5,8 @@ description: 查询水面（Waters / WatersRes）、Floating 组件、涟漪网�
 
 本页介绍脚本和物理从[水面](/docs/zh-cn/graphics/water/overview/)读取的内容、物体如何扰动水面、水下视图，以及 Water 着色器。
 
+![地形与水示例：流向大海的河流，以及漂浮的箱子](@/assets/guides/zh/play-terrain-water.png)
+
 ## 查询水面
 
 `WatersRes` 资源（`esengine/water`）根据水体区域烘焙的场和着色器使用的同一波浪公式，在当前帧时间上作答。
@@ -115,9 +117,6 @@ if (s && s.depth < 0) {
 
 从上方看，Water 着色器透过水面照亮水下物体：找到折射光线的终点、阳光射向该点时穿过水面的位置，并按该处的焦散纹样和阴影
 贴图照亮，因此纹样随波浪弯曲。
-
-{/* SHOT: water-underwater-waterline | Game view with the camera half submerged at a lake surface: dry upper half, blue-green fogged lower half with caustics on the bed, and the soft waterline across the lens */}
-
 ### 逐水体水下设置
 
 | 字段 | 说明 |

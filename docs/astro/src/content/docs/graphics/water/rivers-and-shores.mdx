@@ -6,8 +6,7 @@ description: Lake and ocean shores, how water bodies shape the terrain (built-in
 This page covers the shape-specific behaviour of [water bodies](/docs/graphics/water/overview/#water-bodies): where lakes and the
 ocean meet the ground, how bodies cut the terrain, rivers along splines, and waterfalls.
 
-{/* SHOT: water-river-handles | A river WaterBody selected in the scene view over terrain: spline point squares, edge-midpoint circles and width handles offset across the river; Details shows the Spline point editor (Point, Type, Location, Width, Depth, Velocity, Audio Intensity) for the selected point */}
-
+![The river "River In" selected in the Terrain & Water example: its Spline (6 points) and Water Body (Form River) cards in Details](@/assets/guides/en/water-river-handles.png)
 ## Lakes and shores
 
 A lake is its outline at its entity's height. The zone computes the signed distance to the outline and, with a `Terrain`
@@ -140,9 +139,6 @@ A **`Waterfall`** continues from there. Place it on an entity at the lip, facing
 forward). Water is thrown level at `speed` and pulled down by gravity; each sheet ends where it meets the ground, water
 other than the water it left, or `maxDrop` below the lip. It is drawn as the entity's own `MeshRenderer` and rebuilt when
 its fields, its position or what lies under it change.
-
-{/* SHOT: water-waterfall | A Waterfall at a cliff lip in the scene view, three sheets falling into a pool with a foot-mist ParticleEmitter on a WaterfallAnchor child; Details shows the Waterfall fields */}
-
 | Field | Description |
 |---|---|
 | `width` | Width of the water at the lip. |

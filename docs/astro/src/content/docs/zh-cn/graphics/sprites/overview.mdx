@@ -39,8 +39,7 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 
 ## Sprite 字段
 
-{/* SHOT: spr-sprite-details | Details panel with a sprite entity selected: the Sprite card expanded showing Texture, Color, Size, Pivot (with its 3×3 preset grid and the frac / px switch), Layer as a dropdown of named sorting layers, Order and Draw Mode */}
-
+![精灵实体的细节面板：Sprite 卡片，含 Texture、Color、Size、Pivot、Layer、Order 与 Draw Mode](@/assets/guides/zh/spr-sprite-details.png)
 | 字段 | 默认值 | 说明 |
 |---|---|---|
 | `texture` | `0` | 纹理句柄。`0` 绘制无纹理的白色四边形。运行时赋入资源路径（`insert(Sprite, { texture: 'assets/hero.png' })`）时，引擎加载该资源并替换为句柄；加载完成前字段读数为 `0`。 |
@@ -178,8 +177,7 @@ const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hul
 | 该行的 `比例` / `px` 切换 | `px` 显示 `pivot × size`，并把输入的像素值换算回比例（输入 `32` 存为 `32 / size`）。场景中始终存储比例。 |
 | 场景视图中的轴心手柄 | 在 **选择**（`Q`）与 **矩形**（`T`）工具下，单选精灵时显示。拖动手柄移动轴心而不移动画面，位移由变换位置补偿。在移动、旋转、缩放与通用工具下隐藏，因为这些工具的中心手柄位于同一点。 |
 
-{/* SHOT: spr-pivot-handle | Scene view, Select tool (Q), one sprite selected: the pivot handle dragged to the sprite's bottom centre (the feet), artwork unchanged */}
-
+![使用选择工具的场景视图：轴心设为底部中点 (0.5, 0) 的玩家精灵，轴心手柄位于该点](@/assets/guides/zh/spr-pivot-handle.png)
 ## 另请参阅
 
 - [纹理区域与采样](/docs/zh-cn/graphics/sprites/textures/) —— 翻转、图集、滚动、平铺、过滤。

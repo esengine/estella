@@ -9,8 +9,7 @@ A scene is rendered through a camera: an entity with a `Camera` component. The c
 and the screen rectangle the world is drawn into. The camera is positioned and rotated through its entity's
 `Transform`.
 
-{/* SHOT: cam-component-details | Details panel of a selected 2D camera entity: Transform card and the Camera card with Projection Type Orthographic, Ortho Size 540, Is Active on, Viewport, Clear Flags and Culling Mask visible; scene view behind it showing the camera's view rectangle gizmo */}
-
+![Details of a camera entity: the Camera card with Projection Type, Ortho Size, Viewport, Clear Flags and Culling Mask](@/assets/guides/en/cam-component-details.png)
 ## Active camera
 
 A scene may contain any number of camera entities. Among the cameras with `isActive` set that cover the whole screen,
@@ -48,8 +47,7 @@ const spawnCamera = defineSystem([Commands()], (cmds) => {
 The editor's **Create** menu, and an agent's `create` operation with a `template`, provide preconfigured camera rigs.
 Each item is a `Camera` with the pipeline components already added; the target is assigned in the Details panel.
 
-{/* SHOT: cam-create-menu | Scene view Create menu opened on its Camera category, listing Follow Camera 2D, Tracking Camera, Look-At Camera, Handheld Camera, Dolly Camera with Track, Target Group Camera 2D, Target Group Camera, State-Driven Camera, Impulse Source and Camera Brain */}
-
+![The Create entity popover filtered by "Camera": Camera, Follow Camera 2D, Tracking Camera, Look-At Camera, Handheld Camera, Dolly Camera with Track, Target Group Camera 2D, Target Group Camera, Impulse Source, State-Driven Camera, Camera Brain](@/assets/guides/en/cam-create-menu.png)
 | Item | Template | Contents |
 |---|---|---|
 | Follow Camera 2D | `camera:follow-2d` | Orthographic camera with a `PositionComposer`: a dead zone the target may move in and a soft zone it never leaves. |

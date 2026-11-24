@@ -3,6 +3,8 @@ title: Multiple cameras & large worlds
 description: Multi-camera reference — main-view selection, sub-viewport cameras for split-screen and picture-in-picture, layer cameras, render-target cameras, culling masks, and the floating render origin set by setRenderOriginStep.
 ---
 
+![The render-texture example running: a second camera rendering into a texture shown as a minimap in the top-right corner](@/assets/guides/en/draw-minimap-camera.png)
+
 ## Multiple cameras & split-screen
 
 Each frame the on-screen cameras are sorted into the main view and layers drawn over it:
@@ -24,9 +26,6 @@ height in `w`, in 0–1 of the screen. Two-player split-screen, left and right h
 
 Framing components (`PositionComposer`, `LookAtTarget`, `GroupFraming`, `CameraBounds`) measure each camera by its own
 `viewport` share of the screen.
-
-{/* SHOT: cam-split-screen | Game view of a two-player scene in play mode with two cameras, each with a half-width viewport (left and right halves), each following a different player; Outliner showing both camera entities */}
-
 ## Render targets and layers
 
 A camera with a non-zero `renderTarget` draws into that `RenderTexture` instead of the screen (a minimap, a mirror, a

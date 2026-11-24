@@ -105,8 +105,7 @@ orthographic camera's screen is `orthoSize` tall at any depth. `PositionComposer
 it, `FollowTarget` or `CameraDolly`. The selected camera's viewport preview draws the dead and soft zones. The Follow
 Camera 2D rig uses this component.
 
-{/* SHOT: cam-position-composer-zones | Scene view with the Follow Camera 2D rig selected and a player sprite as its target: the camera preview inset shows the composer's dead zone and soft zone rectangles over the framed player, Details panel shows the PositionComposer card */}
-
+![A Follow Camera 2D created in a platformer scene: its camera preview inset in the scene view, and its Camera, Position Composer and Camera Impulse Listener components in Details](@/assets/guides/en/cam-position-composer-zones.png)
 ## Look at a target
 
 `FollowTarget` determines where a camera stands; `LookAtTarget` determines where it looks. On a perspective camera,
@@ -151,8 +150,7 @@ When a camera with a `LookAtTarget` is selected, its viewport preview draws the 
 target is held at and the dead zone around it. Dragging the point sets `screenX`/`screenY`; dragging an edge of the
 dead zone resizes it about the point. Each drag is one undo step.
 
-{/* SHOT: cam-composition-guides | Scene view with a Tracking Camera selected in a 3D scene: the camera preview inset shows the composition guides (target point and dead-zone rectangle) over the framed character, mouse cursor on a dead-zone edge */}
-
+![A Tracking Camera created in a 3D scene: the rig selected in the scene view with its camera preview inset](@/assets/guides/en/cam-composition-guides.png)
 ## Ride a track
 
 `CameraDolly` places a camera on a track: a `Spline` entity in the scene. It is a position stage, used instead of
@@ -186,8 +184,7 @@ Distances are measured along the curve in world units, so a scaled spline is lon
 dolly takes the shorter way round, so a target crossing the seam does not send the camera round the loop. The track is
 the same curve a `PathFollower` follows.
 
-{/* SHOT: cam-dolly-track | Scene view after Create → Dolly Camera with Track: the spline track drawn with its control points, the dolly camera's gizmo on the track, Details panel showing the CameraDolly card with Mode Track Target */}
-
+![The camera-shots example with its tracking camera selected: Camera, Camera Dolly, Look At Target, Camera Noise and Shot components in Details, and the camera preview inset](@/assets/guides/en/cam-dolly-track.png)
 ## Frame several targets
 
 `CameraTargetGroup` makes several entities one target. Each frame the group's entity is placed at the members' centre,
