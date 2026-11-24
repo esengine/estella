@@ -4,7 +4,7 @@
 
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
-#include "../ecs/Registry.hpp"
+#include "../ecs/RegistrySystems.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
@@ -135,7 +135,7 @@ struct EmitterState {
     explicit EmitterState(u32 capacity) : pool(capacity) {}
 };
 
-class ParticleSystem {
+class ParticleSystem : public ecs::RegistrySystem {
 public:
     /** The engine stream this system draws from — see core/RandomSource.hpp. */
     static constexpr const char* kRandomStream = "particles";
@@ -299,12 +299,7 @@ private:
     std::vector<SdfColliderInstance> sdf_colliders_;
     struct GpuCollisions { Entity entity; u32 total; std::vector<CollisionEvent> events; };
     std::vector<GpuCollisions> gpu_collisions_;
-    // RAII: auto-unregisters from the registry's onDestroy when this system is
-    // destroyed, so a torn-down system never leaves a dangling `this` behind.
-    friend class ParticleWorlds;
-    Connection observe(ecs::Registry& registry, Shared<ParticleSystem> keepAlive = {});
-    bool observing_ = false;
-    Connection destroyConn_;
+    void onEntityDestroyed(Entity entity) override;
 };
 
 }  // namespace esengine::particle

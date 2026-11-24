@@ -44,11 +44,13 @@ export class SpringBoneAPI {
      * its parent's index (-1 for the root). Empty when the chain has not been stepped yet.
      */
     snapshot(root: Entity): SpringBoneParticle[] {
-        this.module_.springbone_snapshot?.(this.registry_, root as number);
-        const count = this.module_.springbone_snapshotCount?.() ?? 0;
-        const ptr = this.module_.springbone_snapshotData?.() ?? 0;
-        const heap = (this.module_ as { HEAPF32?: Float32Array }).HEAPF32;
-        if (count <= 0 || !ptr || !heap) return [];
+        const count = this.module_.springbone_snapshot?.(this.registry_, root as number) ?? 0;
+        if (!count) return [];
+        const ptr = this.module_.springbone_snapshotDataInWorld
+            ? this.module_.springbone_snapshotDataInWorld(this.registry_)
+            : this.module_.springbone_snapshotData?.();
+        const heap = this.module_.HEAPF32;
+        if (!ptr || !heap) return [];
         const out: SpringBoneParticle[] = [];
         for (let i = 0; i < count; i++) {
             const k = ptr / 4 + i * 7;

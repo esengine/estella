@@ -9,6 +9,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/TrailRenderer.hpp"
 #include "../../trail/TrailSystem.hpp"
+#include "../../ecs/RegistrySystems.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -17,16 +18,16 @@
 namespace esengine {
 
 void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
-    if (!trail_system_) return;
-
     auto& registry = collect_ctx.registry;
+    const auto system = worlds_.find(registry);
+    if (!system) return;
     auto& frustum = collect_ctx.frustum;
     auto& clips = collect_ctx.clip_state;
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
 
-    const f32 now = trail_system_->now();
+    const f32 now = system->now();
 
     auto view = registry.activeView<ecs::Transform, ecs::TrailRenderer>();
     const ecs::GroupOpacityLookup groupOpacity(registry);
@@ -36,7 +37,7 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
         const f32 groupAlpha = groupOpacity.of(entity);
         if (groupAlpha <= 0.0f) continue;
 
-        const trail::TrailState* state = trail_system_->getState(entity);
+        const trail::TrailState* state = system->getState(entity);
         if (!state || state->points.empty()) continue;
 
         auto& transform = view.get<ecs::Transform>(entity);

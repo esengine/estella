@@ -891,6 +891,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("springbone_snapshot", &esengine::springbone_snapshot);
     emscripten::function("springbone_snapshotCount", &esengine::springbone_snapshotCount);
     emscripten::function("springbone_snapshotData", &esengine::springbone_snapshotData);
+    emscripten::function("springbone_snapshotCountInWorld", &esengine::springbone_snapshotCountInWorld);
+    emscripten::function("springbone_snapshotDataInWorld", &esengine::springbone_snapshotDataInWorld);
     emscripten::function("renderer_setStage", ES_RENDER_BIND(renderer_setStage));
     emscripten::function("renderer_createTarget", ES_RENDER_BIND(renderer_createTarget));
     emscripten::function("renderer_releaseTarget", ES_RENDER_BIND(renderer_releaseTarget));

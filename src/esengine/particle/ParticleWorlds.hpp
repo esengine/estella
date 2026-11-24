@@ -4,6 +4,7 @@
 
 #include "ParticleSystem.hpp"
 #include "../core/RandomSource.hpp"
+#include "../ecs/RegistrySystems.hpp"
 
 namespace esengine::particle {
 
@@ -13,16 +14,10 @@ public:
     explicit ParticleWorlds(const RandomSource& seed) : seed_(seed) {}
 
     Shared<ParticleSystem> forRegistry(ecs::Registry& registry) {
-        const u64 id = registry.instanceId();
-        if (const auto it = worlds_.find(id); it != worlds_.end()) {
-            if (auto system = it->second.system.lock()) return system;
-        }
-        std::erase_if(worlds_, [](const auto& pair) { return pair.second.system.expired(); });
         // A legacy caller can author a LUT before its first call carrying a registry.
-        auto system = pending_ ? std::move(pending_) : makeSystem();
-        auto connection = system->observe(registry, system);
-        worlds_.emplace(id, Entry{system, std::move(connection)});
-        return system;
+        return worlds_.forRegistry(registry, [this] {
+            return pending_ ? std::move(pending_) : makeSystem();
+        });
     }
 
     Shared<ParticleSystem> select(ecs::Registry& registry) {
@@ -56,10 +51,7 @@ public:
     }
 
 private:
-    // The registry's despawn callback holds the simulation until either the registry
-    // dies or this context disconnects. The lookup and legacy cursor cannot extend it.
-    struct Entry { Weak<ParticleSystem> system; Connection despawn; };
-    std::unordered_map<u64, Entry> worlds_;
+    ecs::RegistrySystems<ParticleSystem> worlds_;
     Weak<ParticleSystem> last_;
     Shared<ParticleSystem> pending_;
     RandomSource seed_;
@@ -76,9 +68,7 @@ private:
 
     template<class Fn> void forEach(Fn&& apply) {
         if (pending_) apply(*pending_);
-        for (const auto& [id, entry] : worlds_) {
-            if (auto system = entry.system.lock()) apply(*system);
-        }
+        worlds_.forEach(apply);
     }
 };
 

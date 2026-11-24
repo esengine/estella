@@ -5,6 +5,7 @@
 #include "esengine/ecs/components/SpringBone.hpp"
 #include "esengine/springbone/SpringBoneSolver.hpp"
 #include "esengine/springbone/SpringBoneSystem.hpp"
+#include "esengine/springbone/SpringBoneWorlds.hpp"
 
 #include <cmath>
 
@@ -215,6 +216,33 @@ TEST_CASE("a chain in its pose is left alone") {
     CHECK(rig.system.simulated() == 1);
     // Positions are never written.
     CHECK(rig.registry.get<ecs::Transform>(rig.b1).position.y == doctest::Approx(-10.0f));
+}
+
+TEST_CASE("releasing a preview restores only that world's animated rotations") {
+    SpringBoneWorlds worlds;
+    Rig a(10), b(10);
+    REQUIRE(a.root == b.root);
+    auto first = worlds.forRegistry(a.registry);
+    auto second = worlds.forRegistry(b.registry);
+    const auto frame = [&] {
+        first->update(a.registry, &a.transforms, 1.0f / 60.0f);
+        second->update(b.registry, &b.transforms, 1.0f / 60.0f);
+    };
+    frame();
+    a.moveRoot({60, 0, 0});
+    b.moveRoot({-60, 0, 0});
+    frame();
+    REQUIRE(a.turned(a.b1) > 0.05f);
+    REQUIRE(b.turned(b.b1) > 0.05f);
+    const auto peerRotation = b.registry.get<ecs::Transform>(b.b1).rotation;
+    first->release(a.registry, a.root);
+    CHECK(a.turned(a.b1) < 1e-4f);
+    CHECK(b.registry.get<ecs::Transform>(b.b1).rotation == peerRotation);
+    CHECK_FALSE(first->chain(a.root));
+    REQUIRE(second->chain(b.root));
+    CHECK(second->chain(b.root)->front().position.x == -60);
+    b.registry.destroy(b.root);
+    CHECK_FALSE(second->chain(b.root));
 }
 
 TEST_CASE("moving the root swings the bones, and they settle back to the animated pose without drifting") {

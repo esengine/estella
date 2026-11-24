@@ -18,7 +18,7 @@
 
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
-#include "../ecs/Registry.hpp"
+#include "../ecs/RegistrySystems.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "SpringBoneSolver.hpp"
 
@@ -27,7 +27,7 @@
 
 namespace esengine::springbone {
 
-class SpringBoneSystem {
+class SpringBoneSystem : public ecs::RegistrySystem {
 public:
     SpringBoneSystem() = default;
 
@@ -54,6 +54,12 @@ public:
      *        the index of its parent (-1 for the root). Empty when the chain has no state.
      */
     void snapshot(Entity root, std::vector<f32>& out) const;
+
+    u32 captureSnapshot(Entity root) {
+        snapshot(root, snapshot_);
+        return static_cast<u32>(snapshot_.size() / 7);
+    }
+    const std::vector<f32>& snapshotData() const { return snapshot_; }
 
 private:
     /** @brief One bone (or a virtual tip) of a chain, beside its particle. */
@@ -97,8 +103,8 @@ private:
     std::vector<i32> childCount_;
     std::vector<i32> parentOf_;
     u32 simulated_ = 0;
-    // RAII: unregisters from the registry's onDestroy when this system is torn down.
-    Connection destroyConn_;
+    std::vector<f32> snapshot_;
+    void onEntityDestroyed(Entity entity) override { states_.erase(entity); }
 
     void restoreBones(ecs::Registry& registry, State& state);
     void collectBones(ecs::Registry& registry, Entity root, std::vector<Entity>& out);

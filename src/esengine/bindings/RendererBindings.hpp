@@ -301,6 +301,9 @@ u32 springbone_snapshot(ecs::Registry& registry, u32 entity);
 u32 springbone_snapshotCount();
 // @heapreturn esengine::springbone_snapshotCount() * 28
 uintptr_t springbone_snapshotData();
+u32 springbone_snapshotCountInWorld(ecs::Registry& registry);
+// @heapreturn esengine::springbone_snapshotCountInWorld(esn_reg()) * 28
+uintptr_t springbone_snapshotDataInWorld(ecs::Registry& registry);
 void renderer_setStage(i32 stage);
 u32 renderer_createTarget(u32 width, u32 height, i32 flags);
 u32 renderer_getTargetDepthTexture(u32 handle);

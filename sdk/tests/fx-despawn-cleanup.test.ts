@@ -101,4 +101,26 @@ describe('FX per-entity state on despawn', () => {
         expect(trailClear).toHaveBeenCalledTimes(1);
         expect(trailClear.mock.calls[0][1]).toBe(withTrail);
     });
+
+    it.each([0, 1])('Trail: quitting app %i keeps the peer despawn subscription', closed => {
+        const plugin = new TrailPlugin();
+        const worlds = [bootApp(), bootApp()].map(({ app, module }) => {
+            const clear = vi.fn();
+            module.trail_clear = clear;
+            app.addPlugin(plugin);
+            const id = app.world.spawn();
+            app.world.insert(id, TrailRenderer);
+            return { app, id, clear };
+        });
+        const peer = worlds[1 - closed];
+        try {
+            worlds[closed].app.quit({ keepRenderer: true });
+            peer.app.world.despawn(peer.id);
+            expect(peer.clear).toHaveBeenCalledTimes(1);
+            expect(peer.clear.mock.calls[0][0] === peer.app.world.getCppRegistry()).toBe(true);
+            expect(peer.clear.mock.calls[0][1]).toBe(peer.id);
+        } finally {
+            peer.app.quit({ keepRenderer: true });
+        }
+    });
 });

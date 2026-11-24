@@ -729,6 +729,8 @@ export interface ESEngineModule {
     springbone_snapshot?(registry: CppRegistry, entity: number): number;
     springbone_snapshotCount?(): number;
     springbone_snapshotData?(): number;
+    springbone_snapshotCountInWorld?(registry: CppRegistry): number;
+    springbone_snapshotDataInWorld?(registry: CppRegistry): number;
 
     // Tilemap API
     tilemap_initLayer?(entity: number, width: number, height: number,

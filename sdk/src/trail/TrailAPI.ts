@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { CppRegistry } from '../wasm';
+import { flushEngineStamps } from '../ecs/engineStamps';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import type { Entity } from '../types';
 import { defineResource } from '../ecs/resource';
@@ -24,6 +25,7 @@ export class TrailAPI {
 
     /** Advance every trail: record points for moving emitters, age out old ones. */
     update(dt: number): void {
+        flushEngineStamps(this.registry_);
         this.module_.trail_update?.(this.registry_, dt);
     }
 

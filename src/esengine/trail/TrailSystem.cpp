@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TrailSystem.hpp"
+#include "../ecs/TransformSystem.hpp"
 
 namespace esengine::trail {
 
-void TrailSystem::update(ecs::Registry& registry, f32 dt) {
-    if (!destroyConn_.isConnected()) {
-        destroyConn_ = registry.onDestroy([this](Entity entity) {
-            states_.erase(entity);
-        });
-    }
-
+void TrailSystem::update(ecs::Registry& registry, f32 dt, ecs::TransformSystem* transforms) {
+    observe(registry);
     time_ += dt;
 
     auto view = registry.activeView<ecs::Transform, ecs::TrailRenderer>();
+    if (transforms && !view.empty()) transforms->ensureComposed(registry);
     for (auto entity : view) {
         const auto& trail = view.get<ecs::TrailRenderer>(entity);
         // Frozen (disabled) trails keep their history so re-enabling resumes the

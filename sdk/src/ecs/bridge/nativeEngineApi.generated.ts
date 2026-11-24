@@ -362,7 +362,9 @@ export interface NativeEngineApi {
     springbone_reset?(registry: unknown, entity: number): void;
     springbone_snapshot?(registry: unknown, entity: number): number;
     springbone_snapshotCount?(): number;
+    springbone_snapshotCountInWorld?(registry: unknown): number;
     springbone_snapshotData?(): number;
+    springbone_snapshotDataInWorld?(registry: unknown): number;
     springbone_update?(registry: unknown, dt: number): void;
     tilemap_advanceAnimations?(entity: number, dtMs: number): void;
     tilemap_clearTileAnimations?(entity: number): void;
@@ -779,7 +781,9 @@ export function createNativeEngineApi(
     bind('springbone_reset', 'es_springbone_reset', true);
     bind('springbone_snapshot', 'es_springbone_snapshot', true);
     bind('springbone_snapshotCount', 'es_springbone_snapshotCount', false);
+    bind('springbone_snapshotCountInWorld', 'es_springbone_snapshotCountInWorld', true);
     bind('springbone_snapshotData', 'es_springbone_snapshotData', false);
+    bind('springbone_snapshotDataInWorld', 'es_springbone_snapshotDataInWorld', true);
     bind('springbone_update', 'es_springbone_update', true);
     bind('tilemap_advanceAnimations', 'es_tilemap_advanceAnimations', false);
     bind('tilemap_clearTileAnimations', 'es_tilemap_clearTileAnimations', false);

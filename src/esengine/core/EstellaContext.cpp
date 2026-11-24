@@ -35,7 +35,7 @@
 #endif
 #include "../renderer/plugins/TrailPlugin.hpp"
 #include "../trail/TrailSystem.hpp"
-#include "../springbone/SpringBoneSystem.hpp"
+#include "../springbone/SpringBoneWorlds.hpp"
 #ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
 #include "../tilemap/TilemapSystem.hpp"
@@ -74,8 +74,8 @@ void EstellaContext::registerLogicSystems() {
 #ifdef ES_ENABLE_PARTICLES
     services_.registerOwned<particle::ParticleWorlds>(makeUnique<particle::ParticleWorlds>(*services_.getService<RandomSource>()));
 #endif
-    services_.registerOwned<trail::TrailSystem>(makeUnique<trail::TrailSystem>());
-    services_.registerOwned<springbone::SpringBoneSystem>(makeUnique<springbone::SpringBoneSystem>());
+    services_.registerOwned(makeUnique<ecs::RegistrySystems<trail::TrailSystem>>());
+    services_.registerOwned(makeUnique<springbone::SpringBoneWorlds>());
 
 
     services_.registerOwned<ecs::TransformSystem>(makeUnique<ecs::TransformSystem>());
@@ -188,11 +188,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 #endif
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
     renderFrame->addPlugin(std::make_unique<MeshPlugin>());
-    {
-        auto trailPlugin = std::make_unique<TrailPlugin>();
-        trailPlugin->setTrailSystem(services_.getService<trail::TrailSystem>());
-        renderFrame->addPlugin(std::move(trailPlugin));
-    }
+    renderFrame->addPlugin(makeUnique<TrailPlugin>(services_.require<ecs::RegistrySystems<trail::TrailSystem>>()));
 
 #ifdef ES_ENABLE_TILEMAP
     {

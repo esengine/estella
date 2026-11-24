@@ -9,7 +9,8 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
-import { Sprite, Transform } from '../src/ecs/component';
+import { Sprite, TrailRenderer, Transform } from '../src/ecs/component';
+import { Trail, trailPlugin } from '../src/trail';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM, HAS_EDITOR_API } from './helpers/loadWasm';
 
@@ -52,6 +53,24 @@ describe.skipIf(!HAS_WASM)('world transform authority', () => {
         const { world, worldX } = parented();
         world.ensureTransformsComposed();
         expect(worldX()).toBe(105);
+    });
+
+    it('composes the latest parent position on each trail update before a frame is drawn', () => {
+        const { app, world, parent, child, worldX } = parented();
+        const registry = world.getCppRegistry()!;
+        try {
+            app.addPlugin(trailPlugin);
+            world.insert(child, TrailRenderer, {});
+            const trail = app.getResource(Trail);
+            trail.update(1 / 60);
+            expect(worldX()).toBe(105);
+            world.update(parent, Transform, transform => { transform.position.x = 9; });
+            trail.update(1 / 60);
+            expect(worldX()).toBe(14);
+        } finally {
+            app.quit({ keepRenderer: true });
+            registry.delete();
+        }
     });
 
     it('recomposes for each of two steps inside one frame', () => {

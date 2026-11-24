@@ -10,6 +10,7 @@
 namespace esengine {
 
 namespace trail { class TrailSystem; }
+namespace ecs { template<class System> class RegistrySystems; }
 
 /** @brief One centerline sample: world position + normalized age (0 head, 1 tail). */
 struct TrailCenter {
@@ -27,13 +28,13 @@ struct TrailCenter {
  */
 class TrailPlugin : public RenderTypePlugin {
 public:
-    void setTrailSystem(trail::TrailSystem* system) { trail_system_ = system; }
+    explicit TrailPlugin(ecs::RegistrySystems<trail::TrailSystem>& worlds) : worlds_(worlds) {}
 
     void collect(RenderCollectContext& ctx) override;
     const char* collectScope() const override { return "render.collect.trail"; }
 
 private:
-    trail::TrailSystem* trail_system_ = nullptr;
+    ecs::RegistrySystems<trail::TrailSystem>& worlds_;
     std::vector<TrailCenter> scratch_center_;   ///< Reused centerline (anchors + live head).
     std::vector<BatchVertex> scratch_verts_;    ///< Reused ribbon vertices (2 per centerline point).
     std::vector<u32> scratch_indices_;          ///< Reused ribbon indices (6 per segment).

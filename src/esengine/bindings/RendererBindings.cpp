@@ -49,7 +49,7 @@
 #include "../particle/ParticleWorlds.hpp"
 #endif
 #include "../trail/TrailSystem.hpp"
-#include "../springbone/SpringBoneSystem.hpp"
+#include "../springbone/SpringBoneWorlds.hpp"
 #include "../ui/UISystem.hpp"
 #include "../ecs/FlatGeometry.hpp"
 #include "../ecs/components/UINode.hpp"
@@ -91,8 +91,8 @@ static Shared<particle::ParticleSystem> legacyParticles() {
     return worlds ? worlds->legacy() : nullptr;
 }
 #endif
-#define g_trailSystem (ctx().tryGet<trail::TrailSystem>())
-#define g_springBoneSystem (ctx().tryGet<springbone::SpringBoneSystem>())
+static auto* trailWorlds() { return ctx().tryGet<ecs::RegistrySystems<trail::TrailSystem>>(); }
+static auto* springBoneWorlds() { return ctx().tryGet<springbone::SpringBoneWorlds>(); }
 
 namespace {
 // The channels the engine's own mesh uploads use, named by semantic so a change
@@ -1149,53 +1149,64 @@ void particle_set_bursts(u32 entity, uintptr_t ptr, i32 count) {
 #endif
 
 void trail_update(ecs::Registry& registry, f32 dt) {
-    if (!g_trailSystem) return;
-    g_trailSystem->update(registry, dt);
+    if (auto* worlds = trailWorlds()) worlds->forRegistry(registry)->update(registry, dt, g_transformSystem);
 }
 
 // The entity crosses the wasm boundary as a raw u32 (Embind has no Entity binding);
 // rebuild it C++-side, matching particle_play/stop above.
 void trail_clear(ecs::Registry& registry, u32 entity) {
-    if (!g_trailSystem) return;
-    (void)registry;
-    g_trailSystem->clear(Entity::fromRaw(entity));
+    if (auto* worlds = trailWorlds()) {
+        if (auto system = worlds->find(registry)) system->clear(Entity::fromRaw(entity));
+    }
 }
 
 void springbone_update(ecs::Registry& registry, f32 dt) {
-    if (!g_springBoneSystem) return;
-    g_springBoneSystem->update(registry, g_transformSystem, dt);
+    if (auto* worlds = springBoneWorlds()) worlds->forRegistry(registry)->update(registry, g_transformSystem, dt);
 }
 
 void springbone_reset(ecs::Registry& registry, u32 entity) {
-    if (!g_springBoneSystem) return;
-    (void)registry;
-    g_springBoneSystem->reset(Entity::fromRaw(entity));
+    if (auto* worlds = springBoneWorlds()) {
+        if (auto system = worlds->find(registry)) system->reset(Entity::fromRaw(entity));
+    }
 }
 
 void springbone_release(ecs::Registry& registry, u32 entity) {
-    if (!g_springBoneSystem) return;
-    g_springBoneSystem->release(registry, Entity::fromRaw(entity));
-}
-
-static std::vector<f32>& springBoneSnapshot() {
-    static std::vector<f32> data;
-    return data;
+    if (auto* worlds = springBoneWorlds()) {
+        if (auto system = worlds->find(registry)) system->release(registry, Entity::fromRaw(entity));
+    }
 }
 
 u32 springbone_snapshot(ecs::Registry& registry, u32 entity) {
-    (void)registry;
-    auto& data = springBoneSnapshot();
-    if (!g_springBoneSystem) { data.clear(); return 0; }
-    g_springBoneSystem->snapshot(Entity::fromRaw(entity), data);
-    return static_cast<u32>(data.size() / 7);
+    auto* worlds = springBoneWorlds();
+    return worlds ? worlds->snapshot(registry, Entity::fromRaw(entity)) : 0;
+}
+
+static u32 springBoneCount(const Shared<const springbone::SpringBoneSystem>& system) {
+    return system ? static_cast<u32>(system->snapshotData().size() / 7) : 0;
+}
+
+static uintptr_t springBoneData(const Shared<const springbone::SpringBoneSystem>& system) {
+    return system && !system->snapshotData().empty() ? reinterpret_cast<uintptr_t>(system->snapshotData().data()) : 0;
 }
 
 u32 springbone_snapshotCount() {
-    return static_cast<u32>(springBoneSnapshot().size() / 7);
+    auto* worlds = springBoneWorlds();
+    return springBoneCount(worlds ? worlds->lastSnapshot() : nullptr);
 }
 
 uintptr_t springbone_snapshotData() {
-    return reinterpret_cast<uintptr_t>(springBoneSnapshot().data());
+    auto* worlds = springBoneWorlds();
+    return springBoneData(worlds ? worlds->lastSnapshot() : nullptr);
+}
+
+u32 springbone_snapshotCountInWorld(ecs::Registry& registry) {
+    auto* worlds = springBoneWorlds();
+    return springBoneCount(worlds ? worlds->find(registry) : nullptr);
+}
+
+uintptr_t springbone_snapshotDataInWorld(ecs::Registry& registry) {
+    auto* worlds = springBoneWorlds();
+    return springBoneData(worlds ? worlds->find(registry) : nullptr);
 }
 
 void renderer_setStage(i32 stage) {

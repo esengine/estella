@@ -13,12 +13,14 @@
 
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
-#include "../ecs/Registry.hpp"
+#include "../ecs/RegistrySystems.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/TrailRenderer.hpp"
 
 #include <deque>
 #include <unordered_map>
+
+namespace esengine::ecs { class TransformSystem; }
 
 namespace esengine::trail {
 
@@ -33,12 +35,12 @@ struct TrailState {
     std::deque<TrailPoint> points;
 };
 
-class TrailSystem {
+class TrailSystem : public ecs::RegistrySystem {
 public:
     TrailSystem() = default;
 
     /** Advance the sim: record new points for moving emitters, age out old ones. */
-    void update(ecs::Registry& registry, f32 dt);
+    void update(ecs::Registry& registry, f32 dt, ecs::TransformSystem* transforms = nullptr);
 
     /** Drop an entity's recorded history (the streak vanishes instantly). */
     void clear(Entity entity);
@@ -51,9 +53,7 @@ public:
 private:
     f32 time_ = 0.0f;  ///< Accumulated dt; the single time reference for point ages.
     std::unordered_map<Entity, TrailState> states_;
-    // RAII: auto-unregisters from the registry's onDestroy when this system is torn
-    // down, so a dead system never leaves a dangling `this` behind.
-    Connection destroyConn_;
+    void onEntityDestroyed(Entity entity) override { clear(entity); }
 };
 
 }  // namespace esengine::trail

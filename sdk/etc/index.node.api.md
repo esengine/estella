@@ -13785,7 +13785,7 @@ static prototype: TrailAPI
 ## TrailPlugin — class @experimental
 ```
 build: (app: App) => void
-cleanup: () => void
+cleanup: (app?: App) => void
 name: string
 static new (): TrailPlugin
 static prototype: TrailPlugin

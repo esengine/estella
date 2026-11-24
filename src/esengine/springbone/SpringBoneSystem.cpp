@@ -92,11 +92,7 @@ const std::vector<Particle>* SpringBoneSystem::chain(Entity root) const {
 }
 
 void SpringBoneSystem::update(ecs::Registry& registry, ecs::TransformSystem* transforms, f32 dt) {
-    if (!destroyConn_.isConnected()) {
-        destroyConn_ = registry.onDestroy([this](Entity entity) {
-            states_.erase(entity);
-        });
-    }
+    observe(registry);
     simulated_ = 0;
 
     // A chain whose component is gone, or switched off, gives its bones back to the animation as the animation had them.
