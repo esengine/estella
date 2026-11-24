@@ -1,28 +1,26 @@
 ---
 title: Quick Start
-description: "Five minutes to something you can play — a shape you drive with the arrow keys, with no art and no setup."
+description: A minimal project in five steps — Blank template, a Shape entity, a defineBehavior component that moves it with the arrow keys, attaching it in Details, and running in play mode.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Five minutes, no art. By the end you will have a project, something on screen,
-and a script that moves it when you press a key — all of it from what ships in
-the box: the **Blank** template starts with a camera and nothing else, and a
-shape draws without needing a texture.
+This walkthrough produces a project with one entity moved by the arrow keys. It uses the **Blank** template (a scene
+with a Camera) and a `ShapeRenderer`, so no art assets are required.
+
+## Steps
 
 <Steps>
 
-1. **Create the project.** In the launcher, click **New project**, pick the
-   **Blank** starter, name it, and click **Create project**. The editor opens
-   `assets/scenes/main.esscene` — one entity, a `Camera`.
+1. **Create the project.** Launcher → **New project** → **Blank** → **Create project**. The editor opens
+   `assets/scenes/main.esscene`, which contains one `Camera` entity.
 
-2. **Put something on screen.** In the viewport, open **Create…** and choose
-   **Shape**. A white circle appears at the origin and the World Outliner gains
-   an entity carrying a `Transform` and a `ShapeRenderer`. Press `F2` and rename
-   it **Player**.
+2. **Add an entity.** *World Outliner → Add → Create entity… → Rendering → Shape*. The new entity carries `Transform`
+   and `ShapeRenderer` (a white 100 × 100 circle at the origin). Rename it `Player` (**F2**).
 
-3. **Write the behaviour.** Open `src/components.ts` — the Blank template's
-   declaration entry — and replace its contents with:
+   ![The editor after creating the Shape: a white circle at the origin, Player in the World Outliner, Transform and Shape Renderer in Details](@/assets/guides/en/gs-shape.png)
+
+3. **Declare the behaviour.** Replace the contents of `src/components.ts` (the Blank template's declaration entry):
 
    ```typescript title="src/components.ts"
    import { defineBehavior, Transform } from 'esengine';
@@ -34,55 +32,46 @@ shape draws without needing a texture.
        const y = (ctx.input.isKeyDown('ArrowUp') ? 1 : 0) - (ctx.input.isKeyDown('ArrowDown') ? 1 : 0);
        if (x === 0 && y === 0) return;
 
-       const t = ctx.get(Transform);           // a copy — Transform lives in the engine
+       const t = ctx.get(Transform);           // a copy: Transform is stored in the engine
        t.position.x += x * ctx.self.speed * dt;
        t.position.y += y * ctx.self.speed * dt;
-       ctx.set(Transform, t);                  // …so hand it back
+       ctx.set(Transform, t);                  // write the copy back
      },
    });
    ```
 
-   Save it. The editor watches your scripts and picks up the new component a
-   moment later.
+   On save, the editor re-extracts component schemas from this module and registers `Player`.
 
-4. **Attach it.** Select **Player** in the Outliner, then in the Details panel
-   click **Add Component** and choose **Player**. A `speed` field appears,
-   editable like any other — a behaviour's `state` *is* the component's data.
+4. **Attach the component.** Select `Player`, then *Details → Add Component → Player*. The `state` fields appear as
+   editable properties.
 
-5. **Play.** Press **F5** and hold an arrow key. **Esc** stops, and the scene is
-   exactly as you left it: play runs in its own realm and never writes back to
-   the scene you are editing.
+   ![Details for Player: Transform, Shape Renderer and the Player card with its Speed field set to 300](@/assets/guides/en/gs-player-component.png)
+
+5. **Run.** **F5** starts play mode; the arrow keys move the entity. **Esc** stops. Play mode runs in a separate world
+   and does not modify the edited scene.
+
+   ![Play mode: the scene view outlined in green, the running world in the Outliner and Details](@/assets/guides/en/gs-play.png)
 
 </Steps>
 
-## What just happened
+## Explanation
 
-- **One call gave you a component and a system.** `defineBehavior` registers the
-  `update` hook as a system *and* returns a component, which is why **Player**
-  showed up in Add Component without you declaring anything else.
-- **`state` is the component's data**, so the editor can edit it. Change `speed`
-  in Details and the next run uses your number — code and inspector are two doors
-  to the same field.
-- **`ctx` is the entity's view of the frame** — `ctx.self` is this entity's own
-  state, `ctx.input` is the keyboard, `dt` is the seconds since the last frame.
-  Multiplying by `dt` is what makes 300 mean *300 units per second* rather than
-  per frame.
+- **`defineBehavior` registers a component and a system.** The `update` hook is scheduled as a system over every
+  entity carrying the component, which is why `Player` is available in Add Component with no further declaration.
+- **`state` is the component's data.** Values edited in Details are the values the system reads; code and inspector
+  address the same field.
+- **`ctx` is the per-entity view of the frame.** `ctx.self` is the entity's component state, `ctx.input` the input
+  state, `dt` the frame time in seconds. Multiplying by `dt` makes `speed` a rate in units per second.
 
 <Aside type="caution">
-  The copy in step 3 is not ceremony. `ctx.get` hands back the stored object for
-  a component you declared yourself, but `Transform`, `Sprite`, `RigidBody2D` and
-  every other engine component are decoded out of the wasm heap on each read —
-  so `ctx.get(Transform).position.x += …` changes a value nobody keeps, and does
-  it silently. Read it, change it, hand it back with `ctx.set`. See
-  [Scripting](/docs/scripting/overview/#your-first-behavior).
+  `ctx.get` returns the stored object for components declared in TypeScript, but engine components (`Transform`,
+  `Sprite`, `RigidBody2D`, …) are decoded from the WebAssembly heap on each read. Modifying the returned value without
+  `ctx.set` has no effect. See [Scripting](/docs/scripting/overview/#your-first-behavior).
 </Aside>
 
-## Next steps
+## Next
 
-- [Scripting](/docs/scripting/overview/) — behaviours, systems, where declarations
-  live, and how hot reload picks them up.
-- [The Editor](/docs/editor/overview/) — the workspace you just used, in full.
-- [ECS Architecture](/docs/core-concepts/ecs/) — why a component is data and a
-  system is behaviour.
-- [Sprites & Rendering](/docs/graphics/sprites/) — when you are ready to swap the
-  circle for artwork.
+- [Scripting](/docs/scripting/overview/) — behaviours, systems, declaration modules, hot reload.
+- [The Editor](/docs/editor/overview/) — the editor workspace.
+- [ECS Architecture](/docs/core-concepts/ecs/) — components as data, systems as behaviour.
+- [Sprites & Rendering](/docs/graphics/sprites/) — textured 2D rendering.

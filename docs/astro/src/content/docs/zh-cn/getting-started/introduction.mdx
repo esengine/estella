@@ -1,36 +1,35 @@
 ---
 title: 简介
-description: Estella 是什么，以及它为什么存在。
+description: Estella 概览——基于 C++/WebAssembly 内核、提供 TypeScript SDK 的 2D 与 3D 引擎，带可视化编辑器，可导出到 Web、桌面、小游戏平台、试玩广告与原生移动端。
 ---
 
-Estella 是一个 **2D 与 3D 游戏引擎**：上层是 TypeScript SDK，底层由高性能的
-**C++/WebAssembly** 内核驱动。它自带一个用于场景编辑与项目管理的可视化编辑器，
-把一个项目导出到 **Web、桌面、微信等小游戏平台、Playable 广告，以及原生 Android / iOS 应用**。
+Estella 是一款 **2D 与 3D 游戏引擎**。游戏代码基于 TypeScript SDK 编写；引擎内核（ECS 存储、渲染器、资源、物理、粒子、瓦片地图、文本）以 C++ 实现，编译为 WebAssembly，移动端编译为原生 arm64。可视化编辑器负责场景创作、资源管理与构建。同一项目可导出到 **Web、桌面、微信及其他小游戏平台、单文件试玩广告，以及原生 Android / iOS 应用**。
 
-## 为什么选择 Estella？
+![Estella 编辑器与一个平台跳跃场景：场景视图、世界大纲、细节与内容浏览器](@/assets/guides/zh/editor-overview.png)
 
-- **快** —— C++ 渲染管线编译为 WebAssembly，而非解释执行的 JavaScript。
-- **类型安全** —— 一流的 TypeScript SDK，提供 `defineSystem`、`defineComponent`、
-  `Query`。
-- **数据导向** —— Entity-Component-System 架构，游戏逻辑可规模化扩展。
-- **可视化编辑器** —— 场景层级、检视面板、资源浏览器，无需手写 JSON。
-- **跨平台** —— 一个项目，导出到 Web、桌面、微信等小游戏平台、单文件 Playable 广告，
-  以及原生 Android / iOS 应用（arm64 + 内嵌 Dawn，不是 WebView）。
-- **开箱即用** —— 2D 与 3D 物理、glTF/FBX 模型与 PBR 材质及光照、地形、瓦片地图、粒子、
-  2D 光照、动画、Spine、音频、UI，以及一套游戏 AI 层。
+*编辑器：场景视图（中）、世界大纲与细节（右）、内容浏览器（下）。*
 
-## 各层如何协作
+## 特性
+
+| 方面 | 说明 |
+|---|---|
+| 运行时 | C++ 内核编译为 WebAssembly（Web），或编译为 arm64 并内嵌 WebGPU 实现（Android / iOS，不使用 WebView）。 |
+| 编程模型 | 实体-组件-系统（ECS）。TypeScript API：`defineComponent`、`defineSystem`、`defineBehavior`、`Query`。 |
+| 编辑器 | 场景层级、检视器、内容浏览器、资源编辑器、运行模式、构建流程。场景以可视化方式编辑，而非编辑 JSON。 |
+| 目标平台 | Web、桌面、微信及其他小游戏平台、试玩广告、Android、iOS。 |
+| 功能 | 2D 与 3D 物理、带 PBR 材质的 glTF/FBX 模型、光照、地形与水体、瓦片地图、粒子、2D 光照、骨骼与 2D 动画、Spine、音频、UI、玩法 AI。 |
+
+## 架构
 
 | 层 | 职责 |
-|----|------|
-| **TypeScript SDK**（`esengine`） | 你编写的界面：`App`、`World`、系统、组件、查询、插件。 |
-| **WasmBridge** | SDK 与引擎之间的唯一边界，内存布局由生成器产出并经哈希校验。 |
-| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。在[移动端](/docs/zh-cn/publishing/android-ios/)，同一份内核改为编译到 arm64。 |
+|---|---|
+| **TypeScript SDK**（`esengine`） | 创作接口：`App`、`World`、系统、组件、查询、插件。 |
+| **WasmBridge** | SDK 与引擎之间唯一的边界，内存布局由生成代码定义并经哈希校验。 |
+| **C++ 内核** | ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。编译为 WebAssembly，[移动端](/docs/zh-cn/publishing/android-ios/)编译为 arm64。 |
 
-完整架构见
-[`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md)。
+完整架构说明：[`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md)。
 
-## 下一步
+## 后续
 
-- [安装](/docs/zh-cn/getting-started/installation/) —— 获取编辑器或从源码构建。
-- [快速上手](/docs/zh-cn/getting-started/quick-start/) —— 创建项目并写下你的第一个系统。
+- [安装](/docs/zh-cn/getting-started/installation/) —— 下载编辑器或从源码构建。
+- [快速上手](/docs/zh-cn/getting-started/quick-start/) —— 五步创建一个可操控实体的项目。

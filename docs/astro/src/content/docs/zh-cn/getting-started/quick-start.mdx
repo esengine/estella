@@ -1,23 +1,23 @@
 ---
 title: 快速上手
-description: "五分钟做出一个能玩的东西——一个用方向键操控的图形,不需要美术,不需要配置。"
+description: 五步完成一个最小项目——空白模板、一个 Shape 实体、用方向键移动它的 defineBehavior 组件、在细节面板中挂载，并在运行模式中验证。
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-五分钟,零美术。做完你会有一个项目、一个画面上看得见的东西,以及一段按键就让它动起来的
-脚本——全部用开箱即有的东西:**Blank** 模板一开始只有一个相机,而图形不需要纹理就能画。
+本流程创建一个包含单个实体、可用方向键移动的项目。使用 **空白（Blank）** 模板（只含一个 Camera 的场景）与 `ShapeRenderer`，无需任何美术资源。
+
+## 步骤
 
 <Steps>
 
-1. **创建项目。** 在启动器里点**新建项目**,选 **Blank** 起始模板,起个名字,点**创建项目**。
-   编辑器会打开 `assets/scenes/main.esscene`——里面只有一个实体:`Camera`。
+1. **创建项目。** 启动器 → **新建项目** → **空白** → **创建项目**。编辑器打开 `assets/scenes/main.esscene`，其中只有一个 `Camera` 实体。
 
-2. **在画面上放个东西。** 在视口里打开**创建…**,选 **Shape**。原点会出现一个白色圆形,
-   World Outliner 里多出一个带 `Transform` 和 `ShapeRenderer` 的实体。按 `F2` 把它改名为
-   **Player**。
+2. **添加实体。** *世界大纲 → 添加 → 创建实体… → Rendering → Shape*。新实体带有 `Transform` 与 `ShapeRenderer`（原点处 100 × 100 的白色圆形）。将其重命名为 `Player`（**F2**）。
 
-3. **写行为。** 打开 `src/components.ts`——Blank 模板的声明入口——把内容替换成:
+   ![创建 Shape 后的编辑器：原点处的白色圆形，世界大纲中的 Player，细节面板中的 Transform 与 Shape Renderer](@/assets/guides/zh/gs-shape.png)
+
+3. **声明行为。** 将 `src/components.ts`（空白模板的声明入口）的内容替换为：
 
    ```typescript title="src/components.ts"
    import { defineBehavior, Transform } from 'esengine';
@@ -29,44 +29,39 @@ import { Steps, Aside } from '@astrojs/starlight/components';
        const y = (ctx.input.isKeyDown('ArrowUp') ? 1 : 0) - (ctx.input.isKeyDown('ArrowDown') ? 1 : 0);
        if (x === 0 && y === 0) return;
 
-       const t = ctx.get(Transform);           // 拷贝——Transform 活在引擎里
+       const t = ctx.get(Transform);           // 副本：Transform 存储在引擎中
        t.position.x += x * ctx.self.speed * dt;
        t.position.y += y * ctx.self.speed * dt;
-       ctx.set(Transform, t);                  // ……所以要交回去
+       ctx.set(Transform, t);                  // 写回副本
      },
    });
    ```
 
-   保存。编辑器会监视你的脚本,过一小会儿就认出这个新组件。
+   保存后，编辑器从该模块重新提取组件结构并注册 `Player`。
 
-4. **挂上去。** 在 Outliner 里选中 **Player**,然后在 Details 面板点 **Add Component**,
-   选 **Player**。会出现一个 `speed` 字段,和别的字段一样可编辑——行为的 `state` **就是**
-   组件的数据。
+4. **挂载组件。** 选中 `Player`，*细节 → 添加组件 → Player*。`state` 中的字段显示为可编辑属性。
 
-5. **运行。** 按 **F5**,按住一个方向键。**Esc** 停止,场景和你离开时一模一样:运行跑在
-   它自己的 realm 里,永远不会写回你正在编辑的场景。
+   ![Player 的细节面板：Transform、Shape Renderer，以及 Speed 为 300 的 Player 卡片](@/assets/guides/zh/gs-player-component.png)
+
+5. **运行。** **F5** 进入运行模式，方向键移动实体；**Esc** 停止。运行模式在独立的世界中执行，不会修改正在编辑的场景。
+
+   ![运行模式：场景视图带绿色边框，大纲与细节显示运行中的世界](@/assets/guides/zh/gs-play.png)
 
 </Steps>
 
-## 刚才发生了什么
+## 说明
 
-- **一次调用同时给了你一个组件和一个系统。** `defineBehavior` 把 `update` 钩子注册成系统,
-  *同时*返回一个组件——所以你什么都没多声明,**Player** 就出现在了 Add Component 里。
-- **`state` 就是组件的数据**,所以编辑器能编辑它。在 Details 里改 `speed`,下次运行就用你的
-  数——代码和检视器是通向同一个字段的两扇门。
-- **`ctx` 是这个实体对这一帧的视角**——`ctx.self` 是本实体自己的状态,`ctx.input` 是键盘,
-  `dt` 是距上一帧的秒数。乘以 `dt` 才让 300 表示*每秒 300 单位*,而不是每帧 300。
+- **`defineBehavior` 同时注册组件与系统。** `update` 钩子作为系统，作用于所有带该组件的实体；因此 `Player` 无需额外声明即可出现在添加组件列表中。
+- **`state` 即组件数据。** 在细节面板中编辑的值就是系统读取的值；代码与检视器访问的是同一字段。
+- **`ctx` 是实体在当前帧的视图。** `ctx.self` 为实体的组件状态，`ctx.input` 为输入状态，`dt` 为以秒计的帧时长。乘以 `dt` 使 `speed` 成为以单位/秒计的速率。
 
 <Aside type="caution">
-  第 3 步里那份拷贝不是多余的仪式。对你自己声明的组件,`ctx.get` 给的是存储对象本身;但
-  `Transform`、`Sprite`、`RigidBody2D` 这些引擎组件每次读都是从 wasm 堆里解出来的——所以
-  `ctx.get(Transform).position.x += …` 改的是一个没人保存的值,而且是**静默**的。读出来、
-  改完、用 `ctx.set` 交回去。参见[脚本](/docs/zh-cn/scripting/overview/#你的第一个-behavior)。
+  对 TypeScript 中声明的组件，`ctx.get` 返回存储的对象本身；但引擎组件（`Transform`、`Sprite`、`RigidBody2D` 等）每次读取都从 WebAssembly 堆解码，修改返回值而不调用 `ctx.set` 不会生效。见[脚本](/docs/zh-cn/scripting/overview/)。
 </Aside>
 
-## 下一步
+## 后续
 
-- [脚本](/docs/zh-cn/scripting/overview/) —— 行为、系统、声明放在哪里,以及热重载怎么认出它们。
-- [编辑器](/docs/zh-cn/editor/overview/) —— 你刚用过的工作区,完整版。
-- [ECS 架构](/docs/zh-cn/core-concepts/ecs/) —— 为什么组件是数据、系统是行为。
-- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 当你准备好把圆形换成美术资源。
+- [脚本](/docs/zh-cn/scripting/overview/) —— 行为、系统、声明模块、热重载。
+- [编辑器](/docs/zh-cn/editor/overview/) —— 编辑器工作区。
+- [ECS 架构](/docs/zh-cn/core-concepts/ecs/) —— 组件即数据，系统即行为。
+- [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 带纹理的 2D 渲染。

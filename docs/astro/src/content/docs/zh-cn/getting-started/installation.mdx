@@ -1,63 +1,59 @@
 ---
 title: 安装
-description: 安装 Estella 编辑器，或从源码构建引擎。
+description: 安装 Estella 编辑器、从源码构建引擎，以及在编辑器或命令行中由模板创建项目。
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
 <Tabs>
-  <TabItem label="使用编辑器">
+  <TabItem label="编辑器">
     <Steps>
 
-    1. 从[下载页](https://estellaengine.com/#download)获取最新版编辑器——Windows 与
-       macOS（Apple 芯片），走项目自己的镜像。每个版本的发布说明与校验和也都在
-       [发布页](https://github.com/esengine/estella/releases)。
+    1. 从[下载页](https://estellaengine.com/#download)下载编辑器（Windows；macOS 仅支持 Apple 芯片）。所有版本及其发布说明和校验和也可在[发布页](https://github.com/esengine/estella/releases)获取。
 
-    2. 安装并打开，点击 **New project**（新建项目）。
+    2. 安装并启动编辑器，选择 **新建项目**。
 
-    3. 选一个模板——**Blank** 起始模板，或随附的 **Examples** 示例项目——填写项目
-       名称与位置，点击 **Create project**（创建项目）。选 Blank 时，编辑器会打开
-       一个带有相机实体的默认场景。
+    3. 选择模板，填写项目名称与位置，选择 **创建项目**。**空白（Blank）** 模板打开的场景只包含一个 Camera 实体。
 
     </Steps>
 
+    ![启动器的新建项目页：起步模板（2D 平台跳跃、3D 入门、空白、联网 3D、像素 RPG、试玩广告、俯视角、UI 游戏、微信小游戏），各附说明](@/assets/guides/zh/gs-new-project.png)
+
+    *启动器 → 新建项目。起步模板在前，随后是内置示例。*
+
     <Aside type="tip">
-      **帮助 → 检查更新…** 会在编辑器内下载更新，并在重启时安装；下载源与上面的安装包
-      同为镜像（`dl.estella.games`），镜像没答案或答案更旧时回落 GitHub —— 「有没有
-      新版本」始终以源站为准。无法自行安装更新的版本，则仍旧只给出下载链接。
+      **帮助 → 检查更新…** 在编辑器内下载更新并在重启时安装，下载源与安装包相同（`dl.estella.games`）；镜像不可用或版本落后时回退到 GitHub。无法自更新的构建会改为提供下载链接。
     </Aside>
 
     <Aside type="note">
-      安装包目前尚未签名，因此首次启动时 Windows SmartScreen 或 macOS Gatekeeper
-      可能提示「未知开发者」——请选择**仍要运行**，或在**系统设置 → 隐私与安全性**中
-      放行。
+      安装包目前未签名。首次启动时 Windows SmartScreen 或 macOS Gatekeeper 可能提示开发者未知，可通过 **仍要运行** 或 **系统设置 → 隐私与安全性** 放行。
     </Aside>
   </TabItem>
 
-  <TabItem label="从源码构建">
+  <TabItem label="源码构建">
     环境要求：
 
     - **Node.js** ≥ 18 与 **pnpm** ≥ 8
-    - **Emscripten** 5.0.0（需精确版本，与 CI 对齐）
+    - **Emscripten** 5.0.0（精确版本，与 CI 一致）
 
     <Steps>
 
-    1. 克隆（带子模块）并安装依赖：
+    1. 连同子模块克隆并安装依赖：
 
        ```bash
        git clone --recursive https://github.com/esengine/estella.git
        cd estella
        pnpm install
-       pnpm emsdk:setup   # 一次性：把 Emscripten 5.0.0 装进 tools/emsdk
+       pnpm emsdk:setup   # 一次性：把 Emscripten 5.0.0 安装到 tools/emsdk
        ```
 
-    2. 构建引擎、SDK 并同步到编辑器：
+    2. 构建引擎与 SDK，并同步到编辑器：
 
        ```bash
        node build-tools/cli.js build -t all
        ```
 
-    3. 运行编辑器：
+    3. 启动编辑器：
 
        ```bash
        cd desktop && pnpm dev
@@ -65,19 +61,18 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
     </Steps>
 
-    完整构建说明见
-    [CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md)。
+    完整构建说明：[CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md)。
   </TabItem>
 </Tabs>
 
-## 用命令行新建项目
+## 命令行创建项目
 
-编辑器里的"新建项目"画廊和命令行用同一份实现、同一批模板创建项目,所以不打开编辑器、在脚本里或在构建机上也能开一个项目:
+命令行使用与编辑器新建项目页相同的模板，适用于脚本化与无界面环境：
 
 ```bash
-node pipeline/bin/estella.mjs templates                          # 看有哪些模板
+node pipeline/bin/estella.mjs templates                          # 列出模板与示例
 node pipeline/bin/estella.mjs create 3d-starter ./my-game --name "My Game"
-node pipeline/bin/estella.mjs export ./my-game                   # 不开编辑器导出网页版
+node pipeline/bin/estella.mjs export ./my-game                   # 不经编辑器的 Web 构建
 ```
 
-`create` 把模板复制进文件夹、写好项目名,并补上每个项目都有的 `package.json` 和 `.gitignore`。在编辑器里打开一次项目,会暂存 `tsconfig.json` 指向的 SDK 类型;只导出的话不需要这一步。
+`create` 复制模板、设置项目名称，并添加 `package.json` 与 `.gitignore`。在编辑器中打开一次项目会生成其 `tsconfig.json` 引用的 SDK 类型声明；导出不需要这一步。

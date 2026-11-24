@@ -1,53 +1,50 @@
 ---
 title: Installation
-description: Install the Estella editor, or build the engine from source.
+description: Installing the Estella editor, building the engine from source, and creating projects from templates in the editor or on the command line.
 ---
 
 import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
 <Tabs>
-  <TabItem label="Use the editor">
+  <TabItem label="Editor">
     <Steps>
 
-    1. Download the latest editor from the
-       [download page](https://estellaengine.com/#download) — Windows and macOS
-       (Apple silicon), served from the project's mirror. Every release, with its
-       notes and checksums, is also on the
+    1. Download the editor from the [download page](https://estellaengine.com/#download) (Windows; macOS on Apple
+       silicon). All releases, with release notes and checksums, are also on the
        [releases page](https://github.com/esengine/estella/releases).
 
-    2. Install and open it, then click **New project**.
+    2. Install and start the editor, then select **New project**.
 
-    3. Pick a template — the **Blank** starter, or one of the bundled
-       **Examples** — enter a project name and location, and click
-       **Create project**. With Blank, the editor opens a default scene with a
-       Camera entity.
+    3. Select a template, enter a project name and location, and select **Create project**. The **Blank** template
+       opens a scene containing a single Camera entity.
 
     </Steps>
 
+    ![The launcher's New project page: starter templates (2D Platformer, 3D Starter, Blank, Online 3D, Pixel RPG, Playable Ad, Top-down, UI Game, WeChat Mini-game), each with a description](@/assets/guides/en/gs-new-project.png)
+
+    *Launcher → New project. Starter templates are listed first, followed by the bundled examples.*
+
     <Aside type="tip">
-      **Help → Check for Updates…** downloads the update inside the editor and
-      installs it on restart, from the same mirror (`dl.estella.games`) the
-      installer above comes from, falling back to GitHub when the mirror has no
-      answer or a staler one — the origin stays the authority on what exists. A
-      build that cannot install its own update hands you a link instead.
+      **Help → Check for Updates…** downloads and installs updates on restart, from the same mirror as the installer
+      (`dl.estella.games`), with GitHub as fallback when the mirror is unavailable or behind. Builds that cannot
+      self-update show a download link instead.
     </Aside>
 
     <Aside type="note">
-      Installers are currently unsigned, so on first launch Windows SmartScreen
-      or macOS Gatekeeper may warn about an unknown developer — choose **Run
-      anyway** / allow it in **System Settings → Privacy & Security**.
+      Installers are currently unsigned. On first launch, Windows SmartScreen or macOS Gatekeeper may report an
+      unknown developer; allow the application via **Run anyway** or **System Settings → Privacy & Security**.
     </Aside>
   </TabItem>
 
-  <TabItem label="Build from source">
-    Prerequisites:
+  <TabItem label="Source build">
+    Requirements:
 
     - **Node.js** ≥ 18 and **pnpm** ≥ 8
-    - **Emscripten** 5.0.0 (exact version, for CI parity)
+    - **Emscripten** 5.0.0 (exact version, matching CI)
 
     <Steps>
 
-    1. Clone (with submodules) and install:
+    1. Clone with submodules and install dependencies:
 
        ```bash
        git clone --recursive https://github.com/esengine/estella.git
@@ -56,13 +53,13 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
        pnpm emsdk:setup   # one-time: installs Emscripten 5.0.0 into tools/emsdk
        ```
 
-    2. Build the engine, SDK, and sync to the editor:
+    2. Build the engine and SDK and sync them to the editor:
 
        ```bash
        node build-tools/cli.js build -t all
        ```
 
-    3. Run the editor:
+    3. Start the editor:
 
        ```bash
        cd desktop && pnpm dev
@@ -70,21 +67,19 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
     </Steps>
 
-    See [CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md)
-    for the full build reference.
+    Full build reference: [CONTRIBUTING.md](https://github.com/esengine/estella/blob/master/CONTRIBUTING.md).
   </TabItem>
 </Tabs>
 
-## Start a project from the command line
+## Command-line project creation
 
-The editor's New project gallery and the command line make a project the same way, from the same templates, so a project can be started
-without opening the editor, in a script, or on a build machine:
+The command line uses the same templates as the editor's New project page, for scripted and headless setups:
 
 ```bash
-node pipeline/bin/estella.mjs templates                          # what there is to start from
+node pipeline/bin/estella.mjs templates                          # list templates and examples
 node pipeline/bin/estella.mjs create 3d-starter ./my-game --name "My Game"
-node pipeline/bin/estella.mjs export ./my-game                   # a web build, no editor
+node pipeline/bin/estella.mjs export ./my-game                   # web build without the editor
 ```
 
-`create` copies the template into the folder, names the project, and adds the `package.json` and `.gitignore` every project has. Open the
-project in the editor once to stage the SDK types its `tsconfig.json` points at; exporting needs nothing more.
+`create` copies the template, sets the project name, and adds `package.json` and `.gitignore`. Opening the project once
+in the editor stages the SDK type declarations referenced by its `tsconfig.json`; exporting does not require this.
