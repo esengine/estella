@@ -959,7 +959,14 @@ describe('a live binding follows the asset, whatever kind it is', () => {
         type: 'material', shader: 'builtin:sprite-unlit', properties: {},
     });
 
-    describe.each([['texture', 'png'], ['material', 'esmaterial']] as const)('%s in a shipped manifest', (type, ext) => {
+    describe.each([
+        ['texture', 'png', 'Sprite', 'MeshRenderer', 'texture'],
+        ['material', 'esmaterial', 'Sprite', 'MeshRenderer', 'material'],
+        ['mesh', 'esmesh', 'MeshRenderer', 'MeshCollider3D', 'mesh'],
+        ['font', 'fnt', 'BitmapText', 'BitmapText', 'font'],
+        ['environment', 'esenv', 'Light', 'Light', 'environment'],
+        ['probeVolume', 'esprobes', 'LightProbeVolume', 'LightProbeVolume', 'probes'],
+    ] as const)('%s shared file', (type, ext, firstComponent, secondComponent, field) => {
         it.each(['local', 'remote'] as const)('keeps two %s records on the same file independently bound', async mode => {
             const first = '45d141cb-38d9-4c51-ad93-c06a785471c1';
             const second = '7727ca31-4df7-4d64-800c-7090ad6f5a94';
@@ -974,41 +981,53 @@ describe('a live binding follows the asset, whatever kind it is', () => {
             const assets = buildAssets({ [shared]: MATERIAL, [changed]: MATERIAL,
                 'split.json': JSON.stringify(updated), 'join.json': JSON.stringify(shipped),
             }, { manifest: index.model, activateManifest: source.activateManifest });
+            if (type !== 'texture' && type !== 'material') {
+                let serial = 0;
+                assets.register({ type, extensions: [`.${ext}`], load: async () => ({ handle: ++serial }), unload: () => {} });
+            }
             assets.setAssetRefResolver(source.resolveRef!);
             if (mode === 'remote') assets.setRemoteRoot('https://cdn.test');
             const app = App.new(); connectFakeCpp(app.world); installHotUpdateRebind(app, assets);
             const refs = [`@uuid:${first}`, `art/second.${ext}`, `/art/first.${ext}`];
             const scene: SceneData = { version: SCENE_FORMAT_VERSION, name: 'shared', entities: refs.map((ref, id) => ({
                 id, name: String(id), parent: null, children: [], visible: true,
-                components: [{ type: id === 1 ? 'MeshRenderer' : 'Sprite', data: { [type]: ref } }],
+                components: [{ type: id === 1 ? secondComponent : firstComponent, data: { [field]: ref } }],
             })) };
             const prepared = await assets.preloadSceneAssets(scene, undefined, { entityOwnership: true });
             try {
                 expect(prepared.missing).toEqual([]);
                 assets.resolveSceneAssetPaths(scene, prepared);
-                const handles = scene.entities.map(e => Number(e.components[0].data[type]));
+                const handles = scene.entities.map(e => Number(e.components[0].data[field]));
                 expect(handles[0]).toBeGreaterThan(0);
                 expect(handles[1]).toBeGreaterThan(0);
                 expect(handles[0]).not.toBe(handles[1]);
                 expect(handles[2]).toBe(handles[0]);
+                const locator = (file: string) => mode === 'remote' ? `https://cdn.test/${file}` : file;
+                for (const handle of handles) expect(assets.pathForHandle(type, handle)).toBe(locator(shared));
                 expect(prepared.acquisitions?.map(a => [...a.entityIds!])).toEqual(expect.arrayContaining([[0, 2], [1]]));
-                const sprite = app.world.spawn(), mesh = app.world.spawn();
-                app.world.insert(sprite, Sprite, { [type]: handles[0] });
-                app.world.insert(mesh, MeshRenderer, { [type]: handles[1] });
+                const left = app.world.spawn(), right = app.world.spawn();
+                const leftDef = getComponent(firstComponent)!, rightDef = getComponent(secondComponent)!;
+                app.world.insert(left, leftDef, { [field]: handles[0] });
+                app.world.insert(right, rightDef, { [field]: handles[1] });
                 for (const url of ['split.json', 'join.json']) {
                     await assets.checkForUpdate({ manifestUrl: url });
                     expect((await assets.applyUpdate()).ok).toBe(true);
                     await settle(app, 8);
                     const current = await assets.acquireTyped<{ handle: number }>(type, first);
                     try {
-                        expect(app.world.get(sprite, Sprite)[type]).toBe(current.value.handle);
+                        expect(app.world.get(left, leftDef)[field]).toBe(current.value.handle);
                         expect(current.value.handle).not.toBe(handles[1]);
-                        expect(app.world.get(mesh, MeshRenderer)[type]).toBe(handles[1]);
+                        expect(app.world.get(right, rightDef)[field]).toBe(handles[1]);
+                        expect(assets.pathForHandle(type, handles[1])).toBe(locator(shared));
+                        expect(assets.pathForHandle(type, current.value.handle)).toBe(locator(url === 'split.json' ? changed : shared));
                     } finally { current.release(); }
                 }
             } finally { prepared.scope.releaseAll(); assets.releaseAll(); }
         });
 
+    });
+
+    describe.each([['texture', 'png'], ['material', 'esmaterial']] as const)('%s in a shipped manifest', (type, ext) => {
         it.each(['renamed', 'restored', 'reused locator', 'released'] as const)('handles a %s asset across 2D and 3D fields', async mode => {
             const key = '4e032db1-5b38-47ee-8102-f2ba5536f727';
             const ref = `@uuid:${key}`;

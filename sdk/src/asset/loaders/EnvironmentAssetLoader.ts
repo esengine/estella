@@ -51,8 +51,9 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
     /** Lazy like the mesh loader's: the module arrives after construction. */
     constructor(private readonly core_: () => EngineApi | null) {}
 
-    async load(path: string, ctx: LoadContext): Promise<EnvironmentResult> {
-        const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
+    async load(file: string, ctx: LoadContext): Promise<EnvironmentResult> {
+        const path = ctx.sourceAddressOf?.(file) ?? file;
+        const text = await ctx.loadText(ctx.catalog.getBuildPath(file));
         const data = JSON.parse(text) as EnvironmentAssetData;
         if (!Array.isArray(data.irradiance) || data.irradiance.length !== 27) {
             throw new Error(`${path}: an environment is nine RGB coefficients, got `

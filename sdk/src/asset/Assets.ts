@@ -269,17 +269,31 @@ function emptyBundle(): AssetBundle {
  *
  * ONE table, because two of them drift: load handled `font` and release did
  * not, so every group carrying a font kept its reference forever. A type that
- * can be loaded and has no release channel now has to say so out loud.
+ * the group loads now supplies the matching release.
  */
 interface GroupAssetChannel {
     load(assets: Assets, path: string, bundle: AssetBundle): Promise<void>;
-    /** null when something else owns the lifetime — see `spine`. */
-    release: ((assets: Assets, path: string) => void) | null;
+    release(assets: Assets, path: string): void;
     /** In the bundle `loadByLabel` returns: the types a scene can display. */
     displayable: boolean;
 }
 
-const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
+const SCENE_HANDLE_TYPES = ['texture', 'material', 'font', 'mesh', 'environment', 'probeVolume'] as const satisfies readonly AssetFieldType[];
+type SceneHandleType = typeof SCENE_HANDLE_TYPES[number];
+
+function isSceneHandleType(type: string): type is SceneHandleType {
+    return (SCENE_HANDLE_TYPES as readonly string[]).includes(type);
+}
+
+function scopedGroupChannel(type: string): GroupAssetChannel {
+    return {
+        load: (assets, path, bundle) => assets.acquireTyped(type, path).then(lease => { bundle.scope.add(lease); }),
+        release: (assets, path) => assets.releaseTyped(type, path),
+        displayable: false,
+    };
+}
+
+const GROUP_ASSET_CHANNELS: ReadonlyMap<string, GroupAssetChannel> = new Map(Object.entries({
     texture: {
         load: (a, path, b) => a.acquireTexture(path)
             .then((l) => { b.scope.add(l); b.textures.set(path, l.value); }),
@@ -304,17 +318,12 @@ const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
         release: (a, path) => a.releaseTyped('spine', path),
         displayable: true,
     },
-    prefab: {
-        load: (a, path, b) => a.acquireTyped('prefab', path).then((l) => { b.scope.add(l); }),
-        release: (a, path) => a.releaseTyped('prefab', path),
-        displayable: false,
-    },
-    audio: {
-        load: (a, path, b) => a.acquireTyped('audio', path).then((l) => { b.scope.add(l); }),
-        release: (a, path) => a.releaseTyped('audio', path),
-        displayable: false,
-    },
-};
+    mesh: scopedGroupChannel('mesh'),
+    environment: scopedGroupChannel('environment'),
+    probeVolume: scopedGroupChannel('probeVolume'),
+    prefab: scopedGroupChannel('prefab'),
+    audio: scopedGroupChannel('audio'),
+} satisfies Record<SceneHandleType | 'spine' | 'prefab' | 'audio', GroupAssetChannel>));
 
 /**
  * Describes one asset a scene / prefab referenced that couldn't be
@@ -1227,7 +1236,7 @@ export class Assets {
             // way here would release a key nobody holds, which is a leak that
             // looks exactly like a working release.
             const path = this.groupAssetRef_(key, asset, mode === 'remote');
-            GROUP_ASSET_CHANNELS[asset.type]?.release?.(this, path);
+            GROUP_ASSET_CHANNELS.get(asset.type)?.release(this, path);
         }
     }
 
@@ -1258,7 +1267,7 @@ export class Assets {
     }
 
     private groupAssetRef_(key: string, asset: AddressableManifestAsset, remote: boolean): string {
-        if (this.manifestModel_?.sharesFile(asset.path) && this.surfaceRecord_(key)) return key;
+        if (this.manifestModel_?.sharesFile(asset.path) && this.sceneHandleRecord_(key)) return key;
         if (asset.type === 'audio' && asset.address) return asset.address;
         return this.manifestAssetUrl_(asset.path, remote);
     }
@@ -1611,21 +1620,21 @@ export class Assets {
     private bundleLoadTask_(
         path: string, type: string, bundle: AssetBundle,
     ): Promise<void> | null {
-        const channel = GROUP_ASSET_CHANNELS[type];
+        const channel = GROUP_ASSET_CHANNELS.get(type);
         if (!channel?.displayable) return null;
         return channel.load(this, path, bundle);
     }
 
     /**
      * Like {@link bundleLoadTask_} but also warms the cache for non-displayable
-     * types that have a typed loader (prefab, audio), so a whole group / sub-
+     * types (mesh, lighting, prefab, audio), so a whole group / sub-
      * package preloads. Raw types (json / text / binary) and unknowns return
      * null — they have no typed loader and are fetched lazily on demand.
      */
     private groupLoadTask_(
         path: string, type: string, bundle: AssetBundle,
     ): Promise<void> | null {
-        const channel = GROUP_ASSET_CHANNELS[type];
+        const channel = GROUP_ASSET_CHANNELS.get(type);
         return channel ? channel.load(this, path, bundle) : null;
     }
 
@@ -1657,7 +1666,7 @@ export class Assets {
                 failed.push({ ref, reason: 'unresolved' });
                 continue;
             }
-            const load = this.typedLoadFor_(type === 'audio' || this.surfaceRecord_(ref) ? ref : path, type);
+            const load = this.typedLoadFor_(type === 'audio' || this.sceneHandleRecord_(ref) ? ref : path, type);
             if (!load) {
                 log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
                 failed.push({ ref, type, reason: 'unresolved' });
@@ -1779,12 +1788,9 @@ export class Assets {
             );
         }
 
-        const textureHandles = new Map<string, number>();
-        const materialHandles = new Map<string, number>();
-        const fontHandles = new Map<string, number>();
-        const meshHandles = new Map<string, number>();
-        const environmentHandles = new Map<string, number>();
-        const probeVolumeHandles = new Map<string, number>();
+        const handleMaps = Object.fromEntries(SCENE_HANDLE_TYPES.map(type => [
+            `${type}Handles`, new Map<string, number>(),
+        ])) as Pick<SceneAssetResult, `${SceneHandleType}Handles`>;
         const releaseCallbacks: ReleaseCallback[] = [];
         const scope = new AssetScope();
         const acquisitions: SceneAssetAcquisition[] = [];
@@ -1851,23 +1857,13 @@ export class Assets {
             }
         };
 
-        // Textures load through their AUTHORED ref, not the resolved path the
-        // handle map is keyed by: per-asset import settings (filter/wrap/sRGB and
-        // the 9-slice border) are looked up by the spelling a component carries,
-        // which is the resolver's documented contract. Resolution happens inside
-        // loadTexture anyway, so the bytes fetched are identical either way —
-        // feeding it the resolved path only strips the lookup of its key.
-        pushAcquire(
-            'texture',
-            textureHandles,
-            p => this.acquireTexture(discovered.rawFor.get(p) ?? p),
-        );
-        pushAcquire('material', materialHandles,
-            p => this.acquireTypedLease_('material', discovered.rawFor.get(p) ?? p, recorder?.owner));
-        pushAcquire('font', fontHandles);
-        pushAcquire('mesh', meshHandles);
-        pushAcquire('environment', environmentHandles);
-        pushAcquire('probeVolume', probeVolumeHandles);
+        // Resolve for the scene map, acquire by the authored ref for this record's settings and dependencies.
+        for (const type of SCENE_HANDLE_TYPES) {
+            pushAcquire(type, handleMaps[`${type}Handles`], path => {
+                const ref = discovered.rawFor.get(path) ?? path;
+                return type === 'texture' ? this.acquireTexture(ref) : this.acquireTypedLease_(type, ref, recorder?.owner);
+            });
+        }
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
         // the scene's exactly as every other one is. The runtime scene loader
         // opts out: its second phase binds to entities that do not exist yet.
@@ -1916,8 +1912,7 @@ export class Assets {
             }
             warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
 
-            return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                     probeVolumeHandles, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs };
+            return { ...handleMaps, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs };
         } catch (error) {
             try { scope.releaseAll(); }
             catch (cleanupError) { log.warn('asset', 'Scene preload cleanup failed', cleanupError); }
@@ -1926,18 +1921,12 @@ export class Assets {
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
-        const { textureHandles, materialHandles, fontHandles, meshHandles,
-                environmentHandles, probeVolumeHandles } = result;
-
         for (const entity of sceneData.entities) {
             // Prefab-instance entries carry no inline components (a prefab ref +
             // overrides); their handles bind when the prefab expands, not here.
             if (!Array.isArray(entity.components)) continue;
             for (const comp of entity.components) {
-                // Single source: the component def's declared asset fields.
-                // Handle write-back always keys off assetFields (the direct
-                // texture/material/font members), even for components whose
-                // discovery is driven by a discoverAssets callback instead.
+                // A component can customize discovery and still declare which fields take handles.
                 const fields = getComponentAssetFieldDescriptors(comp.type);
                 for (const { field, type } of fields) {
                     const ref = comp.data[field];
@@ -1950,67 +1939,39 @@ export class Assets {
                         continue;
                     }
 
-                    switch (type) {
-                        // Read by their own component from the path (an image source, a groom's files).
-                        case 'image':
-                        case 'groom': {
-                            comp.data[field] = this.resolveRef(ref) ?? path;
-                            break;
-                        }
-                        case 'texture': {
-                            const handle = textureHandles.get(path) ?? 0;
-                            comp.data[field] = handle;
-                            if (!this.handlePaths_.get('texture')?.has(handle)) this.recordHandlePath_('texture', handle, path);
-                            // Ref spelling first (per-frame keys); the resolved
-                            // path for packed frames is the shared page.
-                            const atlasInfo = this.catalog.getAtlasFrame(ref) ?? this.catalog.getAtlasFrame(path);
-                            if (atlasInfo) {
-                                // COMPOSE with any authored sub-region rather than
-                                // stomping it: the authored uv nests inside the frame.
-                                const aOff = comp.data['uvOffset'] as { x: number; y: number } | undefined;
-                                const aSc = comp.data['uvScale'] as { x: number; y: number } | undefined;
-                                const ox = aOff?.x ?? 0, oy = aOff?.y ?? 0;
-                                const sx = aSc?.x ?? 1, sy = aSc?.y ?? 1;
-                                comp.data['uvOffset'] = {
-                                    x: atlasInfo.uvOffset[0] + ox * atlasInfo.uvScale[0],
-                                    y: atlasInfo.uvOffset[1] + oy * atlasInfo.uvScale[1],
-                                };
-                                comp.data['uvScale'] = {
-                                    x: sx * atlasInfo.uvScale[0],
-                                    y: sy * atlasInfo.uvScale[1],
-                                };
-                                if (atlasInfo.trim) {
-                                    comp.data['_trimOffsetX'] = atlasInfo.trim.offsetX;
-                                    comp.data['_trimOffsetY'] = atlasInfo.trim.offsetY;
-                                    comp.data['_trimSourceW'] = atlasInfo.trim.sourceW;
-                                    comp.data['_trimSourceH'] = atlasInfo.trim.sourceH;
-                                }
-                            }
-                            break;
-                        }
-                        case 'material': {
-                            const handle = materialHandles.get(path) ?? 0;
-                            comp.data[field] = handle;
-                            if (!this.handlePaths_.get('material')?.has(handle)) this.recordHandlePath_('material', handle, path);
-                            break;
-                        }
-                        case 'font': {
-                            const handle = fontHandles.get(path) ?? 0;
-                            comp.data[field] = handle;
-                            if (!this.handlePaths_.get('font')?.has(handle)) this.recordHandlePath_('font', handle, path);
-                            break;
-                        }
-                        case 'mesh': {
-                            comp.data[field] = meshHandles.get(path) ?? 0;
-                            break;
-                        }
-                        case 'environment': {
-                            comp.data[field] = environmentHandles.get(path) ?? 0;
-                            break;
-                        }
-                        case 'probeVolume': {
-                            comp.data[field] = probeVolumeHandles.get(path) ?? 0;
-                            break;
+                    if (type === 'image' || type === 'groom') {
+                        comp.data[field] = this.resolveRef(ref) ?? path;
+                        continue;
+                    }
+                    if (!isSceneHandleType(type)) continue;
+                    const handle = result[`${type}Handles`].get(path) ?? 0;
+                    comp.data[field] = handle;
+                    if (!this.handlePaths_.get(type)?.has(handle)) this.recordHandlePath_(type, handle, path);
+
+                    if (type !== 'texture') continue;
+                    // Ref spelling first (per-frame keys); the resolved
+                    // path for packed frames is the shared page.
+                    const atlasInfo = this.catalog.getAtlasFrame(ref) ?? this.catalog.getAtlasFrame(path);
+                    if (atlasInfo) {
+                        // COMPOSE with any authored sub-region rather than
+                        // stomping it: the authored uv nests inside the frame.
+                        const aOff = comp.data['uvOffset'] as { x: number; y: number } | undefined;
+                        const aSc = comp.data['uvScale'] as { x: number; y: number } | undefined;
+                        const ox = aOff?.x ?? 0, oy = aOff?.y ?? 0;
+                        const sx = aSc?.x ?? 1, sy = aSc?.y ?? 1;
+                        comp.data['uvOffset'] = {
+                            x: atlasInfo.uvOffset[0] + ox * atlasInfo.uvScale[0],
+                            y: atlasInfo.uvOffset[1] + oy * atlasInfo.uvScale[1],
+                        };
+                        comp.data['uvScale'] = {
+                            x: sx * atlasInfo.uvScale[0],
+                            y: sy * atlasInfo.uvScale[1],
+                        };
+                        if (atlasInfo.trim) {
+                            comp.data['_trimOffsetX'] = atlasInfo.trim.offsetX;
+                            comp.data['_trimOffsetY'] = atlasInfo.trim.offsetY;
+                            comp.data['_trimSourceW'] = atlasInfo.trim.sourceW;
+                            comp.data['_trimSourceH'] = atlasInfo.trim.sourceH;
                         }
                     }
                 }
@@ -2829,7 +2790,7 @@ export class Assets {
 
     /** @internal Key used for scene handle maps and their entity ownership. */
     sceneAssetRef(ref: string): string | null {
-        const record = this.surfaceRecord_(ref);
+        const record = this.sceneHandleRecord_(ref);
         return record && this.manifestModel_?.sharesFile(record.asset.path) ? record.key : this.resolveRef(ref);
     }
 
@@ -2841,14 +2802,15 @@ export class Assets {
     }
 
     /** Atlas frames deliberately bind one page and select their own UV rectangle. */
-    private surfaceRecord_(ref: string) {
+    private sceneHandleRecord_(ref: string) {
         const record = this.manifestRecord_(ref);
-        if (record?.asset.type === 'material' || (record?.asset.type === 'texture' && !record.asset.metadata?.atlasFrame)) return record;
+        if (record && isSceneHandleType(record.asset.type)
+            && !(record.asset.type === 'texture' && record.asset.metadata?.atlasFrame)) return record;
         return undefined;
     }
 
     private graphPath_(ref: string): string {
-        const key = bindingRecord(ref) ?? this.surfaceRecord_(ref)?.key;
+        const key = bindingRecord(ref) ?? this.sceneHandleRecord_(ref)?.key;
         return key ?? this.resolveLoadPath_(ref);
     }
 
@@ -2893,7 +2855,7 @@ export class Assets {
         // Deliberately NOT assetIdentity_: for a remote-group asset that answers
         // with the ADDRESS, and the package carries the STAGED name. Where the
         // bytes are is the realm's question, so its resolver gets it.
-        const resolved = this.assetRefResolver_?.(ref) ?? this.surfaceRecord_(ref)?.asset.path ?? ref;
+        const resolved = this.assetRefResolver_?.(ref) ?? this.sceneHandleRecord_(ref)?.asset.path ?? ref;
         return this.catalog.resolve(resolved);
     }
 
@@ -2919,7 +2881,7 @@ export class Assets {
         // A manifest names one asset three ways — record key, address, build
         // path — and only it knows they are the same asset. Folding them here is
         // what keeps a uuid ref and a path ref on ONE slot.
-        const record = this.surfaceRecord_(bindingRecord(ref) ?? ref);
+        const record = this.sceneHandleRecord_(bindingRecord(ref) ?? ref);
         if (record) return record.asset.address ?? record.key;
         const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
         const named = this.manifestModel_?.remoteAssetIdentity(ref)
@@ -2999,10 +2961,6 @@ export class Assets {
         const load = loader.load.bind(loader);
         const path = this.resolveLoadPath_(ref);
         const key = this.handleLoadKey_(type, ref, path);
-        if (loader instanceof MaterialAssetLoader && key !== path) {
-            const document = this.manifestRecord_(ref)?.asset.address ?? path;
-            return this.acquirePrepared_<T>(loader, key, ref, ctx => loader.load(document, ctx, ctx.catalog.getBuildPath(path)) as Promise<T>, owner);
-        }
         return this.acquirePrepared_<T>(loader, key, ref, ctx => load(path, ctx), owner);
     }
 
@@ -3015,7 +2973,7 @@ export class Assets {
     private handleLoadKey_(type: string, ref: string, file?: string): string {
         if (bindingRecord(ref) !== undefined || this.loaders_.get(type) instanceof AudioAssetLoader) return ref;
         const path = file ?? this.resolveLoadPath_(ref);
-        const record = this.surfaceRecord_(ref);
+        const record = this.sceneHandleRecord_(ref);
         return record?.asset.type === type ? manifestBindingKey(record.key, path) : path;
     }
 
@@ -3259,6 +3217,8 @@ export class Assets {
      *  reports it, and the plain readers stay plain. */
     private recordingContext_(recorder: DependencyRecorder): LoadContext & { recorder: DependencyRecorder } {
         const base = this.getLoadContext_();
+        const model = this.manifestModel_, root = this.remoteRoot_;
+        const owner = recorder.owner?.key;
         const epoch = this.resetEpoch_;
         const attempt = async <T>(ref: string, work: () => Promise<T>): Promise<T> => {
             try { this.assertLoading_(epoch); return await work(); }
@@ -3271,7 +3231,10 @@ export class Assets {
         };
         const readSource = <T>(ref: string, fetch: (path: string) => Promise<T>) => {
             recorder.read(ref);
-            return read(ref, () => fetch(this.catalog.getBuildPath(ref)));
+            const record = this.manifestRecord_(ref);
+            const resolved = record ? this.resolveLoadPath_(ref) : ref;
+            const path = resolved === ref && record ? record.asset.path : resolved;
+            return read(ref, () => fetch(base.catalog.getBuildPath(path)));
         };
         const take = async <T>(ref: string, work: () => Promise<AssetLease<T>>, type?: string): Promise<AssetLease<T>> => {
             // Own first: if teardown crossed this await, rollback must still
@@ -3285,6 +3248,12 @@ export class Assets {
         return {
             ...base,
             recorder,
+            sourceAddressOf(ref) {
+                // A shared build path alone would identify the first record that shipped it.
+                const key = owner && bindingFile(owner) === ref ? bindingRecord(owner) : undefined;
+                return model?.recordForRef(key ?? pathWithinRemoteRoot(ref, root))?.asset.address
+                    ?? base.catalog.addressOf(ref) ?? ref;
+            },
             loadText: path => read(path, () => base.loadText(path)),
             loadBinary: path => read(path, () => base.loadBinary(path)),
             loadTexture: (path, flipY) => read(path, () => base.loadTexture(path, flipY)),
@@ -3356,7 +3325,8 @@ export class Assets {
                 return readSharedFile ? readSharedFile(path, 'text', read) : read();
             },
             async loadBinary(path: string): Promise<ArrayBuffer> {
-                return self.backend.fetchBinary(self.backend.resolveUrl(path));
+                const read = () => self.backend.fetchBinary(self.backend.resolveUrl(path));
+                return readSharedFile ? readSharedFile(path, 'binary', read, buffer => buffer.slice(0)) : read();
             },
             async decodePixels(path: string) {
                 // The platform's one decode path: the runtime-injected pixel

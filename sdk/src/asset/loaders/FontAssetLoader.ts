@@ -12,9 +12,6 @@ import { parseBmFont, registerBitmapFont, unregisterBitmapFont } from '../../ui/
 import { log } from '../../util/logger';
 import type { FontHandle } from '../../types';
 
-/** Outline fonts — rasterized per glyph by the text stack, not pre-baked pages. */
-const OUTLINE_RE = /\.(ttf|otf|woff2?)$/i;
-
 export class FontAssetLoader implements AssetLoader<FontResult> {
     readonly type = 'font';
     readonly extensions = ['.bmfont', '.fnt', '.ttf', '.otf', '.woff', '.woff2'];
@@ -24,12 +21,21 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
         // font is a pre-baked page + metrics (a C++ resource, drawn by
         // BitmapText), an outline font is a file the platform's text stack
         // rasterizes on demand (used by Text). They diverge here and nowhere else.
-        if (OUTLINE_RE.test(path)) return this.loadOutlineFont(path, ctx);
-        const entry = getAssetTypeEntry(path);
+        const document = ctx.sourceAddressOf?.(path) ?? path;
+        const file = ctx.catalog.getBuildPath(path);
+        const staged = getAssetTypeEntry(path);
+        const entry = staged?.editorType === 'font' || staged?.editorType === 'bitmap-font' ? staged : getAssetTypeEntry(document);
+        if (entry?.editorType === 'font') return this.loadOutlineFont(document, file, ctx);
+        const text = await ctx.loadText(file);
         if (entry?.editorType === 'bitmap-font' && entry.contentType === 'json') {
-            return this.loadBmfontJson(path, ctx);
+            const json = JSON.parse(text) as { type: string; fntFile?: string; generatedFnt?: string };
+            const metrics = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
+            if (!metrics) throw new Error(`Invalid bmfont asset: no fnt file specified in ${document}`);
+            const ref = resolveDocumentRef(document, metrics);
+            const content = ctx.readSource ? await ctx.readSource(ref) : await ctx.loadText(ctx.catalog.getBuildPath(ref));
+            return this.loadFntFile(ctx.sourceAddressOf?.(ref) ?? ref, content, ctx);
         }
-        return this.loadFntFile(path, ctx);
+        return this.loadFntFile(document, text, ctx);
     }
 
     unload(asset: FontResult): void {
@@ -49,35 +55,14 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
      * with no `registerFont` (a headless realm) still resolves and returns a
      * handle — the family simply will not rasterize, and Text falls back.
      */
-    private async loadOutlineFont(path: string, ctx: LoadContext): Promise<FontResult> {
-        const bytes = await ctx.loadBinary(ctx.catalog.getBuildPath(path));
+    private async loadOutlineFont(path: string, file: string, ctx: LoadContext): Promise<FontResult> {
+        const bytes = await ctx.loadBinary(file);
         const family = freshProjectFontFamily(path);
         await getPlatform().registerFont?.(family, bytes);
         return { handle: registerProjectFontEra(path, family) as FontHandle, family, path };
     }
 
-    private async loadBmfontJson(path: string, ctx: LoadContext): Promise<FontResult> {
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const text = await ctx.loadText(buildPath);
-        const json = JSON.parse(text) as {
-            type: string;
-            fntFile?: string;
-            generatedFnt?: string;
-        };
-
-        const fntFile = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
-        if (!fntFile) {
-            throw new Error(`Invalid bmfont asset: no fnt file specified in ${path}`);
-        }
-
-        const dir = path.substring(0, path.lastIndexOf('/'));
-        const fntPath = dir ? `${dir}/${fntFile}` : fntFile;
-        return this.loadFntFile(fntPath, ctx);
-    }
-
-    private async loadFntFile(path: string, ctx: LoadContext): Promise<FontResult> {
-        const buildPath = ctx.catalog.getBuildPath(path);
-        const fntContent = await ctx.loadText(buildPath);
+    private async loadFntFile(path: string, fntContent: string, ctx: LoadContext): Promise<FontResult> {
         const pageMatch = fntContent.match(/file="([^"]+)"/);
         if (!pageMatch) {
             throw new Error(`No page texture found in .fnt file: ${path}`);
@@ -85,11 +70,12 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
 
         const texPath = resolveDocumentRef(path, pageMatch[1]);
 
-        const texResult = await ctx.loadTexture(texPath, false);
+        const texResult = (await ctx.acquireTexture(texPath, false)).value;
         const rm = requireResourceManager();
         const handle = rm.loadBitmapFont(
             fntContent, texResult.handle, texResult.width, texResult.height,
         ) as FontHandle;
+        if (!handle) throw new Error(`The engine rejected the bitmap font in ${path}`);
 
         // The same font serves `Text`, which draws it from the page texture with this table — `BitmapText` keeps using the
         // C++ resource above. A font the parser cannot read still loads for BitmapText; Text just will not find it.

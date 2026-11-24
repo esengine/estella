@@ -44,6 +44,8 @@ function createPoolFake() {
         releaseTexture: vi.fn((handle: number) => { live.delete(handle); }),
         getTextureDimensions: vi.fn(() => ({ width: 4, height: 4 })),
         getTextureGLId: vi.fn(() => 1),
+        loadBitmapFont: vi.fn(() => next++),
+        releaseBitmapFont: vi.fn(),
         setTextureMetadata: vi.fn(),
         liveTextures: () => live.size,
     };
@@ -361,6 +363,86 @@ describe('partial resource preparation through prefab graphs', () => {
 
 describe('an edge comes from the acquisition that made it', () => {
     beforeEach(() => { pool = createPoolFake(); });
+
+    it.each(['local', 'remote'] as const)('resolves shared font wrappers, metrics and pages in a %s group', async mode => {
+        const metrics = 'common lineHeight=8 base=8 scaleW=8 scaleH=8 pages=1\npage id=0 file="page.png"';
+        const assets = realm({
+            'blobs/font.bmfont': JSON.stringify({ fntFile: 'metrics.fnt' }),
+            'blobs/metrics.fnt': metrics,
+        });
+        assets.backend.resolveUrl = path => new URL(path, 'http://test/').href;
+        const fetchText = vi.spyOn(assets.backend, 'fetchText');
+        const record = (type: string, path: string, address: string) => ({ type, path, address, labels: [], size: 8 });
+        assets.setManifest({ version: '2.0', groups: { art: { bundleMode: mode, labels: [], assets: {
+            left: record('font', 'blobs/font.bmfont', 'assets/left/font.bmfont'),
+            right: record('font', 'blobs/font.bmfont', 'assets/right/font.bmfont'),
+            leftMetrics: record('binary', 'blobs/metrics.fnt', 'assets/left/metrics.fnt'),
+            rightMetrics: record('font', 'blobs/metrics.fnt', 'assets/right/metrics.fnt'),
+            leftPage: record('texture', 'blobs/a.png', 'assets/left/page.png'),
+            rightPage: record('texture', 'blobs/b.png', 'assets/right/page.png'),
+        } } } });
+        assets.setRemoteRoot('https://cdn.test');
+        try {
+            const [left, right] = await Promise.all(['left', 'right'].map(ref => assets.acquireTyped('font', ref)));
+            expect(left.value).not.toEqual(right.value);
+            for (const name of ['left', 'right']) {
+                expect(assets.dependenciesOf('font', name)).toEqual(expect.arrayContaining([
+                    { kind: 'source', path: `assets/${name}/metrics.fnt` },
+                    { kind: 'owned', type: 'texture', path: `assets/${name}/page.png` },
+                ]));
+            }
+            const root = mode === 'remote' ? 'https://cdn.test' : 'http://test';
+            expect(fetchText).toHaveBeenCalledWith(`${root}/blobs/metrics.fnt`);
+            expect(pool.liveTextures()).toBe(2);
+            left.release();
+            expect(pool.liveTextures()).toBe(1);
+            right.release();
+            expect(pool.liveTextures()).toBe(0);
+            expect(pool.releaseBitmapFont).toHaveBeenCalledTimes(2);
+
+            pool.loadBitmapFont.mockReturnValueOnce(0);
+            await expect(assets.acquireTyped('font', 'left')).rejects.toThrow(/rejected the bitmap font/);
+            expect(pool.liveTextures()).toBe(0);
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
+    it('retries a failed shared binary read and gives each mesh decoder a transferable buffer', async () => {
+        const assets = realm({});
+        const file = { type: 'mesh', path: 'blobs/mesh.bin', contentHash: 'e934a84adb052768', size: 1, labels: [] };
+        assets.setManifest({ version: '2.0', groups: { art: { bundleMode: 'local', labels: [], assets: {
+            a: { ...file, address: 'assets/a.esmesh' }, b: { ...file, address: 'assets/b.esmesh' },
+        } } } });
+        const fetch = vi.spyOn(assets.backend, 'fetchBinary');
+        fetch.mockRejectedValueOnce(new Error('offline')).mockImplementation(async () => Uint8Array.of(37).buffer);
+        let serial = 0;
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: async (path, ctx) => {
+            const bytes = await ctx.loadBinary(path);
+            const copy = structuredClone(bytes, { transfer: [bytes] });
+            return { handle: ++serial, firstByte: new Uint8Array(copy)[0] };
+        }, unload: vi.fn() });
+        const get = (ref: string) => assets.acquireTyped<{ handle: number; firstByte: number }>('mesh', ref);
+        try {
+            const failed = await Promise.allSettled([get('a'), get('b')]);
+            expect(failed.map(r => r.status)).toEqual(['rejected', 'rejected']);
+            expect(fetch).toHaveBeenCalledTimes(1);
+            assets.invalidate('a');
+            assets.invalidate('b');
+            const bundle = await assets.loadGroup('art');
+            expect(bundle.scope.size).toBe(2);
+            expect((await assets.preload(['assets/a.esmesh', 'b'])).failed).toEqual([]);
+            const [a, b] = await Promise.all([get('a'), get('b')]);
+            expect(fetch).toHaveBeenCalledTimes(2);
+            expect(a.value.handle).not.toBe(b.value.handle);
+            expect([a.value.firstByte, b.value.firstByte]).toEqual([37, 37]);
+            a.release();
+            b.release();
+            bundle.release();
+            assets.releaseTyped('mesh', 'a');
+            assets.releaseTyped('mesh', 'b');
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
 
     it('an external .tsj is a SOURCE dependency of the map that folded it in', async () => {
         // Nothing is held for it — there is no runtime object — but what the map

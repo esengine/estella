@@ -3,14 +3,7 @@
 /**
  * @file  Every type loadGroup acquires, releaseGroup gives back.
  *
- * They were two switch statements. Load handled `font`; release listed only
- * `bitmap-font`, so a group carrying a font held its reference for the life of
- * the process — and nothing failed, because no test walked both halves for the
- * same type. Now one table drives both, and this walks every entry in it.
- *
- * A new addressable type is a new row here. That is the point: a row with a
- * loader and no release has to say so out loud (spine does), rather than being
- * a case somebody forgot to add to the second switch.
+ * Groups acquire one receipt per supported asset. The path-based release must address the same asset as the acquire.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
@@ -40,15 +33,14 @@ const backend = {
 
 /**
  * One row per addressable type a group can carry, with the loader to stub and
- * the release the type is supposed to route to. `releasesVia: null` means the
- * type's lifetime is owned elsewhere and releaseGroup must NOT touch it.
+ * the matching release channel.
  */
 const TYPES: Array<{
     type: AddressableAssetType;
     loadMethod: keyof Assets;
     /** The typed door's first argument; absent when the method takes the path first. */
     loadArg?: string;
-    releasesVia: string | null;
+    releasesVia: string;
 }> = [
     // The group loads through the ACQUIRE doors, so what it takes out is
     // recorded as a receipt on the bundle rather than left to be guessed from
@@ -56,6 +48,9 @@ const TYPES: Array<{
     { type: 'texture', loadMethod: 'acquireTexture', releasesVia: 'texture' },
     { type: 'material', loadMethod: 'acquireTyped', loadArg: 'material', releasesVia: 'material' },
     { type: 'font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
+    { type: 'mesh', loadMethod: 'acquireTyped', loadArg: 'mesh', releasesVia: 'mesh' },
+    { type: 'environment', loadMethod: 'acquireTyped', loadArg: 'environment', releasesVia: 'environment' },
+    { type: 'probeVolume', loadMethod: 'acquireTyped', loadArg: 'probeVolume', releasesVia: 'probeVolume' },
     { type: 'prefab', loadMethod: 'acquireTyped', loadArg: 'prefab', releasesVia: 'prefab' },
     { type: 'audio', loadMethod: 'acquireTyped', loadArg: 'audio', releasesVia: 'audio' },
     // Nothing is special about spine any more: the bundle holds a receipt for
@@ -101,11 +96,6 @@ describe.each(TYPES)('group channel: $type', (row) => {
 
         assets.releaseGroup('dlc');
 
-        if (row.releasesVia === null) {
-            expect(releaseTexture, `releaseGroup released a ${row.type}, whose lifetime is owned elsewhere`).not.toHaveBeenCalled();
-            expect(releaseTyped, `releaseGroup released a ${row.type}, whose lifetime is owned elsewhere`).not.toHaveBeenCalled();
-            return;
-        }
         if (row.releasesVia === 'texture') {
             expect(releaseTexture, 'a texture was loaded by the group and never released').toHaveBeenCalledWith('a.bin');
             return;

@@ -27,14 +27,16 @@ export function bindingFile(key: string): string {
 /** Share immutable inputs only while a read is in flight in this manifest. Each upload owns its native handle. */
 export function manifestFileReads(model: ManifestModel, root: string | undefined) {
     const pending = new Map<string, Promise<unknown>>();
-    return <T>(path: string, variant: string, read: () => Promise<T>): Promise<T> => {
+    return <T>(path: string, variant: string, read: () => Promise<T>, copy?: (value: T) => T): Promise<T> => {
         const file = pathWithinRemoteRoot(path, root);
         if (!model.sharesFile(file) || !model.assetByPath(file)?.contentHash) return read();
         const key = assetPairKey(variant, path);
-        const existing = pending.get(key);
-        if (existing) return existing as Promise<T>;
-        const started = read().finally(() => pending.delete(key));
-        pending.set(key, started);
-        return started;
+        let started = pending.get(key) as Promise<T> | undefined;
+        if (!started) {
+            started = read().finally(() => pending.delete(key));
+            pending.set(key, started);
+        }
+        // A binary consumer can mutate or transfer its buffer while another is still decoding.
+        return copy ? started.then(copy) : started;
     };
 }

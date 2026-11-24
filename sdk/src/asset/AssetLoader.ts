@@ -115,6 +115,8 @@ export interface JsonResult<T = unknown> {
 }
 
 export interface LoadContext {
+    /** Authored location of a document in this preparation, for resolving references inside its cooked bytes. */
+    sourceAddressOf?(ref: string): string;
     backend: Backend;
     catalog: Catalog;
     /** Preview of a streamed texture, resolved against the delivery root of this load. */

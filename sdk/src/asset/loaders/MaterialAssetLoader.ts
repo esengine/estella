@@ -12,7 +12,8 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     readonly type = 'material';
     readonly extensions = ['.esmaterial'];
 
-    async load(path: string, ctx: LoadContext, buildPath = ctx.catalog.getBuildPath(path)): Promise<MaterialResult> {
+    async load(file: string, ctx: LoadContext, buildPath = ctx.catalog.getBuildPath(file)): Promise<MaterialResult> {
+        const path = ctx.sourceAddressOf?.(file) ?? file;
         const text = await ctx.loadText(buildPath);
         const data = JSON.parse(text) as MaterialAssetData;
 

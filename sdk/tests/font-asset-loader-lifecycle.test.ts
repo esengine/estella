@@ -22,6 +22,18 @@ beforeEach(() => {
     host.releaseBitmapFont.mockReset();
 });
 
+it('loads the staged outline format when its manifest address is an extensionless alias', async () => {
+    const ctx = context();
+    ctx.sourceAddressOf = () => 'body';
+    const loader = new FontAssetLoader();
+    const font = await loader.load('blobs/1f.woff2', ctx);
+    try {
+        expect(ctx.loadBinary).toHaveBeenCalledWith('blobs/1f.woff2');
+        expect(font.path).toBe('body');
+        expect(projectFontFamily(font.handle)).toBe(font.family);
+    } finally { loader.unload(font); }
+});
+
 it('keeps font eras independent when an older result retires after replacement', async () => {
     const loader = new FontAssetLoader();
     const old = await loader.load(path, context());
