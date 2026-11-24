@@ -154,6 +154,8 @@ describe('the promised systems in an Android package', () => {
     const ROOT = path.resolve(HERE, '../..');
     copyFileSync(path.join(ROOT, 'native/android/host/AndroidManifest.xml.in'), path.join(template, 'AndroidManifest.xml.in'));
     copyFileSync(path.join(ROOT, 'native/icon.png'), path.join(template, 'icon.png'));
+    mkdirSync(path.join(f.out, 'aot'), { recursive: true });
+    writeFileSync(path.join(f.out, 'aot', 'systems.wasm'), 'previous Web export');
     const res = await exportGame({
       root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts', sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),

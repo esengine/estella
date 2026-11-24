@@ -57,8 +57,8 @@ import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS, esengineAlias } from '../bundle/e
 import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { drawsOnlyThroughGL, glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import type { RpkSigningKey } from './rpk';
-import { buildCompiledSystems, compilesUnmarkedSystems, type BuildMode } from '../bundle/buildCompiledSystems';
-import { AOT_SHARED_WASM, AOT_WASM } from '../bundle/aotArtifacts';
+import { buildCompiledSystems, compilesUnmarkedSystems, type BuildCompiledResult, type BuildMode } from '../bundle/buildCompiledSystems';
+import { stageCompiledSystems } from './stageCompiledSystems';
 import { resolveEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
@@ -1227,7 +1227,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // 3b. Compiled systems. Which machine they are built for is `compileTargetFor`,
   //     because the build dialog looks for the same compiler this does, before
   //     an export starts.
-  let aot: PackagedGameConfig['aot'];
+  let contentSystems: BuildCompiledResult | undefined;
+  let androidAot: PackagedGameConfig['aot'];
   /** Android: each packaged ABI's build of the compiled systems, for lib/<abi>/ of the package. */
   let androidAotLibs: Record<string, string[]> | undefined;
   const aotTarget = compileTargetFor(platform);
@@ -1275,25 +1276,14 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       // Not content: each ABI's library goes in lib/<abi>/, where the system linker
       // finds it by its bare name for the ABI the phone installed.
       androidAotLibs = Object.fromEntries(Object.entries(built.modules).map(([abi, file]) => [abi, [file]]));
-      aot = { module: ANDROID_AOT_LIBRARY, manifest: built.manifest };
+      androidAot = { module: ANDROID_AOT_LIBRARY, manifest: built.manifest };
     } else if (built.modulePath && built.manifest) {
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
-      const name = path.basename(built.modulePath);
-      await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
-      await cp(built.modulePath, path.join(payloadDir, 'aot', name));
-      aot = { module: `aot/${name}`, manifest: built.manifest };
-      const shared = built.modules?.[AOT_SHARED_WASM];
-      if (shared) {
-        aot.sharedModule = `aot/${AOT_SHARED_WASM}`;
-        await cp(shared, path.join(payloadDir, aot.sharedModule));
-      }
+      contentSystems = built;
     }
   }
-  if (platform === 'web') {
-    // Re-exporting into the same folder can turn off threading or compilation.
-    if (!aot?.sharedModule) await rm(path.join(payloadDir, 'aot', AOT_SHARED_WASM), { force: true });
-    if (!aot) await rm(path.join(payloadDir, 'aot', AOT_WASM), { force: true });
-  }
+  const contentAot = await stageCompiledSystems(payloadDir, contentSystems);
+  const aot = androidAot ?? contentAot;
 
   // 4. SDK (import-map target) + wasm runtime. A missing tree fails the export
   //    rather than degrading it. What ships is derived from THIS package's

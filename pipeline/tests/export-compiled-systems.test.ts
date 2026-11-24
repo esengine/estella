@@ -13,7 +13,7 @@
  *          is the package's shape, not the engine in it.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,9 +90,9 @@ function project(source: string | null): { root: string; out: string } {
   return { root, out: path.join(root, 'dist') };
 }
 
-const run = (f: { root: string; out: string }, threadedRendering = false) => exportGame({
+const run = (f: { root: string; out: string }, threadedRendering = false, platform: 'web' | 'desktop' = 'web') => exportGame({
   root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
-  scriptsEntry: 'src/main.ts',
+  scriptsEntry: 'src/main.ts', platform,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,
   runtime: { ...DEFAULT_RUNTIME_CONFIG, threadedRendering },
@@ -109,6 +109,22 @@ const runWeChat = (f: { root: string; out: string }, compileAllSystems?: boolean
 });
 
 describe('what a package carries for a compiled system', () => {
+  it.each(['web', 'wechat', 'desktop'] as const)('prunes stale engine modules and preserves custom files on %s', async platform => {
+    const f = project(null);
+    const dir = path.join(f.out, 'aot');
+    try {
+      mkdirSync(dir, { recursive: true });
+      for (const file of ['systems.wasm', 'systems-shared.wasm', 'systems.dll', 'systems.dylib', 'systems.so', 'custom.wasm']) {
+        writeFileSync(path.join(dir, file), file);
+      }
+      if (platform === 'wechat') miniGameStubs(f.root);
+      const result = platform === 'wechat' ? await runWeChat(f) : await run(f, false, platform);
+      expect(result.errors).toEqual([]);
+      expect(readdirSync(dir)).toEqual(['custom.wasm']);
+      expect(readFileSync(path.join(dir, 'custom.wasm'), 'utf8')).toBe('custom.wasm');
+    } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it('reports whether this gate could run at all', () => {
     if (EMCC) console.log(`[aot-export] emcc at ${EMCC}`);
     else console.warn('[aot-export] NO EMSDK — the staged module was NOT built (pnpm emsdk:setup).');

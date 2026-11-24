@@ -28,8 +28,8 @@ import { inlineSystem } from '../../../compiler/src/inline';
 import { builtinShapes } from '../../../compiler/src/builtins';
 import { packLayout } from '../../../compiler/src/abi';
 import { WASM_LINK_FLAGS, WASM_SHARED_MEMORY_FLAGS, emitC, moduleDeclarations } from '../../../compiler/src/codegen';
-import { nativeLinkFlags, nativeModuleExt } from '../../../compiler/src/hostCC';
-import { AOT_SHARED_WASM, AOT_WASM } from './aotArtifacts';
+import { nativeLinkFlags } from '../../../compiler/src/hostCC';
+import { AOT_SHARED_WASM, AOT_WASM, nativeAotModule } from './aotArtifacts';
 import { cachedManifestPath, linkCompiledModules, type CompiledLinkJob } from './compiledBuildCache';
 import type { runSystemCompiler } from './emccPath';
 
@@ -126,7 +126,7 @@ const TARGETS: Record<CompileTarget, TargetPlan> = {
   },
   native: {
     addressBytes: 8,
-    module: `systems${nativeModuleExt()}`,
+    module: nativeAotModule(),
     linkFlags: () => [...nativeLinkFlags()],
     compilesDecls: true,
     missing: 'this machine has no C compiler — install clang or gcc and put it on PATH',

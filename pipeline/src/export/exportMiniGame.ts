@@ -59,6 +59,7 @@ import type { RpkSigningKey } from './rpk';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc } from '../bundle/emccPath';
+import { stageCompiledSystems } from './stageCompiledSystems';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
 import type { Physics3DBackend } from 'esengine';
@@ -545,13 +546,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     return { ok: false, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
   }
   warnings.push(...built.warnings ?? []);
-  let aotArg = '';
   if (built.modulePath && built.manifest) {
     progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
-    await mkdir(path.join(absOut, 'aot'), { recursive: true });
-    await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
-    aotArg = `, aot: ${JSON.stringify({ module: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
+  const aot = await stageCompiledSystems(absOut, built);
+  const aotArg = aot ? `, aot: ${JSON.stringify(aot)}` : '';
   // What this project installs on a lean entry — the same answer the web export
   // gets, from the same evidence, so a subsystem cannot be installed on one
   // target and silently missing on the other.
