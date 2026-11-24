@@ -304,8 +304,5 @@ export function updateIK(
     }
     if (merged.kind !== 'stride-warp') { delete merged.minStride; delete merged.maxStride; }
     if (merged.kind !== 'orientation-warp') { delete merged.spine; delete merged.maxAngle; }
-    if (merged.kind !== 'foot-lock') {
-        delete merged.contact; delete merged.lockHeight; delete merged.stretch; delete merged.twist; delete merged.stepTime; delete merged.stepHeight;
-    }
     return { ...def, ik: def.ik!.map((x, i) => (i === index ? merged : x)) };
 }

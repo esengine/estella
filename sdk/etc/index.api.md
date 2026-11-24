@@ -658,10 +658,8 @@ send: (event: AnimatorEventPayload) => void
 ```
 align: boolean | undefined
 axis: "x" | "y" | "z" | undefined
-contact: string | undefined
 kind: AnimatorIKKind
 layers: number | undefined
-lockHeight: number | undefined
 maxAngle: number | undefined
 maxStride: number | undefined
 minStride: number | undefined
@@ -671,18 +669,14 @@ pole: string | undefined
 reach: number | undefined
 smooth: number | undefined
 spine: string[] | undefined
-stepHeight: number | undefined
-stepTime: number | undefined
-stretch: number | undefined
 target: string
 tip: string
-twist: number | undefined
 weight: number | undefined
 ```
 
 ## AnimatorIKKind — type @experimental
 ```
-'two-bone' | 'look-at' | 'foot-plant' | 'foot-lock' | 'stride-warp' | 'orientation-warp'
+'two-bone' | 'look-at' | 'foot-plant' | 'stride-warp' | 'orientation-warp'
 ```
 
 ## AnimatorLayer — interface @experimental
@@ -5822,7 +5816,6 @@ ResourceDef<GroomRes>
 ## GroundContext — interface @experimental
 ```
 dt: number
-locks: Map<string, FootLockState> | undefined
 memory: Map<string, { lift: number; normal: Vec3; }>
 probe: GroundProbe | null
 rest: Map<number, { position: Vec3; rotation: Quat; }> | undefined
