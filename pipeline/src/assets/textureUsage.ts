@@ -17,32 +17,21 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AssetEntry } from './assetDb';
+import { addrType } from './addressableRecord';
 import { isBuiltinAssetRef, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
-
-const UUID_PREFIX = '@uuid:';
+import { extractUuid, UUID_REF_PREFIX } from '../../../sdk/src/asset/AssetRegistry';
+import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
+import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
+import type { MaterialAssetData } from '../../../sdk/src/render/material';
 
 /** How a mesh draws a texture: on its surface, or as the baked light the surface reads. */
 export type MeshTextureRole = 'surface' | 'lightmap';
-
-/** Component fields whose texture a mesh draws, by the role it plays there. */
-const MESH_TEXTURE_FIELDS: Readonly<Record<string, Readonly<Record<string, MeshTextureRole>>>> = {
-  MeshRenderer: { texture: 'surface', normalMap: 'surface' },
-  MeshLightmap: { lightmap: 'lightmap' },
-};
-const MESH_MATERIAL_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  MeshRenderer: ['material'],
-};
 
 interface Documented {
   entities?: Array<{ components?: Array<{ type?: string; data?: Record<string, unknown> }> }>;
 }
 
-/** Every string anywhere under @p value. */
-function strings(value: unknown, into: string[]): void {
-  if (typeof value === 'string') into.push(value);
-  else if (Array.isArray(value)) for (const v of value) strings(v, into);
-  else if (value && typeof value === 'object') for (const v of Object.values(value)) strings(v, into);
-}
+type MaterialDocument = Partial<Pick<MaterialAssetData, 'instanceOf' | 'properties'>>;
 
 /**
  * The uuids of the textures a mesh in @p entries' scenes and prefabs draws, directly
@@ -63,10 +52,11 @@ export async function meshTextureRoles(
   entries: readonly AssetEntry[],
   read: (file: string) => Promise<string> = (file) => readFile(path.join(root, file), 'utf8'),
 ): Promise<Map<string, Set<MeshTextureRole>>> {
-  const byUuid = new Map(entries.map((e) => [e.uuid, e]));
+  const byUuid = new Map(entries.map((e) => [extractUuid(e.uuid) ?? e.uuid, e]));
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const resolve = (ref: string, docPath: string): AssetEntry | undefined => {
-    if (ref.startsWith(UUID_PREFIX)) return byUuid.get(ref.slice(UUID_PREFIX.length));
+    const uuid = extractUuid(ref) ?? (ref.startsWith(UUID_REF_PREFIX) ? ref.slice(UUID_REF_PREFIX.length) : null);
+    if (uuid !== null) return byUuid.get(uuid);
     if (ref === '' || isBuiltinAssetRef(ref) || ref.includes('://')) return undefined;
     return byPath.get(resolveDocumentRef(docPath, ref).replace(/^\/+/, ''));
   };
@@ -77,7 +67,7 @@ export async function meshTextureRoles(
     roles.add(role);
     drawn.set(uuid, roles);
   };
-  const materials = new Set<string>();
+  const materials = new Set<AssetEntry>();
   const docs = entries.filter((e) => e.type === 'scene' || e.type === 'prefab');
   await Promise.all(docs.map(async (doc) => {
     let parsed: Documented;
@@ -90,31 +80,52 @@ export async function meshTextureRoles(
       for (const component of entity.components ?? []) {
         const type = component.type ?? '';
         const data = component.data ?? {};
-        for (const [field, role] of Object.entries(MESH_TEXTURE_FIELDS[type] ?? {})) {
-          const ref = data[field];
+        for (const field of COMPONENT_META[type]?.assetFields ?? []) {
+          // Baked lighting participates in compression but the renderer does not stream it by texel density.
+          const lightmap = type === 'MeshLightmap' && field.field === 'lightmap';
+          if (!field.measuresTextureDensity && !lightmap) continue;
+          const ref = data[field.field];
           const target = typeof ref === 'string' ? resolve(ref, doc.path) : undefined;
-          if (target?.type === 'texture') draw(target.uuid, role);
-        }
-        for (const field of MESH_MATERIAL_FIELDS[type] ?? []) {
-          const ref = data[field];
-          const target = typeof ref === 'string' ? resolve(ref, doc.path) : undefined;
-          if (target?.type === 'material') materials.add(target.uuid);
+          if (!target || addrType(target.type) !== field.type) continue;
+          if (field.type === 'texture') draw(target.uuid, lightmap ? 'lightmap' : 'surface');
+          else if (field.type === 'material') materials.add(target);
         }
       }
     }
   }));
 
-  await Promise.all([...materials].map(async (uuid) => {
-    const material = byUuid.get(uuid)!;
-    let refs: string[] = [];
-    try {
-      strings(JSON.parse(await read(material.path)), refs);
-    } catch {
-      refs = [];
+  const files = new Map<AssetEntry, Promise<MaterialDocument | null>>();
+  const materialFile = (entry: AssetEntry): Promise<MaterialDocument | null> => {
+    let pending = files.get(entry);
+    if (!pending) {
+      pending = Promise.resolve()
+        .then(() => read(entry.path))
+        .then(text => JSON.parse(text) as MaterialDocument)
+        .catch(() => null);
+      files.set(entry, pending);
     }
-    for (const ref of refs) {
-      const target = resolve(ref, material.path);
-      if (target?.type === 'texture') draw(target.uuid, 'surface');
+    return pending;
+  };
+  await Promise.all([...materials].map(async leaf => {
+    const chain = new Set<AssetEntry>(), bound = new Set<string>();
+    let current: AssetEntry | undefined = leaf;
+    while (current && !chain.has(current)) {
+      chain.add(current);
+      const doc = await materialFile(current);
+      if (!doc) break;
+      for (const [name, value] of Object.entries(doc.properties ?? {})) {
+        if (bound.has(name)) continue;
+        const uniform = readMaterialProperty(value);
+        if (uniform === undefined) continue;
+        if (typeof uniform === 'string') {
+          const texture = resolve(uniform, current.path);
+          if (!texture || addrType(texture.type) !== 'texture') continue;
+          draw(texture.uuid, 'surface');
+        }
+        bound.add(name);
+      }
+      const parent: AssetEntry | undefined = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, current.path) : undefined;
+      current = parent?.type === 'material' ? parent : undefined;
     }
   }));
   return drawn;

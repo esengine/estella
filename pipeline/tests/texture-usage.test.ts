@@ -19,7 +19,7 @@ describe('texturesDrawnIn3D', () => {
       entry('mat', 'assets/models/cafe/wood.esmaterial', 'material'),
       entry('albedo', 'assets/models/cafe/wood_albedo.png', 'texture'),
       entry('normal', 'assets/models/cafe/wood_normal.png', 'texture'),
-      entry('floor', 'assets/textures/floor.png', 'texture'),
+      entry('floor', 'assets/textures/floor.png', 'imageSource'),
       entry('lightmap', 'assets/scenes/main_lightmap.png', 'texture'),
       entry('hud', 'assets/ui/hud.png', 'texture'),
       entry('both', 'assets/textures/crate.png', 'texture'),
@@ -43,6 +43,51 @@ describe('texturesDrawnIn3D', () => {
     const roles = await meshTextureRoles('/p', entries, async (f) => JSON.stringify(files[f]));
     expect([...roles.get('lightmap')!]).toEqual(['lightmap']);
     expect([...roles.get('albedo')!]).toEqual(['surface']);
+  });
+
+  it('cooks the textures each mesh material instance actually samples, relative to the declaring material', async () => {
+    const mid = 'a5663b92-8e67-4d20-b8b0-a133368d8382', leaf = '0702200a-75ee-4b5a-91db-0dac0496f708';
+    const entries = [
+      entry('scene', 'assets/main.esscene', 'scene'),
+      entry('base', 'assets/art/base.esmaterial', 'material'),
+      entry(mid, 'assets/variants/mid.esmaterial', 'material'),
+      entry(leaf, 'assets/variants/leaf.esmaterial', 'material'),
+      entry('sibling', 'assets/variants/sibling.esmaterial', 'material'),
+      entry('normal', 'assets/art/normal.png', 'imageSource'),
+      entry('original', 'assets/art/base.png', 'texture'),
+      entry('override', 'assets/variants/red.png', 'texture'),
+      entry('label', 'assets/art/editor.png', 'texture'),
+    ];
+    const files: Record<string, unknown> = {
+      'assets/main.esscene': { entities: [{ components: [
+        { type: 'MeshRenderer', data: { material: '@uuid:' + leaf.toUpperCase() } },
+        { type: 'MeshRenderer', data: { material: '@uuid:sibling' } },
+        { type: 'Sprite', data: { material: '@uuid:base' } },
+      ] }] },
+      'assets/art/base.esmaterial': { type: 'material', name: 'editor.png',
+        properties: { albedo: 'base.png', normal: 'normal.png', tint: 'editor.png' } },
+      'assets/variants/mid.esmaterial': { type: 'material', instanceOf: '../art/base.esmaterial',
+        properties: { albedo: 'red.png', normal: 'missing.png', tint: { r: 1, g: 1, b: 1 } } },
+      'assets/variants/leaf.esmaterial': { type: 'material', instanceOf: mid.toUpperCase(), properties: {} },
+      'assets/variants/sibling.esmaterial': { type: 'material', instanceOf: 'mid.esmaterial', properties: { normal: 0 } },
+    };
+    const reads: string[] = [];
+    const roles = await meshTextureRoles('/p', entries, async file => { reads.push(file); return JSON.stringify(files[file]); });
+    expect([...roles.keys()].sort()).toEqual(['normal', 'override']);
+    expect(reads.filter(file => file === 'assets/art/base.esmaterial')).toHaveLength(1);
+    expect(reads.filter(file => file === 'assets/variants/mid.esmaterial')).toHaveLength(1);
+  });
+
+  it('finishes when a material parent cycle is shared by two mesh entries', async () => {
+    const entries = [entry('s', 's.esscene', 'scene'), entry('a', 'a.esmaterial', 'material'), entry('b', 'b.esmaterial', 'material')];
+    const files: Record<string, unknown> = {
+      's.esscene': { entities: [{ components: ['a', 'b'].map(uuid => ({ type: 'MeshRenderer', data: { material: '@uuid:' + uuid } })) }] },
+      'a.esmaterial': { instanceOf: '@uuid:b', properties: {} },
+      'b.esmaterial': { instanceOf: '@uuid:a', properties: {} },
+    };
+    const reads: string[] = [];
+    expect((await meshTextureRoles('/p', entries, async file => { reads.push(file); return JSON.stringify(files[file]); })).size).toBe(0);
+    expect(reads.sort()).toEqual(['a.esmaterial', 'b.esmaterial', 's.esscene']);
   });
 });
 
