@@ -91,6 +91,7 @@ add_test(NAME test_hierarchy_links COMMAND test_hierarchy_links)
 
 add_executable(test_ecs
     ecs/test_registry.cpp
+    ecs/test_world_pick_order.cpp
 )
 target_link_libraries(test_ecs PRIVATE esengine)
 add_test(NAME test_ecs COMMAND test_ecs)

@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace esengine::ecs {
@@ -118,31 +119,73 @@ bool UISystem::hitInputsChanged(Registry& registry, const resource::ResourceMana
 
 namespace {
 
-/// Where an entity stands in the hierarchy walk: its root, then the index of each ancestor and of itself among its siblings, so that two
-/// paths compare in the order the walk visits them (a parent before its children, an earlier sibling's whole subtree before a later one).
-std::vector<u32> hierarchyPath(Registry& registry, Entity entity) {
-    std::vector<u32> reversed;
-    for (Entity current = entity; ; ) {
-        const auto* parent = registry.tryGet<Parent>(current);
-        if (!parent || parent->entity == INVALID_ENTITY || !registry.valid(parent->entity)) {
-            reversed.push_back(current.id());   // roots are told apart by their number
-            break;
-        }
-        u32 index = 0;
-        if (const auto* children = registry.tryGet<Children>(parent->entity)) {
-            const auto& list = children->entities;
-            index = static_cast<u32>(std::find(list.begin(), list.end(), current) - list.begin());
-        }
-        reversed.push_back(index);
-        current = parent->entity;
-    }
-    return std::vector<u32>(reversed.rbegin(), reversed.rend());
-}
+// Depth and layer have already tied. A hierarchy key is the root id followed by
+// the sibling indices on the way down; a parent precedes its whole subtree.
+class PickHierarchyOrder {
+public:
+    explicit PickHierarchyOrder(const Registry& registry) : registry_(registry) {}
 
-/// Whether @p a is drawn before @p b: the hierarchy's order, which is the order a scene of nodes is stacked in.
-bool drawsBefore(Registry& registry, Entity a, Entity b) {
-    return hierarchyPath(registry, a) < hierarchyPath(registry, b);
-}
+    bool before(Entity a, Entity b) {
+        if (a == b) return false;
+        const Entity pa = parentOf(a), pb = parentOf(b);
+        if (pa == pb) {
+            if (pa == INVALID_ENTITY) return a.id() < b.id();
+            const u32 index = siblingIndex(pa, a);
+            return index < siblingIndex(pa, b);
+        }
+        pathFrom(a, pa, path_a_);
+        pathFrom(b, pb, path_b_);
+        return std::lexicographical_compare(path_a_.rbegin(), path_a_.rend(),
+                                            path_b_.rbegin(), path_b_.rend());
+    }
+
+private:
+    struct SiblingIndices {
+        usize scanned = 0;
+        std::unordered_map<u32, u32> positions;
+    };
+
+    Entity parentOf(Entity entity) const {
+        const auto* parent = registry_.tryGet<Parent>(entity);
+        return parent && registry_.valid(parent->entity) ? parent->entity : INVALID_ENTITY;
+    }
+
+    u32 siblingIndex(Entity parent, Entity child) {
+        const auto* children = registry_.tryGet<Children>(parent);
+        if (!children) return 0;
+        const auto& list = children->entities;
+        // A contiguous scan is cheap compared with allocating a hash entry per
+        // child. Only index a wide list after repeated scans of its contents.
+        constexpr usize scansBeforeIndexing = 48;
+        SiblingIndices* table = list.size() > scansBeforeIndexing ? &wide_[parent.id()] : nullptr;
+        if (!table || table->scanned / scansBeforeIndexing < list.size()) {
+            const auto found = std::find(list.begin(), list.end(), child);
+            const auto index = static_cast<u32>(found - list.begin());
+            if (table) table->scanned += index + (found != list.end());
+            return index;
+        }
+        if (table->positions.empty()) {
+            table->positions.reserve(list.size());
+            for (u32 i = 0; i < list.size(); ++i) table->positions.try_emplace(list[i].id(), i);
+        }
+        const auto pos = table->positions.find(child.id());
+        return pos == table->positions.end() ? static_cast<u32>(list.size()) : pos->second;
+    }
+
+    void pathFrom(Entity entity, Entity parent, std::vector<u32>& path) {
+        path.clear();
+        while (parent != INVALID_ENTITY) {
+            path.push_back(siblingIndex(parent, entity));
+            entity = parent;
+            parent = parentOf(entity);
+        }
+        path.push_back(entity.id());
+    }
+
+    const Registry& registry_;
+    std::unordered_map<u32, SiblingIndices> wide_;
+    std::vector<u32> path_a_, path_b_;
+};
 
 }  // namespace
 
@@ -161,6 +204,7 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
     f32 bestT = 0.0f;
     i32 bestLayer = 0;
     bool haveBest = false;
+    PickHierarchyOrder order(registry);
 
     // Nearer wins; at the same distance the higher sorting layer does, and a tie
     // there goes to the later entity — the order the renderer batches in.
@@ -171,7 +215,7 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
             if (sameDepth && layer < bestLayer) return;
             // A full tie goes to the one drawn later, by its place in the hierarchy rather than by where a pool happened to list it or when
             // it was created: a node taken from a pool and added under a panel is made last and drawn first, and a number cannot tell.
-            if (sameDepth && layer == bestLayer && drawsBefore(registry, entity, best)) return;
+            if (sameDepth && layer == bestLayer && order.before(entity, best)) return;
         }
         haveBest = true;
         bestT = t;

@@ -17,6 +17,7 @@ import { UILayoutGeneration } from '../src/ui/layout/ui-layout-generation';
 import { uiInteractionPlugin } from '../src/ui/input/interaction';
 import { Transform, Sprite, MeshRenderer } from '../src/ecs/component';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
+import { ContentRect } from '../src/ui/core/content-rect';
 import type { Entity, Vec3 } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -188,6 +189,60 @@ describe.skipIf(!HAS_WASM)('world-space picking (WASM integration)', () => {
         expect(pickAt(registry, 0, 0)).toBe(top);
 
         disposeWorld(world, registry);
+    });
+
+    it('picks the last authored sibling across sprite, rectangle and mesh passes after a reorder', () => {
+        const { world, registry } = createWorld();
+        try {
+            const root = world.spawn();
+            world.insert(root, Transform);
+            const sprites = Array.from({ length: 256 }, () => sprite(world, 0, 0));
+            const siblings = sprites.map((_, i) => sprites[(i * 73) % sprites.length]);
+            const area = world.spawn();
+            world.insert(area, Transform);
+            world.insert(area, ContentRect, { size: { x: 100, y: 100 } });
+            world.insert(area, Interactable);
+            const surface = mesh(world, 0, 0, 0);
+            for (const e of [...siblings, area, surface]) world.setParent(e, root);
+            expect(pickAt(registry, 0, 0)).toBe(surface);
+
+            world.applyEntityOrder([surface, ...siblings, area]);
+            expect(pickAt(registry, 0, 0)).toBe(area);
+            world.applyEntityOrder([area, surface, ...siblings]);
+            expect(pickAt(registry, 0, 0)).toBe(siblings.at(-1));
+            world.despawn(siblings.at(-1)!);
+            expect(pickAt(registry, 0, 0)).toBe(siblings.at(-2));
+        } finally {
+            disposeWorld(world, registry);
+        }
+    });
+
+    it('orders whole subtrees by their roots and a child after its pickable ancestor', () => {
+        const { world, registry } = createWorld();
+        try {
+            const freed = world.spawn();
+            const otherRoot = sprite(world, 0, 0);
+            world.despawn(freed);
+            const root = sprite(world, 0, 0);
+            expect(root >>> 0).toBeGreaterThan(otherRoot >>> 0);
+
+            const branch = sprite(world, 0, 0);
+            const leaf = sprite(world, 0, 0);
+            const later = mesh(world, 0, 0, 0);
+            const otherLeaf = mesh(world, 0, 0, 0);
+            world.setParent(otherLeaf, otherRoot);
+            world.setParent(leaf, branch);
+            world.setParent(branch, root);
+            world.setParent(later, root);
+            expect(pickAt(registry, 0, 0)).toBe(later);
+
+            world.setParent(later, otherRoot);
+            expect(pickAt(registry, 0, 0)).toBe(leaf);
+            world.despawn(leaf);
+            expect(pickAt(registry, 0, 0)).toBe(branch);
+        } finally {
+            disposeWorld(world, registry);
+        }
     });
 
     it('scales the box with the transform', () => {
