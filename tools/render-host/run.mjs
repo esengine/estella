@@ -41,7 +41,7 @@
  *   ESTELLA_VERIFY_GPU_PASSES  print|require — the GPU time of each render-graph pass on this backend (local; needs a timer)
  *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
  *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
- *   ESTELLA_VERIFY_EDGE      how straight a straight edge is drawn (JSON: box, lit, dark, maxJag)
+ *   ESTELLA_VERIFY_EDGE      how straight a straight edge is drawn (JSON: box, lit, dark, maxJag, columns)
  *   ESTELLA_VERIFY_CUTOUT_EDGE  how often a cutout's edge pixel is a blend (JSON: box, lit, run, partial, minShare)
  *   ESTELLA_VERIFY_TWINS     pairs of points that must match (JSON: pairs [[x1,y1,x2,y2]], tol)
  *   ESTELLA_VERIFY_MINIFIED  how much a far-off texture shimmers pixel to pixel (JSON: box, maxRipple, minMean)
@@ -893,9 +893,10 @@ app.whenReady().then(async () => {
         return { pairs, worst, tol: t.tol, ok: worst <= t.tol };
       `);
     }
-    // ESTELLA_VERIFY_EDGE = { box (0..1, top-left), lit, dark, maxJag }: how far each
+    // ESTELLA_VERIFY_EDGE = { box (0..1, top-left), lit, dark, maxJag, columns? }: how far each
     // row's crossing of a straight edge, found from the right to sub-pixel, strays from
     // a line through its neighbours — a sampling grid drawn into the edge shows as that.
+    // `columns` measures a shallow edge instead: each column's crossing, lit above.
     let edge = null;
     if (process.env.ESTELLA_VERIFY_EDGE) {
       edge = await readFrame(`
@@ -904,10 +905,20 @@ app.whenReady().then(async () => {
         const mid = (e.lit + e.dark) / 2;
         const [x0, y0, x1, y1] = [e.box[0] * w, e.box[1] * h, e.box[2] * w, e.box[3] * h].map(Math.round);
         const pos = [];
-        for (let y = y0; y < y1; y++) {
-          for (let x = x1 - 1; x > x0; x--) {
-            const a = lum(x, y), b = lum(x - 1, y);
-            if (a >= mid && b < mid) { pos.push([y, x - (a - mid) / (a - b)]); break; }
+        if (e.columns) {
+          // A shallow edge, lit above: each column's crossing, found from the top.
+          for (let x = x0; x < x1; x++) {
+            for (let y = y0; y < y1 - 1; y++) {
+              const a = lum(x, y), b = lum(x, y + 1);
+              if (a >= mid && b < mid) { pos.push([x, y + (a - mid) / (a - b)]); break; }
+            }
+          }
+        } else {
+          for (let y = y0; y < y1; y++) {
+            for (let x = x1 - 1; x > x0; x--) {
+              const a = lum(x, y), b = lum(x - 1, y);
+              if (a >= mid && b < mid) { pos.push([y, x - (a - mid) / (a - b)]); break; }
+            }
           }
         }
         const res = [];
@@ -920,7 +931,8 @@ app.whenReady().then(async () => {
           res.push(Math.abs(pos[k][1] - (mx + (sxy / syy) * (pos[k][0] - my))));
         }
         const jag = res.length ? res.reduce((s, v) => s + v, 0) / res.length : Infinity;
-        return { rows: pos.length, jag, maxJag: e.maxJag, ok: pos.length >= (y1 - y0) * 0.8 && jag <= e.maxJag };
+        const lines = e.columns ? x1 - x0 : y1 - y0;
+        return { rows: pos.length, jag, maxJag: e.maxJag, ok: pos.length >= lines * 0.8 && jag <= e.maxJag };
       `);
     }
     // ESTELLA_VERIFY_CUTOUT_EDGE = { box, lit, run, partial, minShare }: the share of rows

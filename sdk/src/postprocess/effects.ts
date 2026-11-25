@@ -782,6 +782,9 @@ registerEffect({
         // WORLD lengths from the eye: contact shadows are a detail of what is near, and fade out between these two.
         { name: 'u_fadeStart', label: 'Fade Start', min: 0, max: 100000, step: 50, defaultValue: 1500, worldUnits: 1 },
         { name: 'u_fadeEnd', label: 'Fade End', min: 0, max: 100000, step: 50, defaultValue: 3000, worldUnits: 1 },
+        // Degrees: how wide the light is seen from a shadowed point. Above 0 the edge is graded over that cone (four rays
+        // averaged) instead of cut on the depth buffer's pixels; 0 is a point light's hard edge, one ray instead of four.
+        { name: 'u_softness', label: 'Softness', min: 0, max: 20, step: 0.1, defaultValue: 1.5 },
     ],
 });
 

@@ -541,6 +541,7 @@ void main() {
 #pragma param u_sunElevation float default(35) range(-90,90)
 #pragma param u_fadeStart float default(1500) range(0,100000)
 #pragma param u_fadeEnd float default(3000) range(0,100000)
+#pragma param u_softness float default(1.5) range(0,20)
 ${qualityUniformParam('contactShadowSteps')}
 #pragma lights
 
@@ -553,6 +554,8 @@ uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
 const int CONTACT_SHADOW_STEPS_MAX = ${qualityUniformMax('contactShadowSteps')};
+// How many rays a soft contact shadow averages.
+const int CONTACT_SOFT_RAYS = 4;
 
 ${SSAO_GLSL}
 
@@ -579,52 +582,9 @@ vec3 surfaceAt(vec3 P, vec3 L, float t, ivec2 size) {
     return worldAt(screenTexel(q.xy / q.w * 0.5 + 0.5, size), size);
 }
 
-void main() {
-    vec4 src = texture(u_texture, v_texCoord);
-    ivec2 size = textureSize(u_sceneDepth, 0);
-    ivec2 c = screenTexel(v_texCoord, size);
-    float d = depthAt(c, size);
-    if (d >= 1.0 || u_intensity <= 0.0) { fragColor = src; return; }
-
-    vec4 lightDir, lightColor;
-    ivec2 tiles;
-    findSun(lightDir, lightColor, tiles);
-    float az = radians(u_sunAzimuth);
-    float el = radians(u_sunElevation);
-    vec3 L = (u_followSun > 0.5 && lightDir.w > 0.5) ? lightDir.xyz
-           : vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-
-    vec3 P = worldFromDepth(uvOfTexel(c, size), d);
-    // A contact shadow is a detail of what is near. Far off, the depth buffer is too coarse to tell a surface from the
-    // one behind it, and a ray skimming distant ground finds blockers in its own rounding: it fades out over distance.
-    float viewDepth = (u_projection * vec4(P, 1.0)).w;
-    float near = 1.0 - smoothstep(u_fadeStart, max(u_fadeEnd, u_fadeStart + 1.0), viewDepth);
-    if (near <= 0.0) { fragColor = src; return; }
-    // What the buffer can resolve grows with distance, so the test for being in front of a surface does too.
-    float slack = viewDepth * 0.002;
-    // A surface that faces away from the sun is already dark, and a shadow on it is a second one: the term fades out before
-    // the terminator instead of speckling the dark side. The normal is the depth buffer's own, from the nearer neighbour on
-    // each axis (the same pick the occlusion passes make, so a silhouette does not average into a normal facing neither).
-    float dl = depthAt(c + ivec2(-1, 0), size);
-    float dr = depthAt(c + ivec2( 1, 0), size);
-    float dd = depthAt(c + ivec2(0, -1), size);
-    float du = depthAt(c + ivec2(0,  1), size);
-    vec3 ax = abs(dr - d) < abs(dl - d) ? worldAt(c + ivec2(1, 0), size) - P : P - worldAt(c + ivec2(-1, 0), size);
-    vec3 ay = abs(du - d) < abs(dd - d) ? worldAt(c + ivec2(0, 1), size) - P : P - worldAt(c + ivec2(0, -1), size);
-    vec3 N = normalize(cross(ax, ay));
-    if (dot(N, viewDirection(P)) < 0.0) N = -N;
-    float facing = smoothstep(0.02, 0.25, dot(N, L));
-    if (facing <= 0.0) { fragColor = src; return; }
-    // What stands between a point and the sun stands above the plane the point lies in, on the side the sun is. A ray leaving a
-    // rounded thing toward the sun goes behind the thing's own near side as the picture sees it (an arm, a leg, a post thinner
-    // than u_thickness): that surface lies below the plane, and a convex thing does not shadow the side of it that faces the
-    // light. Counted, it laid a stripe along every facet of a curved surface lit from behind.
-    float lift = slack + u_thickness * 0.04;
-    // A different start offset every frame as well as every pixel, so what a temporal pass averages is the whole march and not one
-    // fixed pattern of it.
-    float jitter = ign(gl_FragCoord.xy + 5.588238 * float(int(u_time.x * 60.0) & 63));
+// How much one ray from P toward the light along L is blocked, 0 to 1: the march described in main, from a start offset of jitter.
+float marchOccluded(vec3 P, vec3 L, vec3 N, float jitter, float steps, float slack, float lift, ivec2 size) {
     float occluded = 0.0;
-    float steps = clamp(floor(u_contactShadowSteps), 1.0, float(CONTACT_SHADOW_STEPS_MAX));
     // A sample is in front of the picture, in the thin layer just under a surface (a blocker), or deeper than a wall is thick
     // (behind something, which may be a thin thing far in front and no blocker at all). A step can jump the layer: a ray
     // meets a surface seen edge-on a hair inside it and is already deep, and one that entered a thick thing through a side
@@ -672,6 +632,72 @@ void main() {
         // The nearer the blocker, the harder the contact: one met at the far end of the march is half a shadow, not a whole one.
         float reach = clamp(entered / u_length, 0.0, 1.0);
         occluded = 1.0 - reach * reach;
+    }
+    return occluded;
+}
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    ivec2 size = textureSize(u_sceneDepth, 0);
+    ivec2 c = screenTexel(v_texCoord, size);
+    float d = depthAt(c, size);
+    if (d >= 1.0 || u_intensity <= 0.0) { fragColor = src; return; }
+
+    vec4 lightDir, lightColor;
+    ivec2 tiles;
+    findSun(lightDir, lightColor, tiles);
+    float az = radians(u_sunAzimuth);
+    float el = radians(u_sunElevation);
+    vec3 L = (u_followSun > 0.5 && lightDir.w > 0.5) ? lightDir.xyz
+           : vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
+
+    vec3 P = worldFromDepth(uvOfTexel(c, size), d);
+    // A contact shadow is a detail of what is near. Far off, the depth buffer is too coarse to tell a surface from the
+    // one behind it, and a ray skimming distant ground finds blockers in its own rounding: it fades out over distance.
+    float viewDepth = (u_projection * vec4(P, 1.0)).w;
+    float near = 1.0 - smoothstep(u_fadeStart, max(u_fadeEnd, u_fadeStart + 1.0), viewDepth);
+    if (near <= 0.0) { fragColor = src; return; }
+    // What the buffer can resolve grows with distance, so the test for being in front of a surface does too.
+    float slack = viewDepth * 0.002;
+    // A surface that faces away from the sun is already dark, and a shadow on it is a second one: the term fades out before
+    // the terminator instead of speckling the dark side. The normal is the depth buffer's own, from the nearer neighbour on
+    // each axis (the same pick the occlusion passes make, so a silhouette does not average into a normal facing neither).
+    float dl = depthAt(c + ivec2(-1, 0), size);
+    float dr = depthAt(c + ivec2( 1, 0), size);
+    float dd = depthAt(c + ivec2(0, -1), size);
+    float du = depthAt(c + ivec2(0,  1), size);
+    vec3 ax = abs(dr - d) < abs(dl - d) ? worldAt(c + ivec2(1, 0), size) - P : P - worldAt(c + ivec2(-1, 0), size);
+    vec3 ay = abs(du - d) < abs(dd - d) ? worldAt(c + ivec2(0, 1), size) - P : P - worldAt(c + ivec2(0, -1), size);
+    vec3 N = normalize(cross(ax, ay));
+    if (dot(N, viewDirection(P)) < 0.0) N = -N;
+    float facing = smoothstep(0.02, 0.25, dot(N, L));
+    if (facing <= 0.0) { fragColor = src; return; }
+    // What stands between a point and the sun stands above the plane the point lies in, on the side the sun is. A ray leaving a
+    // rounded thing toward the sun goes behind the thing's own near side as the picture sees it (an arm, a leg, a post thinner
+    // than u_thickness): that surface lies below the plane, and a convex thing does not shadow the side of it that faces the
+    // light. Counted, it laid a stripe along every facet of a curved surface lit from behind.
+    float lift = slack + u_thickness * 0.04;
+    // A different start offset every frame as well as every pixel, so what a temporal pass averages is the whole march and not one
+    // fixed pattern of it.
+    float jitter = ign(gl_FragCoord.xy + 5.588238 * float(int(u_time.x * 60.0) & 63));
+    float steps = clamp(floor(u_contactShadowSteps), 1.0, float(CONTACT_SHADOW_STEPS_MAX));
+    // The sun is a disc, not a point: rays to the edges of a cone u_softness degrees wide, each from its own start, averaged. Where a
+    // blocker's outline crosses the cone the shadow comes out partial, so its edge is graded instead of the staircase of the depth
+    // buffer's pixels, with or without a temporal pass to average it. 0 is one ray at the sun's centre, the hard edge.
+    float occluded = 0.0;
+    if (u_softness <= 0.0) {
+        occluded = marchOccluded(P, L, N, jitter, steps, slack, lift, size);
+    } else {
+        vec3 T = normalize(abs(L.y) < 0.99 ? cross(L, vec3(0.0, 1.0, 0.0)) : cross(L, vec3(1.0, 0.0, 0.0)));
+        vec3 B = cross(L, T);
+        float spread = tan(radians(min(u_softness, 20.0)));
+        float turn = ign(gl_FragCoord.yx + 17.0) * 6.2831853;
+        for (int r = 0; r < CONTACT_SOFT_RAYS; ++r) {
+            float a = turn + float(r) * (6.2831853 / float(CONTACT_SOFT_RAYS));
+            vec3 Lr = normalize(L + spread * (cos(a) * T + sin(a) * B));
+            occluded += marchOccluded(P, Lr, N, fract(jitter + float(r) / float(CONTACT_SOFT_RAYS)), steps, slack, lift, size);
+        }
+        occluded /= float(CONTACT_SOFT_RAYS);
     }
     fragColor = vec4(src.rgb * (1.0 - u_intensity * occluded * facing * near), src.a);
 }
