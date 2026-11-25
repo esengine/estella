@@ -573,6 +573,12 @@ float behindAt(vec3 P, vec3 L, float t, ivec2 size) {
     return q.w - (u_projection * vec4(worldAt(tx, size), 1.0)).w;
 }
 
+// The surface the picture shows where the point at distance t along the ray falls: the one behindAt measured against.
+vec3 surfaceAt(vec3 P, vec3 L, float t, ivec2 size) {
+    vec4 q = u_projection * vec4(P + L * t, 1.0);
+    return worldAt(screenTexel(q.xy / q.w * 0.5 + 0.5, size), size);
+}
+
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
@@ -609,6 +615,11 @@ void main() {
     if (dot(N, viewDirection(P)) < 0.0) N = -N;
     float facing = smoothstep(0.02, 0.25, dot(N, L));
     if (facing <= 0.0) { fragColor = src; return; }
+    // What stands between a point and the sun stands above the plane the point lies in, on the side the sun is. A ray leaving a
+    // rounded thing toward the sun goes behind the thing's own near side as the picture sees it (an arm, a leg, a post thinner
+    // than u_thickness): that surface lies below the plane, and a convex thing does not shadow the side of it that faces the
+    // light. Counted, it laid a stripe along every facet of a curved surface lit from behind.
+    float lift = slack + u_thickness * 0.04;
     // A different start offset every frame as well as every pixel, so what a temporal pass averages is the whole march and not one
     // fixed pattern of it.
     float jitter = ign(gl_FragCoord.xy + 5.588238 * float(int(u_time.x * 60.0) & 63));
@@ -631,6 +642,7 @@ void main() {
         if (behind == CONTACT_OFF_SCREEN) break;
         bool front = behind <= u_thickness * 0.08 + t * 0.01 + slack;
         bool deep = behind >= u_thickness;
+        if (!front && !deep && dot(surfaceAt(P, L, t, size) - P, N) <= lift) front = true;
         // A step lands somewhere past where the blocker begins; the middle of the step is the even guess, and varies half as
         // much with the jittered start as the landing does.
         if (!front && entered < 0.0) entered = max(t - 0.5 * u_length / steps, 0.0);
@@ -643,6 +655,7 @@ void main() {
                 float b = behindAt(P, L, mid, size);
                 bool midFront = b <= u_thickness * 0.08 + mid * 0.01 + slack;
                 bool midDeep = b >= u_thickness;
+                if (!midFront && !midDeep && dot(surfaceAt(P, L, mid, size) - P, N) <= lift) midFront = true;
                 if (!midFront && !midDeep) { blocked = true; break; }
                 if (midDeep == lastDeep) lo = mid; else hi = mid;
             }
