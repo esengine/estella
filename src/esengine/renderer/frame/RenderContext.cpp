@@ -62,6 +62,7 @@ void RenderContext::shutdown() {
         return;
     }
 
+    dynamicGI_.clear();
     for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_, &ripplesTexture_, &whiteArrayTexture_,
                              &blackArrayTexture_, &flatNormalArrayTexture_}) {
         if (*tex != TextureHandle::Invalid) {

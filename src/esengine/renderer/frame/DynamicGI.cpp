@@ -12,19 +12,6 @@
 
 namespace esengine {
 
-DynamicGIScene& dynamicGIScene() {
-    static DynamicGIScene scene;
-    return scene;
-}
-
-namespace {
-DynamicGIStats g_stats;
-}
-
-const DynamicGIStats& dynamicGIStats() {
-    return g_stats;
-}
-
 namespace {
 
 constexpr u32 kInstanceVec4 = 20;
@@ -777,7 +764,7 @@ bool DynamicGI::ensure() {
 }
 
 bool DynamicGI::upload() {
-    DynamicGIScene& s = dynamicGIScene();
+    DynamicGIScene& s = context_.dynamicGI().scene;
     if (s.header.size() < kHeaderSize || s.sdf.empty() || s.instances.empty() || s.pixels.empty()) return false;
     if (s.version == uploadedVersion_) return true;
     // A camera moved: only the range of the field that was rewritten goes over. The cards, the instances and the light the cards hold stay as they
@@ -858,6 +845,10 @@ bool DynamicGI::ensureProbes(u32 tilesX, u32 tilesY) {
 
 rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg::ResourceId scene, const DynamicGIParams& params,
                                   u32 width, u32 height) {
+    if (context_.dynamicGI().scene.header.empty()) {
+        if (uploadedVersion_ != 0) release();
+        return input;
+    }
     if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
     if (!upload()) return input;
     if (params.skip & 8u) return input;  // measuring: nothing declared at all
@@ -878,7 +869,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
 
     // The frame's constants for every pass: the scene's header and the effect's parameters.
     const auto writeParams = [this, p]() {
-        const DynamicGIScene& s = dynamicGIScene();
+        const DynamicGIScene& s = context_.dynamicGI().scene;
         const std::vector<f32>& h = s.header;
         ParamsBlock b{};
         const u32 levels = std::clamp(static_cast<u32>(h[kLevels]), 1u, kMaxLevels);
@@ -934,9 +925,10 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
             const u32 slices = std::clamp(p.cardSlices, 1u, 4096u);
             const u32 chunk = (pixelCount_ + slices - 1) / slices;
             const u32 active = frame_ < 2 ? pixelCount_ : chunk;
-            g_stats.cardPixels = static_cast<f32>(pixelCount_);
-            g_stats.cardPixelsRelit = (p.skip & 1u) ? 0.0f : static_cast<f32>(active);
-            g_stats.cardRays = g_stats.cardPixelsRelit * 64.0f;
+            auto& stats = context_.dynamicGI().stats;
+            stats.cardPixels = static_cast<f32>(pixelCount_);
+            stats.cardPixelsRelit = (p.skip & 1u) ? 0.0f : static_cast<f32>(active);
+            stats.cardRays = stats.cardPixelsRelit * 64.0f;
             if (active == 0 || (p.skip & 1u)) return;
             device_.dispatchCompute(cardLight_, bindings, 6, std::min(active, 65535u), (active + 65534u) / 65535u);
         };
@@ -951,9 +943,10 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         pass.dependencies = {scene, lit};
         pass.write = probed;
         pass.execute = [this, &graph, scene, p](const rg::PassContext&) {
-            g_stats.probes = static_cast<f32>(probeTilesX_ * probeTilesY_);
-            g_stats.probeSpacing = static_cast<f32>(probeSpacing_);
-            g_stats.probeRays = (p.skip & 2u) ? 0.0f : g_stats.probes * 64.0f / static_cast<f32>(std::max(p.probeStride, 1u));
+            auto& stats = context_.dynamicGI().stats;
+            stats.probes = static_cast<f32>(probeTilesX_ * probeTilesY_);
+            stats.probeSpacing = static_cast<f32>(probeSpacing_);
+            stats.probeRays = (p.skip & 2u) ? 0.0f : stats.probes * 64.0f / static_cast<f32>(std::max(p.probeStride, 1u));
             if (p.skip & 2u) return;
             const TextureHandle depth = graph.depthTextureOf(scene);
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
@@ -1030,20 +1023,21 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         pass.write = result;
         pass.execute = [this, &graph, scene, p](const rg::PassContext& ctx) {
             // A pixel reads the scene, the depth, the G-buffer and the albedo, and from each of the four nearest probes two geometry texels and three of light.
-            g_stats.applyPixels = (p.skip & 4u) ? 0.0f : static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height);
+            auto& stats = context_.dynamicGI().stats;
+            stats.applyPixels = (p.skip & 4u) ? 0.0f : static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height);
             // Half resolution: a pixel reads the scene, the depth, the albedo and four gathered pixels, and a quarter of what a gathering pixel reads
             // (the depth, the G-buffer, and the probes as above).
-            g_stats.applyLoadsPerPixel = p.halfRes ? 3.0f + 4.0f + (2.0f + 4.0f * 5.0f) / 4.0f : 4.0f + 4.0f * 5.0f;
-            g_stats.width = static_cast<f32>(ctx.width);
-            g_stats.height = static_cast<f32>(ctx.height);
-            g_stats.forcedAttachmentBytes = static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height) * 12.0f;
-            g_stats.residentBytes = static_cast<f32>(sdfBytes_ + instanceBytes_ + pixelBytes_ + radianceBytes_)
+            stats.applyLoadsPerPixel = p.halfRes ? 3.0f + 4.0f + (2.0f + 4.0f * 5.0f) / 4.0f : 4.0f + 4.0f * 5.0f;
+            stats.width = static_cast<f32>(ctx.width);
+            stats.height = static_cast<f32>(ctx.height);
+            stats.forcedAttachmentBytes = static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height) * 12.0f;
+            stats.residentBytes = static_cast<f32>(sdfBytes_ + instanceBytes_ + pixelBytes_ + radianceBytes_)
                                     + static_cast<f32>(probeTilesX_) * static_cast<f32>(probeTilesY_) * (3.0f * 8.0f * 2.0f + 2.0f * 16.0f);
-            const DynamicGIScene& sc = dynamicGIScene();
-            g_stats.levels = sc.header.size() > kLevels ? sc.header[kLevels] : 0.0f;
-            g_stats.lights = sc.header.size() > kLights ? sc.header[kLights] : 0.0f;
-            g_stats.instances = sc.header.size() > kInstances ? sc.header[kInstances] : 0.0f;
-            g_stats.frame = static_cast<f32>(frame_);
+            const DynamicGIScene& sc = context_.dynamicGI().scene;
+            stats.levels = sc.header.size() > kLevels ? sc.header[kLevels] : 0.0f;
+            stats.lights = sc.header.size() > kLights ? sc.header[kLights] : 0.0f;
+            stats.instances = sc.header.size() > kInstances ? sc.header[kInstances] : 0.0f;
+            stats.frame = static_cast<f32>(frame_);
             if (p.skip & 4u) { ++frame_; return; }
             const TextureHandle depth = graph.depthTextureOf(scene);
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);

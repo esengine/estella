@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
+import { readImportJson, setImportMeta } from './importMeta';
 import { PNG } from 'pngjs';
 import type { PrefabData } from 'esengine';
 import { extractUuid } from '../../../sdk/src/asset/AssetRegistry';
@@ -12,14 +11,6 @@ import { META_EXT } from './contentPolicy';
 import { metaUuidOf } from './assetMeta';
 import { isPsdImageName, pixelSignature, type PsdLayerHistory, type PsdLayerRecord } from './psdLayerIdentity';
 import type { SourceFileLocation } from './sourceProducts';
-
-async function readJson(file: string): Promise<Record<string, unknown> | null> {
-    try { return JSON.parse(await readFile(file, 'utf8')); }
-    catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-        throw error;
-    }
-}
 
 function readHistory(raw: unknown, stem: string): PsdLayerHistory {
     const history = raw as PsdLayerHistory;
@@ -51,7 +42,7 @@ async function legacyTextureNames(dir: string, stem: string, names: string[]) {
         if (!sidecar.toLowerCase().endsWith(META_EXT)) continue;
         const name = sidecar.slice(0, -META_EXT.length);
         if (!isPsdImageName(name, stem)) continue;
-        const meta = await readJson(resolveInside(dir, sidecar, 'product directory'));
+        const meta = await readImportJson(resolveInside(dir, sidecar, 'product directory'));
         const uuid = extractUuid(meta?.uuid);
         if (uuid) byUuid.set(uuid, byUuid.has(uuid) ? undefined : name);
     }
@@ -113,7 +104,7 @@ export async function psdLayerContext(location: SourceFileLocation, stem: string
     const file = stem + '.esprefab';
     const sidecar = resolveInside(dir, file + META_EXT, 'product directory');
     const source = await metaUuidOf(location.absSource);
-    const meta = await readJson(sidecar);
+    const meta = await readImportJson(sidecar);
     if (typeof meta?.source === 'string' && meta.source.toLowerCase() !== source) {
         throw new Error(file + ' belongs to a different source asset');
     }
@@ -126,7 +117,7 @@ export async function psdLayerContext(location: SourceFileLocation, stem: string
     let previous: PsdLayerHistory | undefined;
     if (meta?.psdLayers !== undefined) previous = readHistory(meta.psdLayers, stem);
     else {
-        const prior = await readJson(resolveInside(dir, file, 'product directory'));
+        const prior = await readImportJson(resolveInside(dir, file, 'product directory'));
         if (prior) previous = await legacyHistory(prior, dir, location.destDir, stem, names);
     }
     const occupied = names.map(name => name.toLowerCase().endsWith(META_EXT) ? name.slice(0, -META_EXT.length) : name);
@@ -134,7 +125,7 @@ export async function psdLayerContext(location: SourceFileLocation, stem: string
     const reassigned: string[] = [];
     for (const row of [...(previous?.current ?? []), ...(previous?.retired ?? [])]) {
         if (!row.file || !existing.has(row.file.toLowerCase())) continue;
-        const image = await readJson(resolveInside(dir, row.file + META_EXT, 'product directory'));
+        const image = await readImportJson(resolveInside(dir, row.file + META_EXT, 'product directory'));
         if (row.fileUuid && (typeof image?.uuid !== 'string' || image.uuid.toLowerCase() !== row.fileUuid.toLowerCase())
             || typeof image?.source === 'string' && image.source.toLowerCase() !== source) {
             reassigned.push(row.file);
@@ -146,14 +137,5 @@ export async function psdLayerContext(location: SourceFileLocation, stem: string
 }
 
 export async function savePsdLayerHistory(absPrefab: string, history: PsdLayerHistory): Promise<void> {
-    const sidecar = absPrefab + META_EXT;
-    const meta = await readJson(sidecar);
-    if (!meta) throw new Error('Missing prefab sidecar: ' + sidecar);
-    if (!isDeepStrictEqual(meta.psdLayers, history)) {
-        const temp = path.join(path.dirname(sidecar), '.' + path.basename(sidecar) + '.' + randomUUID() + '.tmp');
-        try {
-            await writeFile(temp, JSON.stringify({ ...meta, psdLayers: history }, null, 2) + '\n', { flag: 'wx' });
-            await rename(temp, sidecar);
-        } finally { await rm(temp, { force: true }); }
-    }
+    return setImportMeta(absPrefab, meta => ({ ...meta, psdLayers: history }));
 }

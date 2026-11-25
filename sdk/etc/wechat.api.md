@@ -138,6 +138,7 @@ address: string | undefined
 compressedFormats: string[] | undefined
 contentHash: string | undefined
 labels: string[]
+meshGI: false | MeshGIRefs | undefined
 metadata: { atlas?: string; atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number; }; atlasPageWidth?: number; atlasPageHeight?: number; } | undefined
 pack: AssetPackRef | undefined
 path: string
@@ -1134,6 +1135,7 @@ ResourceDef<AssetsClass>
 @internal installProjectLocaleTables: (configured: readonly string[], discovered?: readonly string[]) => Promise<void>
 @internal isCurrentBindingLease: (type: string, ref: string, lease: AssetLease) => boolean
 @internal leaseForBinding: (scope: AssetScope, type: string, value: unknown) => AssetLease | undefined
+@internal meshGIForHandle: (handle: number) => MeshGIRefs | null
 @internal preparePrefab: (ref: string, overrides?: readonly PrefabOverride[]) => Promise<PreparedPrefab>
 @internal prepareProjectLocaleTables: (configured: readonly string[], discovered: readonly string[], scope: AssetScope, assertCurrent: () => void) => Promise<PreparedProjectLocaleTables>
 @internal publishedRegistryAssets: <T>(type: string) => T[]
@@ -1143,6 +1145,7 @@ ResourceDef<AssetsClass>
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string, owner?: AssetScope | null, scene?: AssetScope | null) => T | undefined
 @internal sceneAssetRef: (ref: string) => string | null
+@internal setMeshGIResolver: (resolve: (path: string) => MeshGIRefs | null) => void
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 @internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
 @internal takeTrackedAsset: (type: string, ref: string, scope: AssetScope) => boolean
@@ -6915,6 +6918,7 @@ number
 
 ## ManifestModel — class @experimental
 ```
+@internal meshGIFor: (ref: string) => MeshGIRefs | null
 @internal recordForRef: (ref: string) => ManifestRecord | undefined
 @internal sharesFile: (path: string) => boolean
 allAssets: () => AddressableManifestAsset[]

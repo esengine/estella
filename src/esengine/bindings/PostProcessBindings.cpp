@@ -7,7 +7,6 @@
 #include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/PostProcessPipeline.hpp"
-#include "../renderer/frame/DynamicGI.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
 #include "../renderer/draw/ImmediateDraw.hpp"
@@ -90,12 +89,18 @@ u32 postprocess_addNativePass(const std::string& name, const std::string& kind) 
 
 bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfCount, uintptr_t instancesPtr, u32 instanceCount,
                             uintptr_t pixelsPtr, u32 pixelCount) {
+    auto* renderer = g_renderContext;
+    if (!renderer) return false;
+    if (!headerPtr && !headerCount && !sdfPtr && !sdfCount && !instancesPtr && !instanceCount && !pixelsPtr && !pixelCount) {
+        renderer->dynamicGI().clear();
+        return true;
+    }
     const f32* header = boundarySpan<f32>(headerPtr, headerCount, "postprocess_setGIScene.header");
     const f32* sdf = boundarySpan<f32>(sdfPtr, sdfCount, "postprocess_setGIScene.sdf");
     const f32* instances = boundarySpan<f32>(instancesPtr, instanceCount, "postprocess_setGIScene.instances");
     const u32* pixels = boundarySpan<u32>(pixelsPtr, pixelCount, "postprocess_setGIScene.pixels");
     if (!header || !sdf || !instances || !pixels || headerCount < 22) return false;
-    DynamicGIScene& scene = dynamicGIScene();
+    DynamicGIScene& scene = renderer->dynamicGI().scene;
     scene.header.assign(header, header + headerCount);
     scene.sdf.assign(sdf, sdf + sdfCount);
     scene.instances.assign(instances, instances + instanceCount);
@@ -106,7 +111,9 @@ bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfP
 }
 
 bool postprocess_updateGIField(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfOffset, u32 sdfCount) {
-    DynamicGIScene& scene = dynamicGIScene();
+    auto* renderer = g_renderContext;
+    if (!renderer) return false;
+    DynamicGIScene& scene = renderer->dynamicGI().scene;
     if (scene.sdf.empty() || scene.header.size() < 22 || headerCount != scene.header.size() || static_cast<u64>(sdfOffset) + sdfCount > scene.sdf.size()) return false;
     const f32* header = boundarySpan<f32>(headerPtr, headerCount, "postprocess_updateGIField.header");
     const f32* sdf = boundarySpan<f32>(sdfPtr, sdfCount, "postprocess_updateGIField.sdf");
@@ -175,7 +182,9 @@ u32 postprocess_giStats(uintptr_t dst, u32 capacity) {
     if (capacity < kDynamicGIStatFloats) return 0;
     f32* out = boundarySpanMut<f32>(dst, kDynamicGIStatFloats, "postprocess_giStats.out");
     if (!out) return 0;
-    const DynamicGIStats& s = dynamicGIStats();
+    auto* renderer = g_renderContext;
+    const DynamicGIStats empty{};
+    const DynamicGIStats& s = renderer ? renderer->dynamicGI().stats : empty;
     const f32 v[kDynamicGIStatFloats] = {s.width, s.height, s.probeSpacing, s.probes, s.probeRays, s.cardPixels, s.cardPixelsRelit, s.cardRays,
                                          s.applyPixels, s.applyLoadsPerPixel, s.forcedAttachmentBytes, s.residentBytes, s.levels, s.lights, s.instances, s.frame};
     std::memcpy(out, v, sizeof(v));

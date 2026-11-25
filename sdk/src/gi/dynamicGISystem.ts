@@ -6,7 +6,7 @@
  *
  * @details Runs only while a PostProcessVolume carries an enabled `dynamicGI` effect. A MeshRenderer whose mesh is the built-in cube is a box of
  *          its world scale, with its colour and the emissive colour of its material, and needs no baked file (analyticBox). Any other mesh is the
- *          `.esmeshsdf` and `.esmeshcards` the import wrote beside it (the `dynamicGI` import setting), placed with the entity's transform; a
+ *          distance field and surface cards bound to it (the `dynamicGI` import setting), placed with the entity's transform; a
  *          mesh without them is not in the GI's scene. The sun is the first enabled directional light.
  *
  *          Composition is JavaScript work on the cells the instances touch and runs when the scene changes (a key of the instances'
@@ -26,11 +26,12 @@ import { Material } from '../render/material';
 import { PostProcess } from '../postprocess/PostProcessAPI';
 import { instanceBounds, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
-import { buildInstances, instanceKey, type GIEntry, type GISidecars } from './giInstances';
+import { buildInstances, instanceKey, type GIEntry } from './giInstances';
 import type { PointLight } from './surfaceCache';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
-import type { MeshSdf } from './meshSdfFormat';
-import type { MeshCards } from './cardFormat';
+import { MeshGIBakes } from './meshGIBakes';
+import type { AssetsData } from '../asset/AssetPlugin';
+import type { AssetLease } from '../asset/AssetLease';
 import { qualitySettingDefaults } from '../render/qualitySettings/index';
 
 export { buildInstances, instanceKey, type GIEntry, type GISidecars } from './giInstances';
@@ -68,12 +69,6 @@ export function emissiveOf(material: number): [number, number, number] {
     return [o.x ?? o.r ?? 0, o.y ?? o.g ?? 0, o.z ?? o.b ?? 0];
 }
 
-type Loader = {
-    loadTyped?(type: string, ref: string): Promise<unknown>;
-    pathForHandle?(kind: string, handle: number): string | null;
-    catalog?: { addressOf?(path: string): string | null };
-};
-
 /**
  * Gives the engine a packed scene, and records what the rebuild behind it cost (for tools/gi/measure-camera-move.mjs): the milliseconds of the
  * boxes, of the field and of the pack, then the hand-over's own. Said to the device log every 8 rebuilds, where that is the only place to read it.
@@ -82,32 +77,31 @@ type Loader = {
  * finest is nearly all there is to send), by the range of the field they fill: the engine leaves the cards and the light on them alone.
  */
 function sendScene(m: NonNullable<ReturnType<typeof marshallingCore>>, field: { sdf: GlobalSdf; sent: number[] | null }, scene: GPUScene,
-    full: boolean, [instancesMs, fieldMs, packMs]: [number, number, number]): void {
+    full: boolean, [instancesMs, fieldMs, packMs]: [number, number, number]): boolean {
     const t = performance.now();
     const levels = field.sdf.levels.slice(0, 3);
-    withScratch(m, (alloc) => {
+    const accepted = withScratch(m, (alloc) => {
         const put = (data: ArrayBufferView): number => {
             const ptr = alloc(data.byteLength);
             m.HEAPU8.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), ptr);
             return ptr;
         };
-        if (full || !field.sent || !m.postprocess_updateGIField) {
-            m.postprocess_setGIScene!(put(scene.header), scene.header.length, put(scene.sdf), scene.sdf.length,
-                put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
-            return;
-        }
-        let at = 0, sent = 0;
         const headerPtr = put(scene.header);
-        levels.forEach((l, k) => {
-            if (field.sent![k] !== l.version) {
-                m.postprocess_updateGIField!(headerPtr, scene.header.length, put(scene.sdf.subarray(at, at + l.storage.length)), at, l.storage.length);
-                sent++;
+        const sendAll = () => m.postprocess_setGIScene!(headerPtr, scene.header.length, put(scene.sdf), scene.sdf.length,
+            put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
+        if (full || !field.sent || !m.postprocess_updateGIField) return sendAll();
+        let at = 0, sent = false;
+        for (const [index, level] of levels.entries()) {
+            if (field.sent[index] !== level.version) {
+                const part = scene.sdf.subarray(at, at + level.storage.length);
+                if (!m.postprocess_updateGIField(headerPtr, scene.header.length, put(part), at, part.length)) return sendAll();
+                sent = true;
             }
-            at += l.storage.length;
-        });
-        // Nothing of the field changed (the light did): the header alone.
-        if (sent === 0) m.postprocess_updateGIField!(headerPtr, scene.header.length, headerPtr, 0, 0);
+            at += level.storage.length;
+        }
+        return sent || m.postprocess_updateGIField(headerPtr, scene.header.length, headerPtr, 0, 0) || sendAll();
     });
+    if (!accepted) return false;
     field.sent = levels.map((l) => l.version);
     const record = ((globalThis as { __estellaGIBuild?: { ms: number[][] } }).__estellaGIBuild ??= { ms: [] });
     record.ms.push([instancesMs, fieldMs, packMs, performance.now() - t, scene.sdf.byteLength / 1048576]);
@@ -116,33 +110,40 @@ function sendScene(m: NonNullable<ReturnType<typeof marshallingCore>>, field: { 
         const totals = record.ms.slice(-8).map((r) => r[0]! + r[1]! + r[2]! + r[3]!).sort((x, y) => x - y);
         console.log(`[gi] last 8 rebuilds: median ${totals[4]!.toFixed(1)} ms, worst ${totals[7]!.toFixed(1)} ms (${scene.sdf.byteLength >> 20} MB of field)`);
     }
+    return true;
 }
 
 const HIGHEST_LEVEL = qualitySettingDefaults('high');
 const AUTHORED_FIELD_SIZE = 128;
 
 export function dynamicGISystem(app: App) {
-    let cube = 0, loading = false, lastKey = '';
+    let cube = 0, loading = false, lastKey = '', submitted = false;
+    let owner: AssetsData | null = null, generation = 0;
+    let cubeLease: AssetLease<{ handle: number }> | null = null;
+    const bakes = new MeshGIBakes();
     // The field that follows the camera, kept between frames so that a camera that moves rebuilds only the slabs that came into view.
     let field: { sdf: GlobalSdf; sceneKey: string; cell: number; dim: number; sent: number[] | null } | null = null;
     let built: { sceneKey: string; instances: GIInstance[] } | null = null;
     // A camera that moved while the field is still being rebuilt for the last move: what is waiting to be packed and sent when it is done.
     let waiting: { instances: GIInstance[]; light: GILight | null; lights: PointLight[]; work: number; full: boolean; build: number } | null = null;
-    // The baked files beside a mesh, by its path: null while loading and for a mesh that has none.
-    const sidecars = new Map<string, GISidecars | null>();
-    const request = (path: string): void => {
-        if (sidecars.has(path) || !app.hasResource(Assets)) return;
-        sidecars.set(path, null);
-        const assets = app.getResource(Assets) as unknown as Loader;
-        // A packaged build renames every asset to its hash; the files beside the mesh are named from where it was authored.
-        const authored = assets.catalog?.addressOf?.(path) ?? path;
-        const base = authored.replace(/\.esmesh$/, '');
-        if (!assets.loadTyped || base === authored) return;
-        void Promise.all([assets.loadTyped('meshSdf', `${base}.esmeshsdf`), assets.loadTyped('meshCards', `${base}.esmeshcards`)]).then(
-            ([sdf, cards]) => { sidecars.set(path, { sdf: sdf as MeshSdf, cards: cards as MeshCards }); lastKey = ''; },
-            () => { /* a mesh with no baked files is simply not in the scene */ });
+    const core = () => marshallingCore(app.wasmModule ?? nativeEngineApi());
+    const withdraw = (): void => {
+        if (submitted) core()?.postprocess_setGIScene?.(0, 0, 0, 0, 0, 0, 0, 0);
+        submitted = false;
+        lastKey = '';
+        field = built = waiting = null;
     };
-    return defineSystem(
+    const dispose = (): void => {
+        withdraw();
+        bakes.clear();
+        owner = null;
+        generation++;
+        cubeLease?.release();
+        cubeLease = null;
+        cube = 0;
+        loading = false;
+    };
+    const system = defineSystem(
         [Query(MeshRenderer, Transform), Query(Light, Transform), Query(PostProcessVolume), Query(Camera, Transform)],
         (meshes: Iterable<[Entity, MeshRendererData, TransformData]>, lights: Iterable<[Entity, LightData, TransformData]>,
          volumes: Iterable<[Entity, PostProcessVolumeData]>, cameras: Iterable<[Entity, CameraData, TransformData]>) => {
@@ -162,15 +163,23 @@ export function dynamicGISystem(app: App) {
             const level = post?.levelValues ?? HIGHEST_LEVEL;
             const dim = level.dynamicGIFieldSize;
             const budget = level.dynamicGIFieldBuildMs;
-            if (!effect || !allowed) { lastKey = ''; field = null; waiting = null; return; }
-            // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.
-            const m = marshallingCore(app.wasmModule ?? nativeEngineApi());
-            if (!m?.postprocess_setGIScene) return;
+            const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
+            if (owner !== assets || !effect || !allowed) {
+                if (owner) dispose();
+                if (!assets || !effect || !allowed) return;
+                owner = assets;
+            }
+            const m = core();
+            if (!assets || !m?.postprocess_setGIScene) return;
             if (cube === 0) {
-                if (!loading && app.hasResource(Assets)) {
+                if (!loading) {
                     loading = true;
-                    const assets = app.getResource(Assets) as unknown as { loadTyped?(type: string, ref: string): Promise<{ handle: number }> };
-                    void assets.loadTyped?.('mesh', 'builtin:cube').then((r) => { cube = r.handle; }, () => { loading = false; });
+                    const requested = generation;
+                    void assets.acquireTyped<{ handle: number }>('mesh', 'builtin:cube').then(lease => {
+                        if (requested !== generation) { lease.release(); return; }
+                        cubeLease = lease;
+                        cube = lease.value.handle;
+                    }, () => { if (requested === generation) loading = false; });
                 }
                 return;
             }
@@ -190,18 +199,17 @@ export function dynamicGISystem(app: App) {
             // The lights that matter are the ones nearest the eye: only a handful fit.
             if (eye && point.length > 8) point.sort((a, b) => Math.hypot(a.position[0] - eye![0], a.position[1] - eye![1], a.position[2] - eye![2]) - Math.hypot(b.position[0] - eye![0], b.position[1] - eye![1], b.position[2] - eye![2]));
             const lightKey = point.slice(0, 8).map((l) => `${l.position.map((v) => v.toFixed(2)).join(',')};${l.radiance.join(',')};${l.reach};${l.innerRadius};${l.falloff};${l.metre ?? 0};${l.spot ? l.spot.axis.map((v) => v.toFixed(3)).join(',') + l.spot.innerCos + l.spot.outerCos : ''}`).join('|');
-            const assets = app.hasResource(Assets) ? app.getResource(Assets) as unknown as Loader : null;
+            bakes.begin(assets);
             const entries: GIEntry[] = [];
             for (const [, r, t] of meshes) {
                 if (!r.enabled) continue;
-                let path: string | null = null;
-                if (r.mesh !== cube && r.mesh !== 0) {
-                    path = assets?.pathForHandle?.('mesh', r.mesh) ?? null;
-                    if (path) request(path);
-                }
+                const path = r.mesh && r.mesh !== cube ? bakes.use(r.mesh) : null;
                 entries.push({ mesh: r.mesh, transform: t, colour: [r.color.r, r.color.g, r.color.b], emissive: emissiveOf(r.material), path });
             }
-            const sceneKey = instanceKey(entries, cube, (p) => sidecars.get(p) ?? null);
+            bakes.end();
+            const instancesKey = instanceKey(entries, cube, p => bakes.get(p));
+            if (!instancesKey) { withdraw(); return; }
+            const sceneKey = instancesKey + '#' + bakes.revision;
             // A cell size asks for the field that follows the eye: three levels, each four times the last, around the camera. Without one the
             // field is a single window that holds the whole scene.
             const following = effect.cellSize > 0 && eye !== null;
@@ -211,7 +219,7 @@ export function dynamicGISystem(app: App) {
             const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + '#' + dim + eyeKey;
             // The rebuild a camera move asked for goes on a few milliseconds a frame, and is handed to the engine when it is whole: until then
             // the engine traces the field as it was, which is a window a little behind the eye and nothing worse.
-            if (field && waiting) {
+            if (field?.sceneKey === sceneKey && waiting) {
                 const ts = performance.now();
                 const finished = field.sdf.step(waiting.full ? budget * 4 : budget);
                 waiting.work += performance.now() - ts;
@@ -220,14 +228,17 @@ export function dynamicGISystem(app: App) {
                     waiting = null;
                     const tPack = performance.now();
                     const done = packGPUScene(w.instances, w.light, { sdf: field.sdf, lights: w.lights });
-                    if (done) sendScene(m, field, done, w.full, [w.build, w.work, performance.now() - tPack]);
+                    if (done) {
+                        if (sendScene(m, field, done, w.full, [w.build, w.work, performance.now() - tPack])) submitted = true;
+                        else waiting = w;
+                    }
                 }
             }
-            if (key === lastKey || sceneKey === '') return;
+            if (key === lastKey) return;
             lastKey = key;
             const t0 = performance.now();
             // The boxes are built when the scene changes, not when only the eye did: a camera that walks changes the key every few steps.
-            if (!built || built.sceneKey !== sceneKey) built = { sceneKey, instances: buildInstances(entries, cube, (p) => sidecars.get(p) ?? null).instances };
+            if (!built || built.sceneKey !== sceneKey) built = { sceneKey, instances: buildInstances(entries, cube, p => bakes.get(p)).instances };
             const instances = built.instances;
             if (instances.length === 0) return;
             const cell = following ? effect.cellSize * coarser : 0;
@@ -255,4 +266,5 @@ export function dynamicGISystem(app: App) {
         },
         { name: 'DynamicGISystem', runWhenPaused: true },
     );
+    return { system, dispose };
 }

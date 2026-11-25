@@ -189,6 +189,21 @@ void testGpuParticleReset() {
 }  // namespace
 
 int main() {
+    {
+        MockGfxDevice device;
+        RenderContext edit(device), play(device);
+        auto& a = edit.dynamicGI();
+        auto& b = play.dynamicGI();
+        a.scene.sdf = {1.0f};
+        b.scene.sdf = {3.0f};
+        a.stats.instances = b.stats.instances = 1;
+        const u32 previous = a.scene.version;
+        a.clear();
+        CHECK(a.scene.sdf.empty() && a.stats.instances == 0 && a.scene.version != previous,
+              "withdrawing an edit world clears its lighting and invalidates its GPU copy");
+        CHECK(b.scene.sdf.size() == 1 && b.scene.sdf.front() == 3.0f && b.stats.instances == 1,
+              "a playing world keeps its own field and counters");
+    }
 #ifdef ES_ENABLE_GPU_PARTICLES
     testGpuParticleReset();
 #endif

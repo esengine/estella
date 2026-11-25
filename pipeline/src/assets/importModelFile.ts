@@ -25,9 +25,7 @@ import {
     trimClipLeadIn,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
-import { bakeMeshSdf, encodeMeshSdf } from './meshSdf';
-import { bakeMeshCards } from './meshCards';
-import { encodeMeshCards } from '../../../sdk/src/gi/cardFormat';
+import { modelGIProducts } from './modelGIProducts';
 import { parseManifest } from '../project/format';
 
 export interface ModelImportSettings {
@@ -47,7 +45,7 @@ export interface ModelImportSettings {
      * `steady` at one rate (a loop), `path` along the joint's own course (a clip whose pace changes). Off leaves it.
      */
     rootMotion: 'off' | 'steady' | 'path';
-    /** Bake what the dynamic GI reads of each mesh: its distance field (`<name>.esmeshsdf`) and its surface cards (`<name>.esmeshcards`). */
+    /** Bake the distance field and surface cards used for dynamic lighting of each static mesh. */
     dynamicGI: boolean;
     /** Joints one skinned vertex may be moved by, 1..4; 0 takes the project's (Project Settings, Rendering, Skinning). */
     boneInfluenceLimit: number;
@@ -218,9 +216,12 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const imageSettings = new Map<string, Record<string, unknown>>(
         [...importedImageSettings(meshes)].map(([file, { settings }]) => [file, { ...settings }]));
 
-    const { absDir, products, write: writeProduct } = await sourceProductWriter(opts);
-    const write = async (name: string, bytes: Uint8Array | string, detail?: string): Promise<string> => {
-        const rel = await writeProduct(name, bytes, abs => adoptOrphan(abs, imageSettings.get(name)));
+    const writer = await sourceProductWriter(opts);
+    const { absDir, products } = writer;
+    const unitsPerMeter = projectUnitsPerMeter(projectRoot);
+    const gi = await modelGIProducts(opts, writer, unitsPerMeter / Math.max(scale, 1e-6), dynamicGI, opts.onProduct);
+    const write = async (name: string, bytes: Uint8Array | string, detail?: string, settle?: (abs: string) => Promise<unknown>): Promise<string> => {
+        const rel = await writer.write(name, bytes, settle ?? (abs => adoptOrphan(abs, imageSettings.get(name))));
         opts.onProduct?.(rel, detail ?? `${bytes.length} bytes`);
         return rel;
     };
@@ -286,6 +287,10 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
             length.writeUInt32LE(part.byteLength);
             hash.update(length).update(part);
         }
+        // A different baked albedo or emission belongs to a different logical mesh, even when the cooked geometry shares bytes.
+        if (dynamicGI && !mesh.data.inverseBindMatrices && !mesh.data.morph) {
+            hash.update(JSON.stringify([mesh.material?.baseColor.slice(0, 3) ?? [1, 1, 1], mesh.material?.emissive ?? [0, 0, 0]]));
+        }
         const signature = hash.digest('hex');
         const previous = geometryProducts.get(signature);
         const name = previous ?? mesh.name;
@@ -296,20 +301,11 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         // first imported before sharing was supported. New imports write only the
         // canonical product; the prefab always references it, including its LODs.
         if (previous === undefined || existsSync(path.join(absDir, `${mesh.name}.esmesh`))) {
-            await write(`${mesh.name}.esmesh`, bytes, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
+            const file = mesh.name + '.esmesh';
+            await write(file, bytes, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`, gi.bind(file, mesh));
             for (const [i, lodBytes] of levels.entries()) {
-                await write(`${lodName(mesh, i + 1)}.esmesh`, lodBytes, `LOD ${i + 1}: ${mesh.lods![i]!.triangleCount} triangles`);
-            }
-            // A skinned or morphing mesh moves its surface: a field baked from the bind pose would be a wrong wall.
-            if (dynamicGI && !mesh.data.inverseBindMatrices && !mesh.data.morph) {
-                const field = bakeMeshSdf(mesh.data, { cellSize: (0.1 * projectUnitsPerMeter(projectRoot)) / Math.max(scale, 1e-6) });
-                if (field) await write(`${mesh.name}.esmeshsdf`, encodeMeshSdf(field));
-                const m = mesh.material;
-                const cards = bakeMeshCards(mesh.data, {
-                    cell: (0.25 * projectUnitsPerMeter(projectRoot)) / Math.max(scale, 1e-6),
-                    baseColor: m ? [m.baseColor[0], m.baseColor[1], m.baseColor[2]] : undefined, emissive: m?.emissive,
-                });
-                if (cards) await write(`${mesh.name}.esmeshcards`, encodeMeshCards(cards));
+                const level = lodName(mesh, i + 1) + '.esmesh';
+                await write(level, lodBytes, `LOD ${i + 1}: ${mesh.lods![i]!.triangleCount} triangles`, gi.bind(level));
             }
         }
     }
@@ -341,7 +337,6 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         // Physics → 3D: 100 unless set, 1 in a metre project). Under 8 cm in real terms, it is almost always a model whose Scale does not
         // match the project — said, not guessed at: the scale is the user's, and this is where they find out they have one.
         const extent = Math.max(...meshes.flatMap((m) => m.data.aabbMax.map((v, i) => v - (m.data.aabbMin[i] ?? 0))));
-        const unitsPerMeter = projectUnitsPerMeter(projectRoot);
         const metres = (extent * scale) / unitsPerMeter;
         if (metres < 0.08 && scale !== unitsPerMeter) {
             warnings.push(`the model is ${metres.toFixed(3)} m across in this project (${unitsPerMeter} units a metre) — `
@@ -349,6 +344,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         }
     }
 
+    await gi.finish();
     const nodeMeshes = new Map<string, string[]>();
     collectNodeMeshes(nodes, meshFiles, nodeMeshes);
     return { products, warnings, stem, prefab: prefabRef, nodeMeshes, clips };

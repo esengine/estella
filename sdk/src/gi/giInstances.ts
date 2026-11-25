@@ -33,7 +33,7 @@ export interface GIEntry {
     transform: GIPose;
     colour: readonly [number, number, number];
     emissive: readonly [number, number, number];
-    /** The asset path of the mesh, where it has one (a built-in cube has none the GI needs). */
+    /** Lookup key for the complete bake bound to this mesh. An analytic cube needs none. */
     path: string | null;
 }
 
@@ -41,7 +41,7 @@ export interface GISidecars { sdf: MeshSdf; cards: MeshCards }
 
 /**
  * The instances of the GI scene from the renderers: a built-in cube is a box of its world scale (with its colour and emission); any other
- * mesh is the baked `.esmeshsdf` and `.esmeshcards` beside it, when it has them and is scaled the same along every axis (a distance field
+ * mesh uses its bound distance field and surface cards when it has both and is scaled the same along every axis (a distance field
  * does not survive a stretch). Everything else is not in the GI scene.
  */
 function poseKey(e: GIEntry): string {

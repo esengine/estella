@@ -4,6 +4,7 @@ import type { AddressableAssetType } from '../assetTypes';
 import type { ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
+import { resolveMeshGI, type MeshGIRefs } from '../gi/meshGIAssets';
 import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
@@ -100,6 +101,8 @@ export interface AddressableManifestAsset {
      * after a skeleton was re-pointed at another atlas.
      */
     spineImport?: SpineManifestContract;
+    /** Active distance field and surface cards by record key. Legacy meshes can discover siblings when this is absent. */
+    meshGI?: MeshGIRefs | false;
     /**
      * Present when the export packed this asset with others into one file, which
      * a network build fetches once instead of one request per asset: `path` then
@@ -296,6 +299,16 @@ export class ManifestModel {
      */
     textureImportLookup(): (ref: string) => ParsedTextureImportSettings | undefined {
         return ref => this.recordForRef(ref)?.asset.textureImport;
+    }
+
+    /** @internal Resolve the pair from the same logical mesh record that produced a renderer's handle. */
+    meshGIFor(ref: string): MeshGIRefs | null {
+        const mesh = this.recordForRef(ref)?.asset;
+        if (mesh?.type !== 'mesh') return null;
+        return resolveMeshGI(mesh.address ?? mesh.path, mesh.meshGI, (name, type) => {
+            const record = this.recordForRef(name);
+            return record?.asset.type === type ? UUID_REF_PREFIX + record.key : undefined;
+        });
     }
 
     /**

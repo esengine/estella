@@ -78,6 +78,8 @@ export class PostProcessPlugin implements Plugin {
     /** Each App's own: the plugin is one object, and an editor holds several apps (the edit world, a game playing). */
     private readonly skies_ = new WeakMap<App, SkyEnvironment>();
 
+    private readonly releaseGI_ = new WeakMap<App, () => void>();
+
     build(app: App): void {
         // Per-App post-process API, injected into the render pipeline as an
         // optional stage (the pipeline has no hard dependency on it).
@@ -112,12 +114,16 @@ export class PostProcessPlugin implements Plugin {
             captureFace: api.levelValues.probeCaptureSize,
             reflectionFace: api.levelValues.environmentMapSize,
         })));
-        app.addSystemToSchedule(Schedule.PostUpdate, dynamicGISystem(app));
+        const gi = dynamicGISystem(app);
+        this.releaseGI_.set(app, gi.dispose);
+        app.addSystemToSchedule(Schedule.PostUpdate, gi.system);
     }
 
     cleanup(app?: App): void {
         resetWeatherSystem();
         if (app) {
+            this.releaseGI_.get(app)?.();
+            this.releaseGI_.delete(app);
             this.skies_.get(app)?.release(app.wasmModule);
             this.skies_.delete(app);
         }

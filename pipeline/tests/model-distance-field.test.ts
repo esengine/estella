@@ -3,12 +3,14 @@
 /**
  * @file  A model imported with `dynamicGI` on gets a `.esmeshsdf` and `.esmeshcards` beside each mesh; without it, none.
  */
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { importModelFile } from '../src/assets/importModelFile';
 import { decodeMeshSdf, sampleMeshSdf } from '../src/assets/meshSdf';
+import { scanAssetDatabase, updateAssetIndex } from '../src/assets/assetDb';
+import { adoptOrphan } from '../src/assets/assetMeta';
 import { decodeMeshCards } from '../../sdk/src/gi/cardFormat';
 
 /** A cube of half extent 50 (units), glTF with outward winding. */
@@ -48,7 +50,8 @@ describe('importing a model with a distance field', () => {
         mkdirSync(dir, { recursive: true });
         writeFileSync(path.join(dir, 'cube.gltf'), cubeGltf());
         const result = await importModelFile({ root, destDir: 'assets/models', absSource: path.join(dir, 'cube.gltf'), settings: { dynamicGI } });
-        return { result, dir, files: readdirSync(dir) };
+        return { root, result, dir, files: readdirSync(dir),
+            convert: (on: boolean) => importModelFile({ root, destDir: 'assets/models', absSource: path.join(dir, 'cube.gltf'), settings: { dynamicGI: on } }) };
     }
 
     it('writes a field that measures the mesh it sits beside', async () => {
@@ -68,4 +71,58 @@ describe('importing a model with a distance field', () => {
         const { files } = await run(false);
         expect(files.some((f) => f.endsWith('.esmeshsdf') || f.endsWith('.esmeshcards'))).toBe(false);
     });
+    it('withdraws a bake on reimport while explicit users of its UUIDs keep their bytes and labels', async () => {
+        const { root, dir, files, convert } = await run(true);
+        const mesh = files.find(p => p.endsWith('.esmesh'))!, sdf = files.find(p => p.endsWith('.esmeshsdf'))!;
+        const cards = files.find(p => p.endsWith('.esmeshcards'))!;
+        const file = (name: string) => path.join(dir, name);
+        const meta = (name: string) => JSON.parse(readFileSync(file(name + '.meta'), 'utf8'));
+        const before = meta(mesh), binding = before.importer.meshGI;
+        const field = meta(sdf), original = readFileSync(file(sdf));
+        expect(binding).toEqual({ sdf: '@uuid:' + field.uuid, cards: '@uuid:' + meta(cards).uuid });
+        writeFileSync(file(sdf + '.meta'), JSON.stringify({ ...field, labels: ['manual'] }));
+        writeFileSync(file('table.json'), JSON.stringify({ field: binding.sdf }));
+        await adoptOrphan(file('table.json'));
+        const active = (await scanAssetDatabase(root)).index;
+        expect(active.deps[before.uuid]).toEqual([field.uuid, meta(cards).uuid].sort());
+
+        await convert(false);
+        const removed = await updateAssetIndex(root, active, [mesh, sdf, cards].map(p => 'assets/models/' + p + '.meta'));
+        expect(removed.index.deps).toEqual((await scanAssetDatabase(root)).index.deps);
+        expect(removed.index.deps[before.uuid]).toBeUndefined();
+        expect(removed.index.deps[meta('table.json').uuid]).toContain(field.uuid);
+        expect(meta(sdf).source).toBeUndefined();
+        expect(readFileSync(file(sdf))).toEqual(original);
+        expect(meta(mesh).importer.meshGI).toEqual({ ...binding, active: false });
+
+        for (const tail of ['', '.meta']) renameSync(file(sdf + tail), file('renamed.esmeshsdf' + tail));
+        writeFileSync(file(sdf), 'artist-owned');
+        await adoptOrphan(file(sdf));
+        await convert(true);
+        expect(meta(mesh).importer.meshGI).toEqual(binding);
+        expect(meta('renamed.esmeshsdf')).toMatchObject({ uuid: field.uuid, source: field.source, labels: ['manual'] });
+        expect(readFileSync(file(sdf), 'utf8')).toBe('artist-owned');
+        expect((await scanAssetDatabase(root)).index.deps[before.uuid]).toEqual(active.deps[before.uuid]);
+    });
+
+    it('retries a standalone bake after the first file was written without overwriting an artist file', async () => {
+        const { dir, files } = await run(false);
+        const output = mkdtempSync(path.join(tmpdir(), 'standalone-bake-'));
+        roots.push(output);
+        const sdf = files.find(p => p.endsWith('.esmesh'))!.replace(/\.esmesh$/, '.esmeshsdf');
+        writeFileSync(path.join(output, sdf), 'kept');
+        const options = { root: output, destDir: '', absSource: path.join(dir, 'cube.gltf'), settings: { dynamicGI: true } };
+        await expect(importModelFile({ ...options, beforeWrite(name) {
+            if (name.endsWith('.esmeshcards')) throw new Error('interrupted');
+        } })).rejects.toThrow('interrupted');
+        const first = readdirSync(output).find(p => p !== sdf && p.endsWith('.esmeshsdf'))!;
+        const identity = () => JSON.parse(readFileSync(path.join(output, first + '.meta'), 'utf8')).uuid;
+        const uuid = identity();
+        await importModelFile(options);
+        await importModelFile(options);
+        expect(identity()).toBe(uuid);
+        expect(readdirSync(output).filter(p => p.endsWith('.esmeshsdf')).sort()).toEqual([first, sdf].sort());
+        expect(readFileSync(path.join(output, sdf), 'utf8')).toBe('kept');
+    });
+
 });

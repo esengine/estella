@@ -29,6 +29,7 @@
 #include "../store/MaterialStore.hpp"
 #include "../rhi/Shader.hpp"
 #include "./QualityValues.hpp"
+#include "./DynamicGIState.hpp"
 
 // Third-party
 #include <glm/glm.hpp>
@@ -65,6 +66,8 @@ public:
     explicit RenderContext(GfxDevice& device);
     RenderContext() = delete;
     ~RenderContext();
+
+    DynamicGIState& dynamicGI() { return dynamicGI_; }
 
     // Non-copyable
     RenderContext(const RenderContext&) = delete;
@@ -235,6 +238,7 @@ public:
     const ReflectionStore& reflections() const { return reflections_; }
 
 private:
+    DynamicGIState dynamicGI_;
     void initDefaultTextures();
     TextureHandle make1x1Texture(u32 rgba, u32 layers = 1);
     TextureHandle makeRipplesTexture();

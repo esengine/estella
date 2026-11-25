@@ -76,6 +76,7 @@ import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
 import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+import { siblingMeshGIRefs, type MeshGIRefs } from '../gi/meshGIAssets';
 import type { AssetRefCounter } from './AssetRefCounter';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -1012,6 +1013,25 @@ export class Assets {
     pathForHandle(kind: string, handle: number): string | null {
         const path = this.handlePaths_.get(kind)?.get(handle);
         return path === undefined ? null : bindingFile(path);
+    }
+
+    private meshGIResolver_?: (path: string) => MeshGIRefs | null;
+
+    /** @internal Project index used by the edit viewport for loose meshes. */
+    setMeshGIResolver(resolve: (path: string) => MeshGIRefs | null): void { this.meshGIResolver_ = resolve; }
+
+    /** @internal GI belongs to the placed logical mesh even when two mesh records ship identical geometry. */
+    meshGIForHandle(handle: number): MeshGIRefs | null {
+        const key = this.handlePaths_.get('mesh')?.get(handle);
+        if (!key) return null;
+        const file = bindingFile(key);
+        if (this.manifestModel_) {
+            const logical = bindingRecord(key);
+            if (logical) return this.manifestModel_.meshGIFor(logical);
+            const record = this.manifestRecord_(file);
+            return record && !this.manifestModel_.sharesFile(record.asset.path) ? this.manifestModel_.meshGIFor(record.key) : null;
+        }
+        return this.meshGIResolver_ ? this.meshGIResolver_(file) : siblingMeshGIRefs(this.catalog.addressOf(file) ?? file);
     }
 
     /**

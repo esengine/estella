@@ -29,6 +29,7 @@ import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
 import { findDocumentAsset, resolveRelativePath } from '../../../sdk/src/asset/documentRef';
+import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
@@ -171,7 +172,7 @@ function leavesProject(root: string, dirent: Dirent, abs: string): boolean {
   return dirent.isSymbolicLink() && !isInsideRoot(root, abs);
 }
 
-/** Recursively yield every `<file>.meta` path (project-relative, forward-slashed). */
+/** Recursively yield the sidecars of present content files, with project-relative forward slashes. */
 async function* walkMeta(root: string, rel = '', exclude?: readonly string[]): AsyncGenerator<string> {
   const abs = rel ? path.join(root, rel) : root;
   let entries;
@@ -180,9 +181,11 @@ async function* walkMeta(root: string, rel = '', exclude?: readonly string[]): A
   } catch {
     return; // unreadable dir
   }
-  const escaped = new Set<string>();
+  const escaped = new Set<string>(), files = new Set<string>();
+  const fileKey = (name: string) => process.platform === 'win32' ? name.toLowerCase() : name;
   for (const e of entries) {
     if (leavesProject(root, e, path.join(abs, e.name))) escaped.add(e.name);
+    else if (!e.isDirectory()) files.add(fileKey(e.name));
   }
   for (const e of entries) {
     if (escaped.has(e.name)) continue;
@@ -191,10 +194,8 @@ async function* walkMeta(root: string, rel = '', exclude?: readonly string[]): A
       if (isExcludedByProject(rel ? `${rel}/${e.name}` : e.name, exclude)) continue;
       yield* walkMeta(root, rel ? `${rel}/${e.name}` : e.name, exclude);
     } else if (e.name.endsWith(META_EXT)) {
-      // A sidecar is an ordinary file even when the content beside it is a link
-      // out. Indexing it would put that link's path in the registry, and the cook
-      // reads registry paths.
-      if (escaped.has(e.name.slice(0, -META_EXT.length))) continue;
+      // A sidecar may survive deletion or a partial import. Only content present inside the project can satisfy a reference.
+      if (!files.has(fileKey(e.name.slice(0, -META_EXT.length)))) continue;
       yield rel ? `${rel}/${e.name}` : e.name;
     }
   }
@@ -421,7 +422,7 @@ async function computeDeps(
   onProgress?: (progress: ScanProgress) => void,
 ): Promise<{ deps: Record<string, string[]>; warnings: string[] }> {
   const byPath = new Map(entries.map((e) => [e.path, e]));
-  const uuids = new Set(entries.map((e) => e.uuid));
+  const byKey = new Map(entries.map(e => [e.uuid, e]));
   const refEntries = (targets ?? entries).filter(
     // A texture that is a recipe names what it is drawn from: the pictures it lays in, its font files, the picture it is a map of.
     (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e) || isAudioRecipe(e)
@@ -455,13 +456,12 @@ async function computeDeps(
     try {
       const refs = new Set<string>();
       if (entry.type === 'mesh') {
-        // A mesh is binary and names nothing; the files the dynamic GI reads are its siblings, kept whenever the mesh is (an import with
-        // `dynamicGI` on wrote them, and the runtime asks for them by the mesh's own path).
-        const stem = entry.path.replace(/\.esmesh$/i, '');
-        for (const ext of ['.esmeshsdf', '.esmeshcards']) {
-          const dep = byPath.get(stem + ext);
-          if (dep) refs.add(dep.uuid);
-        }
+        // New imports select one complete bake. Older loose meshes may use the typed pair beside them.
+        const pair = resolveMeshGI(entry.path, entry.importer?.meshGI, (ref, type) => {
+          const dep = byKey.get(ref.replace(/^@uuid:/, '').toLowerCase()) ?? byPath.get(ref);
+          return dep?.type === type ? dep.uuid : undefined;
+        });
+        if (pair) { refs.add(pair.sdf); refs.add(pair.cards); }
       } else if (isBitmapFont) {
         const content = await readTextInRoot(path.join(root, entry.path));
         for (const m of content.matchAll(FNT_PAGE)) {
@@ -480,7 +480,7 @@ async function computeDeps(
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
           return findDocumentAsset(entry.path, ref, file => byPath.get(file))?.uuid ?? null;
         };
-        for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => uuids.has(id));
+        for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => byKey.has(id));
       }
       refs.delete(entry.uuid);
       return { uuid: entry.uuid, refs: [...refs].sort() };

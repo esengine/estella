@@ -29,7 +29,8 @@ u32 postprocess_addNativePass(const std::string& name, const std::string& kind);
 /**
  * @brief Hands the dynamic GI the scene it traces: the header, the distance field, the instances and the card pixels, laid out as
  *        sdk/src/gi/gpuScene.ts writes them (see DynamicGI.hpp). The engine copies them; the pointers are free after the call.
- * @return false when a count does not match what the header says.
+ * Pass zero for all pointers and counts to withdraw the current renderer's scene.
+ * @return false when no renderer is active or a span or header is invalid.
  */
 bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfCount, uintptr_t instancesPtr, u32 instanceCount,
                             uintptr_t pixelsPtr, u32 pixelCount);
