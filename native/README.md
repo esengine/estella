@@ -354,10 +354,11 @@ System bindings landing incrementally through the real SDK surfaces:
   web build uses: the platform decodes the image (`bridge.loadImagePixels`) and the
   **native ResourceManager** (`createNativeResourceManager`) uploads the bytes
   directly — no wasm heap — through the engine's OWN `rm_createTextureEx`, the same
-  entry point embind exposes to the web. Cooked-asset import settings (filter /
-  wrap, from a scene's `textureImporterSettings`) flow through the shared runtime
-  loader into that one implementation, so pixel-art stays crisp on device by the
-  same code that keeps it crisp in a browser.
+  entry point embind exposes to the web. The shared runtime applies project
+  texture import settings first. A scene can supply filtering, wrapping, mipmaps
+  and sRGB through `textureImporterSettings` for images without project settings.
+  A prepared scene uses those settings for its own uploads. They become defaults
+  for subsequent loads when the scene takes ownership.
 - **Audio** (Stage C) — `ESEngine.Audio.playSFX` / `playTrack` runs the SAME Audio API the
   web build uses. The engine is [miniaudio](https://miniaud.io) (CoreAudio on iOS,
   AAudio/OpenSL on Android): it decodes and mixes natively, so nothing per-sample runs

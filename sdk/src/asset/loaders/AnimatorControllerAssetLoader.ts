@@ -50,6 +50,7 @@ function* motionsOfController(def: AnimatorControllerDef): Generator<AnimatorCli
 
 export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorControllerResult> {
     readonly type = 'animatorcontroller';
+    readonly bindsTextures = true;
     readonly extensions = ['.esanimator'];
 
     readonly registry: RegistryAssetLoader<AnimatorControllerResult> = {

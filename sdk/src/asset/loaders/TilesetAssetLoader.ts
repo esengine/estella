@@ -16,6 +16,7 @@ import { log } from '../../util/logger';
 
 export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
     readonly type = 'tileset';
+    readonly bindsTextures = true;
     readonly extensions = ['.estileset'];
 
     readonly registry: RegistryAssetLoader<TilesetResult> = {

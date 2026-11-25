@@ -100,7 +100,7 @@ jobs:
         node tools/tests/wechat-starter.e2e.mjs --dir output/wechat-starter-ci-fixture --out output/wechat-starter-ci-check
     - name: Run Box2D and both 3D solvers in WeChat and Douyin packages
       run: node tools/tests/minigame-physics.e2e.mjs
-    - name: Check localized scene preloads, discards and switches in web, playable and mini-game packages
+    - name: Check scene texture sampling and localization through preloads and switches on web, playable and mini-games
       run: node tools/tests/project-locale-tables.e2e.mjs
     - name: Check OpenPaaS 2D and 3D exports in a headless contract host
       run: node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-ci-check

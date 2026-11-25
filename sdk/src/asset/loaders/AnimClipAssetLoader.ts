@@ -16,6 +16,7 @@ import { log } from '../../util/logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
     readonly type = 'anim-clip';
+    readonly bindsTextures = true;
     readonly extensions = ['.esanim'];
 
     readonly registry: RegistryAssetLoader<AnimClipResult> = {

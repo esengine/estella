@@ -22,12 +22,13 @@
  *          registry-backed type answered to a name an engine one already used —
  *          today that is only prevented by the file extensions differing.
  */
-import { leaseBinding, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseOwner, type BindingLease } from './leaseBindings';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 import { reservePromise } from '../util/reservePromise';
 import { log } from '../util/logger';
 import { assetPairKey } from './assetPairKey';
+import { sceneImportBinding } from './manifestBinding';
 
 const noNames: readonly string[] = Object.freeze([]);
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
@@ -63,6 +64,10 @@ class Slot<T> extends AssetDependencyOwner {
     /** What a lookup asks for. Distinct from `key`, which is what an OWNER
      *  holds: a registry answers to a ref, not to an ownership identity. */
     readonly names: string[] = [];
+    /** Spellings a scene will publish after it takes ownership of this sampler-specific slot. */
+    sceneNames?: Set<string>;
+    /** An ordinary slot keeps this private address if another sampler takes its public name. */
+    privateKey?: string;
     /** Qualified keys currently routed here. Lease holders can observe the live names array. */
     readonly lookupKeys = new Set<string>();
     refs = 0;
@@ -87,6 +92,7 @@ export class RegistryAssetSlots {
     private readonly byName_ = new Map<string, Slot<unknown>>();
     /** A held or loading slot can outlive the last name that still routes to it. */
     private readonly slots_ = new Set<Slot<unknown>>();
+    private readonly pathClaims_ = new Map<string, Map<Slot<unknown>, number>>();
     private nextId_ = 1;
     private versions_ = new Map<string, number>();
 
@@ -104,11 +110,18 @@ export class RegistryAssetSlots {
      * than to a copy of the object.
      */
     async acquire<T>(
-        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[], owner?: AssetDependencyOwner,
+        kind: RegistryAssetKind<T>, type: string, key: string, names: readonly string[], owner?: AssetDependencyOwner, sceneNames?: readonly string[],
     ): Promise<RegistrySlotLease<T>> {
         const slot = this.slotFor_(type, key) as Slot<T>;
         const unclaim = owner?.claim(slot);
         for (const name of names) this.name_(slot, name);
+        if (sceneNames) {
+            const declared = slot.sceneNames ??= new Set();
+            for (const name of sceneNames) {
+                declared.add(name);
+                if (!slot.names.includes(name)) slot.names.push(name);
+            }
+        }
 
         if (slot.era) return this.lease_(slot, unclaim);
         // Each caller reserves the slot until it has received its own lease or
@@ -121,7 +134,7 @@ export class RegistryAssetSlots {
                 pending.resolve(this.publishInitial_(kind, slot));
             }
             await slot.loading;
-            if (this.byName_.get(assetPairKey(type, key)) !== slot) {
+            if (!this.ownsPreparation_(slot, key)) {
                 throw new Error(`"${key}" was released while it was loading; it has no owner. Load it again.`);
             }
             return this.lease_(slot, unclaim);
@@ -138,16 +151,15 @@ export class RegistryAssetSlots {
     }
 
     private async publishInitial_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): Promise<void> {
-        const key = assetPairKey(slot.type, slot.key);
-        while (this.byName_.get(key) === slot) {
+        while (this.ownsPreparation_(slot)) {
             const ticket = slot.refresh;
             let era: PreparedEra<T>;
-            try { era = await (slot.refreshWhileLoading ?? kind).prepare(slot.key, slot); }
+            try { era = await (slot.refreshWhileLoading ?? kind).prepare(slot.privateKey ?? slot.key, slot); }
             catch (error) {
-                if (ticket === slot.refresh || this.byName_.get(key) !== slot) throw error;
+                if (ticket === slot.refresh || !this.ownsPreparation_(slot)) throw error;
                 continue;
             }
-            if (ticket === slot.refresh && this.byName_.get(key) === slot) {
+            if (ticket === slot.refresh && this.ownsPreparation_(slot)) {
                 this.publish_(slot, era);
                 return;
             }
@@ -177,7 +189,7 @@ export class RegistryAssetSlots {
             await slot.loading;
             return ticket === slot.refresh && this.byName_.get(key) === slot;
         }
-        const era = await kind.prepare(slot.key, slot);
+        const era = await kind.prepare(slot.privateKey ?? slot.key, slot);
         if (era.failedDependencies?.length) {
             era.dependencies.releaseAll();
             throw new Error(`Cannot refresh "${name}": dependencies did not load: ${era.failedDependencies.join(', ')}`);
@@ -196,7 +208,7 @@ export class RegistryAssetSlots {
         // A publication callback belongs to this commit only. A held slot need
         // not keep the resource it notified alive after that resource is replaced.
         slot.era = era.didPublish ? { ...era, didPublish: undefined } : era;
-        this.changed_(slot.type);
+        if (this.visible_(slot)) this.changed_(slot.type);
         try { era.didPublish?.(previous?.published); }
         catch (error) { log.warn('asset', `publication listener for "${slot.key}" failed`, error); }
         releaseEra(previous);
@@ -232,7 +244,7 @@ export class RegistryAssetSlots {
     }
 
     /** The same slot an engine-issued receipt identifies, including after a refresh. */
-    slot(type: string, name: string): { readonly type: string; readonly published: unknown } | undefined {
+    slot(type: string, name: string): { readonly type: string; readonly key: string; readonly published: unknown } | undefined {
         return this.byName_.get(assetPairKey(type, name));
     }
 
@@ -241,7 +253,7 @@ export class RegistryAssetSlots {
     publishedOf(type: string): unknown[] {
         const out: unknown[] = [];
         for (const slot of new Set(this.byName_.values())) {
-            if (slot.type === type && slot.era) out.push(slot.era.published);
+            if (slot.type === type && slot.era && this.visible_(slot)) out.push(slot.era.published);
         }
         return out;
     }
@@ -249,6 +261,10 @@ export class RegistryAssetSlots {
     /** Live slots — one per asset, however many names it answers to. */
     get size(): number {
         return this.slots_.size;
+    }
+
+    *keysOf(type: string): IterableIterator<string> {
+        for (const slot of this.slots_) if (slot.type === type) yield slot.privateKey ?? slot.key;
     }
 
     /** Give up every slot. For a wholesale teardown. */
@@ -263,13 +279,46 @@ export class RegistryAssetSlots {
         }
         this.slots_.clear();
         this.byName_.clear();
+        this.pathClaims_.clear();
         disposeAll(eras, releaseEra);
+    }
+
+    /** A value-only load retains exactly the slot active when the caller asked for this logical name. */
+    leaveByName(type: string, name: string, receipt: RegistrySlotLease<unknown>): void {
+        const slot = receipt[leaseOwner];
+        if (!(slot instanceof Slot) || !this.slots_.has(slot)) return;
+        const key = assetPairKey(type, name);
+        let claims = this.pathClaims_.get(key);
+        if (!claims) this.pathClaims_.set(key, claims = new Map());
+        claims.set(slot, (claims.get(slot) ?? 0) + 1);
+    }
+
+    private takePathSlot_(type: string, name: string): Slot<unknown> | undefined {
+        const key = assetPairKey(type, name), claims = this.pathClaims_.get(key);
+        const first = claims?.entries().next();
+        if (!claims || !first || first.done) return;
+        const [slot, count] = first.value;
+        if (count === 1) claims.delete(slot);
+        else claims.set(slot, count - 1);
+        if (!claims.size) this.pathClaims_.delete(key);
+        return slot;
+    }
+
+    private visible_(slot: Slot<unknown>): boolean {
+        if (!slot.sceneNames) return true;
+        for (const name of slot.sceneNames) if (slot.lookupKeys.has(assetPairKey(slot.type, name))) return true;
+        return false;
+    }
+
+    private ownsPreparation_(slot: Slot<unknown>, requested = slot.key): boolean {
+        return this.byName_.get(assetPairKey(slot.type, requested)) === slot
+            || (requested === slot.key && !!slot.privateKey && this.slots_.has(slot));
     }
 
     /** Drop one claim on the slot `name` resolves to, without its receipt. The
      *  compatibility door for a caller that only ever had a path. */
     releaseByName(type: string, name: string): boolean {
-        const slot = this.byName_.get(assetPairKey(type, name));
+        const slot = this.takePathSlot_(type, name) ?? this.byName_.get(assetPairKey(type, name));
         if (!slot || slot.refs === 0) return false;
         this.drop_(slot);
         return true;
@@ -277,11 +326,29 @@ export class RegistryAssetSlots {
 
     /** Transfer one existing path-based claim to a receipt for the same published slot. */
     takeByName(type: string, name: string): RegistrySlotLease<unknown> | undefined {
-        const slot = this.byName_.get(assetPairKey(type, name));
+        const slot = this.takePathSlot_(type, name) ?? this.byName_.get(assetPairKey(type, name));
         if (!slot?.era || !slot.refs) return undefined;
         const receipt = this.lease_(slot);
         this.drop_(slot);
         return receipt;
+    }
+
+    /** A scene makes only the named documents reachable from its own receipts visible. */
+    publishSceneNames(owner: AssetDependencyOwner): void {
+        if (!(owner instanceof Slot) || !owner.sceneNames || !owner.era || !this.slots_.has(owner)) return;
+        for (const name of owner.sceneNames) {
+            const previous = this.byName_.get(assetPairKey(owner.type, name));
+            if (previous === owner) continue;
+            // A file first loaded with ordinary defaults can still be pending or owned.
+            // Keep that slot addressable when the first scene-specific sampler takes its public name.
+            if (previous && !previous.sceneNames && previous.key === name) {
+                previous.sceneNames = new Set(previous.names);
+                previous.privateKey = sceneImportBinding(previous.key, '[]');
+                this.name_(previous, previous.privateKey);
+            }
+            this.name_(owner, name);
+            this.changed_(owner.type);
+        }
     }
 
     private lease_<T>(slot: Slot<T>, unclaim?: () => void): RegistrySlotLease<T> {
@@ -289,6 +356,7 @@ export class RegistryAssetSlots {
         let spent = false;
         const lease: RegistrySlotLease<T> = {
             [leaseBinding]: slot,
+            [leaseOwner]: slot,
             key: slot.key,
             generation: slot.id,
             value: slot.era!.value,
@@ -312,11 +380,12 @@ export class RegistryAssetSlots {
 
     private retire_(slot: Slot<unknown>): void {
         if (!this.slots_.delete(slot)) return;
+        const visible = this.visible_(slot);
         for (const key of slot.lookupKeys) this.byName_.delete(key);
         slot.lookupKeys.clear();
         const era = slot.era;
         slot.era = null;
-        if (era) this.changed_(slot.type);
+        if (era && visible) this.changed_(slot.type);
         releaseEra(era);
     }
 

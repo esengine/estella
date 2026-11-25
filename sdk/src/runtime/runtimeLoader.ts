@@ -34,7 +34,6 @@ import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource, installRuntimeAssets } from '../asset/AssetPlugin';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
-import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
 import { SceneLoadCancelled, SceneManager, type SceneConfig, type SceneContext, type SceneRetirement } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
 import { shadersCompiled } from '../render/shaderWarmup';
@@ -58,7 +57,7 @@ import { log } from '../util/logger';
 import { startDebugChannel, attachDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import type { AotModuleConfig } from '../ecs/aot/AotSystems';
-import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
+import type { RuntimeAssetSource } from './runtimeAssets';
 import type { SpineAssetInfo } from '../spine/loadSpineScene';
 import type { SceneAssetResult } from '../asset/Assets';
 import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
@@ -86,11 +85,8 @@ export type { RuntimeAssetSource } from './runtimeAssets';
 // Per-App runtime Assets channel
 // =============================================================================
 
-// Marks Assets instances built here and holds their merged per-scene texture
-// import settings, so later scene loads extend the map instead of replacing
-// the instance (and so `ensureRuntimeAssets` can tell its own instance apart
-// from the default AssetPlugin one it must replace).
-const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImportSettings>>();
+// A runtime keeps the Assets instance configured for its host across scene loads.
+const runtimeAssetRealms = new WeakSet<AssetsClass>();
 const automaticLocales = new WeakSet<LocalizationAPI>();
 
 function sceneLocalization(app: App): LocalizationAPI {
@@ -125,7 +121,7 @@ function ensureRuntimeAssets(
 ): AssetsClass {
     if (app.hasResource(AssetsResource)) {
         const existing = app.getResource(AssetsResource);
-        if (runtimeImportSettings.has(existing)) return existing;
+        if (runtimeAssetRealms.has(existing)) return existing;
     }
 
     const assets = AssetsClass.create({
@@ -153,38 +149,10 @@ function ensureRuntimeAssets(
     // AssetPlugin.build so eager + on-demand loads transcode the same way.
     loader.setTranscoderProvider(() => basisTranscoderFor(app.sideModules));
 
-    // Two suppliers, one resolver, in precedence order:
-    //   - the REALM's asset source describes the ASSET (the editor's database, a
-    //     cooked build's manifest) and is authoritative;
-    //   - the per-scene map below is the embedder's channel for a scene that
-    //     carries its own `textureImporterSettings`.
-    // Asset-level wins: a stale copy inside a scene must not override what the
-    // asset actually says today.
-    const settings: Record<string, TextureImportSettings> = Object.create(null);
-    assets.setTextureImportSettingsResolver(
-        (ref) => source.textureImportSettings?.(ref) ?? settings[ref] ?? settings[assets.sceneAssetRef(ref) ?? ref],
-    );
-    runtimeImportSettings.set(assets, settings);
-
-    installRuntimeAssets(app, assets, () => runtimeImportSettings.delete(assets));
+    if (source.textureImportSettings) assets.setTextureImportSettingsResolver(ref => source.textureImportSettings!(ref));
+    runtimeAssetRealms.add(assets);
+    installRuntimeAssets(app, assets, () => runtimeAssetRealms.delete(assets));
     return assets;
-}
-
-/** Keep scene-supplied sampling settings under the authored spelling and the key used for its handle. */
-function mergeSceneTextureImportSettings(
-    assets: AssetsClass, sceneData: SceneData, resolveRef: (ref: string) => string,
-): void {
-    const settings = runtimeImportSettings.get(assets);
-    const rawSettings = (sceneData as { textureImporterSettings?: Record<string, TextureParams> })
-        .textureImporterSettings;
-    if (!settings || !rawSettings) return;
-    for (const [ref, s] of Object.entries(rawSettings)) {
-        settings[ref] = settings[resolveRef(ref)] = {
-            filter: s.filterMode as TextureImportSettings['filter'],
-            wrap: s.wrapMode as TextureImportSettings['wrap'],
-            srgb: s.srgb,
-        };
-    }
 }
 
 // =============================================================================
@@ -466,7 +434,6 @@ async function readRuntimeScene(
         videoSupport()?.setRefResolver(app, ref => backend.resolveUrl(sceneAssets.resolveLoadPath(ref)), backend);
     }
     const sceneRef = (ref: string) => sceneAssets.sceneAssetRef(ref) ?? ref;
-    mergeSceneTextureImportSettings(sceneAssets, sceneData, sceneRef);
     const dragonBones = dragonBonesSupport();
     let discovered!: SceneAssetRefs;
     let pairCount = 0;
@@ -531,7 +498,7 @@ async function readRuntimeScene(
     }
     const spineAssetInfo = app.sideModules && spine
         ? await spine.load(module, source, spineManager, discovered.spines, transcoderProvider,
-                           { assets: sceneAssets, scope: assetResult.scope }, finishPairs)
+                           { assets: assetResult.textureReader ?? sceneAssets, scope: assetResult.scope }, finishPairs)
         : new Map<string, SpineAssetInfo>();
     attempt.assertCurrent();
 
@@ -554,7 +521,7 @@ async function readRuntimeScene(
                 if (dragonBones) finishPairs?.(discovered.dragonBones.length);
             } else {
                 dragonBonesAssetInfo = await dragonBones!.load(
-                    module, source, discovered.dragonBones, transcoderProvider, sceneAssets, assetResult.scope, finishPairs);
+                    module, source, discovered.dragonBones, transcoderProvider, assetResult.textureReader ?? sceneAssets, assetResult.scope, finishPairs);
                 attempt.assertCurrent();
             }
         }
@@ -835,6 +802,8 @@ async function publishPreparedScene(
             assertCurrent();
             install();
         }
+        assertCurrent();
+        assetResult.publishTextureImports?.();
     };
     const publishLocalization = prepared.publishLocalization;
     if (publishLocalization) await attempt.waitForShared(() => publishLocalization(handoff, assertCurrent));

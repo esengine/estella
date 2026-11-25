@@ -22,7 +22,10 @@ import { AsyncCache, RetryableAssetError } from './AsyncCache';
 import { PreparedAssetCache } from './PreparedAssetCache';
 import { assetPairKey } from './assetPairKey';
 import { collectMaterialTextures, SurfaceTextureUses, type SurfaceAsset, type SurfaceClaim, type SurfaceUse } from './surfaceTextureUses';
-import { atlasBindingSettings, atlasPageBinding, bindingFile, bindingRecord, manifestBindingKey, manifestFileReads } from './manifestBinding';
+import { atlasBindingSettings, atlasPageBinding, bindingFile, bindingRecord, manifestBindingKey, manifestFileReads,
+    sceneBindingBase, sceneBindingProfile, sceneImportBinding } from './manifestBinding';
+import { atlasTextureSettingsKey, type ParsedTextureImportSettings } from './textureImportSettings';
+import { SceneTextureImports, SceneTextureInputs } from './sceneTextureImports';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
@@ -33,9 +36,9 @@ import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './Asset
 import { ManifestBindingHistory } from './ManifestBindingHistory';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
-import { leaseBinding, leaseDependencyKey, leaseMatchesSource, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseDependencyKey, leaseMatchesSource, leaseOwner, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
-import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
+import { RegistryAssetSlots, type RegistryAssetKind, type RegistrySlotLease } from './registryAssets';
 import {
     DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable,
     cachedPaths, matchingDependents, ownedDependents, rebuildPlan,
@@ -90,6 +93,8 @@ import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer
 export interface AssetInvalidation {
     /** As the caller spelled it, not the resolved path. */
     readonly ref: string;
+    /** @internal An existing scene's sampler to retain when replacing its bound handle. */
+    readonly bindingRef?: string;
     /** In whichever vocabulary the source knew: a loader/field type, or the
      *  manifest's type for an applied update. */
     readonly type: AssetFieldType | AddressableAssetType;
@@ -163,7 +168,7 @@ export interface UpdateStatus {
     applying: boolean;
 }
 
-interface ManifestBindingSource { type: string; ref: string; path: string; page?: AddressableManifestAsset }
+interface ManifestBindingSource { key: string; type: string; ref: string; path: string; page?: AddressableManifestAsset }
 
 /** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
 interface PendingUpdate {
@@ -386,6 +391,10 @@ export interface SceneAssetResult {
      * and an invalidate mid-load left the receipt of the era we really got.
      */
     scope: AssetScope;
+    /** @internal The scene's embedded texture settings take effect at its successful handoff. */
+    publishTextureImports?: () => void;
+    /** @internal Optional subsystem readers use the same sampler inputs as the main scene preload. */
+    textureReader?: Pick<Assets, 'acquireTexture' | 'acquireSpine' | 'fetchText' | 'fetchBinary'>;
     /** @internal Projection of successful acquisitions; their scope/era remains the owner. */
     acquisitions?: readonly SceneAssetAcquisition[];
     /** @internal The names used by this preload, including across an intervening manifest update. */
@@ -399,6 +408,8 @@ export interface SceneAssetResult {
 }
 
 export type AssetRefResolver = (ref: string) => string | null;
+
+type RecordingContext = LoadContext & { recorder: DependencyRecorder; textureInputs: SceneTextureInputs };
 
 /**
  * The asset server: one typed loader per asset type, over one ref vocabulary.
@@ -496,6 +507,9 @@ export class Assets {
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
+    private readonly sceneTextureImports_ = new SceneTextureImports();
+    private readonly sceneTextureReaders_ = new WeakMap<SceneTextureInputs, NonNullable<SceneAssetResult['textureReader']>>();
+    private readonly sampledTypes_ = new Set<string>();
     private spineLoader_: SpineAssetLoader;
 
     private textureCache_ = new AsyncCache<TextureLoad>(load => this.releaseUnclaimedTexture_(load));
@@ -881,17 +895,17 @@ export class Assets {
         requireResourceManager().releaseTexture(handle);
     }
 
-    private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
-        const { result, lease } = await this.acquireTextureVariant_(ref, flip);
+    private async loadTextureVariant_(ref: string, flip: boolean, inputs = this.sceneTextureImports_.current): Promise<TextureResult> {
+        const { result, lease } = await this.acquireTextureVariant_(ref, flip, undefined, inputs);
         this.textureRefs_.leaveByPath(lease.key, lease.generation);
         return result;
     }
 
     private async acquireTextureVariant_(
-        ref: string, flip: boolean, resolution?: 'imported',
+        ref: string, flip: boolean, resolution?: 'imported', inputs = this.sceneTextureImports_.current,
     ): Promise<{ result: TextureResult; lease: AssetRefLease<number>; path: string; releaseSize?: () => void }> {
         this.assertLoading_();
-        const { path, settings } = this.textureBinding_(ref);
+        const { path, settings } = this.textureBinding_(ref, undefined, inputs);
         const cacheKey = this.textureCacheKey_(path, flip);
         const epoch = this.resetEpoch_;
         const load = await this.textureCache_.getOrLoad(cacheKey, async () => {
@@ -923,7 +937,7 @@ export class Assets {
         const result = load.value;
         const lease = this.textureRefs_.acquireLoad(cacheKey, result.handle, load);
         // The last holder may release between a cache hit and this continuation.
-        if (!lease) return this.acquireTextureVariant_(ref, flip, resolution);
+        if (!lease) return this.acquireTextureVariant_(ref, flip, resolution, inputs);
         const releaseSize = resolution === 'imported' ? this.textureLoader_.holdImportedSize(result.handle) : undefined;
         try {
             if (this.textureLoader_.mayHoldReducedTextures && (resolution === 'imported'
@@ -1029,7 +1043,9 @@ export class Assets {
     /** {@link acquireSpine} without the receipt, for a caller that will let the
      *  realm's teardown be its release. */
     async loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult> {
-        return (await this.acquireSpine(skeletonRef, atlasRef)).value;
+        const lease = await this.acquireSpine(skeletonRef, atlasRef);
+        this.genericRefs_.leaveByPath(lease.key, lease.generation);
+        return lease.value;
     }
 
     /**
@@ -1042,18 +1058,24 @@ export class Assets {
         catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireSpineLease_(skeletonRef: string, atlasRef?: string, owner?: AssetDependencyOwner): Promise<AssetLease<SpineResult>> {
+    private async acquireSpineLease_(skeletonRef: string, atlasRef?: string, owner?: AssetDependencyOwner,
+        inputs = this.sceneTextureImports_.current): Promise<AssetLease<SpineResult>> {
         const skeleton = this.resolveLoadPath_(skeletonRef);
         const atlas = this.spineAtlasOf_(skeleton, atlasRef);
         if (!atlas) {
             throw new Error(`Spine skeleton has no atlas dependency: ${skeleton}. `
                 + 'Pass the atlas explicitly or configure Catalog deps.');
         }
-        const key = spinePairKey(skeleton, atlas);
+        const pair = spinePairKey(skeleton, atlas);
+        const key = this.spineBinding_(pair, inputs);
         return this.acquirePrepared_<SpineResult>(
             this.spineLoader_, key, skeletonRef,
-            (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx), owner,
+            (ctx) => this.spineLoader_.prepare(skeleton, atlas, ctx), owner, inputs,
         );
+    }
+
+    private spineBinding_(pair: string, inputs = this.sceneTextureImports_.current): string {
+        return inputs.settings.size ? this.sceneBinding_('spine', pair, inputs.signature) : pair;
     }
 
     /** The atlas of a pair the caller named only half of: a skeleton's atlas is
@@ -1460,7 +1482,7 @@ export class Assets {
         // the old persisted manifest until the new one has been stored.
         const previousRollback = this.cacheRollback_;
         const changed = [...plan.changedAssets, ...plan.reconfiguredAssets];
-        let previousSources: Map<string, ManifestBindingSource>;
+        let previousSources: ManifestBindingSource[];
         this.cacheRollback_ = rollback;
         try {
             await this.protectCacheVersions_(this.cacheVersion_(pending.model, root, 'current'));
@@ -1474,13 +1496,15 @@ export class Assets {
         const outgoing = this.manifestBindings_.heldValues(changed, this.textureRefs_, this.genericRefs_);
         const nextTypes = new Map(changed.map(c => [c.key, c.type]));
         const metadataOnly = new Set(plan.reconfiguredAssets.map(c => c.key));
-        for (const [key, source] of previousSources) {
+        for (const source of previousSources) {
+            const { key } = source;
             // A frame can move or change sampler while siblings still use the previous upload.
             // Its binding is refreshed below. Retire the GPU page only when its bytes actually leave.
             const page = source.page;
             if (page && (metadataOnly.has(key)
                 || (page.contentHash && pending.model.assetByPath(page.path)?.contentHash === page.contentHash))) continue;
-            const sameFile = nextTypes.get(key) === source.type && this.handleLoadKey_(source.type, source.ref) === source.path;
+            const sameFile = nextTypes.get(key) === source.type
+                && sceneBindingBase(this.handleLoadKey_(source.type, source.ref)) === sceneBindingBase(source.path);
             this.endManifestResidency_(source, sameFile);
         }
         // A newer check staged while this one downloaded stays staged.
@@ -1488,7 +1512,10 @@ export class Assets {
         for (const c of changed) {
             const values = outgoing.get(c.key);
             if (values) {
-                for (const oldValue of values.values()) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue });
+                for (const { value: oldValue, profile } of values.values()) {
+                    const bindingRef = this.replacementBinding_(c.type, c.key, profile);
+                    this.fireInvalidate_({ ref: c.key, type: c.type, oldValue, ...(bindingRef && { bindingRef }) });
+                }
             } else {
                 this.fireInvalidate_({ ref: c.key, type: c.type });
             }
@@ -1530,8 +1557,8 @@ export class Assets {
         catch (error) { log.warn('asset', `could not invalidate loader residency for "${source.ref}"`, error); }
     }
 
-    private rememberManifestBindings_(changes: readonly AssetChange[]): Map<string, ManifestBindingSource> {
-        const sources = new Map<string, ManifestBindingSource>();
+    private rememberManifestBindings_(changes: readonly AssetChange[]): ManifestBindingSource[] {
+        const sources: ManifestBindingSource[] = [];
         for (const c of changes) {
             const prior = this.manifestModel_?.assetByKey(c.key);
             if (!prior && this.manifestModel_) continue;
@@ -1540,11 +1567,14 @@ export class Assets {
             const uuid = extractUuid(c.key);
             const ref = uuid ? `${UUID_REF_PREFIX}${uuid}` : c.key;
             const path = this.handleLoadKey_(type, ref);
-            sources.set(c.key, { type, ref, path, page: prior?.metadata?.atlasFrame ? prior : undefined });
-            const generations = type === 'texture' && this.loaders_.get(type) === this.textureLoader_
-                ? this.textureRefs_.generations(this.textureCacheKey_(path, true))
-                : this.genericRefs_.generations(assetPairKey(type, this.currentPrepared_(type, ref)?.owner.key ?? path));
-            this.manifestBindings_.remember(type, c.key, generations);
+            const base = this.currentPrepared_(type, ref)?.owner.key ?? path;
+            for (const binding of this.sampledTypes_.has(type) ? this.sampledPaths_(type, sceneBindingBase(base)) : [base]) {
+                sources.push({ key: c.key, type, ref, path: binding, page: prior?.metadata?.atlasFrame ? prior : undefined });
+                const generations = type === 'texture' && this.loaders_.get(type) === this.textureLoader_
+                    ? this.textureRefs_.generations(this.textureCacheKey_(binding, true))
+                    : this.genericRefs_.generations(assetPairKey(type, binding));
+                this.manifestBindings_.remember(type, c.key, generations);
+            }
         }
         return sources;
     }
@@ -1853,9 +1883,14 @@ export class Assets {
         sceneData: SceneData,
         onProgress?: (loaded: number, total: number) => void,
         options?: Parameters<Assets['preloadSceneAssets']>[2],
-        recorder?: DependencyRecorder,
+        recorder?: DependencyRecorder, inherited = this.sceneTextureImports_.current,
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
+        const epoch = this.resetEpoch_;
+        const declared = this.sceneTextureImports_.prepare(sceneData.textureImporterSettings,
+            ref => this.projectTextureImport_(ref) ? undefined : this.assetIdentity_(ref), inherited);
+        const inputs = declared?.inputs ?? inherited.forPreparation();
+        const reader = this.sceneTextureReader_(inputs);
         const entityOwnership = options?.entityOwnership ?? false;
         const owners = new SceneAssetOwners({ entityOwnership });
         const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
@@ -1928,7 +1963,7 @@ export class Assets {
         const pushAcquire = (
             label: string,
             handles?: Map<string, number>,
-            acquire: (path: string) => Promise<AssetLease> = path => this.acquireTypedLease_(label, path, recorder?.owner),
+            acquire: (path: string) => Promise<AssetLease> = path => this.acquireTypedLease_(label, path, recorder?.owner, 'direct', inputs),
         ): void => {
             for (const path of discovered.byType.get(label) ?? []) {
                 tasks.push(() =>
@@ -1952,7 +1987,7 @@ export class Assets {
         for (const type of SCENE_HANDLE_TYPES) {
             pushAcquire(type, handleMaps[`${type}Handles`], path => {
                 const ref = discovered.rawFor.get(path) ?? path;
-                return type === 'texture' ? this.acquireTexture(ref) : this.acquireTypedLease_(type, ref, recorder?.owner);
+                return type === 'texture' ? reader.acquireTexture(ref) : this.acquireTypedLease_(type, ref, recorder?.owner, 'direct', inputs);
             });
         }
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
@@ -1961,7 +1996,7 @@ export class Assets {
         if (!options?.skipSpine) {
             for (const pair of discovered.spines) {
                 tasks.push(() =>
-                    this.acquireSpineLease_(pair.skeleton, pair.atlas, recorder?.owner).then((lease) => {
+                    this.acquireSpineLease_(pair.skeleton, pair.atlas, recorder?.owner, inputs).then((lease) => {
                         recordAcquisition('spine', spinePairKey(pair.skeleton, pair.atlas), lease);
                     }).catch(e => {
                         log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
@@ -1998,7 +2033,15 @@ export class Assets {
             }
             warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
 
-            return { ...handleMaps, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs };
+            return { ...handleMaps, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs,
+                publishTextureImports: () => {
+                    this.assertLoading_(epoch);
+                    declared?.publish();
+                    if (!this.sampledTypes_.size) return;
+                    const seen = new Set<AssetDependencyOwner>();
+                    for (const { lease } of acquisitions) this.publishSceneNames_(lease, seen);
+                },
+                textureReader: reader };
         } catch (error) {
             try { scope.releaseAll(); }
             catch (cleanupError) { log.warn('asset', 'Scene preload cleanup failed', cleanupError); }
@@ -2102,14 +2145,14 @@ export class Assets {
     }
 
     private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner,
-        localeIntent: 'direct' | 'project' = 'direct'): Promise<AssetLease<T>> {
+        localeIntent: 'direct' | 'project' = 'direct', inputs = this.sceneTextureImports_.current): Promise<AssetLease<T>> {
         const loader = this.loaders_.get(type);
         if (loader === this.spineLoader_) {
-            const receipt: AssetLease = await this.acquireSpineLease_(ref, undefined, owner);
+            const receipt: AssetLease = await this.acquireSpineLease_(ref, undefined, owner, inputs);
             return receipt as AssetLease<T>;
         }
         if (loader === this.textureLoader_) {
-            const { result, lease, path } = await this.acquireTextureVariant_(ref, true);
+            const { result, lease, path } = await this.acquireTextureVariant_(ref, true, undefined, inputs);
             const receipt: AssetLease = this.textureLease_(lease, result, assetPairKey('texture', path));
             return receipt as AssetLease<T>;
         }
@@ -2117,15 +2160,15 @@ export class Assets {
         this.assertLoading_(epoch);
         const publish = loader instanceof LocaleAssetLoader && localeIntent === 'direct'
             ? this.directLocalePublication_(ref) : undefined;
-        const slot = await this.acquireSlot_<T>(type, ref, owner);
+        const slot = await this.acquireSlot_<T>(type, ref, owner, inputs);
         try {
             this.assertLoading_(epoch);
             if (slot) publish?.();
         }
         catch (error) { slot?.release(); throw error; }
         if (!(loader instanceof MaterialAssetLoader) || !this.textureLoader_.mayHoldReducedTextures
-            || this.surfaceUses_.use(this.surfaceKey_('material', ref)) !== 'full') return slot ?? this.acquireHandle_<T>(type, ref, owner);
-        const held = slot ?? await this.acquireHandle_<T>(type, ref, owner);
+            || this.surfaceUses_.use(this.surfaceKey_('material', ref)) !== 'full') return slot ?? this.acquireHandle_<T>(type, ref, owner, inputs);
+        const held = slot ?? await this.acquireHandle_<T>(type, ref, owner, inputs);
         try {
             const handles = new Set<number>();
             collectMaterialTextures((held.value as MaterialResult).handle, handles);
@@ -2135,8 +2178,9 @@ export class Assets {
         return held;
     }
 
-    private async acquireSlot_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T> | null> {
-        const kind = this.registryKind_<T>(type);
+    private async acquireSlot_<T>(type: string, ref: string, owner?: AssetDependencyOwner,
+        inputs = this.sceneTextureImports_.current): Promise<AssetLease<T> | null> {
+        const kind = this.registryKind_<T>(type, inputs);
         if (!kind) return null;
         // Keyed by identity, never by the locator: a content-addressed url is
         // revision-specific, so a slot keyed by one is a slot PER REVISION and
@@ -2145,7 +2189,18 @@ export class Assets {
         // Answering to the ref as the caller spelled it too: a component looks
         // the asset up by the spelling a scene serialized.
         const names = ref === identity ? [identity] : [identity, ref];
-        return this.registrySlots_.acquire(kind, type, identity, names, owner);
+        if (!this.loaders_.get(type)?.bindsTextures || (!inputs.settings.size && inputs === this.sceneTextureImports_.current)) {
+            return this.registrySlots_.acquire(kind, type, identity, names, owner);
+        }
+        const key = this.sceneBinding_(type, identity, inputs.signature);
+        const lease = await this.registrySlots_.acquire(kind, type, key, [key], owner, names);
+        if (inputs === this.sceneTextureImports_.current) this.publishSceneNames_(lease);
+        return lease;
+    }
+
+    private publishSceneNames_(lease: AssetLease, seen = new Set<AssetDependencyOwner>()): void {
+        const owner = (lease as Partial<BindingLease>)[leaseOwner];
+        if (owner) for (const held of owner.reachable(seen)) this.registrySlots_.publishSceneNames(held);
     }
 
     /**
@@ -2195,6 +2250,7 @@ export class Assets {
         const source = lease.value.loader.fieldBinding === 'source' ? lease.value.owner : undefined;
         return {
             [leaseBinding]: source ?? type,
+            [leaseOwner]: lease.value.owner,
             [leaseMatchesSource]: source && (ref => this.namedBinding_(type, ref) === source),
             [leaseDependencyKey]: lease.value.loader === this.spineLoader_ ? lease.value.owner.key : undefined,
             key: lease.key, generation: lease.generation, value,
@@ -2213,11 +2269,14 @@ export class Assets {
 
     releaseTexture(ref: string): void {
         const path = this.handleLoadKey_('texture', ref);
-        for (const flip of [true, false]) this.releaseTextureVariant_(path, flip);
+        const flips = [true, false];
+        const claimed = flips.filter(flip => this.textureRefs_.hasPathClaim(
+            this.textureCacheKey_(this.claimedSceneBinding_('texture', path, flip), flip)));
+        for (const flip of claimed.length ? claimed : flips) this.releaseTextureVariant_(path, flip);
     }
 
     private releaseTextureVariant_(path: string, flip: boolean): void {
-        const key = this.textureCacheKey_(path, flip);
+        const key = this.textureCacheKey_(this.claimedSceneBinding_('texture', path, flip), flip);
         const dropped = this.textureRefs_.releaseOldest(key);
         if (!dropped) return;
         if (dropped.ambiguous) warnAmbiguousRelease_(key);
@@ -2303,11 +2362,12 @@ export class Assets {
     /** @internal Hand a scene the existing acquisitions reported by a path-only loader. */
     takeTrackedAsset(type: string, ref: string, scope: AssetScope): boolean {
         const path = this.handleLoadKey_(type, ref);
-        const typedKey = assetPairKey(type, path);
+        const atlas = this.loaders_.get(type) === this.spineLoader_ ? this.spineAtlasOf_(path) : undefined;
+        const typedKey = assetPairKey(type, this.claimedSceneBinding_(type, atlas ? this.spineBinding_(spinePairKey(path, atlas)) : path));
         const genericClaim = this.genericRefs_.hasPathClaim(typedKey);
         const before = scope.size;
         if (type === 'texture') {
-            const variants = [this.textureCacheKey_(path, true), this.textureCacheKey_(path, false)];
+            const variants = [true, false].map(flip => this.textureCacheKey_(this.claimedSceneBinding_('texture', path, flip), flip));
             const reported = variants.filter(key => this.textureRefs_.hasPathClaim(key));
             // A typed texture loader can coexist with a built-in flip variant.
             // Prefer all value-only acquisitions over borrowing a receipt by path.
@@ -2343,11 +2403,11 @@ export class Assets {
         // NOT gated on a live cache entry: a generation superseded by
         // invalidate() is out of the cache while its holders still owe a
         // release, and returning here left their asset unreachable.
-        let path = resolved;
+        let path = this.claimedSceneBinding_(type, resolved);
         if (type === 'spine') {
             const atlas = this.spineAtlasOf_(resolved);
             if (atlas) {
-                const pair = spinePairKey(resolved, atlas);
+                const pair = this.claimedSceneBinding_(type, this.spineBinding_(spinePairKey(resolved, atlas)));
                 const builtin = this.genericRefs_.generations(assetPairKey(type, pair))[0];
                 const custom = this.genericRefs_.generations(assetPairKey(type, resolved))[0];
                 if (builtin && custom) warnAmbiguousRelease_(assetPairKey(type, resolved));
@@ -2561,18 +2621,37 @@ export class Assets {
         // Handle-bound graph nodes already carry their cache key, including a skeleton/atlas pair.
         const cache = this.genericCache_.get(type);
         const path = fromGraph && cache ? asset.path : this.handleLoadKey_(type, asset.path);
-        const ended = this.endCachedEra_(asset, path);
-        const published = this.republishSlot_(type, fromGraph ? asset.path : this.registryIdentity_(asset.path));
-        const dropped = this.loaders_.get(type)?.invalidate?.(ended.residencyPath) || ended.dropped;
-
-        const handlePaths = this.handlePaths_.get(type);
-        if (handlePaths) {
-            for (const [handle, held] of handlePaths) {
-                if (held === path) handlePaths.delete(handle);
+        const bySource = !fromGraph && sceneBindingBase(asset.path) === asset.path && this.sampledTypes_.has(type);
+        const variants = bySource ? this.sampledPaths_(type, sceneBindingBase(path)) : [path];
+        const named = fromGraph ? asset.path : this.registryIdentity_(asset.path);
+        const refreshed = new Set<string>();
+        const work: Promise<void>[] = [];
+        if (this.loaders_.get(type)?.registry) for (const name of bySource ? this.sampledPaths_(type, named, true) : [named]) {
+            const slot = this.registrySlots_.slot(type, name);
+            if (!slot || refreshed.has(slot.key)) continue;
+            refreshed.add(slot.key);
+            const ready = this.republishSlot_(type, name);
+            if (ready) work.push(ready);
+        }
+        let hit = work.length > 0;
+        for (const key of variants) {
+            const ended = this.endCachedEra_(asset, key);
+            const dropped = this.loaders_.get(type)?.invalidate?.(ended.residencyPath) || ended.dropped;
+            const handlePaths = this.handlePaths_.get(type);
+            if (handlePaths) {
+                for (const [handle, held] of handlePaths) {
+                    if (held === key) handlePaths.delete(handle);
+                }
+            }
+            if (dropped) {
+                hit = true;
+                const logical = sceneBindingBase(asset.path);
+                const ref = bindingRecord(logical) ?? logical;
+                const bindingRef = this.replacementBinding_(type, ref, sceneBindingProfile(key));
+                this.fireInvalidate_({ ref, type: type as AssetFieldType, oldValue: ended.oldValue, ...(bindingRef && { bindingRef }) });
             }
         }
-        if (dropped) this.fireInvalidate_({ ref: bindingRecord(asset.path) ?? asset.path, type: type as AssetFieldType, oldValue: ended.oldValue });
-        return { hit: dropped || published !== undefined, rebuilt: published };
+        return { hit, rebuilt: work.length ? Promise.all(work).then(() => undefined) : undefined };
     }
 
     /** End residency without spending the receipts that still own this preparation. */
@@ -2778,8 +2857,7 @@ export class Assets {
     async preparePrefab(ref: string, overrides: readonly PrefabOverride[] = []): Promise<PreparedPrefab> {
         const epoch = this.resetEpoch_;
         try {
-            const era = await this.prepared_(ctx => this.bakePrefab_(this.resolveLoadPath_(ref),
-                ctx as LoadContext & { recorder: DependencyRecorder }, overrides));
+            const era = await this.prepared_(ctx => this.bakePrefab_(this.resolveLoadPath_(ref), ctx, overrides));
             if (epoch !== this.resetEpoch_) {
                 era.dependencies.releaseAll();
                 throw new Error(`Assets were released while "${ref}" was preparing; it has no owner. Load it again.`);
@@ -2795,6 +2873,7 @@ export class Assets {
         this.resetEpoch_++;
         try {
             this.projectLocales_?.clear();
+            this.sceneTextureImports_.clear();
             disposeAll([
                 () => this.entityScopes_.close(),
                 () => {
@@ -2923,6 +3002,7 @@ export class Assets {
     }
 
     private graphPath_(ref: string): string {
+        ref = sceneBindingBase(ref);
         const key = bindingRecord(ref) ?? this.sceneHandleRecord_(ref)?.key;
         return key ?? this.resolveLoadPath_(ref);
     }
@@ -2952,6 +3032,7 @@ export class Assets {
      * time — textures silently rendered white. This helper closes that gap.
      */
     private resolveLoadPath_(ref: string): string {
+        if (sceneBindingBase(ref) !== ref) return bindingFile(ref);
         // Built-in geometry names code, not a file. Every realm's resolver turns a
         // non-URL ref into one (the play realm prefixes an origin), so a ref that
         // has nothing to resolve has to say so before resolution, not after.
@@ -2992,6 +3073,7 @@ export class Assets {
      * spellings agree on; a locator is what one preparation reads.
      */
     private assetIdentity_(ref: string): string {
+        ref = sceneBindingBase(ref);
         if (isBuiltinMeshRef(ref)) return ref;
         // A manifest names one asset three ways — record key, address, build
         // path — and only it knows they are the same asset. Folding them here is
@@ -3033,8 +3115,8 @@ export class Assets {
         // A recipe is bound to an exact era, just like a resolved material.
         // Use the same pending cache, generation ledger and dependency graph.
         this.register<PreparedPrefab>({
-            type: 'prepared-prefab', extensions: [],
-            load: (path, context) => this.bakePrefab_(path, context as LoadContext & { recorder: DependencyRecorder }),
+            type: 'prepared-prefab', extensions: [], bindsTextures: true,
+            load: (path, context) => this.bakePrefab_(path, context as RecordingContext),
             unload: (prepared) => prepared.release(),
         });
         this.register(new LocaleAssetLoader(this));
@@ -3051,7 +3133,11 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
-        if (this.getLoader<T>(type)?.registry) return (await this.acquireTyped<T>(type, ref)).value;
+        if (this.getLoader<T>(type)?.registry) {
+            const lease = await this.acquireTyped<T>(type, ref) as RegistrySlotLease<T>;
+            if (this.getLoader(type)?.bindsTextures) this.registrySlots_.leaveByName(type, this.registryIdentity_(ref), lease);
+            return lease.value;
+        }
         try {
             const lease = await this.acquireHandle_<T>(type, ref);
             this.genericRefs_.leaveByPath(lease.key, lease.generation);
@@ -3060,7 +3146,7 @@ export class Assets {
     }
 
     private async acquireHandle_<T>(
-        type: string, ref: string, owner?: AssetDependencyOwner,
+        type: string, ref: string, owner?: AssetDependencyOwner, inputs = this.sceneTextureImports_.current,
     ): Promise<AssetLease<T>> {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         if (!loader) {
@@ -3074,9 +3160,11 @@ export class Assets {
             return this.acquirePrepared_<T>(loader, ref, ref, ctx => loader.load(ref, ctx, path, address) as Promise<T>, owner);
         }
         const load = loader.load.bind(loader);
+        const profile = sceneBindingProfile(ref);
+        if (profile !== undefined) inputs = SceneTextureInputs.fromSignature(profile);
         const path = this.resolveLoadPath_(ref);
-        const key = this.handleLoadKey_(type, ref, path);
-        return this.acquirePrepared_<T>(loader, key, ref, ctx => load(path, ctx), owner);
+        const key = this.handleLoadKey_(type, ref, path, inputs);
+        return this.acquirePrepared_<T>(loader, key, ref, ctx => load(path, ctx), owner, inputs);
     }
 
     private audioFile_(ref: string): { path: string; address?: string } {
@@ -3085,29 +3173,104 @@ export class Assets {
         return { path: resolved === ref ? entry?.path ?? resolved : resolved, address: entry?.address };
     }
 
-    private handleLoadKey_(type: string, ref: string, file?: string): string {
-        if (type === 'texture') return this.textureBinding_(ref, file).path;
-        if (bindingRecord(ref) !== undefined || this.loaders_.get(type) instanceof AudioAssetLoader) return ref;
+    private handleLoadKey_(type: string, ref: string, file?: string, inputs = this.sceneTextureImports_.current): string {
+        if (type === 'texture') return this.textureBinding_(ref, file, inputs).path;
+        if (sceneBindingProfile(ref) !== undefined || bindingRecord(ref) !== undefined || this.loaders_.get(type) instanceof AudioAssetLoader) return ref;
         const path = file ?? this.resolveLoadPath_(ref);
         const record = this.sceneHandleRecord_(ref);
-        return record?.asset.type === type ? manifestBindingKey(record.key, path) : path;
+        const key = record?.asset.type === type ? manifestBindingKey(record.key, path) : path;
+        // The document keeps the texture or material handles it requested under these defaults.
+        const loader = this.loaders_.get(type);
+        return inputs.settings.size && loader?.bindsTextures && !loader.registry && loader !== this.spineLoader_
+            ? this.sceneBinding_(type, key, inputs.signature) : key;
     }
 
-    /** A frame owns its authored identity. Only frames with the same upload settings share the page handle. */
-    private textureBinding_(ref: string, file?: string) {
+    private sceneBinding_(type: string, base: string, profile: string): string {
+        this.sampledTypes_.add(type);
+        return sceneImportBinding(base, profile);
+    }
+
+    /** Only live, pending or revivable variants can be invalidated. Their owners already know the keys. */
+    private sampledPaths_(type: string, base: string, registry = false): Set<string> {
+        const paths = new Set([base]);
+        const collect = (path: string) => { if (sceneBindingBase(path) === base) paths.add(path); };
+        if (registry) {
+            for (const path of this.registrySlots_.keysOf(type)) collect(path);
+        } else if (type === 'texture') {
+            for (const key of this.textureCache_.keys()) collect(key.slice(0, -2));
+            for (const path of this.textureLoader_.sourcePaths()) collect(path);
+        } else {
+            for (const path of this.genericCache_.get(type)?.keys() ?? []) collect(path);
+        }
+        return paths;
+    }
+
+    private claimedSceneBinding_(type: string, path: string, flip = true): string {
+        if (!this.sampledTypes_.has(type)) return path;
+        const base = sceneBindingBase(path), texture = type === 'texture';
+        const prefix = assetPairKey(type, ''), suffix = this.textureCacheKey_('', flip);
+        let claimed = path, oldest = Infinity;
+        const claims = texture ? this.textureRefs_.pathClaims() : this.genericRefs_.pathClaims();
+        for (const [key, age] of claims) {
+            if (age >= oldest || (texture ? !key.endsWith(suffix) : !key.startsWith(prefix))) continue;
+            const candidate = texture ? key.slice(0, -suffix.length) : key.slice(prefix.length);
+            if (sceneBindingBase(candidate) === base) { claimed = candidate; oldest = age; }
+        }
+        return claimed;
+    }
+
+    private projectTextureImport_(ref: string): ParsedTextureImportSettings | undefined {
+        const name = bindingRecord(ref), asset = this.assetIdentity_(name ?? ref);
+        return this.textureImportResolver_?.(ref) ?? (name ? this.textureImportResolver_?.(name) : undefined)
+            ?? (asset !== ref && asset !== name ? this.textureImportResolver_?.(asset) : undefined)
+            ?? this.manifestRecord_(name ?? ref)?.asset.textureImport;
+    }
+
+    /** Refresh the old owner's sampler at the new locator. An explicit project importer takes precedence. */
+    private replacementBinding_(type: string, ref: string, profile?: string): string | undefined {
+        if (!this.sampledTypes_.has(type)) return;
+        const current = this.handleLoadKey_(type, ref);
+        if (profile === undefined && sceneBindingProfile(current) === undefined) return;
+        if (type === 'texture' && this.projectTextureImport_(ref)) return current;
+        return this.sceneBinding_(type, sceneBindingBase(current), profile ?? (type === 'texture' ? '{}' : '[]'));
+    }
+
+    /** A held upload carries its sampler across scene publication, pool revival and device recovery. */
+    private textureBinding_(ref: string, file?: string, inputs = this.sceneTextureImports_.current) {
+        const profile = sceneBindingProfile(ref);
+        if (profile !== undefined) return { path: ref, settings: JSON.parse(profile) as ParsedTextureImportSettings };
         const held = atlasBindingSettings(ref);
         if (held) return { path: ref, settings: held };
         const name = bindingRecord(ref);
         const record = this.manifestRecord_(name ?? ref);
         const texture = record?.asset.type === 'texture' ? record : undefined;
-        const settings = this.textureImportResolver_?.(ref)
-            ?? (name ? this.textureImportResolver_?.(name) : undefined) ?? texture?.asset.textureImport;
-        if (name !== undefined) return { path: ref, settings };
+        const asset = this.assetIdentity_(name ?? ref);
+        const importer = this.projectTextureImport_(ref);
+        const fallback = importer ? undefined : inputs.settings.get(asset);
+        const settings = importer ?? fallback;
         const path = file ?? this.resolveLoadPath_(ref);
-        if (texture?.asset.metadata?.atlasFrame || this.atlasFrameIn_(this.catalog, ref, path)) {
-            return { path: atlasPageBinding(path, settings), settings };
-        }
-        return { path: texture ? manifestBindingKey(texture.key, path) : path, settings };
+        const atlas = texture?.asset.metadata?.atlasFrame || this.atlasFrameIn_(this.catalog, ref, path);
+        const base = atlas ? path : name !== undefined ? ref : texture ? manifestBindingKey(texture.key, path) : path;
+        if (fallback) return { path: this.sceneBinding_('texture', base, atlasTextureSettingsKey(fallback)), settings };
+        return { path: atlas ? atlasPageBinding(base, settings) : base, settings };
+    }
+
+    private sceneTextureReader_(inputs: SceneTextureInputs): NonNullable<SceneAssetResult['textureReader']> {
+        const known = this.sceneTextureReaders_.get(inputs);
+        if (known) return known;
+        const reader: NonNullable<SceneAssetResult['textureReader']> = {
+            acquireTexture: async (ref, flip = true, resolution) => {
+                if (inputs === this.sceneTextureImports_.current) return this.acquireTexture(ref, flip, resolution);
+                const { result, lease, releaseSize } = await this.acquireTextureVariant_(ref, flip, resolution, inputs);
+                return this.textureLease_(lease, result, lease.key, releaseSize);
+            },
+            acquireSpine: (skeleton, atlas) => inputs === this.sceneTextureImports_.current
+                ? this.acquireSpine(skeleton, atlas) : this.acquireSpineLease_(skeleton, atlas, undefined, inputs),
+            fetchText: ref => this.fetchText(ref),
+            fetchBinary: ref => this.fetchBinary(ref),
+        };
+        this.sceneTextureReaders_.set(inputs, reader);
+        return reader;
     }
 
     /**
@@ -3118,12 +3281,13 @@ export class Assets {
      */
     private async acquirePrepared_<T>(
         loader: AssetLoader<T>, key: string, ref: string, prepare: (ctx: LoadContext) => Promise<T>, parent?: AssetDependencyOwner,
+        inputs = this.sceneTextureImports_.current,
     ): Promise<AssetLease<T>> {
         this.assertLoading_();
         const epoch = this.resetEpoch_;
         const type = loader.type;
         const { ready, unclaim } = this.genericCacheFor_(type).acquire(key, parent, owner =>
-            this.prepared_(async ctx => ({ value: await prepare(ctx), owner, loader }), owner),
+            this.prepared_(async ctx => ({ value: await prepare(ctx), owner, loader }), owner, inputs),
         );
         try {
             const era = await ready;
@@ -3134,7 +3298,7 @@ export class Assets {
             const lease = this.genericRefs_.acquireLoad(assetPairKey(type, key), era, era);
             if (!lease) {
                 unclaim?.();
-                return this.acquirePrepared_(loader, key, ref, prepare, parent);
+                return this.acquirePrepared_(loader, key, ref, prepare, parent, inputs);
             }
             const result = era.value as T;
             const handle = (result as { handle?: unknown } | null)?.handle;
@@ -3219,13 +3383,13 @@ export class Assets {
         const cache = this.genericCache_.get(type);
         if (!cache) return;
         if (type === 'spine') {
-            const pair = cache.get(ref);
+            const pair = cache.get(ref) ?? cache.get(this.spineBinding_(ref));
             if (pair?.loader === this.spineLoader_) return pair;
         }
         const path = this.handleLoadKey_(type, ref);
         if (this.loaders_.get(type) !== this.spineLoader_) return cache.get(path);
         const atlas = this.spineAtlasOf_(path);
-        return atlas ? cache.get(spinePairKey(path, atlas)) : undefined;
+        return atlas ? cache.get(this.spineBinding_(spinePairKey(path, atlas))) : undefined;
     }
 
     /**
@@ -3311,7 +3475,7 @@ export class Assets {
      * bound in, so the table stays about ownership and knows nothing about how
      * any particular kind of asset is parsed.
      */
-    private registryKind_<T>(type: string): RegistryAssetKind<T> | null {
+    private registryKind_<T>(type: string, inputs = this.sceneTextureImports_.current): RegistryAssetKind<T> | null {
         const loader = this.loaders_.get(type) as AssetLoader<T> | undefined;
         const registry = loader?.registry;
         if (!registry) return null;
@@ -3319,19 +3483,24 @@ export class Assets {
         // and where that asset is served from is a property of the revision the
         // preparation runs in.
         return {
-            prepare: (identity, owner) => this.prepared_(ctx => {
-                const path = this.resolveLoadPath_(identity);
-                const file = path === identity ? this.manifestRecord_(identity)?.asset.path ?? path : path;
-                return registry.prepare(file, ctx, owner);
-            }, owner),
+            prepare: (key, owner) => {
+                const identity = sceneBindingBase(key);
+                const profile = sceneBindingProfile(key);
+                const readInputs = profile !== undefined && profile !== inputs.signature ? SceneTextureInputs.fromSignature(profile) : inputs;
+                return this.prepared_(ctx => {
+                    const path = this.resolveLoadPath_(identity);
+                    const file = path === identity ? this.manifestRecord_(identity)?.asset.path ?? path : path;
+                    return registry.prepare(file, ctx, owner);
+                }, owner, readInputs);
+            },
         };
     }
 
-    private bakePrefab_(path: string, ctx: LoadContext & { recorder: DependencyRecorder },
+    private bakePrefab_(path: string, ctx: RecordingContext,
                         overrides: readonly PrefabOverride[] = []): Promise<PreparedPrefab> {
         return preparePrefabFromSource({
             loadPrefab: async (ref) => (await ctx.acquireAsset<PrefabResult>('prefab', ref)).value,
-            preloadSceneAssets: (scene, progress, options) => this.preloadSceneAssets_(scene, progress, options, ctx.recorder),
+            preloadSceneAssets: (scene, progress, options) => this.preloadSceneAssets_(scene, progress, options, ctx.recorder, ctx.textureInputs),
             resolveSceneAssetPaths: (scene, result) => this.resolveSceneAssetPaths(scene, result),
             trackSceneAssetReferences: (scene, entities, world) => this.trackSceneAssetReferences(scene, entities, world),
             resolveRef: ref => this.resolveRef(ref),
@@ -3346,13 +3515,13 @@ export class Assets {
      * it does not exist.
      */
     private async prepared_<T extends object>(
-        work: (ctx: LoadContext) => Promise<T>, owner?: AssetDependencyOwner,
+        work: (ctx: RecordingContext) => Promise<T>, owner?: AssetDependencyOwner, inputs = this.sceneTextureImports_.current,
     ): Promise<T & Preparation> {
         this.assertLoading_();
         const recorder = new DependencyRecorder(owner);
         this.preparations_.add(recorder);
         try {
-            return recorder.commit(await work(this.recordingContext_(recorder)));
+            return recorder.commit(await work(this.recordingContext_(recorder, inputs)));
         } catch (e) {
             throw recorder.abort(e);
         } finally { this.preparations_.delete(recorder); }
@@ -3360,8 +3529,9 @@ export class Assets {
 
     /** The load context one preparation sees: every door that takes something
      *  reports it, and the plain readers stay plain. */
-    private recordingContext_(recorder: DependencyRecorder): LoadContext & { recorder: DependencyRecorder } {
+    private recordingContext_(recorder: DependencyRecorder, inputs: SceneTextureInputs): RecordingContext {
         const base = this.getLoadContext_();
+        const textures = this.sceneTextureReader_(inputs);
         const model = this.manifestModel_, root = this.remoteRoot_;
         const owner = recorder.owner?.key;
         const epoch = this.resetEpoch_;
@@ -3397,11 +3567,11 @@ export class Assets {
             finally { claim.release(); }
         };
         const acquireAsset = <T>(type: string, ref: string) =>
-            take(ref, () => forMaterial(type, ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner)), type);
+            take(ref, () => forMaterial(type, ref, () => this.acquireTypedLease_<T>(type, ref, recorder.owner, 'direct', inputs)), type);
         return {
             ...base,
             get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
-            recorder,
+            recorder, textureInputs: inputs,
             sourceAddressOf: ref => {
                 // Registry slots own logical addresses and handle-backed loaders can own record keys.
                 // Two documents can ship identical bytes while naming different siblings.
@@ -3414,10 +3584,11 @@ export class Assets {
             },
             loadText: path => read(path, () => base.loadText(path)),
             loadBinary: path => read(path, () => base.loadBinary(path)),
-            loadTexture: (path, flipY) => read(path, () => base.loadTexture(path, flipY)),
+            loadTexture: (path, flipY) => read(path, () => inputs === this.sceneTextureImports_.current
+                ? base.loadTexture(path, flipY) : this.loadTextureVariant_(path, flipY ?? true, inputs)),
             decodePixels: path => read(path, () => base.decodePixels!(path)),
             acquireTexture: async (path, flipY, resolution) =>
-                take(path, () => forMaterial('texture', path, () => base.acquireTexture(path, flipY, resolution)), 'texture'),
+                take(path, () => forMaterial('texture', path, () => textures.acquireTexture(path, flipY, resolution)), 'texture'),
             acquireAsset,
             resolveRef: ref => this.resolveRef(ref),
             preparePrefab: ref => acquireAsset<PreparedPrefab>('prepared-prefab', ref),

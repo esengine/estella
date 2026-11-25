@@ -96,7 +96,7 @@ export function installHotUpdateRebind(app: App, assets: Assets): LiveBindingsDa
         if (!assets.handleBoundTypes().includes(type)) return;
         const oldValue = boundValueIn(event.oldValue);
         if ((typeof oldValue === 'number' || typeof oldValue === 'string') && oldValue) {
-            pending.push({ ref: event.ref, type, oldValue, epoch: assets.epoch });
+            pending.push({ ref: event.bindingRef ?? event.ref, type, oldValue, epoch: assets.epoch });
         }
     });
 

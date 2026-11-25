@@ -11,6 +11,7 @@ import { log } from '../../util/logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     readonly type = 'tilemap';
+    readonly bindsTextures = true;
     readonly extensions = ['.tmj', '.tmx'];
 
     readonly registry: RegistryAssetLoader<TilemapResult> = {

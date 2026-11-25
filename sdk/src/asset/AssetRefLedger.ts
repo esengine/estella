@@ -111,6 +111,14 @@ export class AssetRefLedger<T> {
         if (era) era.pathClaims++;
     }
 
+    /** Value-only loads still owed a path release, even after a different sampler became current. */
+    *pathClaims(): IterableIterator<[string, number]> {
+        for (const [key, eras] of this.byKey_) {
+            const era = eras.find(candidate => candidate.pathClaims > 0);
+            if (era) yield [key, era.id];
+        }
+    }
+
     hasPathClaim(key: string): boolean {
         return this.byKey_.get(key)?.some(era => era.pathClaims > 0) ?? false;
     }
@@ -170,7 +178,8 @@ export class AssetRefLedger<T> {
     }
 
     /**
-     * Drop one reference to `key` without a receipt, oldest generation first.
+     * Drop the oldest value-only acquisition for `key`. Older callers without
+     * a recorded path claim fall back to the first live generation.
      *
      * The compatibility door for callers that only knew a path. Exact while a
      * key has ONE generation — every key never invalidated; `ambiguous` says it
@@ -181,12 +190,12 @@ export class AssetRefLedger<T> {
         if (!generations || generations.length === 0) return undefined;
         const ambiguous = generations.length > 1;
 
-        const oldest = generations[0];
+        const oldest = generations.find(era => era.pathClaims > 0) ?? generations[0];
         if (oldest.pathClaims) oldest.pathClaims--;
         oldest.count--;
         if (oldest.count > 0) return { value: oldest.value, exhausted: false, ambiguous };
 
-        generations.shift();
+        generations.splice(generations.indexOf(oldest), 1);
         if (generations.length === 0) this.byKey_.delete(key);
         return { value: oldest.value, exhausted: true, ambiguous };
     }

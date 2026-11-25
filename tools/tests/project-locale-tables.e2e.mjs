@@ -14,14 +14,19 @@ import { serveDir } from '../lib/staticServer.mjs';
 async function asset(project, ref, type, data, uuid = randomUUID()) {
     const file = path.join(project, ref);
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, JSON.stringify(data));
+    await fs.writeFile(file, Buffer.isBuffer(data) ? data : JSON.stringify(data));
     await fs.writeFile(file + '.meta', JSON.stringify({ version: '2.0', uuid, type, importer: {} }));
 }
 
 async function fixture(project) {
+    const image = 'assets/art/star.png', uuid = '6e5b6002-9bc4-4f60-a446-94ac83023a8c', texture = '@uuid:' + uuid;
+    await asset(project, image, 'texture', await fs.readFile(path.join(ROOT, 'templates/wechat-minigame/assets/textures/star_tiny.png')), uuid);
     const entity = (id, name, components) => ({ id, name, parent: null, children: [], visible: true, components });
-    for (const [scene, shape] of [['hud', { type: 'Sprite', data: {} }], ['world', { type: 'MeshRenderer', data: { mesh: 'builtin:cube' } }]]) {
-        await asset(project, 'assets/scenes/' + scene + '.esscene', 'scene', { version: 4, name: scene, entities: [
+    for (const [scene, shape, sampler] of [
+        ['hud', { type: 'Sprite', data: { texture } }, { [image]: { filterMode: 'nearest', wrapMode: 'repeat', mipmaps: false } }],
+        ['world', { type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture } }, { [texture]: { filterMode: 'linear', wrapMode: 'mirror', mipmaps: true } }],
+    ]) {
+        await asset(project, 'assets/scenes/' + scene + '.esscene', 'scene', { version: 4, name: scene, textureImporterSettings: sampler, entities: [
             entity(1, 'Caption', [{ type: 'Transform', data: {} }, { type: 'UIRect', data: {} }, { type: 'Text', data: { i18nKey: 'start' } }]),
             entity(2, scene, [{ type: 'Transform', data: {} }, shape]),
         ] });
@@ -44,7 +49,7 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, defineSystem, Input, Localization, Res, SceneManager, Text } from 'esengine';
+import { addPlugin, Assets, defineSystem, Input, Localization, MeshRenderer, Res, SceneManager, Sprite, Text } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
     let inputCaption = null;
     app.addSystem(defineSystem([Res(Input)], input => {
@@ -52,6 +57,27 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
     }));
     globalThis.captionReceivedInput = () => inputCaption != null && inputCaption === app.world.findEntityByName('Caption');
     const localePins = () => app.getResource(Assets).appScope.leases().filter(lease => typeof lease.value?.locale === 'string').length;
+    function sampling(handle) {
+        const module = app.wasmModule, table = module.GL, rm = module.getResourceManager();
+        const gl = table.currentContext?.GLctx ?? table.contexts.find(ctx => ctx?.GLctx)?.GLctx;
+        const texture = table.textures[rm.getTextureNativeId(handle)];
+        if (!gl || !texture) throw new Error('Missing WebGL texture for handle ' + handle);
+        const previous = gl.getParameter(gl.TEXTURE_BINDING_2D);
+        try {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            return [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER, gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]
+                .map(p => gl.getTexParameter(gl.TEXTURE_2D, p));
+        } finally { gl.bindTexture(gl.TEXTURE_2D, previous); }
+    }
+    globalThis.sceneSampling = async () => {
+        const name = app.getResource(SceneManager).getActive();
+        if (name === 'boot') return null;
+        const entity = app.world.findEntityByName(name);
+        const visible = app.world.get(entity, name === 'hud' ? Sprite : MeshRenderer).texture;
+        const raw = await app.getResource(Assets).acquireTexture('${texture}', false);
+        try { return { visible: sampling(visible), raw: sampling(raw.value.handle) }; }
+        finally { raw.release(); }
+    };
     globalThis.bootReady = () => {
         const scenes = app.getResource(SceneManager);
         return scenes.getActive() === 'boot' && scenes.getSceneStatus('boot') === 'running';
@@ -59,15 +85,16 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
     globalThis.probeCaptionPreload = async name => {
         const assets = app.getResource(Assets), scenes = app.getResource(SceneManager);
         const active = scenes.getActive(), original = scenes.getScene(active);
-        const state = () => ({
+        const state = async () => ({
             sameScene: scenes.getActive() === active && scenes.getScene(active) === original && !original.signal.aborted,
             text: globalThis.readCaption()?.text ?? null,
             service: app.hasResource(Localization), pins: localePins(), decoded: assets.publishedRegistryAssets('locale').length,
+            sampling: await globalThis.sceneSampling(),
         });
         await scenes.prepare(name);
-        const prepared = state();
+        const prepared = await state();
         const released = scenes.discardPrepared(name);
-        return { prepared, released, discarded: state() };
+        return { prepared, released, discarded: await state() };
     };
     globalThis.readCaption = () => {
         const entity = app.world.findEntityByName('Caption');
@@ -107,6 +134,9 @@ async function check(browser, project, dir, platform) {
     });
     const page = await browser.newPage({ locale: 'en-US' });
     const errors = [];
+    // WebGL NEAREST / REPEAT and LINEAR_MIPMAP_LINEAR / MIRRORED_REPEAT, read back from both axes.
+    const samplers = { hud: [9728, 9728, 10497, 10497], world: [9987, 9729, 33648, 33648] };
+    const sampling = scene => ({ visible: samplers[scene], raw: samplers[scene] });
     page.on('pageerror', error => errors.push(error.message));
     const caption = (scene, text) => page.waitForFunction(([scene, text]) => {
         const state = globalThis.readCaption?.();
@@ -117,7 +147,7 @@ async function check(browser, project, dir, platform) {
         await page.waitForFunction(() => globalThis.bootReady?.(), null, { timeout: 30_000 });
         for (const name of ['hud', 'world']) {
             const result = await page.evaluate(name => globalThis.probeCaptionPreload(name), name);
-            const boot = { sameScene: true, text: null, service: false, pins: 0 };
+            const boot = { sameScene: true, text: null, service: false, pins: 0, sampling: null };
             assert.deepEqual(result.prepared, { ...boot, decoded: 3 }, name);
             assert.ok(result.released >= 3, `${name} must release all its table references`);
             assert.deepEqual(result.discarded, { ...boot, decoded: 0 }, name);
@@ -127,7 +157,7 @@ async function check(browser, project, dir, platform) {
         await page.evaluate(() => globalThis.setCaptionLocale('fr'));
         await caption('hud', 'Commencer');
         const active = await page.evaluate(() => globalThis.probeCaptionPreload('world'));
-        const playing = { sameScene: true, text: 'Commencer', service: true, pins: 3, decoded: 3 };
+        const playing = { sameScene: true, text: 'Commencer', service: true, pins: 3, decoded: 3, sampling: sampling('hud') };
         assert.deepEqual(active.prepared, playing);
         assert.ok(active.released >= 3);
         assert.deepEqual(active.discarded, playing);
@@ -138,16 +168,18 @@ async function check(browser, project, dir, platform) {
             assert.equal(failure.sameScene, true);
             assert.equal(failure.sameCaption, true);
             await caption(previous, 'Commencer');
+            assert.deepEqual(await page.evaluate(() => globalThis.sceneSampling()), sampling(previous));
             await page.keyboard.down('k');
             try { await page.waitForFunction(() => globalThis.captionReceivedInput(), null, { timeout: 10_000 }); }
             finally { await page.keyboard.up('k'); }
             await page.evaluate(name => globalThis.openCaptionScene(name), scene);
             await caption(scene, 'Commencer');
+            assert.deepEqual(await page.evaluate(() => globalThis.sceneSampling()), sampling(scene));
         }
         await page.evaluate(() => globalThis.setCaptionLocale('en'));
         await caption('hud', 'Start game');
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed 2D and 3D preload/discard, active captions and input, cuts, fades and four switches');
+        console.log(platform + ' passed 2D and 3D preload/discard, GPU texture sampling, active captions and input, cuts, fades and four switches');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

@@ -9,6 +9,7 @@ import { atlasTextureSettingsKey, type ParsedTextureImportSettings } from './tex
 // it acquired, so a held generation can still recover after either one moves.
 const PREFIX = '@manifest:';
 const ATLAS = '@atlas-page:';
+const SCENE = '@scene-import:';
 
 export function manifestBindingKey(record: string, file: string): string {
     return PREFIX + assetPairKey(record, file);
@@ -21,8 +22,22 @@ function bindingName(key: string, prefix: string): string | undefined {
 }
 
 export function bindingRecord(key: string): string | undefined {
+    key = sceneBindingBase(key);
     return bindingName(key, PREFIX);
 }
+
+/** Keep incompatible uploads or dependent handles separate while both scenes hold them. */
+export function sceneImportBinding(base: string, profile: string): string {
+    return SCENE + assetPairKey(profile, base);
+}
+
+export function sceneBindingBase(key: string): string {
+    if (!key.startsWith(SCENE)) return key;
+    const end = key.indexOf(':', SCENE.length);
+    return end < 0 ? key : key.slice(end + 1);
+}
+
+export function sceneBindingProfile(key: string): string | undefined { return bindingName(key, SCENE); }
 
 /** Default atlas pages keep the native pool's ordinary file key. Other uploads also identify their sampler and border. */
 export function atlasPageBinding(file: string, settings?: ParsedTextureImportSettings): string {
@@ -38,6 +53,7 @@ export function atlasBindingSettings(key: string): ParsedTextureImportSettings |
 }
 
 export function bindingFile(key: string): string {
+    key = sceneBindingBase(key);
     const prefix = key.startsWith(PREFIX) ? PREFIX : key.startsWith(ATLAS) ? ATLAS : undefined;
     if (!prefix) return key;
     const end = key.indexOf(':', prefix.length);

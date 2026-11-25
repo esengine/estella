@@ -5,6 +5,7 @@ import { assetPairKey } from './assetPairKey';
 import type { PreparedLoad } from './dependencies';
 import type { AssetChange } from './hotUpdate';
 import { boundValueIn } from './leaseBindings';
+import { sceneBindingProfile } from './manifestBinding';
 
 /** A manifest record can disappear while a field still owns the generation it received. */
 export class ManifestBindingHistory {
@@ -22,10 +23,10 @@ export class ManifestBindingHistory {
 
     /** Consult the live ledgers. A released handle can already belong to another asset. */
     heldValues(changes: readonly AssetChange[], textures: AssetRefLedger<number>, prepared: AssetRefLedger<PreparedLoad<unknown>>) {
-        const values = new Map<string, Map<number | string, unknown>>();
+        const values = new Map<string, Map<number | string, { value: unknown; profile?: string }>>();
         if (!changes.length || (!textures.size && !prepared.size)) return values;
         const wanted = new Map(changes.map(c => [assetPairKey(c.type, c.key), c.key]));
-        const collect = (generation: AssetRefGeneration<unknown>, value: unknown): void => {
+        const collect = (generation: AssetRefGeneration<unknown>, value: unknown, binding: string): void => {
             const records = this.records_.get(generation);
             if (!records) return;
             const handle = boundValueIn(value);
@@ -34,16 +35,17 @@ export class ManifestBindingHistory {
                 const key = wanted.get(record);
                 if (key === undefined) continue;
                 const held = values.get(key);
-                if (held) held.set(handle, value);
-                else values.set(key, new Map([[handle, value]]));
+                const entry = { value, profile: sceneBindingProfile(binding) };
+                if (held) held.set(handle, entry);
+                else values.set(key, new Map([[handle, entry]]));
             }
         };
-        for (const rows of textures.entries().values()) {
-            for (const row of rows) collect(row, row.value);
+        for (const [key, rows] of textures.entries()) {
+            for (const row of rows) collect(row, row.value, key.slice(0, -2));
         }
         for (const rows of prepared.entries().values()) {
             for (const row of rows) {
-                if (row.value.loader.fieldBinding !== 'source') collect(row, row.value.value);
+                if (row.value.loader.fieldBinding !== 'source') collect(row, row.value.value, row.value.owner.key);
             }
         }
         return values;

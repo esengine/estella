@@ -14,6 +14,7 @@ import { log } from '../../util/logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly type = 'timeline';
+    readonly bindsTextures = true;
     readonly extensions = ['.estimeline'];
 
     readonly registry: RegistryAssetLoader<TimelineResult> = {

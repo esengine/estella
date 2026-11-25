@@ -90,7 +90,7 @@ export interface SpineAssetInfo {
  * runs over a host's own file access, and what it uploads is the host's.
  */
 export interface SpineAssetOwner {
-    assets: AssetsData;
+    assets: Pick<AssetsData, 'acquireSpine'>;
     scope: AssetScope;
 }
 

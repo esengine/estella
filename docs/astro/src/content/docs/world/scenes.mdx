@@ -125,6 +125,12 @@ The current scene keeps its captions and language while those reads run. Once th
 ownership of its entities and assets, it adopts the prepared translations. `discardPrepared(name)`
 releases the destination's table references, including when another scene shares the same read.
 
+Two scenes can use the same image with different sampling. For example, a HUD sprite can use nearest
+filtering without mipmaps while a 3D mesh uses linear filtering with mipmaps. If the image has no
+project importer settings, each scene's `textureImporterSettings` applies to its own prepared assets.
+Direct texture loads start using the destination's settings when it takes ownership. Discarding the
+preload keeps the current scene's settings.
+
 ## Persistent entities
 
 A switch despawns the entities owned by the outgoing scene. `setPersistent` marks an entity to survive the unload of

@@ -14,6 +14,7 @@ import type { FontHandle } from '../../types';
 
 export class FontAssetLoader implements AssetLoader<FontResult> {
     readonly type = 'font';
+    readonly bindsTextures = true;
     readonly extensions = ['.bmfont', '.fnt', '.ttf', '.otf', '.woff', '.woff2'];
 
     async load(path: string, ctx: LoadContext): Promise<FontResult> {

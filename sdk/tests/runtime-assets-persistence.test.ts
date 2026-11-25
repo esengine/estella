@@ -8,7 +8,7 @@
  *        instance-per-scene behavior silently dropped the manifest and all
  *        caches/refcounts on every scene switch.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import { createPackagedAssetSource, indexPackagedManifest } from '../src/runtime/packagedRuntime';
 import { Audio, AudioAPI } from '../src/audio/Audio';
@@ -151,7 +151,7 @@ describe('per-App runtime Assets persistence', () => {
         expect(scene).toEqual(authored);
     });
 
-    it('accumulates texture import settings across scenes instead of replacing them', async () => {
+    it('uses the importer settings of both published scenes for subsequent texture uploads', async ({ onTestFinished }) => {
         const app = makeFakeApp();
         await loadScene(app, makeScene('a', {
             'assets/a.png': { filterMode: 'nearest', wrapMode: 'repeat' },
@@ -160,10 +160,16 @@ describe('per-App runtime Assets persistence', () => {
             'assets/b.png': { filterMode: 'linear', wrapMode: 'clamp' },
         }));
 
-        const assets = app.getResource(AssetsResource) as unknown as {
-            textureImportResolver_: ((ref: string) => { filter?: string; wrap?: string } | undefined) | null;
-        };
-        expect(assets.textureImportResolver_?.('assets/a.png')).toEqual({ filter: 'nearest', wrap: 'repeat' });
-        expect(assets.textureImportResolver_?.('assets/b.png')).toEqual({ filter: 'linear', wrap: 'clamp' });
+        const assets = app.getResource(AssetsResource);
+        const manager: Pick<CppResourceManager, 'releaseTexture'> = { releaseTexture() {} };
+        initResourceManager(manager as CppResourceManager);
+        onTestFinished(() => { assets.releaseAll(); shutdownResourceManager(); });
+        let handle = 0;
+        const upload = vi.spyOn(assets.getTextureLoader(), 'load').mockImplementation(async () => ({ handle: ++handle, width: 2, height: 2 }));
+        await assets.acquireTexture('assets/a.png');
+        await assets.acquireTexture('assets/b.png');
+        expect(upload.mock.calls.map(([, , options]) => options?.settings)).toMatchObject([
+            { filter: 'nearest', wrap: 'repeat' }, { filter: 'linear', wrap: 'clamp' },
+        ]);
     });
 });

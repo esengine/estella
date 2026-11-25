@@ -237,6 +237,8 @@ export interface AssetLoader<T> {
     /** For cached files whose component field stores a source ref. The field resolves
      *  to the current preparation, and its receipt retains that exact generation. */
     readonly fieldBinding?: 'source';
+    /** The prepared document binds texture handles directly or through a dependency. Embedded scene samplers are part of its cache key. */
+    readonly bindsTextures?: boolean;
     load?(path: string, ctx: LoadContext): Promise<T>;
     /** Destroy what `load` made. What it ACQUIRED is the preparation's and goes
      *  back with the era — a loader releasing it here would free it twice. */

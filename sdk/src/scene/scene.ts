@@ -76,6 +76,8 @@ export interface SceneData {
     generator?: string;
     entities: SceneEntityData[];
     textureMetadata?: Record<string, TextureMetadata>;
+    /** Texture importer fallbacks embedded in a loose or cooked scene. Project asset metadata takes precedence. */
+    textureImporterSettings?: import('../asset/sceneTextureImports').SceneTextureImporterSettings;
     /**
      * Set by {@link expandScenePrefabs} on the scene it answers, never written to a file: the virtual instances it left as roots
      * alone, and what each is made from. The loader hands them to the world once the entities exist.
@@ -895,6 +897,8 @@ async function loadSceneAssetsAndSpawn(
             } else if (assets?.entityScopes) {
                 result?.scope.releaseAll();
             }
+            assertCurrent();
+            result?.publishTextureImports?.();
             return entities;
         } finally {
             ownership?.release();

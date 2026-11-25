@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { EmbeddedBackend } from '../src/asset/Backend';
-import { AssetScope } from '../src/asset/AssetLease';
+import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import { AssetPlugin, Assets } from '../src/asset/AssetPlugin';
 import { MeshRenderer, Sprite } from '../src/ecs/component';
 import { defineSystem, Schedule } from '../src/ecs/system';
@@ -32,7 +32,7 @@ async function game(dimension: '2D' | '3D' = '2D') {
             if (dimension === '2D') app.world.insert(player, Sprite, {});
             else app.world.insert(player, MeshRenderer, {});
             const scope = new AssetScope();
-            scope.add({ key: 'home', generation: 1, value: 0, release });
+            scope.add(ownedAssetLease('home', 1, 0, release));
             ctx.trackAssetScope(scope);
         },
     });
@@ -262,7 +262,7 @@ it('releases incoming raw assets immediately when cancelled during staggered out
     try {
         await scenes.load('home');
         const content = await assets.preloadSceneAssets(empty);
-        content.scope.add({ key: 'incoming', generation: 1, value: 0, release });
+        content.scope.add(ownedAssetLease('incoming', 1, 0, release));
         vi.spyOn(assets, 'preloadSceneAssets').mockResolvedValueOnce(content);
         const switching = expect(scenes.switchTo('next', { staggered: true })).rejects.toBeInstanceOf(SceneLoadCancelled);
         await retiring.promise;

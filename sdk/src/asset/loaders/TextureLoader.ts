@@ -216,6 +216,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     mayHoldReducedTextures = false;
     /** The same sources by residency key, kept past a release: a texture revived from the warm cache is the same file at the size it was left at. */
     private readonly sourcesByKey_ = new Map<string, TextureSource>();
+
+    /** @internal Held and warm uploads still eligible for revival or invalidation. */
+    *sourcePaths(): IterableIterator<string> {
+        for (const source of this.sourcesByKey_.values()) yield source.path;
+    }
     private deviceFormats_: CompressedTextureFormat[] | null = null;
 
     /**

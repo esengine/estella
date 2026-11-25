@@ -46,6 +46,7 @@ export interface EnvironmentResult {
  */
 export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
     readonly type = 'environment';
+    readonly bindsTextures = true;
     readonly extensions = ['.esenv'];
 
     /** Lazy like the mesh loader's: the module arrives after construction. */

@@ -10,6 +10,7 @@ import { log } from '../../util/logger';
 
 export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     readonly type = 'material';
+    readonly bindsTextures = true;
     readonly extensions = ['.esmaterial'];
 
     async load(file: string, ctx: LoadContext, buildPath = ctx.catalog.getBuildPath(file)): Promise<MaterialResult> {

@@ -17,6 +17,7 @@ import { prepareSpine, type SpineAssetValue, type SpineIO } from '../../spine/pr
 
 export class SpineAssetLoader implements AssetLoader<SpineAssetValue> {
     readonly type = 'spine';
+    readonly bindsTextures = true;
     readonly extensions = ['.skel'];
 
     /** The pair a skeleton names on its own: its atlas is a Catalog dependency,

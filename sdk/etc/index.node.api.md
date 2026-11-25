@@ -10772,6 +10772,7 @@ deferredInstances: DeferredRecord[] | undefined
 entities: SceneEntityData[]
 generator: string | undefined
 name: string
+textureImporterSettings: Readonly<Record<string, Readonly<Record<string, unknown>>>> | undefined
 textureMetadata: Record<string, TextureMetadata> | undefined
 version: string | number
 ```
