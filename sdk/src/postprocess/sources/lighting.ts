@@ -527,7 +527,11 @@ void main() {
      * Contact shadows: the small, sharp shadows a shadow map is too coarse to hold — a lamp's foot on the ground, a
      * fold of cloth, the crack under a door. From each pixel a short ray is marched toward the sun in the depth buffer; a
      * step that lands just behind what the buffer shows is a surface standing between this point and the light. It is
-     * laid over the finished picture, so it darkens what is already lit by the same amount whatever the light did: a
+     * laid over the finished picture, so what it takes away is the light the sun put there and nothing else: the sun's
+     * diffuse share of the pixel (the surface's own colour times the sun's, by how squarely it faces it, where the sun's
+     * shadow map lets it through). The sky, the ambient and the other lights stay, so a shadowed point is as bright as a
+     * point turned away from the sun, not darker, and a point the shadow map has already put in shadow loses nothing twice.
+     * A surface that wrote no colour of its own falls back to darkening the picture, by what the shadow map left lit.
      */
     createContactShadows(): ShaderHandle {
         const source = `#pragma shader "PP Contact Shadows"
@@ -542,8 +546,11 @@ void main() {
 #pragma param u_fadeStart float default(1500) range(0,100000)
 #pragma param u_fadeEnd float default(3000) range(0,100000)
 #pragma param u_softness float default(1.5) range(0,20)
+// The scene's diffuse colour beside its surface record (alpha 1 where a surface wrote one); black is "none written".
+#pragma param u_sceneAlbedo texture default(black) texel(data)
 ${qualityUniformParam('contactShadowSteps')}
 #pragma lights
+#pragma gbuffer
 
 #pragma fragment
 precision highp float;
@@ -551,6 +558,7 @@ precision highp float;
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
 uniform highp sampler2D u_sceneDepth;
+uniform sampler2D u_gbuffer;
 out vec4 fragColor;
 
 const int CONTACT_SHADOW_STEPS_MAX = ${qualityUniformMax('contactShadowSteps')};
@@ -558,6 +566,7 @@ const int CONTACT_SHADOW_STEPS_MAX = ${qualityUniformMax('contactShadowSteps')};
 const int CONTACT_SOFT_RAYS = 4;
 
 ${SSAO_GLSL}
+${GBUFFER_GLSL}
 
 ${IGN_GLSL}
 
@@ -699,7 +708,27 @@ void main() {
         }
         occluded /= float(CONTACT_SOFT_RAYS);
     }
-    fragColor = vec4(src.rgb * (1.0 - u_intensity * occluded * facing * near), src.a);
+    float block = u_intensity * occluded * near;
+    // What the shadow map already took: the sun did not light this point, so a blocker found here takes nothing more.
+    bool sunLit = u_followSun > 0.5 && lightDir.w > 0.5;
+    float lit = sunLit ? sunVisibility(P, tiles.x, tiles.y) : 1.0;
+    vec4 written = texelFetch(u_sceneAlbedo, min(c, textureSize(u_sceneAlbedo, 0) - ivec2(1)), 0);
+    if (written.a > 0.5 && sunLit) {
+        // The sun's diffuse light on this point, as the lit pass added it: colour times intensity times N.L, through the map.
+        // Taken as its share of the pixel's brightness rather than subtracted channel by channel: effects earlier in the
+        // chain (ambient occlusion above all) have already scaled the picture, so the sun's light as the lit pass added it
+        // can be more than is left of it here, and a subtraction would take the red out of skin first and leave it cyan.
+        // Facing taken from the normal the surface shaded with (its normal map, its smoothing), not the one the depth
+        // buffer gives: a facet the depth calls turned to the sun may have been shaded as turned away, and lit by the sky.
+        Surface sf = readSurface(c);
+        vec3 Ns = sf.known ? sf.normal : N;
+        vec3 sun = written.rgb * lightColor.rgb * (lightColor.a * max(dot(Ns, L), 0.0) * lit);
+        const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+        float share = clamp(dot(sun, LUMA) / max(dot(src.rgb, LUMA), 1e-4), 0.0, 1.0);
+        fragColor = vec4(src.rgb * (1.0 - block * share), src.a);
+    } else {
+        fragColor = vec4(src.rgb * (1.0 - block * facing * lit), src.a);
+    }
 }
 #pragma end
 

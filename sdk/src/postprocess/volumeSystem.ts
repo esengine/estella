@@ -98,7 +98,7 @@ function applyBuiltinTextures(api: PostProcessAPI, stack: ReturnType<PostProcess
     }
 }
 
-type ResolvedEffects = Map<string, BlendedEffect>;
+export type ResolvedEffects = Map<string, BlendedEffect>;
 
 /** What the output stages among the effects ask of the last pass: the display look's table (a texture handle) and amount. */
 function displayLutOf(effects: ResolvedEffects): { texture: number; amount: number } {
@@ -227,6 +227,29 @@ export function withReducedDynamicGI(api: PostProcessAPI, effects: ResolvedEffec
     return out;
 }
 
+/**
+ * Effects that work on light other than the sun's: ambient occlusion and the bounce, reflection and voxel GI. Contact
+ * shadows take the sun's share out of a pixel, judged against the picture as the lit pass left it; after one of these the
+ * picture is already scaled (an occluded crease by its ambient occlusion), the sun's light there is more than is left of the
+ * pixel and the whole of it goes dark. So contact shadows run ahead of the first of them, wherever a volume listed them.
+ */
+const AFTER_CONTACT_SHADOWS: ReadonlySet<string> = new Set(['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'dynamicGI']);
+
+export function withContactShadowsFirst(effects: ResolvedEffects): ResolvedEffects {
+    const contact = effects.get('contactShadows');
+    if (!contact) return effects;
+    const keys = [...effects.keys()];
+    const first = keys.findIndex((k) => AFTER_CONTACT_SHADOWS.has(k));
+    if (first < 0 || first > keys.indexOf('contactShadows')) return effects;
+    const out: ResolvedEffects = new Map();
+    for (const [k, v] of effects) {
+        if (k === 'contactShadows') continue;
+        if (k === keys[first]) out.set('contactShadows', contact);
+        out.set(k, v);
+    }
+    return out;
+}
+
 /** Let a camera's volume stack go, when it has one. */
 function releaseStack(api: PostProcessAPI, camera: Entity): void {
     const existing = api.volumeStacks.get(camera);
@@ -242,7 +265,7 @@ function applyBlendedEffects(
     blended: ResolvedEffects,
     perspective: boolean,
 ): void {
-    const effects = withReducedDynamicGI(api, withTemporalAntialiasing(api, blended, perspective));
+    const effects = withContactShadowsFirst(withReducedDynamicGI(api, withTemporalAntialiasing(api, blended, perspective)));
     if (effects.size === 0) {
         releaseStack(api, camera);
         return;
