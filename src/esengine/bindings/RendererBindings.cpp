@@ -2491,7 +2491,7 @@ void renderer_renderMeshSetPreview(uintptr_t meshesPtr, uintptr_t materialsPtr, 
 }
 
 void renderer_renderRegistryPreview(ecs::Registry& registry, uintptr_t worldViewProjectionPtr,
-                                    uintptr_t screenProjectionPtr, i32 w, i32 h) {
+                                    uintptr_t screenProjectionPtr, i32 studio, i32 w, i32 h) {
     if (!g_renderFrame || w <= 0 || h <= 0) return;
     const auto* world = boundarySpan<f32>(worldViewProjectionPtr, 16, "renderer_renderRegistryPreview.worldViewProjection");
     if (!world) return;
@@ -2503,8 +2503,13 @@ void renderer_renderRegistryPreview(ecs::Registry& registry, uintptr_t worldView
     const auto* ui = ctx().tryGet<ecs::UISystem>();
     const glm::mat4 worldVP = glm::make_mat4(world);
     const glm::mat4 screenVP = screen ? glm::make_mat4(screen) : glm::mat4(1.0f);
+    // The rig at its defaults, not as the viewport has it turned: a picture of an
+    // asset must not change because someone dimmed the key light in the view.
+    RenderFrame::ViewLighting lighting;
+    lighting.studio = studio != 0;
     g_renderFrame->renderRegistryToTarget(registry, ui ? ui->renderData(registry) : nullptr, worldVP,
-                                          screen ? &screenVP : nullptr, static_cast<u32>(w), static_cast<u32>(h));
+                                          screen ? &screenVP : nullptr, lighting,
+                                          static_cast<u32>(w), static_cast<u32>(h));
 }
 
 // Same 0/1/2 contract as renderer_pollSnapshotReadback, for the material preview.

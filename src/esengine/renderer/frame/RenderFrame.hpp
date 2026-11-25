@@ -640,11 +640,13 @@ public:
      * its screen-space UI over it, as the overlay pass draws it. @p uiData is that
      * registry's laid-out UI; the frame's own binding, overlay projection and
      * render origin are restored afterwards, so the viewport's next frame is
-     * untouched. What a prefab preview draws: an instance in a world of its own.
+     * untouched. @p lighting is the picture's own — the studio rig, or the
+     * registry's lights — never whatever the viewport happens to be set to.
+     * What a prefab preview draws: an instance in a world of its own.
      */
     void renderRegistryToTarget(ecs::Registry& registry, Shared<const ecs::UIRenderData> uiData,
                                 const glm::mat4& worldViewProjection, const glm::mat4* screenProjection,
-                                u32 w, u32 h);
+                                const ViewLighting& lighting, u32 w, u32 h);
     const u8* getPreviewPixels() const { return preview_.pixels.data(); }
     u32 getPreviewSize() const { return static_cast<u32>(preview_.pixels.size()); }
     u32 getPreviewWidth() const { return preview_.width; }

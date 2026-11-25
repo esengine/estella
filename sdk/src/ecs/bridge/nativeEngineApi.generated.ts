@@ -259,7 +259,7 @@ export interface NativeEngineApi {
     renderer_renderMaterialPreview?(materialId: number, w: number, h: number, meshId: number, textureId: number): void;
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
     renderer_renderMeshSetPreview?(meshesPtr: number, materialsPtr: number, count: number, w: number, h: number): void;
-    renderer_renderRegistryPreview?(registry: unknown, worldViewProjectionPtr: number, screenProjectionPtr: number, w: number, h: number): void;
+    renderer_renderRegistryPreview?(registry: unknown, worldViewProjectionPtr: number, screenProjectionPtr: number, studio: number, w: number, h: number): void;
     renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_requestProbeCapture?(x: number, y: number, z: number, face: number): void;

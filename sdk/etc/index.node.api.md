@@ -19565,7 +19565,7 @@ PrefabsPlugin
 
 ## renderPreviewWorld — function @experimental
 ```
-(app: App, framing: PreviewFraming, w: number, h: number): Promise<ImageData | null>
+(app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean; }): Promise<ImageData | null>
 ```
 
 ## renumberEntityZero — function @experimental

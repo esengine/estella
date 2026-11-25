@@ -208,19 +208,21 @@ export function aimPreviewWorld(app: App, framing: PreviewFraming, w: number, h:
 /**
  * Draw the preview world into the preview target and read it back: a camera's
  * view through `framing.world`, then its screen-space UI through `framing.screen`.
- * Null when the engine has no such entry or drew nothing.
+ * `studio` lights it with the editor's studio rig at its defaults (what a world with
+ * no light of its own needs to be seen at all); otherwise it is lit by its own lights.
+ * Either way the viewport's current lighting is not consulted. Null when the engine
+ * has no such entry or drew nothing.
  * @experimental
  */
-export function renderPreviewWorld(app: App, framing: PreviewFraming, w: number, h: number): Promise<ImageData | null> {
-    const module = app.wasmModule as (ESEngineModule & {
-        renderer_renderRegistryPreview?(registry: unknown, world: number, screen: number, w: number, h: number): void;
-        _malloc?(n: number): number; _free?(p: number): void; HEAPF32?: Float32Array;
-    }) | null;
+export function renderPreviewWorld(
+    app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean },
+): Promise<ImageData | null> {
+    const module = app.wasmModule as ESEngineModule | null;
     const core = previewCore(module);
-    if (!module || !core || typeof module.renderer_renderRegistryPreview !== 'function' || !module._malloc || !module._free) {
+    const registry = app.world.getCppRegistry();
+    if (!module || !core || !registry || typeof module.renderer_renderRegistryPreview !== 'function' || !module._malloc || !module._free) {
         return Promise.resolve(null);
     }
-    const registry = app.world.getCppRegistry();
     const malloc = module._malloc, free = module._free;
     return drawPreview(core, () => {
         const worldPtr = malloc(64), screenPtr = framing.screen ? malloc(64) : 0;
@@ -228,7 +230,7 @@ export function renderPreviewWorld(app: App, framing: PreviewFraming, w: number,
             const heap = new Float32Array(module.HEAPU8.buffer);
             heap.set(framing.world, worldPtr >>> 2);
             if (framing.screen) heap.set(framing.screen, screenPtr >>> 2);
-            module.renderer_renderRegistryPreview!(registry, worldPtr, screenPtr, w, h);
+            module.renderer_renderRegistryPreview!(registry, worldPtr, screenPtr, options?.studio ? 1 : 0, w, h);
         } finally {
             free(worldPtr);
             if (screenPtr) free(screenPtr);

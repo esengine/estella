@@ -570,9 +570,10 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h, u32 meshId, u3
 void renderer_renderMeshPreview(u32 meshId, i32 w, i32 h);
 void renderer_renderMeshSetPreview(uintptr_t meshesPtr, uintptr_t materialsPtr, i32 count, i32 w, i32 h);
 /** A whole registry into the preview target: as a camera with the world view-projection sees it, then its
- *  screen-space UI through the screen projection (0 for none). Both are 16 floats, column-major. */
+ *  screen-space UI through the screen projection (0 for none). Both are 16 floats, column-major. @p studio 1
+ *  lights it with the studio rig at its defaults, 0 with the registry's own lights. */
 void renderer_renderRegistryPreview(ecs::Registry& registry, uintptr_t worldViewProjectionPtr,
-                                    uintptr_t screenProjectionPtr, i32 w, i32 h);
+                                    uintptr_t screenProjectionPtr, i32 studio, i32 w, i32 h);
 
 /** @brief The angle the next mesh or material preview is seen from, degrees: yaw about up, pitch above the horizon. */
 void renderer_setPreviewOrbit(f32 yawDegrees, f32 pitchDegrees);

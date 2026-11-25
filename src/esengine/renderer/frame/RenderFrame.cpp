@@ -1314,7 +1314,8 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
 
 void RenderFrame::renderRegistryToTarget(ecs::Registry& registry, Shared<const ecs::UIRenderData> uiData,
                                          const glm::mat4& worldViewProjection,
-                                         const glm::mat4* screenProjection, u32 w, u32 h) {
+                                         const glm::mat4* screenProjection,
+                                         const ViewLighting& lighting, u32 w, u32 h) {
     if (w == 0 || h == 0) return;
     if (!device_.isDeviceUsable()) return;
     auto& surface = preview_;
@@ -1335,6 +1336,8 @@ void RenderFrame::renderRegistryToTarget(ecs::Registry& registry, Shared<const e
     const i32 savedX = overlay_vp_x_, savedY = overlay_vp_y_;
     const u32 savedW = overlay_vp_w_, savedH = overlay_vp_h_;
     const glm::dvec3 savedOrigin = renderOrigin();
+    const ViewLighting savedLighting = view_lighting_;
+    view_lighting_ = lighting;
     setRenderOrigin(glm::dvec3(0.0));
     setUIRenderData(std::move(uiData));
 
@@ -1388,6 +1391,7 @@ void RenderFrame::renderRegistryToTarget(ecs::Registry& registry, Shared<const e
     overlay_vp_x_ = savedX; overlay_vp_y_ = savedY; overlay_vp_w_ = savedW; overlay_vp_h_ = savedH;
     setUIRenderData(std::move(savedUI));
     setRenderOrigin(savedOrigin);
+    view_lighting_ = savedLighting;
 
     if (surface.readback != ReadbackHandle::Invalid) device_.discardReadback(surface.readback);
     surface.width = w;
