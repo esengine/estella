@@ -1681,6 +1681,20 @@ export const SHIPPED = {
     { notCertifiable: "Which level draws is a per-view render choice, not a game act. tests/renderer/test_frame_lifecycle.cpp covers LODMember per-view selection, and fixtures/scenes/lod-multicam.esscene renders two views under verify-render." },
   "Drag assets into the Outliner to create entities.":
     { notCertifiable: "An editor gesture no game act makes. desktop/tests/outliner-drop-intent.test.ts covers every asset kind and refusal, and the editor check outliner-asset-drop drags an image onto a row and onto empty space." },
+  "A stop clip can land where the character stops.":
+    { notCertifiable: "Where a foot comes to rest is a pose, not a state a game act ends on. sdk/tests/animatorDistanceMatch.test.ts covers playing by distance left, the floor and the pace cap; pipeline/tests/root-motion-extract.test.ts covers the clip's own pace." },
+  "An animator transition can blend by inertia instead of crossfading.":
+    { notCertifiable: "A blend is motion over a fraction of a second, not something a game act can end on. sdk/tests/animatorInertialize.test.ts covers the offset decay, its starting speed and the controller default." },
+  "Luban builds a client and a server from the same tables.":
+    { notCertifiable: "Generating tables is a build step, not a game act. pipeline/tests/luban-run.test.ts runs the real Luban for a client and a server target, checks each folder holds its own tables, and that removing an output removes its files." },
+  "WeChat and Douyin mini-games can run 3D physics with Jolt or PhysX.":
+    { notCertifiable: "A mini-game host is not available to a golden project's run. pipeline/tests/export-side-modules.test.ts and export-wechat-subpackage.test.ts cover what an export packages, sdk/tests/minigame-side-module-delivery.test.ts the first-use download, and tools/tests/minigame-physics.e2e.mjs boots a solver in the headless launcher." },
+  "A character going a different way from the one it faces runs with its legs that way.":
+    { notCertifiable: "How the hips turn is a pose, not a game act. sdk/tests/animatorOrientationWarp.test.ts covers the measured angle, the maxAngle limit and the spine turned back by as much." },
+  "A character can cover ground by its animation's own travel, so its feet do not slide.":
+    { notCertifiable: "Foot slide is a look over time, not a state a game act ends on. pipeline/tests/root-motion-extract.test.ts covers taking travel out of the top joint, and sdk/tests/animatorRootMotion.test.ts the root track scaled with its entity and the controller following it." },
+  "A character moved by its controller can fit its strides to the speed it is going.":
+    { notCertifiable: "Stride length is a pose, not a game act. sdk/tests/animatorStrideWarp.test.ts covers the speed ratio, the minStride/maxStride clamp and the foot kept at its height." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

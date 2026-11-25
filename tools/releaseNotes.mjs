@@ -6466,4 +6466,176 @@ export const NOTED = {
     { note: "Simultaneous worlds can draw their own HUDs and scene fades." },
   "fix(fx): keep trails and spring bones in their owning world":
     { note: "Trails and spring bones stay with their scene when several worlds share an engine." },
+  "fix(editor): use scanned asset labels and loader types in Play":
+    { note: "Asset labels now work from editor Play through packaged games and single-file playables." },
+  "fix(assets): deliver labeled resources through the shared batch loader":
+    { note: "Asset labels now work from editor Play through packaged games and single-file playables." },
+  "fix(ai): registerCondition takes a spec with what the check reads":
+    { note: "`registerCondition` accepts a condition spec." },
+  "feat(animator): lay the editor out in three columns, with marked wires and live debugging":
+    { note: "The animation controller editor shows a graph you can read and the details of what you picked, and follows the running game." },
+  "feat(animation): an animator says what it is playing for an editor to show":
+    { note: "The animation controller editor shows a graph you can read and the details of what you picked, and follows the running game." },
+  "fix(animator): use shared controls and theme tokens":
+    { note: "The animation controller editor now exposes its controls to keyboard and screen reader users consistently." },
+  "fix(editor): ship themed animation controller controls":
+    { note: "The animation controller editor now exposes its controls to keyboard and screen reader users consistently." },
+  "fix(animator): wires of a two-way pair land on the card edge":
+    { note: "The animation controller editor shows a graph you can read" },
+  "fix(pipeline): preserve texture precision and colour when cooking mip chains and atlases":
+    { note: "Compressed atlas pages now ship the mip levels and colour space their images request." },
+  "fix(assets): preserve per-frame texture settings across atlas pages":
+    { note: "Automatically packed sprites and UI images keep their texture import settings." },
+  "fix(assets): the audio Compress tooltip no longer says to turn it off for loops":
+    { note: "The audio Compress tooltip no longer tells you to turn it off for loops." },
+  "fix(pipeline): stream authored KTX2 textures from their shipped mip levels":
+    { note: "Web builds can show a mesh using a small preview of an imported KTX2 texture before downloading the full texture." },
+  "fix(pipeline): preserve filtered edges in packed texture frames":
+    { note: "Automatic atlas packing preserves filtered sprite edges." },
+  "fix(gameplay): a third-person camera holds rigidly on its character unless told to trail":
+    { note: "A Third Person Camera now holds rigidly on its character by default." },
+  "fix(ecs): keep deferred commands with their originating world":
+    { note: "Restarting a world while a system runs keeps the replacement 2D or 3D scene intact." },
+  "fix(aot): resolve live frame inputs before component addresses":
+    { note: "Compiled systems in packaged WebAssembly games now send and receive project events through the same bus as scripts." },
+  "fix(export): stage only the compiled modules selected by each package":
+    { note: "Rebuilding into an existing folder removes obsolete compiled system modules." },
+  "fix(renderer): apply texture import sampling to compressed engine uploads":
+    { note: "KTX2 textures use their authored filtering and wrapping on WebGPU and native targets." },
+  "fix(postprocess): contact shadows fade out with distance":
+    { note: "Contact Shadows no longer speckles distant ground seen at a low angle." },
+  "fix(postprocess): contact shadows find a blocker a step jumped over":
+    { note: "Contact Shadows no longer draws a hatch on the ground beside a wall or a crate." },
+  "feat(animation): a state can be played by the distance left to travel":
+    { note: "A stop clip can land where the character stops." },
+  "feat(animator): states and constraints show every setting they take":
+    { note: "A stop clip can land where the character stops." },
+  "docs: rewrite the Gameplay, Scripting, Core Concepts, Assets, Performance, Publishing and Extending chapters as reference pages":
+    { note: "The remaining documentation chapters are rewritten as reference pages, in English and Chinese." },
+  "docs(world,animation): rewrite the World and Animation chapters as reference pages":
+    { note: "The World and Animation documentation is rewritten as reference pages, in English and Chinese." },
+  "fix(assets): release named assets after their last entity field changes":
+    { note: "Living entities now release animation clips and rig avatars when their last field stops using them." },
+  "fix(assets): retain audio and prefab files for live component fields":
+    { note: "Persistent entities keep their loaded audio and prefabs across scene changes." },
+  "feat(animation): a foot-lock constraint holds a standing foot where it stands":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "feat(animator): the constraint list offers Foot stays put":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "fix(animation): a foot-lock holds the ball of the foot, once it has landed":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "fix(animation): a foot-lock taken up again holds where the foot is":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "refactor(animation): take out the foot-lock constraint":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "refactor(animator): the constraint list no longer offers Foot stays put":
+    { internal: "The foot-lock constraint was added and taken out again before any release; nothing that shipped changes." },
+  "fix(animation): a gait blend keeps its stride as its mix changes":
+    { note: "Going from a walk to a run blends the stride instead of jumping to it." },
+  "feat(animator): a blend stop takes a sync phase":
+    { note: "Going from a walk to a run blends the stride instead of jumping to it." },
+  "fix(assets): hold pixel-addressed textures at their imported dimensions":
+    { note: "Tilemaps keep every atlas at its imported size when a 3D mesh shares the texture." },
+  "feat(animation): a transition can blend by inertia":
+    { note: "An animator transition can blend by inertia instead of crossfading." },
+  "feat(animator): a transition can choose to inertialize":
+    { note: "An animator transition can blend by inertia instead of crossfading." },
+  "fix(pipeline): cook inherited mesh textures from their declared surface fields":
+    { note: "Mesh material instances now get build-time texture previews for the samplers they inherit." },
+  "fix(assets): mount lazy packages before reading their files":
+    { note: "Scenes can use assets from a lazy subpackage on first load." },
+  "fix(assets): preserve independent dependencies across live field replacement":
+    { note: "Updating a live sprite or mesh field keeps the original asset available to components that declared it separately." },
+  "feat(tools): Luban builds every target a project names, each into its own folders":
+    { note: "Luban builds a client and a server from the same tables." },
+  "feat(settings): Luban builds a row of outputs, a client and a server each into its own folders":
+    { note: "Luban builds a client and a server from the same tables." },
+  "fix(assets): rebind live scene fields when manifest records return":
+    { note: "Running scenes follow renamed and restored materials and textures." },
+  "fix(assets): apply manifest-only updates to live packaged assets":
+    { note: "Packaged games now apply texture sampling and nine-slice changes during a hot update." },
+  "fix(editor): Connect AI Tools lists VS Code once":
+    { note: "Connect AI Tools no longer lists VS Code under Other tools." },
+  "feat(physics): build and export 3D solvers for mini-games":
+    { note: "WeChat and Douyin mini-games can run 3D physics with Jolt or PhysX." },
+  "docs(api): refresh the mini-game physics API inventory":
+    { note: "WeChat and Douyin mini-games can run 3D physics with Jolt or PhysX." },
+  "fix(tools): decode CDN images in the headless minigame host":
+    { note: "The headless minigame launcher can render textures from a separate CDN origin." },
+  "fix(export): a mini-game vendor never ships a project module's web build":
+    { note: "A mini-game export no longer ships a project module's web build." },
+  "feat(animation): an orientation-warp constraint turns the legs to the way the character goes":
+    { note: "A character going a different way from the one it faces runs with its legs that way." },
+  "feat(animator): the constraint list offers Legs follow movement":
+    { note: "A character going a different way from the one it faces runs with its legs that way." },
+  "fix(pipeline): isolate compiled artifacts across concurrent exports":
+    { note: "Simultaneous exports of one project keep their own compiled systems." },
+  "fix(particles): the GPU Simulation tooltip names what stays on the CPU":
+    { note: "The GPU Simulation tooltip says what still runs on the CPU." },
+  "fix(assets): preserve imported texture dimensions during compression":
+    { note: "Sprites, tilemaps, bitmap fonts and animation frames use their imported texture dimensions while editor compression is pending." },
+  "fix(i18n): share ordered locale tables across scene and plugin loads":
+    { note: "Localized labels keep the same translations across scene switches and loading speeds." },
+  "fix(ecs): bind query rows and accessors to their world":
+    { note: "Systems can safely finish a query after a scene restarts." },
+  "perf(native): speed up scene loading with sequential entity IDs":
+    { note: "Native games using QuickJS load scenes with sequential entity IDs faster." },
+  "fix(layout): an asset editor restored in front of the viewport shows its content":
+    { note: "An editor tab left open in front of the scene view opens with its content." },
+  "fix(render): retain glyphs with the world that owns the label":
+    { note: "An editor preview can update or close its labels while another scene keeps its own text." },
+  "fix(ui): bind rich text images through their generated visuals":
+    { note: "Rich text keeps inline images when it wraps and draws the correct atlas frame." },
+  "feat(animation): a character walks by the travel its clips state":
+    { note: "A character can cover ground by its animation's own travel, so its feet do not slide." },
+  "fix(gameplay): a running character keeps its pace through a turn short of turning back":
+    { note: "A character can cover ground by its animation's own travel, so its feet do not slide." },
+  "fix(assets): preload registered component dependencies with their scene":
+    { note: "Scenes now preload the assets declared by project components and terrain layers." },
+  "fix(scene): cancel retired physics preparations without blocking live scenes":
+    { note: "Prefetching a scene leaves the live 2D and 3D physics settings alone." },
+  "fix(scene): bind scene publication and rollback to their owning world":
+    { note: "Closing or replacing a world during scene loading preserves entities in the new scene." },
+  "fix(scene): release retired physics module hosts":
+    { note: "A running game can reclaim a replaced physics module host and its cached modules." },
+  "fix(assets): keep packaged surface bindings distinct on shared files":
+    { note: "Sprites and meshes keep their own textures and materials when two assets ship as one file." },
+  "fix(assets): preserve mesh, font and lighting bindings across updates":
+    { note: "Updating a mesh, font, environment or light probe volume now changes only objects that reference that asset." },
+  "fix(pipeline): preserve every physical file referenced by an asset":
+    { note: "Re-exporting a sprite keeps texture previews still used by 3D meshes." },
+  "fix(render): scope skeletal passes to the app that owns the armature":
+    { note: "Spine and DragonBones characters stay in their own scene when a game and a preview share a renderer." },
+  "fix(animation): preserve source frames in packed sprite clips":
+    { note: "Sprite animations keep their frame sizes and crops in automatic atlases." },
+  "fix(animation): load standalone skeleton atlas pages through the texture loader":
+    { note: "Spine and DragonBones keep each atlas page's texture import settings when loaded outside a scene." },
+  "fix(templates): the 3D Starter ground holds a character as far as it is drawn":
+    { note: "A character in the 3D Starter no longer falls through the ground 40 m out." },
+  "fix(templates): the 3D Starter sky light no longer turns undersides navy":
+    { note: "A character in the 3D Starter no longer has dark blue lines under the nose, lips and jaw." },
+  "fix(gameplay): a character walking by its animation goes the way the stick says":
+    { note: "A character can cover ground by its animation's own travel, so its feet do not slide." },
+  "fix(assets): vertices left on a joint no clip moves are bound as their neighbours":
+    { note: "An imported character no longer trails a thin line from one vertex left behind." },
+  "fix(textures): stream authored KTX2 levels consistently across renderers":
+    { note: "Streamed KTX2 textures retain their colours down to the smallest preview." },
+  "fix(assets): verify and retain streamed texture previews during updates":
+    { note: "Hot updates now verify streamed texture previews before activating a build." },
+  "feat(animation): a stride-warp constraint fits a clip's strides to the character's speed":
+    { note: "A character moved by its controller can fit its strides to the speed it is going." },
+  "feat(animator): the constraint list offers Stride fits speed":
+    { note: "A character moved by its controller can fit its strides to the speed it is going." },
+  "fix(ecs): finish subtree destruction in its owning world":
+    { note: "Restarting a 2D or 3D world from a destruction callback preserves the new scene hierarchy." },
+  "fix(render): preserve imported texture resolution for unmeasured surfaces":
+    { note: "Sprites, tilesets and project components get the imported texture resolution when they share an image with a mesh." },
+  "fix(web): load compiled systems for the active engine memory":
+    { note: "Web games with compiled systems now start with threaded rendering enabled." },
+  "fix(gameplay): a character walking by its animation slows while it turns":
+    { note: "A character can cover ground by its animation's own travel, so its feet do not slide." },
+  "fix(viewport): gizmo marks stay hidden while the scene tab is behind another":
+    { note: "The scene view's marks no longer show through the tab in front of it." },
+  "fix(pipeline): preserve whole textures sampled by mesh UVs":
+    { note: "Meshes keep their original texture coordinates when automatic atlas packing is enabled." },
 };
