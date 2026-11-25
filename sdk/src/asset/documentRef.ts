@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { isUuidRef } from './AssetRegistry';
+import { assetRefId, isUuidRef } from './AssetRegistry';
 
 /**
  * Resolve a document-relative path against the referencing file's path — a Tiled
@@ -68,7 +68,7 @@ export function builtinRefId(ref: string): string | null {
  * of those refs to the same logical shape.
  */
 export function resolveDocumentRef(documentPath: string, ref: string): string {
-    return isLogicalAssetRef(ref) || isUuidRef(ref) ? ref : resolveRelativePath(documentPath, ref);
+    return isLogicalAssetRef(ref) || assetRefId(ref) !== null ? ref : resolveRelativePath(documentPath, ref);
 }
 
 /** @deprecated Name it for the question, not for Tiled: {@link resolveDocumentRef}. */

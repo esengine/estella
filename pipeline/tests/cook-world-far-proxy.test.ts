@@ -27,7 +27,7 @@ const transform = (x: number, z: number) => ({ type: 'Transform', data: { positi
 const renderer = (mesh: string, material = '') =>
     ({ type: 'MeshRenderer', data: { mesh, material, opaque: true, lit: true, color: { r: 1, g: 1, b: 1, a: 1 } } });
 
-async function world(declaration: Record<string, unknown>): Promise<string> {
+async function world(declaration: Record<string, unknown>, meshRef = `@uuid:${ROCK}`, prefabRef = `@uuid:${PREFAB}`): Promise<string> {
     project = await mkdtemp(path.join(tmpdir(), 'cook-far-'));
     for (const dir of ['scenes', 'prefabs', 'models']) await mkdir(path.join(project, 'assets', dir), { recursive: true });
     // A prefab whose child carries the mesh, so a proxy has to expand it to find anything.
@@ -46,9 +46,9 @@ async function world(declaration: Record<string, unknown>): Promise<string> {
         entities: [
             { id: 0, name: 'World', parent: null, children: [], visible: true,
               components: [{ type: 'StreamedWorld', data: { cellSize: 1000, ...declaration } }] },
-            { id: 1, name: 'Hut', parent: null, prefab: `@uuid:${PREFAB}`,
+            { id: 1, name: 'Hut', parent: null, prefab: prefabRef,
               overrides: [{ type: 'property', prefabEntityId: 'r', componentType: 'Transform', propertyName: 'position', value: { x: 100, y: 0, z: 100 } }] },
-            { id: 2, name: 'Rock', parent: null, children: [], visible: true, components: [transform(300, 300), renderer(`@uuid:${ROCK}`)] },
+            { id: 2, name: 'Rock', parent: null, children: [], visible: true, components: [transform(300, 300), renderer(meshRef)] },
             { id: 3, name: 'Shed', parent: null, children: [], visible: true, components: [transform(400, 400), renderer('builtin:cube', 'assets/hut.esmaterial')] },
             // The cell next door holds only something that moves, so it has nothing a proxy could be made of.
             { id: 4, name: 'Cart', parent: null, children: [], visible: true,
@@ -130,5 +130,11 @@ describe('cooking a world with far proxies', () => {
         expect(manifest.farDistance).toBeUndefined();
         expect(manifest.cells.every((c) => c.proxy === undefined)).toBe(true);
         expect(result.farProxies).toEqual([]);
+    });
+
+    it('includes both an indexed mesh and its neighboring prefab with legacy references', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 }, ROCK.toUpperCase(), PREFAB);
+        const { result } = await cook(root);
+        expect(result.farProxies[0]).toMatchObject({ cells: 1, surfaces: 3 });
     });
 });

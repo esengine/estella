@@ -19,7 +19,7 @@ import type { ComponentData, PrefabOverride } from '../../../sdk/src/prefab/type
 import type { AssetEntry } from './assetDb';
 import { addrType } from './addressableRecord';
 import { isBuiltinAssetRef, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
-import { extractUuid, UUID_REF_PREFIX } from '../../../sdk/src/asset/AssetRegistry';
+import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
 import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
 import type { MaterialAssetData } from '../../../sdk/src/render/material';
@@ -79,10 +79,10 @@ export async function meshTextureRoles(
   entries: readonly AssetEntry[],
   read: (file: string) => Promise<string> = (file) => readFile(path.join(root, file), 'utf8'),
 ): Promise<Map<string, Set<MeshTextureRole>>> {
-  const byUuid = new Map(entries.map((e) => [extractUuid(e.uuid) ?? e.uuid, e]));
+  const byUuid = new Map(entries.map((e) => [assetRefId(e.uuid) ?? e.uuid.toLowerCase(), e]));
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const resolve = (ref: string, docPath: string): AssetEntry | undefined => {
-    const uuid = extractUuid(ref) ?? (ref.startsWith(UUID_REF_PREFIX) ? ref.slice(UUID_REF_PREFIX.length) : null);
+    const uuid = assetRefId(ref);
     if (uuid !== null) return byUuid.get(uuid);
     if (ref === '' || isBuiltinAssetRef(ref) || ref.includes('://')) return undefined;
     return byPath.get(resolveDocumentRef(docPath, ref).replace(/^\/+/, ''));

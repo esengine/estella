@@ -36,12 +36,11 @@ import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
 import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
+import { UUID_REF_PREFIX as UUID_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
 const OUTPUT = 'assets.json';
-const UUID_PREFIX = '@uuid:';
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** One asset: stable uuid, current project-relative path, type + importer settings. */
 export interface AssetEntry {

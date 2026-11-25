@@ -78,6 +78,18 @@ export function extractUuid(ref: unknown): string | null {
     return body.toLowerCase();
 }
 
+/** Key in a host's asset index. An explicit prefix can also address older, non-UUID keys. */
+export function assetRefId(ref: string): string | null {
+    if (ref.startsWith(UUID_REF_PREFIX)) return ref.slice(UUID_REF_PREFIX.length).toLowerCase();
+    return UUID_V4_REGEX.test(ref) ? ref.toLowerCase() : null;
+}
+
+/** Resolve against lower-case index keys. Plain paths pass through and unknown IDs return null. */
+export function resolveIndexedAssetRef(ref: string, paths: ReadonlyMap<string, string>): string | null {
+    const id = assetRefId(ref);
+    return id === null ? ref : paths.get(id) ?? null;
+}
+
 /** Build a `"@uuid:..."` serialized ref. Validates the UUID shape. */
 export function makeUuidRef(uuid: string): string {
     if (!UUID_V4_REGEX.test(uuid)) {
@@ -197,21 +209,10 @@ export class AssetRegistry {
         return out;
     }
 
-    /**
-     * Resolve any serialized asset ref to an on-disk path:
-     *   - `"@uuid:xxxxxxxx-..."`  → lookup UUID; returns path or null
-     *   - plain string            → returned as-is (treated as legacy path)
-     *
-     * This is the function the asset loader should call before hitting
-     * the filesystem. During the migration window, scenes / prefabs
-     * carry a mix of UUID refs and legacy paths; this handles both.
-     */
+    /** Resolve a prefixed or bare UUID to its registered path. Unknown IDs return null and plain paths pass through. */
     resolveRef(ref: string): string | null {
-        const uuid = extractUuid(ref);
-        if (uuid !== null) {
-            return this.uuidToPath(uuid);
-        }
-        return ref;
+        const id = assetRefId(ref);
+        return id === null ? ref : this.byUuid_.get(id)?.path ?? null;
     }
 
     /** Iterate all entries. Stable across consecutive calls with no mutations. */

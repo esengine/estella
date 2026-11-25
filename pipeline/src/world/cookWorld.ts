@@ -16,11 +16,12 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { SceneData } from 'esengine';
+import { decodeMesh, type FarProxyHost, type PrefabData, type SceneData } from 'esengine';
 import {
     cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, farProxySettings, WORLD_DIR,
 } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
+import { resolveIndexedAssetRef } from '../../../sdk/src/asset/AssetRegistry';
 import { cookFarProxies, type FarProxyCookResult } from './farProxy';
 
 /** One streamed scene, as `game.config.json` names it. */
@@ -36,20 +37,20 @@ export interface CookWorldsResult {
     farProxies: Array<{ scene: string } & FarProxyCookResult>;
 }
 
-/**
- * Read the prefab document an instance names. From the PROJECT rather than the
- * payload: a prefab is content-addressed by then, and where its root sits is the
- * same either way. What the document MEANS is `prefabRootOf`, shared with the
- * realm that reads the same prefab over http.
- */
-function prefabReader(root: string, index: AssetIndex): (ref: string) => Promise<unknown | null> {
-    const byUuid = new Map<string, string>();
-    for (const entry of index.entries) byUuid.set(entry.uuid, entry.path);
-    return async (ref: string): Promise<unknown | null> => {
-        const uuid = ref.startsWith('@uuid:') ? ref.slice('@uuid:'.length) : null;
-        const relative = uuid !== null ? byUuid.get(uuid) : ref;
-        if (!relative) return null;
-        return JSON.parse(await readFile(path.join(root, relative), 'utf8')) as unknown;
+/** Partitioning and far proxies read source geometry from the same project index, before packaging renames the files. */
+function worldAssets(root: string, index: AssetIndex): FarProxyHost {
+    const paths = new Map(index.entries.map(entry => [entry.uuid.toLowerCase(), entry.path]));
+    return {
+        async loadPrefab(ref) {
+            const relative = resolveIndexedAssetRef(ref, paths);
+            if (!relative) return null;
+            return JSON.parse(await readFile(path.join(root, relative), 'utf8')) as PrefabData;
+        },
+        async readMesh(ref) {
+            const relative = resolveIndexedAssetRef(ref, paths);
+            if (!relative?.endsWith('.esmesh')) return null;
+            return decodeMesh(new Uint8Array(await readFile(path.join(root, relative))));
+        },
     };
 }
 
@@ -86,8 +87,7 @@ export async function cookWorlds(
     const worlds: CookedWorld[] = [];
     const warnings: string[] = [];
     const farProxies: CookWorldsResult['farProxies'] = [];
-    let index: AssetIndex | null = null;
-    let read: ((ref: string) => Promise<unknown | null>) | null = null;
+    let assets: FarProxyHost | undefined;
 
     for (const scene of scenes) {
         const staged = path.join(payloadDir, scene.path);
@@ -101,15 +101,15 @@ export async function cookWorlds(
         // reference check costs a whole engine to load.
         if (!text.includes('"StreamedWorld"')) continue;
 
-        if (read === null) {
-            index = await readCachedAssetIndex(root)
+        if (!assets) {
+            const index = await readCachedAssetIndex(root)
                 ?? (await scanAssetDatabase(root, { write: false, adopt: false })).index;
-            read = prefabReader(root, index);
+            assets = worldAssets(root, index);
         }
         const document = JSON.parse(text) as SceneData;
         const cut = cutWorld(document, scene.name, {
             entityFieldsOf: registryEntityFields(),
-            resolvePrefab: await resolvePrefabRoots(document, read),
+            resolvePrefab: await resolvePrefabRoots(document, assets.loadPrefab),
         });
         if (cut === null) continue;
         if (cut.errors.length > 0) {
@@ -123,7 +123,7 @@ export async function cookWorlds(
         await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
         const far = farProxySettings(document);
         if (far !== null) {
-            const baked = await cookFarProxies(root, payloadDir, cut, far, index!, read);
+            const baked = await cookFarProxies(payloadDir, cut, far, assets);
             warnings.push(...baked.warnings.map((w) => `${scene.name}: ${w}`));
             farProxies.push({ scene: scene.name, ...baked });
         }

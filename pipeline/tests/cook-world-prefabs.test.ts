@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 /** A project holding one prefab whose root sits at `at`, and a scene instancing it. */
-async function projectWith(at: [number, number, number], override: number[] | null): Promise<string> {
+async function projectWith(at: [number, number, number], override: number[] | null, ref = `@uuid:${UUID}`): Promise<string> {
     project = await mkdtemp(path.join(tmpdir(), 'cook-world-'));
     await mkdir(path.join(project, 'assets', 'scenes'), { recursive: true });
     await mkdir(path.join(project, 'assets', 'prefabs'), { recursive: true });
@@ -44,7 +44,7 @@ async function projectWith(at: [number, number, number], override: number[] | nu
             { id: 0, name: 'World', parent: null, children: [], visible: true,
               components: [{ type: 'StreamedWorld', data: { cellSize: SIZE } }] },
             {
-                id: 1, name: 'Hut', parent: null, prefab: `@uuid:${UUID}`,
+                id: 1, name: 'Hut', parent: null, prefab: ref,
                 overrides: override === null ? [] : [{
                     type: 'property', prefabEntityId: 'r',
                     componentType: 'Transform', propertyName: 'position',
@@ -70,8 +70,9 @@ async function cellsOf(root: string): Promise<string[]> {
 }
 
 describe('cooking a world that instances a prefab', () => {
-    it('puts the instance in the cell its asset root falls in', async () => {
-        expect(await cellsOf(await projectWith([1500, 0, 500], null))).toEqual(['main.cell_1_0']);
+    const references = [UUID, UUID.toUpperCase(), `@uuid:${UUID}`, `@uuid:${UUID.toUpperCase()}`, 'assets/prefabs/Hut.esprefab'];
+    it.each(references)('places the instance of %s in the cell containing its asset root', async ref => {
+        expect(await cellsOf(await projectWith([1500, 0, 500], null, ref))).toEqual(['main.cell_1_0']);
     });
 
     it('and in the cell an override moves it to, not the asset\'s', async () => {

@@ -7,6 +7,7 @@ import {
     UUID_V4_REGEX,
     isUuidRef,
     extractUuid,
+    resolveIndexedAssetRef,
     makeUuidRef,
     type AssetEntry,
     type AssetManifest,
@@ -50,6 +51,17 @@ describe('AssetRegistry ref helpers', () => {
         expect(makeUuidRef(UUID_A)).toBe(`${UUID_REF_PREFIX}${UUID_A}`);
         expect(makeUuidRef(UUID_A.toUpperCase())).toBe(`${UUID_REF_PREFIX}${UUID_A}`);
         expect(() => makeUuidRef('not-a-uuid')).toThrow();
+    });
+
+    it('looks up serialized IDs while preserving paths and distinguishing an unknown ID', () => {
+        const paths = new Map([[UUID_A, 'assets/old.png'], ['frame', 'assets/frame.png']]);
+        for (const ref of [UUID_A, UUID_A.toUpperCase(), `@uuid:${UUID_A.toUpperCase()}`]) {
+            expect(resolveIndexedAssetRef(ref, paths)).toBe('assets/old.png');
+        }
+        expect(resolveIndexedAssetRef('@uuid:FRAME', paths)).toBe('assets/frame.png');
+        expect(resolveIndexedAssetRef('frame', paths)).toBe('frame');
+        expect(resolveIndexedAssetRef('@uuid:unknown', paths)).toBeNull();
+        expect(resolveIndexedAssetRef(UUID_B, paths)).toBeNull();
     });
 });
 
@@ -169,6 +181,7 @@ describe('AssetRegistry.resolveRef', () => {
 
     it('returns null for an unknown UUID ref', () => {
         expect(reg.resolveRef(makeUuidRef(UUID_B))).toBeNull();
+        expect(reg.resolveRef('@uuid:missing')).toBeNull();
     });
 
     it('returns legacy path strings untouched (backward compat)', () => {

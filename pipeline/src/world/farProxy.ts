@@ -9,11 +9,10 @@
  *          is cut a web build has packed its meshes, and the project holds the same bytes.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { decodeMesh, encodeMesh, type MeshData } from 'esengine';
+import { encodeMesh, type FarProxyHost } from 'esengine';
 import { assembleFarProxies, type CutWorld, type FarProxySettings } from 'esengine/node';
-import type { AssetIndex } from '../assets/assetDb';
 import { simplifyFarProxyMesh } from '../assets/meshSimplify';
 
 /** What baking a world's far proxies did, for the build's report. */
@@ -26,26 +25,12 @@ export interface FarProxyCookResult {
     warnings: string[];
 }
 
-/** Reads a `.esmesh` reference (`@uuid:` or a project path) from the project. */
-function meshReader(root: string, index: AssetIndex): (ref: string) => Promise<MeshData | null> {
-    const byUuid = new Map<string, string>();
-    for (const entry of index.entries) byUuid.set(entry.uuid.toLowerCase(), entry.path);
-    return async (ref) => {
-        const uuid = ref.startsWith('@uuid:') ? ref.slice('@uuid:'.length).toLowerCase() : null;
-        const relative = uuid !== null ? byUuid.get(uuid) : ref.replace(/^\/+/, '');
-        if (!relative || !relative.endsWith('.esmesh')) return null;
-        return decodeMesh(new Uint8Array(await readFile(path.join(root, relative))));
-    };
-}
-
 /** Bake every cell of `cut` a far proxy, write it into `payloadDir`, and name it on the cut's manifest. */
 export async function cookFarProxies(
-    root: string, payloadDir: string, cut: CutWorld, settings: FarProxySettings, index: AssetIndex,
-    readPrefab: (ref: string) => Promise<unknown | null>,
+    payloadDir: string, cut: CutWorld, settings: FarProxySettings, assets: FarProxyHost,
 ): Promise<FarProxyCookResult> {
     const proxies = await assembleFarProxies(cut, settings, {
-        loadPrefab: async (ref) => await readPrefab(ref) as never,
-        readMesh: meshReader(root, index),
+        ...assets,
         simplify: simplifyFarProxyMesh,
     });
     const result: FarProxyCookResult = { cells: proxies.length, surfaces: 0, trianglesBefore: 0, trianglesAfter: 0, warnings: [] };
