@@ -17,6 +17,10 @@ import { axisAngle, rotate, norm, dot, encodeLinear8, clamp01, smoothstep, srgbD
 
 const R_E = 6360, R_A = 6420;
 const BETA_R = [0.0058, 0.0135, 0.0331], BETA_M = 0.021, H_R = 8, H_M = 1.2, SUN_I = 22, G = 0.76, SKY_GLOW = 0.03;
+// Ozone absorbs and scatters nothing; per kilometre at its densest, 25 km up, thinning to nothing 15 km either side (Hillaire 2020).
+// Integrated here sample by sample along the whole path, where the shader takes the layer's crossing in closed form.
+const BETA_O = [0.00065, 0.001881, 0.000085];
+const ozone = (h) => Math.max(0, 1 - Math.abs(h - 25) / 15);
 
 const sphereFar = (o, d, r) => {
   const b = dot(o, d), disc = b * b - (dot(o, o) - r * r);
@@ -29,35 +33,35 @@ const sphereNear = (o, d, r) => {
 const along = (o, d, t) => [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
 const height = (p) => Math.hypot(...p) - R_E;
 
-/** The air between p and the top of the atmosphere along d as (Rayleigh, Mie) optical depth, or null when the planet is in the way. */
+/** The air between p and the top of the atmosphere along d as (Rayleigh, Mie, ozone) optical depth, or null when the planet is in the way. */
 function lightDepth(p, d, steps) {
   if (sphereFar(p, d, R_E) > 0 && sphereNear(p, d, R_E) > 0) return null;
   const len = sphereFar(p, d, R_A), ds = len / steps;
-  let r = 0, m = 0;
+  let r = 0, m = 0, o = 0;
   for (let j = 0; j < steps; j++) {
     const h = height(along(p, d, ds * (j + 0.5)));
-    r += Math.exp(-h / H_R) * ds; m += Math.exp(-h / H_M) * ds;
+    r += Math.exp(-h / H_R) * ds; m += Math.exp(-h / H_M) * ds; o += ozone(h) * ds;
   }
-  return [r, m];
+  return [r, m, o];
 }
 
 export function scatterRef(dir, sun, alt, haze, N = 480, M = 96) {
   const o = [0, R_E + alt, 0], len = sphereFar(o, dir, R_A), ds = len / N, mu = dot(dir, sun);
   const phaseR = (3 / (16 * Math.PI)) * (1 + mu * mu);
   const phaseM = (3 / (8 * Math.PI)) * (((1 - G * G) * (1 + mu * mu)) / ((2 + G * G) * Math.pow(1 + G * G - 2 * G * mu, 1.5)));
-  let odR = 0, odM = 0;
+  let odR = 0, odM = 0, odO = 0;
   const sumR = [0, 0, 0], sumM = [0, 0, 0], sumG = [0, 0, 0];
   for (let i = 0; i < N; i++) {
     const p = along(o, dir, ds * (i + 0.5)), h = height(p);
-    const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds;
-    const midR = odR + dR * 0.5, midM = odM + dM * 0.5;
-    odR += dR; odM += dM;
+    const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds, dO = ozone(h) * ds;
+    const midR = odR + dR * 0.5, midM = odM + dM * 0.5, midO = odO + dO * 0.5;
+    odR += dR; odM += dM; odO += dO;
     const ol = lightDepth(p, sun, M);
     if (!ol) continue;
-    const fromSun = BETA_R.map((b) => Math.exp(-(b * ol[0] + BETA_M * haze * 1.1 * ol[1])));
+    const fromSun = BETA_R.map((b, k) => Math.exp(-(b * ol[0] + BETA_M * haze * 1.1 * ol[1] + BETA_O[k] * ol[2])));
     const grey = (fromSun[0] + fromSun[1] + fromSun[2]) / 3;
     for (let k = 0; k < 3; k++) {
-      const toEye = Math.exp(-(BETA_R[k] * midR + BETA_M * haze * 1.1 * midM));
+      const toEye = Math.exp(-(BETA_R[k] * midR + BETA_M * haze * 1.1 * midM + BETA_O[k] * midO));
       const attn = toEye * fromSun[k];
       sumR[k] += attn * dR; sumM[k] += attn * dM;
       sumG[k] += toEye * (fromSun[k] + grey) * 0.5 * (BETA_R[k] * dR + BETA_M * haze * dM);
@@ -105,7 +109,7 @@ const minElevationSine = Math.sin((10 * Math.PI) / 180);
 function sunTransmittance(sun, alt, haze) {
   const od = lightDepth([0, R_E + alt, 0], sun, 256);
   if (!od) return [0, 0, 0];
-  return BETA_R.map((b) => Math.exp(-(b * od[0] + BETA_M * haze * 1.1 * od[1])));
+  return BETA_R.map((b, k) => Math.exp(-(b * od[0] + BETA_M * haze * 1.1 * od[1] + BETA_O[k] * od[2])));
 }
 
 function skyDome({ id, colorSpace = 'linear', elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5, tol = 18, grid = 5, glow = false, sunBrightness = 40, disc = glow }) {

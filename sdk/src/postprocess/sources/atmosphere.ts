@@ -27,9 +27,26 @@ const SPHERE_HIT_GLSL = `vec2 sphereHit(vec3 o, vec3 d, float r) {
     return vec2(-b - s, -b + s);
 }`;
 const LIGHT_DEPTH_GLSL = `const int LIGHT_DEPTH_STEPS_MAX = ${qualityUniformMax('skyLightDepthSteps')};
-vec3 lightDepth(vec3 p, vec3 d) {
+// Ozone absorbs and scatters nothing: little in the light of a sun overhead, a great deal along the long low path of a sun near the
+// horizon, where it takes orange and green out of the sky's light and leaves twilight blue instead of olive. Per kilometre, at the
+// layer's densest, 25 km up; the layer thins to nothing 15 km either side.
+const vec3 BETA_O = vec3(0.00065, 0.001881, 0.000085);
+float ozoneDensity(float h) {
+    return max(0.0, 1.0 - abs(h - 25.0) / 15.0);
+}
+// The ozone between p and space along d: what lies above p, over the cosine of where the ray crosses the layer's middle. The layer is
+// thin against the planet, so that crossing stands for the whole of it, and a sum of samples kilometres apart would miss it.
+float ozoneDepth(vec3 p, vec3 d) {
+    float r = length(p);
+    float h = r - R_E;
+    float above = h < 10.0 ? 15.0 : h < 25.0 ? 15.0 - (h - 10.0) * (h - 10.0) / 30.0 : h < 40.0 ? (40.0 - h) * (40.0 - h) / 30.0 : 0.0;
+    float mu = dot(p / r, d);
+    float s = r / (R_E + 25.0) * sqrt(max(1.0 - mu * mu, 0.0));
+    return above / max(sqrt(max(1.0 - s * s, 0.0)), 0.03);
+}
+vec4 lightDepth(vec3 p, vec3 d) {
     vec2 ground = sphereHit(p, d, R_E);
-    if (ground.y > 0.0 && ground.x > 0.0) return vec3(0.0);
+    if (ground.y > 0.0 && ground.x > 0.0) return vec4(0.0);
     float len = sphereHit(p, d, R_A).y;
     float n = clamp(floor(u_lightDepthSteps), 1.0, float(LIGHT_DEPTH_STEPS_MAX));
     float ds = len / n;
@@ -39,7 +56,7 @@ vec3 lightDepth(vec3 p, vec3 d) {
         vec3 q = p + d * (ds * (float(j) + 0.5));
         od += exp(-(length(q) - R_E) / vec2(H_R, H_M)) * ds;
     }
-    return vec3(od, 1.0);
+    return vec4(od, ozoneDepth(p, d), 1.0);
 }`;
 const UP_FRAME_GLSL = `mat3 upFrame(vec3 up) {
     vec3 v = vec3(-up.z, 0.0, up.x);
@@ -56,7 +73,7 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     float g = 0.76;
     float phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
     float phaseM = 3.0 / (8.0 * 3.14159265) * ((1.0 - g * g) * (1.0 + mu * mu)) / ((2.0 + g * g) * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
-    vec2 od = vec2(0.0);
+    vec3 od = vec3(0.0);
     vec3 sumR = vec3(0.0);
     vec3 sumM = vec3(0.0);
     vec3 sumG = vec3(0.0);
@@ -65,21 +82,22 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
         float a = float(i) / N, b = float(i + 1) / N;
         float ds = len * (b * b - a * a);
         vec3 p = o + dir * (len * (a * a + b * b) * 0.5);
-        vec2 dens = exp(-(length(p) - R_E) / vec2(H_R, H_M)) * ds;
-        vec2 mid = od + dens * 0.5;
+        float h = length(p) - R_E;
+        vec3 dens = vec3(exp(-h / vec2(H_R, H_M)), ozoneDensity(h)) * ds;
+        vec3 mid = od + dens * 0.5;
         od += dens;
-        vec3 ol = lightDepth(p, sun);
-        if (ol.z > 0.5) {
-            vec3 toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
-            vec3 fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
+        vec4 ol = lightDepth(p, sun);
+        if (ol.w > 0.5) {
+            vec3 toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y + BETA_O * mid.z));
+            vec3 fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y + BETA_O * ol.z));
             vec3 attn = toEye * fromSun;
             sumR += attn * dens.x;
             sumM += attn * dens.y;
             sumG += toEye * mix(fromSun, vec3(dot(fromSun, vec3(1.0 / 3.0))), 0.5) * (BETA_R * dens.x + BETA_M * haze * dens.y);
         }
     }
-    vec3 st = lightDepth(o, sun);
-    sunTrans = st.z > 0.5 ? exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)) : vec3(0.0);
+    vec4 st = lightDepth(o, sun);
+    sunTrans = st.w > 0.5 ? exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y + BETA_O * st.z)) : vec3(0.0);
     return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
 }`;
 const CLOUD_FIELD_GLSL = `float cloudField(vec2 xz, float noise, float h) {
@@ -448,7 +466,7 @@ ${SPHERE_HIT_GLSL}
 /// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world it is worked out in the frame of the ground the camera stands on.
 ${UP_FRAME_GLSL}
 
-/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie) optical depth; z is 0 where the planet is in the way.
+/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie, ozone) optical depth; w is 0 where the planet is in the way.
 ${LIGHT_DEPTH_GLSL}
 
 /// The sky's radiance along dir: single scattering, plus light scattered more than once as one even glow (SKY_GLOW of the sun's light
@@ -612,7 +630,7 @@ ${SPHERE_HIT_GLSL}
 /// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world it is worked out in the frame of the ground the camera stands on.
 ${UP_FRAME_GLSL}
 
-/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie) optical depth; z is 0 where the planet is in the way.
+/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie, ozone) optical depth; w is 0 where the planet is in the way.
 ${LIGHT_DEPTH_GLSL}
 
 /// The sky's radiance along dir: single scattering, plus light scattered more than once as one even glow (SKY_GLOW of the sun's light
@@ -747,7 +765,7 @@ ${SPHERE_HIT_GLSL}
 /// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world it is worked out in the frame of the ground the camera stands on.
 ${UP_FRAME_GLSL}
 
-/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie) optical depth; z is 0 where the planet is in the way.
+/// The air between p and the top of the atmosphere along d, as (Rayleigh, Mie, ozone) optical depth; w is 0 where the planet is in the way.
 ${LIGHT_DEPTH_GLSL}
 
 /// The sky's radiance along dir: single scattering, plus light scattered more than once as one even glow (SKY_GLOW of the sun's light

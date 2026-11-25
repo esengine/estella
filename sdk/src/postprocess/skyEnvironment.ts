@@ -49,6 +49,17 @@ const H_R = 8;
 const H_M = 1.2;
 const SUN_I = 22;
 const SKY_GLOW = 0.03;
+/** Ozone's absorption at its densest (25 km up, thinning to nothing 15 km either side), per kilometre: it scatters nothing. */
+const BETA_O = [0.00065, 0.001881, 0.000085] as const;
+const ozoneDensity = (h: number): number => Math.max(0, 1 - Math.abs(h - 25) / 15);
+/** The ozone between p and space along d: what lies above p over the cosine where the ray crosses the layer's middle (the shader's `ozoneDepth`). */
+function ozoneDepth(px: number, py: number, pz: number, dx: number, dy: number, dz: number): number {
+    const r = Math.hypot(px, py, pz), h = r - R_E;
+    const above = h < 10 ? 15 : h < 25 ? 15 - (h - 10) * (h - 10) / 30 : h < 40 ? (40 - h) * (40 - h) / 30 : 0;
+    const mu = (px * dx + py * dy + pz * dz) / r;
+    const s = r / (R_E + 25) * Math.sqrt(Math.max(1 - mu * mu, 0));
+    return above / Math.max(Math.sqrt(Math.max(1 - s * s, 0)), 0.03);
+}
 
 const fract = (x: number): number => x - Math.floor(x);
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -95,8 +106,8 @@ function sphereExit(oy: number, dy: number, r: number): number {
     return disc < 0 ? -1 : -b + Math.sqrt(disc);
 }
 
-/** The air between p and the top of the atmosphere along d as (Rayleigh, Mie) optical depth, or null where the planet is in the way. */
-function lightDepth(px: number, py: number, pz: number, dx: number, dy: number, dz: number): [number, number] | null {
+/** The air between p and the top of the atmosphere along d as (Rayleigh, Mie, ozone) optical depth, or null where the planet is in the way. */
+function lightDepth(px: number, py: number, pz: number, dx: number, dy: number, dz: number): [number, number, number] | null {
     const b = px * dx + py * dy + pz * dz;
     const pp = px * px + py * py + pz * pz;
     const discE = b * b - (pp - R_E * R_E);
@@ -115,7 +126,7 @@ function lightDepth(px: number, py: number, pz: number, dx: number, dy: number, 
         r += Math.exp(-h / H_R) * ds;
         m += Math.exp(-h / H_M) * ds;
     }
-    return [r, m];
+    return [r, m, ozoneDepth(px, py, pz, dx, dy, dz)];
 }
 
 /** The sky's radiance along dir, single scattering and the even glow of the rest (the effect's `scatter`, SKY_GLOW and all), and the sun's light where the eye is. */
@@ -128,7 +139,7 @@ function scatter(dir: readonly number[], sun: readonly number[], alt: number, ha
     const g = 0.76;
     const phaseR = 3 / (16 * Math.PI) * (1 + mu * mu);
     const phaseM = 3 / (8 * Math.PI) * ((1 - g * g) * (1 + mu * mu)) / ((2 + g * g) * (1 + g * g - 2 * g * mu) ** 1.5);
-    let odR = 0, odM = 0;
+    let odR = 0, odM = 0, odO = 0;
     let rR = 0, rG = 0, rB = 0, mR = 0, mG = 0, mB = 0, gR = 0, gG = 0, gB = 0;
     const kM = BETA_M * haze * 1.1;
     for (let i = 0; i < N; i++) {
@@ -137,26 +148,28 @@ function scatter(dir: readonly number[], sun: readonly number[], alt: number, ha
         const ds = len * (b * b - a * a), t = len * (a * a + b * b) * 0.5;
         const px = dir[0]! * t, py = oy + dir[1]! * t, pz = dir[2]! * t;
         const h = Math.hypot(px, py, pz) - R_E;
-        const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds;
-        const midR = odR + dR * 0.5, midM = odM + dM * 0.5;
-        odR += dR; odM += dM;
+        const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds, dO = ozoneDensity(h) * ds;
+        const midR = odR + dR * 0.5, midM = odM + dM * 0.5, midO = odO + dO * 0.5;
+        odR += dR; odM += dM; odO += dO;
         const ol = lightDepth(px, py, pz, sun[0]!, sun[1]!, sun[2]!);
         if (!ol) continue;
-        const tr = midR + ol[0], tm = midM + ol[1];
-        const ar = Math.exp(-(BETA_R[0] * tr + kM * tm));
-        const ag = Math.exp(-(BETA_R[1] * tr + kM * tm));
-        const ab = Math.exp(-(BETA_R[2] * tr + kM * tm));
-        const sr = Math.exp(-(BETA_R[0] * ol[0] + kM * ol[1])), sg = Math.exp(-(BETA_R[1] * ol[0] + kM * ol[1])), sb = Math.exp(-(BETA_R[2] * ol[0] + kM * ol[1]));
+        const tr = midR + ol[0], tm = midM + ol[1], to = midO + ol[2];
+        const ar = Math.exp(-(BETA_R[0] * tr + kM * tm + BETA_O[0] * to));
+        const ag = Math.exp(-(BETA_R[1] * tr + kM * tm + BETA_O[1] * to));
+        const ab = Math.exp(-(BETA_R[2] * tr + kM * tm + BETA_O[2] * to));
+        const sr = Math.exp(-(BETA_R[0] * ol[0] + kM * ol[1] + BETA_O[0] * ol[2]));
+        const sg = Math.exp(-(BETA_R[1] * ol[0] + kM * ol[1] + BETA_O[1] * ol[2]));
+        const sb = Math.exp(-(BETA_R[2] * ol[0] + kM * ol[1] + BETA_O[2] * ol[2]));
         const grey = (sr + sg + sb) / 3, hazeHere = BETA_M * haze * dM;
-        gR += Math.exp(-(BETA_R[0] * midR + kM * midM)) * (sr + grey) * 0.5 * (BETA_R[0] * dR + hazeHere);
-        gG += Math.exp(-(BETA_R[1] * midR + kM * midM)) * (sg + grey) * 0.5 * (BETA_R[1] * dR + hazeHere);
-        gB += Math.exp(-(BETA_R[2] * midR + kM * midM)) * (sb + grey) * 0.5 * (BETA_R[2] * dR + hazeHere);
+        gR += Math.exp(-(BETA_R[0] * midR + kM * midM + BETA_O[0] * midO)) * (sr + grey) * 0.5 * (BETA_R[0] * dR + hazeHere);
+        gG += Math.exp(-(BETA_R[1] * midR + kM * midM + BETA_O[1] * midO)) * (sg + grey) * 0.5 * (BETA_R[1] * dR + hazeHere);
+        gB += Math.exp(-(BETA_R[2] * midR + kM * midM + BETA_O[2] * midO)) * (sb + grey) * 0.5 * (BETA_R[2] * dR + hazeHere);
         rR += ar * dR; rG += ag * dR; rB += ab * dR;
         mR += ar * dM; mG += ag * dM; mB += ab * dM;
     }
     const st = lightDepth(0, oy, 0, sun[0]!, sun[1]!, sun[2]!);
     for (let c = 0; c < 3; c++) {
-        sunTrans[c] = st ? Math.exp(-(BETA_R[c]! * st[0] + kM * st[1])) : 0;
+        sunTrans[c] = st ? Math.exp(-(BETA_R[c]! * st[0] + kM * st[1] + BETA_O[c]! * st[2])) : 0;
     }
     const kMs = BETA_M * haze * phaseM;
     out[0] = (rR * BETA_R[0] * phaseR + mR * kMs + gR * SKY_GLOW) * SUN_I;
