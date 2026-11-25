@@ -39,11 +39,11 @@ describe('component asset fields (single source)', () => {
     });
 
     it('TS components declare their asset fields on the def', () => {
-        expect(SpriteAnimator.assetFields).toEqual([{ field: 'clip', type: 'anim-clip' }]);
+        expect(SpriteAnimator.assetFields).toEqual([{ field: 'clip', type: 'anim-clip', fileExtension: '.esanim' }]);
         expect(AudioSource.assetFields).toEqual([{ field: 'clip', type: 'audio' }]);
         expect(Video.assetFields).toEqual([{ field: 'source', type: 'video' }]);
         expect(Tilemap.assetFields).toEqual([{ field: 'source', type: 'tilemap' }]);
-        expect(TimelinePlayer.assetFields).toEqual([{ field: 'timeline', type: 'timeline' }]);
+        expect(TimelinePlayer.assetFields).toEqual([{ field: 'timeline', type: 'timeline', fileExtension: '.estimeline' }]);
     });
 
     it('TilemapLayer is the single-source model: assetFields for write-back, discoverAssets for the .estileset out-of-band ref', () => {

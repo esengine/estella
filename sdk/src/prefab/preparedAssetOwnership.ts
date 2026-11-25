@@ -28,7 +28,7 @@ function sceneAcquisitionSources(
     let fallback: SceneAssetOwners | undefined;
     if (result.acquisitions.some(receipt => receipt.auxiliaryEntityIds === undefined || (!auxiliaryOnly && !receipt.entityIds))) {
         fallback = new SceneAssetOwners({ entityOwnership: true, includeAliases: true });
-        indexSceneAssets(scene, result.resolveRef ?? resolveRef, fallback);
+        indexSceneAssets(scene, result.resolveRef ?? resolveRef, { owners: fallback });
     }
     for (const { type, path, lease, entityIds, auxiliaryEntityIds } of result.acquisitions) {
         if (auxiliaryOnly && auxiliaryEntityIds !== undefined && !auxiliaryEntityIds?.size) continue;

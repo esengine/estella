@@ -28,7 +28,9 @@ import { adoptOrphan } from './assetMeta';
 import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset, isFileAssetRef, matchesAssetFieldType } from '../../../sdk/src/asset/documentRef';
+import { registeredAssetFields } from '../../../sdk/src/asset/registeredAssetFields';
+import { visitAnimatorClips } from './animatorRefs';
 import { assetRefId, UUID_REF_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
@@ -273,19 +275,24 @@ const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type =
 /** A clip that is a recipe names the recordings it plays (a sampled instrument's notes, a sample layer's file). */
 const isAudioRecipe = (e: { type: string }): boolean => e.type === 'soundSource' || e.type === 'musicSource';
 
-/**
- * Resolve a candidate from a JSON document:
- *   - `@uuid:<id>` refs (editor-serialized stable refs)
- *   - BARE uuid strings, only when they name a real asset (anim-clip flipbook
- *     frames serialize these — the runtime's extractUuid form; entity ids are
- *     uuid-shaped too, so index membership is the filter)
- *   - PATH refs, resolved through @p resolvePath (real content references
- *     materials/textures by project path, not uuid — a dep graph that only
- *     reads `@uuid:` sees an empty project and the cook culls everything)
- */
-function resolveCandidate(ref: string, resolvePath: (ref: string) => string | null, known: ReadonlyMap<string, AssetEntry>): string | null {
+type RegisteredComponent = keyof typeof registeredAssetFields;
+type RegisteredSlot = (typeof registeredAssetFields)[RegisteredComponent];
+interface NamedCandidate { ref: string; component: RegisteredComponent }
+type RefCandidate = string | NamedCandidate;
+
+/** The parsed copy belongs to this scan. Move the value out so the generic string walk cannot count it a second time. */
+function takeNamedCandidate(holder: Record<string, unknown>, key: string, component: RegisteredComponent, into: NamedCandidate[]): void {
+  const ref = holder[key];
+  if (typeof ref !== 'string') return;
+  if (ref) into.push({ component, ref });
+  delete holder[key];
+}
+
+/** Resolve UUIDs and paths against the project index, retaining the slot type for dual-purpose fields. */
+function resolveCandidate(candidate: RefCandidate, resolvePath: (ref: string, slot?: RegisteredSlot) => string | null, known: ReadonlyMap<string, AssetEntry>): string | null {
+  const ref = typeof candidate === 'string' ? candidate : candidate.ref;
   const id = assetRefId(ref);
-  if (id === null) return resolvePath(ref);
+  if (id === null) return resolvePath(ref, typeof candidate === 'string' ? undefined : registeredAssetFields[candidate.component]);
   // Preserve missing explicit UUID edges for diagnostics. A bare scene entity ID is not an asset.
   return known.has(id) || (ref.startsWith(UUID_REF_PREFIX) && UUID_V4.test(id)) ? id : null;
 }
@@ -294,42 +301,51 @@ function resolveCandidate(ref: string, resolvePath: (ref: string) => string | nu
  * What a document can refer to by name, before any of it is resolved: its `@uuid:` strings, its bare uuids and the strings that could be file paths.
  * This is what reading and parsing a document finds; which of them are assets is a question of the rest of the project, asked again on every scan.
  */
-function collectCandidates(value: unknown, into: Set<string>, prefabTemplate: boolean): void {
+function collectCandidates(value: unknown, into: Set<string>, documentType: string, named: NamedCandidate[]): void {
     if (typeof value === 'string') {
         if (assetRefId(value) || (!value.includes('://') && PATH_LIKE.test(value))) into.add(value);
         return;
     }
     if (Array.isArray(value)) {
-        for (const v of value) collectCandidates(v, into, prefabTemplate);
+        for (const v of value) collectCandidates(v, into, documentType, named);
         return;
     }
     if (value && typeof value === 'object') {
         const row = value as {
-            type?: string; data?: { richText?: boolean; content?: unknown };
+            type?: string; data?: Record<string, unknown>;
             componentType?: string; propertyName?: string; value?: unknown;
         };
+        if (documentType === 'scene' || documentType === 'prefab') {
+            const component = row.type === 'property' ? row.componentType : row.type;
+            if (component && Object.hasOwn(registeredAssetFields, component)) {
+                const name = component as RegisteredComponent;
+                const key = registeredAssetFields[name].field;
+                if (row.type === 'property' && row.propertyName === key) takeNamedCandidate(row, 'value', name, named);
+                else if (row.data && row.type === name) takeNamedCandidate(row.data, key, name, named);
+            }
+        }
         // A prefab instance can override either the markup or its richText switch.
-        const content = row.type === 'Text' && (row.data?.richText || prefabTemplate) ? row.data?.content
+        const content = row.type === 'Text' && (row.data?.richText || documentType === 'prefab') ? row.data?.content
             : row.type === 'property' && row.componentType === 'Text' && row.propertyName === 'content' ? row.value : undefined;
         if (typeof content === 'string' && content.includes('<img')) {
             for (const line of content.split('\n')) {
-                for (const run of parseRichText(line)) if (run.type === 'image') collectCandidates(run.src, into, prefabTemplate);
+                for (const run of parseRichText(line)) if (run.type === 'image') collectCandidates(run.src, into, documentType, named);
             }
         }
-        for (const v of Object.values(value)) collectCandidates(v, into, prefabTemplate);
+        for (const v of Object.values(value)) collectCandidates(v, into, documentType, named);
     }
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-interface CandidateCache { version: 3; files: Record<string, { size: number; mtimeMs: number; prefab: boolean; c: string[] }> }
+interface CandidateCache { version: 4; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
 async function readCandidateCache(root: string): Promise<CandidateCache> {
   try {
     const parsed = JSON.parse(await readFile(path.join(root, CANDIDATE_CACHE_FILE), 'utf8')) as CandidateCache;
-    if (parsed.version === 3 && parsed.files) return parsed;
+    if (parsed.version === 4 && parsed.files) return parsed;
   } catch { /* none yet, or one that cannot be read: the documents are read */ }
-  return { version: 3, files: {} };
+  return { version: 4, files: {} };
 }
 
 async function writeCandidateCache(root: string, cache: CandidateCache): Promise<void> {
@@ -403,15 +419,20 @@ async function computeDeps(
   const cache = await readCandidateCache(root);
   let cacheDirty = false;
   const seenFiles = new Set<string>();
-  const candidatesOf = async (rel: string, prefabTemplate: boolean): Promise<string[]> => {
+  const candidatesOf = async (rel: string, type: string): Promise<RefCandidate[]> => {
     seenFiles.add(rel);
     const file = path.join(root, rel);
     const info = await stat(file);
     const hit = cache.files[rel];
-    if (hit && hit.prefab === prefabTemplate && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
+    if (hit && hit.type === type && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
     const found = new Set<string>();
-    collectCandidates(JSON.parse(await readTextInRoot(file)), found, prefabTemplate);
-    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, prefab: prefabTemplate, c: [...found] };
+    const named: NamedCandidate[] = [];
+    const json = JSON.parse(await readTextInRoot(file));
+    if (type === 'animatorcontroller') visitAnimatorClips(json, (kind, holder) => {
+      if (kind === 'sprite' || kind === 'timeline') takeNamedCandidate(holder, 'clip', kind === 'sprite' ? 'SpriteAnimator' : 'TimelinePlayer', named);
+    });
+    collectCandidates(json, found, type, named);
+    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, type, c: [...found, ...named] };
     cacheDirty = true;
     return cache.files[rel]!.c;
   };
@@ -427,7 +448,13 @@ async function computeDeps(
     const isBitmapFont = entry.type === BITMAP_FONT;
     const preferSibling = isBitmapFont || SKELETAL_ATLAS_TYPES.has(editorType)
       || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tsj)$/i.test(entry.path);
-    const lookup = (ref: string) => findDocumentAsset(entry.path, ref, file => byPath.get(file), preferSibling ? 'document' : 'project');
+    const lookup = (ref: string, slot?: RegisteredSlot) => {
+      const explicit = slot && isFileAssetRef(ref, slot.fileExtension);
+      return findDocumentAsset(entry.path, ref, file => {
+        const target = byPath.get(file);
+        return !slot || explicit || matchesAssetFieldType(target?.type, slot.type) ? target : undefined;
+      }, preferSibling ? 'document' : 'project');
+    };
     const pageAsset = (ref: string) => {
       const id = assetRefId(ref);
       return id === null ? lookup(ref) : byKey.get(id);
@@ -454,10 +481,10 @@ async function computeDeps(
           if (dep) refs.add(dep.uuid);
         }
       } else {
-        const candidates = await candidatesOf(entry.path, entry.type === 'prefab');
-        const resolvePath = (ref: string): string | null => {
-          if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
-          return lookup(ref)?.uuid ?? null;
+        const candidates = await candidatesOf(entry.path, entry.type);
+        const resolvePath = (ref: string, slot?: RegisteredSlot): string | null => {
+          if (ref.includes('://') || (!slot && !PATH_LIKE.test(ref))) return null;
+          return lookup(ref, slot)?.uuid ?? null;
         };
         for (const candidate of candidates) {
           const id = resolveCandidate(candidate, resolvePath, byKey);

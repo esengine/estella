@@ -182,32 +182,45 @@ describe('assets named only inside another document are cooked', () => {
     };
     try {
       put('assets/main.esscene', SCENE, 'scene', { version: '1.0', name: 'Actor', entities: [{
-        id: 1, name: 'Actor', parent: null, children: [], components: [{ type: 'Animator', data: { controller: '@uuid:PLAYER' } }],
+        id: 1, name: 'Actor', parent: null, children: [], components: [
+          { type: 'Animator', data: { controller: '@uuid:PLAYER' } },
+          { type: 'TimelinePlayer', data: { timeline: 'anim/code.pose' } },
+        ],
       }] });
       put('assets/anim/player.EsAnimator', 'player', 'animatorcontroller', {
         version: 2, parameters: [], initialState: 'Idle', states: [{ name: 'Idle', transitions: [],
           motion: { kind: 'blend1d', parameter: 'speed', thresholds: [
             { value: 0, motion: { kind: 'sprite', clip: '@uuid:IDLE' } },
             { value: 1, motion: { kind: 'timeline', clip: './walk.EsTimeline' } },
+            { value: 2, motion: { kind: 'timeline', clip: 'code.pose' } },
+            { value: 3, motion: { kind: 'timeline', clip: 'Poses' } },
           ] },
         }],
       });
       put('assets/anim/idle.esanim', 'idle', 'animclip', { version: '1.2', frames: [] });
       put('assets/anim/walk.EsTimeline', LAYER_CLIP, 'animation', { version: 1, tracks: [] });
+      put('assets/anim/code.pose', 'unrelated', 'material', { version: '1.0', shader: 'builtin:standard' });
+      put('assets/anim/Poses', 'pose', 'animation', { version: 1, tracks: [] });
       const { index } = await scanAssetDatabase(testRoot, { write: false });
       expect(index.deps[SCENE]).toEqual(['player']);
-      expect(index.deps.player).toEqual([LAYER_CLIP, 'idle'].sort());
+      expect(index.deps.player).toEqual([LAYER_CLIP, 'idle', 'pose'].sort());
       const cachePath = path.join(testRoot, '.esengine/cache/ref-candidates.json');
       const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
       cache.files['assets/anim/player.EsAnimator'].c = ['@uuid:IDLE'];
-      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 2 }));
+      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 3 }));
       const rescanned = await scanAssetDatabase(testRoot, { write: false });
       expect(rescanned.index.deps.player).toEqual(index.deps.player);
       const cooked = await cookAssets(testRoot, { entryScenes: ['assets/main.esscene'], outDir: 'output', contentAddressed: true });
       expect(cooked.ok).toBe(true);
-      expect(cooked.included.sort()).toEqual([SCENE, 'player', 'idle', LAYER_CLIP].sort());
+      expect(cooked.inclusion['assets/anim/code.pose']).toBeUndefined();
+      expect(cooked.included.sort()).toEqual([SCENE, 'player', 'idle', LAYER_CLIP, 'pose'].sort());
+      const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as { entries: { uuid: string; path: string }[] };
+      const controller = manifest.entries.find(e => e.uuid === 'player')!;
+      const stored = JSON.parse(readFileSync(path.join(cooked.outDir, controller.path), 'utf8'));
+      expect(stored.states[0].motion.thresholds.map((s: { motion: { clip: string } }) => s.motion.clip))
+        .toEqual(['@uuid:IDLE', 'assets/anim/walk.EsTimeline', 'code.pose', 'assets/anim/Poses']);
     } finally {
-      rmSync(testRoot, { recursive: true, force: true });
+      rmSync(testRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 

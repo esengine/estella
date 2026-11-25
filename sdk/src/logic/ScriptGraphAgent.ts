@@ -9,8 +9,8 @@
  * the plugin does the ticking, so the component stays serializable.
  */
 
+import { registeredAssetFields } from '../asset/registeredAssetFields';
 import { defineComponent } from '../ecs/component';
-import { isFileAssetRef } from '../asset/documentRef';
 import { aiRegistry } from '../ai/fsm/AiContext';
 import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 import { ensureBuiltinScriptNodes } from './builtinNodes';
@@ -26,16 +26,7 @@ export interface ScriptGraphAgentData {
 export const ScriptGraphAgent = defineComponent<ScriptGraphAgentData>('ScriptGraphAgent', {
     graph: '',
 }, {
-    assetFields: [{ field: 'graph', type: 'scriptgraph' }],
-    // Preload a `.esgraph` path or an editor-serialized uuid ref with the scene,
-    // so the graph is registered before the agent first ticks. A plain code name
-    // is left alone — this callback is the discovery authority.
-    discoverAssets: data => {
-        const graph = data.graph;
-        return isFileAssetRef(graph, '.esgraph')
-            ? [{ type: 'scriptgraph', path: graph }]
-            : [];
-    },
+    assetFields: [registeredAssetFields.ScriptGraphAgent],
 });
 
 /**

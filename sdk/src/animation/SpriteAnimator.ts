@@ -5,6 +5,7 @@
  * @brief   Sprite frame animation component and system (pure TypeScript)
  */
 
+import { registeredAssetFields } from '../asset/registeredAssetFields';
 import { defineComponent, getComponent, type ComponentDef } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
 import { getDefaultContext } from '../ecs/context';
@@ -453,7 +454,7 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
     frameTimer: 0,
     finished: false,
 }, {
-    assetFields: [{ field: 'clip', type: 'anim-clip' }],
+    assetFields: [registeredAssetFields.SpriteAnimator],
 });
 
 // Animator lives in an optional entry point. Resolving it only for an active

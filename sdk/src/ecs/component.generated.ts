@@ -27,6 +27,8 @@ export const ABI_LAYOUT_HASH = '21759a2e9e105f51';
 export interface AssetFieldMeta {
     field: string;
     type: AssetFieldType;
+    /** For a field that also accepts code-registered names, the extension identifying its files. */
+    fileExtension?: string;
     /** The renderer reports texel demand for this texture or the textures sampled by this material. */
     measuresTextureDensity?: boolean;
 }

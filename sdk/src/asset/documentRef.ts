@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { assetRefId } from './AssetRegistry';
+import { registeredAssetFields } from './registeredAssetFields';
 
 /**
  * Resolve a document-relative path against the referencing file's path — a Tiled
@@ -33,16 +34,44 @@ export function isLogicalAssetRef(ref: string): boolean {
     return ref.startsWith('/') || ref.startsWith('assets/');
 }
 
-/** File-backed component and motion fields also accept registered names, which need no asset load. */
-export function isFileAssetRef(ref: unknown, extension: string): ref is string {
-    return typeof ref === 'string' && (!!assetRefId(ref) || ref.toLowerCase().endsWith(extension));
+export function hasAssetFileExtension(ref: string, extension: string): boolean {
+    return ref.split(/[?#]/, 1)[0].toLowerCase().endsWith(extension.toLowerCase());
 }
 
-/** Asset-backed animator motions. Plain sprite and Spine names are runtime registrations. */
-export function animatorMotionAssetType(kind: string | undefined, clip: string): 'timeline' | 'anim-clip' | undefined {
-    if (kind === 'timeline') return 'timeline';
-    if (kind === 'sprite' && isFileAssetRef(clip, '.esanim')) return 'anim-clip';
-    return undefined;
+/** File-backed component and motion fields also accept registered names, which need no asset load. */
+export function isFileAssetRef(ref: unknown, extension: string): ref is string {
+    if (typeof ref !== 'string' || !ref) return false;
+    const id = assetRefId(ref);
+    if (id !== null) return !!id;
+    const path = ref.replace(/\\/g, '/');
+    return isLogicalAssetRef(path) || path.startsWith('./') || path.startsWith('../')
+        || /^(?:[a-z][a-z0-9+.-]*:\/\/|data:|blob:)/i.test(path)
+        || hasAssetFileExtension(path, extension);
+}
+
+/** A game may register a name for a slot that declares a file format alongside it. */
+export function isRegisteredAssetName(ref: unknown, fileExtension?: string): ref is string {
+    return !!fileExtension && typeof ref === 'string' && !!ref.trim() && assetRefId(ref) === null
+        && !isBuiltinAssetRef(ref) && !isFileAssetRef(ref, fileExtension);
+}
+
+/** The project index and runtime loaders use different type names for these two formats. */
+export function matchesAssetFieldType(indexed: string | undefined, type: string): boolean {
+    return indexed === type || (indexed === 'animation' && type === 'timeline') || (indexed === 'animclip' && type === 'anim-clip');
+}
+
+/** Identify a file-backed motion and its indexed path. Names of code registrations keep their authored spelling. */
+export function animatorMotionFile(
+    kind: string | undefined, clip: string, documentPath: string, typeAt: (path: string) => string | undefined,
+): { type: 'timeline' | 'anim-clip'; path?: string } | undefined {
+    if (!clip || (kind !== 'sprite' && kind !== 'timeline')) return undefined;
+    const { type, fileExtension } = kind === 'sprite' ? registeredAssetFields.SpriteAnimator : registeredAssetFields.TimelinePlayer;
+    const explicit = isFileAssetRef(clip, fileExtension);
+    const path = findDocumentAsset(documentPath, clip, candidate => {
+        const indexed = typeAt(candidate);
+        return indexed && (explicit || matchesAssetFieldType(indexed, type)) ? candidate : undefined;
+    }, 'document');
+    return explicit || path ? { type, path } : undefined;
 }
 
 /**

@@ -122,6 +122,12 @@ export class Catalog {
         return asset?.labels?.length ? { type: asset.type, buildPath: asset.path } : null;
     }
 
+    /** A record's declared type, including uncategorized assets and address aliases. */
+    assetTypeOf(ref: string): string | undefined {
+        const key = this.resolve(ref);
+        return this.entries_.get(key)?.type ?? this.manifest_?.recordForRef(key)?.asset.type;
+    }
+
     /** @internal Resolve authored file references in the same order as the cook's dependency scan. */
     resolveDocumentRef(document: string, ref: string): string {
         if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith('/')) return ref;

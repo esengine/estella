@@ -22,7 +22,9 @@
  * store paths directly.
  */
 
-import { getComponent } from '../ecs/component';
+import { getComponent, type FieldAssetDiscovery } from '../ecs/component';
+import { probeRefs } from './AddressableManifest';
+import { hasAssetFileExtension } from './documentRef';
 import { spinePairKey } from './spinePairKey';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import type { SurfaceUse } from './surfaceTextureUses';
@@ -174,12 +176,22 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
 
 /** Index the same component declarations for acquisition, optional authored bindings and entity ownership. */
 export function indexSceneAssets(
-    scene: SceneData, resolveRef?: RefResolver, owners?: SceneAssetOwners,
-    onAuthored?: (refs: SceneAssetRefs) => void, acquireAs?: AcquisitionPath,
+    scene: SceneData, resolveRef?: RefResolver, {
+        owners, onAuthored, acquireAs, knownFile,
+    }: {
+        owners?: SceneAssetOwners; onAuthored?: (refs: SceneAssetRefs) => void;
+        acquireAs?: AcquisitionPath; knownFile?: (ref: string, type: string) => boolean;
+    } = {},
 ): SceneAssetRefs {
     const resolved = assetIndex(resolveRef, owners, acquireAs);
     const authored = onAuthored ? assetIndex() : undefined;
     const indexes = authored ? [resolved, authored] : [resolved];
+    const indexed = (ref: string, type: string, extension: string): boolean => {
+        if (knownFile?.(ref, type)) return true;
+        // A host may expose a file through a short address without shipping a catalog.
+        const target = resolveRef && probeRefs(() => resolveRef(ref));
+        return !!target && target !== ref && hasAssetFileExtension(target, extension);
+    };
 
     for (const entity of scene.entities) {
         // Prefab rows supply their components after expansion.
@@ -189,9 +201,10 @@ export function indexSceneAssets(
             if (!definition) continue;
             const data = component.data as Record<string, unknown>;
 
-            if (definition.discoverAssets) {
+            const discover: FieldAssetDiscovery | undefined = definition.discoverAssets;
+            if (discover) {
                 const fields = [...definition.assetFields];
-                for (const { type, path } of definition.discoverAssets(data)) {
+                for (const { type, path } of discover.call(definition, data, indexed)) {
                     if (typeof path !== 'string' || !path) continue;
                     // Each scalar field accounts for one declaration. A list may also name the same file.
                     const field = fields.findIndex(f => f.type === type && data[f.field] === path);
@@ -221,8 +234,8 @@ export function indexSceneAssets(
     return resolved.refs;
 }
 
-export function discoverSceneAssets(sceneData: SceneData, refResolver?: RefResolver): SceneAssetRefs {
-    return indexSceneAssets(sceneData, refResolver);
+export function discoverSceneAssets(sceneData: SceneData, refResolver?: RefResolver, knownFile?: (ref: string, type: string) => boolean): SceneAssetRefs {
+    return indexSceneAssets(sceneData, refResolver, { knownFile });
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {

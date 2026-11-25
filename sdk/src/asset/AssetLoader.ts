@@ -117,6 +117,8 @@ export interface JsonResult<T = unknown> {
 export interface LoadContext {
     /** Authored location of a document in this preparation, for resolving references inside its cooked bytes. */
     sourceAddressOf?(ref: string): string;
+    /** Asset type from the host's project index or this preparation's catalog. */
+    assetTypeOf?(ref: string): string | undefined;
     backend: Backend;
     catalog: Catalog;
     /** The image's frame in this preparation's catalog, including aliases resolved by the host. */

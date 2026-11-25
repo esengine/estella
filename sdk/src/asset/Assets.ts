@@ -49,7 +49,7 @@ import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { spinePairKey } from './spinePairKey';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MaterialShaderAssetLoader } from './loaders/MaterialShaderAssetLoader';
-import { isBuiltinAssetRef } from './documentRef';
+import { isBuiltinAssetRef, isFileAssetRef, matchesAssetFieldType } from './documentRef';
 import { MeshAssetLoader, type MeshResult } from './loaders/MeshAssetLoader';
 import type { MeshData } from './meshFormat';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
@@ -540,6 +540,7 @@ export class Assets {
     private settling_ = new Set<Promise<void>>();
     private loadContext_: AssetLoadServices | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
+    private hostAssetType_?: (ref: string) => string | undefined;
     /** File locations produced by a host resolver, keyed back to the staged manifest path. */
     private readonly stagedPaths_ = new Map<string, string>();
     private refCounter_: AssetRefCounter | null = null;
@@ -1915,8 +1916,11 @@ export class Assets {
         const entityOwnership = options?.entityOwnership ?? false;
         const owners = new SceneAssetOwners({ entityOwnership });
         const resolve = cachedPaths(ref => this.sceneAssetRef(ref));
-        const discovered = indexSceneAssets(sceneData, resolve, owners, options?.onDiscover, (type, raw, path) =>
-            !isSceneHandleType(type) && this.loaders_.get(type)?.registry ? this.registryIdentity_(raw) : path);
+        const discovered = indexSceneAssets(sceneData, resolve, {
+            owners, onAuthored: options?.onDiscover,
+            acquireAs: (type, raw, path) => !isSceneHandleType(type) && this.loaders_.get(type)?.registry ? this.registryIdentity_(raw) : path,
+            knownFile: (ref, type) => matchesAssetFieldType(this.hostAssetType_?.(ref) ?? this.catalog.assetTypeOf(ref), type),
+        });
         const surfaceClaims = new Map<string, SurfaceClaim>();
         for (const ref of discovered.unresolved) {
             missing.push({ ref, reason: 'unresolved' });
@@ -2078,13 +2082,14 @@ export class Assets {
             for (const comp of entity.components) {
                 // A component can customize discovery and still declare which fields take handles.
                 const fields = getComponentAssetFieldDescriptors(comp.type);
-                for (const { field, type } of fields) {
+                for (const { field, type, fileExtension } of fields) {
                     const ref = comp.data[field];
                     if (ref === 0 || ref === '' || ref === null) {
                         comp.data[field] = emptySceneAssetValue(type);
                         continue;
                     }
                     if (typeof ref !== 'string') continue;
+                    if (fileExtension && !isFileAssetRef(ref, fileExtension)) continue;
 
                     // Use the name under which this preparation acquired the field, even after an update.
                     const path = result.resolveRef ? result.resolveRef(ref) : this.resolveRef(ref);
@@ -2954,9 +2959,10 @@ export class Assets {
         return this.textureLoader_.formatReport();
     }
 
-    setAssetRefResolver(resolver: AssetRefResolver): void {
+    setAssetRefResolver(resolver: AssetRefResolver, typeOf?: (ref: string) => string | undefined): void {
         if (resolver !== this.assetRefResolver_) this.stagedPaths_.clear();
         this.assetRefResolver_ = resolver;
+        this.hostAssetType_ = typeOf;
     }
 
     private readonly assetProblems_ = new Map<string, readonly string[]>();
@@ -3607,6 +3613,7 @@ export class Assets {
             ...base,
             get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
             recorder, textureInputs: inputs,
+            assetTypeOf: ref => this.hostAssetType_?.(ref) ?? base.catalog.assetTypeOf(ref),
             sourceAddressOf: ref => {
                 // Registry slots own logical addresses and handle-backed loaders can own record keys.
                 // Two documents can ship identical bytes while naming different siblings.

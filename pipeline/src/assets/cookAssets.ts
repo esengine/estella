@@ -43,7 +43,8 @@ import {
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
-import { animatorMotionAssetType, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { visitAnimatorClips } from './animatorRefs';
 import { mapTilesetImages } from '../../../sdk/src/tilemap/tiledRefs';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
@@ -355,45 +356,12 @@ function rewriteAnimatorRefs(
   docPath: string,
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as {
-    states?: { motion?: unknown; stateMachine?: { states?: unknown[] } }[];
-    layers?: { states?: unknown[] }[];
-  };
-  const rewriteClip = (kind: string | undefined, holder: { clip?: string }): void => {
-    if (typeof holder.clip === 'string' && animatorMotionAssetType(kind, holder.clip)) {
-      holder.clip = logicalRef(holder.clip, docPath, byPath) as string;
-    }
-  };
-  const walk = (motion: unknown): void => {
-    if (!motion || typeof motion !== 'object') return;
-    const m = motion as {
-      kind?: string; clip?: string;
-      thresholds?: { motion?: unknown }[]; points?: { motion?: unknown }[];
-    };
-    if (m.kind === 'blend1d' || m.kind === 'blend2d') {
-      for (const child of m.thresholds ?? m.points ?? []) walk(child.motion);
-      return;
-    }
-    rewriteClip(m.kind, m);
-  };
-  const states = (list: unknown[] | undefined): void => {
-    for (const state of list ?? []) {
-      const st = state as {
-        motion?: unknown; stateMachine?: { states?: unknown[] };
-        clip?: string; blend?: { thresholds?: { clip?: string }[] };
-      };
-      walk(st.motion);
-      // Controllers saved before the motion format used clip and blend.thresholds.
-      rewriteClip('sprite', st);
-      for (const stop of st.blend?.thresholds ?? []) rewriteClip('sprite', stop);
-      states(st.stateMachine?.states);
-    }
-  };
-  // Every machine, not just the base one: a clip only a layer plays ships with
-  // its authored ref intact, which resolves to nothing once staging has moved
-  // the file — the layer is then silent in the package and nowhere else.
-  states(json.states);
-  for (const layer of json.layers ?? []) states(layer.states);
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  visitAnimatorClips(json, (kind, holder) => {
+    if (typeof holder.clip !== 'string') return;
+    const file = animatorMotionFile(kind, holder.clip, docPath, candidate => byPath.get(candidate)?.type);
+    if (file?.path) holder.clip = file.path.startsWith('assets/') ? file.path : `/${file.path}`;
+  });
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 

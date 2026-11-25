@@ -9,8 +9,8 @@
  * pure TS, mirroring StateMachineAgent.
  */
 
+import { registeredAssetFields } from '../../asset/registeredAssetFields';
 import { defineComponent } from '../../ecs/component';
-import { isFileAssetRef } from '../../asset/documentRef';
 import type { BtDefinition } from './types';
 
 export interface BehaviorTreeAgentData {
@@ -24,16 +24,7 @@ export const BehaviorTreeAgent = defineComponent<BehaviorTreeAgentData>('Behavio
     bt: '',
     status: '',
 }, {
-    assetFields: [{ field: 'bt', type: 'behaviortree' }],
-    // Preload a `.esbt` path or an editor-serialized uuid ref with the scene; a
-    // plain `registerBt` name (code path) is left alone — this callback is the
-    // discovery authority; the assetField above only drives the editor picker.
-    discoverAssets: data => {
-        const bt = data.bt;
-        return isFileAssetRef(bt, '.esbt')
-            ? [{ type: 'behaviortree', path: bt }]
-            : [];
-    },
+    assetFields: [registeredAssetFields.BehaviorTreeAgent],
     fields: {
         status: { advanced: true, tooltip: 'Last root status (runtime, read-only).' },
     },

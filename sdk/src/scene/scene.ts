@@ -13,7 +13,7 @@ import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type 
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
-import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef } from '../ecs/component';
+import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef, type AssetFieldMeta } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
 import { deepClone } from '../util/deepClone';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
@@ -194,7 +194,7 @@ export function getComponentAssetFields(componentType: string): string[] {
 
 export function getComponentAssetFieldDescriptors(
     componentType: string,
-): readonly { field: string; type: AssetFieldType }[] {
+): readonly AssetFieldMeta[] {
     return getComponent(componentType)?.assetFields ?? [];
 }
 

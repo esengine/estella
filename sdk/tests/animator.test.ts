@@ -476,22 +476,26 @@ describe('AnimatorController runtime load-by-path', () => {
                     { value: 3, clip: '@uuid:old-sprite' },
                 ] }, transitions: [] },
                 { name: 'Spine', motion: { kind: 'spine', clip: 'fast.esanim' }, transitions: [] },
+                { name: 'Pose', motion: { kind: 'timeline', clip: 'moves/turn' }, transitions: [] },
+                { name: 'IndexedPose', motion: { kind: 'timeline', clip: 'Poses' }, transitions: [] },
             ],
         };
         const acquired: Array<[string, string]> = [];
         const ctx = {
-            catalog: { getBuildPath: (path: string) => path },
+            catalog: { getBuildPath: (path: string) => path, assetTypeOf: (path: string) => path === 'assets/Poses' ? 'animation' : undefined },
             loadText: async () => JSON.stringify(graph),
             acquireAsset: async (type: string, clip: string) => { acquired.push([type, clip]); },
         } as unknown as LoadContext;
         const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/hero.esanimator', ctx);
-        expect(acquired).toEqual([['anim-clip', ref], ['anim-clip', 'assets/fast.esanim'], ['anim-clip', '@uuid:old-sprite']]);
+        expect(acquired).toEqual([['anim-clip', ref], ['anim-clip', 'assets/fast.esanim'], ['anim-clip', '@uuid:old-sprite'], ['timeline', 'assets/Poses']]);
         expect(era.published).toMatchObject({ states: [
             { motion: { thresholds: [
                 { motion: { clip: 'idle' } }, { motion: { clip: ref } }, { motion: { clip: 'assets/fast.esanim' } },
                 { motion: { clip: '@uuid:old-sprite' } },
             ] } },
             { motion: { kind: 'spine', clip: 'fast.esanim' } },
+            { motion: { kind: 'timeline', clip: 'moves/turn' } },
+            { motion: { kind: 'timeline', clip: 'assets/Poses' } },
         ] });
     });
 

@@ -992,6 +992,7 @@ unread: number
 ## AssetFieldMeta — interface @public
 ```
 field: string
+fileExtension: string | undefined
 measuresTextureDensity: boolean | undefined
 type: AssetFieldType
 ```
@@ -1227,7 +1228,7 @@ restorePersistedUpdate: (key: string) => boolean
 retainDiskCacheVersion: (revision: string, retain?: boolean) => Promise<ContentCacheReport>
 reuploadTexturesAfterDeviceLoss: () => Promise<number>
 setAssetProblemListener: (listener: ((asset: string, problems: readonly string[]) => void) | null) => void
-setAssetRefResolver: (resolver: AssetRefResolver) => void
+setAssetRefResolver: (resolver: AssetRefResolver, typeOf?: (ref: string) => string | undefined) => void
 setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
 setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
@@ -2815,6 +2816,7 @@ v1: number
 @internal resolveDocumentRef: (document: string, ref: string) => string
 @internal withManifestLabels: (model: ManifestModel | null) => Catalog
 addressOf: (path: string) => string | null
+assetTypeOf: (ref: string) => string | undefined
 getAllLabels: () => string[]
 getAtlasFrame: (path: string) => AtlasFrameInfo | null
 getBuildPath: (path: string) => string
@@ -17432,7 +17434,7 @@ DiagnosticsPlugin
 
 ## discoverSceneAssets — function @experimental
 ```
-(sceneData: SceneData, refResolver?: RefResolver): SceneAssetRefs
+(sceneData: SceneData, refResolver?: RefResolver, knownFile?: (ref: string, type: string) => boolean): SceneAssetRefs
 ```
 
 ## distanceToCell — function @experimental
@@ -17967,7 +17969,7 @@ Plugin
 
 ## getComponentAssetFieldDescriptors — function @experimental
 ```
-(componentType: string): readonly { field: string; type: AssetFieldType; }[]
+(componentType: string): readonly AssetFieldMeta[]
 ```
 
 ## getComponentAssetFields — function @experimental

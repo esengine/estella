@@ -11,6 +11,7 @@
  *          it makes every other reader depend on that system.
  */
 
+import { registeredAssetFields } from '../asset/registeredAssetFields';
 import { defineComponent } from '../ecs/component';
 import { wrapModeFromName, isWrapModeName, type WrapMode } from './TimelineTypes';
 
@@ -64,7 +65,7 @@ export const TimelinePlayer = /* @__PURE__ */ defineComponent<TimelinePlayerData
     rangeEnd: 0,
     unscaledTime: false,
 }, {
-    assetFields: [{ field: 'timeline', type: 'timeline' }],
+    assetFields: [registeredAssetFields.TimelinePlayer],
     // Remapped with the scene like any entity reference, so a binding names the entity the scene loads as.
     entityFields: ['bindings'],
     fields: {

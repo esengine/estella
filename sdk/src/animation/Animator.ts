@@ -16,9 +16,9 @@
  * World, no side effects — so it is fully unit-testable.
  */
 
-import { defineComponent, type ComponentDef } from '../ecs/component';
+import { registeredAssetFields } from '../asset/registeredAssetFields';
+import { defineComponent, namedFieldDiscovery, type ComponentDef } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { isFileAssetRef } from '../asset/documentRef';
 import type { Entity, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import {
@@ -650,25 +650,11 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
         rig: { tooltip: 'The model this animator poses, when it is a child of this entity and not this entity itself. Empty poses the children of this one.' },
     },
     assetFields: [
-        { field: 'controller', type: 'animatorcontroller' },
+        registeredAssetFields.Animator,
         { field: 'avatar', type: 'avatar' },
     ],
-    // Preload a `.esanimator` path (or an editor-serialized uuid ref) with the
-    // scene so the controller is registered before the first tick. A plain
-    // `registerController` name (code path) is left alone — this callback is the
-    // discovery authority; the assetField above only drives the editor picker.
-    discoverAssets: data => {
-        const found: { type: string; path: string }[] = [];
-        const c = data.controller;
-        if (isFileAssetRef(c, '.esanimator')) {
-            found.push({ type: 'animatorcontroller', path: c });
-        }
-        const a = data.avatar;
-        if (isFileAssetRef(a, '.esavatar')) {
-            found.push({ type: 'avatar', path: a });
-        }
-        return found;
-    },
+    // The avatar picker takes files only. Discovery also recognizes older scenes' short avatar paths.
+    discoverAssets: namedFieldDiscovery([registeredAssetFields.Animator, { field: 'avatar', type: 'avatar', fileExtension: '.esavatar' }]),
 });
 
 /**

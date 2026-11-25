@@ -16,6 +16,7 @@ import { worldUnitDefaults, BUILTIN_WORLD_UNIT_FIELDS } from './worldUnits';
 import { deepClone } from '../util/deepClone';
 import { hasOwn, setOwn } from '../util/ownProperties';
 import { COMPONENT_META, type AssetFieldMeta, type SkeletalFieldMeta } from './component.generated';
+import { isFileAssetRef } from '../asset/documentRef';
 export type { AssetFieldMeta, SkeletalFieldMeta };
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
@@ -55,6 +56,19 @@ import type {
 export interface AssetRef {
     type: string;
     path: string;
+}
+
+/** @internal A scene index can also identify a named field's file by its declared asset type. */
+export type FieldAssetDiscovery = (data: Record<string, unknown>, knownFile?: (ref: string, type: string, extension: string) => boolean) => AssetRef[];
+
+/** Preserve the callable discovery contract on fields that accept both files and registered names. */
+export function namedFieldDiscovery(fields: readonly AssetFieldMeta[] | undefined): FieldAssetDiscovery | undefined {
+    if (!fields?.some(field => field.fileExtension)) return undefined;
+    return (data, knownFile) => fields.flatMap(({ field, type, fileExtension }) => {
+        const path = data[field];
+        return typeof path === 'string' && path && (!fileExtension || isFileAssetRef(path, fileExtension) || knownFile?.(path, type, fileExtension))
+            ? [{ type, path }] : [];
+    });
 }
 
 /**
@@ -423,7 +437,7 @@ function createComponentDef<T extends object>(
         replicatedFields: metadata?.replicatedFields ?? [],
         readonlyFields: metadata?.readonlyFields ?? [],
         fieldMeta: metadata?.fields ?? {},
-        discoverAssets: metadata?.discoverAssets,
+        discoverAssets: metadata?.discoverAssets ?? namedFieldDiscovery(metadata?.assetFields),
         transient: metadata?.transient ?? false,
         renderableField: renderableField ?? null,
         create(data?: Partial<T>): T {
@@ -831,7 +845,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         replicatedFields: meta?.replicatedFields ?? [],
         readonlyFields: meta?.readonlyFields ?? [],
         fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
-        discoverAssets: metadata?.discoverAssets,
+        discoverAssets: metadata?.discoverAssets ?? namedFieldDiscovery(metadata?.assetFields ?? meta?.assetFields),
         transient: metadata?.transient ?? meta?.transient ?? false,
         renderableField: metadata?.renderableField ?? meta?.renderableField ?? null,
     };

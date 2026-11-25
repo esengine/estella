@@ -2,6 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
+import { registerComponent } from '../src/ecs/component';
+import { Animator } from '../src/animation/Animator';
+import { SpriteAnimator } from '../src/animation/SpriteAnimator';
+import { TimelinePlayer } from '../src/timeline/TimelinePlayerComponent';
+import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
+import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
 import { Catalog, type CatalogData } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { AssetLoader, LoadContext } from '../src/asset/AssetLoader';
@@ -150,9 +156,56 @@ describe('Assets', () => {
     });
 });
 
-// A scene naming geometry has to reach a handle the same way it reaches a
-// texture. Asserted end to end through the real preload + bind, because the
-// gap this closes was one layer knowing about mesh and the next not.
+it('keeps registered scene names with a resolver that rejects unknown files', async () => {
+    for (const definition of [Animator, SpriteAnimator, TimelinePlayer]) registerComponent(definition._name, definition);
+    const backend = createMockBackend();
+    const assets = Assets.create({ backend, module: mockModule });
+    assets.setAssetRefResolver(() => null);
+    const components = [
+        { type: 'Animator', data: { controller: 'actors.patrol' } },
+        { type: 'SpriteAnimator', data: { clip: 'moves/walk' } },
+        { type: 'TimelinePlayer', data: { timeline: 'stage.turn' } },
+    ];
+    const scene: SceneData = { version: '1.0', name: 'Names', entities: [{
+        id: 1, name: 'Actor', parent: null, children: [], components: structuredClone(components),
+    }] };
+    const result = await assets.preloadSceneAssets(scene);
+    try {
+        expect(result.missing).toEqual([]);
+        assets.resolveSceneAssetPaths(scene, result);
+        expect(scene.entities[0].components).toEqual(components);
+        expect(backend.fetchText).not.toHaveBeenCalled();
+    } finally { result.scope.releaseAll(); }
+});
+
+it('loads extensionless scene and controller files from a host project index', async () => {
+    registerComponent('Animator', Animator);
+    const backend = createMockBackend();
+    const files = new Map([
+        ['Hero/States', 'animatorcontroller'], ['Hero/Turn', 'animation'], ['Hero/Game.Play', 'material'],
+    ]);
+    vi.mocked(backend.fetchText).mockImplementation(async path => {
+        if (path.endsWith('Hero/Turn')) return JSON.stringify({ version: 1, name: 'Turn', duration: 1, tracks: [] });
+        if (!path.endsWith('Hero/States')) throw new Error('Unexpected file: ' + path);
+        return JSON.stringify({ parameters: [], initialState: 'Idle', states: [
+            { name: 'Idle', transitions: [], motion: { kind: 'timeline', clip: 'Game.Play' } },
+            { name: 'Turn', transitions: [], motion: { kind: 'timeline', clip: 'Turn' } },
+        ] });
+    });
+    const assets = Assets.create({ backend, module: mockModule });
+    assets.register(new AnimatorControllerAssetLoader());
+    assets.register(new TimelineAssetLoader());
+    assets.setAssetRefResolver(ref => files.has(ref) ? ref : null, ref => files.get(ref));
+    const scene: SceneData = { version: '1.0', name: 'Host', entities: [{
+        id: 1, name: 'Actor', parent: null, children: [], components: [{ type: 'Animator', data: { controller: 'Hero/States' } }],
+    }] };
+    const result = await assets.preloadSceneAssets(scene);
+    try {
+        expect(result.missing).toEqual([]);
+        expect(vi.mocked(backend.fetchText).mock.calls.map(([path]) => path.split('/').pop())).toEqual(['States', 'Turn']);
+    } finally { result.scope.releaseAll(); }
+});
+
 describe('Assets: mesh references in a scene', () => {
     it('preloads an .esmesh and binds its handle onto the component', async () => {
         const backend = createMockBackend();

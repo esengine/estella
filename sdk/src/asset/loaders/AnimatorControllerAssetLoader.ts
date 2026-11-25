@@ -16,7 +16,7 @@ import { animatorScopes, motionOf } from '../../animation/Animator';
 import type { AnimatorControllerDef, AnimatorState } from '../../animation/Animator';
 import { isBlend1D, isBlend2D, type AnimatorMotion, type AnimatorClipMotion } from '../../animation/motion';
 import { migrateAnimatorController } from '../../animation/animatorMigrate';
-import { animatorMotionAssetType, resolveDocumentRef } from '../documentRef';
+import { animatorMotionFile, resolveDocumentRef } from '../documentRef';
 
 function* clipMotions(motion: AnimatorMotion): Generator<AnimatorClipMotion> {
     if (isBlend1D(motion)) {
@@ -77,10 +77,10 @@ async function acquireMotionAssets(
 ): Promise<void> {
     const wanted = new Map<string, string>();
     for (const motion of motionsOfController(def)) {
-        const type = animatorMotionAssetType(motion.kind, motion.clip);
-        if (!type || !motion.clip) continue;
-        motion.clip = resolveDocumentRef(path, motion.clip);
-        wanted.set(motion.clip, type);
+        const file = animatorMotionFile(motion.kind, motion.clip, path, ctx.assetTypeOf ?? (candidate => ctx.catalog.assetTypeOf?.(candidate)));
+        if (!file) continue;
+        motion.clip = file.path ?? resolveDocumentRef(path, motion.clip);
+        wanted.set(motion.clip, file.type);
     }
     if (def.avatar) {
         def.avatar = resolveDocumentRef(path, def.avatar);

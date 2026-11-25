@@ -402,6 +402,8 @@ class MetadataGenerator:
             'export interface AssetFieldMeta {',
             '    field: string;',
             '    type: AssetFieldType;',
+            '    /** For a field that also accepts code-registered names, the extension identifying its files. */',
+            '    fileExtension?: string;',
             '    /** The renderer reports texel demand for this texture or the textures sampled by this material. */',
             '    measuresTextureDensity?: boolean;',
             '}',

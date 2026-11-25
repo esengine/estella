@@ -9,8 +9,8 @@
  * to stay clear of the UI-owned `StateMachine` component.
  */
 
+import { registeredAssetFields } from '../../asset/registeredAssetFields';
 import { defineComponent } from '../../ecs/component';
-import { isFileAssetRef } from '../../asset/documentRef';
 import type { FsmDefinition } from './types';
 import { compileFsm, type CompiledFsm } from './FsmRunner';
 
@@ -25,17 +25,7 @@ export const StateMachineAgent = defineComponent<StateMachineAgentData>('StateMa
     fsm: '',
     current: '',
 }, {
-    assetFields: [{ field: 'fsm', type: 'statemachine' }],
-    // Preload a `.esfsm` path or an editor-serialized uuid ref with the scene so
-    // the FSM is registered before the agent first ticks. A plain `registerFsm`
-    // name (code path) is left alone — this callback is the discovery authority;
-    // the assetField above only drives the editor picker.
-    discoverAssets: data => {
-        const fsm = data.fsm;
-        return isFileAssetRef(fsm, '.esfsm')
-            ? [{ type: 'statemachine', path: fsm }]
-            : [];
-    },
+    assetFields: [registeredAssetFields.StateMachineAgent],
     fields: {
         current: { advanced: true, tooltip: 'Active state (runtime, read-only).' },
     },

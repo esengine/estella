@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach } from 'vitest';
-import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { defineComponent, clearUserComponents, registerComponent } from '../src/ecs/component';
 import { discoverSceneAssets, getAssetPathsByType } from '../src/asset/discoverAssets';
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
 import { ScriptGraphAgent } from '../src/logic/ScriptGraphAgent';
 import { Animator } from '../src/animation/Animator';
+import { SpriteAnimator } from '../src/animation/SpriteAnimator';
+import { TimelinePlayer } from '../src/timeline/TimelinePlayerComponent';
 import { TilemapLayer } from '../src/ecs/component';
 import type { SceneData } from '../src/scene/scene';
 
@@ -71,6 +73,22 @@ function makeScene(entities: SceneData['entities']): SceneData {
 }
 
 describe('discoverSceneAssets', () => {
+    it('loads the files mixed with code-registered animations without fetching registered names', () => {
+        registerComponent('SpriteAnimator', SpriteAnimator);
+        registerComponent('TimelinePlayer', TimelinePlayer);
+        const refs = discoverSceneAssets(makeScene([{
+            id: 1, name: 'Rig', parent: null, children: [], components: [
+                { type: 'SpriteAnimator', data: { clip: 'moves.walk' } },
+                { type: 'SpriteAnimator', data: { clip: 'actors/Hero.EsAnim' } },
+                { type: 'SpriteAnimator', data: { clip: 'WalkShortcut' } },
+                { type: 'TimelinePlayer', data: { timeline: 'moves/turn' } },
+                { type: 'TimelinePlayer', data: { timeline: '@uuid:durations' } },
+            ],
+        }]), ref => ref === 'WalkShortcut' ? 'actors/Walk.esanim' : ref);
+        expect([...getAssetPathsByType(refs, 'anim-clip')]).toEqual(['actors/Hero.EsAnim', 'actors/Walk.esanim']);
+        expect([...getAssetPathsByType(refs, 'timeline')]).toEqual(['@uuid:durations']);
+    });
+
     it('discovers declarative asset fields', () => {
         const scene = makeScene([{
             id: 1, name: 'e1', parent: null, children: [],
