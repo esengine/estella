@@ -79,21 +79,19 @@ export class AssetDependencyOwner {
         }
     }
 
-    /** Actual receipts and pending claims reachable through this preparation, including itself. */
-    *reachable(seen = new Set<AssetDependencyOwner>()): IterableIterator<AssetDependencyOwner> {
+    /** A pending acquisition can also close a cycle before its receipt arrives. */
+    private reaches_(target: AssetDependencyOwner): boolean {
+        if (this === target) return true;
+        if (!this.claims_?.size) return false;
+        const seen = new Set<AssetDependencyOwner>();
         const pending: AssetDependencyOwner[] = [this];
         while (pending.length) {
             const owner = pending.pop()!;
+            if (owner === target) return true;
             if (seen.has(owner)) continue;
             seen.add(owner);
-            yield owner;
-            for (const { target } of owner.claims_ ?? []) pending.push(target);
+            for (const claim of owner.claims_ ?? []) pending.push(claim.target);
         }
-    }
-
-    private reaches_(target: AssetDependencyOwner): boolean {
-        if (this === target) return true;
-        if (this.claims_?.size) for (const owner of this.reachable()) if (owner === target) return true;
         return false;
     }
 }

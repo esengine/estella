@@ -86,7 +86,7 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
 
     return {
         sample(ctx: MotionContext, motion: AnimatorClipMotion, time: number, pose: Pose): boolean {
-            const asset = timeline.getAsset(motion.clip);
+            const asset = timeline.getAsset(motion.clip, ctx.entity);
             if (!asset) return false;
             const local = applyWrapMode(time * speedOf(motion), asset.duration, wrapOf(motion, asset));
             deps.world = ctx.world;
@@ -104,7 +104,7 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
         events(
             ctx: MotionContext, motion: AnimatorClipMotion, span: MotionSpan, out: MotionEvent[],
         ): void {
-            const asset = timeline.getAsset(motion.clip);
+            const asset = timeline.getAsset(motion.clip, ctx.entity);
             if (!asset) return;
             const runs = runsOf(asset, motion, span);
             collectCustomEvents(asset, runs, out);
@@ -122,9 +122,9 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
 
         /** Custom events with a duration that the span reached, in the clip's own time. */
         windows(
-            _ctx: MotionContext, motion: AnimatorClipMotion, span: MotionSpan, out: MotionWindow[],
+            ctx: MotionContext, motion: AnimatorClipMotion, span: MotionSpan, out: MotionWindow[],
         ): void {
-            const asset = timeline.getAsset(motion.clip);
+            const asset = timeline.getAsset(motion.clip, ctx.entity);
             if (!asset) return;
             collectCustomWindows(asset, runsOf(asset, motion, span), out);
         },
@@ -135,10 +135,10 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
          * as the character teleporting back to where the clip starts.
          */
         rootMotion(
-            _ctx: MotionContext, motion: AnimatorClipMotion,
+            ctx: MotionContext, motion: AnimatorClipMotion,
             span: MotionSpan, out: RootMotionDelta,
         ): boolean {
-            const asset = timeline.getAsset(motion.clip);
+            const asset = timeline.getAsset(motion.clip, ctx.entity);
             if (!asset || !sampleRootPlacement(asset, 0, before)) return false;
 
             out.position.x = 0; out.position.y = 0; out.position.z = 0;
@@ -157,12 +157,12 @@ export function createTimelineMotionDriver(timeline: TimelineAPI, effects: Timel
         },
 
         /** In the animator's own seconds, which is why the speed divides out. */
-        duration(_ctx: MotionContext, motion: AnimatorClipMotion): number {
-            return (timeline.getAsset(motion.clip)?.duration ?? 0) / speedOf(motion);
+        duration(ctx: MotionContext, motion: AnimatorClipMotion): number {
+            return (timeline.getAsset(motion.clip, ctx.entity)?.duration ?? 0) / speedOf(motion);
         },
 
-        loops(_ctx: MotionContext, motion: AnimatorClipMotion): boolean {
-            const asset = timeline.getAsset(motion.clip);
+        loops(ctx: MotionContext, motion: AnimatorClipMotion): boolean {
+            const asset = timeline.getAsset(motion.clip, ctx.entity);
             return asset ? wrapOf(motion, asset) !== WrapMode.Once : false;
         },
     };

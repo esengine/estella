@@ -9,7 +9,9 @@ import type { SystemDef } from '../ecs/system';
 import { initTilemapAPI, shutdownTilemapAPI, type TilemapToolkit, Tilemaps } from './tilemapAPI';
 import { Tilemap } from './components';
 import { registerWorldSceneComponentCodec } from '../scene/scene';
-import { tilemapSource, resolvedTileset, type LoadedTilemapSource } from './tilesetCache';
+import { sceneAssetScopeForEntity } from '../scene/sceneManagerResource';
+import type { LoadedTilemapSource, PublishedTilemap, PublishedTileset } from './tilesetCache';
+import { appRegistryAsset } from '../asset/registryLookup';
 import { resolveTilesetModel } from './tilesetResolve';
 import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
@@ -92,8 +94,8 @@ export class TilemapRuntime {
      *  whole list resolves live → multi-slot table/collision/anim). One entry = the
      *  common single-tileset layer. */
     private tilesetRefs_ = new Map<number, string[]>();
-    /** Entities whose `.estileset` has been resolved+applied (so we do it once per load). */
-    private liveResolved_ = new Set<number>();
+    /** Ownership used by each native tileset table. The built-in collision palette needs no owner. */
+    private liveResolved_ = new Map<number, { entity?: object; scene?: object } | null>();
     private lazyTilesetLoads_ = new LazyTilesetLoads();
     /** Tiled DERIVED child layer → its collision query table (see tileQuery). */
     private derivedQueryTables_ = new Map<number, LayerCollisionTable>();
@@ -226,6 +228,7 @@ export class TilemapRuntime {
                 const playMode = playModeOnly();
                 const assets = app.getResource(Assets);
                 const version = assets?.registryAssetVersion?.('tileset') ?? 0;
+                const scopedTilesets = assets?.hasScopedRegistryAssets?.('tileset');
                 if (assets !== observedAssets || version !== tilesetVersion) {
                     liveResolved.clear();
                     observedAssets = assets;
@@ -337,29 +340,36 @@ export class TilemapRuntime {
                         appliedGrid.set(entity, gridKey);
                     }
 
+                    // Ownership can change without publishing a new asset, for example when an
+                    // instance retains an existing tileset. Skip native updates while both scopes match.
+                    const applied = liveResolved.get(entity);
+                    const scoped = refs?.length && scopedTilesets && applied !== null;
+                    const owner = scoped ? assets.entityScopes.scopeFor(entity, world)?.receiptSet : undefined;
+                    const scene = scoped ? sceneAssetScopeForEntity(app, entity)?.receiptSet : undefined;
+                    const needsTileset = applied === undefined || (applied !== null && (applied.entity !== owner || applied.scene !== scene));
                     // Collision (obstacle) layer: the sentinel `builtin:collision` ref means
                     // this layer paints from the fixed collision palette, not an `.estileset`.
                     // Install its collision model directly — NO render slots (nothing draws)
                     // and no atlas load — so the same spawn + overlay path handles it as any
                     // painted collision. The gate above passed because refs is non-empty.
-                    if (refs && refs.length > 0 && isCollisionPaletteRef(refs) && !liveResolved.has(entity)) {
+                    if (refs && refs.length > 0 && needsTileset && isCollisionPaletteRef(refs)) {
                         const model = buildCollisionPaletteModel(parseCollisionMaterial(refs));
                         if (model.collidableTileIds.length > 0) nativeCollisionIds.set(entity, model.collidableTileIds);
                         else nativeCollisionIds.delete(entity);
                         if (model.tileShapes.size > 0) nativeTileShapes.set(entity, model.tileShapes);
                         else nativeTileShapes.delete(entity);
-                        liveResolved.add(entity);
+                        liveResolved.set(entity, null);
                     }
 
                     // Live tileset(s): when ALL the layer's `.estileset` refs have loaded,
                     // derive its multi-slot render table + animations + collision LIVE (once
                     // per load) — replacing copied columns + the baked collidableTileIds. The
                     // whole list must resolve together so firstId ranges are contiguous.
-                    else if (refs && refs.length > 0 && !liveResolved.has(entity)) {
+                    else if (refs && refs.length > 0 && needsTileset) {
                         const resolvedList = [];
                         for (const ref of refs) {
                             const key = resolveAssetKey(assets, ref);
-                            const r = resolvedTileset(assets, ref);
+                            const r = appRegistryAsset<PublishedTileset>(app, 'tileset', ref, entity)?.resolved;
                             if (r) {
                                 resolvedList.push(r);
                             } else if (assets) {
@@ -390,7 +400,7 @@ export class TilemapRuntime {
                             } else {
                                 nativeTileShapes.delete(entity);
                             }
-                            liveResolved.add(entity);
+                            liveResolved.set(entity, { entity: owner, scene });
                         }
                     }
 
@@ -407,7 +417,7 @@ export class TilemapRuntime {
 
                     // This app's realm, by the ref the component carries: the slot
                     // answers to that spelling and to the path it resolved to.
-                    const cached = tilemap?.source ? tilemapSource(assets, tilemap.source) : undefined;
+                    const cached = tilemap?.source ? appRegistryAsset<PublishedTilemap>(app, 'tilemap', tilemap.source, entity)?.source : undefined;
 
                     // Derived children must mirror the CURRENT source. A cleared field,
                     // an invalidated cache entry (hot reload), or different source data

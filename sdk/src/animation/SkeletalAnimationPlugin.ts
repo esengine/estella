@@ -48,9 +48,9 @@ export class SkeletalAnimationPlugin implements Plugin {
         // A `.esanimator` / `.esavatar` comes from THIS app's realm, whose slots
         // answer to the authored ref as well as the resolved path. A code
         // registration still wins over one.
-        animator.useAssetAvatars((ref) => appRegistryAsset<AnimatorAvatar>(app, 'avatar', ref));
+        animator.useAssetAvatars((ref, entity) => appRegistryAsset<AnimatorAvatar>(app, 'avatar', ref, entity));
         animator.useAssetControllers(
-            (ref) => appRegistryAsset<AnimatorControllerDef>(app, 'animatorcontroller', ref),
+            (ref, entity) => appRegistryAsset<AnimatorControllerDef>(app, 'animatorcontroller', ref, entity),
         );
 
         // The state machine runs before the sprite animator so a transition's

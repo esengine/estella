@@ -86,7 +86,8 @@ export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame:
  */
 export class SpriteAnimationAPI {
     private readonly clips = new Map<string, SpriteAnimClip>();
-    private assetClips_: ((ref: string) => SpriteAnimClip | undefined) | null = null;
+    private assetClips_: ((ref: string, entity?: Entity) => SpriteAnimClip | undefined) | null = null;
+    private readonly playerEntities = new WeakMap<SpriteAnimatorData, Entity>();
     private readonly entityListeners = new Map<Entity, SpriteAnimEventHandler[]>();
     private globalListeners: SpriteAnimEventHandler[] = [];
     // Remember the applied source without retaining an unloaded clip's frames.
@@ -121,12 +122,12 @@ export class SpriteAnimationAPI {
      * realm. A code registration wins, as it always did — what changes is that
      * the asset half is no longer a second copy kept in the map above.
      */
-    useAssetClips(source: (ref: string) => SpriteAnimClip | undefined): void {
+    useAssetClips(source: (ref: string, entity?: Entity) => SpriteAnimClip | undefined): void {
         this.assetClips_ = source;
     }
 
-    getClip(name: string): SpriteAnimClip | undefined {
-        return this.clips.get(name) ?? this.assetClips_?.(name);
+    getClip(name: string, entity?: Entity): SpriteAnimClip | undefined {
+        return this.clips.get(name) ?? this.assetClips_?.(name, entity);
     }
 
     clearClips(): void {
@@ -168,7 +169,7 @@ export class SpriteAnimationAPI {
         const motion = world.tryGet(entity, SpriteMotionPlayback);
         const current = world.tryGet(entity, SpriteAnimator) ?? motion?.player;
         if (current !== animator || (motion && (motion.restart || !motionOwnerEnabled(world, entity)))
-            || animator.clip !== clipName || this.getClip(clipName) !== clip
+            || animator.clip !== clipName || this.getClip(clipName, entity) !== clip
             || this.pendingApplies.has(animator)) return false;
         if (clip.frames !== frames || frames.length !== frameCount
             || !Number.isInteger(animator.currentFrame) || animator.currentFrame < 0 || animator.currentFrame >= frameCount) {
@@ -267,6 +268,7 @@ export class SpriteAnimationAPI {
             const authored = world.tryGet(entity, SpriteAnimator);
             const animator = authored ?? motion?.player;
             if (!animator) continue;
+            if (this.playerEntities.get(animator) !== entity) this.playerEntities.set(animator, entity);
             if (!animator.enabled || !animator.clip) continue;
             if (motion?.restart) {
                 this.appliedAnimators.delete(animator);
@@ -276,7 +278,7 @@ export class SpriteAnimationAPI {
             if (!animator.playing && !this.pendingApplies.has(animator) && !applied) continue;
 
             const clipName = animator.clip;
-            const clip = this.getClip(clipName);
+            const clip = this.getClip(clipName, entity);
             if (!clip || clip.frames.length === 0) continue;
 
             // playing raised on a finished one-shot = replay from the top
@@ -385,8 +387,8 @@ export class SpriteAnimationAPI {
 
     // -- goto frame / label ---------------------------------------------------
 
-    gotoFrame(animator: SpriteAnimatorData, frameIndex: number, andPlay: boolean = true): void {
-        const clip = this.getClip(animator.clip);
+    gotoFrame(animator: SpriteAnimatorData, frameIndex: number, andPlay: boolean = true, entity: Entity | undefined = this.playerEntities.get(animator)): void {
+        const clip = this.getClip(animator.clip, entity);
         if (!clip || clip.frames.length === 0) return;
 
         animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
@@ -397,14 +399,14 @@ export class SpriteAnimationAPI {
         this.pendingApplies.add(animator);
     }
 
-    gotoLabel(animator: SpriteAnimatorData, label: string, andPlay: boolean = true): void {
-        const clip = this.getClip(animator.clip);
+    gotoLabel(animator: SpriteAnimatorData, label: string, andPlay: boolean = true, entity: Entity | undefined = this.playerEntities.get(animator)): void {
+        const clip = this.getClip(animator.clip, entity);
         if (!clip || !clip.labels) return;
 
         const frameIndex = clip.labels[label];
         if (frameIndex === undefined) return;
 
-        this.gotoFrame(animator, frameIndex, andPlay);
+        this.gotoFrame(animator, frameIndex, andPlay, entity);
     }
 }
 

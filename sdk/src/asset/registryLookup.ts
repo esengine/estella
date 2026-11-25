@@ -15,13 +15,16 @@
  *          only those is a single source of truth, not a mirror.
  */
 import type { App } from '../app/app';
+import { sceneAssetScopeForEntity } from '../scene/sceneManagerResource';
+import type { Entity } from '../types';
 import { Assets } from './AssetPlugin';
 
 /** The current era of one ref-bound asset in `app`'s realm. */
-export function appRegistryAsset<T>(app: App, type: string, ref: string): T | undefined {
-    return app.hasResource(Assets)
-        ? app.getResource(Assets).resolveRegistryAsset<T>(type, ref)
-        : undefined;
+export function appRegistryAsset<T>(app: App, type: string, ref: string, entity?: Entity): T | undefined {
+    if (!app.hasResource(Assets)) return;
+    const assets = app.getResource(Assets);
+    if (entity === undefined || !assets.hasScopedRegistryAssets?.(type)) return assets.resolveRegistryAsset<T>(type, ref);
+    return assets.resolveRegistryAsset<T>(type, ref, assets.entityScopes.scopeFor(entity, app.world), sceneAssetScopeForEntity(app, entity));
 }
 
 /** Every ref-bound asset of one type this realm publishes — what a schedule

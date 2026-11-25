@@ -705,8 +705,8 @@ export function clearAnimatorControllerStore(): void {
  * resource; read it as `app.getResource(AnimatorController)`.
  */
 export class AnimatorControllerAPI {
-    private assetControllers_: ((ref: string) => AnimatorControllerDef | undefined) | null = null;
-    private assetAvatars_: ((ref: string) => AnimatorAvatar | undefined) | null = null;
+    private assetControllers_: ((ref: string, entity?: Entity) => AnimatorControllerDef | undefined) | null = null;
+    private assetAvatars_: ((ref: string, entity?: Entity) => AnimatorAvatar | undefined) | null = null;
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
@@ -778,26 +778,26 @@ export class AnimatorControllerAPI {
      * @internal Where a `.esanimator` comes from: this app's realm. Set by the
      * animation plugin; without one only code registrations answer.
      */
-    useAssetControllers(source: (ref: string) => AnimatorControllerDef | undefined): void {
+    useAssetControllers(source: (ref: string, entity?: Entity) => AnimatorControllerDef | undefined): void {
         this.assetControllers_ = source;
     }
 
     /** Where a `.esavatar` comes from. Same shape as the controller source, and
      *  optional for the same reason: without one, every path resolves as itself. */
-    useAssetAvatars(source: (ref: string) => AnimatorAvatar | undefined): void {
+    useAssetAvatars(source: (ref: string, entity?: Entity) => AnimatorAvatar | undefined): void {
         this.assetAvatars_ = source;
     }
 
     /** This rig's avatar, or null where its clips need no translating. */
-    private avatarOf(ref: string | undefined): AnimatorAvatar | null {
-        return ref ? this.assetAvatars_?.(ref) ?? null : null;
+    private avatarOf(ref: string | undefined, entity: Entity): AnimatorAvatar | null {
+        return ref ? this.assetAvatars_?.(ref, entity) ?? null : null;
     }
 
-    getController(name: string): AnimatorControllerDef | undefined {
+    getController(name: string, entity?: Entity): AnimatorControllerDef | undefined {
         // A code-registered name wins, then this realm's asset, then a
         // controller registered by path through the module door.
         return this.controllers.get(name)
-            ?? this.assetControllers_?.(name)
+            ?? this.assetControllers_?.(name, entity)
             ?? getRegisteredAnimatorController(name);
     }
 
@@ -910,15 +910,15 @@ export class AnimatorControllerAPI {
             const a = world.get(entity, Animator) as AnimatorData;
             if (!a.enabled) continue;
 
-            const def = this.getController(a.controller);
+            const def = this.getController(a.controller, entity);
             if (!def || animatorScopes(def).every((s) => s.states.length === 0)) continue;
 
             const actorKey = storage.keyFor(entity, world);
             if (!actorKey) continue;
             const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
-            const rig = this.avatarOf(a.avatar);
-            const clips = this.avatarOf(def.avatar);
+            const rig = this.avatarOf(a.avatar, entity);
+            const clips = this.avatarOf(def.avatar, entity);
             const named = avatarResolver(world, rig);
             // A rig carried as a child: every path a clip names is under it, the root's own included.
             const rigRoot = this.rigRootOf(world, entity, a);

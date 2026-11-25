@@ -20,7 +20,7 @@ import { installTimeDilation } from './timeDilation';
 import { Time, type TimeData } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
-import { Assets } from '../asset/AssetPlugin';
+import { appRegistryAsset } from '../asset/registryLookup';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import type { PublishedTimeline } from './TimelineTypes';
 import { TimelinePlayer, resolveWrapMode, type TimelinePlayerData } from './TimelinePlayerComponent';
@@ -93,9 +93,7 @@ class TimelinePlaybackSystem {
         app.insertResource(Timeline, timeline);
         // A `.estimeline` comes from THIS app's realm; a code registration wins.
         timeline.useAssetTimelines(
-            (ref) => (app.hasResource(Assets)
-                ? app.getResource(Assets).resolveRegistryAsset<PublishedTimeline>('timeline', ref)?.asset
-                : undefined),
+            (ref, entity) => appRegistryAsset<PublishedTimeline>(app, 'timeline', ref, entity),
         );
 
         // Let an animator state play a timeline. Guarded rather than assumed:
@@ -157,7 +155,6 @@ class TimelinePlaybackSystem {
                 if (!this.active_) return;
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
-                const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
                 const director = app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
                 // Paths resolve below their root, or through the playing player's bindings (`@Name`).
                 let current = 0 as Entity;
@@ -173,16 +170,14 @@ class TimelinePlaybackSystem {
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
-                    const asset = player.timeline && tl.getAsset(player.timeline);
-                    if (!asset) {
+                    const published = player.timeline && tl.playback(player.timeline, entity);
+                    if (!published) {
                         this.frames_.forget(entity);
                         this.voices_.stop(entity);
                         this.spawns_.forget(entity, this.spawner_);
                         continue;
                     }
-                    const published = assets?.resolveRegistryAsset<PublishedTimeline>(
-                        'timeline', player.timeline,
-                    );
+                    const { asset, textureHandles } = published;
 
                     const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
@@ -198,7 +193,7 @@ class TimelinePlaybackSystem {
                     const justFinished = advanceTimelineTS(asset, entity, state, dt, {
                         particle: app.hasResource(Particle) ? app.getResource(Particle) : null,
                         deps, audio,
-                        lookup: (ref) => tl.getAsset(ref),
+                        lookup: (ref) => tl.getAsset(ref, entity),
                         onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,
                         // A shake: an impulse from where the track's entity is, or the view shaken where it is.
                         onShake: (from, force) => {
@@ -218,7 +213,7 @@ class TimelinePlaybackSystem {
                             }
                         },
                     });
-                    this.frames_.sync(world, entity, asset, state.time, published?.textureHandles, deps.resolveChild);
+                    this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // Spawned entities: there while the playhead is inside their clip, gone once the timeline is stopped.

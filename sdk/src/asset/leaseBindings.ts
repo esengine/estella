@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { AssetLease } from './AssetLease';
+import type { AssetLease, AssetScope } from './AssetLease';
 import type { AssetDependencyOwner } from './dependencies';
 
 /** A handle's pool, or the slot or file preparation read through a name. */
@@ -10,11 +10,14 @@ export const leaseMatchesSource = Symbol('matches asset source');
 /** The dependency to record when the ref requested names only part of an acquired asset. */
 export const leaseDependencyKey = Symbol('asset dependency key');
 export const leaseOwner = Symbol('asset dependency owner');
+/** The committed children of a handle-backed preparation, retained with its generation. */
+export const leaseDependencies = Symbol('asset dependencies');
 type BindingIdentity = string | { readonly type: string };
 export interface BindingLease<T = unknown> extends AssetLease<T> {
     readonly [leaseBinding]: BindingIdentity | undefined;
     readonly [leaseDependencyKey]?: string;
     readonly [leaseOwner]?: AssetDependencyOwner;
+    readonly [leaseDependencies]?: AssetScope;
     [leaseMatchesSource]?(ref: string): boolean;
 }
 

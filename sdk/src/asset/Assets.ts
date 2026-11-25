@@ -36,7 +36,7 @@ import { AssetRefLedger, type AssetRefLease, type LoadGeneration } from './Asset
 import { ManifestBindingHistory } from './ManifestBindingHistory';
 import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
-import { leaseBinding, leaseDependencyKey, leaseMatchesSource, leaseOwner, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseDependencies, leaseDependencyKey, leaseMatchesSource, leaseOwner, type BindingLease } from './leaseBindings';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind, type RegistrySlotLease } from './registryAssets';
 import {
@@ -2038,8 +2038,7 @@ export class Assets {
                     this.assertLoading_(epoch);
                     declared?.publish();
                     if (!this.sampledTypes_.size) return;
-                    const seen = new Set<AssetDependencyOwner>();
-                    for (const { lease } of acquisitions) this.publishSceneNames_(lease, seen);
+                    this.registrySlots_.publishSceneNames(acquisitions.map(({ lease }) => lease));
                 },
                 textureReader: reader };
         } catch (error) {
@@ -2194,13 +2193,8 @@ export class Assets {
         }
         const key = this.sceneBinding_(type, identity, inputs.signature);
         const lease = await this.registrySlots_.acquire(kind, type, key, [key], owner, names);
-        if (inputs === this.sceneTextureImports_.current) this.publishSceneNames_(lease);
+        if (inputs === this.sceneTextureImports_.current) this.registrySlots_.publishSceneNames([lease]);
         return lease;
-    }
-
-    private publishSceneNames_(lease: AssetLease, seen = new Set<AssetDependencyOwner>()): void {
-        const owner = (lease as Partial<BindingLease>)[leaseOwner];
-        if (owner) for (const held of owner.reachable(seen)) this.registrySlots_.publishSceneNames(held);
     }
 
     /**
@@ -2251,6 +2245,7 @@ export class Assets {
         return {
             [leaseBinding]: source ?? type,
             [leaseOwner]: lease.value.owner,
+            [leaseDependencies]: lease.value.dependencies,
             [leaseMatchesSource]: source && (ref => this.namedBinding_(type, ref) === source),
             [leaseDependencyKey]: lease.value.loader === this.spineLoader_ ? lease.value.owner.key : undefined,
             key: lease.key, generation: lease.generation, value,
@@ -2624,14 +2619,12 @@ export class Assets {
         const bySource = !fromGraph && sceneBindingBase(asset.path) === asset.path && this.sampledTypes_.has(type);
         const variants = bySource ? this.sampledPaths_(type, sceneBindingBase(path)) : [path];
         const named = fromGraph ? asset.path : this.registryIdentity_(asset.path);
-        const refreshed = new Set<string>();
         const work: Promise<void>[] = [];
-        if (this.loaders_.get(type)?.registry) for (const name of bySource ? this.sampledPaths_(type, named, true) : [named]) {
-            const slot = this.registrySlots_.slot(type, name);
-            if (!slot || refreshed.has(slot.key)) continue;
-            refreshed.add(slot.key);
-            const ready = this.republishSlot_(type, name);
-            if (ready) work.push(ready);
+        if (this.loaders_.get(type)?.registry) {
+            for (const key of this.registrySlots_.refreshKeys(type, named, bySource)) {
+                const ready = this.republishSlot_(type, key);
+                if (ready) work.push(ready);
+            }
         }
         let hit = work.length > 0;
         for (const key of variants) {
@@ -2717,17 +2710,22 @@ export class Assets {
      *  on a change publish at their position in the plan, after their inputs. */
     private async rebuildChangedFiles_(files: readonly string[]): Promise<void> {
         const plan = this.rebuildPlan_(files);
-        const changed = new Map<string, Set<string>>();
-        for (const file of files) changed.set(this.registryIdentity_(file), new Set());
+        const planned = new Set<string>();
         for (const group of plan) {
-            for (const asset of group) changed.get(asset.path)?.add(asset.type);
+            for (const asset of group) planned.add(assetPairKey(asset.type, asset.path));
         }
         const direct: Promise<void>[] = [];
-        for (const [identity, plannedTypes] of changed) {
-            for (const type of this.loaders_.keys()) {
-                if (plannedTypes.has(type)) continue;
-                const work = this.republishSlot_(type, identity);
-                if (work) direct.push(work);
+        for (const file of files) {
+            const identity = this.registryIdentity_(file);
+            for (const [type, loader] of this.loaders_) {
+                if (!loader.registry) continue;
+                for (const path of this.registrySlots_.refreshKeys(type, identity, this.sampledTypes_.has(type))) {
+                    const key = assetPairKey(type, path);
+                    if (planned.has(key)) continue;
+                    planned.add(key);
+                    const work = this.republishSlot_(type, path);
+                    if (work) direct.push(work);
+                }
             }
         }
         await Promise.all(direct);
@@ -3191,12 +3189,10 @@ export class Assets {
     }
 
     /** Only live, pending or revivable variants can be invalidated. Their owners already know the keys. */
-    private sampledPaths_(type: string, base: string, registry = false): Set<string> {
+    private sampledPaths_(type: string, base: string): Set<string> {
         const paths = new Set([base]);
         const collect = (path: string) => { if (sceneBindingBase(path) === base) paths.add(path); };
-        if (registry) {
-            for (const path of this.registrySlots_.keysOf(type)) collect(path);
-        } else if (type === 'texture') {
+        if (type === 'texture') {
             for (const key of this.textureCache_.keys()) collect(key.slice(0, -2));
             for (const path of this.textureLoader_.sourcePaths()) collect(path);
         } else {
@@ -3331,8 +3327,21 @@ export class Assets {
      *
      * @internal
      */
-    resolveRegistryAsset<T>(type: string, ref: string): T | undefined {
-        return this.publishedSlot_(type, ref)?.published as T | undefined;
+    resolveRegistryAsset<T>(type: string, ref: string, owner?: AssetScope | null, scene?: AssetScope | null): T | undefined {
+        const slot = this.ownedRegistrySlot_(owner, type, ref) ?? this.ownedRegistrySlot_(scene, type, ref)
+            ?? this.publishedSlot_(type, ref);
+        return slot?.published as T | undefined;
+    }
+
+    /** @internal Whether entity playback can encounter more than one sampler for this kind of named asset. */
+    hasScopedRegistryAssets(type: string): boolean { return this.sampledTypes_.has(type) && !!this.loaders_.get(type)?.registry; }
+
+    private ownedRegistrySlot_(scope: AssetScope | null | undefined, type: string, ref: string) {
+        if (!scope || !this.hasScopedRegistryAssets(type)) return;
+        const direct = this.registrySlots_.ownedSlot(scope, type, ref);
+        if (direct) return direct;
+        const identity = this.registryIdentity_(ref);
+        return identity === ref ? undefined : this.registrySlots_.ownedSlot(scope, type, identity);
     }
 
     /** A named registry entry stays distinct when multiple records ship the same file. */
@@ -3357,7 +3366,7 @@ export class Assets {
     leaseForBinding(scope: AssetScope, type: string, value: unknown): AssetLease | undefined {
         if (typeof value === 'number') return scope.bindingLease(type, value);
         if (typeof value !== 'string' || !value) return undefined;
-        return scope.bindingLease(type, value, this.namedBinding_(type, value));
+        return scope.bindingLease(type, value, this.ownedRegistrySlot_(scope, type, value) ?? this.namedBinding_(type, value));
     }
 
     /** @internal Changes when a registry type publishes, replaces or withdraws an era. */

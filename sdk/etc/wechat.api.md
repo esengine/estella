@@ -569,11 +569,11 @@ ResourceDef<AnimatorControllerAPI>
 
 ## AnimatorControllerAPI — class @experimental
 ```
-@internal useAssetControllers: (source: (ref: string) => AnimatorControllerDef | undefined) => void
+@internal useAssetControllers: (source: (ref: string, entity?: Entity) => AnimatorControllerDef | undefined) => void
 clearControllers: () => void
 debugView: (entity: Entity) => AnimatorDebugView | null
 getBool: (entity: Entity, name: string) => boolean
-getController: (name: string) => AnimatorControllerDef | undefined
+getController: (name: string, entity?: Entity) => AnimatorControllerDef | undefined
 getFloat: (entity: Entity, name: string) => number
 hasMotionDriver: (kind: string) => boolean
 openWindow: (entity: Entity, name: string) => AnimatorWindow | null
@@ -588,7 +588,7 @@ setSpineDriver: (driver: SpineAnimationDriver | null) => void
 setTrigger: (entity: Entity, name: string) => void
 unregisterController: (name: string) => void
 update: (world: World, dt?: number, events?: AnimatorEventSink) => void
-useAssetAvatars: (source: (ref: string) => AnimatorAvatar | undefined) => void
+useAssetAvatars: (source: (ref: string, entity?: Entity) => AnimatorAvatar | undefined) => void
 windowsOf: (entity: Entity) => readonly AnimatorWindow[]
 static new (): AnimatorControllerAPI
 static prototype: AnimatorControllerAPI
@@ -1090,6 +1090,7 @@ refCount: number
 @internal hasFieldLeases: boolean
 @internal leases: () => readonly AssetLease[]
 @internal preserveDependency: (lease: AssetLease, state?: DependencyBinding) => void
+@internal receiptSet: object
 @internal releaseUnusedFieldLeases: (visit: (read: (type: string, value: unknown) => boolean) => void, lookup?: FieldLeaseLookup) => void
 @internal retainAcquisition: (source: AssetLease, field?: FieldLeaseBinding, from?: AssetScope) => void
 @internal selectDependencyBinding: (type: string, value: number | string, lease: AssetLease) => void
@@ -1129,6 +1130,7 @@ ResourceDef<AssetsClass>
 @internal entityScopes: EntityAssetScopes
 @internal epoch: number
 @internal handleBoundTypes: () => string[]
+@internal hasScopedRegistryAssets: (type: string) => boolean
 @internal installProjectLocaleTables: (configured: readonly string[], discovered?: readonly string[]) => Promise<void>
 @internal isCurrentBindingLease: (type: string, ref: string, lease: AssetLease) => boolean
 @internal leaseForBinding: (scope: AssetScope, type: string, value: unknown) => AssetLease | undefined
@@ -1139,7 +1141,7 @@ ResourceDef<AssetsClass>
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void
 @internal releaseTyped: (type: string, ref: string) => void
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
-@internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
+@internal resolveRegistryAsset: <T>(type: string, ref: string, owner?: AssetScope | null, scene?: AssetScope | null) => T | undefined
 @internal sceneAssetRef: (ref: string) => string | null
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 @internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
@@ -12111,12 +12113,12 @@ ResourceDef<SpriteAnimationAPI>
 
 ## SpriteAnimationAPI — class @experimental
 ```
-@internal useAssetClips: (source: (ref: string) => SpriteAnimClip | undefined) => void
+@internal useAssetClips: (source: (ref: string, entity?: Entity) => SpriteAnimClip | undefined) => void
 aliasClip: (name: string, clip: SpriteAnimClip) => void
 clearClips: () => void
-getClip: (name: string) => SpriteAnimClip | undefined
-gotoFrame: (animator: SpriteAnimatorData, frameIndex: number, andPlay?: boolean) => void
-gotoLabel: (animator: SpriteAnimatorData, label: string, andPlay?: boolean) => void
+getClip: (name: string, entity?: Entity) => SpriteAnimClip | undefined
+gotoFrame: (animator: SpriteAnimatorData, frameIndex: number, andPlay?: boolean, entity?: Entity | undefined) => void
+gotoLabel: (animator: SpriteAnimatorData, label: string, andPlay?: boolean, entity?: Entity | undefined) => void
 onEvent: (entity: Entity, handler: SpriteAnimEventHandler) => () => void
 onEventGlobal: (handler: SpriteAnimEventHandler) => () => void
 registerClip: (clip: SpriteAnimClip) => void
@@ -13584,9 +13586,10 @@ ResourceDef<TimelineAPI>
 ```
 @internal clearStates: () => void
 @internal ensureState: (entity: Entity, wrapMode: WrapMode, speed: number) => TimelineState
+@internal playback: (name: string, entity?: Entity) => { asset: TimelineAsset; textureHandles?: Map<string, number>; } | undefined
 @internal removeState: (entity: Entity) => void
-@internal useAssetTimelines: (source: (ref: string) => TimelineAsset | undefined) => void
-getAsset: (name: string) => TimelineAsset | undefined
+@internal useAssetTimelines: (source: (ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined) => void
+getAsset: (name: string, entity?: Entity) => TimelineAsset | undefined
 getCurrentTime: (entity: Entity) => number
 getState: (entity: Entity) => TimelineState | undefined
 isPlaying: (entity: Entity) => boolean

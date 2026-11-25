@@ -80,6 +80,7 @@ export function ownedAssetLease<T>(key: string, generation: number, value: T, di
  */
 export class AssetScope {
     private leases_: AssetLease[] = [];
+    private receiptSet_?: object;
     private closed_ = false;
     /** Null after the first search. Repeated lookups share an index until a receipt is removed. */
     private bindings_?: LeaseBindings | null;
@@ -92,6 +93,7 @@ export class AssetScope {
             throw new Error('Cannot add an acquisition to a closed asset scope');
         }
         this.leases_.push(lease as AssetLease);
+        this.receiptSet_ = undefined;
         return lease;
     }
 
@@ -171,6 +173,7 @@ export class AssetScope {
     private take_(): AssetLease[] {
         const leases = this.leases_;
         this.leases_ = [];
+        this.receiptSet_ = undefined;
         this.bindings_ = undefined;
         this.fieldLeases_ = undefined;
         this.dependencies_ = undefined;
@@ -197,6 +200,7 @@ export class AssetScope {
         if (other === this) return;
         if (this.closed_) throw new Error('Cannot transfer acquisitions to a closed asset scope');
         for (const lease of other.leases_) this.leases_.push(lease);
+        if (other.size) this.receiptSet_ = other.receiptSet_ = undefined;
         if (other.dependencies_) {
             this.dependencies_ ??= new Map();
             for (const [lease, state] of other.dependencies_) this.dependencies_.set(lease, state);
@@ -238,6 +242,7 @@ export class AssetScope {
         const i = this.leases_.indexOf(lease);
         if (i < 0) return false;
         this.leases_.splice(i, 1);
+        this.receiptSet_ = undefined;
         this.fieldLeases_?.delete(lease);
         this.dependencies_?.delete(lease);
         this.bindings_ = undefined;
@@ -278,6 +283,9 @@ export class AssetScope {
     get size(): number {
         return this.leases_.length;
     }
+
+    /** @internal A weak cache key for this exact membership, including after a same-size replacement. */
+    get receiptSet(): object { return this.receiptSet_ ??= {}; }
 
     /** @internal The receipts themselves — for a census, never to release behind the scope. */
     leases(): readonly AssetLease[] {

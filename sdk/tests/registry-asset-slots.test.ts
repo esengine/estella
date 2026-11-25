@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { RegistryAssetSlots, type RegistryAssetKind } from '../src/asset/registryAssets';
 import { AssetScope, type AssetLease } from '../src/asset/AssetLease';
+import { reservePromise } from '../src/util/reservePromise';
 
 /** A kind whose every era is a distinguishable object owning one dependency. */
 function fixture() {
@@ -38,6 +39,79 @@ function fakeLease(key: string, released: string[]): AssetLease {
 }
 
 describe('retiring a slot with aliases', () => {
+    it('resolves a scoped name by dependency depth and follows same-size ownership changes', async () => {
+        const slots = new RegistryAssetSlots(), { kind } = fixture();
+        const held = new AssetScope(), roots = new AssetScope();
+        try {
+            const first = held.add(await slots.acquire(kind, 'tileset', 'one', ['one'], undefined, ['ground']));
+            const second = held.add(await slots.acquire(kind, 'tileset', 'two', ['two'], undefined, ['ground']));
+            const direct = roots.add(first.retain()!);
+            const parent = await slots.acquire({ prepare: async () => {
+                const dependencies = new AssetScope();
+                dependencies.add(second.retain()!);
+                return { published: {}, value: {}, dependencies, edges: [] };
+            } }, 'tilemap', 'map', ['map']);
+            roots.add(parent);
+            slots.publishSceneNames([second]);
+            const lookup = () => slots.ownedSlot(roots, 'tileset', 'ground')?.published;
+            expect(lookup()).toBe(slots.published('tileset', 'one'));
+            roots.forget(direct);
+            direct.release();
+            roots.add(second.retain()!);
+            expect(lookup()).toBe(slots.published('tileset', 'two'));
+            roots.add(first.retain()!);
+            expect(lookup()).toBe(slots.published('tileset', 'two'));
+            slots.publishSceneNames([first]);
+            expect(lookup()).toBe(slots.published('tileset', 'one'));
+            const revision = slots.version('tileset');
+            expect(await slots.republish(kind, 'tileset', 'two')).toBe(true);
+            expect(slots.version('tileset')).toBeGreaterThan(revision);
+            expect(slots.ownedSlot(held, 'tileset', 'ground')?.published).toBe(lookup());
+        } finally { roots.releaseAll(); held.releaseAll(); }
+        expect(slots.size).toBe(0);
+    });
+
+    it('invalidates a reader of a private tileset while keeping the scene alias private', async () => {
+        const slots = new RegistryAssetSlots(), { kind } = fixture(), instance = new AssetScope();
+        instance.add(await slots.acquire(kind, 'tileset', 'prefab-atlas', ['prefab-atlas'], undefined, ['ground']));
+        expect(slots.version('tileset')).toBe(0);
+        const before = slots.ownedSlot(instance, 'tileset', 'ground')?.published;
+        expect(before).toBeDefined();
+        await slots.republish(kind, 'tileset', 'prefab-atlas');
+        expect(slots.ownedSlot(instance, 'tileset', 'ground')?.published).not.toBe(before);
+        expect(slots.version('tileset')).toBe(1);
+        expect(slots.published('tileset', 'ground')).toBeUndefined();
+        instance.releaseAll();
+        expect(slots.version('tileset')).toBe(2);
+    });
+
+    it('publishes only the committed dependencies when a controller refresh is in flight', async () => {
+        const slots = new RegistryAssetSlots(), { kind } = fixture(), scene = new AssetScope();
+        const started = reservePromise<void>(), resume = reservePromise<void>();
+        const graph = (key: string, suspend = false): RegistryAssetKind<string> => ({
+            async prepare(_path, owner) {
+                const dependencies = new AssetScope();
+                dependencies.add(await slots.acquire(kind, 'anim-clip', key, [key], owner, ['walk']));
+                if (suspend) { started.resolve(); await resume.promise; }
+                return { published: key, value: 'controller', dependencies, edges: [] };
+            },
+        });
+        try {
+            scene.add(await slots.acquire(graph('first'), 'controller', 'hero', ['hero']));
+            slots.publishSceneNames(scene.leases());
+            const before = slots.published('anim-clip', 'walk');
+            const refresh = slots.republish(graph('next', true), 'controller', 'hero');
+            await started.promise;
+            slots.publishSceneNames(scene.leases());
+            expect(slots.published('anim-clip', 'walk')).toBe(before);
+            expect(slots.ownedSlot(scene, 'anim-clip', 'walk')?.published).toBe(before);
+            resume.resolve();
+            await expect(refresh).resolves.toBe(true);
+            expect(slots.ownedSlot(scene, 'anim-clip', 'walk')?.published).toBe(slots.published('anim-clip', 'next'));
+            expect(slots.ownedSlot(scene, 'anim-clip', 'walk')?.published).not.toBe(before);
+        } finally { resume.resolve(); scene.releaseAll(); }
+    });
+
     it('a populated scope index follows an alias reassigned outside the scope', async () => {
         const { kind } = fixture();
         const slots = new RegistryAssetSlots(), scope = new AssetScope();

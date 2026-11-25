@@ -22,13 +22,14 @@
  *          registry-backed type answered to a name an engine one already used —
  *          today that is only prevented by the file extensions differing.
  */
-import { leaseBinding, leaseOwner, type BindingLease } from './leaseBindings';
+import { leaseBinding, leaseDependencies, leaseOwner, type BindingLease } from './leaseBindings';
+import type { AssetLease, AssetScope } from './AssetLease';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 import { reservePromise } from '../util/reservePromise';
 import { log } from '../util/logger';
 import { assetPairKey } from './assetPairKey';
-import { sceneImportBinding } from './manifestBinding';
+import { sceneBindingBase, sceneImportBinding } from './manifestBinding';
 
 const noNames: readonly string[] = Object.freeze([]);
 const releaseEra = (era: Preparation | null): void => era?.dependencies.releaseAll();
@@ -66,6 +67,8 @@ class Slot<T> extends AssetDependencyOwner {
     readonly names: string[] = [];
     /** Spellings a scene will publish after it takes ownership of this sampler-specific slot. */
     sceneNames?: Set<string>;
+    /** A scene alias or an owner-specific lookup made this slot observable to a runtime reader. */
+    observed = false;
     /** An ordinary slot keeps this private address if another sampler takes its public name. */
     privateKey?: string;
     /** Qualified keys currently routed here. Lease holders can observe the live names array. */
@@ -92,6 +95,7 @@ export class RegistryAssetSlots {
     private readonly byName_ = new Map<string, Slot<unknown>>();
     /** A held or loading slot can outlive the last name that still routes to it. */
     private readonly slots_ = new Set<Slot<unknown>>();
+    private ownedNames_?: WeakMap<object, Map<string, { slot: Slot<unknown>; depth: number }>>;
     private readonly pathClaims_ = new Map<string, Map<Slot<unknown>, number>>();
     private nextId_ = 1;
     private versions_ = new Map<string, number>();
@@ -118,6 +122,7 @@ export class RegistryAssetSlots {
         if (sceneNames) {
             const declared = slot.sceneNames ??= new Set();
             for (const name of sceneNames) {
+                if (!declared.has(name)) this.ownedNames_ = undefined;
                 declared.add(name);
                 if (!slot.names.includes(name)) slot.names.push(name);
             }
@@ -208,7 +213,8 @@ export class RegistryAssetSlots {
         // A publication callback belongs to this commit only. A held slot need
         // not keep the resource it notified alive after that resource is replaced.
         slot.era = era.didPublish ? { ...era, didPublish: undefined } : era;
-        if (this.visible_(slot)) this.changed_(slot.type);
+        this.ownedNames_ = undefined;
+        if (slot.observed || this.visible_(slot)) this.changed_(slot.type);
         try { era.didPublish?.(previous?.published); }
         catch (error) { log.warn('asset', `publication listener for "${slot.key}" failed`, error); }
         releaseEra(previous);
@@ -229,8 +235,8 @@ export class RegistryAssetSlots {
      *  reads: who depends on what is computed from the eras themselves. */
     eras(): AssetWithReceipts[] {
         const eras: AssetWithReceipts[] = [];
-        for (const slot of new Set(this.byName_.values())) {
-            if (slot.era) eras.push({ type: slot.type, path: slot.key, edges: slot.era.edges });
+        for (const slot of this.slots_) {
+            if (slot.era) eras.push({ type: slot.type, path: slot.privateKey ?? slot.key, edges: slot.era.edges });
         }
         return eras;
     }
@@ -248,6 +254,56 @@ export class RegistryAssetSlots {
         return this.byName_.get(assetPairKey(type, name));
     }
 
+    /** Sampler-specific names remain valid for a holder when another scene takes the public alias. */
+    ownedSlot(scope: AssetScope, type: string, name: string): Slot<unknown> | undefined {
+        if (!scope.size) return;
+        const cache = this.ownedNames_ ??= new WeakMap();
+        let names = cache.get(scope.receiptSet);
+        if (!names) {
+            names = this.indexHeldNames_(scope);
+            cache.set(scope.receiptSet, names);
+        }
+        const slot = names.get(assetPairKey(type, name))?.slot;
+        if (slot) slot.observed = true;
+        return slot;
+    }
+
+    private indexHeldNames_(scope: AssetScope) {
+        const names = new Map<string, { slot: Slot<unknown>; depth: number }>();
+        this.visitHeldSlots_(scope.leases(), (slot, depth) => {
+            for (const ref of slot.sceneNames ?? []) {
+                const key = assetPairKey(slot.type, ref);
+                const held = names.get(key);
+                // A direct binding wins over a dependency. At equal depth prefer the public
+                // alias if held, then the oldest slot regardless of preparation completion order.
+                if (held) {
+                    if (held.depth < depth) continue;
+                    const current = this.byName_.get(key);
+                    if (held.slot === current || (slot !== current && held.slot.id <= slot.id)) continue;
+                }
+                names.set(key, { slot, depth });
+            }
+        });
+        return names;
+    }
+
+    /** Direct receipts first, then what their committed preparations own. A pending refresh has no say here. */
+    private visitHeldSlots_(roots: readonly AssetLease[], visit: (slot: Slot<unknown>, depth: number) => void): void {
+        const batches = [{ receipts: roots, depth: 0 }], seen = new Set<AssetScope>();
+        for (const { receipts, depth } of batches) {
+            for (const receipt of receipts) {
+                const lease = receipt as Partial<BindingLease>;
+                const owner = lease[leaseOwner];
+                const slot = owner instanceof Slot && this.slots_.has(owner) ? owner : undefined;
+                if (slot?.era) visit(slot, depth);
+                const children = slot?.era?.dependencies ?? lease[leaseDependencies];
+                if (!children?.size || seen.has(children)) continue;
+                seen.add(children);
+                batches.push({ receipts: children.leases(), depth: depth + 1 });
+            }
+        }
+    }
+
     /** Everything published of one type. What a schedule analysis reads to learn
      *  what the loaded graphs of this realm reach for. */
     publishedOf(type: string): unknown[] {
@@ -263,12 +319,20 @@ export class RegistryAssetSlots {
         return this.slots_.size;
     }
 
-    *keysOf(type: string): IterableIterator<string> {
-        for (const slot of this.slots_) if (slot.type === type) yield slot.privateKey ?? slot.key;
+    /** Stable addresses of the preparations to refresh when a logical document changes. */
+    *refreshKeys(type: string, name: string, allSamplers: boolean): IterableIterator<string> {
+        const current = this.byName_.get(assetPairKey(type, name));
+        if (current) yield current.privateKey ?? current.key;
+        if (!allSamplers) return;
+        for (const slot of this.slots_) {
+            const key = slot.privateKey ?? slot.key;
+            if (slot !== current && slot.type === type && sceneBindingBase(key) === name) yield key;
+        }
     }
 
     /** Give up every slot. For a wholesale teardown. */
     releaseAll(): void {
+        this.ownedNames_ = undefined;
         const eras: Array<Preparation | null> = [];
         for (const slot of this.slots_) {
             eras.push(slot.era);
@@ -334,15 +398,22 @@ export class RegistryAssetSlots {
     }
 
     /** A scene makes only the named documents reachable from its own receipts visible. */
-    publishSceneNames(owner: AssetDependencyOwner): void {
-        if (!(owner instanceof Slot) || !owner.sceneNames || !owner.era || !this.slots_.has(owner)) return;
-        for (const name of owner.sceneNames) {
+    publishSceneNames(receipts: readonly AssetLease[]): void {
+        this.visitHeldSlots_(receipts, slot => {
+            if (slot.sceneNames) this.publishNames_(slot, slot.sceneNames);
+        });
+    }
+
+    private publishNames_(owner: Slot<unknown>, names: ReadonlySet<string>): void {
+        owner.observed = true;
+        for (const name of names) {
             const previous = this.byName_.get(assetPairKey(owner.type, name));
             if (previous === owner) continue;
             // A file first loaded with ordinary defaults can still be pending or owned.
             // Keep that slot addressable when the first scene-specific sampler takes its public name.
             if (previous && !previous.sceneNames && previous.key === name) {
                 previous.sceneNames = new Set(previous.names);
+                previous.observed = true;
                 previous.privateKey = sceneImportBinding(previous.key, '[]');
                 this.name_(previous, previous.privateKey);
             }
@@ -380,7 +451,8 @@ export class RegistryAssetSlots {
 
     private retire_(slot: Slot<unknown>): void {
         if (!this.slots_.delete(slot)) return;
-        const visible = this.visible_(slot);
+        this.ownedNames_ = undefined;
+        const visible = slot.observed || this.visible_(slot);
         for (const key of slot.lookupKeys) this.byName_.delete(key);
         slot.lookupKeys.clear();
         const era = slot.era;
@@ -413,6 +485,7 @@ export class RegistryAssetSlots {
         const previous = this.byName_.get(key);
         if (!slot.names.includes(name)) slot.names.push(name);
         if (previous === slot) return;
+        this.ownedNames_ = undefined;
         if (previous) {
             previous.lookupKeys.delete(key);
             const at = previous.names.indexOf(name);

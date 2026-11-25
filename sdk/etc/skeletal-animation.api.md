@@ -15,11 +15,11 @@ ResourceDef<AnimatorControllerAPI>
 
 ## AnimatorControllerAPI — class @experimental
 ```
-@internal useAssetControllers: (source: (ref: string) => AnimatorControllerDef | undefined) => void
+@internal useAssetControllers: (source: (ref: string, entity?: Entity) => AnimatorControllerDef | undefined) => void
 clearControllers: () => void
 debugView: (entity: Entity) => AnimatorDebugView | null
 getBool: (entity: Entity, name: string) => boolean
-getController: (name: string) => AnimatorControllerDef | undefined
+getController: (name: string, entity?: Entity) => AnimatorControllerDef | undefined
 getFloat: (entity: Entity, name: string) => number
 hasMotionDriver: (kind: string) => boolean
 openWindow: (entity: Entity, name: string) => AnimatorWindow | null
@@ -34,7 +34,7 @@ setSpineDriver: (driver: SpineAnimationDriver | null) => void
 setTrigger: (entity: Entity, name: string) => void
 unregisterController: (name: string) => void
 update: (world: World, dt?: number, events?: AnimatorEventSink) => void
-useAssetAvatars: (source: (ref: string) => AnimatorAvatar | undefined) => void
+useAssetAvatars: (source: (ref: string, entity?: Entity) => AnimatorAvatar | undefined) => void
 windowsOf: (entity: Entity) => readonly AnimatorWindow[]
 static new (): AnimatorControllerAPI
 static prototype: AnimatorControllerAPI

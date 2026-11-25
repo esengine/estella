@@ -77,7 +77,7 @@ export class AnimationPlugin implements Plugin {
         // A `.esanim` comes from THIS app's realm, whose slots answer to the
         // authored ref as well as the resolved path. A code registration still
         // wins over one.
-        anim.useAssetClips((ref) => appRegistryAsset<SpriteAnimClip>(app, 'anim-clip', ref));
+        anim.useAssetClips((ref, entity) => appRegistryAsset<SpriteAnimClip>(app, 'anim-clip', ref, entity));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(SpriteAnimation)],

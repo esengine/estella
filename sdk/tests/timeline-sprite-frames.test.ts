@@ -84,6 +84,19 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         expect(world.get(player, Sprite).texture).toBe(22);
     });
 
+    it('keeps a code timeline independent of a file with the same clip and frame names', async () => {
+        const { app, world, player, publish, publications } = scene();
+        world.insert(player, Sprite, { texture: 4 });
+        publish([track('', 'frame')], [['frame', 11]]);
+        const timeline = app.getResource(Timeline);
+        timeline.registerAsset('intro', { ...publications.get('intro')!.asset, tracks: [track('', 'frame')] });
+        await app.tick(0.01);
+        expect(world.get(player, Sprite).texture).toBe(4);
+        timeline.unregisterAsset('intro');
+        await app.tick(0.01);
+        expect(world.get(player, Sprite).texture).toBe(11);
+    });
+
     it('clears only the requested app frame cache and preserves a steady frame between transitions', async () => {
         const plugin = new TimelinePlugin();
         const first = scene(plugin);

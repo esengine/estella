@@ -3,7 +3,7 @@
 import type { Entity } from '../types';
 import { defineResource } from '../ecs/resource';
 import { createTimelineState, type TimelineState } from './TimelineDrive';
-import { WrapMode, playableTimeline, type TimelineAsset } from './TimelineTypes';
+import { WrapMode, playableTimeline, type PublishedTimeline, type TimelineAsset } from './TimelineTypes';
 
 /**
  * @internal How the api reaches the `TimelinePlayer` component flags. Injected
@@ -32,10 +32,10 @@ export interface PlayerFlagChannel {
  * write the play flags through to the entity's `TimelinePlayer` component.
  */
 export class TimelineAPI {
-    private readonly playable_ = new WeakMap<TimelineAsset, TimelineAsset>();
+    private readonly playable_ = new WeakMap<TimelineAsset | PublishedTimeline, { asset: TimelineAsset; textureHandles?: Map<string, number> }>();
     private readonly states_ = new Map<Entity, TimelineState>();
     private readonly codeAssets_ = new Map<string, TimelineAsset>();
-    private assetTimelines_: ((ref: string) => TimelineAsset | undefined) | null = null;
+    private assetTimelines_: ((ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined) | null = null;
 
     constructor(private readonly flags_: PlayerFlagChannel | null = null) {}
 
@@ -55,18 +55,26 @@ export class TimelineAPI {
     }
 
     /** @internal Where a loaded `.estimeline` comes from: this app's realm. */
-    useAssetTimelines(source: (ref: string) => TimelineAsset | undefined): void {
+    useAssetTimelines(source: (ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined): void {
         this.assetTimelines_ = source;
     }
 
-    /** What `name` plays: a code registration first, then this realm's asset. */
-    /** The timeline `name` names, as it plays: its muted tracks and channels left out (see {@link playableTimeline}). */
-    getAsset(name: string): TimelineAsset | undefined {
-        const asset = this.codeAssets_.get(name) ?? this.assetTimelines_?.(name);
-        if (!asset) return undefined;
-        // Kept per authored asset: a loaded timeline is not edited in place (a hot update brings a new one).
-        let playable = this.playable_.get(asset);
-        if (!playable) this.playable_.set(asset, (playable = playableTimeline(asset)));
+    /** Code registrations take precedence. An entity reads the timeline held by its owner. */
+    getAsset(name: string, entity?: Entity): TimelineAsset | undefined {
+        return this.playback(name, entity)?.asset;
+    }
+
+    /** @internal The playable tracks and frame textures from the same publication. */
+    playback(name: string, entity?: Entity) {
+        const source = this.codeAssets_.get(name) ?? this.assetTimelines_?.(name, entity);
+        if (!source) return;
+        let playable = this.playable_.get(source);
+        if (!playable) {
+            playable = 'textureHandles' in source
+                ? { asset: playableTimeline(source.asset), textureHandles: source.textureHandles }
+                : { asset: playableTimeline(source) };
+            this.playable_.set(source, playable);
+        }
         return playable;
     }
 

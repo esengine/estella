@@ -131,6 +131,11 @@ project importer settings, each scene's `textureImporterSettings` applies to its
 Direct texture loads start using the destination's settings when it takes ownership. Discarding the
 preload keeps the current scene's settings.
 
+When you load scenes additively, each sprite animation, timeline and tilemap keeps the sampling of
+the scene that loaded it. This also applies to clips reached through an animator controller. A
+persistent player carries its clip across the unload of its original scene. A hot update changes
+the clip for every player while preserving each player's texture settings.
+
 ## Persistent entities
 
 A switch despawns the entities owned by the outgoing scene. `setPersistent` marks an entity to survive the unload of

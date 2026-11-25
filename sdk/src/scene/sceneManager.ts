@@ -24,7 +24,8 @@ import { registerDrawCallback } from '../render/customDraw';
 import { PostProcess, PostProcessStack } from '../postprocess';
 import { bindSceneCamera } from '../postprocess/PostProcessAPI';
 import type { SceneCameraBinding } from '../postprocess/PostProcessStack';
-import { defineResource } from '../ecs/resource';
+import { SceneManager, sceneAssetScopeForEntity } from './sceneManagerResource';
+export { SceneManager } from './sceneManagerResource';
 import { SceneTransitionController } from './SceneTransitionController';
 import { SceneOwner, Disabled, renderableComponents, type RenderableComponentDef } from '../ecs/component';
 import { Assets, type AssetsData } from '../asset/AssetPlugin';
@@ -1375,21 +1376,6 @@ export class SceneManagerState {
     }
 }
 
-// =============================================================================
-// Scene Manager Resource
-// =============================================================================
-
-/**
- * Scene loading, as a resource. Registered by the scene plugin, so a bare `App`
- * without it has no scenes to manage.
- *
- * @beta
- */
-export const SceneManager = defineResource<SceneManagerState>(
-    null!,
-    'SceneManager'
-);
-
 /** Keep a field's prior owner while it still holds the receipt and the entity still belongs to it. */
 export function assetScopeForEntity(
     app: App, assets: AssetsData, entity: Entity, type: AssetFieldType, value: number | string, create: boolean,
@@ -1398,8 +1384,7 @@ export function assetScopeForEntity(
     const own = assets.entityScopes.scopeFor(entity, app.world);
     const ownHolds = own && assets.leaseForBinding(own, type, value);
     if (ownHolds && (!preferred || preferred === own)) return own;
-    const name = app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
-    const scene = name ? app.getResource(SceneManager).assetScopeFor(name) : null;
+    const scene = sceneAssetScopeForEntity(app, entity);
     if (!own) return scene ?? (create ? assets.entityScopes.ensure(app.world, entity) : null);
     if (scene && (!ownHolds || preferred === scene) && assets.leaseForBinding(scene, type, value)) return scene;
     return own;

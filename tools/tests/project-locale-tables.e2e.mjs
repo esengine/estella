@@ -21,6 +21,14 @@ async function asset(project, ref, type, data, uuid = randomUUID()) {
 async function fixture(project) {
     const image = 'assets/art/star.png', uuid = '6e5b6002-9bc4-4f60-a446-94ac83023a8c', texture = '@uuid:' + uuid;
     await asset(project, image, 'texture', await fs.readFile(path.join(ROOT, 'templates/wechat-minigame/assets/textures/star_tiny.png')), uuid);
+    const clip = 'assets/art/pulse.esanim', timeline = 'assets/art/motion.estimeline';
+    await asset(project, clip, 'anim-clip', { name: 'pulse', fps: 12, loop: true, frames: [{ texture }] });
+    await asset(project, timeline, 'timeline', { type: 'timeline', version: '1.3', duration: 1, wrapMode: 'loop', tracks: [
+        { type: 'animFrames', name: 'Frame', childPath: '', animFrames: [{ texture }] },
+        { type: 'property', name: 'Depth', childPath: '', component: 'Transform', channels: [
+            { property: 'position.z', keyframes: [{ time: 0, value: 7, interpolation: 'linear', inTangent: 0, outTangent: 0 }] },
+        ] },
+    ] });
     const entity = (id, name, components) => ({ id, name, parent: null, children: [], visible: true, components });
     for (const [scene, shape, sampler] of [
         ['hud', { type: 'Sprite', data: { texture } }, { [image]: { filterMode: 'nearest', wrapMode: 'repeat', mipmaps: false } }],
@@ -29,6 +37,11 @@ async function fixture(project) {
         await asset(project, 'assets/scenes/' + scene + '.esscene', 'scene', { version: 4, name: scene, textureImporterSettings: sampler, entities: [
             entity(1, 'Caption', [{ type: 'Transform', data: {} }, { type: 'UIRect', data: {} }, { type: 'Text', data: { i18nKey: 'start' } }]),
             entity(2, scene, [{ type: 'Transform', data: {} }, shape]),
+            entity(3, scene + '-clip', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
+                { type: 'SpriteAnimator', data: { clip, playing: true } }]),
+            entity(4, scene + '-motion', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
+                { type: 'TimelinePlayer', data: { timeline, playing: true } },
+                ...(scene === 'world' ? [shape] : [])]),
         ] });
     }
     await asset(project, 'assets/scenes/boot.esscene', 'scene', { version: 4, name: 'boot', entities: [
@@ -49,13 +62,16 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, defineSystem, Input, Localization, MeshRenderer, Res, SceneManager, Sprite, Text } from 'esengine';
+import { addPlugin, Assets, defineSystem, Input, Localization, MeshRenderer, Res, SceneManager, Sprite, Text, Transform } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
     let inputCaption = null;
+    let ticks = 0;
     app.addSystem(defineSystem([Res(Input)], input => {
+        ticks++;
         if (input.isKeyDown('KeyK')) inputCaption = app.world.findEntityByName('Caption');
     }));
     globalThis.captionReceivedInput = () => inputCaption != null && inputCaption === app.world.findEntityByName('Caption');
+    globalThis.packageTicks = () => ticks;
     const localePins = () => app.getResource(Assets).appScope.leases().filter(lease => typeof lease.value?.locale === 'string').length;
     function sampling(handle) {
         const module = app.wasmModule, table = module.GL, rm = module.getResourceManager();
@@ -78,6 +94,16 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
         try { return { visible: sampling(visible), raw: sampling(raw.value.handle) }; }
         finally { raw.release(); }
     };
+    globalThis.playingSamples = name => {
+        const clip = app.world.findEntityByName(name + '-clip'), motion = app.world.findEntityByName(name + '-motion');
+        if (clip == null || motion == null) return null;
+        return {
+            clip: sampling(app.world.get(clip, Sprite).texture), timeline: sampling(app.world.get(motion, Sprite).texture),
+            z: app.world.get(motion, Transform).position.z, mesh: name === 'world' && !!app.world.get(motion, MeshRenderer).mesh,
+        };
+    };
+    globalThis.addCaptionScene = name => app.getResource(SceneManager).loadAdditive(name).then(() => ticks);
+    globalThis.removeCaptionScene = name => app.getResource(SceneManager).unload(name).then(() => ticks);
     globalThis.bootReady = () => {
         const scenes = app.getResource(SceneManager);
         return scenes.getActive() === 'boot' && scenes.getSceneStatus('boot') === 'running';
@@ -178,8 +204,16 @@ async function check(browser, project, dir, platform) {
         }
         await page.evaluate(() => globalThis.setCaptionLocale('en'));
         await caption('hud', 'Start game');
+        const advance = after => page.waitForFunction(tick => globalThis.packageTicks() >= tick + 3, after);
+        const expected = name => ({ clip: samplers[name], timeline: samplers[name], z: 7, mesh: name === 'world' });
+        await advance(await page.evaluate(() => globalThis.addCaptionScene('world')));
+        for (const name of ['hud', 'world']) {
+            assert.deepEqual(await page.evaluate(name => globalThis.playingSamples(name), name), expected(name), platform + ' additive ' + name);
+        }
+        await advance(await page.evaluate(() => globalThis.removeCaptionScene('world')));
+        assert.deepEqual(await page.evaluate(() => globalThis.playingSamples('hud')), expected('hud'));
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed 2D and 3D preload/discard, GPU texture sampling, active captions and input, cuts, fades and four switches');
+        console.log(platform + ' passed preload/discard, four switches and additive 2D/3D playback with independent GPU sampling');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

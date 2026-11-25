@@ -2,20 +2,28 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { AnimationPlugin } from '../src/animation/AnimationPlugin';
+import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
+import { registerSkeletalAnimationSupport } from '../src/animation/skeletalAnimationSupport';
+import { SpriteAnimation, SpriteAnimator } from '../src/animation/SpriteAnimator';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import { Assets } from '../src/asset/AssetPlugin';
 import { contentHashHex } from '../src/asset/contentHash';
-import { defineComponent, MeshRenderer, Sprite } from '../src/ecs/component';
+import { defineComponent, MeshRenderer, Parent, Sprite, TilemapLayer } from '../src/ecs/component';
 import { linearColorSpace, setLinearColorSpace } from '../src/ecs/env';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
 import { initRuntime, prepareRuntimeScene, publishRuntimeScene, type RuntimeAssetSource } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
 import { SceneManager } from '../src/scene/sceneManager';
 import { sceneManagerPlugin } from '../src/scene/scenePlugin';
+import { Tilemaps } from '../src/tilemap/tilemapAPI';
+import { TilemapPlugin } from '../src/tilemap/tilemapPlugin';
+import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
 import { reservePromise } from '../src/util/reservePromise';
 import type { CppResourceManager } from '../src/wasm';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import { connectFakeCpp } from './helpers/fakeEngine';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const file = 'art/tiles.png', clip = 'art/run.esanim', material = 'art/floor.esmaterial';
 const pixel = { filterMode: 'nearest', wrapMode: 'repeat', mipmaps: false, srgb: false };
@@ -54,11 +62,12 @@ const sprite = { type: 'Sprite', data: { texture: file } };
 const smoothData = { ...smooth, srgb: true };
 
 async function game(field = sprite as Component, sourceOptions: Partial<RuntimeAssetSource> = {},
-    config: { manifest?: AddressableManifest; home?: SceneData; next?: SceneData } = {}) {
+    config: { manifest?: AddressableManifest; home?: SceneData; next?: SceneData; app?: App; configure?: (app: App) => void } = {}) {
     const { uploads, pool } = device();
-    const app = App.new();
-    connectFakeCpp(app.world);
+    const app = config.app ?? App.new();
+    if (!config.app) connectFakeCpp(app.world);
     app.addPlugin(sceneManagerPlugin);
+    config.configure?.(app);
     const source: RuntimeAssetSource = {
         backend: { fetchText: vi.fn(async () => JSON.stringify({ name: 'run', fps: 12, frames: [{ texture: './tiles.png' }] })),
             fetchBinary: async () => new ArrayBuffer(0), resolveUrl: path => path },
@@ -251,6 +260,162 @@ it('keeps a clip private when the destination inherits its texture settings', as
         expect(assets.publishedRegistryAssets('anim-clip')).toEqual([]);
         await scenes.switchTo('next');
         expect(assets.resolveRegistryAsset('anim-clip', clip)).toBeDefined();
+    } finally { close(); }
+});
+
+it('plays each additive scene’s own clip through a prepared load, hot refresh and unload', async () => {
+    const animated = (name: string, settings: typeof pixel) => {
+        const scene = document(name, { type: 'SpriteAnimator', data: { clip } }, settings);
+        scene.entities[0].components.push({ type: 'Sprite', data: {} });
+        return scene;
+    };
+    const { app, assets, scenes, uploads, close } = await game(sprite, {}, {
+        home: animated('home', pixel), next: animated('next', smoothData),
+        configure: app => app.addPlugin(new AnimationPlugin()),
+    });
+    try {
+        const animation = app.getResource(SpriteAnimation);
+        const frame = (name: string) => {
+            animation.update(app.world, 1 / 60);
+            const entity = app.world.findEntityByName(name)!;
+            expect(app.world.get(entity, SpriteAnimator).clip).toBe(clip);
+            return app.world.get(entity, Sprite).texture;
+        };
+        const first = frame('home');
+        expect(uploads.get(first)).toMatchObject(nearest);
+        await scenes.prepare('next');
+        expect(frame('home')).toBe(first);
+        await scenes.loadAdditive('next');
+        expect(uploads.get(frame('next'))).toMatchObject(linear);
+        expect(frame('home')).toBe(first);
+        assets.invalidate(file);
+        await assets.assetGraphSettled();
+        const refreshed = frame('home');
+        expect(refreshed).not.toBe(first);
+        expect(uploads.get(refreshed)).toMatchObject(nearest);
+        expect(uploads.get(frame('next'))).toMatchObject(linear);
+        await scenes.unload('next');
+        expect(frame('home')).toBe(refreshed);
+    } finally { close(); }
+});
+
+it.each(['invalidate', 'manifest'])('keeps controller-owned clips live on a persistent actor through a %s update', async change => {
+    registerSkeletalAnimationSupport();
+    const controller = 'art/player.esanimator';
+    const field = { type: 'Animator', data: { controller } };
+    const home = document('home', field), next = document('next', field, smoothData);
+    delete home.textureImporterSettings;
+    for (const scene of [home, next]) scene.entities[0].components.push({ type: 'Sprite', data: {} });
+    const key = '11111111-1111-4111-8111-111111111112';
+    const manifest: AddressableManifest = { version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+        [key]: { type: 'anim-clip', path: clip, address: clip, size: 1, labels: [], contentHash: contentHashHex(Uint8Array.of(1)) },
+    } } } };
+    const updated = structuredClone(manifest);
+    updated.groups.main.assets[key].contentHash = contentHashHex(Uint8Array.of(2));
+    const graph = { initialState: 'Run', parameters: [], states: [
+        { name: 'Run', motion: { kind: 'sprite', clip: './run.esanim' }, transitions: [] },
+    ] };
+    let fps = 12;
+    const { app, scenes, assets, uploads, close } = await game(sprite, { backend: {
+        fetchText: async path => JSON.stringify(path.endsWith('update.json') ? updated : path.endsWith('.esanimator') ? graph
+            : { fps, loop: true, frames: [{ texture: './tiles.png' }] }),
+        fetchBinary: async () => Uint8Array.of(2).buffer, resolveUrl: ref => ref,
+    } }, { home, next, manifest: change === 'manifest' ? manifest : undefined, configure(app) {
+        app.addPlugin(new AnimationPlugin());
+        app.addPlugin(new SkeletalAnimationPlugin());
+    } });
+    try {
+        const actor = app.world.findEntityByName('home')!;
+        const animation = app.getResource(SpriteAnimation);
+        const handle = (entity: typeof actor) => app.world.get(entity, Sprite).texture;
+        await app.tick(1 / 60);
+        const first = handle(actor), defaults = uploads.get(first);
+        expect(defaults).toBeDefined();
+        expect(defaults).not.toMatchObject(linear);
+        await scenes.loadAdditive('next');
+        const other = app.world.findEntityByName('next')!;
+        await app.tick(1 / 60);
+        expect(handle(actor)).toBe(first);
+        expect(uploads.get(handle(other))).toMatchObject(linear);
+        scenes.getScene('home')!.setPersistent(actor, true);
+        await scenes.unload('home');
+        expect(assets.entityScopes.scopeFor(actor, app.world)?.size).toBeGreaterThan(0);
+        fps = 24;
+        if (change === 'manifest') {
+            await assets.checkForUpdate({ manifestUrl: 'update.json' });
+            expect(await assets.applyUpdate()).toMatchObject({ ok: true, updated: 1 });
+        } else {
+            expect(assets.invalidate(clip)).toBe(true);
+        }
+        await assets.assetGraphSettled();
+        for (const id of [actor, other]) expect(animation.getClip(clip, id)?.fps).toBe(24);
+        expect(assets.invalidate(file)).toBe(true);
+        await assets.assetGraphSettled();
+        await app.tick(1 / 60);
+        expect(handle(actor)).not.toBe(first);
+        expect(uploads.get(handle(actor))).toEqual(defaults);
+        expect(uploads.get(handle(other))).toMatchObject(linear);
+        await scenes.unload('next');
+        await app.tick(1 / 60);
+        expect(animation.getClip(clip, actor)?.frames[0].texture).toBe(handle(actor));
+        app.world.despawn(actor);
+        expect(assets.entityScopes.scopeFor(actor, app.world)).toBeNull();
+        expect(assets.sizes().refRows).toBe(0);
+    } finally { close(); }
+});
+
+it.skipIf(!HAS_WASM)('sends each painted and Tiled layer its own atlas when both scenes run and the image refreshes', async () => {
+    registerTilemapSupport();
+    const core = await loadWasmModule();
+    const app = App.new().connectCpp(new core.Registry(), core, { ownedRegistry: true });
+    const tileset = 'art/ground.estileset';
+    const ground = (name: string, settings: typeof pixel) => {
+        const scene = document(name, { type: 'Tilemap', data: { source: 'art/map.tmj' } }, settings);
+        scene.entities.push({ id: 2, name: name + '-paint', parent: null, children: [], components: [
+            { type: 'Transform', data: {} }, { type: 'TilemapLayer', data: { tilesetAssets: [tileset] } },
+        ] });
+        return scene;
+    };
+    const map = { width: 1, height: 1, tilewidth: 4, tileheight: 4,
+        tilesets: [{ firstgid: 1, name: 'ground', image: 'tiles.png', columns: 1, tilecount: 1 }],
+        layers: [{ type: 'tilelayer', name: 'ground', width: 1, height: 1, data: [1] }] };
+    const { assets, scenes, uploads, close } = await game(sprite, { backend: {
+        fetchText: async ref => JSON.stringify(ref.endsWith('.tmj') ? map
+            : { version: 1, texture: file, tileWidth: 4, tileHeight: 4, columns: 1, rows: 1 }),
+        fetchBinary: async () => new ArrayBuffer(0), resolveUrl: ref => ref,
+    } }, { app, home: ground('home', pixel), next: ground('next', smoothData), configure: app => app.addPlugin(new TilemapPlugin()) });
+    try {
+        const native = vi.spyOn(app.getResource(Tilemaps), 'setTilesets');
+        const handles = (name: string) => {
+            const parent = app.world.findEntityByName(name)!;
+            const child = app.world.getEntitiesWithComponents([Parent, TilemapLayer]).find(id => app.world.get(id, Parent).entity === parent);
+            const painted = app.world.findEntityByName(name + '-paint');
+            const calls = [...native.mock.calls].reverse();
+            return [painted, child].map(id => calls.find(([layer]) => layer === id)?.[1][0]?.textureHandle);
+        };
+        await app.tick(1 / 60);
+        await scenes.loadAdditive('next');
+        await app.tick(1 / 60);
+        const before = handles('home');
+        const sampling = (name: string) => handles(name).map(id => id && uploads.get(id));
+        expect(sampling('home')).toMatchObject([nearest, nearest]);
+        expect(sampling('next')).toMatchObject([linear, linear]);
+        // A spawned instance can acquire an already-loaded atlas without publishing a name.
+        const painted = app.world.findEntityByName('home-paint')!;
+        const owned = assets.entityScopes.ensure(app.world, painted);
+        const alternate = await assets.acquireTyped('tileset', tileset);
+        owned.add(alternate);
+        await app.tick(1 / 60);
+        expect(sampling('home')).toMatchObject([linear, nearest]);
+        owned.releaseAll();
+        await app.tick(1 / 60);
+        expect(sampling('home')).toMatchObject([nearest, nearest]);
+        expect(assets.invalidate(file)).toBe(true);
+        await assets.assetGraphSettled();
+        await app.tick(1 / 60);
+        expect(handles('home').every((id, i) => id !== before[i])).toBe(true);
+        expect(sampling('home')).toMatchObject([nearest, nearest]);
+        expect(sampling('next')).toMatchObject([linear, linear]);
     } finally { close(); }
 });
 
