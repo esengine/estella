@@ -26,6 +26,7 @@ import { atlasBindingSettings, atlasPageBinding, bindingFile, bindingRecord, man
     sceneBindingBase, sceneBindingProfile, sceneImportBinding } from './manifestBinding';
 import { atlasTextureSettingsKey, type ParsedTextureImportSettings } from './textureImportSettings';
 import { SceneTextureImports, SceneTextureInputs } from './sceneTextureImports';
+import { SCENE_HANDLE_TYPES, emptySceneAssetValue, isSceneHandleType, type SceneHandleType } from './sceneHandleTypes';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
@@ -291,14 +292,8 @@ interface GroupAssetChannel {
     release(assets: Assets, path: string): void;
 }
 
-const SCENE_HANDLE_TYPES = ['texture', 'material', 'font', 'mesh', 'environment', 'probeVolume'] as const satisfies readonly AssetFieldType[];
-type SceneHandleType = typeof SCENE_HANDLE_TYPES[number];
 // These components read raw files or host streams themselves unless a project installs a typed loader.
 const SYSTEM_READ_SCENE_TYPES = new Set(['image', 'video', 'groom', 'terrain-layer-info', 'physical-material']);
-
-function isSceneHandleType(type: string): type is SceneHandleType {
-    return (SCENE_HANDLE_TYPES as readonly string[]).includes(type);
-}
 
 interface BatchAsset {
     ref: string;
@@ -2085,12 +2080,16 @@ export class Assets {
                 const fields = getComponentAssetFieldDescriptors(comp.type);
                 for (const { field, type } of fields) {
                     const ref = comp.data[field];
-                    if (typeof ref !== 'string' || !ref) continue;
+                    if (ref === 0 || ref === '' || ref === null) {
+                        comp.data[field] = emptySceneAssetValue(type);
+                        continue;
+                    }
+                    if (typeof ref !== 'string') continue;
 
                     // Use the name under which this preparation acquired the field, even after an update.
                     const path = result.resolveRef ? result.resolveRef(ref) : this.resolveRef(ref);
                     if (path == null) {
-                        comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? 0;
+                        comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? emptySceneAssetValue(type);
                         continue;
                     }
 

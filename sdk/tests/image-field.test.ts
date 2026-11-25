@@ -61,6 +61,18 @@ describe('an image field', () => {
         expect(terrain.splatmap2).toBe('');
         expect(terrain.colorMap).toBe(0);
     });
+
+    it('projects previously cleared fields with the empty value their runtime component accepts', () => {
+        const data = scene();
+        const terrain = data.entities[0]!.components[0]!.data;
+        terrain.heightmap = 0;
+        terrain.colorMap = '';
+        delete terrain.splatmap2;
+        buildAssets().resolveSceneAssetPaths(data, emptyResult());
+        expect(terrain.heightmap).toBe('');
+        expect(terrain.colorMap).toBe(0);
+        expect(terrain).not.toHaveProperty('splatmap2');
+    });
 });
 
 describe('a changed image file', () => {
