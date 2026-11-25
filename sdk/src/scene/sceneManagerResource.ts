@@ -3,6 +3,7 @@
 import type { App } from '../app/app';
 import { SceneOwner } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
+import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import type { SceneManagerState } from './sceneManager';
 
@@ -12,17 +13,18 @@ import type { SceneManagerState } from './sceneManager';
  */
 export const SceneManager = defineResource<SceneManagerState>(null!, 'SceneManager');
 
-function ownerName(app: App, entity: Entity) {
-    return app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
+function ownerName(world: World, entity: Entity) {
+    return world.tryGet(entity, SceneOwner)?.scene;
 }
 
-/** The scene that currently owns this entity, including when it has just been adopted. */
-export function sceneContextForEntity(app: App, entity: Entity) {
-    const name = ownerName(app, entity);
-    return name ? app.getResource(SceneManager).getScene(name) : null;
+/** A spawn follows its originating entity, or the active scene when the caller supplied no origin. */
+export function sceneForSpawn(world: World, scenes: SceneManagerState | null, owner?: Entity) {
+    if (!scenes) return null;
+    const name = owner === undefined ? scenes.getActive() : ownerName(world, owner);
+    return name ? scenes.getScene(name) : null;
 }
 
 export function sceneAssetScopeForEntity(app: App, entity: Entity) {
-    const name = ownerName(app, entity);
+    const name = app.hasResource(SceneManager) && ownerName(app.world, entity);
     return name ? app.getResource(SceneManager).assetScopeFor(name) : null;
 }

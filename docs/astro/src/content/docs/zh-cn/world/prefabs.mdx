@@ -132,6 +132,9 @@ const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
 
 ### 预备生成
 
+在 `prefabs.instantiate(path, options)` 或已准备预制体的 `spawn(options)` 中传入 `{ owner: entity }`，生成的整棵实体树就归该实体所在的场景。
+异步加载期间实体若转移到另一个场景，实例会归入新场景。`parent` 控制根节点挂载的位置。时间轴生成轨道会用播放器实体作为 `owner`。
+
 `prepare(path)` 加载预制体及其实体所用的全部资源（网格、材质、纹理），并持有它们直到释放。从结果生成是同步的：实体在请求它们的那一行即已存在。
 
 ```typescript

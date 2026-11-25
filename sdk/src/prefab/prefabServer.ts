@@ -6,6 +6,8 @@ import type { Entity } from '../types';
 import type { Assets as AssetsClass } from '../asset/Assets';
 import { Assets } from '../asset/AssetPlugin';
 import { SceneManager, type SceneManagerState } from '../scene/sceneManager';
+import { sceneForSpawn } from '../scene/sceneManagerResource';
+import { SceneLoadAttempt } from '../scene/sceneLoadAttempt';
 import { defineResource } from '../ecs/resource';
 import {
     instantiatePrefab,
@@ -32,8 +34,8 @@ export type SpawnOverride = Omit<PrefabOverride, 'prefabEntityId'> & { prefabEnt
 export interface PreparedSpawnable {
     /** Lets go of what the preparation loaded; a spawn after this throws. */
     release(): void;
-    /** Spawns it now, under `parent` when given; `scene: false` keeps it out of the active scene. */
-    spawn(options?: { parent?: Entity; scene?: boolean }): { root: Entity; entities: Map<number, Entity> };
+    /** Spawns under `parent`, in the current scene of `owner` or the active scene if omitted. `scene: false` opts out. */
+    spawn(options?: { parent?: Entity; scene?: boolean; owner?: Entity }): { root: Entity; entities: Map<number, Entity> };
 }
 
 /**
@@ -63,31 +65,37 @@ export class PrefabServer {
         this.getScenes_ = getScenes;
     }
 
-    /**
-     * Spawn a prefab into the world. What it spawns belongs to the scene that
-     * was live when it landed, exactly like an entity that scene authored —
-     * ownerless, a bullet or a called minion leaks into the next room. Pass
-     * `scene: false` for something meant to outlive the area it came from.
-     */
+    /** Spawn in the origin entity's scene at landing, or the active scene if no origin was supplied.
+     *  Pass `scene: false` for an instance that should outlive the area it came from. */
     async instantiate(pathOrAddress: string, options?: {
         baseUrl?: string;
         parent?: Entity;
         overrides?: SpawnOverride[];
         scene?: boolean;
+        /** Follow this entity's scene at landing. A destroyed owner cancels the spawn. */
+        owner?: Entity;
     }): Promise<InstantiatePrefabResult> {
+        const owner = options?.scene === false ? undefined : options?.owner;
+        const attempt = this.spawnAttempt_(pathOrAddress, owner);
+        attempt.assertCurrent();
         const assets = this.getAssets_();
         const lease = await assets.acquireTyped<{ data: PrefabData }>('prefab', pathOrAddress);
         try {
             const prefab = lease.value.data;
+            attempt.assertCurrent();
             const result = await instantiatePrefab(this.world_, prefab, {
                 assets,
+                attempt,
                 assetBaseUrl: options?.baseUrl,
                 parent: options?.parent,
                 overrides: resolveSpawnOverrides(prefab, pathOrAddress, options?.overrides),
             });
-            const scene = options?.scene !== false && this.activeScene_();
-            if (scene) for (const entity of result.entities.values()) scene.adopt(entity);
+            const scene = options?.scene === false ? null : sceneForSpawn(this.world_, this.getScenes_(), owner);
+            attempt.adoptEntities(result.entities, scene);
             return result;
+        } catch (error) {
+            attempt.discardEntities();
+            throw error;
         } finally { lease.release(); }
     }
 
@@ -108,23 +116,22 @@ export class PrefabServer {
             },
             spawn: (options) => {
                 if (!held) throw new Error(`prefab "${pathOrAddress}" was released before this spawn`);
+                const owner = options?.scene === false ? undefined : options?.owner;
                 return spawnPrepared(this.world_, prepared, {
-                    parent: options?.parent, scene: options?.scene === false ? null : this.activeScene_(),
+                    parent: options?.parent, attempt: this.spawnAttempt_(pathOrAddress, owner),
+                    scene: options?.scene === false ? null : sceneForSpawn(this.world_, this.getScenes_(), owner),
                 });
             },
         };
     }
 
-    /**
-     * The load is asynchronous, so the scene that asked may already be gone by
-     * the time the entities exist — adopting into whatever is active now is the
-     * only owner that is real, and a switch that already happened takes it.
-     */
-    private activeScene_() {
-        const scenes = this.getScenes_();
-        if (!scenes) return null;
-        const active = scenes.getActive();
-        return active ? scenes.getScene(active) : null;
+    private spawnAttempt_(path: string, owner?: Entity) {
+        if (owner === undefined) return new SceneLoadAttempt(this.world_, path);
+        return new SceneLoadAttempt(this.world_, path, { check: () => {
+            if (!this.world_.valid(owner) || this.world_.isDestructionPending(owner)) {
+                throw new Error(`Cannot spawn a prefab for destroyed owner ${owner}`);
+            }
+        } });
     }
 }
 

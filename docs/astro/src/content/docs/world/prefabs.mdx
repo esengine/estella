@@ -169,6 +169,10 @@ and the error names the root id and the ids that exist.
 
 ### Prepared spawns
 
+Pass `{ owner: entity }` to `prefabs.instantiate(path, options)` or to a prepared prefab's `spawn(options)` to give
+the instance to that entity's scene. An asynchronous spawn follows the owner if it moves to another scene while
+loading. The `parent` option controls where the root attaches. Timeline spawn tracks use their player as the owner.
+
 `prepare(path)` loads a prefab and every asset its entities use (meshes, materials, textures) and holds them until
 released. Spawning from the result is synchronous: the entities exist on the line that requests them.
 

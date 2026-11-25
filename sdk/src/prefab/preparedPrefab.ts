@@ -23,6 +23,7 @@
 
 import type { World } from '../ecs/world';
 import type { SceneContext } from '../scene/sceneManager';
+import { SceneLoadAttempt } from '../scene/sceneLoadAttempt';
 import type { Entity } from '../types';
 import type { Assets } from '../asset/Assets';
 import { loadSceneData, SCENE_FORMAT_VERSION, type SceneData } from '../scene/scene';
@@ -117,6 +118,8 @@ export async function preparePrefabFromSource(
 }
 
 export interface SpawnPreparedOptions {
+    /** @internal Reuse the generation and origin checks of the spawning service. */
+    attempt?: SceneLoadAttempt;
     /** Scene that owns every entity in this instance. */
     scene?: Pick<SceneContext, 'adopt'> | null;
     /** A rejected parent attachment rolls back the spawned hierarchy. */
@@ -136,10 +139,13 @@ export function spawnPrepared(
 ): { root: Entity; entities: Map<number, Entity> } {
     // `loadSceneData` migrates, and migration deep-clones — so the prepared
     // scene is never mutated and one preparation spawns any number of copies.
+    const attempt = options?.attempt ?? new SceneLoadAttempt(world, prepared.scene.name);
+    attempt.assertCurrent();
     const ownership = prepared.retainSpawnAssets?.();
-    let entities: Map<number, Entity> | undefined;
     try {
-        entities = loadSceneData(world, prepared.scene);
+        const entities = loadSceneData(world, prepared.scene);
+        attempt.entities = entities;
+        attempt.assertCurrent();
         ownership?.attach(world, entities);
         prepared.trackSpawnReferences?.(entities, world);
         const root = entities.get(prepared.rootId)!;
@@ -152,10 +158,10 @@ export function spawnPrepared(
             transform.position = { ...transform.position, ...options.position };
             world.set(root, Transform, transform);
         }
-        if (options?.scene) for (const entity of entities.values()) options.scene.adopt(entity);
+        attempt.adoptEntities(entities, options?.scene);
         return { root, entities };
     } catch (error) {
-        if (entities) for (const entity of entities.values()) if (world.valid(entity)) world.despawn(entity);
+        attempt.discardEntities();
         throw error;
     } finally { ownership?.release(); }
 }

@@ -5,6 +5,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
 import type { ScenePhaseSink } from './scene';
+import type { SceneContext } from './sceneManager';
 import { SceneEntityBatch } from './sceneHierarchy';
 
 /** A pending scene lost its owner before it could publish. */
@@ -30,6 +31,16 @@ export class SceneLoadAttempt {
     assertCurrent(): void {
         if (this.world.entityLifetime !== this.lifetime || this.owner?.signal?.aborted) throw new SceneLoadCancelled(this.name);
         this.owner?.check?.();
+    }
+
+    /** Publish the whole hierarchy while the origin and its world can still accept it. */
+    adoptEntities(entities: Map<number, Entity>, scene?: Pick<SceneContext, 'adopt'> | null): void {
+        this.entities = entities;
+        if (scene) for (const entity of entities.values()) {
+            this.assertCurrent();
+            scene.adopt(entity);
+        }
+        this.assertCurrent();
     }
 
     observe(sink?: ScenePhaseSink): ScenePhaseSink | undefined {

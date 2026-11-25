@@ -21,16 +21,17 @@ async function asset(project, ref, type, data, uuid = randomUUID()) {
 async function fixture(project) {
     const image = 'assets/art/star.png', uuid = '6e5b6002-9bc4-4f60-a446-94ac83023a8c', texture = '@uuid:' + uuid;
     await asset(project, image, 'texture', await fs.readFile(path.join(ROOT, 'templates/wechat-minigame/assets/textures/star_tiny.png')), uuid);
-    const clip = 'assets/art/pulse.esanim', timeline = 'assets/art/motion.estimeline';
+    const clip = 'assets/art/pulse.esanim', timeline = 'assets/art/motion.estimeline', prefab = 'assets/art/effect.esprefab';
     await asset(project, clip, 'anim-clip', { name: 'pulse', fps: 12, loop: true, frames: [{ texture }] });
     await asset(project, timeline, 'timeline', { type: 'timeline', version: '1.3', duration: 1, wrapMode: 'loop', tracks: [
+        { type: 'spawn', name: 'Effect', childPath: '', clips: [{ start: 0, duration: 1, prefab, name: 'Live effect' }] },
         { type: 'animFrames', name: 'Frame', childPath: '', animFrames: [{ texture }] },
         { type: 'property', name: 'Depth', childPath: '', component: 'Transform', channels: [
             { property: 'position.z', keyframes: [{ time: 0, value: 7, interpolation: 'linear', inTangent: 0, outTangent: 0 }] },
         ] },
     ] });
     const entity = (id, name, components) => ({ id, name, parent: null, children: [], visible: true, components });
-    const graph = 'assets/logic/agent.esgraph', callee = 'assets/logic/effect.esgraph', prefab = 'assets/art/effect.esprefab';
+    const graph = 'assets/logic/agent.esgraph', callee = 'assets/logic/effect.esgraph';
     const wire = (from, to) => ({ id: from + '-' + to, from, fromPort: 'then', to, toPort: '' });
     await asset(project, graph, 'scriptgraph', { version: '1.0', nodes: [
         { id: 'event', kind: 'event.on', literals: { type: 'spawn-effect' } },
@@ -77,7 +78,7 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, defineSystem, EntityEvents, Input, Localization, MeshRenderer, Parent, Res, SceneManager, Sprite, Text, Transform } from 'esengine';
+import { addPlugin, Assets, defineSystem, EntityEvents, Input, Localization, MeshRenderer, Parent, Res, SceneManager, SceneOwner, Sprite, Text, Timeline, Transform } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
     let inputCaption = null;
     let ticks = 0;
@@ -118,6 +119,22 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
         };
     };
     const effects = new Map();
+    globalThis.playEffects = playing => {
+        const timeline = app.getResource(Timeline);
+        for (const name of ['hud', 'world']) {
+            const player = app.world.findEntityByName(name + '-motion');
+            if (playing) timeline.play(player); else timeline.stop(player);
+        }
+        return ticks;
+    };
+    globalThis.timelineEffect = name => {
+        const world = app.world, player = world.findEntityByName(name + '-motion');
+        const childOf = (parent, component) => world.getEntitiesWithComponents([component, Parent]).find(e => world.get(e, Parent).entity === parent);
+        const sprite = childOf(player, Sprite), mesh = sprite == null ? null : childOf(sprite, MeshRenderer);
+        if (mesh == null) return null;
+        return { owners: [sprite, mesh].map(e => world.tryGet(e, SceneOwner)?.scene ?? null),
+            sprite: sampling(world.get(sprite, Sprite).texture), mesh: sampling(world.get(mesh, MeshRenderer).texture) };
+    };
     globalThis.spawnGraphEffect = name => {
         const scene = app.getResource(SceneManager).getScene(name), before = new Set(scene.entities);
         app.getResource(EntityEvents).emit(app.world.findEntityByName(name), 'spawn-effect');
@@ -234,15 +251,25 @@ async function check(browser, project, dir, platform) {
         const advance = after => page.waitForFunction(tick => globalThis.packageTicks() >= tick + 3, after);
         const expected = name => ({ clip: samplers[name], timeline: samplers[name], z: 7, mesh: name === 'world' });
         await advance(await page.evaluate(() => globalThis.addCaptionScene('world')));
+        await page.waitForFunction(() => globalThis.timelineEffect('hud') && globalThis.timelineEffect('world'));
         for (const name of ['hud', 'world']) {
             assert.deepEqual(await page.evaluate(name => globalThis.playingSamples(name), name), expected(name), platform + ' additive ' + name);
             assert.deepEqual(await page.evaluate(name => globalThis.spawnGraphEffect(name), name), [samplers[name], samplers[name]], platform + ' graph ' + name);
         }
+        const checkTimelineEffects = async () => {
+            for (const name of ['hud', 'world']) assert.deepEqual(await page.evaluate(name => globalThis.timelineEffect(name), name),
+                { owners: [name, name], sprite: samplers[name], mesh: samplers[name] }, platform + ' timeline spawn ' + name);
+        };
+        await checkTimelineEffects();
+        await advance(await page.evaluate(() => globalThis.playEffects(false)));
+        assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.timelineEffect(name))), [null, null]);
+        await advance(await page.evaluate(() => globalThis.playEffects(true)));
+        await checkTimelineEffects();
         await advance(await page.evaluate(() => globalThis.removeCaptionScene('world')));
         assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.liveEffectParts(name))), [2, 0]);
         assert.deepEqual(await page.evaluate(() => globalThis.playingSamples('hud')), expected('hud'));
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed preload/discard, four switches, additive playback and scene-owned 2D/3D graph spawns with independent GPU sampling');
+        console.log(platform + ' passed preload/discard, four switches and scene-owned 2D/3D graph and timeline spawns, including replay');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

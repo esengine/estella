@@ -841,8 +841,8 @@ export async function loadSceneWithAssets(
  */
 export async function loadOwnedSceneWithAssets(
     world: World, scene: SceneData, options?: SceneLoadOptions,
+    attempt = new SceneLoadAttempt(world, scene.name, { signal: options?.signal }),
 ): Promise<Map<number, Entity>> {
-    const attempt = new SceneLoadAttempt(world, scene.name, { signal: options?.signal });
     const { data } = migrateOwnedSceneData(scene);
     return loadSceneAssetsAndSpawn(world, data, options, attempt);
 }

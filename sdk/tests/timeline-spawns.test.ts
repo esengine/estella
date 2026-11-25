@@ -5,8 +5,9 @@
  *        after its clip ended thrown away, every one gone when the player stops; once prepared, made on the frame its
  *        clip starts; saved and loaded as written.
  */
-import { describe, it, expect } from 'vitest';
-import { TimelineSpawns, spawnClipActive, type TimelineSpawner } from '../src/timeline/timelineSpawns';
+import { describe, it, expect, vi } from 'vitest';
+import { TimelineSpawns, spawnClipActive, type PreparedTimelineSpawn, type TimelineSpawner } from '../src/timeline/timelineSpawns';
+import { reservePromise } from '../src/util/reservePromise';
 import { WrapMode, TrackType, type TimelineAsset, type SpawnTrack } from '../src/timeline/TimelineTypes';
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
@@ -127,6 +128,29 @@ describe('spawn tracks', () => {
         spawns.sync(player, asset([]), 1, spawner, () => player);
         expect(released).toBe(1);
         expect(spawns.instancesOf(player)).toEqual([]);
+    });
+
+    it.each(['remove clip', 'forget player'])('keeps the new player request when an older preparation lands after %s', async change => {
+        const spawns = new TimelineSpawns(), f = fakeSpawner();
+        const first = reservePromise<PreparedTimelineSpawn>(), second = reservePromise<PreparedTimelineSpawn>();
+        const pending = [first, second];
+        const spawner = { ...f.spawner, prepare: vi.fn((_ref: string, _origin?: Entity) => pending.shift()!.promise) };
+        const list = asset([clip]);
+        spawns.prepare(player, list, spawner);
+        if (change === 'remove clip') spawns.prepare(player, asset([]), spawner);
+        else spawns.forget(player, spawner);
+        const current = spawns.prepare(player, list, spawner);
+        const old = { release: vi.fn() }, fresh = { release: vi.fn() };
+        first.resolve(old);
+        await flush();
+        expect(old.release).toHaveBeenCalledOnce();
+        expect(current.get(clip.prefab)).toBeNull();
+        second.resolve(fresh);
+        await flush();
+        expect(spawner.prepare.mock.calls).toEqual([[clip.prefab, player], [clip.prefab, player]]);
+        expect(current.get(clip.prefab)).toBe(fresh);
+        spawns.forget(player, spawner);
+        expect(fresh.release).toHaveBeenCalledOnce();
     });
 
     it('makes nothing where the track’s entity is not there, nor for a clip with no prefab', async () => {

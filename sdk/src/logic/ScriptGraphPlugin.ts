@@ -27,7 +27,7 @@ import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 import { ensureBuiltinScriptNodes } from './builtinNodes';
 import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../ai/worldView';
 import { appRegistryAsset, appRegistryAssets } from '../asset/registryLookup';
-import { sceneContextForEntity } from '../scene/sceneManagerResource';
+import { SceneManager, sceneForSpawn } from '../scene/sceneManagerResource';
 import type { SceneContext } from '../scene/sceneManager';
 import { ensureEntityEvents, type EntityEvent, type EntityEventQueue, type Unsubscribe } from '../ecs/entityEvents';
 import { ScriptGraphAgent, getScriptGraph, allScriptGraphs } from './ScriptGraphAgent';
@@ -292,10 +292,11 @@ export class ScriptGraphPlugin implements Plugin {
         // An event arrives outside the system body, so the context it runs on is
         // built from the frame's last known commands and delta.
         const resolveGraph: GraphResolver = (ref, entity) => appRegistryAsset<CompiledScriptGraph>(app, 'scriptgraph', ref, entity);
-        const sceneForSpawn: SpawnSceneResolver = entity => sceneContextForEntity(app, entity);
+        const spawnScene: SpawnSceneResolver = entity =>
+            sceneForSpawn(app.world, app.hasResource(SceneManager) ? app.getResource(SceneManager) : null, entity);
         const bridge = createEventBridge(events, states, (entity, st) => {
             const ctx = contextFor(world, commands_ as CommandsInstance, input_);
-            return agentTick(ctx, entity, st, dt_, resolveGraph, onProblem, sceneForSpawn);
+            return agentTick(ctx, entity, st, dt_, resolveGraph, onProblem, spawnScene);
         });
 
         app.addSystemToSchedule(
@@ -306,7 +307,7 @@ export class ScriptGraphPlugin implements Plugin {
                     commands_ = commands;
                     dt_ = time.delta;
                     input_ = input;
-                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem, input, sceneForSpawn);
+                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem, input, spawnScene);
                     bridge.sync();
                 },
                 // Asked per analysis, not once: a graph loaded later changes the

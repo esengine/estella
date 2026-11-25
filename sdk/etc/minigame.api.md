@@ -6278,6 +6278,7 @@ static prototype: InputState
 
 ## InstantiatePrefabOptions — interface @experimental
 ```
+@internal attempt: SceneLoadAttempt | undefined
 assetBaseUrl: string | undefined
 assets: Assets | undefined
 expandDeferred: boolean | undefined
@@ -9465,7 +9466,7 @@ rootId: string
 
 ## PrefabServer — class @beta
 ```
-instantiate: (pathOrAddress: string, options?: { baseUrl?: string; parent?: Entity; overrides?: SpawnOverride[]; scene?: boolean; }) => Promise<InstantiatePrefabResult>
+instantiate: (pathOrAddress: string, options?: { baseUrl?: string; parent?: Entity; overrides?: SpawnOverride[]; scene?: boolean; owner?: Entity; }) => Promise<InstantiatePrefabResult>
 prepare: (pathOrAddress: string) => Promise<PreparedSpawnable>
 static new (world: World, getAssets: () => AssetsClass, getScenes?: () => SceneManagerState | null): PrefabServer
 static prototype: PrefabServer
@@ -9488,7 +9489,7 @@ static prototype: PrefabsPlugin
 ## PreparedSpawnable — interface @beta
 ```
 release: () => void
-spawn: (options?: { parent?: Entity; scene?: boolean; }) => { root: Entity; entities: Map<number, Entity>; }
+spawn: (options?: { parent?: Entity; scene?: boolean; owner?: Entity; }) => { root: Entity; entities: Map<number, Entity>; }
 ```
 
 ## PreparedTimelineSpawn — interface @experimental
@@ -14012,8 +14013,8 @@ time: number
 ## TimelineSpawner — interface @experimental
 ```
 despawn: (entity: Entity) => void
-prepare: ((prefab: string) => Promise<PreparedTimelineSpawn>) | undefined
-spawn: (prefab: string, parent: Entity | null, name: string) => Promise<Entity | null>
+prepare: ((prefab: string, player?: Entity) => Promise<PreparedTimelineSpawn>) | undefined
+spawn: (prefab: string, parent: Entity | null, name: string, player?: Entity) => Promise<Entity | null>
 ```
 
 ## TimelineSpawns — class @experimental

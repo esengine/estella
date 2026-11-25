@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrefabData, PrefabOverride, InstantiatePrefabOptions } from '../src/prefab';
 import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
+import { SceneLoadAttempt } from '../src/scene/sceneLoadAttempt';
 import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
 
@@ -157,18 +158,21 @@ describe('Prefab', () => {
             );
         });
 
-        it('should pass assets and assetBaseUrl to loadSceneWithAssets', async () => {
+        it('passes assets, the base URL and the same spawn attempt through scene loading', async () => {
             const prefab = simplePrefab();
             const mockAssets = { loadPrefab: vi.fn() } as any;
+            const attempt = new SceneLoadAttempt(world, prefab.name);
             await instantiatePrefab(world, prefab, {
                 assets: withAssetLeases(mockAssets),
                 assetBaseUrl: '/assets',
+                attempt,
             });
 
             expect(mockLoadScene).toHaveBeenCalledWith(
                 world,
                 expect.any(Object),
                 { assets: withAssetLeases(mockAssets), assetBaseUrl: '/assets' },
+                attempt,
             );
         });
     });

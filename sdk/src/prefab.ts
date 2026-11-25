@@ -6,6 +6,7 @@ import type { World } from './ecs/world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
 import { loadOwnedSceneWithAssets, SCENE_FORMAT_VERSION, type SceneData } from './scene/scene';
+import { SceneLoadAttempt } from './scene/sceneLoadAttempt';
 import {
     flattenPrefab,
     preloadNestedPrefabs,
@@ -38,6 +39,8 @@ export {
 } from './prefab/index';
 
 export interface InstantiatePrefabOptions {
+    /** @internal One guarded publication from the prefab request through scene adoption. */
+    attempt?: SceneLoadAttempt;
     assets?: Assets;
     assetBaseUrl?: string;
     /** The parent must still accept the root after loading; failure rolls back the instance. */
@@ -66,6 +69,8 @@ export async function instantiatePrefab(
     prefab: PrefabData,
     options?: InstantiatePrefabOptions,
 ): Promise<InstantiatePrefabResult> {
+    const attempt = options?.attempt ?? new SceneLoadAttempt(world, prefab.name);
+    attempt.assertCurrent();
     // Accept both current and legacy formats — callers that hand us raw JSON
     // from disk no longer have to migrate it themselves.
     const migratedTop = migratePrefabData(prefab);
@@ -118,19 +123,21 @@ export async function instantiatePrefab(
         })),
     };
 
-    const entityMap = await loadOwnedSceneWithAssets(world, sceneData, {
-        assets: options?.assets,
-        assetBaseUrl: options?.assetBaseUrl,
-    });
-
-    registerDeferredInstances(world, deferred, entityMap);
-    const root = entityMap.get(rootId)!;
-    if (options?.parent !== undefined && !world.trySetParent(root, options.parent)) {
-        for (const entity of entityMap.values()) {
-            if (world.valid(entity)) world.despawn(entity);
+    try {
+        const entities = await loadOwnedSceneWithAssets(world, sceneData, {
+            assets: options?.assets, assetBaseUrl: options?.assetBaseUrl,
+        }, attempt);
+        attempt.entities = entities;
+        attempt.assertCurrent();
+        registerDeferredInstances(world, deferred, entities);
+        const root = entities.get(rootId)!;
+        if (options?.parent !== undefined && !world.trySetParent(root, options.parent)) {
+            throw new Error(`Prefab "${normalized.name}" could not attach to parent ${options.parent}`);
         }
-        throw new Error(`Prefab "${normalized.name}" could not attach to parent ${options.parent}`);
+        attempt.assertCurrent();
+        return { root, entities };
+    } catch (error) {
+        attempt.discardEntities();
+        throw error;
     }
-
-    return { root, entities: entityMap };
 }

@@ -19,6 +19,7 @@
  */
 import { TrackType, type SpawnClip, type TimelineAsset } from './TimelineTypes';
 import type { Entity } from '../types';
+import { disposeAll } from '../util/disposeAll';
 
 /** A prefab loaded ahead of its first spawn: held until released, and made on the spot while it is. */
 export interface PreparedTimelineSpawn {
@@ -30,11 +31,11 @@ export interface PreparedTimelineSpawn {
 /** How a spawn track makes and takes away its instances: the game's prefab server, or the editor's preview. */
 export interface TimelineSpawner {
     /** Makes `prefab` under `parent` (null: a root) named `name`; its root, or null where it cannot be made. */
-    spawn(prefab: string, parent: Entity | null, name: string): Promise<Entity | null>;
+    spawn(prefab: string, parent: Entity | null, name: string, player?: Entity): Promise<Entity | null>;
     /** Takes an instance away, with everything under it. */
     despawn(entity: Entity): void;
     /** Loads `prefab` and what it uses ahead of its first spawn; what it answers is released when no longer wanted. */
-    prepare?(prefab: string): Promise<PreparedTimelineSpawn>;
+    prepare?(prefab: string, player?: Entity): Promise<PreparedTimelineSpawn>;
 }
 
 /** Whether `clip` has an instance at track time `time`: from its start up to (not including) its end. */
@@ -47,11 +48,17 @@ interface Instance {
     wanted: boolean;
 }
 
+interface PlayerPreparations {
+    key: string;
+    byPrefab: Map<string, PreparedTimelineSpawn | null>;
+    pending: Map<string, symbol>;
+}
+
 /** The instances of every playing timeline's spawn tracks, by player. */
 export class TimelineSpawns {
     private readonly live_ = new Map<Entity, Map<string, Instance>>();
     /** What each player's timeline spawns, loaded or loading: by prefab, null until it lands. */
-    private readonly prepared_ = new Map<Entity, { key: string; byPrefab: Map<string, PreparedTimelineSpawn | null> }>();
+    private readonly prepared_ = new Map<Entity, PlayerPreparations>();
 
     /**
      * Brings `player`'s instances in line with `asset` at `time`: each spawn clip the playhead is inside has one, under
@@ -95,7 +102,7 @@ export class TimelineSpawns {
                 continue;
             }
             const map = live;
-            void spawner.spawn(clip.prefab, parent, clip.name).then((entity) => {
+            void spawner.spawn(clip.prefab, parent, clip.name, player).then((entity) => {
                 if (entity === null) return;
                 if (!inst.wanted || map.get(key) !== inst) { spawner.despawn(entity); return; }
                 inst.entity = entity;
@@ -120,7 +127,10 @@ export class TimelineSpawns {
         const held = this.prepared_.get(player);
         if (!held) return;
         this.prepared_.delete(player);
-        for (const p of held.byPrefab.values()) p?.release();
+        held.pending.clear();
+        const prepared = [...held.byPrefab.values()];
+        held.byPrefab.clear();
+        disposeAll(prepared, p => p?.release());
     }
 
     /** Forgets every player. */
@@ -141,26 +151,34 @@ export class TimelineSpawns {
         const prefabs = new Set<string>();
         for (const t of asset.tracks) if (t.type === TrackType.Spawn) for (const c of t.clips) if (c.prefab) prefabs.add(c.prefab);
         const key = [...prefabs].sort().join('\n');
-        const had = this.prepared_.get(player);
-        if (had && had.key === key) return had.byPrefab;
-        const byPrefab = new Map<string, PreparedTimelineSpawn | null>();
-        const held = { key, byPrefab };
-        this.prepared_.set(player, held);
-        // Kept across the change: what the new set still spawns. The rest is let go.
-        for (const [prefab, p] of had?.byPrefab ?? []) {
-            if (prefabs.has(prefab)) byPrefab.set(prefab, p); else p?.release();
+        let held = this.prepared_.get(player);
+        if (held?.key === key) return held.byPrefab;
+        if (held) held.key = key;
+        else {
+            held = { key, byPrefab: new Map(), pending: new Map() };
+            this.prepared_.set(player, held);
+        }
+        const { byPrefab, pending } = held;
+        for (const [prefab, prepared] of byPrefab) {
+            if (prefabs.has(prefab)) continue;
+            byPrefab.delete(prefab);
+            pending.delete(prefab);
+            prepared?.release();
         }
         if (!spawner.prepare) return byPrefab;
         for (const prefab of prefabs) {
             if (byPrefab.has(prefab)) continue;
             byPrefab.set(prefab, null);
-            // Lands in whichever set the player has by then (a later set may have kept it), or is let go.
-            void spawner.prepare(prefab).then((p) => {
-                const now = this.prepared_.get(player)?.byPrefab;
-                if (now?.get(prefab) === null) now.set(prefab, p); else p.release();
+            const request = Symbol();
+            pending.set(prefab, request);
+            void spawner.prepare(prefab, player).then((p) => {
+                if (pending.get(prefab) !== request) { p.release(); return; }
+                pending.delete(prefab);
+                byPrefab.set(prefab, p);
             }, () => {
-                const now = this.prepared_.get(player)?.byPrefab;
-                if (now?.get(prefab) === null) now.delete(prefab); // spawned unprepared, then
+                if (pending.get(prefab) !== request) return;
+                pending.delete(prefab);
+                byPrefab.delete(prefab);
             });
         }
         return byPrefab;

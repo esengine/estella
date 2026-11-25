@@ -109,21 +109,21 @@ class TimelinePlaybackSystem {
 
         // Spawn clips make their prefab through the game's prefab server, named so the other tracks find it.
         this.spawner_ = {
-            spawn: async (prefab, parent, name) => {
+            spawn: async (prefab, parent, name, player) => {
                 if (!app.hasResource(Prefabs)) return null;
-                const made = await app.getResource(Prefabs).instantiate(prefab, parent !== null && world.valid(parent) ? { parent } : undefined);
+                const made = await app.getResource(Prefabs).instantiate(prefab, { parent: parent ?? undefined, owner: player });
                 if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
                 return made.root;
             },
             despawn: (entity) => { if (world.valid(entity)) world.despawn(entity); },
             // Prepared ahead, so a clip's instance is made on the frame it starts.
-            prepare: async (prefab) => {
+            prepare: async (prefab, player) => {
                 if (!app.hasResource(Prefabs)) return { release() {} };
                 const prepared = await app.getResource(Prefabs).prepare(prefab);
                 return {
                     release: () => prepared.release(),
                     spawn: (parent, name) => {
-                        const made = prepared.spawn(parent !== null && world.valid(parent) ? { parent } : undefined);
+                        const made = prepared.spawn({ parent: parent ?? undefined, owner: player });
                         if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
                         return made.root;
                     },
