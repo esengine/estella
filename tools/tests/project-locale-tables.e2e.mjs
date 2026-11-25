@@ -26,6 +26,8 @@ async function fixture(project) {
             entity(2, scene, [{ type: 'Transform', data: {} }, shape]),
         ] });
     }
+    // Exercise a registered but unreadable destination through each target's scene loader.
+    await asset(project, 'assets/scenes/future.esscene', 'scene', { version: 999, name: 'future', entities: [] });
     // The UUIDs sort in the opposite order to the two English filenames.
     for (const [file, locale, text, uuid] of [
         ['z-overlay', 'en', 'Start game', '00000000-0000-4000-8000-000000000001'],
@@ -39,8 +41,13 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, Localization, SceneManager, Text } from 'esengine';
+import { addPlugin, Assets, defineSystem, Input, Localization, Res, SceneManager, Text } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
+    let inputCaption = null;
+    app.addSystem(defineSystem([Res(Input)], input => {
+        if (input.isKeyDown('KeyK')) inputCaption = app.world.findEntityByName('Caption');
+    }));
+    globalThis.captionReceivedInput = () => inputCaption != null && inputCaption === app.world.findEntityByName('Caption');
     globalThis.readCaption = () => {
         const entity = app.world.findEntityByName('Caption');
         if (entity == null || !app.hasResource(Localization)) return null;
@@ -49,6 +56,22 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
     };
     globalThis.setCaptionLocale = locale => app.getResource(Localization).setLocale(locale);
     globalThis.openCaptionScene = name => app.getResource(SceneManager).switchTo(name);
+    globalThis.tryFutureScene = async transition => {
+        inputCaption = null;
+        const scenes = app.getResource(SceneManager);
+        const name = scenes.getActive();
+        const original = scenes.getScene(name);
+        const caption = app.world.findEntityByName('Caption');
+        try { await scenes.switchTo('future', { transition, duration: 0.05 }); }
+        catch (error) {
+            return {
+                error: error.message,
+                sameScene: scenes.getActive() === name && scenes.getScene(name) === original && !original.signal.aborted,
+                sameCaption: app.world.valid(caption) && app.world.findEntityByName('Caption') === caption,
+            };
+        }
+        throw new Error('Unsupported scene unexpectedly loaded');
+    };
 } });
 `);
 }
@@ -74,13 +97,22 @@ async function check(browser, project, dir, platform) {
         await caption('hud', 'Start game');
         await page.evaluate(() => globalThis.setCaptionLocale('fr'));
         for (const scene of ['world', 'hud', 'world', 'hud']) {
+            const previous = scene === 'world' ? 'hud' : 'world';
+            const failure = await page.evaluate(transition => globalThis.tryFutureScene(transition), scene === 'world' ? 'none' : 'fade');
+            assert.match(failure.error, /newer than this engine/);
+            assert.equal(failure.sameScene, true);
+            assert.equal(failure.sameCaption, true);
+            await caption(previous, 'Commencer');
+            await page.keyboard.down('k');
+            try { await page.waitForFunction(() => globalThis.captionReceivedInput(), null, { timeout: 10_000 }); }
+            finally { await page.keyboard.up('k'); }
             await page.evaluate(name => globalThis.openCaptionScene(name), scene);
             await caption(scene, 'Commencer');
         }
         await page.evaluate(() => globalThis.setCaptionLocale('en'));
         await caption('hud', 'Start game');
         assert.deepEqual(errors, []);
-        console.log(platform + ': bound captions in both languages, four scene switches, three table receipts');
+        console.log(platform + ': input and captions survived rejected cuts and fades, four successful switches, three table receipts');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

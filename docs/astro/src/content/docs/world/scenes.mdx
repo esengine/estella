@@ -25,8 +25,18 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 });
 ```
 
-`reload(options?)` switches to the active scene again from its file. `switchTo` with the name of the scene already
-running does nothing; `reload` is the call for restarts and retries.
+`switchTo` with the name of the active scene keeps it running. Use `reload(options?)` to restart it.
+Both switching and reloading keep the current scene running while the destination
+file, prefabs and assets are prepared. An unknown scene name, invalid file or rejected preparation leaves the same
+entities, systems and scene-owned assets available. Fix the content and retry the switch or reload.
+
+For a code-defined scene, put fallible reads and validation in `prepare`. When the switch starts a new instance,
+successful preparation is followed by outgoing cleanup, creation of the destination entities and then `setup`.
+At that point an exception in `setup` happens after the outgoing scene has been retired. If the destination is
+already loading additively, the switch waits for that load to succeed before retiring the current scene.
+
+Calling `load` or `loadAdditive` for a destination that is already switching joins the same load. Its progress
+callback receives the current asset counts and subsequent updates while preparation continues.
 
 ## Transitions
 
@@ -44,7 +54,7 @@ running does nothing; `reload` is the call for restarts and retries.
 A fade runs in three phases:
 
 1. The overlay ramps to opaque over the first half of `duration`.
-2. The overlay holds opaque while the old scene unloads and the new scene loads. A slow load extends this phase.
+2. The overlay holds opaque while the destination is prepared and the scenes switch. A slow load extends this phase.
 3. The overlay ramps back to transparent over the second half of `duration`.
 
 The returned promise resolves after the fade-in completes and rejects if the load failed. A `switchTo` issued while a
@@ -213,6 +223,7 @@ playable in the editor. Playable-ad builds contain the startup scene only. See
 | Method | Description |
 |---|---|
 | `switchTo(name, options?)` | Replace the active scene (async; optional transition). |
+| `load(name, onProgress?)` | Load or resume the named scene and make it active. Other loaded scenes stay resident. |
 | `reload(options?)` | Switch to the active scene again, from its file (async; optional transition). |
 | `loadAdditive(name, onProgress?)` | Load a scene on top of the loaded ones; resolves to its context (async). |
 | `unload(name, options?)` | Unload a scene (async; optional transition). |

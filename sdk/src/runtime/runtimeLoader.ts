@@ -496,7 +496,6 @@ async function readRuntimeScene(
         : prepareSpawnOwnership(sceneData, assetResult, sceneAssets.entityScopes, sceneRef);
     const auxiliaryAssets = prepareSceneAuxiliaryAssets(sceneData, assetResult, sceneRef);
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
-    applySceneTextureMetadata(sceneData, assetResult);
 
     // KTX2 atlas pages transcode through the realm's basis module, acquired the
     // same lazy way the TextureLoader's provider does (AssetPlugin). Spine itself
@@ -714,6 +713,8 @@ async function publishPreparedScene(
     const links = now.externalEntities;
     const externalEntities = (typeof links === 'function' ? links() : links) ?? prepared.options.externalEntities;
     attempt.assertCurrent();
+    // A scene's 9-slice can share its texture with the outgoing UI. Apply it when this scene publishes.
+    applySceneTextureMetadata(sceneData, assetResult);
     const timed = scenePhaseRunner(onPhase);
     const hasSceneManager = !!sceneName && app.hasResource(SceneManager);
     const ctx = now.context;
@@ -850,7 +851,8 @@ export function createRuntimeSceneConfig(
     name: string,
     sceneData: SceneData | undefined,
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> & {
-        prepareDocument?: (data: SceneData, assertActive: () => void) => Promise<SceneData>;
+        /** Prepare document bytes and optionally install their companion world once the scene has published. */
+        prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void) => Promise<SceneData>;
     },
     scenePath?: string,
     /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
@@ -861,8 +863,9 @@ export function createRuntimeSceneConfig(
     // another, a cell's reference to the persistent world resolved to nothing.
     // Held by the config, which IS the per-scene object: a prepared cell has one
     // place to live and one owner to release it.
+    type ReadyScene = PreparedRuntimeScene & { publishDocument?: () => void };
     interface Preparation {
-        done: Promise<PreparedRuntimeScene>;
+        done: Promise<ReadyScene>;
         progress: SceneAssetProgress;
         ready?: PreparedRuntimeScene;
         cancel: AbortHandle;
@@ -900,7 +903,7 @@ export function createRuntimeSceneConfig(
     const readied = async (
         sceneOwned: boolean | undefined, attempt: SceneLoadAttempt,
         observer?: SceneLoadProgressCallback, sceneProgress?: SceneLoadProgressCallback,
-    ): Promise<PreparedRuntimeScene> => {
+    ): Promise<ReadyScene> => {
         const assertActive = () => attempt.assertCurrent();
         assertActive();
         const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
@@ -924,14 +927,16 @@ export function createRuntimeSceneConfig(
             data = JSON.parse(text) as SceneData;
             config.onPhase?.('parse', performance.now() - parsed);
         }
+        let publishDocument: (() => void) | undefined;
         if (options.prepareDocument) {
-            data = await options.prepareDocument(data, assertActive);
+            data = await options.prepareDocument(data, assertActive, install => { publishDocument = install; });
             assertActive();
         }
-        return prepareWithAttempt({
+        const ready = await prepareWithAttempt({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
             onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
         }, sceneOwned ?? options.app.hasResource(SceneManager), attempt);
+        return publishDocument ? { ...ready, publishDocument } : ready;
     };
     const discard = (pending: Preparation): number => {
         if (pending.cancel.signal.aborted) return 0;
@@ -945,7 +950,7 @@ export function createRuntimeSceneConfig(
     };
     const config: SceneConfig = {
         name,
-        async prepare() {
+        async prepare(onProgress) {
             if (!preparation) {
                 // Install the slot before a read or observer can reenter. Setup takes this
                 // same promise even when the assets it needs are still arriving.
@@ -970,6 +975,7 @@ export function createRuntimeSceneConfig(
                 preparation = pending;
                 pending.progress.observe(options.onProgress);
             }
+            preparation.progress.observe(onProgress);
             await preparation.done;
         },
         // The second obligation. It runs on what `prepare` decoded, so the mesh
@@ -996,7 +1002,7 @@ export function createRuntimeSceneConfig(
         async setup(context) {
             const pending = preparation;
             preparation = undefined;
-            let ready: PreparedRuntimeScene;
+            let ready: ReadyScene;
             if (pending) {
                 pending.assertOwner = () => assertSceneContext(options.app, context);
                 const signal = context?.signal;
@@ -1020,6 +1026,10 @@ export function createRuntimeSceneConfig(
             }
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
+            if (ready.publishDocument) {
+                assertSceneContext(options.app, context);
+                ready.publishDocument();
+            }
         },
     };
     if (streamed) {
@@ -1130,7 +1140,7 @@ function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRunt
     if (worlds.size > 0) enableSceneOrigins(app);
     for (const scene of config.scenes) {
         const { worldPath } = scene;
-        const prepareDocument = async (data: SceneData, assertActive: () => void): Promise<SceneData> => {
+        const prepareDocument = async (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void): Promise<SceneData> => {
             if (worldPath) {
                 if (!worlds.has(scene.name)) {
                     const manifest = JSON.parse(await app.getResource(AssetsResource).backend.fetchText(worldPath)) as WorldManifest;
@@ -1139,16 +1149,16 @@ function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRunt
                         || !Array.isArray(manifest.persistentRefs)) {
                         throw new Error(`Invalid world manifest "${worldPath}" for scene "${scene.name}"`);
                     }
-                    worlds.set(scene.name, { manifest, documents: config.cellDocuments });
+                    onPublish(() => { worlds.set(scene.name, { manifest, documents: config.cellDocuments }); });
                 }
             } else if (config.prepareWorld) {
                 const cut = await config.prepareWorld(data, scene.name);
                 assertActive();
                 if (!cut) {
-                    worlds.delete(scene.name);
+                    onPublish(() => { worlds.delete(scene.name); });
                     return data;
                 }
-                worlds.set(scene.name, { manifest: cut.manifest, documents: cut.documents });
+                onPublish(() => { worlds.set(scene.name, { manifest: cut.manifest, documents: cut.documents }); });
                 data = cut.persistent;
             }
             // Authored ids are recorded when persistent entities are published, before a cell needs to resolve them.

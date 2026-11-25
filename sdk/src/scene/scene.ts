@@ -111,6 +111,10 @@ export interface SceneLoadOptions {
     onProgress?: SceneLoadProgressCallback;
     /** @internal Verify the owning scene before prepared work enters the World. */
     assertCurrent?: () => void;
+    /** @internal Release acquired content when the owning scene cancels an in-flight load. */
+    signal?: AbortSignal;
+    /** @internal Complete the exclusive handoff after content is ready and before spawning entities. */
+    beforeSpawn?: () => Promise<void>;
     /**
      * Invoked once during load with the list of asset refs that could not
      * be loaded (unresolved UUID or fetch failure). Fires even if the list
@@ -808,7 +812,7 @@ export async function loadSceneWithAssets(
     sceneData: SceneData,
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
-    const attempt = new SceneLoadAttempt(world, sceneData.name);
+    const attempt = new SceneLoadAttempt(world, sceneData.name, { signal: options?.signal });
     // Expand prefab-instance entries first (via the same flattenPrefab core the
     // editor uses) so migration + asset resolution + spawn all operate on plain
     // entities — this is how a saved prefab scene achieves play == ship. The
@@ -836,7 +840,7 @@ export async function loadSceneWithAssets(
 export async function loadOwnedSceneWithAssets(
     world: World, scene: SceneData, options?: SceneLoadOptions,
 ): Promise<Map<number, Entity>> {
-    const attempt = new SceneLoadAttempt(world, scene.name);
+    const attempt = new SceneLoadAttempt(world, scene.name, { signal: options?.signal });
     const { data } = migrateOwnedSceneData(scene);
     return loadSceneAssetsAndSpawn(world, data, options, attempt);
 }
@@ -871,8 +875,12 @@ async function loadSceneAssetsAndSpawn(
                     throw new MissingAssetsError(result.missing);
                 }
                 assets.resolveSceneAssetPaths(data, result);
-                applySceneTextureMetadata(data, result);
             }
+            if (options?.beforeSpawn) {
+                await options.beforeSpawn();
+                assertCurrent();
+            }
+            if (attempt.assets) applySceneTextureMetadata(data, attempt.assets);
             const entities = await timed('spawn', () =>
                 spawnAndLoadEntities(world, data, options?.externalEntities, onPhase, options?.assertCurrent, attempt));
             assertCurrent();

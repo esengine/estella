@@ -10734,7 +10734,7 @@ externalEntities: (() => ReadonlyMap<number, Entity>) | undefined
 name: string
 onPhase: ((phase: string, ms: number) => void) | undefined
 path: string | undefined
-prepare: (() => Promise<void>) | undefined
+prepare: ((onProgress?: SceneLoadProgressCallback) => Promise<void>) | undefined
 readyRenderPrograms: (() => Promise<RenderReadiness>) | undefined
 retire: ((doomed: readonly Entity[], retirement?: SceneRetirement) => Promise<void>) | undefined
 rush: (() => void) | undefined
@@ -10799,6 +10799,8 @@ static prototype: SceneLoadCancelled
 ## SceneLoadOptions — interface @experimental
 ```
 @internal assertCurrent: (() => void) | undefined
+@internal beforeSpawn: (() => Promise<void>) | undefined
+@internal signal: AbortSignal | undefined
 abortOnMissingAssets: boolean | undefined
 assetBaseUrl: string | undefined
 assets: Assets | undefined
@@ -17100,7 +17102,7 @@ Plugin
 
 ## createRuntimeSceneConfig — function @experimental
 ```
-(name: string, sceneData: SceneData | undefined, options: Omit<LoadRuntimeSceneOptions, "sceneData" | "sceneName"> & { prepareDocument?: (data: SceneData, assertActive: () => void) => Promise<SceneData>; }, scenePath?: string, streamed?: StreamedSceneOptions): SceneConfig
+(name: string, sceneData: SceneData | undefined, options: Omit<LoadRuntimeSceneOptions, "sceneData" | "sceneName"> & { prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void) => Promise<SceneData>; }, scenePath?: string, streamed?: StreamedSceneOptions): SceneConfig
 ```
 
 ## createScrollView — function @experimental

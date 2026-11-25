@@ -84,13 +84,16 @@ const TEARDOWN_OPS = [
   [/\breleaseAssets\s*\(/, 'release unresolved scene assets'],
 ];
 const directTeardown = [...TEARDOWN_OPS.map(([op]) => op), /\bunregisterDrawCallback\s*\(/, /\bunbind\s*\(/];
-for (const name of ['unload', 'rollbackFailedLoad_', 'reset', 'resetInstances_']) {
+for (const [name, delegate] of [
+  ['unload', 'unloadScene_'], ['retireForSwitch_', 'unloadScene_'],
+  ['unloadScene_', 'disposeSceneOwnedState_'], ['rollbackFailedLoad_', 'disposeSceneOwnedState_'],
+  ['reset', 'resetInstances_'], ['resetInstances_', 'disposeSceneOwnedState_'],
+]) {
   const body = methodBody(name);
   if (!body) {
     findings.push(`${FILE}  ${name}() is gone — this guard is reading the wrong file.`);
     continue;
   }
-  const delegate = name === 'reset' ? 'resetInstances_' : 'disposeSceneOwnedState_';
   if (!new RegExp(`\\b${delegate}\\s*\\(`).test(body.text)) {
     findings.push(`${FILE}:${body.line}  ${name}() must release scene state through ${delegate}.`);
   }

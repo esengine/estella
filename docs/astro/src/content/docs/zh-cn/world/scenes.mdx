@@ -20,7 +20,11 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 });
 ```
 
-`reload(options?)` 从文件重新切换到当前活动场景。以正在运行的场景名调用 `switchTo` 不执行任何操作；重新开始、重试等场合应使用 `reload`。
+对当前场景调用 `switchTo` 会保留正在运行的实例。要重新开始，请用 `reload(options?)`。切换和重载都会先准备目标场景文件、预制体和资源，这段时间当前场景继续运行。如果目标名称未注册、文件损坏，或准备过程报错，原来的实体、系统和场景资源仍可使用。修正内容后可以再次切换或重载。
+
+用代码定义场景时，把可能失败的读取和校验放在 `prepare` 中。如果本次切换要创建新实例，准备成功后，场景管理器先清理旧场景，再创建目标场景的实体并运行 `setup`。此时 `setup` 抛出异常，旧场景已经卸载。如果目标已在叠加加载中，切换会等待那次加载成功，再卸载当前场景。
+
+切换过程中，对同一目标调用 `load` 或 `loadAdditive` 会等待同一次加载。传入的进度回调可以收到当前已加载的资源数、总数，以及准备期间的后续更新。
 
 ## 过渡
 
@@ -38,7 +42,7 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 淡入淡出分三个阶段：
 
 1. 遮罩在 `duration` 的前一半内渐变至不透明。
-2. 旧场景卸载、新场景加载期间遮罩保持不透明。加载较慢时该阶段相应延长。
+2. 准备目标场景和切换场景期间，遮罩保持不透明。加载较慢时，该阶段相应延长。
 3. 遮罩在 `duration` 的后一半内渐变回透明。
 
 返回的 Promise 在淡入完成后兑现，加载失败时拒绝。切换进行中再次调用 `switchTo` 会被忽略并输出警告；`isTransitioning()` 返回是否有过渡正在进行。
@@ -163,6 +167,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 | 方法 | 说明 |
 |---|---|
 | `switchTo(name, options?)` | 替换活动场景（异步；可选过渡）。 |
+| `load(name, onProgress?)` | 加载或恢复指定场景并将其设为活动场景，其他已加载场景继续驻留。 |
 | `reload(options?)` | 从文件重新切换到活动场景（异步；可选过渡）。 |
 | `loadAdditive(name, onProgress?)` | 在已加载场景之上加载一个场景；兑现为其上下文（异步）。 |
 | `unload(name, options?)` | 卸载场景（异步；可选过渡）。 |

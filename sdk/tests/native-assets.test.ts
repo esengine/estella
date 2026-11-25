@@ -170,8 +170,11 @@ describe('packaged scene files', () => {
             expect(streamer.manifest?.scene).toBe('levels/a');
             expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
             expect(read.mock.calls.flat()).not.toContain(worlds[1]!.manifest);
-            await expect(manager.load('levels/b')).rejects.toThrow(/Invalid world manifest/);
+            const original = manager.getScene('levels/a');
+            await expect(manager.switchTo('levels/b')).rejects.toThrow(/Invalid world manifest/);
             expect(manager.getActive()).toBe('levels/a');
+            expect(manager.getScene('levels/a')).toBe(original);
+            expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
             expect(manager.isLoaded('levels/b')).toBe(false);
             files.set(worlds[1]!.manifest, manifest('levels/b'));
             await manager.switchTo('levels/b');
