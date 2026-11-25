@@ -919,6 +919,8 @@ export interface ESEngineModule extends TilemapBindings {
     renderer_destroySkeletalPreview(preview: number): void;
     renderer_renderMeshPreview(meshId: number, w: number, h: number): void;
     renderer_renderMeshSetPreview?(meshesPtr: number, materialsPtr: number, count: number, w: number, h: number): void;
+    /** A whole registry into the preview target: a camera view, then its screen-space UI (0 for none); matrices are 16 floats. */
+    renderer_renderRegistryPreview?(registry: CppRegistry, worldViewProjectionPtr: number, screenProjectionPtr: number, w: number, h: number): void;
     renderer_setPreviewOrbit?(yawDegrees: number, pitchDegrees: number): void;
     /** Scene draws the last frame left out because a program they use was still compiling. */
     renderer_getDrawsWaitingForProgram?(): number;

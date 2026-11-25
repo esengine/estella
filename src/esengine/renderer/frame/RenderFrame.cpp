@@ -1312,6 +1312,90 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     surface.readback = device_.requestReadback(rt->getFramebuffer(), w, h);
 }
 
+void RenderFrame::renderRegistryToTarget(ecs::Registry& registry, Shared<const ecs::UIRenderData> uiData,
+                                         const glm::mat4& worldViewProjection,
+                                         const glm::mat4* screenProjection, u32 w, u32 h) {
+    if (w == 0 || h == 0) return;
+    if (!device_.isDeviceUsable()) return;
+    auto& surface = preview_;
+    if (surface.target == 0) {
+        surface.target = target_manager_.create(w, h, /*depth=*/true, /*linearFilter=*/false);
+    } else if (auto* existing = target_manager_.get(surface.target);
+               existing && (existing->getWidth() != w || existing->getHeight() != h)) {
+        existing->resize(w, h);
+    }
+    auto* rt = target_manager_.get(surface.target);
+    if (!rt) return;
+
+    // The frame's own UI binding, overlay projection and origin belong to the
+    // registry the viewport draws. This one is borrowed for the picture and put
+    // back, so the next real frame partitions its own entities, not these.
+    auto savedUI = ui_data_;
+    const glm::mat4 savedOverlay = overlay_projection_;
+    const i32 savedX = overlay_vp_x_, savedY = overlay_vp_y_;
+    const u32 savedW = overlay_vp_w_, savedH = overlay_vp_h_;
+    const glm::dvec3 savedOrigin = renderOrigin();
+    setRenderOrigin(glm::dvec3(0.0));
+    setUIRenderData(std::move(uiData));
+
+    RenderPassDesc pass{rt->getFramebuffer(), /*clearColor=*/true};
+    pass.clearDepth = true;
+    pass.clearStencil = true;
+    pass.clearColorValue[3] = 0.0f;
+    device_.beginRenderPass(pass);
+    device_.setViewport(0, 0, w, h);
+
+    // The world: what a camera sees — meshes, sprites, world-space UI and text.
+    view_projection_ = worldViewProjection;
+    frustum_.extractFromMatrix(worldViewProjection);
+    view_id_ = kPreviewViewId;
+    current_stage_ = RenderStage::Transparent;
+    pool_.beginFrame();
+    draw_list_.clear();
+    clip_state_.clear();
+    processMasks(registry, worldViewProjection, 0, 0, static_cast<i32>(w), static_cast<i32>(h));
+    collectAll(registry, /*sceneGBuffer=*/false);
+    draw_list_.finalize(pool_);
+    pool_.upload();
+    context_.updateCameraConstants(worldViewProjection);
+    context_.lights().uploadAndBind();
+    draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
+                       nullptr, context_.perDrawBlocks());
+
+    // Screen-space UI: the camera collect leaves it out by design, and the
+    // overlay pass is the one that draws it — over the world, as on screen.
+    if (screenProjection) {
+        overlay_projection_ = *screenProjection;
+        overlay_vp_x_ = 0; overlay_vp_y_ = 0; overlay_vp_w_ = w; overlay_vp_h_ = h;
+        pool_.beginFrame();
+        draw_list_.clear();
+        clip_state_.clear();
+        processMasks(registry, overlay_projection_, 0, 0, static_cast<i32>(w), static_cast<i32>(h));
+        buildClipState();
+        collectScreenOverlayInto(registry, 0);
+        draw_list_.finalize(pool_);
+        pool_.upload();
+        context_.updateCameraConstants(overlay_projection_);
+        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
+                           nullptr, context_.perDrawBlocks());
+        device_.setScissorTest(false);
+    }
+
+    rt->unbind();
+    device_.invalidatePipelineCache();
+
+    overlay_projection_ = savedOverlay;
+    overlay_vp_x_ = savedX; overlay_vp_y_ = savedY; overlay_vp_w_ = savedW; overlay_vp_h_ = savedH;
+    setUIRenderData(std::move(savedUI));
+    setRenderOrigin(savedOrigin);
+
+    if (surface.readback != ReadbackHandle::Invalid) device_.discardReadback(surface.readback);
+    surface.width = w;
+    surface.height = h;
+    surface.pixels.clear();
+    surface.readback = device_.requestReadback(rt->getFramebuffer(), w, h);
+}
+
 i32 RenderFrame::pollSnapshotReadback() {
     if (replay_draw_ >= 0) return 0;
     return pollReadback(snapshot_readback_, snapshot_pixels_, snapshot_w_, snapshot_h_);

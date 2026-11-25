@@ -2490,6 +2490,23 @@ void renderer_renderMeshSetPreview(uintptr_t meshesPtr, uintptr_t materialsPtr, 
     g_renderFrame->renderToTarget(reg, proj * view, static_cast<u32>(w), static_cast<u32>(h));
 }
 
+void renderer_renderRegistryPreview(ecs::Registry& registry, uintptr_t worldViewProjectionPtr,
+                                    uintptr_t screenProjectionPtr, i32 w, i32 h) {
+    if (!g_renderFrame || w <= 0 || h <= 0) return;
+    const auto* world = boundarySpan<f32>(worldViewProjectionPtr, 16, "renderer_renderRegistryPreview.worldViewProjection");
+    if (!world) return;
+    const f32* screen = screenProjectionPtr != 0
+        ? boundarySpan<f32>(screenProjectionPtr, 16, "renderer_renderRegistryPreview.screenProjection")
+        : nullptr;
+    const WaitForPrograms wait;
+    ensureTransformsUpdated(registry);
+    const auto* ui = ctx().tryGet<ecs::UISystem>();
+    const glm::mat4 worldVP = glm::make_mat4(world);
+    const glm::mat4 screenVP = screen ? glm::make_mat4(screen) : glm::mat4(1.0f);
+    g_renderFrame->renderRegistryToTarget(registry, ui ? ui->renderData(registry) : nullptr, worldVP,
+                                          screen ? &screenVP : nullptr, static_cast<u32>(w), static_cast<u32>(h));
+}
+
 // Same 0/1/2 contract as renderer_pollSnapshotReadback, for the material preview.
 i32 renderer_pollPreviewReadback() {
     return g_renderFrame ? g_renderFrame->pollPreviewReadback() : 2;

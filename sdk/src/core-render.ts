@@ -122,6 +122,10 @@ export {
 
 export { renderMeshPreview, renderMeshSetPreview, DEFAULT_PREVIEW_ORBIT, type PreviewDraw } from './render/assetPreview';
 export type { PreviewOrbit } from './render/assetPreview';
+export {
+    createPreviewApp, clearPreviewWorld, loadPreviewScene, framePreview, aimPreviewWorld, renderPreviewWorld,
+    type PreviewAppOptions, type PreviewFraming,
+} from './app/previewApp';
 export { SkeletalPreview } from './render/skeletalPreview';
 export type { SkeletalPreviewBatch } from './render/skeletalPreview';
 

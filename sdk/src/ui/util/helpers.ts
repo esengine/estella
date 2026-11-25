@@ -41,6 +41,17 @@ export function initUIHelpers(engine: EngineApi | null, registry: CppRegistry): 
     nativeRegistry_ = registry;
 }
 
+/**
+ * The binding as it stands, and a way to put it back. The helpers answer for ONE
+ * app when no world is named; a second app built beside it (a preview world) would
+ * otherwise take that over — and leave it pointing at a registry deleted on quit.
+ * @internal
+ */
+export function holdUIHelpersBinding(): () => void {
+    const engine = engine_, registry = nativeRegistry_;
+    return () => { engine_ = engine; nativeRegistry_ = registry; };
+}
+
 
 export function isWordChar(code: number): boolean {
     return (code >= 0x41 && code <= 0x5A)

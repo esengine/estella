@@ -634,6 +634,17 @@ public:
      * viewport exactly. Clobbers the transient draw list/pool, which the next real frame rebuilds.
      */
     void renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h);
+    /**
+     * A whole world into the same preview target: @p registry as a camera with
+     * @p worldViewProjection sees it, then — when @p screenProjection is given —
+     * its screen-space UI over it, as the overlay pass draws it. @p uiData is that
+     * registry's laid-out UI; the frame's own binding, overlay projection and
+     * render origin are restored afterwards, so the viewport's next frame is
+     * untouched. What a prefab preview draws: an instance in a world of its own.
+     */
+    void renderRegistryToTarget(ecs::Registry& registry, Shared<const ecs::UIRenderData> uiData,
+                                const glm::mat4& worldViewProjection, const glm::mat4* screenProjection,
+                                u32 w, u32 h);
     const u8* getPreviewPixels() const { return preview_.pixels.data(); }
     u32 getPreviewSize() const { return static_cast<u32>(preview_.pixels.size()); }
     u32 getPreviewWidth() const { return preview_.width; }
