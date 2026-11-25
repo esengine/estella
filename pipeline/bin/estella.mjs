@@ -22,10 +22,11 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs proto gen|check <projectDir>
        node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs adopt <projectDir>
+       node pipeline/bin/estella.mjs import-source <model|panorama|.escube|.psd|.psb|.aseprite|.ase> [outDir] [--project <dir>]
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
                                      [--specular-map color|orm] [--lightmap-uv] [--lods <0-3>]
-       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>] [--sky-width <n>]
+       node pipeline/bin/estella.mjs import-hdr <file.hdr|file.exr|file.escube> [outDir] [--face-size <n>] [--sky-width <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
        node pipeline/bin/estella.mjs bake-model <file.esmodel> [--sheet <file.png>] [--jobs <n>] [--no-cache]
        node pipeline/bin/estella.mjs draw-image <file.esimage> <out.png> [--project <dir>]
@@ -72,13 +73,18 @@ against the limits in force. The size report rides the result rather than being 
 second file — \`result.size\` carries the verdicts the build dialog draws, so CI
 and the editor cannot disagree about whether a build fits.
 
+import-source uses the editor's converters and the source's saved import settings.
+It writes an Aseprite sheet and animation clips, a layered PSD's sprites and prefab,
+a model's geometry and prefab, or a panorama's environment. Explicit flags override
+the matching setting for this invocation. Scene exports read the generated assets.
+
 import-model writes one \`.esmesh\` per triangle primitive next to the source (or
 into outDir), the images the file carries inline, and one \`.esprefab\` placing
 each piece where the source's node tree puts it, with its image and tint. A model
 holds many primitives, so it is a source that PRODUCES assets rather than one the
 engine loads — the products are what a scene references. Asset refs are
 project-relative, so the project is found above the source unless --project says
-otherwise; --scale sizes the model, whose metres are world units otherwise.
+otherwise. --scale overrides the source's saved scale. A source without a scale uses one world unit per metre.
 --specular-map orm reads an FBX's specular map as packed occlusion/roughness/
 metalness (Falcor-era scenes such as Bistro); the source's own \`.meta\` setting
 is used when the flag is absent. DDS images are converted to PNG on the way in.
@@ -92,6 +98,8 @@ import-hdr bakes an equirectangular panorama into the two things a renderer asks
 an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
 prefiltered octahedral atlas beside it, which the document names as a sibling.
 The panorama itself is not shipped — a light references the \`.esenv\`.`;
+
+const SOURCE_COMMANDS = new Set(['import-source', 'import-model', 'import-gltf', 'import-hdr']);
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
@@ -183,7 +191,7 @@ function parseArgs(argv) {
     }
     return { command, source: path.resolve(projectDir), config: path.resolve(rest[config + 1]), out: path.resolve(rest[out + 1]) };
   }
-  if (command === 'import-model' || command === 'import-gltf' || command === 'import-hdr') {
+  if (SOURCE_COMMANDS.has(command)) {
     if (!projectDir) {
       console.error(USAGE);
       process.exit(2);
@@ -199,9 +207,9 @@ function parseArgs(argv) {
     return {
       command, out, source: path.resolve(projectDir),
       project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
-      scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
+      scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : undefined,
       faceSize: faceSize >= 0 ? Number(rest[faceSize + 1]) || undefined : undefined,
-      skyWidth: skyWidth >= 0 ? Number(rest[skyWidth + 1]) || undefined : undefined,
+      skyWidth: skyWidth >= 0 ? Number(rest[skyWidth + 1]) : undefined,
       specularMap: specular >= 0 ? rest[specular + 1] : undefined,
       lightmapUV,
       lodLevels: lods >= 0 ? Number(rest[lods + 1]) : undefined,
@@ -721,46 +729,6 @@ async function bundlePipeline(entry, outName) {
 const PROJECT_FILES = ['project.esproject', 'project.esproj', 'project.json'];
 
 /** The project directory a path sits in, walking up; null when it is outside one. */
-/** The flag, else the source's own `.meta` import setting, else the plain reading. */
-function specularMapFor(opts) {
-  if (opts.specularMap) {
-    if (opts.specularMap !== 'color' && opts.specularMap !== 'orm') {
-      console.error(`--specular-map must be color or orm, not "${opts.specularMap}"`);
-      process.exit(2);
-    }
-    return opts.specularMap;
-  }
-  try {
-    return JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer?.specularMap === 'orm' ? 'orm' : 'color';
-  } catch {
-    return 'color';
-  }
-}
-
-/** The flag, else the source's own `.meta` import setting — the editor's door reads the same one. */
-function lightmapUVFor(opts) {
-  if (opts.lightmapUV) return true;
-  try {
-    return JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer?.lightmapUV === true;
-  } catch {
-    return false;
-  }
-}
-
-/** The flag, else the source's own `.meta` import settings: [levels, minimum triangles]. */
-function lodSettingsFor(opts) {
-  let importerMeta = {};
-  try {
-    importerMeta = JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer ?? {};
-  } catch { /* no meta: the schema's defaults */ }
-  const levels = Number.isFinite(opts.lodLevels) ? opts.lodLevels : importerMeta.lodLevels;
-  const min = importerMeta.lodMinTriangles;
-  return {
-    levels: typeof levels === 'number' ? Math.min(3, Math.max(0, Math.floor(levels))) : 0,
-    minTriangles: typeof min === 'number' && min >= 0 ? min : 256,
-  };
-}
-
 function findProjectRoot(from) {
   for (let dir = from, prev = ''; dir !== prev; prev = dir, dir = path.dirname(dir)) {
     if (PROJECT_FILES.some((name) => existsSync(path.join(dir, name)))) return dir;
@@ -852,137 +820,57 @@ if (opts.command === 'package-openpaas') {
   process.exit(process.exitCode ?? 0);
 }
 
-// `import-gltf` is the name this command shipped under; it reads any of the
-// model sources now, and the old spelling keeps working.
-if (opts.command === 'import-model' || opts.command === 'import-gltf') {
-  const { mod: reader, cleanup: cleanupReader } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'readModelSource.ts'), 'readModelSource.mjs');
-  const { mod: importer, cleanup } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'modelImport.ts'), 'modelImport.mjs');
-  // The products are project assets, so they get their `.meta` here rather than
-  // waiting for a scan — which is also the only moment the source's own import
-  // settings (a sampler's filter and wrap) are still in hand.
-  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
-  let imported = 0;
+if (SOURCE_COMMANDS.has(opts.command)) {
+  if (opts.specularMap && !['color', 'orm'].includes(opts.specularMap)) {
+    console.error(`--specular-map must be color or orm, not "${opts.specularMap}"`);
+    process.exit(2);
+  }
+  const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src/assets/importSourceFile.ts'), 'importSourceFile.mjs');
   try {
+    const type = mod.sourceTypeFor(opts.source);
+    const modelCommand = opts.command === 'import-model' || opts.command === 'import-gltf';
+    if (!type || (modelCommand && type !== 'model') || (opts.command === 'import-hdr' && type !== 'panorama')) {
+      throw new Error(`${opts.command} cannot import ${path.basename(opts.source)}`);
+    }
     const sourceDir = path.dirname(opts.source);
     const dir = opts.out ?? sourceDir;
-    const stem = reader.modelStem(opts.source);
-    // A component's asset ref is project-relative, so the products can only be
-    // named once the project root is known; without one they are bare names.
-    const root = opts.project ?? findProjectRoot(sourceDir);
-    const projectRef = (abs) => path.relative(root, abs).split(path.sep).join('/');
-    let characters = false;
-    let springBones = false;
-    try {
-      const importerMeta = JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer;
-      characters = importerMeta?.characterMaterials === 'auto';
-      springBones = importerMeta?.springBones === 'auto';
-    } catch { /* no meta: the schema's default */ }
-    const refs = root
-      ? { prefix: projectRef(dir) ? `${projectRef(dir)}/` : '',
-          external: (uri) => projectRef(path.resolve(sourceDir, uri)), characters, springBones }
-      : { characters, springBones };
-
-    const { meshes, textures, nodes, animations, warnings } = await reader.readModelSource(
-      new Uint8Array(readFileSync(opts.source)), stem,
-      {
-        filename: opts.source,
-        externalBuffers: (uri) => {
-          const abs = path.join(sourceDir, uri);
-          return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
-        },
-        specularMap: specularMapFor(opts),
+    const project = opts.project ?? findProjectRoot(dir) ?? findProjectRoot(sourceDir);
+    const location = mod.sourceImportLocation(opts.source, dir, project);
+    if (type === 'model' && !project) console.warn('  ! no project found above the source or output — refs are relative to the output (pass --project <dir>)');
+    else if (project && project !== location.root) console.warn('  ! the output is outside the project — refs are relative to the output');
+    const report = (file, detail) => console.log(`${path.relative(process.cwd(), path.resolve(location.root, file))}: ${detail}`);
+    const result = await mod.importSourceFile({
+      ...location,
+      model: {
+        ...(opts.scale !== undefined && { scale: opts.scale }),
+        ...(opts.specularMap && { specularMap: opts.specularMap }),
+        ...(opts.lightmapUV && { lightmapUV: true }),
+        ...(Number.isFinite(opts.lodLevels) && { lodLevels: Math.min(3, Math.max(0, Math.floor(opts.lodLevels))) }),
       },
-    );
-    if (lightmapUVFor(opts)) warnings.push(...importer.applyLightmapUV(meshes));
-    warnings.push(...await importer.generateLods(meshes, lodSettingsFor(opts)));
-    if (characters) importer.orderHairTriangles(meshes);
-    for (const w of warnings) console.warn(`  ! ${w}`);
-    if (!root && meshes.length > 0) {
-      console.warn('  ! no project found above the source — refs are bare file names'
-        + ' (pass --project <dir>)');
-    }
-    const report = (file, what) =>
-      console.log(`${path.relative(process.cwd(), file)}: ${what}`);
-    // Settings the source asked for, by product name; only ever the FIRST mint.
-    const settings = new Map();
-    const externalImages = new Set();
-    for (const [file, { external, settings: asked }] of importer.importedImageSettings(meshes)) {
-      settings.set(external ? path.resolve(sourceDir, file) : file, asked);
-      if (external) externalImages.add(path.resolve(sourceDir, file));
-    }
-    const adopt = (file) => meta.adoptOrphan(file, settings.get(file) ?? settings.get(path.basename(file)));
-
-    // An image the source names on disk is referenced where it lies, so it has to
-    // be an asset too: an export resolves refs through the registry, and a file
-    // with no sidecar is one it does not ship.
-    for (const file of externalImages) {
-      if (!existsSync(file)) {
-        console.warn(`  ! ${path.relative(process.cwd(), file)} is referenced by the model and does not exist`);
-        continue;
-      }
-      if ((await adopt(file)) === 'adopted') report(file, 'registered');
-    }
-
-    for (const mesh of meshes) {
-      const outFile = path.join(dir, `${mesh.name}.esmesh`);
-      writeFileSync(outFile, importer.encodeImportedMesh(mesh));
-      await adopt(outFile);
-      report(outFile, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
-      for (const [i, lod] of (mesh.lods ?? []).entries()) {
-        const lodFile = path.join(dir, `${importer.lodName(mesh, i + 1)}.esmesh`);
-        writeFileSync(lodFile, importer.encodeGeneratedLod(lod));
-        await adopt(lodFile);
-        report(lodFile, `LOD ${i + 1}: ${lod.triangleCount} triangles`);
+      environment: {
+        ...(opts.faceSize !== undefined && { faceSize: opts.faceSize }),
+        ...(Number.isFinite(opts.skyWidth) && opts.skyWidth >= 0 && { skyWidth: opts.skyWidth }),
+      },
+      onProduct: report,
+    });
+    for (const warning of result.warnings) console.warn(`  ! ${warning}`);
+    if (type !== 'model') {
+      for (const file of result.products) {
+        let detail = 'imported';
+        if (result.report) {
+          if (file.endsWith('.esenv')) detail = `irradiance + ${result.report.faceSize}px reflection`;
+          else if (file.endsWith('_sky.png')) detail = "the sky, at the panorama's resolution";
+          else detail = `${result.report.mipCount} prefiltered mips`;
+        }
+        report(file, detail);
       }
     }
-    for (const texture of textures) {
-      const outFile = path.join(dir, texture.name);
-      writeFileSync(outFile, texture.bytes);
-      await adopt(outFile);
-      report(outFile, `${texture.bytes.length} bytes`);
-    }
-    for (const material of importer.materialProducts(meshes, stem, refs)) {
-      const outFile = path.join(dir, `${material.name}.esmaterial`);
-      writeFileSync(outFile, `${JSON.stringify(material.data, null, 2)}\n`);
-      await adopt(outFile);
-      report(outFile, Object.keys(material.data.properties).join(', '));
-    }
-    let firstClip;
-    for (const animation of animations) {
-      const outFile = path.join(dir, `${animation.name}.estimeline`);
-      writeFileSync(outFile, `${JSON.stringify(animation.document, null, 2)}\n`);
-      await adopt(outFile);
-      const tracks = animation.document.tracks.length;
-      report(outFile, `${animation.document.duration}s, ${tracks} track${tracks === 1 ? '' : 's'}`);
-      firstClip ??= `${refs.prefix ?? ''}${animation.name}.estimeline`;
-    }
-    if (meshes.length > 0) {
-      const outFile = path.join(dir, `${stem}.esprefab`);
-      const prefab = importer.assembleModelPrefab(
-        stem, meshes, { refs, nodes, scale: opts.scale, timeline: firstClip });
-      writeFileSync(outFile, `${JSON.stringify(prefab, null, 2)}\n`);
-      await adopt(outFile);
-      report(outFile, `${prefab.entities.length} entit${prefab.entities.length === 1 ? 'y' : 'ies'}`);
-
-      // A glTF is authored in metres and a world unit is a design pixel, so a
-      // real-world model arrives a few pixels across unless --scale says otherwise.
-      const extent = Math.max(...meshes.flatMap(
-        (m) => m.data.aabbMax.map((v, i) => v - m.data.aabbMin[i])));
-      if (opts.scale === 1 && extent < 8) {
-        console.warn(`  ! the model is ${extent.toFixed(2)} units across — models are authored`
-          + ' in metres and a world unit is a design pixel; pass --scale if it should be bigger');
-      }
-    }
-    imported = meshes.length;
-  } finally {
-    cleanupReader();
-    cleanup();
-    cleanupMeta();
-  }
-  process.exit(imported > 0 ? 0 : 1);
+    if (type === 'model' && !result.products.some(file => file.endsWith('.esprefab'))) process.exitCode = 1;
+  } catch (error) {
+    console.error(`${opts.command}: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  } finally { cleanup(); }
+  process.exit(process.exitCode ?? 0);
 }
 
 if (opts.command === 'adopt') {
@@ -1089,46 +977,6 @@ if (opts.command === 'bake-scene') {
     cleanup();
     cleanupMeta();
   }
-}
-
-if (opts.command === 'import-hdr') {
-  const { mod: importer, cleanup } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'environmentImport.ts'), 'environmentImport.mjs');
-  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
-    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
-  try {
-    const sourceDir = path.dirname(opts.source);
-    const dir = opts.out ?? sourceDir;
-    const stem = path.basename(opts.source).replace(/\.hdr$/i, '');
-    const result = importer.importEnvironment(
-      new Uint8Array(readFileSync(opts.source)), stem, { faceSize: opts.faceSize, skyWidth: opts.skyWidth });
-    for (const w of result.warnings) console.warn(`  ! ${w}`);
-    const report = (file, what) =>
-      console.log(`${path.relative(process.cwd(), file)}: ${what}`);
-
-    const atlasFile = path.join(dir, result.atlasName);
-    writeFileSync(atlasFile, result.atlasBytes);
-    await meta.adoptOrphan(atlasFile, { ...importer.ENV_IMAGE_SETTINGS });
-    report(atlasFile, `${result.document.mipCount} prefiltered mips`);
-    if (result.sky) {
-      const skyFile = path.join(dir, result.sky.name);
-      writeFileSync(skyFile, result.sky.bytes);
-      await meta.adoptOrphan(skyFile, { ...importer.ENV_IMAGE_SETTINGS });
-      result.document.sky = result.sky.name;
-      report(skyFile, 'the sky, at the panorama\'s resolution');
-    }
-
-    // Beside the document, the way an imported material names its images.
-    result.document.specular = result.atlasName;
-    const envFile = path.join(dir, `${stem}.esenv`);
-    writeFileSync(envFile, `${JSON.stringify(result.document, null, 2)}\n`);
-    await meta.adoptOrphan(envFile);
-    report(envFile, `irradiance + ${result.document.faceSize}px reflection`);
-  } finally {
-    cleanup();
-    cleanupMeta();
-  }
-  process.exit(0);
 }
 
 if (opts.platform === 'server') {

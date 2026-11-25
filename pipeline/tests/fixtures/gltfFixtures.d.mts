@@ -4,6 +4,9 @@
 /** One triangle as a `.gltf`, its bytes stored plainly. */
 export function plainTriangle(): Uint8Array;
 
+/** A triangle on a named node with a rotation animation. */
+export function animatedTriangle(): Uint8Array;
+
 /** The same triangle with every bufferView meshopt-compressed. */
 export function meshoptTriangle(): Promise<Uint8Array>;
 

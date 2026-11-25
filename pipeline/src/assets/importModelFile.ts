@@ -11,12 +11,13 @@
 import { rebindStrayVertices } from './strayJoints';
 import { extractRootMotion } from './rootMotionExtract';
 import { maxBonesFor, type SkinningConfig } from '../project/skinning';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
-import { adoptOrphan, metaUuidOf, recordImportSource } from './assetMeta';
+import { isInsideRoot } from '../fs/pathSandbox';
+import { adoptOrphan } from './assetMeta';
+import { sourceProductWriter, type SourceFileLocation } from './sourceProducts';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
     capTriangles, clusterMeshes, generateLods, buildSkins, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
@@ -69,19 +70,13 @@ export interface ImportedModel {
     clips: Map<string, string>;
 }
 
-export interface ImportModelOptions {
-    /** The project root; every product lands inside it. */
-    root: string;
-    /** Project-relative folder for the products. */
-    destDir: string;
-    /** The model file. It may lie outside the project (a source being taken over), in which case it is only read. */
-    absSource: string;
+export interface ImportModelOptions extends SourceFileLocation {
     /** Where the source's own relative uris resolve from, when it is not beside the source. */
     originDir?: string;
     /** Overrides for what the source's `.meta` says. */
     settings?: Partial<ModelImportSettings>;
-    /** Called with the project-relative path just before a file is written. */
-    beforeWrite?(rel: string): Promise<void> | void;
+    /** Optional diagnostics for the command-line import. */
+    onProduct?(rel: string, detail: string): void;
 }
 
 const DEFAULTS: ModelImportSettings = {
@@ -131,10 +126,6 @@ function collectNodeMeshes(nodes: ImportedNode[], meshFiles: string[], out: Map<
     }
 }
 
-/**
- * Import `absSource` into `destDir` of the project at `root`, writing the meshes, the images it carries, the materials, the clips and the
- * prefab that assembles them.
- */
 /** The project's skinning settings (`features.rendering.skinning`), or none when it states none or is no project. */
 function projectSkinning(root: string): SkinningConfig | undefined {
   try {
@@ -159,10 +150,9 @@ function projectUnitsPerMeter(root: string): number {
   }
 }
 
+/** Write the model's meshes, images, materials, animation clips and assembled prefab into the destination. */
 export async function importModelFile(opts: ImportModelOptions): Promise<ImportedModel> {
-    const { root, destDir, absSource } = opts;
-    const absDir = destDir ? resolveInside(root, destDir, 'model destination') : path.resolve(root);
-    await mkdir(absDir, { recursive: true });
+    const { root, projectRoot = root, destDir, absSource } = opts;
     const sourceDir = opts.originDir ?? path.dirname(absSource);
     const stem = modelStem(absSource);
     const projectRef = (abs: string): string => path.relative(path.resolve(root), abs).split(path.sep).join('/');
@@ -217,7 +207,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     if (characters) orderHairTriangles(meshes);
     // Last of the geometry: a chunk is a run of the triangles in the order they are written. Every platform's bone budget;
     // an export for a platform with a smaller one splits again (cookAssets).
-    const skinning = projectSkinning(root);
+    const skinning = projectSkinning(projectRoot);
     warnings.push(...buildSkins(meshes, {
         maxBonesPerChunk: maxBonesFor(skinning),
         influenceLimit: boneInfluenceLimit || skinning?.boneInfluenceLimit || 0,
@@ -228,22 +218,10 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const imageSettings = new Map<string, Record<string, unknown>>(
         [...importedImageSettings(meshes)].map(([file, { settings }]) => [file, { ...settings }]));
 
-    // The model a product is made from, by its uuid: each product says so in its `.meta` (`source`), which is what the
-    // Content Browser folds it under the model by. A model inside the project is given its `.meta` first if it has none
-    // yet; one read from outside (a source being taken over) has no asset to fold under.
-    const sourceInProject = isInsideRoot(root, absSource);
-    if (sourceInProject) await adoptOrphan(absSource);
-    const sourceUuid = sourceInProject ? await metaUuidOf(absSource) : null;
-
-    const products: string[] = [];
-    const write = async (name: string, bytes: Uint8Array | string): Promise<string> => {
-        const rel = destDir ? `${destDir}/${name}` : name;
-        await opts.beforeWrite?.(rel);
-        await writeFile(path.join(absDir, name), bytes);
-        // keeps the uuid a re-import must not change
-        await adoptOrphan(path.join(absDir, name), imageSettings.get(name));
-        if (sourceUuid) await recordImportSource(path.join(absDir, name), sourceUuid);
-        products.push(rel);
+    const { absDir, products, write: writeProduct } = await sourceProductWriter(opts);
+    const write = async (name: string, bytes: Uint8Array | string, detail?: string): Promise<string> => {
+        const rel = await writeProduct(name, bytes, abs => adoptOrphan(abs, imageSettings.get(name)));
+        opts.onProduct?.(rel, detail ?? `${bytes.length} bytes`);
         return rel;
     };
 
@@ -256,7 +234,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         if (!existsSync(abs)) continue;
         if (isInsideRoot(root, abs)) {
             // Minted only if it has no `.meta` yet: a data map must not arrive as colour.
-            await adoptOrphan(abs, imageSettings.get(uri));
+            if (await adoptOrphan(abs, imageSettings.get(uri)) === 'adopted') opts.onProduct?.(projectRef(abs), 'registered');
             externalRefs.set(uri, projectRef(abs));
             continue;
         }
@@ -272,6 +250,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         await copyFile(abs, absDest);
         await adoptOrphan(absDest, imageSettings.get(uri));
         products.push(rel);
+        opts.onProduct?.(rel, 'copied');
         externalRefs.set(uri, rel);
     }
 
@@ -317,17 +296,17 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         // first imported before sharing was supported. New imports write only the
         // canonical product; the prefab always references it, including its LODs.
         if (previous === undefined || existsSync(path.join(absDir, `${mesh.name}.esmesh`))) {
-            await write(`${mesh.name}.esmesh`, bytes);
+            await write(`${mesh.name}.esmesh`, bytes, `${mesh.vertexCount} vertices, ${mesh.triangleCount} triangles`);
             for (const [i, lodBytes] of levels.entries()) {
-                await write(`${lodName(mesh, i + 1)}.esmesh`, lodBytes);
+                await write(`${lodName(mesh, i + 1)}.esmesh`, lodBytes, `LOD ${i + 1}: ${mesh.lods![i]!.triangleCount} triangles`);
             }
             // A skinned or morphing mesh moves its surface: a field baked from the bind pose would be a wrong wall.
             if (dynamicGI && !mesh.data.inverseBindMatrices && !mesh.data.morph) {
-                const field = bakeMeshSdf(mesh.data, { cellSize: (0.1 * projectUnitsPerMeter(root)) / Math.max(scale, 1e-6) });
+                const field = bakeMeshSdf(mesh.data, { cellSize: (0.1 * projectUnitsPerMeter(projectRoot)) / Math.max(scale, 1e-6) });
                 if (field) await write(`${mesh.name}.esmeshsdf`, encodeMeshSdf(field));
                 const m = mesh.material;
                 const cards = bakeMeshCards(mesh.data, {
-                    cell: (0.25 * projectUnitsPerMeter(root)) / Math.max(scale, 1e-6),
+                    cell: (0.25 * projectUnitsPerMeter(projectRoot)) / Math.max(scale, 1e-6),
                     baseColor: m ? [m.baseColor[0], m.baseColor[1], m.baseColor[2]] : undefined, emissive: m?.emissive,
                 });
                 if (cards) await write(`${mesh.name}.esmeshcards`, encodeMeshCards(cards));
@@ -337,7 +316,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     for (const texture of textures) await write(texture.name, texture.bytes);
     const refs = { prefix: destDir ? `${destDir}/` : '', external, characters, springBones, meshNames };
     for (const material of materialProducts(meshes, stem, refs)) {
-        await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`);
+        await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`, Object.keys(material.data.properties).join(', '));
     }
     let firstClip: string | undefined;
     const clips = new Map<string, string>();
@@ -347,19 +326,22 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
             const taken = extractRootMotion(animation.document, nodes, rootMotion);
             if (typeof taken === 'string') warnings.push(`${animation.name}: ${taken}`);
         }
-        const rel = await write(`${animation.name}.estimeline`, `${JSON.stringify(animation.document, null, 2)}\n`);
+        const tracks = Array.isArray(animation.document.tracks) ? animation.document.tracks.length : 0;
+        const rel = await write(`${animation.name}.estimeline`, `${JSON.stringify(animation.document, null, 2)}\n`,
+            `${animation.document.duration}s, ${tracks} track${tracks === 1 ? '' : 's'}`);
         firstClip ??= rel;
         clips.set(animation.name.startsWith(`${stem}_`) ? animation.name.slice(stem.length + 1) : animation.name, rel);
     }
     let prefabRef: string | undefined;
     if (meshes.length > 0) {
         const prefab = assembleModelPrefab(stem, meshes, { refs, nodes, scale, timeline: firstClip });
-        prefabRef = await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
+        prefabRef = await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`,
+            `${prefab.entities.length} entit${prefab.entities.length === 1 ? 'y' : 'ies'}`);
         // A model is authored in metres; what it measures in this project depends on the project's units per metre (Project Settings →
         // Physics → 3D: 100 unless set, 1 in a metre project). Under 8 cm in real terms, it is almost always a model whose Scale does not
         // match the project — said, not guessed at: the scale is the user's, and this is where they find out they have one.
         const extent = Math.max(...meshes.flatMap((m) => m.data.aabbMax.map((v, i) => v - (m.data.aabbMin[i] ?? 0))));
-        const unitsPerMeter = projectUnitsPerMeter(root);
+        const unitsPerMeter = projectUnitsPerMeter(projectRoot);
         const metres = (extent * scale) / unitsPerMeter;
         if (metres < 0.08 && scale !== unitsPerMeter) {
             warnings.push(`the model is ${metres.toFixed(3)} m across in this project (${unitsPerMeter} units a metre) — `
