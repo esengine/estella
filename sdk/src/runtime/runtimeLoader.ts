@@ -69,7 +69,9 @@ import {
 import type { DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { Catalog } from '../asset/Catalog';
-import { physics3dModuleId, type Physics3DBackend } from '../sideModules/registry';
+import { physics3dModuleId, type Physics3DBackend, type SideModuleId } from '../sideModules/registry';
+import type { SideModule, SideModuleHost } from '../sideModules/host';
+import { createAbort, type AbortHandle } from '../util/abort';
 import { physics3DInstallConfig, type Physics3DWorldConfig } from '../physics3d/worldConfig';
 import { setWorldUnitsPerMeter, setWorldGravity, REFERENCE_UNITS_PER_METER, STANDARD_GRAVITY } from '../ecs/worldUnits';
 
@@ -273,35 +275,41 @@ export function sceneUsesI18n(sceneData: SceneData): boolean {
     return false;
 }
 
-/**
- * Subsystem installs already in flight for this app.
- *
- * Every self-gating install below is a check, then an await for the module, then
- * an addPlugin — and two scenes arriving in one tick both pass the check. World
- * streaming makes that ordinary rather than rare.
- */
-const SubsystemInstalls = defineResource<{ lifetime: symbol; pending: Map<string, Promise<void>> }>(null!, 'SubsystemInstalls');
+/** Cells can share the module read even when they have different lifetimes or world settings. */
+const SceneModuleReads = defineResource<{
+    lifetime: symbol;
+    host: SideModuleHost;
+    pending: Map<SideModuleId, Promise<SideModule | null>>;
+}>(null!, 'SceneModuleReads');
 
-/**
- * Run `install` with no other caller for `key` inside it.
- *
- * The loop, rather than awaiting once: what finished was ANOTHER scene's
- * install, and this one still has to decide against the world that left behind.
- */
-async function installOnce(app: App, key: string, attempt: SceneLoadAttempt, install: () => Promise<void>): Promise<void> {
-    attempt.assertCurrent();
-    let state = app.hasResource(SubsystemInstalls) ? app.getResource(SubsystemInstalls) : undefined;
-    if (!state || state.lifetime !== attempt.lifetime) {
-        state = { lifetime: attempt.lifetime, pending: new Map() };
-        app.insertResource(SubsystemInstalls, state);
+function readSceneModule(app: App, host: SideModuleHost, lifetime: symbol, id: SideModuleId) {
+    let state = app.hasResource(SceneModuleReads) ? app.getResource(SceneModuleReads) : undefined;
+    if (!state || state.lifetime !== lifetime || state.host !== host) {
+        state = { lifetime, host, pending: new Map() };
+        app.insertResource(SceneModuleReads, state);
     }
-    const inFlight = state.pending;
-    let running = inFlight.get(key);
-    while (running) { await running; running = inFlight.get(key); }
+    const pending = state.pending;
+    const shared = pending.get(id);
+    if (shared) return shared;
+    const read = Promise.resolve().then(() => host.acquire(id)).finally(() => { pending.delete(id); });
+    pending.set(id, read);
+    return read;
+}
+
+async function prepareScenePhysics<T>(
+    app: App, attempt: SceneLoadAttempt, id: SideModuleId, supplied: T | null | undefined,
+    installs: Array<() => void>, support: { installed(app: App): boolean }, install: (module: T) => void,
+): Promise<void> {
     attempt.assertCurrent();
-    const started = install().finally(() => { inFlight.delete(key); });
-    inFlight.set(key, started);
-    await started;
+    if (support.installed(app)) return;
+    const host = app.sideModules;
+    const module = supplied ?? (host
+        ? await attempt.waitForShared(() => readSceneModule(app, host, attempt.lifetime, id)) as T | null
+        : null);
+    attempt.assertCurrent();
+    if (support.installed(app)) return;
+    if (module) installs.push(() => { if (!support.installed(app)) install(module); });
+    else log.warn(id, `scene requires ${id} but this realm could not supply its physics module`);
 }
 
 /** True if any entity carries a physics component, or a TilemapLayer that may spawn
@@ -339,6 +347,8 @@ export interface PreparedRuntimeScene {
     readonly lifetime?: symbol;
     /** What publication still needs; nothing here is in the world. */
     readonly options: LoadRuntimeSceneOptions;
+    /** @internal Ready modules whose world settings take effect when this scene publishes. */
+    readonly physicsInstalls?: ReadonlyArray<() => void>;
     readonly sceneData: SceneData;
     readonly assetResult: SceneAssetResult;
     readonly retainEntityAssets?: () => PreparedSpawnOwnership;
@@ -356,7 +366,7 @@ const saidNoPhysics = new WeakSet<App>();
 
 /**
  * Everything a scene load can do before the world can tell: fetch, expand,
- * acquire, install the subsystems it needs. Creates no entities.
+ * acquire, and ready the subsystems it needs. Creates no entities.
  *
  * The receipts are OWNED by what this returns — publishing moves them to the
  * scene, discarding gives them back. Never both, never acquired twice.
@@ -365,6 +375,10 @@ const saidNoPhysics = new WeakSet<App>();
  */
 export function prepareRuntimeScene(options: LoadRuntimeSceneOptions, sceneOwned = false): Promise<PreparedRuntimeScene> {
     const attempt = new SceneLoadAttempt(options.app.world, options.sceneName ?? options.sceneData.name);
+    return prepareWithAttempt(options, sceneOwned, attempt);
+}
+
+function prepareWithAttempt(options: LoadRuntimeSceneOptions, sceneOwned: boolean, attempt: SceneLoadAttempt): Promise<PreparedRuntimeScene> {
     return runSceneLoad(attempt, () => readRuntimeScene(options, attempt, sceneOwned));
 }
 
@@ -534,12 +548,9 @@ async function readRuntimeScene(
         }
     }
 
-    // Self-gating: install physics when the project declares it OR the scene uses
-    // it, so no runtime entry can forget to wire it. The module comes from the
-    // realm's side-module host (app.sideModules) — fetch / inlined / WeChat — or
-    // an explicit override for tests. Install once via addPlugin (also registers
-    // it in the observability surface).
-    let physicsModule = options.physicsModule ?? null;
+    // Read the physics modules this project or scene needs through its own realm.
+    // Publication installs the first live scene's world on each solver.
+    const physicsInstalls: Array<() => void> = [];
     const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
     if (!wantsPhysics) {
         // Once per game: said per scene, a streamed world said it for every cell it brought in.
@@ -548,16 +559,10 @@ async function readRuntimeScene(
             log.info('physics', 'not installed — not declared (features.physics) and scene has no physics components');
         }
     } else {
-        await installOnce(app, 'physics', attempt, async () => {
-            if (!physicsModule && app.sideModules) {
-                physicsModule = (await app.sideModules.acquire('physics')) as PhysicsWasmModule | null;
-                attempt.assertCurrent();
-            }
-            if (!physicsModule) {
-                log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — this realm has no side-module host or physics.wasm failed to load`);
-            } else if (!physicsSupport()) {
-                log.warn('physics', 'wanted, but this build ships without the 2D physics runtime');
-            } else if (!physicsSupport()!.installed(app)) {
+        const physics = physicsSupport();
+        if (!physics) log.warn('physics', 'wanted, but this build ships without the 2D physics runtime');
+        else {
+            await prepareScenePhysics(app, attempt, 'physics', options.physicsModule, physicsInstalls, physics, module2d => {
                 const gravity = physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY };
                 const config: Physics2DPluginConfig = {
                     gravity,
@@ -572,38 +577,26 @@ async function readRuntimeScene(
                 if (physicsConfig?.collisionLayerMasks) config.collisionLayerMasks = physicsConfig.collisionLayerMasks;
                 if (physicsConfig?.enableSleep !== undefined) config.enableSleep = physicsConfig.enableSleep;
                 if (physicsConfig?.enableContinuous !== undefined) config.enableContinuous = physicsConfig.enableContinuous;
-                physicsSupport()!.install(app, config, physicsModule);
+                physics.install(app, config, module2d);
                 log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
-            }
-        });
+            });
+        }
     }
 
     // The 3D world gates itself the same way, on its own components and its own
     // module: the two never share a solver, so a scene wanting one is not asking
     // for the other.
     if (sceneUses3DPhysics(sceneData)) {
-        await installOnce(app, 'physics3d', attempt, async () => {
-            const p3d = physics3dSupport();
-            if (!p3d) {
-                log.warn('physics3d', 'scene has 3D physics components but this build ships'
-                    + ' without the 3D physics runtime');
-                return;
-            }
-            if (p3d.installed(app)) return;
-            const module3d = options.physics3dModule
-                ?? (app.sideModules
-                    ? (await app.sideModules.acquire(physics3dModuleId(options.physics3dBackend))) as Physics3DWasmModule | null
-                    : null);
-            attempt.assertCurrent();
-            if (!module3d) {
-                log.warn('physics3d', 'scene has 3D physics components but no module loaded —'
-                    + ` this realm has no side-module host or the ${options.physics3dBackend ?? 'jolt'} module failed to load`);
-                return;
-            }
-            const config3d = physics3DInstallConfig(options.physics3dWorld, physicsConfig);
-            p3d.install(app, module3d, config3d);
-            log.info('physics3d', `installed (${config3d.pixelsPerUnit ?? 100} units per metre)`);
-        });
+        const physics = physics3dSupport();
+        if (!physics) log.warn('physics3d', 'scene has 3D physics components but this build ships without the 3D physics runtime');
+        else {
+            await prepareScenePhysics(app, attempt, physics3dModuleId(options.physics3dBackend), options.physics3dModule,
+                physicsInstalls, physics, module3d => {
+                    const config = physics3DInstallConfig(options.physics3dWorld, physicsConfig);
+                    physics.install(app, module3d, config);
+                    log.info('physics3d', `installed (${config.pixelsPerUnit ?? 100} units per metre)`);
+                });
+        }
     }
 
     // Self-gating i18n, mirroring physics: a scene that binds Text.i18nKey needs
@@ -648,7 +641,7 @@ async function readRuntimeScene(
 
     return {
         name: sceneName, lifetime: attempt.lifetime, options, sceneData, assetResult, retainEntityAssets, auxiliaryAssets,
-        spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered,
+        spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered, physicsInstalls,
     };
 }
 
@@ -668,6 +661,11 @@ function assertSceneContext(app: App, context?: SceneContext | null): void {
     }
 }
 
+function sceneAttempt(app: App, name: string, context?: SceneContext | null): SceneLoadAttempt {
+    return new SceneLoadAttempt(app.world, name, context
+        ? { signal: context.signal, check: () => assertSceneContext(app, context) } : undefined);
+}
+
 function guardedAssetProgress(
     assertCurrent: () => void, observer?: SceneLoadProgressCallback, scene?: SceneLoadProgressCallback,
 ): SceneLoadProgressCallback | undefined {
@@ -675,7 +673,10 @@ function guardedAssetProgress(
     return (loaded, total) => {
         assertCurrent();
         observer?.(loaded, total);
-        if (scene !== observer) scene?.(loaded, total);
+        if (scene && scene !== observer) {
+            assertCurrent();
+            scene(loaded, total);
+        }
     };
 }
 
@@ -700,14 +701,17 @@ export function publishRuntimeScene(
      */
     spread?: SpreadSceneSpawn,
 ): Promise<void> {
-    const attempt = new SceneLoadAttempt(prepared.options.app.world, prepared.name ?? prepared.sceneData.name);
+    const { app, sceneName } = prepared.options;
+    const context = now?.context !== undefined ? now.context
+        : sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
+    const attempt = sceneAttempt(app, prepared.name ?? prepared.sceneData.name, context);
     return runSceneLoad(attempt, () =>
-        publishPreparedScene(prepared, attempt, now, spread), prepared.assetResult);
+        publishPreparedScene(prepared, attempt, { ...now, context }, spread), prepared.assetResult);
 }
 
 async function publishPreparedScene(
     prepared: PreparedRuntimeScene, attempt: SceneLoadAttempt,
-    now?: PublicationTarget, spread?: SpreadSceneSpawn,
+    now: PublicationTarget, spread?: SpreadSceneSpawn,
 ): Promise<void> {
     const { sceneData, assetResult, spineManager, spineAssetInfo,
             dragonBonesManager, dragonBonesAssetInfo } = prepared;
@@ -716,16 +720,13 @@ async function publishPreparedScene(
         throw new SceneLoadCancelled(sceneName ?? sceneData.name);
     }
     const onPhase = attempt.observe(prepared.options.onPhase);
-    assertSceneContext(app, now?.context);
-    const links = now?.externalEntities;
+    const links = now.externalEntities;
     const externalEntities = (typeof links === 'function' ? links() : links) ?? prepared.options.externalEntities;
     attempt.assertCurrent();
     const timed = scenePhaseRunner(onPhase);
     const hasSceneManager = !!sceneName && app.hasResource(SceneManager);
-    const ctx = now?.context !== undefined ? now.context
-        : hasSceneManager ? app.getResource(SceneManager).getScene(sceneName) : null;
-    const assertScene = ctx ? () => assertSceneContext(app, ctx) : undefined;
-    const assertCurrent = () => { assertScene?.(); attempt.assertCurrent(); };
+    const ctx = now.context;
+    const assertCurrent = () => attempt.assertCurrent();
     /**
      * The synchronous sibling of `timed`, for the steps that ARE synchronous.
      *
@@ -743,13 +744,13 @@ async function publishPreparedScene(
     let entityMap: Map<number, Entity>;
     if (spread) {
         const spawning: StagedSpawn = { entities: new Map(), hidden: [] };
-        const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning, assertScene, attempt);
+        const job = spawnAndLoadEntitiesJob(app.world, sceneData, externalEntities, onPhase, true, spawning, undefined, attempt);
         try { staged = await spread(job); }
         finally { job.return(spawning); }
         entityMap = staged.entities;
     } else {
         entityMap = await timed('spawn', () =>
-            spawnAndLoadEntities(app.world, sceneData, externalEntities, onPhase, assertScene, attempt));
+            spawnAndLoadEntities(app.world, sceneData, externalEntities, onPhase, undefined, attempt));
     }
     assertCurrent();
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap, app.world);
@@ -819,6 +820,11 @@ async function publishPreparedScene(
         }
         assetResult.scope.releaseAll();
     }
+    // Only a scene that handed off its assets and entities can choose a solver and its world settings.
+    for (const install of prepared.physicsInstalls ?? []) {
+        assertCurrent();
+        install();
+    }
 }
 
 /**
@@ -828,8 +834,9 @@ async function publishPreparedScene(
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
     const { app, sceneName } = options;
     const context = sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
-    const onProgress = guardedAssetProgress(() => assertSceneContext(app, context), options.onProgress, context?.reportAssetProgress);
-    const prepared = await prepareRuntimeScene({ ...options, onProgress }, !!context);
+    const attempt = sceneAttempt(app, sceneName ?? options.sceneData.name, context);
+    const onProgress = guardedAssetProgress(() => attempt.assertCurrent(), options.onProgress, context?.reportAssetProgress);
+    const prepared = await prepareWithAttempt({ ...options, onProgress }, !!context, attempt);
     await publishRuntimeScene(prepared, { context });
 }
 
@@ -867,7 +874,8 @@ export function createRuntimeSceneConfig(
         done: Promise<PreparedRuntimeScene>;
         progress: SceneAssetProgress;
         ready?: PreparedRuntimeScene;
-        discarded: boolean;
+        cancel: AbortHandle;
+        attempt: SceneLoadAttempt;
         assertOwner?: () => void;
     }
     let preparation: Preparation | undefined;
@@ -899,9 +907,10 @@ export function createRuntimeSceneConfig(
         ? (): Promise<void> => (urgent || hurried ? Promise.resolve() : bakesOf(options.app).turn(config))
         : undefined;
     const readied = async (
-        sceneOwned: boolean | undefined, assertActive: () => void,
+        sceneOwned: boolean | undefined, attempt: SceneLoadAttempt,
         observer?: SceneLoadProgressCallback, sceneProgress?: SceneLoadProgressCallback,
     ): Promise<PreparedRuntimeScene> => {
+        const assertActive = () => attempt.assertCurrent();
         assertActive();
         const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
         let data = sceneData;
@@ -928,18 +937,19 @@ export function createRuntimeSceneConfig(
             data = await options.prepareDocument(data, assertActive);
             assertActive();
         }
-        return prepareRuntimeScene({
+        return prepareWithAttempt({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
             onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
-        }, sceneOwned ?? options.app.hasResource(SceneManager));
+        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt);
     };
     const discard = (pending: Preparation): number => {
-        pending.discarded = true;
+        if (pending.cancel.signal.aborted) return 0;
         pending.progress.close();
         if (streamed) bakesOf(options.app).release(config);
-        const scope = pending.ready?.assetResult.scope;
+        const scope = pending.attempt.assets?.scope;
         const owed = scope?.size ?? 0;
-        scope?.releaseAll();
+        try { pending.cancel.abort(new SceneLoadCancelled(name)); }
+        finally { scope?.releaseAll(); }
         return owed;
     };
     const config: SceneConfig = {
@@ -948,24 +958,21 @@ export function createRuntimeSceneConfig(
             if (!preparation) {
                 // Install the slot before a read or observer can reenter. Setup takes this
                 // same promise even when the assets it needs are still arriving.
+                const cancel = createAbort();
                 const pending: Preparation = {
-                    discarded: false,
+                    cancel, attempt: new SceneLoadAttempt(options.app.world, name, {
+                        signal: cancel.signal, check: () => pending.assertOwner?.(),
+                    }),
                     progress: new SceneAssetProgress(),
                     done: Promise.resolve().then(async () => {
-                        const assertActive = (): void => {
-                            if (pending.discarded) throw new SceneLoadCancelled(name);
-                            pending.assertOwner?.();
-                        };
-                        const ready = await readied(undefined, assertActive, pending.progress.report);
-                        if (pending.discarded) {
-                            ready.assetResult.scope.releaseAll();
-                            throw new SceneLoadCancelled(name);
-                        }
+                        const ready = await readied(undefined, pending.attempt, pending.progress.report);
+                        pending.attempt.assertCurrent();
                         pending.ready = ready;
                         return ready;
                     }).catch(error => {
                         pending.progress.close();
                         if (preparation === pending) preparation = undefined;
+                        pending.attempt.discardAssets();
                         throw error;
                     }),
                 };
@@ -998,20 +1005,27 @@ export function createRuntimeSceneConfig(
         async setup(context) {
             const pending = preparation;
             preparation = undefined;
-            const assertOwner = () => assertSceneContext(options.app, context);
             let ready: PreparedRuntimeScene;
             if (pending) {
-                pending.assertOwner = assertOwner;
-                try { pending.progress.observe(context?.reportAssetProgress); }
-                catch (error) {
-                    discard(pending);
-                    await pending.done.catch(() => undefined);
-                    throw error;
+                pending.assertOwner = () => assertSceneContext(options.app, context);
+                const signal = context?.signal;
+                const retire = () => { discard(pending); };
+                if (signal?.aborted) retire();
+                else signal?.addEventListener('abort', retire);
+                try {
+                    try { pending.progress.observe(context?.reportAssetProgress); }
+                    catch (error) {
+                        discard(pending);
+                        await pending.done.catch(() => undefined);
+                        throw error;
+                    }
+                    ready = await pending.done;
+                } finally {
+                    signal?.removeEventListener('abort', retire);
+                    pending.progress.close();
                 }
-                ready = await pending.done;
-                pending.progress.close();
             } else {
-                ready = await readied(!!context, assertOwner, options.onProgress, context?.reportAssetProgress);
+                ready = await readied(!!context, sceneAttempt(options.app, name, context), options.onProgress, context?.reportAssetProgress);
             }
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);

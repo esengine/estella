@@ -10,26 +10,28 @@
  *          one does the part a maker of chunks reads: `aborted`, `reason`, `onabort`
  *          and listeners, and `throwIfAborted`.
  */
+import { log } from './logger';
 
 export interface AbortHandle {
     readonly signal: AbortSignal;
     abort(reason?: unknown): void;
 }
 
+type AbortEvent = { type: 'abort' };
+type AbortListener = ((event: AbortEvent) => void) | { handleEvent(event: AbortEvent): void };
+
 class FallbackSignal {
     aborted = false;
     reason: unknown = undefined;
-    onabort: ((event: { type: 'abort' }) => void) | null = null;
-    private listeners_: Array<(event: { type: 'abort' }) => void> = [];
+    onabort: ((event: AbortEvent) => void) | null = null;
+    private listeners_ = new Set<AbortListener>();
 
-    addEventListener(type: string, listener: (event: { type: 'abort' }) => void): void {
-        if (type === 'abort') this.listeners_.push(listener);
+    addEventListener(type: string, listener: AbortListener | null): void {
+        if (type === 'abort' && listener && !this.aborted) this.listeners_.add(listener);
     }
 
-    removeEventListener(type: string, listener: (event: { type: 'abort' }) => void): void {
-        if (type !== 'abort') return;
-        const i = this.listeners_.indexOf(listener);
-        if (i >= 0) this.listeners_.splice(i, 1);
+    removeEventListener(type: string, listener: AbortListener | null): void {
+        if (type === 'abort' && listener) this.listeners_.delete(listener);
     }
 
     throwIfAborted(): void {
@@ -41,8 +43,15 @@ class FallbackSignal {
         this.aborted = true;
         this.reason = reason ?? Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
         const event = { type: 'abort' as const };
-        this.onabort?.(event);
-        for (const listener of this.listeners_.slice()) listener(event);
+        const notify = (listener: AbortListener): void => {
+            try {
+                if (typeof listener === 'function') listener.call(this, event);
+                else listener.handleEvent(event);
+            } catch (error) { log.warn('abort', 'Abort listener failed', error); }
+        };
+        if (this.onabort) notify(this.onabort);
+        for (const listener of this.listeners_) notify(listener);
+        this.listeners_.clear();
     }
 }
 

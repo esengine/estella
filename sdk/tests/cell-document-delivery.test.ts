@@ -9,40 +9,46 @@
  * from both sides, or the branch could be removed and only a build would notice.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { createRuntimeSceneConfig } from '../src/runtime/runtimeLoader';
+import { App } from '../src/app/app';
+import { EmbeddedBackend } from '../src/asset/Backend';
+import { createRuntimeSceneConfig, loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
 
 const FETCHED = 'the loader reached for the path';
 
-const doc = { version: '1.0', name: 'cell_0_0', entities: [] } as unknown as SceneData;
+const doc: SceneData = { version: '1.0', name: 'cell_0_0', entities: [] };
 
-/** An app whose only observable behaviour is whether a fetch was attempted, as JSON or as text. */
-function appThatRefusesToFetch() {
-  const fetchJson = vi.fn(() => { throw new Error(FETCHED); });
-  return { fetchJson, app: { getResource: () => ({ fetchJson, fetchText: fetchJson }) } as never };
+async function runtimeThatRefusesToFetch() {
+  const app = App.new(), backend = new EmbeddedBackend({});
+  const fetchText = vi.spyOn(backend, 'fetchText').mockRejectedValue(new Error(FETCHED));
+  const options = { app, module: null, source: { backend, decodePixels: async () => { throw new Error('unexpected image'); } } };
+  await loadRuntimeScene({ ...options, sceneData: { ...doc, name: 'entry' } });
+  return { app, options, fetchText };
 }
-
-const opts = (app: unknown) => ({ app, module: null, source: {} } as never);
 
 describe('a registered scene with a document', () => {
   it('never asks the backend for its path', async () => {
-    const { app, fetchJson } = appThatRefusesToFetch();
-    const config = createRuntimeSceneConfig('cell_0_0', doc, opts(app), 'world/cell_0_0.json');
-    // prepare goes on to need a real app; which step it fails at is the point.
-    await config.prepare!().catch((e: Error) => expect(e.message).not.toContain(FETCHED));
-    expect(fetchJson).not.toHaveBeenCalled();
+    const { app, fetchText, options } = await runtimeThatRefusesToFetch();
+    const config = createRuntimeSceneConfig('cell_0_0', doc, options, 'world/cell_0_0.json');
+    try {
+      await config.prepare!();
+      expect(fetchText).not.toHaveBeenCalled();
+    } finally { config.discardPrepared!(); app.quit(); }
   });
 
   it('does ask when it was given only a path, so the case above is a choice', async () => {
-    const { app, fetchJson } = appThatRefusesToFetch();
-    const config = createRuntimeSceneConfig('cell_0_0', undefined, opts(app), 'world/cell_0_0.json');
-    await expect(config.prepare!()).rejects.toThrow(FETCHED);
-    expect(fetchJson).toHaveBeenCalledWith('world/cell_0_0.json');
+    const { app, fetchText, options } = await runtimeThatRefusesToFetch();
+    const config = createRuntimeSceneConfig('cell_0_0', undefined, options, 'world/cell_0_0.json');
+    try {
+      await expect(config.prepare!()).rejects.toThrow(FETCHED);
+      expect(fetchText).toHaveBeenCalledWith('world/cell_0_0.json');
+    } finally { app.quit(); }
   });
 
   it('says so when it was given neither, rather than bringing up an empty scene', async () => {
-    const { app } = appThatRefusesToFetch();
-    await expect(createRuntimeSceneConfig('cell_0_0', undefined, opts(app)).prepare!())
-      .rejects.toThrow(/neither data nor path/);
+    const { app, options } = await runtimeThatRefusesToFetch();
+    try {
+      await expect(createRuntimeSceneConfig('cell_0_0', undefined, options).prepare!()).rejects.toThrow(/neither data nor path/);
+    } finally { app.quit(); }
   });
 });

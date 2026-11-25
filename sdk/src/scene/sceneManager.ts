@@ -122,6 +122,8 @@ export interface SceneConfig {
 export interface SceneContext {
     readonly name: string;
     readonly entities: ReadonlySet<Entity>;
+    /** Aborts when this scene instance retires, including unload, failed setup and world reset. */
+    readonly signal?: AbortSignal;
     /** Report asset counts from a custom scene loader to callers observing this load. */
     readonly reportAssetProgress?: SceneLoadProgressCallback;
     spawn(): Entity;
@@ -180,6 +182,7 @@ export interface TransitionOptions {
 
 class SceneInstance {
     readonly config: SceneConfig;
+    readonly cancellation = createAbort();
     readonly entities = new Set<Entity>();
     readonly drawCallbacks = new Map<string, () => void>();
     readonly postProcessBindings = new Map<Entity, SceneCameraBinding>();
@@ -238,6 +241,8 @@ class SceneContextImpl implements SceneContext {
     get name(): string {
         return this.instance_.config.name;
     }
+
+    get signal(): AbortSignal { return this.instance_.cancellation.signal; }
 
     get entities(): ReadonlySet<Entity> {
         return this.instance_.entities;
@@ -785,6 +790,7 @@ export class SceneManagerState {
     ): Promise<void> | void {
         const { survivors, doomed } = this.partitionOnUnload_(instance, survival);
         const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed, instance.lifetime);
+        if (!instance.cancellation.signal.aborted) instance.cancellation.abort(new SceneLoadCancelled(instance.config.name));
         for (const survivor of survivors) {
             batch.release(survivor);
             this.promoteToGlobal_(instance, survivor, wasSleeping);

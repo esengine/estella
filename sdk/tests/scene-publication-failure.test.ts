@@ -9,6 +9,7 @@ import { EmbeddedBackend } from '../src/asset/Backend';
 import { AssetScope, ownedAssetLease } from '../src/asset/AssetLease';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { App } from '../src/app/app';
+import { registerPhysics2DSupport } from '../src/physics/physicsSupport';
 import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
 import { SceneLoadCancelled, SceneManager, SceneManagerState, type SceneConfig } from '../src/scene/sceneManager';
 import { bakesOf } from '../src/runtime/bakes';
@@ -41,6 +42,73 @@ function barrier() {
     const promise = new Promise<void>(resolve => { open = resolve; });
     return { open, promise };
 }
+
+describe('scene-owned physics preparation', () => {
+    it('keeps the solver out of the world when the scene rejects its asset handoff', async () => {
+        registerPhysics2DSupport();
+        const { app, options, assets, unloaded } = await runtime();
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        app.setSideModules({ acquire: async () => ({}) });
+        const install = vi.spyOn(app, 'addPlugin').mockImplementation(() => app);
+        const failure = new Error('ownership transfer failed');
+        manager.register({ name: 'cell', setup: ctx => {
+            vi.spyOn(ctx, 'trackAssetScope').mockImplementation(() => { throw failure; });
+            return loadRuntimeScene({ ...options, sceneName: 'cell', sceneData: scene, physicsEnabled: true });
+        } });
+        try {
+            await expect(manager.loadAdditive('cell')).rejects.toBe(failure);
+            expect(install).not.toHaveBeenCalled();
+            expect(app.world.getAllEntities()).toHaveLength(0);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
+    it.each(['prefetch', 'adopted prefetch', 'direct named load'])('releases the %s and its mesh while its module is pending', async entry => {
+        registerPhysics2DSupport();
+        const { app, options, assets, unloaded } = await runtime();
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const reading = barrier(), finish = barrier(), setup = barrier();
+        app.setSideModules({ acquire: async () => { reading.open(); await finish.promise; return null; } });
+        const data = { ...scene, entities: [{ ...scene.entities[0]!, components: [
+            ...scene.entities[0]!.components, { type: 'RigidBody2D', data: {} },
+        ] }] };
+        const config = createRuntimeSceneConfig('cell', data, options);
+        const populate = config.setup!;
+        config.setup = ctx => {
+            setup.open();
+            return entry === 'direct named load' ? loadRuntimeScene({ ...options, sceneName: 'cell', sceneData: data }) : populate(ctx);
+        };
+        manager.register(config);
+        const stopped = (promise: Promise<unknown>) => expect(promise).rejects.toBeInstanceOf(SceneLoadCancelled);
+        const work = [];
+        try {
+            if (entry !== 'direct named load') work.push(stopped(manager.prepare('cell')));
+            if (entry === 'adopted prefetch') await reading.promise;
+            if (entry !== 'prefetch') {
+                work.push(stopped(manager.loadAdditive('cell')));
+                await setup.promise;
+            }
+            await reading.promise;
+            expect(assets.sizes().refRows).toBe(1);
+            if (entry === 'prefetch') {
+                expect(manager.discardPrepared('cell')).toBe(1);
+                expect(manager.discardPrepared('cell')).toBe(0);
+            } else {
+                const signal = manager.getScene('cell')!.signal!;
+                expect(signal.aborted).toBe(false);
+                await manager.unload('cell');
+                expect(signal.reason).toBeInstanceOf(SceneLoadCancelled);
+            }
+            await Promise.all(work);
+            expect(assets.sizes().refRows).toBe(0);
+            expect(unloaded).toHaveBeenCalledOnce();
+            expect(app.world.getAllEntities()).toHaveLength(0);
+        } finally { finish.open(); await Promise.allSettled(work); assets.releaseAll(); app.quit(); }
+    });
+});
 
 describe('scene asset discovery', () => {
     it.each(['authored', 'packaged'])('uses the same %s declarations for reads and entity lifetimes', async entry => {

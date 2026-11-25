@@ -11051,6 +11051,7 @@ name: string
 registerDrawCallback: (id: string, fn: DrawCallback) => void
 reportAssetProgress: SceneLoadProgressCallback | undefined
 setPersistent: (entity: Entity, persistent: boolean) => void
+signal: AbortSignal | undefined
 spawn: () => Entity
 trackAssetScope: (scope: AssetScope, auxiliary?: ReadonlyMap<Entity, readonly AssetLease[]>) => void
 trackAssets: (byType: ReadonlyMap<string, ReadonlySet<string>>) => void

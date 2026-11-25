@@ -527,6 +527,25 @@ describe('SceneManager', () => {
     // Pause / Resume
     // =========================================================================
     describe('pause / resume', () => {
+        it('keeps the instance signal live across pause and sleep, then aborts it once on retirement', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            const first = await manager.loadAdditive('level1');
+            const aborted = vi.fn();
+            first.signal!.addEventListener('abort', aborted);
+            manager.pause('level1');
+            manager.resume('level1');
+            manager.sleep('level1');
+            manager.wake('level1');
+            expect(first.signal!.aborted).toBe(false);
+            await manager.unload('level1');
+            const second = await manager.loadAdditive('level1');
+            expect(second.signal!.aborted).toBe(false);
+            expect(second.signal).not.toBe(first.signal);
+            manager.reset();
+            expect(second.signal!.aborted).toBe(true);
+            expect(aborted).toHaveBeenCalledOnce();
+        });
+
         it('pause() sets status=paused and adds to pausedScenes', async () => {
             manager.register({ name: 'level1', data: makeSceneData() });
             await manager.load('level1');

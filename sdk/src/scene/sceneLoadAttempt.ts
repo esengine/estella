@@ -22,32 +22,61 @@ export class SceneLoadAttempt {
     readonly lifetime: symbol;
     private watching = false;
 
-    constructor(private readonly world: World, private readonly name: string) {
+    constructor(private readonly world: World, private readonly name: string,
+        private readonly owner?: { signal?: AbortSignal; check?(): void }) {
         this.lifetime = world.entityLifetime;
     }
 
     assertCurrent(): void {
-        if (this.world.entityLifetime !== this.lifetime) throw new SceneLoadCancelled(this.name);
+        if (this.world.entityLifetime !== this.lifetime || this.owner?.signal?.aborted) throw new SceneLoadCancelled(this.name);
+        this.owner?.check?.();
     }
 
     observe(sink?: ScenePhaseSink): ScenePhaseSink | undefined {
         if (!sink) return undefined;
         return (phase, ms) => {
             if (this.world.entityLifetime !== this.lifetime) return;
+            this.assertCurrent();
             sink(phase, ms);
             this.assertCurrent();
         };
     }
 
-    /** A staged spawn and its outer publication share one disconnect listener. */
+    private onCancel_(cancel: () => void): () => void {
+        const release = this.world.onCoreDisconnect(cancel);
+        const signal = this.owner?.signal;
+        signal?.addEventListener('abort', cancel);
+        return () => { signal?.removeEventListener('abort', cancel); release(); };
+    }
+
+    /** Stop waiting for shared data when this scene retires. The underlying read still serves its other callers. */
+    async waitForShared<T>(read: () => Promise<T>): Promise<T> {
+        this.assertCurrent();
+        let release: (() => void) | undefined;
+        try {
+            const value = await new Promise<T>((resolve, reject) => {
+                release = this.onCancel_(() => reject(new SceneLoadCancelled(this.name)));
+                read().then(resolve, reject);
+            });
+            this.assertCurrent();
+            return value;
+        } finally { release?.(); }
+    }
+
+    /** A staged spawn and its outer publication share the same cancellation cleanup. */
     watch(): () => void {
         if (this.watching) return () => {};
         this.watching = true;
-        const release = this.world.onCoreDisconnect(() => {
+        const release = this.onCancel_(() => {
             try { this.discardEntities(); }
-            finally { this.assets?.scope.releaseAll(); }
+            finally { this.discardAssets(); }
         });
         return () => { this.watching = false; release(); };
+    }
+
+    discardAssets(): void {
+        try { this.assets?.scope.releaseAll(); }
+        catch (error) { log.warn('scene', 'Scene asset cleanup failed', error); }
     }
 
     discardEntities(): void {
@@ -79,8 +108,7 @@ export async function runSceneLoad<T>(
         return value;
     } catch (error) {
         attempt.discardEntities();
-        try { attempt.assets?.scope.releaseAll(); }
-        catch (cleanupError) { log.warn('scene', 'Scene asset cleanup failed', cleanupError); }
+        attempt.discardAssets();
         throw error;
     } finally { release(); }
 }

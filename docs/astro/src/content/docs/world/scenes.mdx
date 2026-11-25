@@ -102,6 +102,14 @@ despawns the entities it owns.
 A code-defined scene receives its context in `setup(ctx)`. Elsewhere, `getScene(name)` returns the context of a
 loaded scene.
 
+The scene manager gives each instance its own `ctx.signal`. Pass it to asynchronous work such as
+`fetch(url, { signal: ctx.signal })` to cancel that work when the instance unloads, its setup fails,
+or its world resets. Pausing or sleeping the scene keeps the signal live.
+
+Preloading a scene can fetch its 2D or 3D physics module. The first scene to publish with that solver
+installs it with its world settings. Discarding a preload releases its acquired scene assets immediately.
+Other scenes waiting for the same module can finish using the shared read.
+
 ## Persistent entities
 
 A switch despawns the entities owned by the outgoing scene. `setPersistent` marks an entity to survive the unload of

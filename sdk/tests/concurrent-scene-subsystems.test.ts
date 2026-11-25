@@ -3,16 +3,12 @@
 /**
  * @file  Two scenes arriving in one tick install one subsystem between them.
  *
- * Every self-gating install in the runtime loader is a check, an await for the
- * module, then an addPlugin — and both scenes pass the check before either
- * reaches the plugin. Scene switching made that rare; world streaming makes it
- * ordinary, because a source stepping into a corner asks for several cells at
- * once. Nine of them installed the 3D world nine times, and each install
- * replaced the runtime resource the previous one's systems were writing into:
- * 180 colliders live in the ECS and not one of them in the physics world.
+ * Turning a corner in a streamed world can ready several cells at once. The
+ * cells share each module read, keep their own lifetimes, and install the
+ * solver once when the first cell using it actually publishes.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
+import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
 import { SceneLoadCancelled } from '../src/scene/sceneManager';
 import { reservePromise } from '../src/util/reservePromise';
 // The optional subsystems are installed by an ENTRY, and this imports the loader
@@ -22,6 +18,9 @@ import { installOptionalPlugins } from '../src/runtime/optionalPlugins';
 
 installOptionalPlugins();
 import { Physics3DPlugin } from '../src/physics3d/Physics3DPlugin';
+import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
+import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
+import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import { World } from '../src/ecs/world';
 import type { App } from '../src/app/app';
 import type { Backend } from '../src/asset/Backend';
@@ -70,18 +69,101 @@ const cell = (name: string): SceneData => ({
     }],
 });
 
-const load = (app: App, sceneData: SceneData): Promise<void> => loadRuntimeScene({
+const options = (app: App) => ({
     app,
     module: fakeModule,
-    sceneData,
     source: {
         backend: fakeBackend,
         decodePixels: () => Promise.reject(new Error('no textures here')),
     },
     spineManager: null,
 });
+const load = (app: App, sceneData: SceneData): Promise<void> => loadRuntimeScene({ ...options(app), sceneData });
 
 describe('subsystems a scene installs for itself', () => {
+    it.each(['2D', '3D'] as const)('discards a speculative %s physics request before it installs a world', async dimension => {
+        const entered = reservePromise<void>(), finish = reservePromise<void>(), acquired: string[] = [];
+        const { app, plugins } = makeFakeApp(acquired, () => { entered.resolve(); return finish.promise; });
+        const data = cell('discarded');
+        data.entities[0]!.components[0]!.type = 'RigidBody' + dimension;
+        const config = createRuntimeSceneConfig(data.name, data, options(app));
+        const old = expect(config.prepare!()).rejects.toBeInstanceOf(SceneLoadCancelled);
+        await entered.promise;
+        config.discardPrepared!();
+        try { await old; } finally { finish.resolve(); }
+        expect(plugins).toHaveLength(0);
+        expect(app.world.getAllEntities()).toEqual([]);
+    });
+
+    it.each(['2D', '3D'] as const)('keeps a fully prepared %s solver out of the world until a scene publishes', async dimension => {
+        const acquired: string[] = [];
+        const { app, plugins } = makeFakeApp(acquired);
+        const data = cell('prefetched');
+        data.entities[0]!.components[0]!.type = 'RigidBody' + dimension;
+        const prepared = await prepareRuntimeScene({ ...options(app), sceneData: data });
+        expect(acquired).toEqual([dimension === '2D' ? 'physics' : 'physics3d']);
+        expect(plugins).toHaveLength(0);
+        await publishRuntimeScene(prepared);
+        expect(plugins).toHaveLength(1);
+        await load(app, data);
+        expect(plugins).toHaveLength(1);
+        expect(acquired).toHaveLength(1);
+    });
+
+    it.each(['2D', '3D'] as const)('lets a second %s scene finish the shared read after the first scene leaves', async dimension => {
+        const acquired: string[] = [], entered = reservePromise<void>(), finish = reservePromise<void>();
+        const { app, plugins } = makeFakeApp(acquired, () => { entered.resolve(); return finish.promise; });
+        const data = cell('old');
+        data.entities[0]!.components[0]!.type = 'RigidBody' + dimension;
+        const old = createRuntimeSceneConfig(data.name, data, options(app));
+        const stopped = expect(old.prepare!()).rejects.toBeInstanceOf(SceneLoadCancelled);
+        await entered.promise;
+        const live = load(app, data);
+        old.discardPrepared!();
+        try { await stopped; } finally { finish.resolve(); }
+        await live;
+        expect(plugins).toHaveLength(1);
+        expect(acquired).toHaveLength(1);
+    });
+
+    it('allows a PhysX scene to publish while an unused Jolt module is in flight', async () => {
+        const acquired: string[] = [], entered = reservePromise<void>(), finish = reservePromise<void>();
+        const { app, plugins } = makeFakeApp(acquired, () => { entered.resolve(); return finish.promise; });
+        const jolt = createRuntimeSceneConfig('jolt', cell('jolt'), options(app));
+        const stopped = expect(jolt.prepare!()).rejects.toBeInstanceOf(SceneLoadCancelled);
+        await entered.promise;
+        const live = loadRuntimeScene({ ...options(app), sceneData: cell('live'), physics3dBackend: 'physx' });
+        try {
+            await live;
+            expect(plugins).toHaveLength(1);
+            expect(app.world.getAllEntities()).toHaveLength(1);
+        } finally {
+            jolt.discardPrepared!();
+            finish.resolve();
+            await stopped;
+        }
+        expect(acquired).toEqual(['physics3d', 'physics3d:physx']);
+    });
+
+    it.each(['2D', '3D'] as const)('allows a ready %s physics module to serve a replacement while a discarded read is pending', async dimension => {
+        const entered = reservePromise<void>(), finish = reservePromise<void>(), acquired: string[] = [];
+        const { app, plugins } = makeFakeApp(acquired, () => { entered.resolve(); return finish.promise; });
+        const data = cell('cell');
+        data.entities[0]!.components[0]!.type = 'RigidBody' + dimension;
+        const config = createRuntimeSceneConfig(data.name, data, options(app));
+        const old = expect(config.prepare!()).rejects.toBeInstanceOf(SceneLoadCancelled);
+        await entered.promise;
+        config.discardPrepared!();
+        const replacement = loadRuntimeScene({ ...options(app), sceneData: data,
+            physicsModule: fakeModule as unknown as PhysicsWasmModule,
+            physics3dModule: fakeModule as unknown as Physics3DWasmModule });
+        try {
+            await vi.waitFor(() => expect(app.world.getAllEntities()).toHaveLength(1));
+        } finally { finish.resolve(); await Promise.all([old, replacement]); }
+        expect(plugins.filter(p => p instanceof (dimension === '2D' ? Physics2DPlugin : Physics3DPlugin))).toHaveLength(1);
+        expect(acquired).toEqual([dimension === '2D' ? 'physics' : 'physics3d']);
+    });
+
     it('are installed once when several cells arrive together', async () => {
         const acquired: string[] = [];
         const { app, plugins } = makeFakeApp(acquired);

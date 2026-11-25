@@ -17,6 +17,7 @@ import { Assets } from '../src/asset/AssetPlugin';
 import { EmbeddedBackend } from '../src/asset/Backend';
 import { MeshAssetLoader } from '../src/asset/loaders/MeshAssetLoader';
 import { MeshRenderer } from '../src/ecs/component';
+import { registerPhysics2DSupport } from '../src/physics/physicsSupport';
 import { createRuntimeSceneConfig, loadRuntimeScene, sceneUsesPhysics } from '../src/runtime/runtimeLoader';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import {
@@ -41,6 +42,7 @@ describe('packaged scene format', () => {
     const source = { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } };
 
     it('loads legacy geometry and requests its 2D physics before publishing, with the same handles as authoring', async () => {
+        registerPhysics2DSupport();
         const app = App.new(), acquire = vi.fn(async () => null);
         connectFakeCpp(app.world);
         app.setSideModules({ acquire });
