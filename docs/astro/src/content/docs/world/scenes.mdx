@@ -131,6 +131,10 @@ project importer settings, each scene's `textureImporterSettings` applies to its
 Direct texture loads start using the destination's settings when it takes ownership. Discarding the
 preload keeps the current scene's settings.
 
+When a script assigns an image path or UUID to a sprite or mesh renderer, the load uses the entity's
+scene settings at the time of the write. After an entity moves to another scene, its next assignment
+uses the destination's settings. A persistent entity keeps its last scene's settings after unloading.
+
 When you load scenes additively, each sprite animation, timeline and tilemap keeps the sampling of
 the scene that loaded it. This also applies to clips reached through an animator controller. A
 persistent player carries its clip across the unload of its original scene. A hot update changes

@@ -129,6 +129,19 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
         };
     };
     const effects = new Map();
+    const edited = new Map();
+    globalThis.assignTextures = name => {
+        const entity = app.getResource(SceneManager).getScene(name).spawn();
+        edited.set(name, entity);
+        app.world.insert(entity, Sprite, { texture: '${texture}' });
+        app.world.insert(entity, MeshRenderer, { texture: '${image}' });
+        return ticks;
+    };
+    globalThis.assignedSamples = name => {
+        const entity = edited.get(name);
+        const sprite = app.world.get(entity, Sprite).texture, mesh = app.world.get(entity, MeshRenderer).texture;
+        return sprite && mesh ? [sampling(sprite), sampling(mesh)] : null;
+    };
     globalThis.playEffects = playing => {
         const timeline = app.getResource(Timeline);
         for (const name of ['hud', 'world']) {
@@ -286,11 +299,17 @@ async function check(browser, project, dir, platform) {
         await checkTimelineEffects('Live effect');
         await advance(await page.evaluate(() => globalThis.changeEffects()));
         await checkTimelineEffects('Alternate effect');
+        for (const name of ['hud', 'world']) {
+            await advance(await page.evaluate(name => globalThis.assignTextures(name), name));
+            await page.waitForFunction(name => globalThis.assignedSamples(name), name);
+            assert.deepEqual(await page.evaluate(name => globalThis.assignedSamples(name), name),
+                [samplers[name], samplers[name]], platform + ' live texture assignment ' + name);
+        }
         await advance(await page.evaluate(() => globalThis.removeCaptionScene('world')));
         assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.liveEffectParts(name))), [2, 0]);
         assert.deepEqual(await page.evaluate(() => globalThis.playingSamples('hud')), expected('hud'));
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed preload/discard, four switches and scene-owned 2D/3D graph and timeline spawns, including replay and timeline replacement');
+        console.log(platform + ' passed preload/discard, four switches, scene-owned graph and timeline spawns, and live sprite and mesh texture assignments');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

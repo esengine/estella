@@ -10,7 +10,6 @@
 // authoring runs in the JS engine, writing the native C++ ECS, which the native
 // host renders. No wasm module: entity generations fall back to World's JS path.
 
-import { bindAssetReferenceTracking } from '../../asset/assetReferenceTracking';
 import { constructApp, setAppSurfaceSize, type App } from '../../app/app';
 import { World } from '../world';
 import { inputPlugin } from '../../input/input';
@@ -50,7 +49,7 @@ import { uiPlugin } from '../../ui/ui-plugin';
 import { setNativeTextSubmit } from '../../ui/text/submit';
 import { initResourceManager } from '../../wasm/resourceManager';
 import { Assets as AssetsClass } from '../../asset/Assets';
-import { Assets as AssetsResource } from '../../asset/AssetPlugin';
+import { installAssets } from '../../asset/AssetPlugin';
 import { FileSystemBackend } from '../../asset/Backend';
 import { platformLoadImagePixels } from '../../platform';
 
@@ -318,7 +317,5 @@ function installNativeAssets(app: App, scope: Record<string, unknown>): void {
     assets.getTextureLoader().setPixelDecoder((path, _flip, maxEdge) => platformLoadImagePixels(path, maxEdge));
     // The same binding the web and packaged factories make: references dropped
     // with their entity, and asset paths written at run time loaded into handles.
-    bindAssetReferenceTracking(app.world, assets,
-        () => app.hasResource(AssetsResource) ? app.getResource(AssetsResource) : null);
-    app.insertResource(AssetsResource, assets);
+    installAssets(app, assets);
 }

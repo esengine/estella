@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { World } from '../ecs/world';
+import type { App } from '../app/app';
 import type { AnyComponentDef, AssetFieldMeta } from '../ecs/component';
 import type { Entity } from '../types';
 import type { Assets, SceneAssetResult } from './Assets';
 import { AssetRefCounter } from './AssetRefCounter';
-import type { AssetLease, FieldLeaseBinding } from './AssetLease';
+import type { AssetLease, AssetScope, FieldLeaseBinding } from './AssetLease';
+import { sceneAssetScopeForEntity } from '../scene/sceneManagerResource';
 import { SCENE_FORMAT_VERSION, type SceneData } from '../scene/scene';
 import { log } from '../util/logger';
 import { getResourceManager } from '../wasm/resourceManager';
 
-const sources = new WeakMap<World, () => Assets | null | undefined>();
+type AssetSource = () => Assets | null | undefined;
+const sources = new WeakMap<World, { current: AssetSource; sceneScope?: (entity: Entity) => AssetScope | null }>();
 
 /** Whether an app already follows this realm's published fields on the World. */
 export function observesAssetReferences(world: World, assets: Assets): boolean {
-    return sources.get(world)?.() === assets;
+    return sources.get(world)?.current() === assets;
+}
+
+/** Install scene-aware field resolution in an App. The scene manager may be installed or replaced later. */
+export function bindAppAssetReferences(app: App, assets: Assets, current: AssetSource): void {
+    bindAssetReferenceTracking(app.world, assets, current, entity => sceneAssetScopeForEntity(app, entity));
 }
 
 /**
@@ -28,16 +36,16 @@ export function observesAssetReferences(world: World, assets: Assets): boolean {
  * `current` is read at notification time, so a replaced Assets is the one used.
  */
 export function bindAssetReferenceTracking(
-    world: World, assets: Assets, current: () => Assets | null | undefined,
+    world: World, assets: Assets, current: AssetSource, sceneScope?: (entity: Entity) => AssetScope | null,
 ): void {
     const existing = assets.getRefCounter();
     const counter = existing ?? new AssetRefCounter();
     if (!existing) assets.setRefCounter(counter);
     counter.bindDefaultWorld(world);
     const installed = sources.has(world);
-    sources.set(world, current);
+    sources.set(world, { current, sceneScope });
     if (installed) return;
-    const activeAssets = () => sources.get(world)?.();
+    const activeAssets = () => sources.get(world)?.current();
     world.onAssetFieldsChanged((entity, component) => activeAssets()?.syncAssetFieldReferences(world, entity, component));
     // An embedder can replace the app resource with an independently populated counter.
     world.onDespawn(entity => {
@@ -46,20 +54,21 @@ export function bindAssetReferenceTracking(
     });
     world.onCoreDisconnect(() => { activeAssets()?.getRefCounter()?.bindDefaultWorld(world); });
     world.setAssetFieldResolver((entity, component, authored, currentFields) => {
-        const live = activeAssets();
+        const source = sources.get(world);
+        const live = source?.current();
         // A core with no resource manager (a headless server, a test world) loads
         // nothing: asking it to turned every authored path into a failed load with
         // an Error behind it — 6000 a scene in the scale suite, where the JS heap
         // budget then failed and a worker ran out of memory.
         if (!live || !getResourceManager()) return;
-        return resolveAssetFields(world, live, entity, component, authored, currentFields, activeAssets);
+        return resolveAssetFields(world, live, entity, component, authored, currentFields, activeAssets, source?.sceneScope?.(entity));
     });
 }
 
 /** Resolve a single live component through the same loaders, aliases and atlas conversion as a scene. */
 async function resolveAssetFields(
     world: World, assets: Assets, entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>,
-    currentFields: ReadonlySet<string>, current: () => Assets | null | undefined,
+    currentFields: ReadonlySet<string>, current: AssetSource, sceneScope?: AssetScope | null,
 ): Promise<void> {
     const row = { type: component._name, data: { ...authored } };
     const scene: SceneData = {
@@ -81,7 +90,7 @@ async function resolveAssetFields(
             }
             return typeof ref === 'string' && ref ? [{ field, type, ref }] : [];
         });
-        const result = await assets.preloadSceneAssets(scene);
+        const result = await assets.preloadSceneAssets(scene, undefined, { owner: { world, entity, sceneScope } });
         try {
             const requests = requested.map(({ field, type, ref }) => ({
                 field, type, path: result.resolveRef ? result.resolveRef(ref) : assets.resolveRef(ref),

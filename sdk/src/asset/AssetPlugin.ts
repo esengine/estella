@@ -7,7 +7,7 @@ import { DeviceStatus, getDeviceStatus } from '../render/renderer';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { basisTranscoderFor } from './basisWorkers';
-import { bindAssetReferenceTracking } from './assetReferenceTracking';
+import { bindAppAssetReferences } from './assetReferenceTracking';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { SpriteAnimation, type SpriteAnimationAPI } from '../animation/SpriteAnimator';
 import { Localization, type LocalizationAPI } from '../i18n/Localization';
@@ -67,8 +67,8 @@ export function installRuntimeAssets(app: App, assets: AssetsClass, onRelease: (
     installAssets(app, assets);
 }
 
-function installAssets(app: App, assets: AssetsClass): void {
-    bindAssetReferenceTracking(app.world, assets,
+export function installAssets(app: App, assets: AssetsClass): void {
+    bindAppAssetReferences(app, assets,
         () => app.hasResource(Assets) ? app.getResource(Assets) : null);
     app.insertResource(Assets, assets);
 }

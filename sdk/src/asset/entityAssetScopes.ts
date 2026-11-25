@@ -17,10 +17,12 @@ import type { World } from '../ecs/world';
 import type { AnyComponentDef } from '../ecs/component';
 import { AssetScope, scopeFieldLease, type AssetLease, type FieldLeaseBinding, type FieldLeaseLookup } from './AssetLease';
 import { visitEntityAssetBindings } from './liveAssetBindings';
+import type { SceneTextureInputs } from './sceneTextureImports';
 import { log } from '../util/logger';
 
 interface WorldScopes {
     scopes: Map<Entity, AssetScope>;
+    inheritedInputs: Map<Entity, SceneTextureInputs>;
     unbind(): void;
 }
 
@@ -30,6 +32,7 @@ function closeWorlds(entries: Iterable<WorldScopes>): void {
         entry.unbind();
         for (const scope of entry.scopes.values()) scopes.push(scope);
         entry.scopes.clear();
+        entry.inheritedInputs.clear();
     }
     AssetScope.closeAll(scopes);
 }
@@ -45,12 +48,44 @@ export function recordSceneDependencies(
 
 export class EntityAssetScopes {
     private readonly worlds_ = new Map<World, WorldScopes>();
+    private inputsByScope_ = new WeakMap<AssetScope, SceneTextureInputs>();
     private closed_ = false;
 
     constructor(readonly leaseForBinding: FieldLeaseLookup = scopeFieldLease) {}
 
+    /** @internal The immutable import settings used to load this scope in this asset realm. */
+    recordTextureInputs(scope: AssetScope, inputs: SceneTextureInputs): void { this.inputsByScope_.set(scope, inputs); }
+
+    /** @internal Capture a preparation's inputs before its receipts are handed off. */
+    textureInputsOf(scope: AssetScope): SceneTextureInputs | undefined { return this.inputsByScope_.get(scope); }
+
+    /** @internal A managed scene takes the inputs of the scene document it actually published. */
+    inheritSceneInputs(source: AssetScope, owner: AssetScope): void {
+        const inputs = this.inputsByScope_.get(source);
+        if (inputs) this.inputsByScope_.set(owner, inputs);
+    }
+
+    /** @internal Loose scene entities and promoted survivors keep their inputs until despawn or a core change. */
+    inheritEntityInputs(world: World, entities: Iterable<Entity>, inputs: SceneTextureInputs): void {
+        if (this.closed_) return;
+        let entry: WorldScopes | undefined;
+        for (const entity of entities) {
+            if (!world.valid(entity) || world.isDestructionPending(entity)) continue;
+            entry ??= this.bind_(world);
+            entry.inheritedInputs.set(entity, inputs);
+        }
+    }
+
+    /** @internal An assignment follows the current scene, then the inputs retained by a detached entity. */
+    textureInputsFor(world: World, entity: Entity, scene?: AssetScope | null): SceneTextureInputs | undefined {
+        return (scene ? this.inputsByScope_.get(scene) : undefined) ?? this.worlds_.get(world)?.inheritedInputs.get(entity);
+    }
+
     /** @internal Retain live field bindings and independently declared dependencies from the same scene scope. */
     retainFromScene(world: World, entity: Entity, scene: AssetScope, auxiliary?: readonly AssetLease[]): void {
+        const inputs = this.inputsByScope_.get(scene);
+        if (inputs) this.inheritEntityInputs(world, [entity], inputs);
+        if (!scene.size && !auxiliary) return;
         const sources = new Map<AssetLease, FieldLeaseBinding>();
         visitEntityAssetBindings(world, entity, (type, value) => {
             if (typeof value !== 'string' && typeof value !== 'number') return;
@@ -75,7 +110,7 @@ export class EntityAssetScopes {
         if (!world.valid(entity) || world.isDestructionPending(entity)) {
             throw new Error(`Cannot own resources for entity ${entity}: destroyed or pending destruction`);
         }
-        const scopes = this.bind_(world);
+        const { scopes } = this.bind_(world);
         let scope = scopes.get(entity);
         if (!scope) {
             scope = new AssetScope();
@@ -108,15 +143,17 @@ export class EntityAssetScopes {
     /** End this asset realm across all its Worlds before invoking user unloaders. */
     close(): void {
         this.closed_ = true;
+        this.inputsByScope_ = new WeakMap();
         const entries = [...this.worlds_.values()];
         this.worlds_.clear();
         closeWorlds(entries);
     }
 
-    private bind_(world: World): Map<Entity, AssetScope> {
+    private bind_(world: World): WorldScopes {
         const existing = this.worlds_.get(world);
-        if (existing) return existing.scopes;
+        if (existing) return existing;
         const scopes = new Map<Entity, AssetScope>();
+        const inheritedInputs = new Map<Entity, SceneTextureInputs>();
         let pending: Map<Entity, { owner: AssetScope; component: AnyComponentDef }> | undefined;
         const offFields = world.onAssetFieldsChanged((entity, component) => {
             const scope = scopes.get(entity);
@@ -137,22 +174,22 @@ export class EntityAssetScopes {
             pending.set(entity, { owner: scope, component });
         });
         const offDespawn = world.onDespawn(entity => {
+            inheritedInputs.delete(entity);
             const scope = scopes.get(entity);
-            if (!scope) return;
             scopes.delete(entity);
-            if (!scopes.size) {
+            if (!scopes.size && !inheritedInputs.size) {
                 this.worlds_.delete(world);
                 entry.unbind();
             }
-            AssetScope.closeAll([scope]);
+            if (scope) AssetScope.closeAll([scope]);
         });
         const offCore = world.onCoreDisconnect(() => {
             if (this.worlds_.get(world) !== entry) return;
             this.worlds_.delete(world);
             closeWorlds([entry]);
         });
-        const entry = { scopes, unbind() { offDespawn(); offCore(); offFields(); pending?.clear(); } };
+        const entry = { scopes, inheritedInputs, unbind() { offDespawn(); offCore(); offFields(); pending?.clear(); } };
         this.worlds_.set(world, entry);
-        return scopes;
+        return entry;
     }
 }

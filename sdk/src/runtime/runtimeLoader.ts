@@ -787,7 +787,7 @@ async function publishPreparedScene(
             if (ownership) {
                 try { ownership.attach(app.world, entityMap); }
                 finally { ownership.release(); }
-            } else if (assetResult.scope.size) {
+            } else if (app.hasResource(AssetsResource)) {
                 // A prepared managed scene can be published without its planned scene owner.
                 const scopes = app.getResource(AssetsResource).entityScopes;
                 const auxiliary = prepared.auxiliaryAssets?.(app.world, entityMap);

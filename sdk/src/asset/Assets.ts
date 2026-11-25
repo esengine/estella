@@ -1874,9 +1874,13 @@ export class Assets {
             readonly entityOwnership?: boolean | 'auxiliary';
             /** Receive the authored references before any acquisition or progress notification. */
             readonly onDiscover?: (authored: SceneAssetRefs) => void;
+            /** @internal Resolve live component writes with the owning scene or the entity's retained settings. */
+            readonly owner?: { world: World; entity: Entity; sceneScope?: AssetScope | null };
         },
     ): Promise<SceneAssetResult> {
-        return this.preloadSceneAssets_(sceneData, onProgress, options);
+        const owner = options?.owner;
+        const inputs = owner && this.entityScopes_.textureInputsFor(owner.world, owner.entity, owner.sceneScope);
+        return this.preloadSceneAssets_(sceneData, onProgress, options, undefined, inputs);
     }
 
     private async preloadSceneAssets_(
@@ -1890,6 +1894,8 @@ export class Assets {
         const declared = this.sceneTextureImports_.prepare(sceneData.textureImporterSettings,
             ref => this.projectTextureImport_(ref) ? undefined : this.assetIdentity_(ref), inherited);
         const inputs = declared?.inputs ?? inherited.forPreparation();
+        const scope = new AssetScope();
+        this.entityScopes_.recordTextureInputs(scope, inputs);
         const reader = this.sceneTextureReader_(inputs);
         const entityOwnership = options?.entityOwnership ?? false;
         const owners = new SceneAssetOwners({ entityOwnership });
@@ -1912,7 +1918,6 @@ export class Assets {
             `${type}Handles`, new Map<string, number>(),
         ])) as Pick<SceneAssetResult, `${SceneHandleType}Handles`>;
         const releaseCallbacks: ReleaseCallback[] = [];
-        const scope = new AssetScope();
         const acquisitions: SceneAssetAcquisition[] = [];
         const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
             const claim = surfaceClaims.get(assetPairKey(type, path));

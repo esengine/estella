@@ -19,7 +19,7 @@ import { ScriptGraphAgent } from '../src/logic/ScriptGraphAgent';
 import { ScriptGraphPlugin } from '../src/logic/ScriptGraphPlugin';
 import { Prefabs, prefabsPlugin } from '../src/prefab/prefabServer';
 import { initRuntime, prepareRuntimeScene, publishRuntimeScene, type RuntimeAssetSource } from '../src/runtime/runtimeLoader';
-import type { SceneData } from '../src/scene/scene';
+import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
 import { SceneManager } from '../src/scene/sceneManager';
 import { sceneManagerPlugin } from '../src/scene/scenePlugin';
 import { Tilemaps } from '../src/tilemap/tilemapAPI';
@@ -28,6 +28,7 @@ import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
 import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlugin } from '../src/timeline/TimelinePlugin';
 import { registerTimelineSupport } from '../src/timeline/timelineSupport';
+import type { Entity } from '../src/types';
 import { reservePromise } from '../src/util/reservePromise';
 import type { CppResourceManager } from '../src/wasm';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
@@ -122,6 +123,80 @@ describe.each([sprite, mesh])('$type scene texture imports', field => {
             expect(options.source.decodePixels).toHaveBeenCalledTimes(4);
         } finally { close(); }
     });
+});
+
+it.skipIf(!HAS_WASM)('resolves live sprite and mesh writes in the owning scene, across transfers and promotion without asset receipts', async () => {
+    const core = await loadWasmModule();
+    const app = App.new().connectCpp(new core.Registry(), core, { ownedRegistry: true });
+    const empty = { type: 'Sprite', data: {} }, slow = 'art/late.png';
+    const area = (name: string, settings: typeof pixel) => ({
+        ...document(name, empty), textureImporterSettings: { [file]: settings, [slow]: settings },
+    });
+    const began = reservePromise<void>(), release = reservePromise<void>();
+    const { assets, scenes, uploads, raw, close } = await game(empty, {
+        resolveRef: ref => ref === '@uuid:tiles' ? file : ref,
+        decodePixels: async path => {
+            if (path.endsWith(slow)) { began.resolve(); await release.promise; }
+            return { width: 4, height: 4, pixels: new Uint8Array(64) };
+        },
+    }, { app, home: area('home', pixel), next: area('next', smoothData) });
+    const check = (entity: Entity, component: typeof Sprite | typeof MeshRenderer, expected: typeof nearest) =>
+        vi.waitFor(() => expect(uploads.get(app.world.get(entity, component).texture)).toMatchObject(expected));
+    try {
+        await app.tick(1 / 60);
+        // The direct SceneConfig.data path and the packaged runtime handoff both own their settings.
+        const detached = (await loadSceneWithAssets(app.world, area('detached', pixel), { assets })).get(1)!;
+        scenes.register({ name: 'direct', data: area('direct', pixel) });
+        await scenes.loadAdditive('direct');
+        await scenes.loadAdditive('next');
+        expect(await raw()).toMatchObject(linear);
+        expect(assets.entityScopes.scopeFor(detached, app.world)).toBeNull();
+        app.world.insert(detached, MeshRenderer, { texture: file as never });
+        await check(detached, MeshRenderer, nearest);
+        for (const name of ['home', 'direct', 'next']) {
+            const entity = app.world.findEntityByName(name)!;
+            app.world.update(entity, Sprite, draft => { draft.texture = '@uuid:tiles' as never; });
+            app.world.insert(entity, MeshRenderer, { texture: file as never });
+            await check(entity, Sprite, name === 'next' ? linear : nearest);
+            await check(entity, MeshRenderer, name === 'next' ? linear : nearest);
+        }
+        const home = scenes.getScene('home')!, next = scenes.getScene('next')!;
+        const moving = home.spawn(), survivor = home.spawn();
+        home.setPersistent(survivor, true);
+        app.world.insert(moving, Sprite, { texture: slow as never });
+        await began.promise;
+        next.adopt(moving);
+        release.resolve();
+        await check(moving, Sprite, nearest);
+        app.world.update(moving, Sprite, draft => { draft.texture = slow as never; });
+        await check(moving, Sprite, linear);
+        await scenes.unload('home');
+        app.world.insert(survivor, Sprite, { texture: file as never });
+        await check(survivor, Sprite, nearest);
+        const loose = app.world.spawn();
+        app.world.insert(loose, Sprite, { texture: file as never });
+        await check(loose, Sprite, linear);
+        installHotUpdateRebind(app, assets);
+        const held = [survivor, loose].map(e => app.world.get(e, Sprite).texture);
+        assets.invalidate(file);
+        await assets.assetGraphSettled();
+        await vi.waitFor(async () => {
+            await app.tick(1 / 60);
+            for (const [i, e] of [survivor, loose].entries()) expect(app.world.get(e, Sprite).texture).not.toBe(held[i]);
+        });
+        await check(survivor, Sprite, nearest);
+        await check(loose, Sprite, linear);
+        // A write in an older scene never changes the raw sampler of the active realm.
+        expect(await raw()).toMatchObject(linear);
+        app.world.despawn(survivor);
+        app.world.despawn(loose);
+        app.world.despawn(detached);
+        expect(assets.entityScopes.textureInputsFor(app.world, survivor)).toBeUndefined();
+        expect(assets.entityScopes.textureInputsFor(app.world, detached)).toBeUndefined();
+        await scenes.unload('direct');
+        await scenes.unload('next');
+        expect(assets.sizes().refRows).toBe(0);
+    } finally { release.resolve(); close(); }
 });
 
 it('keeps the existing sampler on rejected handoff and releases a path-only load under its original profile', async () => {

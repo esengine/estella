@@ -19,7 +19,7 @@ import { px } from '../core/dimension';
 import { getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { Assets } from '../../asset/AssetPlugin';
 import { disposeAll } from '../../util/disposeAll';
-import { bindAssetReferenceTracking } from '../../asset/assetReferenceTracking';
+import { bindAppAssetReferences } from '../../asset/assetReferenceTracking';
 import type { Assets as AssetsApi } from '../../asset/Assets';
 
 const WHITE = { r: 1, g: 1, b: 1, a: 1 };
@@ -93,7 +93,7 @@ export class InlineImagePlugin implements Plugin {
                 const params = textDrawParams(t, resolveTextFamily(t.font, t.fontFamily), { w, h, px: 0, py: 1 });
                 const { layout, baseX, originY } = layoutDrawText(atlas(), params);
                 if (!layout.images?.length) continue;
-                if (assets && !world.hasAssetFieldResolver) bindAssetReferenceTracking(world, assets, currentAssets);
+                if (assets && !world.hasAssetFieldResolver) bindAppAssetReferences(app, assets, currentAssets);
                 seen.add(e);
                 let kids = childrenOf.get(e);
                 if (!kids) {

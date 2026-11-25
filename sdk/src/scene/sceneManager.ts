@@ -278,6 +278,9 @@ class SceneContextImpl implements SceneContext {
             throw new SceneLoadCancelled(this.name);
         }
         this.instance_.assetScope.absorb(scope);
+        if (this.app_.hasResource(Assets)) {
+            this.app_.getResource(Assets).entityScopes?.inheritSceneInputs(scope, this.instance_.assetScope);
+        }
         if (auxiliary) {
             for (const [entity, leases] of auxiliary) {
                 recordSceneDependencies(this.instance_.auxiliaryAssets, entity, leases, this.instance_.assetScope);
@@ -947,9 +950,9 @@ export class SceneManagerState {
     /** Retain each scene receipt still used by this entity. A handle identifies an acquired value.
      *  A name resolves to the registry slot or file preparation its reader uses. */
     private promoteAssetOwnership_(instance: SceneInstance, entity: Entity): void {
-        if (!instance.assetScope.size || !this.app_.hasResource(Assets)) return;
+        if (!this.app_.hasResource(Assets)) return;
         const assets = this.app_.getResource(Assets);
-        assets.entityScopes.retainFromScene(this.app_.world, entity, instance.assetScope, instance.auxiliaryAssets.get(entity));
+        assets.entityScopes?.retainFromScene(this.app_.world, entity, instance.assetScope, instance.auxiliaryAssets.get(entity));
         instance.auxiliaryAssets.delete(entity);
     }
 

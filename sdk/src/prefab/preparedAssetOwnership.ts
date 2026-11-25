@@ -72,7 +72,8 @@ export function prepareSpawnOwnership(
 ): (() => PreparedSpawnOwnership) | undefined {
     if (!owners) return undefined;
     const sources = sceneAcquisitionSources(scene, result, resolveRef);
-    if (!sources.size) return undefined;
+    const inputs = owners.textureInputsOf(result.scope);
+    if (!sources.size && !inputs) return undefined;
     const components = new Map<number, AnyComponentDef[]>();
     for (const source of scene.entities) {
         if (!sources.has(source.id)) continue;
@@ -101,6 +102,7 @@ export function prepareSpawnOwnership(
         } catch (error) { release(); throw error; }
         return {
             attach(world, entities) {
+                if (inputs) owners.inheritEntityInputs(world, entities.values(), inputs);
                 for (const [id, scope] of retained) {
                     const entity = entities.get(id);
                     if (entity === undefined || !world.valid(entity)) continue;
