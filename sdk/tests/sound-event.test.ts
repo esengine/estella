@@ -44,6 +44,49 @@ describe('sound event documents', () => {
 });
 
 describe('compiled sound event selection', () => {
+    it('attributes random weights to the first enabled alias and inspects draws without advancing either random stream', () => {
+        const definition = asset({ mode: 'no-repeat', volume: [.4, .9], playbackRate: [.8, 1.2], clips: [
+            { clip: 'a.wav', weight: 0 }, { clip: '@uuid:CLIP', weight: 2 }, { clip: '@uuid:clip', weight: 1 },
+            { clip: 'clip', weight: 2 }, { clip: 'b.wav' },
+        ] });
+        const inspected = new SoundEventSelector(definition, 12), twin = new SoundEventSelector(definition, 12);
+        const initial = inspected.getVariantShares();
+        expect(initial.map(row => row.share)).toEqual([null, .5, null, 2 / 6, 1 / 6]);
+        expect(initial.map(row => row.merged)).toEqual([false, false, true, false, false]);
+        for (let n = 0; n < 32; n++) {
+            const drawn = inspected.next();
+            expect(drawn).toEqual(twin.next());
+            const shares = inspected.getVariantShares();
+            expect(shares[drawn.selection!.slot].share).toBe(0);
+            expect(shares.reduce((sum, row) => sum + (row.share ?? 0), 0)).toBeCloseTo(1);
+        }
+    });
+
+    it('rescales the remaining chances after excluding a dominant group', () => {
+        const selector = new SoundEventSelector(asset({ clips: [
+            { clip: 'dominant', weight: Number.MAX_VALUE }, { clip: 'tiny', weight: Number.MIN_VALUE },
+            { clip: 'twice', weight: Number.MIN_VALUE * 2 },
+        ] }));
+        expect(selector.next().selection?.slot).toBe(0);
+        expect(selector.getVariantShares().map(row => row.share)).toEqual([0, 1 / 3, 2 / 3]);
+    });
+
+    it('shows sequence order for repeated authored slots and handles a pool with no alternatives', () => {
+        const seq = new SoundEventSelector(asset({ mode: 'sequence', clips: [
+            { clip: 'a' }, { clip: 'b', weight: 0 }, { clip: 'a' },
+        ] }));
+        for (const expected of [[1, null, 0], [0, null, 1], [1, null, 0]]) {
+            expect(seq.getVariantShares().map(row => row.share)).toEqual(expected);
+            seq.next();
+        }
+        for (const weight of [0, 1]) {
+            const single = new SoundEventSelector(asset({ clips: [{ clip: 'a', weight }] }));
+            single.next();
+            expect(single.getVariantShares()).toEqual([{ share: weight || null, merged: false }]);
+        }
+        expect(new SoundEventSelector(asset({ clips: [] })).getVariantShares()).toEqual([]);
+    });
+
     it('distinguishes empty pools from disabled, zero-weight pools', () => {
         expect(new SoundEventSelector(asset({ clips: [] })).next()).toEqual({ selection: null, reason: 'empty' });
         expect(new SoundEventSelector(asset({ clips: [{ clip: 'a.wav', weight: 0 }] })).next())

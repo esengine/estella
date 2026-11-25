@@ -65,6 +65,41 @@ function sourceFixture(extra: Record<string, unknown> = {}) {
     return { ...f, world, entity, controller, trigger: () => triggerSoundEventSource(world, entity) };
 }
 
+it('excludes every spelling of the last clip from the next event trigger', async () => {
+    const id = 'abcdfed0-1111-4222-8333-444455556666';
+    const step = 'assets/audio/step.wav', tap = 'assets/audio/tap.wav';
+    const { resources, events } = fixture({ mode: 'no-repeat',
+        clips: [{ clip: step }, { clip: `@uuid:${id}` }, { clip: id.toUpperCase() }, { clip: tap }] });
+    resources.setAssetRefResolver(ref => ref.toLowerCase().replace(/^@uuid:/, '') === id ? step : ref);
+    const emitter = (await events.load('steps.esaudioevent', { seed: 12 }))!;
+    expect(emitter.getVariantShares().map(row => row.share)).toEqual([.75, null, null, .25]);
+    const slots: number[] = [];
+    for (let i = 0; i < 20; ++i) {
+        const voice = emitter.trigger();
+        expect(await voice.ready).toBe('playing');
+        slots.push(voice.selection!.slot);
+        voice.stop();
+    }
+    expect(new Set(slots)).toEqual(new Set([0, 3]));
+    expect(slots.every((slot, i) => i === 0 || slot !== slots[i - 1])).toBe(true);
+});
+
+it('keeps two authored audio records independently selectable when the build shares their cooked bytes', async () => {
+    const key = 'abcdfed0-1111-4222-8333-444455556666';
+    const { resources, events, fetchBinary } = fixture({ mode: 'no-repeat',
+        clips: [{ clip: '@uuid:' + key }, { clip: 'step.wav' }, { clip: 'echo.wav' }] });
+    const file = { path: 'assets/shared.wav', type: 'audio' as const, labels: [], size: 4 };
+    resources.setManifest({ version: '2.0', groups: { sound: { bundleMode: 'local', labels: [], assets: {
+        [key]: { ...file, address: 'step.wav' }, echo: { ...file, address: 'echo.wav' },
+    } } } });
+    const emitter = (await events.load('steps.esaudioevent', { seed: 7 }))!;
+    expect(emitter.getVariantShares().map(row => row.share)).toEqual([2 / 3, null, 1 / 3]);
+    expect(fetchBinary).not.toHaveBeenCalled();
+    const voice = emitter.trigger();
+    expect(await voice.ready).toBe('playing');
+    expect(emitter.getVariantShares().map(row => row.share)).toEqual(voice.selection?.slot === 0 ? [0, null, 1] : [1, null, 0]);
+});
+
 describe('component-owned event intents', () => {
     it('keeps same-frame cold triggers in FIFO order with one definition load', async () => {
         const { trigger, fetchText, backend } = sourceFixture();

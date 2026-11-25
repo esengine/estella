@@ -3101,8 +3101,10 @@ export class Assets {
         // A manifest names one asset three ways — record key, address, build
         // path — and only it knows they are the same asset. Folding them here is
         // what keeps a uuid ref and a path ref on ONE slot.
-        const record = this.sceneHandleRecord_(bindingRecord(ref) ?? ref);
-        if (record) return record.asset.address ?? record.key;
+        const record = this.manifestRecord_(bindingRecord(ref) ?? ref);
+        if (record && (isSceneHandleType(record.asset.type) || record.asset.type === 'audio')) {
+            return record.asset.address ?? record.key;
+        }
         const path = pathWithinRemoteRoot(ref, this.remoteRoot_);
         const named = this.manifestModel_?.remoteAssetIdentity(ref)
             ?? (path === ref ? null : this.manifestModel_?.remoteAssetIdentity(path));

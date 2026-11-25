@@ -4,7 +4,7 @@ export { Audio, AudioAPI, type AudioBufferStats, type MusicLayers, type MusicLay
 export { SoundEvents, SoundEventPlayback, type SoundEventEmitter, type SoundEventHandle,
     type SoundEventStatus, type SoundEventRejection, type SoundEventStats } from './SoundEventPlayback';
 export { parseSoundEvent, SoundEventSelector, type SoundEventAsset, type SoundEventClip,
-    type SoundEventMode, type SoundEventSelection, type SoundEventSelectionResult } from './SoundEvent';
+    type SoundEventMode, type SoundEventSelection, type SoundEventSelectionResult, type SoundEventVariantShare } from './SoundEvent';
 export { AudioBus, type AudioBusConfig } from './AudioBus';
 export { AudioMixer, BUILTIN_AUDIO_BUSES, builtinBusVolume, type AudioMixerConfig, type BusDuckRule } from './AudioMixer';
 export {

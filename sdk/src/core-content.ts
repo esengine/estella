@@ -760,6 +760,7 @@ export {
     type SoundEventClip,
     type SoundEventMode,
     type SoundEventSelection,
+    type SoundEventVariantShare,
     type SoundEventSelectionResult,
     applyAudioProjectConfig,
     type AudioProjectConfig,

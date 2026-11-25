@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { extractUuid } from '../asset/AssetRegistry';
+import { assetRefId, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import { AttenuationModel, type SpatialAudioConfig } from './SpatialAudio';
 
 /** Clip selection policy. Zero-weight slots are disabled in every mode. @beta */
@@ -92,6 +92,24 @@ export type SoundEventSelectionResult = { selection: SoundEventSelection; reason
 
 interface Group { slot: number; weight: number; end: number; scale: number; sum: number }
 
+/** Chance of drawing an authored slot next. A merged slot contributes its weight to the first enabled alias. @beta */
+export interface SoundEventVariantShare {
+    readonly share: number | null;
+    readonly merged: boolean;
+}
+
+function clipIdentity(ref: string, identify?: (ref: string) => string | null): string {
+    let name = ref;
+    // Some play hosts throw for an absent manifest entry. Only selecting a missing clip should fail its load.
+    try { name = identify?.(ref) ?? ref; } catch { /* group by the authored reference */ }
+    const id = assetRefId(name);
+    return id === null ? name : UUID_REF_PREFIX + id;
+}
+
+function scaledWeight(group: Group, scale: number): number {
+    return (group.scale / scale) * group.sum;
+}
+
 /** Immutable compiled choices; selecting allocates no candidate lists or retained history.
  * Selection and parameter random streams are independent so range edits preserve clip order.
  * Duplicate clip identities combine weights in random modes; their first slot is reported.
@@ -107,7 +125,7 @@ export class SoundEventSelector {
     private choiceState: number;
     private parameterState: number;
 
-    constructor(asset: SoundEventAsset, seed = 0) {
+    constructor(asset: SoundEventAsset, seed = 0, identifyClip?: (ref: string) => string | null) {
         this.asset = parseSoundEvent(asset);
         if (!Number.isSafeInteger(seed)) throw new Error('soundEvent.seed: expected a safe integer');
         this.choiceState = seed >>> 0; this.parameterState = (seed ^ 0x9e3779b9) >>> 0;
@@ -118,7 +136,8 @@ export class SoundEventSelector {
             const slot = this.asset.clips[i];
             if (!slot.weight) continue;
             this.sequence.push(i);
-            const key = extractUuid(slot.clip) ?? slot.clip;
+            if (this.asset.mode === 'sequence') continue;
+            const key = clipIdentity(slot.clip, identifyClip);
             let group = byClip.get(key);
             if (!group) { group = { slot: i, weight: 0, end: 0, scale: 0, sum: 0 }; byClip.set(key, group); this.groups.push(group); }
             if (slot.weight > group.scale) {
@@ -126,9 +145,32 @@ export class SoundEventSelector {
             } else group.sum += slot.weight / group.scale;
         }
         for (const group of this.groups) {
-            group.weight = (group.scale / maximum) * group.sum;
+            group.weight = scaledWeight(group, maximum);
             this.total += group.weight; group.end = this.total;
         }
+    }
+
+    /** Inspect the next draw without advancing the sequence or consuming random numbers. */
+    getVariantShares(): SoundEventVariantShare[] {
+        const sequential = this.asset.mode === 'sequence';
+        const rows: SoundEventVariantShare[] = this.asset.clips.map(clip => ({ share: null, merged: !sequential && clip.weight > 0 }));
+        if (sequential) {
+            for (const slot of this.sequence) rows[slot] = { share: slot === this.sequence[this.cursor] ? 1 : 0, merged: false };
+            return rows;
+        }
+        const excluded = this.excludedGroup();
+        const remaining = excluded ? this.remainingWeights(excluded) : null;
+        for (const group of this.groups) {
+            let share = group.weight / this.total;
+            if (group === excluded) share = 0;
+            else if (remaining) share = scaledWeight(group, remaining.scale) / remaining.total;
+            rows[group.slot] = { share, merged: false };
+        }
+        return rows;
+    }
+
+    private excludedGroup(): Group | undefined {
+        return this.asset.mode === 'no-repeat' && this.groups.length > 1 ? this.groups[this.last] : undefined;
     }
 
     next(): SoundEventSelectionResult {
@@ -137,17 +179,16 @@ export class SoundEventSelector {
         if (this.asset.mode === 'sequence') {
             slot = this.sequence[this.cursor]; this.cursor = (this.cursor + 1) % this.sequence.length;
         } else {
-            const excluded = this.asset.mode === 'no-repeat' && this.groups.length > 1 && this.last >= 0
-                ? this.groups[this.last] : null;
+            const excluded = this.excludedGroup();
             const unit = this.random(false), remaining = this.total - (excluded?.weight ?? 0);
             let lo: number;
-            if (excluded && remaining <= this.total * Number.EPSILON * 8) lo = this.sampleWithoutLast(unit);
+            if (excluded && remaining <= this.total * Number.EPSILON * 8) lo = this.sampleWithoutLast(unit, excluded);
             else {
                 let point = unit * remaining;
                 if (excluded && point >= excluded.end - excluded.weight) point += excluded.weight;
                 lo = 0; let hi = this.groups.length - 1;
                 while (lo < hi) { const mid = (lo + hi) >>> 1; if (point < this.groups[mid].end) hi = mid; else lo = mid + 1; }
-                if (excluded && lo === this.last) lo = this.sampleWithoutLast(unit);
+                if (excluded && lo === this.last) lo = this.sampleWithoutLast(unit, excluded);
             }
             this.last = lo; slot = this.groups[lo].slot;
         }
@@ -156,15 +197,21 @@ export class SoundEventSelector {
     }
 
     /** Rescale after excluding a dominant weight so subtraction cannot erase the remaining choices. */
-    private sampleWithoutLast(unit: number): number {
-        let scale = 0, total = 0, fallback = 0;
-        for (let i = 0; i < this.groups.length; ++i) if (i !== this.last) scale = Math.max(scale, this.groups[i].scale);
-        for (let i = 0; i < this.groups.length; ++i) if (i !== this.last) total += this.groups[i].scale / scale * this.groups[i].sum;
+    private remainingWeights(excluded: Group): { scale: number; total: number } {
+        let scale = 0, total = 0;
+        for (const group of this.groups) if (group !== excluded) scale = Math.max(scale, group.scale);
+        for (const group of this.groups) if (group !== excluded) total += scaledWeight(group, scale);
+        return { scale, total };
+    }
+
+    private sampleWithoutLast(unit: number, excluded: Group): number {
+        const { scale, total } = this.remainingWeights(excluded);
+        let fallback = 0;
         let point = unit * total;
         for (let i = 0; i < this.groups.length; ++i) {
-            if (i === this.last) continue;
+            if (this.groups[i] === excluded) continue;
             fallback = i;
-            point -= this.groups[i].scale / scale * this.groups[i].sum;
+            point -= scaledWeight(this.groups[i], scale);
             if (point < 0) return i;
         }
         return fallback;

@@ -8,7 +8,7 @@ import { defineResource } from '../ecs/resource';
 import { disposeAll } from '../util/disposeAll';
 import type { AudioAPI } from './Audio';
 import type { AudioHandle } from './PlatformAudioBackend';
-import { parseSoundEvent, SoundEventSelector, type SoundEventAsset, type SoundEventSelection } from './SoundEvent';
+import { parseSoundEvent, SoundEventSelector, type SoundEventAsset, type SoundEventSelection, type SoundEventVariantShare } from './SoundEvent';
 import { calculateAttenuation, calculatePanning, spatialDistance } from './SpatialAudio';
 
 /** Lifecycle of one admitted or rejected event trigger. @beta */
@@ -29,6 +29,8 @@ export interface SoundEventHandle extends AudioHandle {
 export interface SoundEventEmitter {
     readonly ref: string;
     readonly disposed: boolean;
+    /** Probabilities for the next admitted trigger, in authored slot order. */
+    getVariantShares(): SoundEventVariantShare[];
     /** Spatial events need an explicit world position or a live owner transform. */
     trigger(position?: Vec3): SoundEventHandle;
     dispose(): void;
@@ -48,7 +50,7 @@ export interface SoundEventStats {
     reasons: Partial<Record<SoundEventRejection, number>>;
 }
 
-type Resources = Pick<Assets, 'acquireTyped'>;
+type Resources = Pick<Assets, 'acquireTyped'> & Partial<Pick<Assets, 'sourceIdentity'>>;
 interface SharedEvent { key: string; references: number; nextAllowed: number; active: Set<Request>; running: Set<Request> }
 interface Emitter {
     ref: string; owner?: Entity; disposed: boolean; shared: SharedEvent; asset: SoundEventAsset;
@@ -110,13 +112,15 @@ export class SoundEventPlayback {
             if (this.disposed || pending.cancelled || options.alive?.() === false || resources !== this.resources()
                 || (pending.owner !== undefined && !this.ownerAlive(pending.owner))) { lease.release(); return null; }
             const asset = parseSoundEvent(lease.value);
-            const selector = new SoundEventSelector(asset, options.seed ?? (Math.random() * 4294967296) >>> 0);
+            const selector = new SoundEventSelector(asset, options.seed ?? (Math.random() * 4294967296) >>> 0,
+                ref => resources.sourceIdentity?.(ref) ?? null);
             let shared = this.events.get(lease.key);
             if (!shared) { shared = { key: lease.key, references: 0, nextAllowed: 0, active: new Set(), running: new Set() }; this.events.set(lease.key, shared); }
             const emitter: Emitter = { ref, owner: options.owner, alive: options.alive, disposed: false, shared, asset, selector, lease, resources, requests: new Set() };
             shared.references++; this.emitters.add(emitter);
             if (emitter.owner !== undefined) this.addOwner(this.owners, emitter.owner, emitter);
-            return { ref, get disposed() { return emitter.disposed; }, trigger: position => this.trigger(emitter, position),
+            return { ref, get disposed() { return emitter.disposed; }, getVariantShares: () => selector.getVariantShares(),
+                trigger: position => this.trigger(emitter, position),
                 dispose: () => this.releaseEmitter(emitter) };
         } catch (error) {
             lease?.release();
