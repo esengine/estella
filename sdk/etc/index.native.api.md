@@ -1134,6 +1134,7 @@ ResourceDef<AssetsClass>
 @internal entityScopes: EntityAssetScopes
 @internal epoch: number
 @internal handleBoundTypes: () => string[]
+@internal installProjectLocaleTables: (configured: readonly string[], discovered?: readonly string[]) => Promise<void>
 @internal isCurrentBindingLease: (type: string, ref: string, lease: AssetLease) => boolean
 @internal leaseForBinding: (scope: AssetScope, type: string, value: unknown) => AssetLease | undefined
 @internal preparePrefab: (ref: string, overrides?: readonly PrefabOverride[]) => Promise<PreparedPrefab>

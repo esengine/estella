@@ -10,6 +10,7 @@
  */
 
 import { defineResource } from '../ecs/resource';
+import { LocaleCatalogs } from './localeCatalogs';
 import { pseudoLocalize, type PseudoLocalizationOptions } from './pseudo-localization';
 
 export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
@@ -56,7 +57,7 @@ export function selectPluralForm(forms: PluralForms, count: number, selector: Pl
  * as the {@link Localization} resource; read it as `app.getResource(Localization)`.
  */
 export class LocalizationAPI {
-    private readonly catalogs = new Map<string, Map<string, LocaleEntry>>();
+    private readonly catalogs = new LocaleCatalogs(() => this.plainCache_.clear());
     private readonly selectors = new Map<string, PluralSelector>();
     private locale_: string;
     private fallback_: string;
@@ -66,17 +67,15 @@ export class LocalizationAPI {
     constructor(locale = 'en', fallback = 'en') {
         this.locale_ = locale;
         this.fallback_ = fallback;
+        catalogIndexes.set(this, this.catalogs);
     }
 
     /** Merge `entries` into a locale's catalog (later calls override keys). */
     addCatalog(locale: string, entries: LocaleCatalog): void {
-        this.plainCache_.clear();
-        let m = this.catalogs.get(locale);
-        if (!m) { m = new Map(); this.catalogs.set(locale, m); }
-        for (const k of Object.keys(entries)) m.set(k, entries[k]);
+        this.catalogs.add(locale, entries);
     }
 
-    setLocale(locale: string): void { this.locale_ = locale; this.plainCache_.clear(); }
+    setLocale(locale: string): void { chosenLocales.add(this); this.locale_ = locale; this.plainCache_.clear(); }
     get locale(): string { return this.locale_; }
 
     setFallbackLocale(locale: string): void { this.fallback_ = locale; this.plainCache_.clear(); }
@@ -95,7 +94,7 @@ export class LocalizationAPI {
 
     /** Locales that have a catalog, in insertion order. */
     availableLocales(): string[] {
-        return [...this.catalogs.keys()];
+        return [...this.catalogs.read().keys()];
     }
 
     /** True if the key resolves in the active locale or the fallback. */
@@ -134,9 +133,22 @@ export class LocalizationAPI {
     }
 
     private lookup_(key: string): LocaleEntry | undefined {
-        return this.catalogs.get(this.locale_)?.get(key)
-            ?? this.catalogs.get(this.fallback_)?.get(key);
+        const catalogs = this.catalogs.read();
+        return catalogs.get(this.locale_)?.get(key) ?? catalogs.get(this.fallback_)?.get(key);
     }
+}
+
+const catalogIndexes = new WeakMap<LocalizationAPI, LocaleCatalogs>();
+const chosenLocales = new WeakSet<LocalizationAPI>();
+
+/** @internal Asset publications feed the same index that t() reads. */
+export function localeCatalogsFor(service: LocalizationAPI): LocaleCatalogs { return catalogIndexes.get(service)!; }
+
+/** @internal A scene follows the player's language until the game or a matching table chooses one. */
+export function selectSystemLocale(service: LocalizationAPI, language: () => string): void {
+    if (chosenLocales.has(service)) return;
+    const match = matchLocale(language(), service.availableLocales());
+    if (match) service.setLocale(match);
 }
 
 /**

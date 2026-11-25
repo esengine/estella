@@ -6,7 +6,7 @@ vi.mock('../src/render/renderer', async original => ({
     ...await original<typeof import('../src/render/renderer')>(), getDeviceStatus: () => device.status,
 }));
 import { App } from '../src/app/app';
-import { AssetPlugin, Assets } from '../src/asset/AssetPlugin';
+import { AssetPlugin, Assets, installRuntimeAssets } from '../src/asset/AssetPlugin';
 import { Assets as AssetsClass } from '../src/asset/Assets';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import type { ESEngineModule } from '../src/wasm';
@@ -29,6 +29,28 @@ it('releases the app loader exactly once on shutdown', () => {
     const value = loader(), app = build(new AssetPlugin(), value);
     app.quit({ keepRenderer: true }); app.quit({ keepRenderer: true });
     expect(value.releaseAll).toHaveBeenCalledOnce();
+});
+it('releases a bare App’s runtime assets before its module host, including on a repeated quit', () => {
+    const app = App.new(), assets = loader(), events: string[] = [];
+    assets.releaseAll.mockImplementation(() => { events.push('assets'); });
+    app.setSideModules({ acquire: async () => null, dispose: () => { events.push('modules'); } }, { owned: true });
+    installRuntimeAssets(app, assets as unknown as AssetsClass, () => { events.push('remove settings'); });
+    app.quit(); app.quit();
+    expect(events).toEqual(['remove settings', 'assets', 'modules']);
+});
+it('retires each scene loader once across a realm replacement, explicit cleanup and App shutdown', () => {
+    const plugin = new AssetPlugin(), initial = loader(), first = loader(), second = loader();
+    const app = build(plugin, initial);
+    const forgetFirst = vi.fn(), forgetSecond = vi.fn();
+    installRuntimeAssets(app, first as unknown as AssetsClass, forgetFirst);
+    installRuntimeAssets(app, second as unknown as AssetsClass, forgetSecond);
+    expect(first.releaseAll).toHaveBeenCalledOnce();
+    expect(second.releaseAll).not.toHaveBeenCalled();
+    plugin.cleanup(app);
+    app.quit({ keepRenderer: true });
+    for (const callback of [initial.releaseAll, first.releaseAll, second.releaseAll, forgetFirst, forgetSecond]) {
+        expect(callback).toHaveBeenCalledOnce();
+    }
 });
 it('releases runtime replacement and default loaders while preserving another app', () => {
     const plugin = new AssetPlugin(), firstValue = loader(), secondValue = loader(), replacement = loader();

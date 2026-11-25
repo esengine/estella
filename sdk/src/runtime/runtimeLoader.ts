@@ -31,8 +31,7 @@ import { applyAudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { RuntimeProjectSettings } from './projectSettings';
 import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
-import { Assets as AssetsResource } from '../asset/AssetPlugin';
-import { bindAssetReferenceTracking } from '../asset/assetReferenceTracking';
+import { Assets as AssetsResource, installRuntimeAssets } from '../asset/AssetPlugin';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
@@ -50,8 +49,8 @@ import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
 import { getPlatform } from '../platform/base';
-import { Localization, matchLocale } from '../i18n/Localization';
-import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
+import { Localization, selectSystemLocale, type LocalizationAPI } from '../i18n/Localization';
+import { installProjectLocaleTables, LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
 import { flushPendingRegistrations, type Plugin } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
@@ -92,6 +91,7 @@ export type { RuntimeAssetSource } from './runtimeAssets';
 // the instance (and so `ensureRuntimeAssets` can tell its own instance apart
 // from the default AssetPlugin one it must replace).
 const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImportSettings>>();
+const automaticLocales = new WeakSet<LocalizationAPI>();
 
 /**
  * The per-App runtime `Assets`, loading through the single canonical asset
@@ -158,10 +158,7 @@ function ensureRuntimeAssets(
     );
     runtimeImportSettings.set(assets, settings);
 
-    bindAssetReferenceTracking(app.world, assets,
-        () => app.hasResource(AssetsResource) ? app.getResource(AssetsResource) : null);
-
-    app.insertResource(AssetsResource, assets);
+    installRuntimeAssets(app, assets, () => runtimeImportSettings.delete(assets));
     return assets;
 }
 
@@ -606,31 +603,22 @@ async function readRuntimeScene(
     // the Localization resource + the shipped `.eslocale` tables — installed and
     // loaded here so no runtime entry can forget. Tables come from the realm's
     // OWN asset list (they're loaded by key, never referenced by the scene).
-    // Idempotent across scene switches: the resource persists, table loads hit
-    // the Assets cache, addCatalog merges. Awaited so the first frame renders
-    // words, not raw keys.
+    // The asset realm owns the tables across scene switches. Wait for them so
+    // the first frame sees the same catalog as plugin startup.
     attempt.assertCurrent();
     if (sceneUsesI18n(sceneData)) {
-        const autoInstalled = !app.hasResource(Localization);
-        if (autoInstalled) app.addPlugin(new LocalizationPlugin());
+        if (!app.hasResource(Localization)) {
+            app.addPlugin(new LocalizationPlugin());
+            automaticLocales.add(app.getResource(Localization));
+        }
+        const localization = app.getResource(Localization);
         const tables = (source.listAssetPaths?.() ?? []).filter((p) => p.toLowerCase().endsWith('.eslocale'));
-        if (tables.length === 0) {
-            log.warn('i18n', 'scene binds a localization key but this realm lists no .eslocale tables — keys will render raw');
-        } else {
-            await Promise.all(tables.map((p) => sceneAssets.loadLocaleTable(p).catch((e: unknown) => {
-                log.error('i18n', `locale table ${p} failed to load: ${e instanceof Error ? e.message : String(e)}`);
-            })));
-            attempt.assertCurrent();
-            log.info('i18n', `installed — ${tables.length} locale table(s)`);
+        await installProjectLocaleTables(app, tables);
+        attempt.assertCurrent();
+        if (!tables.length && !localization.availableLocales().length) {
+            log.warn('i18n', 'scene binds a localization key but this realm has no locale tables or inline catalogs');
         }
-        if (autoInstalled) {
-            // Auto-installed ⇒ nobody configured a locale: follow the player's
-            // system language when a shipped table matches. A game that installs
-            // the plugin itself (or calls setLocale later) is never overridden.
-            const i18n = app.getResource(Localization);
-            const picked = matchLocale(platformLanguage(), i18n.availableLocales());
-            if (picked) i18n.setLocale(picked);
-        }
+        if (automaticLocales.has(localization)) selectSystemLocale(localization, platformLanguage);
     }
 
     // Loading the runtimes a cell's content needs, and the tables it binds. All

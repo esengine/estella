@@ -61,6 +61,7 @@ import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { preparePrefabFromSource, type PreparedPrefab } from '../prefab/preparedPrefab';
 import type { PrefabOverride } from '../prefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
+import { localeCatalogsFor, type LocalizationAPI, type LocaleTableAsset } from '../i18n/Localization';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
 import { getComponent, getComponentDefaults, type AnyComponentDef } from '../ecs/component';
@@ -431,6 +432,8 @@ function warnAmbiguousRelease_(key: string): void {
 
 const streamingDefaults = new WeakMap<Assets, () => number>();
 
+interface ProjectLocalePin { ready: Promise<void>; lease?: AssetLease }
+
 interface MeshRecoverySource {
     readonly owner: Assets;
     readonly loader: MeshAssetLoader;
@@ -488,7 +491,10 @@ export class Assets {
     private activeUpdate_: PendingUpdate | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
-    private getLocalization_: () => import('../i18n/Localization').LocalizationAPI | null;
+    private getLocalization_: () => LocalizationAPI | null;
+    private projectLocalization_?: LocalizationAPI;
+    private discoveredLocaleTables_: readonly string[] = [];
+    private readonly localeTablePins_ = new Map<string, ProjectLocalePin>();
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
@@ -1091,6 +1097,71 @@ export class Assets {
      *  catalogs. Requires the LocalizationPlugin (fails loud otherwise). */
     async loadLocaleTable(ref: string): Promise<LocaleResult> {
         return this.loadTyped('locale', ref);
+    }
+
+    private keepDirectLocale_(ref: string): void {
+        if (!(this.loaders_.get('locale') instanceof LocaleAssetLoader)) return;
+        const id = this.registryIdentity_(ref);
+        const table = this.resolveRegistryAsset<LocaleTableAsset>('locale', id);
+        const localization = this.getLocalization_();
+        if (table && localization) localeCatalogsFor(localization).keepDirect(this, id, table);
+    }
+
+    /** @internal Scene discovery and plugin startup share one app-owned receipt per logical table. */
+    async installProjectLocaleTables(configured: readonly string[], discovered?: readonly string[]): Promise<void> {
+        const localization = this.getLocalization_();
+        if (!localization) throw new Error('Project locale tables require a Localization resource');
+        if (discovered) this.discoveredLocaleTables_ = [...discovered];
+        // An embedded manifest can key the slot by UUID while storing the authored path directly.
+        // Order by that path in every realm, then deduplicate by the slot that owns the bytes.
+        const found = this.discoveredLocaleTables_.map(ref => {
+            const asset = this.manifestRecord_(ref)?.asset;
+            return { ref, path: asset?.address ?? asset?.path ?? ref };
+        });
+        found.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+        const refs = new Map(found.map(({ ref }) => [this.registryIdentity_(ref), ref]));
+        for (const ref of configured) {
+            const id = this.registryIdentity_(ref);
+            refs.delete(id);
+            refs.set(id, ref);
+        }
+        if (this.projectLocalization_ && this.projectLocalization_ !== localization) {
+            localeCatalogsFor(this.projectLocalization_).clearProject(this);
+        }
+        this.projectLocalization_ = localization;
+        const catalogs = localeCatalogsFor(localization);
+        catalogs.setProject(this, [...refs.keys()]);
+        for (const [id, pin] of this.localeTablePins_) {
+            if (refs.has(id)) continue;
+            this.localeTablePins_.delete(id);
+            if (pin.lease && this.appScope_.forget(pin.lease)) pin.lease.release();
+        }
+        await Promise.all([...refs].map(async ([id, ref]) => {
+            await this.pinLocaleTable_(id, ref);
+            if (!(this.loaders_.get('locale') instanceof LocaleAssetLoader)) return;
+            const table = this.resolveRegistryAsset<LocaleTableAsset>('locale', id);
+            if (table) catalogs.usePublished(this, id, table);
+        }));
+    }
+
+    private pinLocaleTable_(id: string, ref: string): Promise<void> {
+        const existing = this.localeTablePins_.get(id);
+        if (existing) return existing.ready;
+        // Reserve the whole batch before a backend can re-enter discovery.
+        const pin: ProjectLocalePin = { ready: Promise.resolve().then(async () => {
+            if (this.localeTablePins_.get(id) !== pin) return;
+            try {
+                const lease = await this.acquireTypedLease_('locale', ref);
+                if (this.localeTablePins_.get(id) === pin) pin.lease = this.appScope_.add(lease);
+                else lease.release();
+            } catch (error) {
+                if (this.localeTablePins_.get(id) !== pin) return;
+                this.localeTablePins_.delete(id);
+                log.error('i18n', `locale table ${ref} failed to load: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }) };
+        this.localeTablePins_.set(id, pin);
+        return pin.ready;
     }
 
     /** Load a `.esfsm` state machine into the shared AI store, keyed by its
@@ -2049,7 +2120,11 @@ export class Assets {
 
     /** {@link acquireTexture} for everything that goes through a typed loader. */
     async acquireTyped<T>(type: string, ref: string): Promise<AssetLease<T>> {
-        try { return await this.acquireTypedLease_<T>(type, ref); }
+        try {
+            const lease = await this.acquireTypedLease_<T>(type, ref);
+            if (type === 'locale') this.keepDirectLocale_(ref);
+            return lease;
+        }
         catch (error) { throw preparationFailureReason(error); }
     }
 
@@ -2378,8 +2453,8 @@ export class Assets {
             }
         }
         const ended = refs.map(path => this.invalidateSource_(path));
-        if (plan.length > 0) {
-            const pending = ended.flatMap(result => result.rebuilt ? [result.rebuilt] : []);
+        const pending = ended.flatMap(result => result.rebuilt ? [result.rebuilt] : []);
+        if (pending.length || plan.length) {
             this.track_(pending.length ? Promise.all(pending).then(() => this.rebuildAssetGraph_(plan)) : this.rebuildAssetGraph_(plan));
         }
         for (const path of refs) this.fireSourceChanged_(path);
@@ -2740,6 +2815,10 @@ export class Assets {
         // Pending loads lose ownership even if a user-provided unload throws.
         this.resetEpoch_++;
         try {
+            this.localeTablePins_.clear();
+            this.discoveredLocaleTables_ = [];
+            if (this.projectLocalization_) localeCatalogsFor(this.projectLocalization_).clearProject(this);
+            this.projectLocalization_ = undefined;
             disposeAll([
                 () => this.entityScopes_.close(),
                 () => {
@@ -2982,7 +3061,7 @@ export class Assets {
             load: (path, context) => this.bakePrefab_(path, context as LoadContext & { recorder: DependencyRecorder }),
             unload: (prepared) => prepared.release(),
         });
-        this.register(new LocaleAssetLoader());
+        this.register(new LocaleAssetLoader(this));
         this.register(new JsonAssetLoader());
         this.register(new SoundEventAssetLoader());
         // …and whatever an optional subsystem brought with it. A loader names
@@ -2996,8 +3075,8 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
+        if (this.getLoader<T>(type)?.registry) return (await this.acquireTyped<T>(type, ref)).value;
         try {
-            if (this.getLoader<T>(type)?.registry) return (await this.acquireTypedLease_<T>(type, ref)).value;
             const lease = await this.acquireHandle_<T>(type, ref);
             this.genericRefs_.leaveByPath(lease.key, lease.generation);
             return lease.value;
@@ -3267,7 +3346,7 @@ export class Assets {
             prepare: (identity, owner) => this.prepared_(ctx => {
                 const path = this.resolveLoadPath_(identity);
                 const file = path === identity ? this.manifestRecord_(identity)?.asset.path ?? path : path;
-                return registry.prepare(file, ctx);
+                return registry.prepare(file, ctx, owner);
             }, owner),
         };
     }

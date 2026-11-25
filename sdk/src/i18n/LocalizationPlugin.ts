@@ -11,6 +11,14 @@ import { Assets } from '../asset/AssetPlugin';
 import { log } from '../util/logger';
 import { Localization, LocalizationAPI, type LocaleCatalog } from './Localization';
 
+const startupTables = new WeakMap<LocalizationAPI, readonly string[]>();
+
+/** @internal Declared tables override discovered ones in their configured order. */
+export function installProjectLocaleTables(app: App, discovered?: readonly string[]): Promise<void> {
+    const configured = startupTables.get(app.getResource(Localization)) ?? [];
+    return app.getResource(Assets).installProjectLocaleTables(configured, discovered);
+}
+
 export interface LocalizationOptions {
     /** Active locale (default 'en'). */
     locale?: string;
@@ -20,8 +28,7 @@ export interface LocalizationOptions {
     catalogs?: Record<string, LocaleCatalog>;
     /**
      * `.eslocale` string-table assets to load at startup (paths or `@uuid:`
-     * refs). Loaded through the app's Assets resource — bound Text re-flows
-     * the frame each table lands. Requires the AssetPlugin.
+     * refs). Later tables override earlier ones. Requires the AssetPlugin.
      */
     tables?: string[];
 }
@@ -42,6 +49,7 @@ export class LocalizationPlugin implements Plugin {
 
         const tables = this.opts.tables;
         if (tables && tables.length > 0) {
+            startupTables.set(loc, [...tables]);
             // Startup runs after every plugin build, so the Assets resource is
             // there regardless of install order. Loads are fire-and-forget —
             // the resolve system re-flows bound text the frame a table lands —
@@ -51,12 +59,7 @@ export class LocalizationPlugin implements Plugin {
                     log.error('i18n', `LocalizationPlugin: 'tables' needs the AssetPlugin — ${tables.length} table(s) not loaded`);
                     return;
                 }
-                const assets = app.getResource(Assets);
-                for (const ref of tables) {
-                    assets.loadLocaleTable(ref).catch((e: unknown) => {
-                        log.error('i18n', `failed to load locale table ${ref}: ${e instanceof Error ? e.message : String(e)}`);
-                    });
-                }
+                void installProjectLocaleTables(app);
             }, { name: 'LocaleTableStartupSystem' }));
         }
     }

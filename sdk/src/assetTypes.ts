@@ -86,7 +86,7 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esterrainlayerinfo'], contentType: 'json', editorType: 'terrain-layer-info', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esphysmat'], contentType: 'json', editorType: 'physical-material', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esterrain'], contentType: 'json', editorType: 'terrain-tiles', wechatPackInclude: true, hasTransitiveDeps: true },
-    // Locale string table (LocaleAssetLoader → Localization.addCatalog) — one locale per file.
+    // One locale per file. The asset registry publishes its entries into the app's catalog.
     { extensions: ['eslocale'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // State machine (registerFsm / FsmAssetLoader) — data-driven FSM definition.
     { extensions: ['esfsm'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },

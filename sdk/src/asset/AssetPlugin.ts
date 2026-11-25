@@ -44,6 +44,35 @@ export const Assets = defineResource<AssetsData>(
     'Assets'
 );
 
+const runtimeOwners = new WeakMap<App, () => void>();
+const runtimeReleases = new WeakMap<AssetsClass, (() => void) | null>();
+
+/** @internal Retire scene assets while their module host and renderer are still live. */
+export function releaseRuntimeAssets(app: App): void {
+    runtimeOwners.get(app)?.();
+}
+
+/** @internal Scene loaders belong to the App even when it uses no default asset plugin. */
+export function installRuntimeAssets(app: App, assets: AssetsClass, onRelease: () => void): void {
+    releaseRuntimeAssets(app);
+    const release = () => {
+        if (runtimeOwners.get(app) !== release) return;
+        runtimeOwners.delete(app);
+        runtimeReleases.set(assets, null);
+        try { onRelease(); }
+        finally { assets.releaseAll(); }
+    };
+    runtimeOwners.set(app, release);
+    runtimeReleases.set(assets, release);
+    installAssets(app, assets);
+}
+
+function installAssets(app: App, assets: AssetsClass): void {
+    bindAssetReferenceTracking(app.world, assets,
+        () => app.hasResource(Assets) ? app.getResource(Assets) : null);
+    app.insertResource(Assets, assets);
+}
+
 export class AssetPlugin implements Plugin {
     name = 'asset';
     private readonly states_ = new WeakMap<App, AssetPluginState>();
@@ -52,10 +81,6 @@ export class AssetPlugin implements Plugin {
     build(app: App): void {
         this.cleanup(app);
         const module = app.wasmModule;
-        if (!module) {
-            log.warn('asset', 'AssetPlugin: No WASM module available');
-            return;
-        }
 
         const assets = AssetsClass.create({
             backend: new HttpBackend({ baseUrl: '' }),
@@ -78,15 +103,12 @@ export class AssetPlugin implements Plugin {
         // and wire it to world despawns so entries don't
         // outlive their entities. Tools / debug UI read it via
         // `assets.getRefCounter()`.
-        bindAssetReferenceTracking(app.world, assets,
-            () => app.hasResource(Assets) ? app.getResource(Assets) : null);
-
-        app.insertResource(Assets, assets);
+        installAssets(app, assets);
         const state: AssetPluginState = { created: assets,
             current: () => app.hasResource(Assets) ? app.getResource(Assets) : null, released: false };
         this.states_.set(app, state);
         this.latestState_ = state;
-        this.driveDeviceRecovery_(app, state);
+        if (module) this.driveDeviceRecovery_(app, state);
     }
 
     /** Release both the default loader and any runtime replacement owned by this App. */
@@ -97,7 +119,11 @@ export class AssetPlugin implements Plugin {
         if (app) this.states_.delete(app);
         if (state === this.latestState_) this.latestState_ = null;
         const current = state.current();
-        disposeAll(current && current !== state.created ? [state.created, current] : [state.created], assets => assets.releaseAll());
+        disposeAll(current && current !== state.created ? [state.created, current] : [state.created], assets => {
+            const release = runtimeReleases.get(assets);
+            if (release === undefined) assets.releaseAll();
+            else release?.();
+        });
     }
 
     /**

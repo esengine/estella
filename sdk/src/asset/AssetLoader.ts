@@ -223,7 +223,8 @@ export interface LoadContext {
  * there is no second place to write and nothing to keep in step with it.
  */
 export interface RegistryAssetLoader<T> {
-    prepare(path: string, ctx: LoadContext): Promise<RegistryEra<T>>;
+    /** The path addresses this revision. The slot and its logical key stay the same across revisions. */
+    prepare(path: string, ctx: LoadContext, slot?: { readonly key: string }): Promise<RegistryEra<T>>;
 }
 
 /**

@@ -26,6 +26,7 @@ import { leaseBinding, type BindingLease } from './leaseBindings';
 import { AssetDependencyOwner, type AssetWithReceipts, type DependencyReceipt, type Preparation } from './dependencies';
 import { disposeAll } from '../util/disposeAll';
 import { reservePromise } from '../util/reservePromise';
+import { log } from '../util/logger';
 import { assetPairKey } from './assetPairKey';
 
 const noNames: readonly string[] = Object.freeze([]);
@@ -38,6 +39,8 @@ export interface RegistryEra<T> {
     readonly published: unknown;
     /** The logical identity a holder keeps — the same across every era. */
     readonly value: T;
+    /** Notify a derived index after this era wins publication. Superseded preparations never notify. */
+    didPublish?(): void;
 }
 
 /** One era, with what its preparation took. */
@@ -65,6 +68,7 @@ class Slot<T> extends AssetDependencyOwner {
     refs = 0;
     era: PreparedEra<T> | null = null;
     loading: Promise<void> | null = null;
+    refreshWhileLoading: RegistryAssetKind<T> | null = null;
     waiters = 0;
     /** Which refresh is the current one. A preparation that started before the
      *  count moved is answering a question nobody is asking any more. */
@@ -127,19 +131,29 @@ export class RegistryAssetSlots {
         } finally {
             if (--slot.waiters === 0) {
                 slot.loading = null;
+                slot.refreshWhileLoading = null;
                 if (slot.refs === 0) this.retire_(slot);
             }
         }
     }
 
     private async publishInitial_<T>(kind: RegistryAssetKind<T>, slot: Slot<T>): Promise<void> {
-        const era = await kind.prepare(slot.key, slot);
-        if (this.byName_.get(assetPairKey(slot.type, slot.key)) !== slot) {
-            era.dependencies.releaseAll();
-            throw new Error(`"${slot.key}" was released while it was loading; it has no owner. Load it again.`);
+        const key = assetPairKey(slot.type, slot.key);
+        while (this.byName_.get(key) === slot) {
+            const ticket = slot.refresh;
+            let era: PreparedEra<T>;
+            try { era = await (slot.refreshWhileLoading ?? kind).prepare(slot.key, slot); }
+            catch (error) {
+                if (ticket === slot.refresh || this.byName_.get(key) !== slot) throw error;
+                continue;
+            }
+            if (ticket === slot.refresh && this.byName_.get(key) === slot) {
+                this.publish_(slot, era);
+                return;
+            }
+            releaseEra(era);
         }
-        slot.era = era;
-        this.changed_(slot.type);
+        throw new Error(`"${slot.key}" was released while it was loading; it has no owner. Load it again.`);
     }
 
     /**
@@ -153,8 +167,16 @@ export class RegistryAssetSlots {
     async republish<T>(kind: RegistryAssetKind<T>, type: string, name: string): Promise<boolean> {
         const key = assetPairKey(type, name);
         const slot = this.byName_.get(key) as Slot<T> | undefined;
-        if (!slot?.era) return false;
+        if (!slot) return false;
         const ticket = ++slot.refresh;
+        if (!slot.era) {
+            if (!slot.loading) return false;
+            // All cold waiters share the first publication. A change before
+            // it lands must re-read the file before any waiter sees a value.
+            slot.refreshWhileLoading = kind;
+            await slot.loading;
+            return ticket === slot.refresh && this.byName_.get(key) === slot;
+        }
         const era = await kind.prepare(slot.key, slot);
         if (era.failedDependencies?.length) {
             era.dependencies.releaseAll();
@@ -165,13 +187,19 @@ export class RegistryAssetSlots {
             era.dependencies.releaseAll();
             return false;
         }
-        const previous = slot.era;
-        slot.era = era;
-        this.changed_(type);
-        // Its dependencies only: what the name resolves to is the slot's, and
-        // the era above already holds it.
-        previous.dependencies.releaseAll();
+        this.publish_(slot, era);
         return true;
+    }
+
+    private publish_<T>(slot: Slot<T>, era: PreparedEra<T>): void {
+        const previous = slot.era;
+        // A publication callback belongs to this commit only. A held slot need
+        // not keep the resource it notified alive after that resource is replaced.
+        slot.era = era.didPublish ? { ...era, didPublish: undefined } : era;
+        this.changed_(slot.type);
+        try { era.didPublish?.(); }
+        catch (error) { log.warn('asset', `publication listener for "${slot.key}" failed`, error); }
+        releaseEra(previous);
     }
 
     /** Whether this name is one a slot of this type answers to. */

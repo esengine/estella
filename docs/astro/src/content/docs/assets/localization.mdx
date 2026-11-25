@@ -106,6 +106,10 @@ Tables are loaded in one of three ways:
 
 The cook always ships `.eslocale` files, because they are addressed by key and no scene references them.
 
+When two tables define the same key for the same locale, the later table wins. Scene discovery orders tables by logical project path. Tables listed in `LocalizationPlugin({ tables })` follow in the order you specify. Switching scenes reuses each table, including when a path and a UUID name the same asset.
+
+A successful hot update replaces the table. Removing a key reveals the value from an earlier table or the fallback locale. If the updated file fails to load, labels keep their previous translations.
+
 ### Inspector
 
 Create a table with **Content Browser → right-click → New Locale Table**. Selecting a table turns the Details panel into

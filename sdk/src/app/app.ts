@@ -25,7 +25,7 @@ import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ScreenLayout } from '../ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../ui/core/screen-overlay';
 import { inputPlugin, Input, setInputExecutionHeld } from '../input/input';
-import { assetPlugin } from '../asset';
+import { assetPlugin, releaseRuntimeAssets } from '../asset/AssetPlugin';
 import { prefabsPlugin } from '../prefab/prefabServer';
 import { breakablePlugin } from '../breakable/breakable';
 import { setWasmErrorHandler } from '../wasm/wasmError';
@@ -1559,6 +1559,8 @@ export class App {
         for (const entity of this.world_.getAllEntities()) {
             try { this.world_.despawn(entity); } catch (e) { log.warn('app', 'Shutdown despawn error', e); }
         }
+        try { releaseRuntimeAssets(this); }
+        catch (e) { log.warn('app', 'Shutdown asset release error', e); }
         const aot = this.aot_;
         this.aot_ = null;
         this.runner_?.useAot(null);

@@ -8,8 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { LocalizationAPI, parseLocaleTable, matchLocale } from '../src/i18n/Localization';
-import { LocaleAssetLoader } from '../src/asset/loaders/LocaleAssetLoader';
-import type { LoadContext } from '../src/asset/AssetLoader';
+import { Assets } from '../src/asset/Assets';
 import { applyTextLocalization, type TextWorldView } from '../src/ui/text/localize';
 import { Text, type TextData } from '../src/ui/core/text';
 import { sceneUsesI18n } from '../src/runtime/runtimeLoader';
@@ -111,38 +110,41 @@ describe('sceneUsesI18n', () => {
 // LocaleAssetLoader
 // =============================================================================
 
-function loaderCtx(text: string, i18n: LocalizationAPI | null): LoadContext {
-    return {
-        catalog: { getBuildPath: (p: string) => p },
-        loadText: async () => text,
+function tableAssets(text: string, i18n: LocalizationAPI | null): Assets {
+    return Assets.create({
+        module: null,
+        backend: { fetchText: async () => text, fetchBinary: async () => new ArrayBuffer(0), resolveUrl: p => p },
         getLocalization: () => i18n,
-    } as unknown as LoadContext;
+    });
 }
 
 describe('LocaleAssetLoader', () => {
     it('merges the table into the app catalogs and reports locale + key count', async () => {
         const i18n = new LocalizationAPI('en', 'en');
-        const loader = new LocaleAssetLoader();
-        const result = await loader.load('i18n/zh-CN.eslocale', loaderCtx(JSON.stringify({
+        const assets = tableAssets(JSON.stringify({
             version: 1,
             locale: 'zh-CN',
             entries: { play: '开始', quit: '退出' },
-        }), i18n));
+        }), i18n);
+        const result = await assets.loadLocaleTable('i18n/zh-CN.eslocale');
         expect(result).toEqual({ locale: 'zh-CN', keyCount: 2 });
         i18n.setLocale('zh-CN');
         expect(i18n.t('play')).toBe('开始');
+        assets.releaseTyped('locale', 'i18n/zh-CN.eslocale');
+        expect(assets.sizes().registrySlots).toBe(0);
+        expect(i18n.t('quit')).toBe('退出');
     });
 
     it('fails loud without a Localization resource', async () => {
-        const loader = new LocaleAssetLoader();
-        await expect(loader.load('i18n/en.eslocale', loaderCtx('{"locale":"en","entries":{}}', null)))
+        const assets = tableAssets('{"locale":"en","entries":{}}', null);
+        await expect(assets.loadLocaleTable('i18n/en.eslocale'))
             .rejects.toThrow(/localizationPlugin/);
     });
 
     it('propagates table validation errors (bad content never half-registers)', async () => {
         const i18n = new LocalizationAPI('en', 'en');
-        const loader = new LocaleAssetLoader();
-        await expect(loader.load('i18n/en.eslocale', loaderCtx('{"entries":{}}', i18n)))
+        const assets = tableAssets('{"entries":{}}', i18n);
+        await expect(assets.loadLocaleTable('i18n/en.eslocale'))
             .rejects.toThrow(/'locale'/);
         expect(i18n.availableLocales()).toEqual([]);
     });
