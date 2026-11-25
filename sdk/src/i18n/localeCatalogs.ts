@@ -15,7 +15,6 @@ type CatalogLayer =
 export class LocaleCatalogs {
     private clock = 0;
     private readonly inline = new Map<string, InlineCatalog>();
-    private readonly slotOrders = new WeakMap<object, number>();
     private readonly files = new Map<string, { order: number; table: LocaleTableAsset; direct: boolean }>();
     private project?: { owner: object; order: number; refs: readonly string[]; members: Set<string> };
     private resolved?: Map<string, Map<string, LocaleEntry>>;
@@ -31,10 +30,9 @@ export class LocaleCatalogs {
     }
 
     /** Reserve a direct load's precedence before its read starts. Failed reads retain no data. */
-    prepare(ref: string, owner: object, slot?: object): (table: LocaleTableAsset) => void {
+    prepare(ref: string, owner: object): (table: LocaleTableAsset) => void {
         const group = this.project?.members.has(ref) ? this.project : undefined;
-        const order = this.files.get(ref)?.order ?? group?.order ?? (slot && this.slotOrders.get(slot)) ?? ++this.clock;
-        if (slot) this.slotOrders.set(slot, order);
+        const order = this.files.get(ref)?.order ?? group?.order ?? ++this.clock;
         return table => {
             const current = this.project?.members.has(ref);
             if ((group && !current) || (current && this.project?.owner !== owner)) return;
@@ -67,6 +65,11 @@ export class LocaleCatalogs {
         if (this.project?.owner === owner && this.project.members.has(ref) && this.files.get(ref)?.table !== table) {
             this.prepare(ref, owner)(table);
         }
+    }
+
+    /** A registry refresh updates only the files this service has already adopted. */
+    refreshPublished(owner: object, ref: string, previous: unknown, table: LocaleTableAsset): void {
+        if (previous && this.files.get(ref)?.table === previous) this.prepare(ref, owner)(table);
     }
 
     /** The direct load API merges a table into this service beyond the lifetime of a project pin. */

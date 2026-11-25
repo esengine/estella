@@ -1133,6 +1133,7 @@ ResourceDef<AssetsClass>
 @internal isCurrentBindingLease: (type: string, ref: string, lease: AssetLease) => boolean
 @internal leaseForBinding: (scope: AssetScope, type: string, value: unknown) => AssetLease | undefined
 @internal preparePrefab: (ref: string, overrides?: readonly PrefabOverride[]) => Promise<PreparedPrefab>
+@internal prepareProjectLocaleTables: (configured: readonly string[], discovered: readonly string[], scope: AssetScope, assertCurrent: () => void) => Promise<PreparedProjectLocaleTables>
 @internal publishedRegistryAssets: <T>(type: string) => T[]
 @internal registryAssetVersion: (type: string) => number
 @internal releaseTextureLease: (lease: AssetRefLease<number>) => void

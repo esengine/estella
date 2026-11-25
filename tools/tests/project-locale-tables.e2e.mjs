@@ -26,6 +26,9 @@ async function fixture(project) {
             entity(2, scene, [{ type: 'Transform', data: {} }, shape]),
         ] });
     }
+    await asset(project, 'assets/scenes/boot.esscene', 'scene', { version: 4, name: 'boot', entities: [
+        entity(1, 'Boot', [{ type: 'Transform', data: {} }]),
+    ] });
     // Exercise a registered but unreadable destination through each target's scene loader.
     await asset(project, 'assets/scenes/future.esscene', 'scene', { version: 999, name: 'future', entities: [] });
     // The UUIDs sort in the opposite order to the two English filenames.
@@ -37,7 +40,7 @@ async function fixture(project) {
         await asset(project, 'assets/i18n/' + file + '.eslocale', 'locale', { locale, entries: { start: text } }, uuid);
     }
     await fs.writeFile(path.join(project, 'project.esproject'), JSON.stringify({
-        formatVersion: '1', name: 'Localized scenes', defaultScene: 'assets/scenes/hud.esscene',
+        formatVersion: '1', name: 'Localized scenes', defaultScene: 'assets/scenes/boot.esscene',
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
@@ -48,11 +51,28 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
         if (input.isKeyDown('KeyK')) inputCaption = app.world.findEntityByName('Caption');
     }));
     globalThis.captionReceivedInput = () => inputCaption != null && inputCaption === app.world.findEntityByName('Caption');
+    const localePins = () => app.getResource(Assets).appScope.leases().filter(lease => typeof lease.value?.locale === 'string').length;
+    globalThis.bootReady = () => {
+        const scenes = app.getResource(SceneManager);
+        return scenes.getActive() === 'boot' && scenes.getSceneStatus('boot') === 'running';
+    };
+    globalThis.probeCaptionPreload = async name => {
+        const assets = app.getResource(Assets), scenes = app.getResource(SceneManager);
+        const active = scenes.getActive(), original = scenes.getScene(active);
+        const state = () => ({
+            sameScene: scenes.getActive() === active && scenes.getScene(active) === original && !original.signal.aborted,
+            text: globalThis.readCaption()?.text ?? null,
+            service: app.hasResource(Localization), pins: localePins(), decoded: assets.publishedRegistryAssets('locale').length,
+        });
+        await scenes.prepare(name);
+        const prepared = state();
+        const released = scenes.discardPrepared(name);
+        return { prepared, released, discarded: state() };
+    };
     globalThis.readCaption = () => {
         const entity = app.world.findEntityByName('Caption');
         if (entity == null || !app.hasResource(Localization)) return null;
-        const pins = app.getResource(Assets).appScope.leases().filter(lease => typeof lease.value?.locale === 'string').length;
-        return { text: app.world.get(entity, Text).content, pins, scenes: app.getResource(SceneManager).getActiveScenes() };
+        return { text: app.world.get(entity, Text).content, pins: localePins(), scenes: app.getResource(SceneManager).getActiveScenes() };
     };
     globalThis.setCaptionLocale = locale => app.getResource(Localization).setLocale(locale);
     globalThis.openCaptionScene = name => app.getResource(SceneManager).switchTo(name);
@@ -94,8 +114,23 @@ async function check(browser, project, dir, platform) {
     }, [scene, text], { timeout: 30_000 });
     try {
         await page.goto(`http://127.0.0.1:${server.address().port}/`);
+        await page.waitForFunction(() => globalThis.bootReady?.(), null, { timeout: 30_000 });
+        for (const name of ['hud', 'world']) {
+            const result = await page.evaluate(name => globalThis.probeCaptionPreload(name), name);
+            const boot = { sameScene: true, text: null, service: false, pins: 0 };
+            assert.deepEqual(result.prepared, { ...boot, decoded: 3 }, name);
+            assert.ok(result.released >= 3, `${name} must release all its table references`);
+            assert.deepEqual(result.discarded, { ...boot, decoded: 0 }, name);
+        }
+        await page.evaluate(() => globalThis.openCaptionScene('hud'));
         await caption('hud', 'Start game');
         await page.evaluate(() => globalThis.setCaptionLocale('fr'));
+        await caption('hud', 'Commencer');
+        const active = await page.evaluate(() => globalThis.probeCaptionPreload('world'));
+        const playing = { sameScene: true, text: 'Commencer', service: true, pins: 3, decoded: 3 };
+        assert.deepEqual(active.prepared, playing);
+        assert.ok(active.released >= 3);
+        assert.deepEqual(active.discarded, playing);
         for (const scene of ['world', 'hud', 'world', 'hud']) {
             const previous = scene === 'world' ? 'hud' : 'world';
             const failure = await page.evaluate(transition => globalThis.tryFutureScene(transition), scene === 'world' ? 'none' : 'fade');
@@ -112,7 +147,7 @@ async function check(browser, project, dir, platform) {
         await page.evaluate(() => globalThis.setCaptionLocale('en'));
         await caption('hud', 'Start game');
         assert.deepEqual(errors, []);
-        console.log(platform + ': input and captions survived rejected cuts and fades, four successful switches, three table receipts');
+        console.log(platform + ' passed 2D and 3D preload/discard, active captions and input, cuts, fades and four switches');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

@@ -13,10 +13,14 @@ import { Localization, LocalizationAPI, type LocaleCatalog } from './Localizatio
 
 const startupTables = new WeakMap<LocalizationAPI, readonly string[]>();
 
+/** @internal A prepared scene uses whichever localization service the game has installed at publication. */
+export function configuredLocaleTables(app: App): readonly string[] {
+    return app.hasResource(Localization) ? startupTables.get(app.getResource(Localization)) ?? [] : [];
+}
+
 /** @internal Declared tables override discovered ones in their configured order. */
 export function installProjectLocaleTables(app: App, discovered?: readonly string[]): Promise<void> {
-    const configured = startupTables.get(app.getResource(Localization)) ?? [];
-    return app.getResource(Assets).installProjectLocaleTables(configured, discovered);
+    return app.getResource(Assets).installProjectLocaleTables(configuredLocaleTables(app), discovered);
 }
 
 export interface LocalizationOptions {

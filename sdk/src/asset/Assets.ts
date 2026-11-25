@@ -61,6 +61,7 @@ import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { preparePrefabFromSource, type PreparedPrefab } from '../prefab/preparedPrefab';
 import type { PrefabOverride } from '../prefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
+import { ProjectLocaleTables, type PreparedProjectLocaleTables } from './projectLocaleTables';
 import { localeCatalogsFor, type LocalizationAPI, type LocaleTableAsset } from '../i18n/Localization';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
@@ -432,7 +433,6 @@ function warnAmbiguousRelease_(key: string): void {
 
 const streamingDefaults = new WeakMap<Assets, () => number>();
 
-interface ProjectLocalePin { ready: Promise<void>; lease?: AssetLease }
 
 interface MeshRecoverySource {
     readonly owner: Assets;
@@ -492,9 +492,7 @@ export class Assets {
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
     private getLocalization_: () => LocalizationAPI | null;
-    private projectLocalization_?: LocalizationAPI;
-    private discoveredLocaleTables_: readonly string[] = [];
-    private readonly localeTablePins_ = new Map<string, ProjectLocalePin>();
+    private projectLocales_?: ProjectLocaleTables;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
@@ -1099,69 +1097,48 @@ export class Assets {
         return this.loadTyped('locale', ref);
     }
 
-    private keepDirectLocale_(ref: string): void {
-        if (!(this.loaders_.get('locale') instanceof LocaleAssetLoader)) return;
+    private directLocalePublication_(ref: string): () => void {
+        const service = this.getLocalization_();
+        if (!service) throw new Error(`${ref}: no Localization resource — add localizationPlugin to the app before loading locale tables`);
         const id = this.registryIdentity_(ref);
-        const table = this.resolveRegistryAsset<LocaleTableAsset>('locale', id);
-        const localization = this.getLocalization_();
-        if (table && localization) localeCatalogsFor(localization).keepDirect(this, id, table);
-    }
-
-    /** @internal Scene discovery and plugin startup share one app-owned receipt per logical table. */
-    async installProjectLocaleTables(configured: readonly string[], discovered?: readonly string[]): Promise<void> {
-        const localization = this.getLocalization_();
-        if (!localization) throw new Error('Project locale tables require a Localization resource');
-        if (discovered) this.discoveredLocaleTables_ = [...discovered];
-        // An embedded manifest can key the slot by UUID while storing the authored path directly.
-        // Order by that path in every realm, then deduplicate by the slot that owns the bytes.
-        const found = this.discoveredLocaleTables_.map(ref => {
-            const asset = this.manifestRecord_(ref)?.asset;
-            return { ref, path: asset?.address ?? asset?.path ?? ref };
-        });
-        found.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-        const refs = new Map(found.map(({ ref }) => [this.registryIdentity_(ref), ref]));
-        for (const ref of configured) {
-            const id = this.registryIdentity_(ref);
-            refs.delete(id);
-            refs.set(id, ref);
-        }
-        if (this.projectLocalization_ && this.projectLocalization_ !== localization) {
-            localeCatalogsFor(this.projectLocalization_).clearProject(this);
-        }
-        this.projectLocalization_ = localization;
-        const catalogs = localeCatalogsFor(localization);
-        catalogs.setProject(this, [...refs.keys()]);
-        for (const [id, pin] of this.localeTablePins_) {
-            if (refs.has(id)) continue;
-            this.localeTablePins_.delete(id);
-            if (pin.lease && this.appScope_.forget(pin.lease)) pin.lease.release();
-        }
-        await Promise.all([...refs].map(async ([id, ref]) => {
-            await this.pinLocaleTable_(id, ref);
-            if (!(this.loaders_.get('locale') instanceof LocaleAssetLoader)) return;
+        const publish = localeCatalogsFor(service).prepare(id, this);
+        return () => {
+            const current = this.getLocalization_();
             const table = this.resolveRegistryAsset<LocaleTableAsset>('locale', id);
-            if (table) catalogs.usePublished(this, id, table);
-        }));
+            if (!table || !current) return;
+            if (current === service) publish(table);
+            localeCatalogsFor(current).keepDirect(this, id, table);
+        };
     }
 
-    private pinLocaleTable_(id: string, ref: string): Promise<void> {
-        const existing = this.localeTablePins_.get(id);
-        if (existing) return existing.ready;
-        // Reserve the whole batch before a backend can re-enter discovery.
-        const pin: ProjectLocalePin = { ready: Promise.resolve().then(async () => {
-            if (this.localeTablePins_.get(id) !== pin) return;
-            try {
-                const lease = await this.acquireTypedLease_('locale', ref);
-                if (this.localeTablePins_.get(id) === pin) pin.lease = this.appScope_.add(lease);
-                else lease.release();
-            } catch (error) {
-                if (this.localeTablePins_.get(id) !== pin) return;
-                this.localeTablePins_.delete(id);
-                log.error('i18n', `locale table ${ref} failed to load: ${error instanceof Error ? error.message : String(error)}`);
-            }
-        }) };
-        this.localeTablePins_.set(id, pin);
-        return pin.ready;
+    private localeTables_(): ProjectLocaleTables {
+        return this.projectLocales_ ??= new ProjectLocaleTables(this, this.appScope_, {
+            identity: ref => this.registryIdentity_(ref),
+            path: ref => {
+                const asset = this.manifestRecord_(ref)?.asset;
+                return asset?.address ?? asset?.path ?? ref;
+            },
+            acquire: ref => this.acquireTypedLease_('locale', ref, undefined, 'project'),
+            table: id => this.loaders_.get('locale') instanceof LocaleAssetLoader
+                ? this.resolveRegistryAsset<LocaleTableAsset>('locale', id) : undefined,
+        });
+    }
+
+    /** @internal Plugin startup installs configured tables into the current app catalog. */
+    async installProjectLocaleTables(configured: readonly string[], discovered?: readonly string[]): Promise<void> {
+        const service = this.getLocalization_();
+        if (!service) throw new Error('Project locale tables require a Localization resource');
+        await this.localeTables_().install(service, configured, discovered);
+    }
+
+    /** @internal Keep a scene's translations in its own scope until publication succeeds. */
+    prepareProjectLocaleTables(configured: readonly string[], discovered: readonly string[], scope: AssetScope,
+        assertCurrent: () => void): Promise<PreparedProjectLocaleTables> {
+        const epoch = this.resetEpoch_;
+        return this.localeTables_().prepare(configured, discovered, scope, () => {
+            assertCurrent();
+            this.assertLoading_(epoch);
+        });
     }
 
     /** Load a `.esfsm` state machine into the shared AI store, keyed by its
@@ -2120,15 +2097,12 @@ export class Assets {
 
     /** {@link acquireTexture} for everything that goes through a typed loader. */
     async acquireTyped<T>(type: string, ref: string): Promise<AssetLease<T>> {
-        try {
-            const lease = await this.acquireTypedLease_<T>(type, ref);
-            if (type === 'locale') this.keepDirectLocale_(ref);
-            return lease;
-        }
+        try { return await this.acquireTypedLease_<T>(type, ref); }
         catch (error) { throw preparationFailureReason(error); }
     }
 
-    private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner): Promise<AssetLease<T>> {
+    private async acquireTypedLease_<T>(type: string, ref: string, owner?: AssetDependencyOwner,
+        localeIntent: 'direct' | 'project' = 'direct'): Promise<AssetLease<T>> {
         const loader = this.loaders_.get(type);
         if (loader === this.spineLoader_) {
             const receipt: AssetLease = await this.acquireSpineLease_(ref, undefined, owner);
@@ -2141,8 +2115,13 @@ export class Assets {
         }
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
+        const publish = loader instanceof LocaleAssetLoader && localeIntent === 'direct'
+            ? this.directLocalePublication_(ref) : undefined;
         const slot = await this.acquireSlot_<T>(type, ref, owner);
-        try { this.assertLoading_(epoch); }
+        try {
+            this.assertLoading_(epoch);
+            if (slot) publish?.();
+        }
         catch (error) { slot?.release(); throw error; }
         if (!(loader instanceof MaterialAssetLoader) || !this.textureLoader_.mayHoldReducedTextures
             || this.surfaceUses_.use(this.surfaceKey_('material', ref)) !== 'full') return slot ?? this.acquireHandle_<T>(type, ref, owner);
@@ -2815,10 +2794,7 @@ export class Assets {
         // Pending loads lose ownership even if a user-provided unload throws.
         this.resetEpoch_++;
         try {
-            this.localeTablePins_.clear();
-            this.discoveredLocaleTables_ = [];
-            if (this.projectLocalization_) localeCatalogsFor(this.projectLocalization_).clearProject(this);
-            this.projectLocalization_ = undefined;
+            this.projectLocales_?.clear();
             disposeAll([
                 () => this.entityScopes_.close(),
                 () => {

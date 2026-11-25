@@ -120,6 +120,11 @@ Preloading a scene can fetch its 2D or 3D physics module. The first scene to pub
 installs it with its world settings. Discarding a preload releases its acquired scene assets immediately.
 Other scenes waiting for the same module can finish using the shared read.
 
+If a 2D or 3D scene binds text to a localization key, `prepare(name)` also reads its string tables.
+The current scene keeps its captions and language while those reads run. Once the destination takes
+ownership of its entities and assets, it adopts the prepared translations. `discardPrepared(name)`
+releases the destination's table references, including when another scene shares the same read.
+
 ## Persistent entities
 
 A switch despawns the entities owned by the outgoing scene. `setPersistent` marks an entity to survive the unload of

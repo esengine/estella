@@ -50,7 +50,7 @@ import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
 import { getPlatform } from '../platform/base';
 import { Localization, selectSystemLocale, type LocalizationAPI } from '../i18n/Localization';
-import { installProjectLocaleTables, LocalizationPlugin } from '../i18n/LocalizationPlugin';
+import { configuredLocaleTables, LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
 import { flushPendingRegistrations, type Plugin } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
@@ -92,6 +92,14 @@ export type { RuntimeAssetSource } from './runtimeAssets';
 // from the default AssetPlugin one it must replace).
 const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImportSettings>>();
 const automaticLocales = new WeakSet<LocalizationAPI>();
+
+function sceneLocalization(app: App): LocalizationAPI {
+    if (!app.hasResource(Localization)) {
+        app.addPlugin(new LocalizationPlugin());
+        automaticLocales.add(app.getResource(Localization));
+    }
+    return app.getResource(Localization);
+}
 
 /**
  * The per-App runtime `Assets`, loading through the single canonical asset
@@ -349,6 +357,8 @@ export interface PreparedRuntimeScene {
     readonly options: LoadRuntimeSceneOptions;
     /** @internal Ready modules whose world settings take effect when this scene publishes. */
     readonly physicsInstalls?: ReadonlyArray<() => void>;
+    /** @internal Transfer prepared translations only when the scene takes ownership of its content. */
+    readonly publishLocalization?: (handoff: () => void, assertPublishing: () => void) => Promise<void>;
     readonly sceneData: SceneData;
     readonly assetResult: SceneAssetResult;
     readonly retainEntityAssets?: () => PreparedSpawnOwnership;
@@ -378,12 +388,15 @@ export function prepareRuntimeScene(options: LoadRuntimeSceneOptions, sceneOwned
     return prepareWithAttempt(options, sceneOwned, attempt);
 }
 
-function prepareWithAttempt(options: LoadRuntimeSceneOptions, sceneOwned: boolean, attempt: SceneLoadAttempt): Promise<PreparedRuntimeScene> {
-    return runSceneLoad(attempt, () => readRuntimeScene(options, attempt, sceneOwned));
+type SceneLoadIntent = 'prepare' | 'load';
+
+function prepareWithAttempt(options: LoadRuntimeSceneOptions, sceneOwned: boolean, attempt: SceneLoadAttempt,
+    intent: SceneLoadIntent = 'prepare'): Promise<PreparedRuntimeScene> {
+    return runSceneLoad(attempt, () => readRuntimeScene(options, attempt, sceneOwned, intent));
 }
 
 async function readRuntimeScene(
-    options: LoadRuntimeSceneOptions, attempt: SceneLoadAttempt, sceneOwned: boolean,
+    options: LoadRuntimeSceneOptions, attempt: SceneLoadAttempt, sceneOwned: boolean, intent: SceneLoadIntent,
 ): Promise<PreparedRuntimeScene> {
     const { app, module, source, physicsConfig, physicsEnabled, sceneName } = options;
     const onPhase = attempt.observe(options.onPhase);
@@ -598,26 +611,30 @@ async function readRuntimeScene(
         }
     }
 
-    // Self-gating i18n, mirroring physics: a scene that binds Text.i18nKey needs
-    // the Localization resource + the shipped `.eslocale` tables — installed and
-    // loaded here so no runtime entry can forget. Tables come from the realm's
-    // OWN asset list (they're loaded by key, never referenced by the scene).
-    // The asset realm owns the tables across scene switches. Wait for them so
-    // the first frame sees the same catalog as plugin startup.
+    // Decode through the realm's registry. Other scenes may be playing throughout this preparation.
     attempt.assertCurrent();
+    let publishLocalization: PreparedRuntimeScene['publishLocalization'];
     if (sceneUsesI18n(sceneData)) {
-        if (!app.hasResource(Localization)) {
-            app.addPlugin(new LocalizationPlugin());
-            automaticLocales.add(app.getResource(Localization));
-        }
-        const localization = app.getResource(Localization);
-        const tables = (source.listAssetPaths?.() ?? []).filter((p) => p.toLowerCase().endsWith('.eslocale'));
-        await installProjectLocaleTables(app, tables);
-        attempt.assertCurrent();
-        if (!tables.length && !localization.availableLocales().length) {
-            log.warn('i18n', 'scene binds a localization key but this realm has no locale tables or inline catalogs');
-        }
-        if (automaticLocales.has(localization)) selectSystemLocale(localization, platformLanguage);
+        // A direct load lets the player choose a language while its first scene boots.
+        if (intent === 'load') sceneLocalization(app);
+        const tables = (source.listAssetPaths?.() ?? []).filter(p => p.toLowerCase().endsWith('.eslocale'));
+        const check = () => {
+            attempt.assertCurrent();
+            if (app.getResource(AssetsResource) !== sceneAssets) throw new SceneLoadCancelled(sceneName ?? sceneData.name);
+        };
+        const prepared = await attempt.waitForShared(() =>
+            sceneAssets.prepareProjectLocaleTables(configuredLocaleTables(app), tables, assetResult.scope, check));
+        publishLocalization = async (handoff, assertPublishing) => {
+            const service = await prepared.publishAfter(handoff, () => sceneLocalization(app),
+                () => configuredLocaleTables(app), assertPublishing);
+            check();
+            assertPublishing();
+            if (app.getResource(Localization) !== service) return;
+            if (!tables.length && !service.availableLocales().length) {
+                log.warn('i18n', 'scene binds a localization key but this realm has no locale tables or inline catalogs');
+            }
+            if (automaticLocales.has(service)) selectSystemLocale(service, platformLanguage);
+        };
     }
 
     // Loading the runtimes a cell's content needs, and the tables it binds. All
@@ -631,7 +648,7 @@ async function readRuntimeScene(
 
     return {
         name: sceneName, lifetime: attempt.lifetime, options, sceneData, assetResult, retainEntityAssets, auxiliaryAssets,
-        spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered, physicsInstalls,
+        spineManager, spineAssetInfo, dragonBonesManager, dragonBonesAssetInfo, discovered, physicsInstalls, publishLocalization,
     };
 }
 
@@ -789,34 +806,39 @@ async function publishPreparedScene(
         });
     }
 
-    // Last, once everything about it is in place: a staged scene is switched on whole.
-    if (staged) {
-        const whole = staged;
-        mark('reveal', () => revealStagedEntities(app.world, whole));
-    }
-    assertCurrent();
-    if (ctx) {
-        ctx.trackAssetScope(assetResult.scope, prepared.auxiliaryAssets?.(app.world, entityMap));
-    } else {
-        const ownership = prepared.retainEntityAssets?.();
-        if (ownership) {
-            try { ownership.attach(app.world, entityMap); }
-            finally { ownership.release(); }
-        } else if (assetResult.scope.size) {
-            // A prepared managed scene can be published without its planned scene owner.
-            const scopes = app.getResource(AssetsResource).entityScopes;
-            const auxiliary = prepared.auxiliaryAssets?.(app.world, entityMap);
-            for (const entity of entityMap.values()) {
-                if (app.world.valid(entity)) scopes.retainFromScene(app.world, entity, assetResult.scope, auxiliary?.get(entity));
-            }
+    const handoff = () => {
+        // A staged scene switches on whole, after its final localized assets are ready.
+        if (staged) {
+            const whole = staged;
+            mark('reveal', () => revealStagedEntities(app.world, whole));
         }
-        assetResult.scope.releaseAll();
-    }
-    // Only a scene that handed off its assets and entities can choose a solver and its world settings.
-    for (const install of prepared.physicsInstalls ?? []) {
         assertCurrent();
-        install();
-    }
+        if (ctx) {
+            ctx.trackAssetScope(assetResult.scope, prepared.auxiliaryAssets?.(app.world, entityMap));
+        } else {
+            const ownership = prepared.retainEntityAssets?.();
+            if (ownership) {
+                try { ownership.attach(app.world, entityMap); }
+                finally { ownership.release(); }
+            } else if (assetResult.scope.size) {
+                // A prepared managed scene can be published without its planned scene owner.
+                const scopes = app.getResource(AssetsResource).entityScopes;
+                const auxiliary = prepared.auxiliaryAssets?.(app.world, entityMap);
+                for (const entity of entityMap.values()) {
+                    if (app.world.valid(entity)) scopes.retainFromScene(app.world, entity, assetResult.scope, auxiliary?.get(entity));
+                }
+            }
+            assetResult.scope.releaseAll();
+        }
+        // Only a scene that handed off its assets and entities can choose a solver and its world settings.
+        for (const install of prepared.physicsInstalls ?? []) {
+            assertCurrent();
+            install();
+        }
+    };
+    const publishLocalization = prepared.publishLocalization;
+    if (publishLocalization) await attempt.waitForShared(() => publishLocalization(handoff, assertCurrent));
+    else handoff();
 }
 
 /**
@@ -828,7 +850,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const context = sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
     const attempt = sceneAttempt(app, sceneName ?? options.sceneData.name, context);
     const onProgress = guardedAssetProgress(() => attempt.assertCurrent(), options.onProgress, context?.reportAssetProgress);
-    const prepared = await prepareWithAttempt({ ...options, onProgress }, !!context, attempt);
+    const prepared = await prepareWithAttempt({ ...options, onProgress }, !!context, attempt, 'load');
     await publishRuntimeScene(prepared, { context });
 }
 
@@ -935,7 +957,7 @@ export function createRuntimeSceneConfig(
         const ready = await prepareWithAttempt({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
             onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
-        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt);
+        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load');
         return publishDocument ? { ...ready, publishDocument } : ready;
     };
     const discard = (pending: Preparation): number => {

@@ -39,8 +39,8 @@ export interface RegistryEra<T> {
     readonly published: unknown;
     /** The logical identity a holder keeps — the same across every era. */
     readonly value: T;
-    /** Notify a derived index after this era wins publication. Superseded preparations never notify. */
-    didPublish?(): void;
+    /** Notify a derived index of the object replaced when this era wins publication. */
+    didPublish?(previous?: unknown): void;
 }
 
 /** One era, with what its preparation took. */
@@ -197,7 +197,7 @@ export class RegistryAssetSlots {
         // not keep the resource it notified alive after that resource is replaced.
         slot.era = era.didPublish ? { ...era, didPublish: undefined } : era;
         this.changed_(slot.type);
-        try { era.didPublish?.(); }
+        try { era.didPublish?.(previous?.published); }
         catch (error) { log.warn('asset', `publication listener for "${slot.key}" failed`, error); }
         releaseEra(previous);
     }

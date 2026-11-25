@@ -142,6 +142,10 @@ A scene that binds any key:
 - starts in the **player's system language** when a matching table ships. A game that installs the plugin itself or
   calls `setLocale` is never overridden.
 
+When you call `SceneManager.prepare(name)`, the candidate scene decodes its tables in the background.
+The current captions and language stay active until the destination takes ownership. If the game installs
+the plugin or the player chooses a language in the meantime, the destination honors that choice.
+
 Dynamic labels (`Score: 42`) stay code-driven: a label whose content code rewrites must not carry a key. Call
 `t('score', { n })` in the system that owns the label.
 
