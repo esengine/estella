@@ -84,14 +84,22 @@ if (reads(CAPTURE)) {
 const STORE = 'desktop/src/project/ProjectStore.ts';
 if (reads(STORE)) {
   const store = read(STORE);
-  for (const fn of ['saveWorkspaceSession', 'flushWorkspaceSession']) {
+  for (const fn of ['saveWorkspaceSession', 'flushWorkspaceSession', 'writeWorkspaceSession']) {
     // Anchored at the DECLARATION: an unanchored name also matches the call
     // site, and the body it then reads is whatever method does the calling.
     const body = new RegExp(
-      `\\n  (?:async )?${fn}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n  \\}`).exec(store);
+      `\\n  (?:private )?(?:async )?${fn}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n  \\}`).exec(store);
     if (!body) say(STORE, `${fn} is gone — the session is written from somewhere unchecked`);
-    else if (!/workspaceRestored/.test(body[1])) {
-      say(STORE, `${fn} writes without asking whether the session was restored yet`);
+    else if (fn === 'flushWorkspaceSession') {
+      if (!/this\.writeWorkspaceSession\b/.test(body[1]) || /\bcaptureWorkspace\s*\(|\bworkspace\.save\s*\(/.test(body[1])) {
+        say(STORE, 'flushWorkspaceSession bypasses the guarded workspace writer');
+      }
+    } else {
+      const guard = body[1].search(/if \(![^\n]*this\.workspaceRestored[^\n]*\) return/);
+      const capture = body[1].search(/\bcaptureWorkspace\s*\(/);
+      if (guard < 0 || (fn === 'writeWorkspaceSession' && (capture < 0 || capture < guard))) {
+        say(STORE, `${fn} can capture the workspace before the session has been restored`);
+      }
     }
   }
 }
