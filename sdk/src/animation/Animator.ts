@@ -18,7 +18,7 @@
 
 import { defineComponent, type ComponentDef } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { isUuidRef } from '../asset/AssetRegistry';
+import { isFileAssetRef } from '../asset/documentRef';
 import type { Entity, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import {
@@ -660,11 +660,11 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
     discoverAssets: data => {
         const found: { type: string; path: string }[] = [];
         const c = data.controller;
-        if (typeof c === 'string' && (c.endsWith('.esanimator') || isUuidRef(c))) {
+        if (isFileAssetRef(c, '.esanimator')) {
             found.push({ type: 'animatorcontroller', path: c });
         }
         const a = data.avatar;
-        if (typeof a === 'string' && (a.endsWith('.esavatar') || isUuidRef(a))) {
+        if (isFileAssetRef(a, '.esavatar')) {
             found.push({ type: 'avatar', path: a });
         }
         return found;

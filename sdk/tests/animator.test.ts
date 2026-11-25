@@ -473,6 +473,7 @@ describe('AnimatorController runtime load-by-path', () => {
             initialState: 'Idle', parameters: [], states: [
                 { name: 'Idle', blend: { parameter: 'speed', thresholds: [
                     { value: 0, clip: 'idle' }, { value: 1, clip: ref }, { value: 2, clip: 'fast.esanim' },
+                    { value: 3, clip: '@uuid:old-sprite' },
                 ] }, transitions: [] },
                 { name: 'Spine', motion: { kind: 'spine', clip: 'fast.esanim' }, transitions: [] },
             ],
@@ -484,10 +485,11 @@ describe('AnimatorController runtime load-by-path', () => {
             acquireAsset: async (type: string, clip: string) => { acquired.push([type, clip]); },
         } as unknown as LoadContext;
         const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/hero.esanimator', ctx);
-        expect(acquired).toEqual([['anim-clip', ref], ['anim-clip', 'assets/fast.esanim']]);
+        expect(acquired).toEqual([['anim-clip', ref], ['anim-clip', 'assets/fast.esanim'], ['anim-clip', '@uuid:old-sprite']]);
         expect(era.published).toMatchObject({ states: [
             { motion: { thresholds: [
                 { motion: { clip: 'idle' } }, { motion: { clip: ref } }, { motion: { clip: 'assets/fast.esanim' } },
+                { motion: { clip: '@uuid:old-sprite' } },
             ] } },
             { motion: { kind: 'spine', clip: 'fast.esanim' } },
         ] });

@@ -172,6 +172,45 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[CONTROLLER]).toContain(CLIP);
   });
 
+  it('ships a controller and nested clips selected by older explicit keys and mixed-case paths', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'estella-indexed-motions-'));
+    const put = (rel: string, uuid: string, type: string, data: unknown) => {
+      const file = path.join(testRoot, rel);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, JSON.stringify(data));
+      writeFileSync(file + '.meta', JSON.stringify({ version: '2.0', uuid, type, importer: {} }));
+    };
+    try {
+      put('assets/main.esscene', SCENE, 'scene', { version: '1.0', name: 'Actor', entities: [{
+        id: 1, name: 'Actor', parent: null, children: [], components: [{ type: 'Animator', data: { controller: '@uuid:PLAYER' } }],
+      }] });
+      put('assets/anim/player.EsAnimator', 'player', 'animatorcontroller', {
+        version: 2, parameters: [], initialState: 'Idle', states: [{ name: 'Idle', transitions: [],
+          motion: { kind: 'blend1d', parameter: 'speed', thresholds: [
+            { value: 0, motion: { kind: 'sprite', clip: '@uuid:IDLE' } },
+            { value: 1, motion: { kind: 'timeline', clip: './walk.EsTimeline' } },
+          ] },
+        }],
+      });
+      put('assets/anim/idle.esanim', 'idle', 'animclip', { version: '1.2', frames: [] });
+      put('assets/anim/walk.EsTimeline', LAYER_CLIP, 'animation', { version: 1, tracks: [] });
+      const { index } = await scanAssetDatabase(testRoot, { write: false });
+      expect(index.deps[SCENE]).toEqual(['player']);
+      expect(index.deps.player).toEqual([LAYER_CLIP, 'idle'].sort());
+      const cachePath = path.join(testRoot, '.esengine/cache/ref-candidates.json');
+      const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
+      cache.files['assets/anim/player.EsAnimator'].c = ['@uuid:IDLE'];
+      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 2 }));
+      const rescanned = await scanAssetDatabase(testRoot, { write: false });
+      expect(rescanned.index.deps.player).toEqual(index.deps.player);
+      const cooked = await cookAssets(testRoot, { entryScenes: ['assets/main.esscene'], outDir: 'output', contentAddressed: true });
+      expect(cooked.ok).toBe(true);
+      expect(cooked.included.sort()).toEqual([SCENE, 'player', 'idle', LAYER_CLIP].sort());
+    } finally {
+      rmSync(testRoot, { recursive: true, force: true });
+    }
+  });
+
   it('links it to the clip only a LAYER plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(LAYER_CLIP);

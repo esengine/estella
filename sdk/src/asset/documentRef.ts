@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { assetRefId, isUuidRef } from './AssetRegistry';
+import { assetRefId } from './AssetRegistry';
 
 /**
  * Resolve a document-relative path against the referencing file's path — a Tiled
@@ -33,10 +33,15 @@ export function isLogicalAssetRef(ref: string): boolean {
     return ref.startsWith('/') || ref.startsWith('assets/');
 }
 
+/** File-backed component and motion fields also accept registered names, which need no asset load. */
+export function isFileAssetRef(ref: unknown, extension: string): ref is string {
+    return typeof ref === 'string' && (!!assetRefId(ref) || ref.toLowerCase().endsWith(extension));
+}
+
 /** Asset-backed animator motions. Plain sprite and Spine names are runtime registrations. */
 export function animatorMotionAssetType(kind: string | undefined, clip: string): 'timeline' | 'anim-clip' | undefined {
     if (kind === 'timeline') return 'timeline';
-    if (kind === 'sprite' && (/\.esanim$/i.test(clip) || isUuidRef(clip))) return 'anim-clip';
+    if (kind === 'sprite' && isFileAssetRef(clip, '.esanim')) return 'anim-clip';
     return undefined;
 }
 

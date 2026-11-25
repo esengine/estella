@@ -10,7 +10,7 @@
  */
 
 import { defineComponent } from '../ecs/component';
-import { isUuidRef } from '../asset/AssetRegistry';
+import { isFileAssetRef } from '../asset/documentRef';
 import { aiRegistry } from '../ai/fsm/AiContext';
 import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 import { ensureBuiltinScriptNodes } from './builtinNodes';
@@ -32,7 +32,7 @@ export const ScriptGraphAgent = defineComponent<ScriptGraphAgentData>('ScriptGra
     // is left alone — this callback is the discovery authority.
     discoverAssets: data => {
         const graph = data.graph;
-        return typeof graph === 'string' && (graph.endsWith('.esgraph') || isUuidRef(graph))
+        return isFileAssetRef(graph, '.esgraph')
             ? [{ type: 'scriptgraph', path: graph }]
             : [];
     },

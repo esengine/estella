@@ -6,6 +6,8 @@ import { discoverSceneAssets, getAssetPathsByType } from '../src/asset/discoverA
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
+import { ScriptGraphAgent } from '../src/logic/ScriptGraphAgent';
+import { Animator } from '../src/animation/Animator';
 import { TilemapLayer } from '../src/ecs/component';
 import type { SceneData } from '../src/scene/scene';
 
@@ -307,6 +309,20 @@ describe('FSM/BT agent asset discovery accepts every serialized ref form', () =>
         expect(discover({ fsm: UUID })).toEqual([{ type: 'statemachine', path: UUID }]);
         expect(discover({ fsm: 'patrol' })).toEqual([]);
         expect(discover({ fsm: '' })).toEqual([]);
+    });
+
+    it.each([
+        { component: Animator, field: 'controller', type: 'animatorcontroller', file: 'Hero.EsAnimator' },
+        { component: Animator, field: 'avatar', type: 'avatar', file: 'Knight.EsAvatar' },
+        { component: StateMachineAgent, field: 'fsm', type: 'statemachine', file: 'Guard.EsFsm' },
+        { component: BehaviorTreeAgent, field: 'bt', type: 'behaviortree', file: 'Guard.EsBt' },
+        { component: ScriptGraphAgent, field: 'graph', type: 'scriptgraph', file: 'Intro.EsGraph' },
+    ])('discovers files and explicit index keys for $field while leaving registered names alone', ({ component, field, type, file }) => {
+        const discover = component.discoverAssets!;
+        for (const path of ['assets/' + file, '@uuid:older-project-key', UUID.toUpperCase()]) {
+            expect(discover({ [field]: path })).toEqual([{ type, path }]);
+        }
+        for (const name of ['patrol', 'patrol.walk', '@uuid:', '']) expect(discover({ [field]: name })).toEqual([]);
     });
 
     it('BehaviorTreeAgent: .esbt path, @uuid: ref, bare uuid — but not a code name', () => {

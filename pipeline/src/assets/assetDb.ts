@@ -29,7 +29,7 @@ import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
 import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
-import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
+import { assetRefId, UUID_REF_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
@@ -37,7 +37,6 @@ import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
 import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
-import { UUID_REF_PREFIX as UUID_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -275,7 +274,7 @@ const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type =
 const isAudioRecipe = (e: { type: string }): boolean => e.type === 'soundSource' || e.type === 'musicSource';
 
 /**
- * Collect every asset reference in a JSON document:
+ * Resolve a candidate from a JSON document:
  *   - `@uuid:<id>` refs (editor-serialized stable refs)
  *   - BARE uuid strings, only when they name a real asset (anim-clip flipbook
  *     frames serialize these — the runtime's extractUuid form; entity ids are
@@ -284,36 +283,11 @@ const isAudioRecipe = (e: { type: string }): boolean => e.type === 'soundSource'
  *     materials/textures by project path, not uuid — a dep graph that only
  *     reads `@uuid:` sees an empty project and the cook culls everything)
  */
-function collectRefs(
-  value: unknown,
-  into: Set<string>,
-  resolvePath?: (ref: string) => string | null,
-  knownUuid?: (id: string) => boolean,
-): void {
-  if (typeof value === 'string') {
-    if (value.startsWith(UUID_PREFIX)) {
-      const id = value.slice(UUID_PREFIX.length).toLowerCase();
-      if (UUID_V4.test(id)) into.add(id);
-      return;
-    }
-    if (UUID_V4.test(value)) {
-      const id = value.toLowerCase();
-      if (knownUuid?.(id)) into.add(id);
-      return;
-    }
-    const uuid = resolvePath?.(value);
-    if (uuid) into.add(uuid);
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const v of value) collectRefs(v, into, resolvePath, knownUuid);
-    return;
-  }
-  if (value && typeof value === 'object') {
-    for (const v of Object.values(value as Record<string, unknown>)) {
-      collectRefs(v, into, resolvePath, knownUuid);
-    }
-  }
+function resolveCandidate(ref: string, resolvePath: (ref: string) => string | null, known: ReadonlyMap<string, AssetEntry>): string | null {
+  const id = assetRefId(ref);
+  if (id === null) return resolvePath(ref);
+  // Preserve missing explicit UUID edges for diagnostics. A bare scene entity ID is not an asset.
+  return known.has(id) || (ref.startsWith(UUID_REF_PREFIX) && UUID_V4.test(id)) ? id : null;
 }
 
 /**
@@ -322,7 +296,7 @@ function collectRefs(
  */
 function collectCandidates(value: unknown, into: Set<string>, prefabTemplate: boolean): void {
     if (typeof value === 'string') {
-        if (value.startsWith(UUID_PREFIX) || UUID_V4.test(value) || (!value.includes('://') && PATH_LIKE.test(value))) into.add(value);
+        if (assetRefId(value) || (!value.includes('://') && PATH_LIKE.test(value))) into.add(value);
         return;
     }
     if (Array.isArray(value)) {
@@ -347,15 +321,15 @@ function collectCandidates(value: unknown, into: Set<string>, prefabTemplate: bo
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-interface CandidateCache { version: 2; files: Record<string, { size: number; mtimeMs: number; prefab: boolean; c: string[] }> }
+interface CandidateCache { version: 3; files: Record<string, { size: number; mtimeMs: number; prefab: boolean; c: string[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
 async function readCandidateCache(root: string): Promise<CandidateCache> {
   try {
     const parsed = JSON.parse(await readFile(path.join(root, CANDIDATE_CACHE_FILE), 'utf8')) as CandidateCache;
-    if (parsed.version === 2 && parsed.files) return parsed;
+    if (parsed.version === 3 && parsed.files) return parsed;
   } catch { /* none yet, or one that cannot be read: the documents are read */ }
-  return { version: 2, files: {} };
+  return { version: 3, files: {} };
 }
 
 async function writeCandidateCache(root: string, cache: CandidateCache): Promise<void> {
@@ -369,11 +343,11 @@ async function writeCandidateCache(root: string, cache: CandidateCache): Promise
 }
 
 /**
- * Whether a string could name a file: it ends in an extension, written in one case. Almost every string in a document is a name, a type or
+ * Whether a string could name a file: it ends in an extension. Almost every string in a document is a name, a type or
  * a label (`Transform`, `Cocos.Widget`, `ui_layer`), and each one asked of the path index costs a normalisation and a lookup; in a project of
  * thousands of documents those are most of the scan.
  */
-const PATH_LIKE = /\.(?:[a-z0-9]{1,16}|[A-Z0-9]{1,16})$/;
+const PATH_LIKE = /\.[a-z0-9]{1,16}$/i;
 
 const SIBLING_REF_TYPES = new Set(['material', 'environment', 'groom', 'animatorcontroller']);
 
@@ -485,7 +459,10 @@ async function computeDeps(
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
           return lookup(ref)?.uuid ?? null;
         };
-        for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => byKey.has(id));
+        for (const candidate of candidates) {
+          const id = resolveCandidate(candidate, resolvePath, byKey);
+          if (id) refs.add(id);
+        }
       }
       refs.delete(entry.uuid);
       return { uuid: entry.uuid, refs: [...refs].sort() };

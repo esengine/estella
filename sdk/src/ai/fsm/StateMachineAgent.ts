@@ -10,7 +10,7 @@
  */
 
 import { defineComponent } from '../../ecs/component';
-import { isUuidRef } from '../../asset/AssetRegistry';
+import { isFileAssetRef } from '../../asset/documentRef';
 import type { FsmDefinition } from './types';
 import { compileFsm, type CompiledFsm } from './FsmRunner';
 
@@ -32,7 +32,7 @@ export const StateMachineAgent = defineComponent<StateMachineAgentData>('StateMa
     // the assetField above only drives the editor picker.
     discoverAssets: data => {
         const fsm = data.fsm;
-        return typeof fsm === 'string' && (fsm.endsWith('.esfsm') || isUuidRef(fsm))
+        return isFileAssetRef(fsm, '.esfsm')
             ? [{ type: 'statemachine', path: fsm }]
             : [];
     },

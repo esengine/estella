@@ -15,7 +15,6 @@
 import type { QualityConfig } from '../render/quality';
 import type { SkinCacheConfig } from '../render/skinCache';
 import type { DebugChannelConfig } from './debugChannelProtocol';
-import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import { Catalog, atlasCatalogFields, type CatalogEntry } from '../asset/Catalog';
@@ -324,7 +323,7 @@ function packagedLookups(model: ManifestModel): Omit<PackagedAssetIndex, 'manife
         // A scene spells asset refs `@uuid:<v4>`, while the manifest indexes bare
         // uuids — strip the prefix before looking up, or every `@uuid:` ref falls
         // through as a literal path and 404s.
-        resolvePath: (ref) => model.resolvePath(extractUuid(ref) ?? ref),
+        resolvePath: (ref) => model.resolvePath(ref),
         // The authored logical path behind any spelling — its uuid, its logical
         // address, or its staged (content-addressed) path. Lets a loader recover the
         // directory a sibling was authored in after the rename hid it.

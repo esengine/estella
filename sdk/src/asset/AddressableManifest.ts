@@ -5,7 +5,7 @@ import type { ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
 import { resolveMeshGI, type MeshGIRefs } from '../gi/meshGIAssets';
-import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+import { assetRefId, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
 interface ManifestRecord {
@@ -378,7 +378,7 @@ export class ManifestModel {
             const remote = normalizeBundleMode(group.bundleMode) === 'remote';
             for (const [key, asset] of Object.entries(group.assets)) {
                 const record = { group: name, key, asset, remote };
-                const logical = extractUuid(key) ?? key;
+                const logical = assetRefId(key) ?? key;
                 for (const label of asset.labels ?? []) {
                     let members = labels.get(label);
                     if (!members) labels.set(label, members = new Map());
@@ -404,7 +404,7 @@ export class ManifestModel {
         if (direct) return direct;
         const bare = ref.startsWith('/') ? ref.slice(1) : ref;
         const name = bare.startsWith(UUID_REF_PREFIX) ? bare.slice(UUID_REF_PREFIX.length) : bare;
-        return names.get(extractUuid(name) ?? name) ?? files.get(bare);
+        return names.get(name) ?? names.get(assetRefId(bare) ?? bare) ?? files.get(bare);
     }
 
     /** @internal Scene and group results need record names when the staged filename alone is ambiguous. */

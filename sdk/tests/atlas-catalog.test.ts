@@ -33,6 +33,7 @@ describe('atlasCatalogFields', () => {
             entries: { '@uuid:abc': { type: 'texture', buildPath: 'page.ktx2', ...fields } },
         });
         const frame = catalog.getAtlasFrame('@uuid:abc')!;
+        expect(catalog.getAtlasFrame('@uuid:ABC')).toEqual(frame);
         expect(frame.atlas).toBe('page.ktx2');
         expect(frame.uvOffset).toEqual([0, 0.5]);
         expect(frame.uvScale).toEqual([0.5, 0.5]);

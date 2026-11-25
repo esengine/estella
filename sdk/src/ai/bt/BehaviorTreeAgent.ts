@@ -10,7 +10,7 @@
  */
 
 import { defineComponent } from '../../ecs/component';
-import { isUuidRef } from '../../asset/AssetRegistry';
+import { isFileAssetRef } from '../../asset/documentRef';
 import type { BtDefinition } from './types';
 
 export interface BehaviorTreeAgentData {
@@ -30,7 +30,7 @@ export const BehaviorTreeAgent = defineComponent<BehaviorTreeAgentData>('Behavio
     // discovery authority; the assetField above only drives the editor picker.
     discoverAssets: data => {
         const bt = data.bt;
-        return typeof bt === 'string' && (bt.endsWith('.esbt') || isUuidRef(bt))
+        return isFileAssetRef(bt, '.esbt')
             ? [{ type: 'behaviortree', path: bt }]
             : [];
     },

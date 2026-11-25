@@ -49,6 +49,18 @@ it('uses the same remote record for a UUID, address and cooked path', () => {
     expect(model.remoteAssetIdentity('a.png')).toBeNull();
 });
 
+it('resolves an explicit legacy key in any case while keeping authored addresses case-sensitive', () => {
+    const fixture = manifest();
+    const asset = { path: 'anim/idle.bin', address: 'Game/Idle', type: 'anim-clip', size: 1, labels: [] };
+    fixture.groups.main.assets['idle-clip'] = asset;
+    const model = ManifestModel.fromJson(fixture);
+    for (const ref of ['@uuid:IDLE-CLIP', '/@uuid:IDLE-CLIP', 'idle-clip', 'Game/Idle']) {
+        expect(model.resolvePath(ref)).toBe(asset.path);
+    }
+    expect(model.recordForRef('IDLE-CLIP')).toBeUndefined();
+    expect(model.recordForRef('game/idle')).toBeUndefined();
+});
+
 describe('normalizeBundleMode', () => {
     it('passes through known modes', () => {
         expect(normalizeBundleMode('local')).toBe('local');

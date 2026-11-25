@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ManifestModel, StreamTailInfo } from './AddressableManifest';
-import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+import { assetRefId, UUID_REF_PREFIX } from './AssetRegistry';
 import { findDocumentAsset, resolveDocumentRef } from './documentRef';
 import { uvRectFromPixels, type UvRect } from '../render/uvRect';
 
@@ -136,8 +136,8 @@ export class Catalog {
     getAtlasFrame(path: string): AtlasFrameInfo | null {
         // A frame is keyed by its `@uuid:` spelling; a scene or clip may name the
         // same asset by its bare uuid, in either case.
-        const uuid = extractUuid(path);
-        const entry = this.entries_.get(uuid ? `${UUID_REF_PREFIX}${uuid}` : path);
+        const uuid = assetRefId(path);
+        const entry = (uuid ? this.entries_.get(UUID_REF_PREFIX + uuid) : undefined) ?? this.entries_.get(path);
         if (!entry?.atlas || !entry.frame || !entry.uv) return null;
         return {
             atlas: entry.atlas,
