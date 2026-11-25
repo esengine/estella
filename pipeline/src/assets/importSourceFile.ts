@@ -37,5 +37,13 @@ const converters: Record<SourceType, (options: SourceImportOptions) => Promise<S
 
 export async function importSourceFile(options: SourceImportOptions): Promise<SourceImportResult | null> {
   const type = sourceTypeFor(options.absSource);
-  return type ? converters[type](options) : null;
+  if (!type) return null;
+  const touched = new Set<string>();
+  const result = await converters[type]({ ...options, beforeWrite(rel) {
+    touched.add(rel);
+    return options.beforeWrite?.(rel);
+  } });
+  for (const file of result.products) touched.delete(file);
+  if (touched.size) result.additionalChanges = [...touched];
+  return result;
 }

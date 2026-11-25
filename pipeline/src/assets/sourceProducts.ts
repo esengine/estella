@@ -18,7 +18,8 @@ export interface SourceFileLocation {
 
 /** All generated files keep their identity on reimport and point back to their source.
  *  Files merely referenced by a source, such as a cube face, remain independently owned. */
-export async function sourceProductWriter({ root, destDir, absSource, beforeWrite }: SourceFileLocation) {
+export async function sourceProductWriter({ root, destDir, absSource, beforeWrite }: SourceFileLocation,
+                                          writeContent: (abs: string, bytes: string | Uint8Array) => Promise<void> = writeFile) {
   const absDir = resolveInside(root, destDir, 'project root');
   await mkdir(absDir, { recursive: true });
   let sourceUuid: string | null = null;
@@ -27,17 +28,24 @@ export async function sourceProductWriter({ root, destDir, absSource, beforeWrit
     sourceUuid = await metaUuidOf(absSource);
   }
   const products: string[] = [];
-  async function write(name: string, bytes: Uint8Array | string,
-                       settle: (abs: string) => Promise<unknown> = adoptOrphan,
-                       prepare?: (abs: string) => Promise<void>): Promise<string> {
+  /** Capture both files before changing an asset, including one becoming independent of this source. */
+  async function edit(name: string, change: (abs: string) => Promise<void>): Promise<string> {
     const rel = destDir ? `${destDir}/${name}` : name;
     const abs = resolveInside(absDir, name, 'product directory');
     resolveInside(absDir, name + META_EXT, 'product directory');
     await beforeWrite?.(rel);
-    await prepare?.(abs);
-    await writeFile(abs, bytes);
-    await settle(abs);
-    if (sourceUuid) await recordImportSource(abs, sourceUuid);
+    await change(abs);
+    return rel;
+  }
+  async function write(name: string, bytes: Uint8Array | string,
+                       settle: (abs: string) => Promise<unknown> = adoptOrphan,
+                       prepare?: (abs: string) => Promise<void>): Promise<string> {
+    const rel = await edit(name, async abs => {
+      await prepare?.(abs);
+      await writeContent(abs, bytes);
+      await settle(abs);
+      if (sourceUuid) await recordImportSource(abs, sourceUuid);
+    });
     products.push(rel);
     return rel;
   }
@@ -47,5 +55,5 @@ export async function sourceProductWriter({ root, destDir, absSource, beforeWrit
     resolveInside(absDir, name + META_EXT, 'product directory');
     return releaseImportSource(abs, sourceUuid, () => beforeWrite?.(destDir ? destDir + '/' + name : name));
   }
-  return { absDir, sourceUuid, products, write, release };
+  return { absDir, sourceUuid, products, write, edit, release };
 }

@@ -20,9 +20,14 @@ export async function setImportMeta(absFile: string, patch: (meta: Record<string
     if (!before) throw new Error('Missing asset sidecar: ' + sidecar);
     const after = patch(before);
     if (isDeepStrictEqual(before, after)) return;
-    const temp = path.join(path.dirname(sidecar), '.' + path.basename(sidecar) + '.' + randomUUID() + '.tmp');
+    await writeImportFile(sidecar, JSON.stringify(after, null, 2) + '\n');
+}
+
+/** Readers and a retry after interruption must see one complete asset version. */
+export async function writeImportFile(file: string, bytes: Uint8Array | string): Promise<void> {
+    const temp = path.join(path.dirname(file), '.import-' + randomUUID() + '.tmp');
     try {
-        await writeFile(temp, JSON.stringify(after, null, 2) + '\n', { flag: 'wx' });
-        await rename(temp, sidecar);
+        await writeFile(temp, bytes, { flag: 'wx' });
+        await rename(temp, file);
     } finally { await rm(temp, { force: true }); }
 }

@@ -18,6 +18,7 @@ import {
     parseAseprite, type AsepriteDocument, type AsepriteTag,
 } from './asepriteFile';
 import { blendPixel } from './asepriteBlend';
+import { asepriteClipName, availableName } from './asepriteTagIdentity';
 
 /** Widest sheet this import will lay out before it wraps to another row. */
 const MAX_SHEET_SIDE = 4096;
@@ -32,6 +33,7 @@ export interface AsepriteSheetImage {
 
 export interface AsepriteClipFile {
     file: string;
+    tag: AsepriteTag | null;
     data: AnimClipAssetData;
 }
 
@@ -53,12 +55,6 @@ export interface AsepriteImportResult {
     clips: AsepriteClipFile[];
     /** What the document says that the products cannot carry. Never dropped. */
     warnings: string[];
-}
-
-/** How a document or tag name becomes a file name: one spelling, so two passes agree. */
-function fileStem(name: string): string {
-    const cleaned = name.trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '');
-    return cleaned === '' ? 'clip' : cleaned;
 }
 
 /**
@@ -184,12 +180,6 @@ export function importAseprite(bytes: Uint8Array, stem: string,
 
     const clips: AsepriteClipFile[] = [];
     const used = new Set<string>();
-    const claim = (name: string): string => {
-        let file = name;
-        for (let n = 2; used.has(file.toLowerCase()); n++) file = `${name}-${n}`;
-        used.add(file.toLowerCase());
-        return `${file}.esanim`;
-    };
 
     const clip = (frames: AnimClipFrameData[], loop: boolean): AnimClipAssetData => ({
         version: '1.5', type: 'animation-clip', loop, sheet, frames,
@@ -198,7 +188,7 @@ export function importAseprite(bytes: Uint8Array, stem: string,
 
     if (doc.tags.length === 0) {
         clips.push({
-            file: claim(stem),
+            file: availableName(asepriteClipName(stem, null), used), tag: null,
             data: clip(doc.frames.map((_, i) => frameData(i)), true),
         });
     } else {
@@ -206,7 +196,7 @@ export function importAseprite(bytes: Uint8Array, stem: string,
             // Aseprite counts a tag's plays; a clip only knows whether it repeats. Zero is
             // the editor's "forever", and anything else has an end, which `loop: false` is.
             clips.push({
-                file: claim(`${stem}_${fileStem(tag.name)}`),
+                file: availableName(asepriteClipName(stem, tag), used), tag,
                 data: clip(tagSequence(tag).map(frameData), tag.repeat === 0),
             });
             if (tag.repeat > 1) {

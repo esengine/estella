@@ -6,6 +6,8 @@ import type { EnvironmentImportReport } from './environmentImport';
 export interface SourceProducts {
   /** Project-relative paths, in the order they were produced. */
   products: string[];
+  /** Other project paths modified by this import, such as a clip detached from its source. */
+  additionalChanges?: string[];
   warnings: string[];
 }
 
