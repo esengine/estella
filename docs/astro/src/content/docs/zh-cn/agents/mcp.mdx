@@ -120,7 +120,7 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 | --- | --- |
 | 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整个窗口，含运行画面）、`world_component`（运行中 World 探查）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个绘制调用、其起因及绘制的实体） |
 | 编辑场景 | `apply_scene_ops`（批量编辑）、`create_entity`（通过 `list_entity_templates` 使用创建菜单目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
-| 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（在资产自己的编辑器中打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
+| 项目与资产 | `create_project` / `open_project` / `close_project` / `reopen_project`、`open_scene`、`open_asset`（在资产自己的编辑器中打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
 | 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（预制体模式）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
 | 无代码行为 | `get_event_bindings` / `set_event_bindings`、`add_component` / `remove_component` |
 | 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |

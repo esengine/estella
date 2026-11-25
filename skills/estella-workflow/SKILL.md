@@ -13,6 +13,8 @@ wrong world, waiting for a game that is not moving, reporting success without lo
 
 1. **Know the project.** `get_workspace_session` says what is open. No project: `list_project_templates`, `create_project`,
    then `open_project` (it returns once the first scene is readable). `get_scene_tree` shows the scene.
+   When the editor's state of the project has gone wrong, `reopen_project` closes it and opens it again from disk;
+   `close_project` goes back to the launcher. Both refuse while anything is unsaved, unless you pass `discardChanges`.
 2. **Write the acceptance first.** Put what "done" means in `acceptance/<task>.json` with `write_project_file`:
    ```json
    { "frames": 120,
