@@ -27,11 +27,6 @@ export const CSS = `
 }
 .mixer-icon:hover { background: var(--srf-3); color: var(--text); }
 .mixer-icon.is-on { color: var(--star); }
-.mixer-select {
-  background: var(--inset); color: var(--text);
-  border: 1px solid var(--groove); border-radius: 4px;
-  font-size: var(--fs-detail); padding: 2px 4px; min-width: 0;
-}
 .mixer-fx {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
   padding: 4px; background: var(--srf-3); border-radius: 4px;

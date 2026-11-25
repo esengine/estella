@@ -114,14 +114,13 @@ function Strip({ strip, all, config, s, commit }: StripProps) {
       ))}
 
       <select
-        className="mixer-select"
         aria-label={s.addEffect}
         value=""
         onChange={(e) => {
           if (e.target.value) patch({ effects: [...effects, defaultEffect(e.target.value as BusEffectDef['type'])] });
         }}
       >
-        <option value="">{s.addEffect}</option>
+        <option value="" hidden>{s.addEffect}</option>
         {FX_KINDS.map((k) => <option key={k} value={k}>{s.fx[k]}</option>)}
       </select>
 
@@ -129,7 +128,6 @@ function Strip({ strip, all, config, s, commit }: StripProps) {
         <div className="mixer-row">
           <span className="mixer-label">{s.duckBy}</span>
           <select
-            className="mixer-select"
             aria-label={s.duckBy}
             value={strip.duck?.trigger ?? ''}
             onChange={(e) => patch({
@@ -177,7 +175,7 @@ function Effect({ fx, s, onChange, onRemove }: {
       {fx.type === 'filter' && (
         <>
           <select
-            className="mixer-select" aria-label={s.filterKind} value={fx.filter}
+            aria-label={s.filterKind} value={fx.filter}
             onChange={(e) => onChange({ ...fx, filter: e.target.value as typeof FILTERS[number] })}
           >
             {FILTERS.map((f) => <option key={f} value={f}>{f}</option>)}
