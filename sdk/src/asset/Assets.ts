@@ -668,8 +668,7 @@ export class Assets {
         this.streamingStartEdge_ = edge;
     }
 
-    private initialTextureEdge_(ref: string): number {
-        if (this.surfaceUses_.use(this.surfaceKey_('texture', ref)) !== 'mesh') return 0;
+    private initialMeshTextureEdge_(): number {
         const edge = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
         return edge > 0 ? edge : streamingDefaults.get(this)?.() ?? 0;
     }
@@ -717,7 +716,9 @@ export class Assets {
             const flip = cut < 0 || path.slice(cut + 1) === 'f';
             try {
                 const source = this.textureBinding_(ref);
-                const fresh = await this.textureLoader_.loadDetached(source.path, this.getLoadContext_(), flip, source.settings);
+                const resident = rm.getTextureDimensions?.(handle);
+                const edge = resident ? Math.max(resident.width, resident.height) : 0;
+                const fresh = await this.textureLoader_.loadDetached(source.path, this.getLoadContext_(), flip, source.settings, edge);
                 try { if (rm.adoptTextureContent(handle, fresh.handle)) restored++; }
                 finally { rm.releaseTexture(fresh.handle); }
             } catch (e) {
@@ -895,7 +896,11 @@ export class Assets {
             // exact key — reviving it skips the whole fetch + decode + upload.
             const revived = this.reviveResidentTexture_(cacheKey);
             if (revived) return { value: revived };
-            const options = { settings, startEdge: resolution === 'imported' ? 0 : this.initialTextureEdge_(ref) };
+            const use = this.surfaceUses_.use(this.surfaceKey_('texture', ref));
+            const options = {
+                settings, resolution: use === 'full' ? 'imported' as const : resolution,
+                startEdge: use === 'mesh' && resolution !== 'imported' ? this.initialMeshTextureEdge_() : 0,
+            };
             const ctx = this.getLoadContext_();
             const value = flip
                 ? await this.textureLoader_.load(path, ctx, options)

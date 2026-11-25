@@ -58,17 +58,13 @@ function standalonePageReader(
             return rm;
         },
     });
-    loader.setPixelDecoder((file, flip) => source.decodePixels(file, flip));
+    loader.setPixelDecoder((file, flip, maxEdge) => source.decodePixels(file, flip, maxEdge));
     if (transcoder) loader.setTranscoderProvider(transcoder);
-    if (source.compressedTexture) loader.setCompressedSource(async file => {
-        const cooked = await source.compressedTexture!(file);
-        // Skeleton attachments address imported pixels even while the editor cooks a compressed copy.
-        return cooked === 'pending' ? null : cooked;
-    });
+    if (source.compressedTexture) loader.setCompressedSource(file => source.compressedTexture!(file));
     return (staged: string, key: string) => {
         const settings = atlasBindingSettings(key);
         return createHostPage(key, rm, async () => {
-            const page = await loader.loadDetached(staged, { backend: source.backend }, false, settings);
+            const page = await loader.loadDetached(staged, { backend: source.backend }, false, settings, 'imported');
             if (!page.handle) throw new Error(`Texture upload failed: ${staged}`);
             return page;
         });

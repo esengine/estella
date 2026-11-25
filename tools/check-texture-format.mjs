@@ -107,7 +107,7 @@ for (const [what, re] of [
   ['the WebGL2 upload', /return loadCompressedTexture\(/],
   ['compressed engine blocks', /decision: compressedUploadDecision\(target, true\)/],
   ['the engine RGBA fallback and its block-alignment reason', /decision: compressedUploadDecision\(target, false, blockAligned\)/],
-  ['an ordinary image', /\{ decision = RAW_PAYLOAD_UPLOAD, \.\.\.texture \} = await this\.decodeFile_/],
+  ['an ordinary image', /\{[^{}]*\bdecision\s*=\s*RAW_PAYLOAD_UPLOAD\b[^{}]*\.\.\.texture\s*\}\s*=\s*await this\.decodeFile_\(/],
 ]) {
   if (!re.test(loader)) {
     problems.push(`${LOADER} no longer records ${what} — a path that says nothing is read as the`

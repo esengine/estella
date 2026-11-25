@@ -15,6 +15,7 @@ import { SCENE_FORMAT_VERSION, type SceneData } from '../src/scene/scene';
 import { QualityController } from '../src/render/quality';
 import { Quality } from '../src/render/qualityRuntime';
 import { textureStreamingPlugin } from '../src/render/textureStreaming';
+import { textureRefill } from '../src/wasm/textureRefill';
 import type { ESEngineModule } from '../src/wasm';
 
 const uploads: { width: number; format: number; flip: boolean; filter: number; wrap: number }[] = [];
@@ -137,6 +138,60 @@ describe('the import settings of one texture request', () => {
             mesh.release(); flipped.release(); newMesh.release();
             expect(assets.sizes().refRows).toBe(0);
         } finally { assets.releaseAll(); }
+    });
+
+    it('uploads imported atlas pixels on the first read while the compressed file is pending', async () => {
+        const assets = assetsWithPixels(), path = 'large-page.png';
+        const loader = assets.getTextureLoader();
+        loader.setCompressedSource(async () => 'pending');
+        loader.setPixelDecoder(async () => ({ width: 2048, height: 2, pixels: new Uint8Array(2048 * 2 * 4) }));
+        try {
+            const atlas = await assets.acquireTexture(path, false, 'imported');
+            const scene = await assets.preloadSceneAssets(surfaceScene(
+                { type: 'MeshRenderer', data: { texture: path } }, { type: 'Sprite', data: { texture: path } }));
+            expect(scene.missing).toEqual([]);
+            expect([atlas.value.width, assets.getTexture(path)?.width]).toEqual([2048, 2048]);
+            expect(uploads.map(u => u.width)).toEqual([2048, 2048]);
+            scene.scope.releaseAll(); atlas.release();
+        } finally { assets.releaseAll(); }
+    });
+
+    it.each([true, false])('promotes a pending mesh preview on its existing handle with source dimensions %s', async dimensions => {
+        const assets = assetsWithPixels(), path = 'pending-mesh.png', loader = assets.getTextureLoader();
+        assets.noteMeshSurface({ texture: path });
+        let entered!: () => void, resume!: () => void;
+        const reading = new Promise<void>(resolve => { entered = resolve; });
+        const ready = new Promise<void>(resolve => { resume = resolve; });
+        loader.setCompressedSource(async () => 'pending');
+        loader.setPixelDecoder(async (_path, _flip, edge) => {
+            const width = Math.min(edge || 2048, 2048);
+            if (width === 1024) { entered(); await ready; }
+            return { width, height: 1, pixels: new Uint8Array(width * 4),
+                ...(dimensions && width < 2048 ? { sourceWidth: 2048, sourceHeight: 1 } : {}) };
+        });
+        try {
+            const loading = assets.acquireTexture(path);
+            await reading;
+            const joining = assets.acquireTexture(path, true, 'imported');
+            resume();
+            const [mesh, atlas] = await Promise.all([loading, joining]);
+            expect(mesh.value).toBe(atlas.value);
+            expect(uploads.map(u => u.width)).toEqual([1024, 2048]);
+            expect(loader.startedSmall).toBe(0);
+            const handle = mesh.value.handle;
+            expect(await textureRefill(handle)!()).toBe(true);
+            expect(uploads.at(-1)?.width).toBe(2048);
+            expect(await assets.resizeTexture(handle, 512)).toBeNull();
+            atlas.release();
+            expect(await assets.resizeTexture(handle, 1536)).toEqual({ width: 1536, height: 1 });
+            expect(assets.textureFullSize(handle)).toEqual({ width: 2048, height: 1 });
+            expect(await textureRefill(handle)!()).toBe(true);
+            expect(uploads.at(-1)?.width).toBe(1536);
+            expect(mesh.value.fullWidth).toBe(2048);
+            expect(await assets.resizeTexture(handle, 0)).toEqual({ width: 2048, height: 1 });
+            mesh.release();
+            expect(assets.sizes().refRows).toBe(0);
+        } finally { resume(); assets.releaseAll(); }
     });
 
     it('supersedes a pending shrink before returning an imported-size receipt', async () => {

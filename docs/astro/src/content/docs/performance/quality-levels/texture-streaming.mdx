@@ -63,7 +63,9 @@ other than a mesh.
 - Each atlas in a painted or Tiled map keeps its imported dimensions while the map uses it. Bitmap fonts, animation
   frames, skeleton atlas pages and environment maps use the same rule. For a procedural tileset or a custom loader
   that reads pixel coordinates, use `await assets.acquireTexture(ref, flipY, 'imported')`. The receipt supplies the
-  full image on the existing handle. Mesh streaming can resize it again when the last such receipt is released.
+  full image on the existing handle, including while the editor is still compressing the texture. A mesh loaded
+  first can display a preview up to 1024 pixels on its longest edge until a reader requests the imported pixels.
+  Mesh streaming can resize it again when the last such receipt is released.
 - The streamer reads each field's `assetFields` declaration. A renderer that reports texel demand for a texture or
   a material's samplers can declare `measuresTextureDensity: true` on that field. Other live texture and material
   fields keep the imported resolution.

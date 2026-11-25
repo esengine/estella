@@ -140,7 +140,7 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
     it('decodes a content-addressed page from its STAGED path', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/1234abcd.png' });
         await readAndRelease({} as never, source, null, PAIR);
-        expect(source.decodePixels).toHaveBeenCalledWith('assets/1234abcd.png', false);
+        expect(source.decodePixels).toHaveBeenCalledWith('assets/1234abcd.png', false, 0);
     });
 
     it('derives the page dir from a @uuid atlas ref resolved to its PATH (playable)', async () => {
@@ -152,13 +152,13 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
             '@uuid:atlas': 'assets/spine/boy.atlas',
         });
         await readAndRelease({} as never, source, null, [{ skeleton: '@uuid:skel', atlas: '@uuid:atlas' }]);
-        expect(source.decodePixels).toHaveBeenCalledWith('assets/spine/spineboy.png', false);
+        expect(source.decodePixels).toHaveBeenCalledWith('assets/spine/spineboy.png', false, 0);
     });
 
     it('a dirless atlas path yields the bare page name, never a leading slash', async () => {
         const source = makeSource({});
         await readAndRelease({} as never, source, null, [{ skeleton: 'boy.skel', atlas: 'boy.atlas' }]);
-        expect(source.decodePixels).toHaveBeenCalledWith('spineboy.png', false);
+        expect(source.decodePixels).toHaveBeenCalledWith('spineboy.png', false, 0);
     });
 
     // A device has no wasm transcoder and never will; its host decodes KTX2 in C++.
@@ -235,7 +235,10 @@ describe('standalone atlas ownership', () => {
     it('keeps attachment pixels at their imported size while an editor cook is pending', async () => {
         const source = makeSource({ page: 'assets/ink.png' });
         source.compressedTexture = vi.fn(async () => 'pending' as const);
-        source.decodePixels.mockResolvedValue({ width: 2048, height: 2, pixels: new Uint8Array(2048 * 2 * 4) });
+        source.decodePixels.mockImplementation(async (_file, _flip, edge = 1024) => {
+            const width = edge || 2048;
+            return { width, height: 2, pixels: new Uint8Array(width * 2 * 4) };
+        });
         const page = await withAtlasPages(null, source, undefined, acquire => acquire('page'));
         try {
             expect(page.value).toMatchObject({ width: 2048, height: 2 });

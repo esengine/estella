@@ -336,14 +336,15 @@ describe('native Assets.loadTexture', () => {
 
     it('loads the full image on older hosts that cannot replace the contents of a texture handle', async () => {
         const { scope, createSpy } = makeTextureScope();
-        const app = createNativeApp(makeBridge({ 'mesh.png': solidImage(9, 5) }), withRegistryOps(scope));
+        const app = createNativeApp(makeBridge({ 'mesh.png': solidImage(2048, 5) }), withRegistryOps(scope));
         await app.tick(0);
         const assets = app.getResource(Assets);
+        assets.getTextureLoader().setCompressedSource(async () => 'pending');
         assets.noteMeshSurface({ texture: 'mesh.png' });
         assets.setTextureStreamingStart(4);
         const mesh = await assets.acquireTexture('mesh.png');
         try {
-            expect(createSpy.mock.calls.map(([w, h]) => [w, h])).toEqual([[9, 5]]);
+            expect(createSpy.mock.calls.map(([w, h]) => [w, h])).toEqual([[2048, 5]]);
             expect(assets.textureResizable(mesh.value.handle)).toBe(false);
             expect(assets.getTextureLoader().askedSmall).toBe(1);
             expect(assets.getTextureLoader().startedSmall).toBe(0);

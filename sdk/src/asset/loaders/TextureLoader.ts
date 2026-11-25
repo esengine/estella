@@ -42,13 +42,13 @@ export type TexturePixelDecoder = (
 
 /**
  * Where a host keeps its textures GPU-compressed: the KTX2 for `path`, `'pending'`
- * while it is being made, or null for one that is not. A pending texture is drawn
- * from a preview no larger than {@link TEXTURE_PREVIEW_EDGE}, so art still being
- * compressed is not held in video memory in full.
+ * while it is being made, or null for one that is not. An initial load can use a
+ * preview up to {@link TEXTURE_PREVIEW_EDGE}. Readers of imported pixels and
+ * explicit residency changes decode the size they requested from the source.
  */
 export type TextureCompressedSource = (path: string) => Promise<Uint8Array | 'pending' | null>;
 
-/** The longest edge a texture waiting for its compressed form is drawn at. */
+/** The longest edge of an automatic preview while compression is pending. */
 export const TEXTURE_PREVIEW_EDGE = 1024;
 let nextImageRevision = Date.now();
 
@@ -80,6 +80,12 @@ export type TextureImportSettingsResolver = (ref: string) => TextureImportSettin
 interface TextureLoadOptions {
     settings?: TextureImportSettings;
     startEdge?: number;
+    resolution?: 'imported';
+}
+
+interface TextureDecodeSize {
+    maxEdge: number;
+    allowPendingPreview?: boolean;
 }
 
 /** An asset's settings for the engine's pixel upload: mipmapped unless it says not, as the WebGL upload is. */
@@ -206,7 +212,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
     startedSmall = 0;
     askedSmall = 0;
-    /** @internal A material only needs a size check after a bounded load or resize was requested. */
+    /** @internal A material needs a size check after a reduced load or a bounded resize. */
     mayHoldReducedTextures = false;
     /** The same sources by residency key, kept past a release: a texture revived from the warm cache is the same file at the size it was left at. */
     private readonly sourcesByKey_ = new Map<string, TextureSource>();
@@ -285,13 +291,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /**
      * Loads the bytes onto the GPU WITHOUT claiming the path — what a re-upload
      * after a device loss wants, since the identity belongs to the handle being
-     * recovered. Claiming it leaves the pool holding two records, and the loser
-     * is swept up by the next loss with nobody able to re-upload it.
+     * recovered. Pass `'imported'` for consumers that address individual texels,
+     * or the previous resident edge when refilling a handle retained by the host.
      */
     async loadDetached(
-        path: string, ctx: LoadContext | TextureReadContext, flip: boolean, settings?: TextureImportSettings,
+        path: string, ctx: LoadContext | TextureReadContext, flip: boolean, settings?: TextureImportSettings, resolution?: 'imported' | number,
     ): Promise<TextureResult> {
-        return (await this.decodeAndUpload_(path, ctx, flip, settings)).texture;
+        const size = { maxEdge: typeof resolution === 'number' ? resolution : 0, allowPendingPreview: resolution === undefined };
+        return (await this.decodeAndUpload_(path, ctx, flip, settings, size)).texture;
     }
 
     /**
@@ -314,14 +321,22 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (maxEdge > 0) this.mayHoldReducedTextures = true;
         const io = bindingFile(source.path) === source.path ? ctx : source.io;
         const work = Promise.resolve().then(async () => {
-            const { texture: fresh, decision } = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, maxEdge);
+            const decoded = await this.decodeAndUpload_(source.path, io, source.flip, source.settings, { maxEdge });
+            const { texture: fresh, decision } = decoded;
             try {
                 if (this.held_.get(handle) !== held || held.resize !== request) return null;
                 if (!rm.adoptTextureContent?.(handle, fresh.handle)) return null;
+                let limited = decoded.limited;
+                // A host may return only the fitted pixels. Keep a known extent of this revision across bounded reads.
+                const known = !source.limited || source.value.fullWidth !== undefined;
+                if (limited && known && fresh.fullWidth === undefined && fresh.width <= source.fullWidth && fresh.height <= source.fullHeight) {
+                    limited = fresh.width < source.fullWidth || fresh.height < source.fullHeight;
+                    if (limited) { fresh.fullWidth = source.fullWidth; fresh.fullHeight = source.fullHeight; }
+                }
                 source.fullWidth = fresh.fullWidth ?? fresh.width;
                 source.fullHeight = fresh.fullHeight ?? fresh.height;
                 source.edge = Math.max(fresh.width, fresh.height);
-                source.limited = limitedByRequest(fresh, maxEdge);
+                source.limited = limited;
                 source.value.width = fresh.width;
                 source.value.height = fresh.height;
                 if (fresh.fullWidth !== undefined) {
@@ -409,8 +424,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const refill: TextureRefill = async () => {
             const current = this.held_.get(handle);
             if (current?.refill !== refill) return false;
-            const reduced = !this.importedReaders_.has(handle) && !current.pending?.forSurface
-                && source.edge < Math.max(source.fullWidth, source.fullHeight);
+            const reduced = source.limited && !this.importedReaders_.has(handle) && !current.pending?.forSurface;
             const edge = reduced ? source.edge : 0;
             const size = await this.resize(handle, edge, source.io);
             if (size) evictTextureDimensions(handle);
@@ -434,21 +448,23 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         path: string, ctx: TextureReadContext, flip: boolean, options?: TextureLoadOptions,
     ): Promise<TextureResult> {
         const revision = this.imageRevisions_.get(path);
-        const { settings, startEdge = 0 } = options ?? this.pendingOptions_;
+        const { settings, startEdge = 0, resolution } = options ?? this.pendingOptions_;
         if (!options) this.pendingOptions_ = {};
         // A pool that cannot replace content in-place could never restore a streaming preview.
-        const start = startEdge > 0 && this.resourceManager_().adoptTextureContent ? startEdge : 0;
-        if (start > 0) this.mayHoldReducedTextures = true;
-        if (startEdge > 0) this.askedSmall++;
-        const { texture: result, decision } = await this.decodeAndUpload_(path, ctx, flip, settings, start);
-        if (result.fullWidth !== undefined) this.startedSmall++;
+        const canStartSmall = resolution !== 'imported' && (startEdge > 0 || this.compressedSource_ !== null)
+            && !!this.resourceManager_().adoptTextureContent;
+        const maxEdge = canStartSmall && startEdge > 0 ? startEdge : 0;
+        if (startEdge > 0 && resolution !== 'imported') this.askedSmall++;
+        const { texture: result, decision, limited } = await this.decodeAndUpload_(path, ctx, flip, settings, { maxEdge, allowPendingPreview: canStartSmall });
+        if (limited) this.mayHoldReducedTextures = true;
+        if (maxEdge > 0 && limited && result.fullWidth !== undefined) this.startedSmall++;
         // The original caller still owns its pixels. Only the current revision can publish them by path.
         if (revision !== this.imageRevisions_.get(path)) return result;
         const key = textureResidencyKey(path, flip);
         const source: TextureSource = {
             handle: result.handle, key, path, flip, settings,
             io: { backend: ctx.backend, catalog: ctx.catalog, resolveStreamTail: ctx.resolveStreamTail, readSharedFile: ctx.readSharedFile },
-            value: result, limited: limitedByRequest(result, start),
+            value: result, limited,
             edge: Math.max(result.width, result.height),
             fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height,
         };
@@ -465,27 +481,29 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private async decodeAndUpload_(
-        path: string, ctx: TextureReadContext, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
-    ): Promise<{ texture: TextureResult; decision: TextureUploadDecision }> {
+        path: string, ctx: TextureReadContext, flip: boolean, settings: TextureImportSettings | undefined, size: TextureDecodeSize,
+    ): Promise<{ texture: TextureResult; decision: TextureUploadDecision; limited: boolean }> {
         // A build that shipped a small copy beside the file (texture streaming) is read from the copy whenever the size asked for
         // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
+        const { maxEdge } = size;
         const tail = maxEdge > 0 ? ctx.resolveStreamTail?.(path) ?? ctx.catalog?.getStreamTail?.(path) : null;
         const useTail = tail != null && maxEdge <= Math.max(tail.width, tail.height);
         const file = bindingFile(path);
         const buildPath = useTail ? tail.path : ctx.catalog?.getBuildPath(file) ?? file;
-        const { decision = RAW_PAYLOAD_UPLOAD, ...texture } = await this.decodeFile_(file, buildPath, ctx, flip, settings, maxEdge, useTail, this.imageRevisions_.get(path));
+        const { decision = RAW_PAYLOAD_UPLOAD, limit = maxEdge, ...texture } = await this.decodeFile_(file, buildPath, ctx, flip, settings, size, useTail, this.imageRevisions_.get(path));
         if (useTail) {
             texture.fullWidth = tail.fullWidth;
             texture.fullHeight = tail.fullHeight;
         }
-        return { texture, decision };
+        return { texture, decision, limited: limitedByRequest(texture, limit) };
     }
 
-    /** Decode @p path (whose bytes are at @p buildPath; @p copy when that is its small copy) no larger than @p maxEdge, and upload it. */
+    /** Decode the file or its shipped copy at the requested size and report the bound used for a pending preview. */
     private async decodeFile_(
-        path: string, buildPath: string, ctx: TextureReadContext, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number,
+        path: string, buildPath: string, ctx: TextureReadContext, flip: boolean, settings: TextureImportSettings | undefined, size: TextureDecodeSize,
         copy: boolean, revision?: number,
-    ): Promise<TextureResult & { decision?: TextureUploadDecision }> {
+    ): Promise<TextureResult & { decision?: TextureUploadDecision; limit?: number }> {
+        const { maxEdge } = size;
         // A recipe is drawn here, from its source, and is then a texture like any decoded one.
         if (isTextureRecipePath(buildPath)) {
             const drawn = await renderTextureRecipe(path, (p) => ctx.backend.fetchBinary(p === path ? buildPath : ctx.catalog?.getBuildPath(p) ?? p));
@@ -507,13 +525,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             // the way any image is, so the editor shows the pixels the package holds.
             if (compressed instanceof Uint8Array && isPng(compressed)) return this.uploadImageBytes_(compressed, flip, settings, maxEdge);
             if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings, maxEdge);
-            preview = compressed === 'pending';
+            preview = size.allowPendingPreview === true && compressed === 'pending';
         }
         // The smaller of a preview's edge and the one asked for: a texture held small is decoded small.
         const edge = preview ? (maxEdge > 0 ? Math.min(maxEdge, TEXTURE_PREVIEW_EDGE) : TEXTURE_PREVIEW_EDGE) : maxEdge;
         // A platform pixel decoder (runtime scene loader) pre-decodes to RGBA and
         // uploads through the shared createTexture path — the same code the old
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
+        let texture: TextureResult;
         if (this.pixelDecoder_) {
             // A decoder resolves a logical path itself; a copy is named by where it is.
             const file = copy ? buildPath : path;
@@ -521,12 +540,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             const read = () => decoder(file, flip, edge);
             const variant = `pixels:${flip}:${edge}:${revision ?? 0}`;
             const result = await (ctx.readSharedFile?.(file, variant, read) ?? read());
-            return this.uploadPixels_(result, flip, settings, edge);
+            texture = this.uploadPixels_(result, flip, settings, edge);
+        } else {
+            const url = ctx.backend.resolveUrl(buildPath);
+            const full = { width: 0, height: 0 };
+            const img = await this.loadImage(url, flip, edge, copy ? undefined : revision, full);
+            texture = await this.uploadSizedImage_(img, full, flip, settings, edge);
         }
-        const url = ctx.backend.resolveUrl(buildPath);
-        const full = { width: 0, height: 0 };
-        const img = await this.loadImage(url, flip, edge, copy ? undefined : revision, full);
-        return this.uploadSizedImage_(img, full, flip, settings, edge);
+        return { ...texture, limit: edge };
     }
 
     private uploadPixels_(image: ImageLoadResult, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number): TextureResult {

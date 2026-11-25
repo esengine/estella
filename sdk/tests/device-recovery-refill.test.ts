@@ -80,6 +80,22 @@ describe('device recovery: texture refills', () => {
         expect(resident.get(path)).toBe(9);
     });
 
+    it.each([2048, 1536, 512, undefined])('restores a file retained by the host at resident edge %s while compression is pending', async edge => {
+        const { assets, rm } = owing([[7, TextureContent.Asset, 'retained.png:n']]);
+        const upload = vi.fn((_width: number, _height: number) => 8);
+        Object.assign(rm, {
+            createTextureFromBytes: upload,
+            getTextureDimensions: () => edge ? { width: edge, height: 1 } : null,
+        });
+        const loader = assets.getTextureLoader();
+        loader.setCompressedSource(async () => 'pending');
+        loader.setPixelDecoder(async () => ({ width: 2048, height: 1, pixels: new Uint8Array(2048 * 4) }));
+        expect(await assets.reuploadTexturesAfterDeviceLoss()).toBe(1);
+        expect(upload.mock.calls[0]?.slice(0, 2)).toEqual([edge ?? 2048, 1]);
+        expect(rm.adoptTextureContent).toHaveBeenCalledWith(7, 8);
+        expect(rm.releaseTexture).toHaveBeenCalledWith(8);
+    });
+
     it('forgets a withdrawn refill, and every refill when the resource manager goes', () => {
         owing([]);
         provideTextureContent(3, () => true);
