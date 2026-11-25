@@ -476,6 +476,9 @@ jobs:
 
     - uses: ./.github/actions/setup
 
+    - name: Install headless Chromium for editor tests
+      run: pnpm exec playwright install --with-deps --only-shell chromium
+
     # Every static gate, from the one list in tools/gates.mjs. CI and the
     # pre-push hook used to enumerate their own — seventeen gates ran only on a
     # machine with the hook installed, and five only here.
