@@ -155,3 +155,16 @@ export async function recordImportSource(absProduct: string, sourceUuid: string)
   meta.source = sourceUuid;
   await writeFile(absProduct + META_EXT, JSON.stringify(meta, null, 2) + '\n', 'utf8');
 }
+
+/** A product no longer made by its source remains an ordinary asset at the same path and UUID. */
+export async function releaseImportSource(absProduct: string, sourceUuid: string, beforeWrite?: () => void | Promise<void>): Promise<boolean> {
+  const sidecar = absProduct + META_EXT;
+  let meta: Record<string, unknown>;
+  try { meta = JSON.parse(await readFile(sidecar, 'utf8')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
+  if (typeof meta.source !== 'string' || meta.source.toLowerCase() !== sourceUuid) return false;
+  await beforeWrite?.();
+  delete meta.source;
+  await writeFile(sidecar, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+  return true;
+}

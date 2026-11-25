@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
-import { adoptOrphan, metaUuidOf, recordImportSource } from './assetMeta';
+import { adoptOrphan, metaUuidOf, recordImportSource, releaseImportSource } from './assetMeta';
+import { META_EXT } from './contentPolicy';
 
 export interface SourceFileLocation {
   root: string;
@@ -30,6 +31,7 @@ export async function sourceProductWriter({ root, destDir, absSource, beforeWrit
                        settle: (abs: string) => Promise<unknown> = adoptOrphan): Promise<string> {
     const rel = destDir ? `${destDir}/${name}` : name;
     const abs = resolveInside(absDir, name, 'product directory');
+    resolveInside(absDir, name + META_EXT, 'product directory');
     await beforeWrite?.(rel);
     await writeFile(abs, bytes);
     await settle(abs);
@@ -37,5 +39,11 @@ export async function sourceProductWriter({ root, destDir, absSource, beforeWrit
     products.push(rel);
     return rel;
   }
-  return { absDir, products, write };
+  async function release(name: string): Promise<boolean> {
+    if (!sourceUuid) return false;
+    const abs = resolveInside(absDir, name, 'product directory');
+    resolveInside(absDir, name + META_EXT, 'product directory');
+    return releaseImportSource(abs, sourceUuid, () => beforeWrite?.(destDir ? destDir + '/' + name : name));
+  }
+  return { absDir, products, write, release };
 }
