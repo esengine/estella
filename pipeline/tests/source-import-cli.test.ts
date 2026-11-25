@@ -20,7 +20,9 @@ const json = async (file: string) => JSON.parse(await readFile(file, 'utf8'));
 async function project() {
   const base = await realpath(tmpdir());
   const root = await mkdtemp(path.join(base, 'estella-import-cli-'));
-  onTestFinished(async () => { if (path.dirname(root) === base) await rm(root, { recursive: true, force: true }); });
+  onTestFinished(async () => {
+    if (path.dirname(root) === base) await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
   await writeFile(path.join(root, 'project.esproject'), JSON.stringify({ formatVersion: '1', name: 'CLI fixtures' }));
   const assets = path.join(root, 'assets');
   await mkdir(assets);

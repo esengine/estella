@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Post-process effects follow the project's units: a length a volume leaves unset takes its default in the
- *        project's units, so a metre project's rain shelters within 30 m and its SSR reaches 4 m, not 3000 and 400.
+ *        project's units, so rain shelters within 30 m and screen-space reflections reach 200 m.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { blendVolumeEffects } from '../src/postprocess/volumeBlending';
@@ -30,7 +30,7 @@ describe('a world-unit effect parameter', () => {
         expect(shelter.defaultValue).toBeCloseTo(30);
         expect(shelter.min).toBeCloseTo(1);
         expect(shelter.max).toBeCloseTo(300);
-        expect(uniformInUnits(uniform('ssr', 'u_maxDistance')).defaultValue).toBeCloseTo(4);
+        expect(uniformInUnits(uniform('ssr', 'u_maxDistance')).defaultValue).toBeCloseTo(200);
         expect(uniformInUnits(uniform('heightFog', 'u_density')).defaultValue).toBeCloseTo(0.15);
         expect(uniformInUnits(uniform('rain', 'u_intensity')).defaultValue).toBe(1);   // not a length
     });
