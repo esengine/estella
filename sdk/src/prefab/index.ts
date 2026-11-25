@@ -18,6 +18,7 @@ export type { OverrideTarget } from './override';
 export { remapComponentEntityRefs } from './entityRef';
 export { cloneComponents, cloneComponentData, cloneMetadata } from './clone';
 export { collectNestedPrefabPaths, preloadNestedPrefabs } from './collect';
+export { capturePrefabSource, createPrefabSourceLoader, PrefabSourceUnavailable, type PrefabSource } from './source';
 export { migratePrefabData, PREFAB_FORMAT_VERSION } from './migrate';
 export type { MigrationResult } from './migrate';
 export { diffAgainstSource } from './diff';

@@ -199,6 +199,25 @@ describe('Prefab scene loading (PF1)', () => {
         expect(out.entities.map((e) => e.name)).toEqual(['Ground']);
     });
 
+    it('shares source reads across instances and keeps a failed dependency local to this scene read', async () => {
+        const prefab = turretPrefab();
+        const variant = { ...prefab, entities: [], basePrefab: 'assets/Base.esprefab' };
+        const entry = (id: number, ref: string) => ({ id, prefab: ref, parent: null, overrides: [], removed: [], added: [] });
+        const scene = { version: 4, name: 'Test', entities: [
+            entry(1, 'variant'), entry(2, 'variant'), entry(3, REF), entry(4, REF),
+        ] } as unknown as SceneData;
+        const load = vi.fn(async (ref: string) => {
+            if (ref === 'variant') return variant;
+            if (ref === REF) return prefab;
+            throw new Error('asset temporarily unavailable');
+        });
+        const partial = await expandScenePrefabs(scene, load);
+        expect(partial.entities.filter(e => e.parent === null).map(e => e.id)).toEqual([3, 4]);
+        expect(load.mock.calls.map(([ref]) => ref)).toEqual(['variant', 'assets/Base.esprefab', REF]);
+        const restored = await expandScenePrefabs(scene, async ref => ref === 'variant' ? variant : prefab);
+        expect(restored.entities.filter(e => e.parent === null).map(e => e.id)).toEqual([1, 2, 3, 4]);
+    });
+
     it('passes a scene with no prefab instances through unchanged', async () => {
         const scene: SceneData = {
             version: '1.0',

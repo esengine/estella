@@ -26,8 +26,8 @@ import { prepareSpawnOwnership, prepareSceneAuxiliaryAssets, type PreparedSpawnO
 import { ESTELLA_SCENE_GENERATOR } from '../util/provenance';
 import {
     expandEntry,
-    preloadNestedPrefabs,
-    migratePrefabData,
+    createPrefabSourceLoader,
+    type PrefabSource,
     type PrefabData,
     type ProcessedEntity,
 } from '../prefab/index';
@@ -381,9 +381,18 @@ const toSceneEntityData = (e: ProcessedEntity): SceneEntityData => ({
  * resolving prefab (and nested-prefab) assets is async; an unresolvable prefab
  * drops that one instance with a warning rather than aborting the whole scene.
  */
-export async function expandScenePrefabs(
+export function expandScenePrefabs(
     scene: SceneData,
     loadPrefab: PrefabAssetResolver,
+    options?: { expandVirtual?: boolean },
+): Promise<SceneData> {
+    return expandScenePrefabSources(scene, createPrefabSourceLoader(loadPrefab), options);
+}
+
+/** Expand using the same asset versions a caller has already checked for this scene. */
+export async function expandScenePrefabSources(
+    scene: SceneData,
+    readSource: (ref: string) => Promise<PrefabSource>,
     options?: { expandVirtual?: boolean },
 ): Promise<SceneData> {
     const expandVirtual = options?.expandVirtual ?? expandVirtualRequested();
@@ -403,36 +412,21 @@ export async function expandScenePrefabs(
             continue;
         }
         if (expandVirtual && entry.overrides.some((o) => o.type === 'metadata_set' && o.metadataKey === VARIANT_KEY)) continue;
-        const raw = await loadPrefab(entry.prefab);
-        if (!raw) {
-            log.warn('scene', `Prefab instance "${entry.prefab}" could not be resolved; instance skipped`);
-            continue;
-        }
-        const prefab = migratePrefabData(raw).data;
-        // Preload nested prefabs into a cache so the sync flatten resolver never
-        // misses — `flattenPrefab` throws on an unresolved nested ref.
-        const cache = new Map<string, PrefabData>();
+        let source: PrefabSource;
         try {
-            await preloadNestedPrefabs(
-                prefab,
-                async (ref) => {
-                    const d = await loadPrefab(ref);
-                    if (!d) throw new Error(`nested prefab "${ref}" not found`);
-                    return migratePrefabData(d).data;
-                },
-                cache,
-            );
+            source = await readSource(entry.prefab);
         } catch (e) {
-            log.warn('scene', `Prefab instance "${entry.prefab}" has an unresolved nested prefab; instance skipped (${e})`);
+            log.warn('scene', `Prefab instance "${entry.prefab}" could not be resolved; instance skipped (${e})`);
             continue;
         }
+        const { prefab, dependencies } = source;
         // A virtual instance is made as its root alone (see prefab/deferred.ts); instances inside it are left to whoever opens it.
         const virtual = !expandVirtual && isDeferredInstance(prefab, entry.overrides) && canDefer(entry.overrides, prefab)
             && entry.added.length === 0 && entry.removed.length === 0;
         const stub = virtual ? rootOnly(prefab) : null;
         const { entities: expanded, unresolved: unresolvedAll } = expandEntry(
             stub ?? prefab, stub ? { ...entry, overrides: rootOverrides(prefab, entry.overrides) } : entry, allocateId,
-            (ref) => cache.get(ref) ?? null, expandVirtual ? undefined : deferred);
+            (ref) => dependencies.get(ref) ?? null, expandVirtual ? undefined : deferred);
         const entities = virtual && !stub ? cutToRoot(expanded, entry.id) : expanded;
         const unresolved = virtual ? [] : unresolvedAll;
         if (virtual) deferred.push({ id: entry.id, prefab: entry.prefab, overrides: entry.overrides.map((o) => ({ ...o })) });

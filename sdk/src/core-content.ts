@@ -247,6 +247,7 @@ export type { GlImageSource } from './asset/glTextureUpload';
 export {
     loadSceneData,
     loadSceneWithAssets,
+    expandScenePrefabSources,
     resetWorldTo,
     loadComponent,
     remapEntityFields,
@@ -427,6 +428,10 @@ export {
     cloneMetadata,
     collectNestedPrefabPaths,
     preloadNestedPrefabs,
+    capturePrefabSource,
+    createPrefabSourceLoader,
+    PrefabSourceUnavailable,
+    type PrefabSource,
     migratePrefabData,
     PREFAB_FORMAT_VERSION,
     diffAgainstSource,
