@@ -3,13 +3,14 @@
 /**
  * @file    TimelineAssetLoader.ts
  * @brief   Loads a `.estimeline` into the timeline registry, under every ref a
- *          component may spell it as. Same shape as the anim-clip loader: the
- *          owner owns the slot, the era owns the textures it resolved.
+ *          component may spell it as. Each publication owns its frame textures,
+ *          nested timelines and prepared spawn prefabs.
  */
 import type { AssetLoader, LoadContext, TimelineResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
 import type { PublishedTimeline } from '../../timeline/TimelineTypes';
+import type { PreparedPrefab } from '../../prefab/preparedPrefab';
 import { log } from '../../util/logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
@@ -23,7 +24,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             const asset = parseTimelineAsset(text);
             const textureHandles = new Map<string, number>();
 
-            const { timelines, textures } = extractTimelineAssetPaths(asset);
+            const { timelines, textures, prefabs } = extractTimelineAssetPaths(asset);
             for (const ref of timelines) {
                 try {
                     await ctx.acquireAsset('timeline', ref);
@@ -42,6 +43,17 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
                 }
             }
             const published: PublishedTimeline = { asset, textureHandles };
+            if (ctx.preparePrefab) {
+                const recipes = new Map<string, PreparedPrefab>();
+                for (const ref of prefabs) {
+                    try {
+                        recipes.set(ref, (await ctx.preparePrefab(ref)).value);
+                    } catch (e) {
+                        log.warn('asset', `${path}: failed to prepare prefab ${ref}`, e);
+                    }
+                }
+                published.prefabs = recipes;
+            }
             return { published, value: { timelineId: path } };
         },
         // Nothing: the slot holds the era, and the timeline system reads it

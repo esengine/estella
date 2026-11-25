@@ -9466,7 +9466,8 @@ rootId: string
 
 ## PrefabServer — class @beta
 ```
-instantiate: (pathOrAddress: string, options?: { baseUrl?: string; parent?: Entity; overrides?: SpawnOverride[]; scene?: boolean; owner?: Entity; }) => Promise<InstantiatePrefabResult>
+@internal spawnPrepared: (prepared: PreparedPrefab, options?: PrefabSpawnLocation) => { root: Entity; entities: Map<number, Entity>; }
+instantiate: (pathOrAddress: string, options?: PrefabSpawnLocation & { baseUrl?: string; overrides?: SpawnOverride[]; }) => Promise<InstantiatePrefabResult>
 prepare: (pathOrAddress: string) => Promise<PreparedSpawnable>
 static new (world: World, getAssets: () => AssetsClass, getScenes?: () => SceneManagerState | null): PrefabServer
 static prototype: PrefabServer
@@ -9489,7 +9490,7 @@ static prototype: PrefabsPlugin
 ## PreparedSpawnable — interface @beta
 ```
 release: () => void
-spawn: (options?: { parent?: Entity; scene?: boolean; owner?: Entity; }) => { root: Entity; entities: Map<number, Entity>; }
+spawn: (options?: PrefabSpawnLocation) => { root: Entity; entities: Map<number, Entity>; }
 ```
 
 ## PreparedTimelineSpawn — interface @experimental
@@ -13884,7 +13885,7 @@ ResourceDef<TimelineAPI>
 ```
 @internal clearStates: () => void
 @internal ensureState: (entity: Entity, wrapMode: WrapMode, speed: number) => TimelineState
-@internal playback: (name: string, entity?: Entity) => { asset: TimelineAsset; textureHandles?: Map<string, number>; } | undefined
+@internal playback: (name: string, entity?: Entity) => (Partial<PublishedTimeline> & { asset: TimelineAsset; }) | undefined
 @internal removeState: (entity: Entity) => void
 @internal useAssetTimelines: (source: (ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined) => void
 getAsset: (name: string, entity?: Entity) => TimelineAsset | undefined
@@ -14015,6 +14016,7 @@ time: number
 despawn: (entity: Entity) => void
 prepare: ((prefab: string, player?: Entity) => Promise<PreparedTimelineSpawn>) | undefined
 spawn: (prefab: string, parent: Entity | null, name: string, player?: Entity) => Promise<Entity | null>
+spawnPrepared: ((recipe: PreparedPrefab, parent: Entity | null, name: string, player: Entity) => Entity | null) | undefined
 ```
 
 ## TimelineSpawns — class @experimental
@@ -14024,7 +14026,7 @@ instancesOf: (player: Entity) => Entity[]
 prepare: (player: Entity, asset: TimelineAsset, spawner: TimelineSpawner) => ReadonlyMap<string, PreparedTimelineSpawn | null>
 stop: (player: Entity, spawner: TimelineSpawner | null) => void
 stopAll: (spawner: TimelineSpawner | null) => void
-sync: (player: Entity, asset: TimelineAsset, time: number, spawner: TimelineSpawner, resolve: (childPath: string) => Entity | null) => void
+sync: (player: Entity, asset: TimelineAsset, time: number | null, spawner: TimelineSpawner, resolve: (childPath: string) => Entity | null, prefabs?: PublishedTimeline["prefabs"]) => void
 static new (): TimelineSpawns
 static prototype: TimelineSpawns
 ```

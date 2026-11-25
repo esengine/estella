@@ -153,6 +153,8 @@ export function detectTimelineEvents(
 
 export interface AdvanceContext {
     deps: SampleDeps;
+    /** Reconcile spawn clips at the new playhead before tracks resolve their targets. Null means stopped. */
+    syncSpawns?: (time: number | null) => void;
     audio?: AudioAPI | null;
     particle?: Pick<ParticleAPI, 'play' | 'stop' | 'reset'> | null;
     /** Skip-channel filter (editor mute); forwarded to the sampler. */
@@ -238,7 +240,10 @@ export function latchPlayerFinish(
 export function advanceTimelineTS(
     asset: TimelineAsset, root: Entity, state: TimelineState, dt: number, ctx: AdvanceContext,
 ): boolean {
-    if (!state.playing) return false;
+    if (!state.playing) {
+        ctx.syncSpawns?.(!state.started && state.time === 0 ? null : state.time);
+        return false;
+    }
 
     // The range played: [from, to] of the timeline, the whole of it by default. The clock runs in the range's own
     // time (`phase`), and `state.time` is where that is in the timeline.
@@ -260,6 +265,7 @@ export function advanceTimelineTS(
         if (laps > 0) state.laps = (state.laps ?? 0) + laps;
     }
 
+    ctx.syncSpawns?.(state.time);
     sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
     // Skeletal clips on their rigs, blended over what the rig's Animator posed this frame.
     if (ctx.lookup) sampleAnimationTracks(asset, state.time, root, ctx.deps, ctx.lookup);

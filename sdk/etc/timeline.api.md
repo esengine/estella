@@ -274,7 +274,7 @@ ResourceDef<TimelineAPI>
 ```
 @internal clearStates: () => void
 @internal ensureState: (entity: Entity, wrapMode: WrapMode, speed: number) => TimelineState
-@internal playback: (name: string, entity?: Entity) => { asset: TimelineAsset; textureHandles?: Map<string, number>; } | undefined
+@internal playback: (name: string, entity?: Entity) => (Partial<PublishedTimeline> & { asset: TimelineAsset; }) | undefined
 @internal removeState: (entity: Entity) => void
 @internal useAssetTimelines: (source: (ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined) => void
 getAsset: (name: string, entity?: Entity) => TimelineAsset | undefined

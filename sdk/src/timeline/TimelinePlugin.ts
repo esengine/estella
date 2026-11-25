@@ -108,12 +108,20 @@ class TimelinePlaybackSystem {
         }
 
         // Spawn clips make their prefab through the game's prefab server, named so the other tracks find it.
-        this.spawner_ = {
+        const nameRoot = (root: Entity, name: string) => {
+            if (name && world.valid(root)) world.insert(root, Name, { value: name });
+            return root;
+        };
+        const spawner: TimelineSpawner = {
             spawn: async (prefab, parent, name, player) => {
                 if (!app.hasResource(Prefabs)) return null;
                 const made = await app.getResource(Prefabs).instantiate(prefab, { parent: parent ?? undefined, owner: player });
-                if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
-                return made.root;
+                return nameRoot(made.root, name);
+            },
+            spawnPrepared: (recipe, parent, name, player) => {
+                if (!app.hasResource(Prefabs)) return null;
+                const made = app.getResource(Prefabs).spawnPrepared(recipe, { parent: parent ?? undefined, owner: player });
+                return nameRoot(made.root, name);
             },
             despawn: (entity) => { if (world.valid(entity)) world.despawn(entity); },
             // Prepared ahead, so a clip's instance is made on the frame it starts.
@@ -124,13 +132,13 @@ class TimelinePlaybackSystem {
                     release: () => prepared.release(),
                     spawn: (parent, name) => {
                         const made = prepared.spawn({ parent: parent ?? undefined, owner: player });
-                        if (name && world.valid(made.root)) world.insert(made.root, Name, { value: name });
-                        return made.root;
+                        return nameRoot(made.root, name);
                     },
                 };
             },
         };
 
+        this.spawner_ = spawner;
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
             this.frames_.forget(entity);
@@ -193,6 +201,8 @@ class TimelinePlaybackSystem {
                     const justFinished = advanceTimelineTS(asset, entity, state, dt, {
                         particle: app.hasResource(Particle) ? app.getResource(Particle) : null,
                         deps, audio,
+                        syncSpawns: time => this.spawns_.sync(entity, asset, time, spawner,
+                            path => deps.resolveChild(entity, path), published.prefabs),
                         lookup: (ref) => tl.getAsset(ref, entity),
                         onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,
                         // A shake: an impulse from where the track's entity is, or the view shaken where it is.
@@ -216,13 +226,6 @@ class TimelinePlaybackSystem {
                     this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
-                    // Spawned entities: there while the playhead is inside their clip, gone once the timeline is stopped.
-                    const owner = entity;
-                    if (!state.playing && !state.started && state.time === 0) {
-                        this.spawns_.stop(entity, this.spawner_);
-                        // Loaded while it waits to play, so its first spawn is made on the spot.
-                        if (this.spawner_) this.spawns_.prepare(entity, asset, this.spawner_);
-                    } else if (this.spawner_) this.spawns_.sync(entity, asset, state.time, this.spawner_, (p) => resolveTimelinePath(world, owner, owner, p));
                     // A clip that ran out gives the view back; one that is only paused keeps it.
                     if (justFinished && director) setTimelineShot(director, entity, null);
 

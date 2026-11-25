@@ -12,6 +12,7 @@ import { WrapMode, TrackType, type TimelineAsset, type SpawnTrack } from '../src
 import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import type { Entity } from '../src/types';
+import type { PreparedPrefab } from '../src/prefab/preparedPrefab';
 
 const asset = (clips: SpawnTrack['clips'], childPath = ''): TimelineAsset => ({
     version: '1.3', type: 'timeline', duration: 10, wrapMode: WrapMode.Once,
@@ -151,6 +152,29 @@ describe('spawn tracks', () => {
         expect(current.get(clip.prefab)).toBe(fresh);
         spawns.forget(player, spawner);
         expect(fresh.release).toHaveBeenCalledOnce();
+    });
+
+    it('switches a pending code spawn to the published recipe and recovers a missing clip on refresh', async () => {
+        const f = fakeSpawner(true), spawns = new TimelineSpawns(), timeline = asset([clip]);
+        const scene = { name: 'Dragon', version: 4, entities: [] };
+        const recipe: PreparedPrefab = { ref: clip.prefab, scene, rootId: 1, missing: [], release: vi.fn() };
+        const spawner = { ...f.spawner, spawnPrepared: vi.fn(() => 0 as Entity) };
+        const missing = new Map<string, PreparedPrefab>(), ready = new Map([[clip.prefab, recipe]]);
+        spawns.sync(player, timeline, 1, spawner, () => player);
+        spawns.sync(player, timeline, 1, spawner, () => player, missing);
+        f.waiting.forEach(go => go());
+        await flush();
+        expect(f.alive.size).toBe(0);
+        expect(f.released()).toBe(1);
+        expect(f.prepared).toEqual([clip.prefab]);
+        spawns.sync(player, timeline, 1, spawner, () => player, ready);
+        expect(spawner.spawnPrepared).toHaveBeenCalledWith(recipe, player, clip.name, player);
+        expect(spawns.instancesOf(player)).toEqual([0]);
+        spawns.sync(player, timeline, 1, spawner, () => player, new Map([[clip.prefab, { ...recipe }]]));
+        expect(spawner.spawnPrepared).toHaveBeenCalledTimes(1);
+        spawns.sync(player, timeline, null, spawner, () => player, ready);
+        expect(spawns.instancesOf(player)).toEqual([]);
+        expect(recipe.release).not.toHaveBeenCalled();
     });
 
     it('makes nothing where the track’s entity is not there, nor for a clip with no prefab', async () => {

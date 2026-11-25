@@ -5,6 +5,9 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import { seedEngineComponents, defineComponent } from '../src/ecs/component';
 import { ScriptGraphAssetLoader } from '../src/asset/loaders/ScriptGraphAssetLoader';
+import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
+import { TimelinePlayer } from '../src/timeline/TimelinePlayerComponent';
+import type { PublishedTimeline } from '../src/timeline/TimelineTypes';
 import { RuntimeConfig } from '../src/defaults';
 import type { CompiledScriptGraph } from '../src/logic/ScriptGraphRunner';
 import type { Backend } from '../src/asset/Backend';
@@ -38,21 +41,31 @@ function realm(root: PrefabData = leaf('before')) {
 }
 
 describe('prepared prefab ownership through the real Assets and graph loaders', () => {
-    it('prepares the rest of a prefab when its agent points back to the spawning graph', async () => {
+    it.each(['scriptgraph', 'timeline'] as const)('prepares the rest of a prefab that points back to its spawning %s', async type => {
+        const ref = type === 'timeline' ? 'a.estimeline' : 'a.esgraph';
         const root = leaf('recursive spawn');
-        root.entities[0].components.push({ type: 'ScriptGraphAgent', data: { graph: 'a.esgraph' } });
-        const { assets, docs, graph } = realm(root);
+        root.entities[0].components.push(type === 'timeline'
+            ? { type: TimelinePlayer._name, data: { timeline: ref } }
+            : { type: 'ScriptGraphAgent', data: { graph: ref } });
+        const { assets, docs } = realm(root);
+        if (type === 'timeline') {
+            assets.register(new TimelineAssetLoader());
+            docs.set(ref, JSON.stringify({ type: 'timeline', version: '1.3', duration: 1, tracks: [
+                { type: 'spawn', clips: [{ start: 0, duration: 1, prefab: REF }] },
+            ] }));
+        }
+        const recipe = () => assets.resolveRegistryAsset<Pick<PublishedTimeline, 'prefabs'>>(type, ref)?.prefabs?.get(REF);
         vi.useFakeTimers();
         try {
-            const loading = assets.acquireTyped('scriptgraph', 'a.esgraph');
+            const loading = assets.acquireTyped(type, ref);
             await vi.advanceTimersByTimeAsync(RuntimeConfig.assetLoadTimeout + 1);
             const lease = await loading;
-            expect(graph('a.esgraph').prefabs.get(REF)?.missing).toEqual(['a.esgraph']);
-            expect(lease.failedDependencies).toContain('a.esgraph');
+            expect(recipe()?.missing).toEqual([ref]);
+            expect(lease.failedDependencies).toContain(ref);
             docs.set(REF, JSON.stringify(leaf('repaired')));
             assets.invalidate(REF);
             await assets.assetGraphSettled();
-            expect(graph('a.esgraph').prefabs.get(REF)?.missing).toEqual([]);
+            expect(recipe()?.missing).toEqual([]);
             expect(lease.failedDependencies).toEqual([]);
             lease.release();
             expect(assets.sizes()).toMatchObject({ registrySlots: 0, refRows: 0, genericCached: 0, pendingLoads: 0 });

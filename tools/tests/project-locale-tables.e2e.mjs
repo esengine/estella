@@ -22,13 +22,21 @@ async function fixture(project) {
     const image = 'assets/art/star.png', uuid = '6e5b6002-9bc4-4f60-a446-94ac83023a8c', texture = '@uuid:' + uuid;
     await asset(project, image, 'texture', await fs.readFile(path.join(ROOT, 'templates/wechat-minigame/assets/textures/star_tiny.png')), uuid);
     const clip = 'assets/art/pulse.esanim', timeline = 'assets/art/motion.estimeline', prefab = 'assets/art/effect.esprefab';
-    await asset(project, clip, 'anim-clip', { name: 'pulse', fps: 12, loop: true, frames: [{ texture }] });
-    await asset(project, timeline, 'timeline', { type: 'timeline', version: '1.3', duration: 1, wrapMode: 'loop', tracks: [
+    const alternate = 'assets/art/alternate.estimeline', alternatePrefab = 'assets/art/alternate.esprefab';
+    const alternatePrefabId = randomUUID();
+    const frameTrack = { type: 'animFrames', name: 'Frame', childPath: '', animFrames: [{ texture }] };
+    await asset(project, clip, 'animclip', { name: 'pulse', fps: 12, loop: true, frames: [{ texture }] });
+    await asset(project, timeline, 'animation', { type: 'timeline', version: '1.3', duration: 2, wrapMode: 'loop', tracks: [
         { type: 'spawn', name: 'Effect', childPath: '', clips: [{ start: 0, duration: 1, prefab, name: 'Live effect' }] },
-        { type: 'animFrames', name: 'Frame', childPath: '', animFrames: [{ texture }] },
+        { type: 'sequence', name: 'Alternate', childPath: '', clips: [{ start: 1, duration: 1, timeline: alternate }] },
+        frameTrack,
         { type: 'property', name: 'Depth', childPath: '', component: 'Transform', channels: [
             { property: 'position.z', keyframes: [{ time: 0, value: 7, interpolation: 'linear', inTangent: 0, outTangent: 0 }] },
         ] },
+    ] });
+    await asset(project, alternate, 'animation', { type: 'timeline', version: '1.3', duration: 1, wrapMode: 'loop', tracks: [
+        { type: 'spawn', name: 'Effect', childPath: '', clips: [{ start: 0, duration: 1, prefab: '@uuid:' + alternatePrefabId, name: 'Alternate effect' }] },
+        frameTrack,
     ] });
     const entity = (id, name, components) => ({ id, name, parent: null, children: [], visible: true, components });
     const graph = 'assets/logic/agent.esgraph', callee = 'assets/logic/effect.esgraph';
@@ -40,12 +48,14 @@ async function fixture(project) {
     await asset(project, callee, 'scriptgraph', { version: '1.0', nodes: [
         { id: 'in', kind: 'graph.input' }, { id: 'make', kind: 'entity.spawn', literals: { prefab } },
     ], edges: [wire('in', 'make')] });
-    await asset(project, prefab, 'prefab', { version: '2', name: 'Effect', rootEntityId: 'sprite', entities: [
+    const effect = { version: '2', name: 'Effect', rootEntityId: 'sprite', entities: [
         { prefabEntityId: 'sprite', name: 'Spark', parent: null, children: ['mesh'], visible: true,
             components: [{ type: 'Transform', data: {} }, { type: 'Sprite', data: { texture } }] },
         { prefabEntityId: 'mesh', name: 'Shard', parent: 'sprite', children: [], visible: true,
             components: [{ type: 'Transform', data: {} }, { type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture } }] },
-    ] });
+    ] };
+    await asset(project, prefab, 'prefab', effect);
+    await asset(project, alternatePrefab, 'prefab', effect, alternatePrefabId);
     for (const [scene, shape, sampler] of [
         ['hud', { type: 'Sprite', data: { texture } }, { [image]: { filterMode: 'nearest', wrapMode: 'repeat', mipmaps: false } }],
         ['world', { type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture } }, { [texture]: { filterMode: 'linear', wrapMode: 'mirror', mipmaps: true } }],
@@ -56,7 +66,7 @@ async function fixture(project) {
             entity(3, scene + '-clip', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
                 { type: 'SpriteAnimator', data: { clip, playing: true } }]),
             entity(4, scene + '-motion', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
-                { type: 'TimelinePlayer', data: { timeline, playing: true } },
+                { type: 'TimelinePlayer', data: { timeline, playing: true, rangeEnd: 1 } },
                 ...(scene === 'world' ? [shape] : [])]),
         ] });
     }
@@ -78,7 +88,7 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, defineSystem, EntityEvents, Input, Localization, MeshRenderer, Parent, Res, SceneManager, SceneOwner, Sprite, Text, Timeline, Transform } from 'esengine';
+import { addPlugin, Assets, defineSystem, EntityEvents, Input, Localization, MeshRenderer, Name, Parent, Res, SceneManager, SceneOwner, Sprite, Text, Timeline, TimelinePlayer, Transform } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
     let inputCaption = null;
     let ticks = 0;
@@ -127,10 +137,19 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
         }
         return ticks;
     };
-    globalThis.timelineEffect = name => {
+    globalThis.changeEffects = () => {
+        for (const name of ['hud', 'world']) {
+            const player = app.world.findEntityByName(name + '-motion');
+            const current = app.world.get(player, TimelinePlayer);
+            app.world.set(player, TimelinePlayer, { ...current, timeline: '${alternate}', playing: true });
+        }
+        return ticks;
+    };
+    globalThis.timelineEffect = (name, label) => {
         const world = app.world, player = world.findEntityByName(name + '-motion');
-        const childOf = (parent, component) => world.getEntitiesWithComponents([component, Parent]).find(e => world.get(e, Parent).entity === parent);
-        const sprite = childOf(player, Sprite), mesh = sprite == null ? null : childOf(sprite, MeshRenderer);
+        const childOf = (parent, component, label) => world.getEntitiesWithComponents([component, Parent])
+            .find(e => world.get(e, Parent).entity === parent && (!label || world.tryGet(e, Name)?.value === label));
+        const sprite = childOf(player, Sprite, label), mesh = sprite == null ? null : childOf(sprite, MeshRenderer);
         if (mesh == null) return null;
         return { owners: [sprite, mesh].map(e => world.tryGet(e, SceneOwner)?.scene ?? null),
             sprite: sampling(world.get(sprite, Sprite).texture), mesh: sampling(world.get(mesh, MeshRenderer).texture) };
@@ -251,25 +270,27 @@ async function check(browser, project, dir, platform) {
         const advance = after => page.waitForFunction(tick => globalThis.packageTicks() >= tick + 3, after);
         const expected = name => ({ clip: samplers[name], timeline: samplers[name], z: 7, mesh: name === 'world' });
         await advance(await page.evaluate(() => globalThis.addCaptionScene('world')));
-        await page.waitForFunction(() => globalThis.timelineEffect('hud') && globalThis.timelineEffect('world'));
         for (const name of ['hud', 'world']) {
             assert.deepEqual(await page.evaluate(name => globalThis.playingSamples(name), name), expected(name), platform + ' additive ' + name);
             assert.deepEqual(await page.evaluate(name => globalThis.spawnGraphEffect(name), name), [samplers[name], samplers[name]], platform + ' graph ' + name);
         }
-        const checkTimelineEffects = async () => {
-            for (const name of ['hud', 'world']) assert.deepEqual(await page.evaluate(name => globalThis.timelineEffect(name), name),
-                { owners: [name, name], sprite: samplers[name], mesh: samplers[name] }, platform + ' timeline spawn ' + name);
+        const checkTimelineEffects = async label => {
+            await page.waitForFunction(label => ['hud', 'world'].every(name => globalThis.timelineEffect(name, label)), label);
+            for (const name of ['hud', 'world']) assert.deepEqual(await page.evaluate(([name, label]) => globalThis.timelineEffect(name, label), [name, label]),
+                { owners: [name, name], sprite: samplers[name], mesh: samplers[name] }, platform + ' ' + label + ' ' + name);
         };
-        await checkTimelineEffects();
+        await checkTimelineEffects('Live effect');
         await advance(await page.evaluate(() => globalThis.playEffects(false)));
         assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.timelineEffect(name))), [null, null]);
         await advance(await page.evaluate(() => globalThis.playEffects(true)));
-        await checkTimelineEffects();
+        await checkTimelineEffects('Live effect');
+        await advance(await page.evaluate(() => globalThis.changeEffects()));
+        await checkTimelineEffects('Alternate effect');
         await advance(await page.evaluate(() => globalThis.removeCaptionScene('world')));
         assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.liveEffectParts(name))), [2, 0]);
         assert.deepEqual(await page.evaluate(() => globalThis.playingSamples('hud')), expected('hud'));
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed preload/discard, four switches and scene-owned 2D/3D graph and timeline spawns, including replay');
+        console.log(platform + ' passed preload/discard, four switches and scene-owned 2D/3D graph and timeline spawns, including replay and timeline replacement');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

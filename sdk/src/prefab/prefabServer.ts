@@ -15,7 +15,7 @@ import {
     type PrefabOverride,
     type InstantiatePrefabResult,
 } from '../prefab';
-import { spawnPrepared } from './preparedPrefab';
+import { spawnPrepared, type PreparedPrefab } from './preparedPrefab';
 
 /**
  * An override as written at a SPAWN: the entity id may be left out, and then it
@@ -24,6 +24,13 @@ import { spawnPrepared } from './preparedPrefab';
  * @beta
  */
 export type SpawnOverride = Omit<PrefabOverride, 'prefabEntityId'> & { prefabEntityId?: string };
+
+interface PrefabSpawnLocation {
+    parent?: Entity;
+    scene?: boolean;
+    /** Follow this entity's scene at landing. A destroyed owner cancels the spawn. */
+    owner?: Entity;
+}
 
 /**
  * A prefab {@link PrefabServer.prepare} has loaded: held until released, and
@@ -35,7 +42,7 @@ export interface PreparedSpawnable {
     /** Lets go of what the preparation loaded; a spawn after this throws. */
     release(): void;
     /** Spawns under `parent`, in the current scene of `owner` or the active scene if omitted. `scene: false` opts out. */
-    spawn(options?: { parent?: Entity; scene?: boolean; owner?: Entity }): { root: Entity; entities: Map<number, Entity> };
+    spawn(options?: PrefabSpawnLocation): { root: Entity; entities: Map<number, Entity> };
 }
 
 /**
@@ -67,13 +74,9 @@ export class PrefabServer {
 
     /** Spawn in the origin entity's scene at landing, or the active scene if no origin was supplied.
      *  Pass `scene: false` for an instance that should outlive the area it came from. */
-    async instantiate(pathOrAddress: string, options?: {
+    async instantiate(pathOrAddress: string, options?: PrefabSpawnLocation & {
         baseUrl?: string;
-        parent?: Entity;
         overrides?: SpawnOverride[];
-        scene?: boolean;
-        /** Follow this entity's scene at landing. A destroyed owner cancels the spawn. */
-        owner?: Entity;
     }): Promise<InstantiatePrefabResult> {
         const owner = options?.scene === false ? undefined : options?.owner;
         const attempt = this.spawnAttempt_(pathOrAddress, owner);
@@ -116,13 +119,18 @@ export class PrefabServer {
             },
             spawn: (options) => {
                 if (!held) throw new Error(`prefab "${pathOrAddress}" was released before this spawn`);
-                const owner = options?.scene === false ? undefined : options?.owner;
-                return spawnPrepared(this.world_, prepared, {
-                    parent: options?.parent, attempt: this.spawnAttempt_(pathOrAddress, owner),
-                    scene: options?.scene === false ? null : sceneForSpawn(this.world_, this.getScenes_(), owner),
-                });
+                return this.spawnPrepared(prepared, options);
             },
         };
+    }
+
+    /** @internal Spawn a recipe borrowed from an asset publication while its owner holds it. */
+    spawnPrepared(prepared: PreparedPrefab, options?: PrefabSpawnLocation) {
+        const owner = options?.scene === false ? undefined : options?.owner;
+        return spawnPrepared(this.world_, prepared, {
+            parent: options?.parent, attempt: this.spawnAttempt_(prepared.ref, owner),
+            scene: options?.scene === false ? null : sceneForSpawn(this.world_, this.getScenes_(), owner),
+        });
     }
 
     private spawnAttempt_(path: string, owner?: Entity) {

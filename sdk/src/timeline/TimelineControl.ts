@@ -32,7 +32,7 @@ export interface PlayerFlagChannel {
  * write the play flags through to the entity's `TimelinePlayer` component.
  */
 export class TimelineAPI {
-    private readonly playable_ = new WeakMap<TimelineAsset | PublishedTimeline, { asset: TimelineAsset; textureHandles?: Map<string, number> }>();
+    private readonly playable_ = new WeakMap<TimelineAsset | PublishedTimeline, Partial<PublishedTimeline> & { asset: TimelineAsset }>();
     private readonly states_ = new Map<Entity, TimelineState>();
     private readonly codeAssets_ = new Map<string, TimelineAsset>();
     private assetTimelines_: ((ref: string, entity?: Entity) => TimelineAsset | PublishedTimeline | undefined) | null = null;
@@ -64,14 +64,14 @@ export class TimelineAPI {
         return this.playback(name, entity)?.asset;
     }
 
-    /** @internal The playable tracks and frame textures from the same publication. */
+    /** @internal The playable tracks and their resources from the same publication. */
     playback(name: string, entity?: Entity) {
         const source = this.codeAssets_.get(name) ?? this.assetTimelines_?.(name, entity);
         if (!source) return;
         let playable = this.playable_.get(source);
         if (!playable) {
             playable = 'textureHandles' in source
-                ? { asset: playableTimeline(source.asset), textureHandles: source.textureHandles }
+                ? { ...source, asset: playableTimeline(source.asset) }
                 : { asset: playableTimeline(source) };
             this.playable_.set(source, playable);
         }

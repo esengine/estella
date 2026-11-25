@@ -3,6 +3,7 @@
 import {
     wrapModeFromName,
     TrackType,
+    timelineSpawnPrefabRefs,
     TIMELINE_FORMAT_VERSION,
     type TimelineAsset,
     type Track,
@@ -285,6 +286,8 @@ export interface TimelineAssetPaths {
     textures: string[];
     /** The timelines its sequence clips play. */
     timelines: string[];
+    /** Distinct prefab references used by spawn clips. */
+    prefabs: string[];
 }
 
 export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPaths {
@@ -321,5 +324,6 @@ export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPa
         animClips: Array.from(animClips),
         textures: Array.from(textures),
         timelines: Array.from(timelines),
+        prefabs: Array.from(timelineSpawnPrefabRefs(asset)),
     };
 }

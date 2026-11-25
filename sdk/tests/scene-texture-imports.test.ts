@@ -9,7 +9,7 @@ import { SpriteAnimation, SpriteAnimator } from '../src/animation/SpriteAnimator
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import { Assets } from '../src/asset/AssetPlugin';
 import { contentHashHex } from '../src/asset/contentHash';
-import { defineComponent, MeshRenderer, Parent, SceneOwner, Sprite, TilemapLayer } from '../src/ecs/component';
+import { defineComponent, MeshRenderer, Name, Parent, SceneOwner, Sprite, TilemapLayer, Transform } from '../src/ecs/component';
 import { EntityEvents } from '../src/ecs/entityEvents';
 import { linearColorSpace, setLinearColorSpace } from '../src/ecs/env';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
@@ -17,6 +17,7 @@ import { Input, InputState } from '../src/input/input';
 import { registerScriptGraphSupport } from '../src/logic/logicSupport';
 import { ScriptGraphAgent } from '../src/logic/ScriptGraphAgent';
 import { ScriptGraphPlugin } from '../src/logic/ScriptGraphPlugin';
+import { Prefabs, prefabsPlugin } from '../src/prefab/prefabServer';
 import { initRuntime, prepareRuntimeScene, publishRuntimeScene, type RuntimeAssetSource } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
 import { SceneManager } from '../src/scene/sceneManager';
@@ -24,6 +25,9 @@ import { sceneManagerPlugin } from '../src/scene/scenePlugin';
 import { Tilemaps } from '../src/tilemap/tilemapAPI';
 import { TilemapPlugin } from '../src/tilemap/tilemapPlugin';
 import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
+import { Timeline } from '../src/timeline/TimelineControl';
+import { TimelinePlugin } from '../src/timeline/TimelinePlugin';
+import { registerTimelineSupport } from '../src/timeline/timelineSupport';
 import { reservePromise } from '../src/util/reservePromise';
 import type { CppResourceManager } from '../src/wasm';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
@@ -421,6 +425,77 @@ it.skipIf(!HAS_WASM)('sends each painted and Tiled layer its own atlas when both
         expect(handles('home').every((id, i) => id !== before[i])).toBe(true);
         expect(sampling('home')).toMatchObject([nearest, nearest]);
         expect(sampling('next')).toMatchObject([linear, linear]);
+    } finally { close(); }
+});
+
+it.skipIf(!HAS_WASM)('plays, repairs and replays timeline spawn clips with each scene’s own prefab resources', async () => {
+    registerTimelineSupport();
+    const core = await loadWasmModule();
+    const app = App.new().connectCpp(new core.Registry(), core, { ownedRegistry: true });
+    const timeline = 'art/effects.estimeline', effect = 'art/spark.esprefab', missing = 'art/glow.esprefab';
+    const prefab = { version: '2', name: 'Effect', rootEntityId: 'sprite', entities: [
+        { prefabEntityId: 'sprite', name: 'Sprite', parent: null, children: ['mesh'], visible: true,
+            components: [{ type: 'Transform', data: {} }, sprite] },
+        { prefabEntityId: 'mesh', name: 'Mesh', parent: 'sprite', children: [], visible: true,
+            components: [{ type: 'Transform', data: {} }, mesh] },
+    ] };
+    const docs = new Map<string, unknown>([[effect, prefab], [timeline, {
+        version: '1.3', type: 'timeline', duration: 10, wrapMode: 'loop', tracks: [{ type: 'spawn', childPath: '', clips: [
+            { start: 0, duration: 10, prefab: effect, name: 'Spark' }, { start: 0, duration: 10, prefab: missing, name: 'Glow' },
+        ] }, { type: 'property', childPath: 'Spark', component: 'Transform', channels: [
+            { property: 'position.z', keyframes: [{ time: 0, value: 7 }] },
+        ] }],
+    }]]);
+    const field = { type: 'TimelinePlayer', data: { timeline, playing: true } };
+    const { assets, scenes, uploads, close } = await game(field, { backend: {
+        resolveUrl: path => path, fetchBinary: async () => new ArrayBuffer(0),
+        fetchText: async path => { if (!docs.has(path)) throw new Error(path); return JSON.stringify(docs.get(path)); },
+    } }, { app, configure: app => app.addPlugin(new TimelinePlugin()) });
+    try {
+        app.addPlugin(prefabsPlugin);
+        const prepare = vi.spyOn(app.getResource(Prefabs), 'prepare'), instantiate = vi.spyOn(app.getResource(Prefabs), 'instantiate');
+        await scenes.loadAdditive('next');
+        const player = (name: string) => app.world.findEntityByName(name)!;
+        const instance = (scene: string, name: string) => {
+            const root = app.world.getEntitiesWithComponents([Sprite, Parent]).find(entity =>
+                app.world.get(entity, Parent).entity === player(scene) && app.world.get(entity, Name).value === name)!;
+            expect(root).toBeDefined();
+            const child = app.world.getEntitiesWithComponents([MeshRenderer, Parent]).find(e => app.world.get(e, Parent).entity === root)!;
+            expect(child).toBeDefined();
+            for (const entity of [root, child]) expect(app.world.get(entity, SceneOwner).scene).toBe(scene);
+            const handle = app.world.get(root, Sprite).texture;
+            for (const texture of [handle, app.world.get(child, MeshRenderer).texture])
+                expect(uploads.get(texture)).toMatchObject(scene === 'home' ? nearest : linear);
+            return { root, handle };
+        };
+        await app.tick(1 / 60);
+        const home = instance('home', 'Spark'), next = instance('next', 'Spark');
+        for (const actor of [home, next]) expect(app.world.get(actor.root, Transform).position.z).toBe(7);
+        expect(app.world.findEntityByName('Glow')).toBeNull();
+        docs.set(missing, prefab);
+        assets.invalidate(missing);
+        await assets.assetGraphSettled();
+        await app.tick(1 / 60);
+        expect(instance('home', 'Spark').root).toBe(home.root);
+        expect(instance('next', 'Spark').root).toBe(next.root);
+        instance('home', 'Glow');
+        instance('next', 'Glow');
+        const control = app.getResource(Timeline);
+        for (const scene of ['home', 'next']) control.stop(player(scene));
+        await app.tick(1 / 60);
+        expect(app.world.getEntitiesWithComponents([MeshRenderer])).toHaveLength(0);
+        assets.invalidate(file);
+        await assets.assetGraphSettled();
+        for (const scene of ['home', 'next']) control.play(player(scene));
+        await app.tick(1 / 60);
+        expect(instance('home', 'Spark').handle).not.toBe(home.handle);
+        expect(instance('next', 'Spark').handle).not.toBe(next.handle);
+        expect(prepare).not.toHaveBeenCalled();
+        expect(instantiate).not.toHaveBeenCalled();
+        await scenes.unload('next');
+        instance('home', 'Glow');
+        await scenes.unload('home');
+        expect(assets.sizes().refRows).toBe(0);
     } finally { close(); }
 });
 

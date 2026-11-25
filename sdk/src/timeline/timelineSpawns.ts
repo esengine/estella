@@ -11,13 +11,12 @@
  *          scene brings in is animated, moved and filmed by the same tracks as one placed in the scene.
  *
  *          Each frame the instances a player should have are compared with the ones it has, as audio clips are. The
- *          prefabs a timeline spawns are prepared as soon as its player has the timeline, playing or not, and once a
- *          prefab is prepared its instance is made on the spot: it exists on the frame its clip starts, for the tracks
- *          that address it that same frame. A clip that starts
- *          before its prefab is prepared asks for its instance asynchronously instead, and keeps it when it arrives only
- *          if the playhead is still inside the clip.
+ *          loader prepares a saved timeline's prefabs with its scene settings. A code timeline or editor preview
+ *          prepares them per player. A ready instance appears before other tracks address it on that frame.
+ *          An asynchronous spawn is kept only while its original clip is still active.
  */
-import { TrackType, type SpawnClip, type TimelineAsset } from './TimelineTypes';
+import { TrackType, timelineSpawnPrefabRefs, type PublishedTimeline, type SpawnClip, type TimelineAsset } from './TimelineTypes';
+import type { PreparedPrefab } from '../prefab/preparedPrefab';
 import type { Entity } from '../types';
 import { disposeAll } from '../util/disposeAll';
 
@@ -32,6 +31,8 @@ export interface PreparedTimelineSpawn {
 export interface TimelineSpawner {
     /** Makes `prefab` under `parent` (null: a root) named `name`; its root, or null where it cannot be made. */
     spawn(prefab: string, parent: Entity | null, name: string, player?: Entity): Promise<Entity | null>;
+    /** Makes an instance synchronously from a recipe held by the timeline publication. */
+    spawnPrepared?(recipe: PreparedPrefab, parent: Entity | null, name: string, player: Entity): Entity | null;
     /** Takes an instance away, with everything under it. */
     despawn(entity: Entity): void;
     /** Loads `prefab` and what it uses ahead of its first spawn; what it answers is released when no longer wanted. */
@@ -44,8 +45,8 @@ export const spawnClipActive = (clip: SpawnClip, time: number): boolean =>
 
 interface Instance {
     entity: Entity | null;
-    /** Still wanted once it arrives; cleared when the playhead leaves the clip before it does. */
-    wanted: boolean;
+    /** A failed authored spawn may be retried when its recipe changes. Null means the recipe was missing. */
+    failedRecipe?: PreparedPrefab | null;
 }
 
 interface PlayerPreparations {
@@ -62,14 +63,17 @@ export class TimelineSpawns {
 
     /**
      * Brings `player`'s instances in line with `asset` at `time`: each spawn clip the playhead is inside has one, under
-     * the entity its track names (`resolve`, null where that is not there: no instance then).
+     * the entity its track names. A stopped player (`time === null`) only prepares its resources.
      */
     sync(
-        player: Entity, asset: TimelineAsset, time: number, spawner: TimelineSpawner,
+        player: Entity, asset: TimelineAsset, time: number | null, spawner: TimelineSpawner,
         resolve: (childPath: string) => Entity | null,
+        prefabs?: PublishedTimeline['prefabs'],
     ): void {
+        const ready = prefabs ? undefined : this.prepare(player, asset, spawner);
+        if (prefabs) this.releasePreparations(player);
+        if (time === null) { this.stop(player, spawner); return; }
         let live = this.live_.get(player);
-        const ready = this.prepare(player, asset, spawner);
         const want = new Map<string, { clip: SpawnClip; parent: Entity | null }>();
         asset.tracks.forEach((track, ti) => {
             if (track.type !== TrackType.Spawn) return;
@@ -84,7 +88,6 @@ export class TimelineSpawns {
         if (live) {
             for (const [key, inst] of live) {
                 if (want.has(key)) continue;
-                inst.wanted = false;
                 if (inst.entity !== null) spawner.despawn(inst.entity);
                 live.delete(key);
             }
@@ -92,19 +95,26 @@ export class TimelineSpawns {
         if (want.size === 0) return;
         if (!live) this.live_.set(player, (live = new Map()));
         for (const [key, { clip, parent }] of want) {
-            if (live.has(key)) continue;
-            const inst: Instance = { entity: null, wanted: true };
+            const recipe = prefabs ? prefabs.get(clip.prefab) ?? null : undefined;
+            const previous = live.get(key);
+            if (previous && (previous.entity !== null || previous.failedRecipe === recipe)) continue;
+            const inst: Instance = { entity: null };
             live.set(key, inst);
-            // Prepared: made now, for the tracks that address it this frame.
-            const now = ready.get(clip.prefab);
+            if (recipe !== undefined) {
+                try {
+                    if (recipe && spawner.spawnPrepared) inst.entity = spawner.spawnPrepared(recipe, parent, clip.name, player);
+                } catch { /* An unspawnable prefab leaves this clip empty. */ }
+                if (inst.entity === null) inst.failedRecipe = recipe;
+                continue;
+            }
+            const now = ready?.get(clip.prefab);
             if (now?.spawn) {
                 try { inst.entity = now.spawn(parent, clip.name); } catch { inst.entity = null; }
                 continue;
             }
-            const map = live;
             void spawner.spawn(clip.prefab, parent, clip.name, player).then((entity) => {
                 if (entity === null) return;
-                if (!inst.wanted || map.get(key) !== inst) { spawner.despawn(entity); return; }
+                if (this.live_.get(player)?.get(key) !== inst) { spawner.despawn(entity); return; }
                 inst.entity = entity;
             }, () => { /* a prefab that cannot be made leaves the clip empty */ });
         }
@@ -115,7 +125,6 @@ export class TimelineSpawns {
         const live = this.live_.get(player);
         if (!live) return;
         for (const inst of live.values()) {
-            inst.wanted = false;
             if (inst.entity !== null) spawner?.despawn(inst.entity);
         }
         this.live_.delete(player);
@@ -124,6 +133,10 @@ export class TimelineSpawns {
     /** Takes away every instance of `player` and lets go of what was prepared for it: the player or its timeline went. */
     forget(player: Entity, spawner: TimelineSpawner | null): void {
         this.stop(player, spawner);
+        this.releasePreparations(player);
+    }
+
+    private releasePreparations(player: Entity): void {
         const held = this.prepared_.get(player);
         if (!held) return;
         this.prepared_.delete(player);
@@ -148,8 +161,7 @@ export class TimelineSpawns {
      * answers what has landed so far. Called every frame a player has its timeline, so loading starts before it plays.
      */
     prepare(player: Entity, asset: TimelineAsset, spawner: TimelineSpawner): ReadonlyMap<string, PreparedTimelineSpawn | null> {
-        const prefabs = new Set<string>();
-        for (const t of asset.tracks) if (t.type === TrackType.Spawn) for (const c of t.clips) if (c.prefab) prefabs.add(c.prefab);
+        const prefabs = timelineSpawnPrefabRefs(asset);
         const key = [...prefabs].sort().join('\n');
         let held = this.prepared_.get(player);
         if (held?.key === key) return held.byPrefab;

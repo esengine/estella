@@ -173,11 +173,13 @@ The instance is created under the track's entity (the root for a track on the ro
 name like any child: a property, animation or camera track with the path `Dragon` acts on the spawned `Dragon` while
 it exists and does nothing while it does not. Stopping the timeline, or removing its player, removes every instance.
 
-A timeline's prefabs are loaded as soon as its player has the timeline, playing or not. Once loaded, an instance is
-created immediately, so it exists on the frame its clip starts and tracks addressing it in that frame find it. A clip
-that starts before its prefab has loaded gets its instance when the files arrive, if the playhead is still inside the
-clip. In the editor, the Sequencer preview also creates the instance and poses it while scrubbing; the preview
-instance is not a scene entity, is not listed in the World Outliner and is not saved.
+A saved timeline loads its spawn prefabs with the scene's texture import settings. Two additive scenes can play the
+same timeline with different filtering and wrapping on its sprites and meshes. The player creates the instance before
+other tracks sample it on the first frame of the clip. If a prefab is missing, the other clips still play.
+
+For a timeline registered in code, the player starts loading its prefabs as soon as it receives the timeline. If the
+playhead enters a clip during loading, the instance appears when its prefab is ready and the clip is still active.
+The Sequencer creates temporary preview instances while scrubbing and excludes them from the World Outliner and saved scenes.
 
 ## Activation tracks
 

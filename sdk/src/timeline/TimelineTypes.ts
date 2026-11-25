@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { PreparedPrefab } from '../prefab/preparedPrefab';
 /**
  * The `.estimeline` format version. What the serializer stamps and what the
  * loader migrates up to: two constants would let a document be written at a
@@ -337,14 +338,22 @@ export interface TimelineAsset {
     tracks: Track[];
 }
 
-/**
- * One era of a `.estimeline` as its realm publishes it: the parsed asset and the
- * texture handles it resolved. Both belong to the era — a hot update prepares a
- * new one rather than editing this in place.
- */
+/** Distinct prefab references in authored clip order. */
+export function timelineSpawnPrefabRefs(asset: TimelineAsset): Set<string> {
+    const refs = new Set<string>();
+    for (const track of asset.tracks) {
+        if (track.type !== TrackType.Spawn) continue;
+        for (const clip of track.clips) if (clip.prefab) refs.add(clip.prefab);
+    }
+    return refs;
+}
+
+/** The tracks and resolved resources owned by one publication of a `.estimeline`. */
 export interface PublishedTimeline {
     asset: TimelineAsset;
     textureHandles: Map<string, number>;
+    /** Spawn recipes prepared with this publication's import settings. */
+    prefabs?: ReadonlyMap<string, PreparedPrefab>;
 }
 
 /**
