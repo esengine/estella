@@ -71,6 +71,8 @@ class Slot<T> extends AssetDependencyOwner {
     observed = false;
     /** An ordinary slot keeps this private address if another sampler takes its public name. */
     privateKey?: string;
+    /** Live lookup used by invalidation, even when another slot takes the original name. */
+    refreshName: string | undefined;
     /** Qualified keys currently routed here. Lease holders can observe the live names array. */
     readonly lookupKeys = new Set<string>();
     refs = 0;
@@ -81,7 +83,10 @@ class Slot<T> extends AssetDependencyOwner {
     /** Which refresh is the current one. A preparation that started before the
      *  count moved is answering a question nobody is asking any more. */
     refresh = 0;
-    constructor(type: string, key: string, readonly id: number) { super(type, key); }
+    constructor(type: string, key: string, readonly id: number) {
+        super(type, key);
+        this.refreshName = key;
+    }
 
     get published(): unknown { return this.era?.published; }
 }
@@ -95,6 +100,8 @@ export class RegistryAssetSlots {
     private readonly byName_ = new Map<string, Slot<unknown>>();
     /** A held or loading slot can outlive the last name that still routes to it. */
     private readonly slots_ = new Set<Slot<unknown>>();
+    /** Only documents with sampler-specific preparations need a source-to-versions index. */
+    private readonly samplerVariants_ = new Map<string, Set<Slot<unknown>>>();
     private ownedNames_?: WeakMap<object, Map<string, { slot: Slot<unknown>; depth: number }>>;
     private readonly pathClaims_ = new Map<string, Map<Slot<unknown>, number>>();
     private nextId_ = 1;
@@ -236,7 +243,8 @@ export class RegistryAssetSlots {
     eras(): AssetWithReceipts[] {
         const eras: AssetWithReceipts[] = [];
         for (const slot of this.slots_) {
-            if (slot.era) eras.push({ type: slot.type, path: slot.privateKey ?? slot.key, edges: slot.era.edges });
+            const path = slot.refreshName;
+            if (slot.era && path !== undefined) eras.push({ type: slot.type, path, edges: slot.era.edges });
         }
         return eras;
     }
@@ -321,13 +329,20 @@ export class RegistryAssetSlots {
 
     /** Stable addresses of the preparations to refresh when a logical document changes. */
     *refreshKeys(type: string, name: string, allSamplers: boolean): IterableIterator<string> {
-        const current = this.byName_.get(assetPairKey(type, name));
-        if (current) yield current.privateKey ?? current.key;
+        const source = assetPairKey(type, name);
+        const current = this.byName_.get(source);
+        if (current) yield current.refreshName ?? name;
         if (!allSamplers) return;
-        for (const slot of this.slots_) {
-            const key = slot.privateKey ?? slot.key;
-            if (slot !== current && slot.type === type && sceneBindingBase(key) === name) yield key;
+        for (const slot of this.samplerVariants_.get(source) ?? []) {
+            if (slot !== current && slot.refreshName !== undefined) yield slot.refreshName;
         }
+    }
+
+    private indexVariant_(slot: Slot<unknown>, base: string): void {
+        const source = assetPairKey(slot.type, base);
+        let variants = this.samplerVariants_.get(source);
+        if (!variants) this.samplerVariants_.set(source, variants = new Set());
+        variants.add(slot);
     }
 
     /** Give up every slot. For a wholesale teardown. */
@@ -340,8 +355,10 @@ export class RegistryAssetSlots {
             slot.era = null;
             slot.refs = 0;
             slot.lookupKeys.clear();
+            slot.refreshName = undefined;
         }
         this.slots_.clear();
+        this.samplerVariants_.clear();
         this.byName_.clear();
         this.pathClaims_.clear();
         disposeAll(eras, releaseEra);
@@ -415,6 +432,7 @@ export class RegistryAssetSlots {
                 previous.sceneNames = new Set(previous.names);
                 previous.observed = true;
                 previous.privateKey = sceneImportBinding(previous.key, '[]');
+                this.indexVariant_(previous, previous.key);
                 this.name_(previous, previous.privateKey);
             }
             this.name_(owner, name);
@@ -451,10 +469,14 @@ export class RegistryAssetSlots {
 
     private retire_(slot: Slot<unknown>): void {
         if (!this.slots_.delete(slot)) return;
+        const source = assetPairKey(slot.type, sceneBindingBase(slot.key));
+        const variants = this.samplerVariants_.get(source);
+        if (variants?.delete(slot) && !variants.size) this.samplerVariants_.delete(source);
         this.ownedNames_ = undefined;
         const visible = slot.observed || this.visible_(slot);
         for (const key of slot.lookupKeys) this.byName_.delete(key);
         slot.lookupKeys.clear();
+        slot.refreshName = undefined;
         const era = slot.era;
         slot.era = null;
         if (era && visible) this.changed_(slot.type);
@@ -469,6 +491,8 @@ export class RegistryAssetSlots {
             slot.lookupKeys.add(id);
             this.slots_.add(slot);
             this.byName_.set(id, slot);
+            const base = sceneBindingBase(key);
+            if (base !== key) this.indexVariant_(slot, base);
         }
         return slot;
     }
@@ -484,12 +508,16 @@ export class RegistryAssetSlots {
         const key = assetPairKey(slot.type, name);
         const previous = this.byName_.get(key);
         if (!slot.names.includes(name)) slot.names.push(name);
+        if (slot.refreshName === undefined || name === (slot.privateKey ?? slot.key)) slot.refreshName = name;
         if (previous === slot) return;
         this.ownedNames_ = undefined;
         if (previous) {
             previous.lookupKeys.delete(key);
             const at = previous.names.indexOf(name);
             if (at >= 0) previous.names.splice(at, 1);
+            if (previous.refreshName === name) {
+                previous.refreshName = previous.names.find(ref => previous.lookupKeys.has(assetPairKey(previous.type, ref)));
+            }
         }
         this.byName_.set(key, slot);
         slot.lookupKeys.add(key);

@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { RegistryAssetSlots, type RegistryAssetKind } from '../src/asset/registryAssets';
 import { AssetScope, type AssetLease } from '../src/asset/AssetLease';
+import { sceneImportBinding } from '../src/asset/manifestBinding';
 import { reservePromise } from '../src/util/reservePromise';
 
 /** A kind whose every era is a distinguishable object owning one dependency. */
@@ -69,6 +70,26 @@ describe('retiring a slot with aliases', () => {
             expect(slots.ownedSlot(held, 'tileset', 'ground')?.published).toBe(lookup());
         } finally { roots.releaseAll(); held.releaseAll(); }
         expect(slots.size).toBe(0);
+    });
+
+    it('refreshes each live sampler once, including a displaced default and a prepared version', async () => {
+        const slots = new RegistryAssetSlots(), { kind } = fixture();
+        const ref = 'walk', defaults = sceneImportBinding(ref, '[]'), pixel = sceneImportBinding(ref, 'pixel');
+        const keys = () => [...slots.refreshKeys('anim-clip', ref, true)];
+        const original = await slots.acquire(kind, 'anim-clip', ref, [ref]);
+        const prepared = await slots.acquire(kind, 'anim-clip', pixel, [pixel], undefined, [ref]);
+        expect(keys()).toEqual([ref, pixel]);
+        slots.publishSceneNames([prepared]);
+        expect(keys()).toEqual([pixel, defaults]);
+        expect([...slots.refreshKeys('tileset', ref, true)]).toEqual([]);
+        prepared.release();
+        expect(keys()).toEqual([defaults]);
+        original.release();
+        expect(keys()).toEqual([]);
+        const again = await slots.acquire(kind, 'anim-clip', pixel, [pixel], undefined, [ref]);
+        slots.releaseAll();
+        again.release();
+        expect(keys()).toEqual([]);
     });
 
     it('invalidates a reader of a private tileset while keeping the scene alias private', async () => {
@@ -153,6 +174,8 @@ describe('retiring a slot with aliases', () => {
         const { kind } = fixture(), slots = new RegistryAssetSlots();
         const held = await slots.acquire(kind, 'tilemap', 'a', ['a', 'still-a']);
         const next = await slots.acquire(kind, 'tilemap', 'b', ['b', 'a']);
+        expect([...slots.refreshKeys('tilemap', 'still-a', false)]).toEqual(['still-a']);
+        expect(slots.eras().map(era => era.path)).toEqual(['still-a', 'b']);
         const retained = held.retain()!;
         expect(retained).not.toBeNull();
         held.release();
@@ -168,6 +191,7 @@ describe('retiring a slot with aliases', () => {
         const slots = new RegistryAssetSlots();
         const shadowed = await slots.acquire(kind, 'avatar', 'old', ['old']);
         const current = await slots.acquire(kind, 'avatar', 'next', ['next', 'old']);
+        expect(slots.eras().map(era => era.path)).toEqual(['next']);
         expect(slots.publishedOf('avatar')).toEqual([slots.published('avatar', 'next')]);
         slots.releaseAll();
         expect(released).toEqual(['old#1:texture', 'next#2:texture']);
