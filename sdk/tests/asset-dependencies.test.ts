@@ -463,6 +463,23 @@ describe('an edge comes from the acquisition that made it', () => {
             .toContainEqual({ kind: 'owned', type: 'texture', path: 'maps/terrain.png' });
     });
 
+    it('loads an indexed external tileset and resolves its pages in the tileset directory', async () => {
+        const id = '11111111-2222-4333-8444-555555555555';
+        const source = '@uuid:' + id;
+        const assets = realm({
+            'maps/level.tmj': MAP_WITH_EXTERNAL.replace('terrain.tsj', source),
+            'art/tilesets/terrain.tsj': EXTERNAL_TILESET,
+        });
+        assets.setAssetRefResolver(ref => ref === source ? 'art/tilesets/terrain.tsj' : ref);
+        const map = await assets.acquireTyped('tilemap', 'maps/level.tmj');
+        try {
+            expect(assets.dependenciesOf('tilemap', 'maps/level.tmj')).toEqual(expect.arrayContaining([
+                { kind: 'source', path: source },
+                { kind: 'owned', type: 'texture', path: 'art/tilesets/terrain.png' },
+            ]));
+        } finally { map.release(); }
+    });
+
     it('a composed atlas is owned, and is not pretending to be a path', async () => {
         // It has no asset identity at all: naming it one would put a lookup key
         // in the graph that no invalidation could ever match.

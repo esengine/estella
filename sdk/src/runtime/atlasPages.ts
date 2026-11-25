@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { AsyncCache } from '../asset/AsyncCache';
+import { resolveDocumentRef } from '../asset/documentRef';
 import { ownedAssetLease, type AssetLease } from '../asset/AssetLease';
 import type { Assets } from '../asset/Assets';
 import type { TextureResult } from '../asset/AssetLoader';
@@ -17,7 +18,7 @@ export type AcquireAtlasPage = (path: string) => Promise<AssetLease<TextureResul
 
 /** An atlas names its pages relative to its authored location. */
 export function atlasPagePath(atlas: string, name: string): string {
-    return atlas.slice(0, atlas.lastIndexOf('/') + 1) + name;
+    return resolveDocumentRef(atlas, name);
 }
 
 /** An App shares raw textures across scenes. A standalone read shares uploads within its batch.

@@ -18,7 +18,7 @@ import path from 'node:path';
 import type { ComponentData, PrefabOverride } from '../../../sdk/src/prefab/types';
 import type { AssetEntry } from './assetDb';
 import { addrType } from './addressableRecord';
-import { isBuiltinAssetRef, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
 import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
@@ -81,11 +81,10 @@ export async function meshTextureRoles(
 ): Promise<Map<string, Set<MeshTextureRole>>> {
   const byUuid = new Map(entries.map((e) => [assetRefId(e.uuid) ?? e.uuid.toLowerCase(), e]));
   const byPath = new Map(entries.map((e) => [e.path, e]));
-  const resolve = (ref: string, docPath: string): AssetEntry | undefined => {
+  const resolve = (ref: string, docPath: string, first: 'project' | 'document' = 'project'): AssetEntry | undefined => {
     const uuid = assetRefId(ref);
     if (uuid !== null) return byUuid.get(uuid);
-    if (ref === '' || isBuiltinAssetRef(ref) || ref.includes('://')) return undefined;
-    return byPath.get(resolveDocumentRef(docPath, ref).replace(/^\/+/, ''));
+    return findDocumentAsset(docPath, ref, file => byPath.get(file), first);
   };
 
   const drawn = new Map<string, Set<MeshTextureRole>>();
@@ -142,13 +141,13 @@ export async function meshTextureRoles(
         const uniform = readMaterialProperty(value);
         if (uniform === undefined) continue;
         if (typeof uniform === 'string') {
-          const texture = resolve(uniform, current.path);
+          const texture = resolve(uniform, current.path, 'document');
           if (!texture || addrType(texture.type) !== 'texture') continue;
           draw(texture.uuid, 'surface');
         }
         bound.add(name);
       }
-      const parent: AssetEntry | undefined = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, current.path) : undefined;
+      const parent: AssetEntry | undefined = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, current.path, 'document') : undefined;
       current = parent?.type === 'material' ? parent : undefined;
     }
   }));

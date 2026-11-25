@@ -28,7 +28,8 @@ import { adoptOrphan } from './assetMeta';
 import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { findDocumentAsset, resolveRelativePath } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
+import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
@@ -374,10 +375,7 @@ async function writeCandidateCache(root: string, cache: CandidateCache): Promise
  */
 const PATH_LIKE = /\.(?:[a-z0-9]{1,16}|[A-Z0-9]{1,16})$/;
 
-/** Normalize a ref for path-index lookup (forward slashes, no ./ or leading /). */
-function normalizeRefPath(ref: string): string {
-  return ref.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\//, '');
-}
+const SIBLING_REF_TYPES = new Set(['material', 'environment', 'groom', 'animatorcontroller']);
 
 /**
  * Bounded-concurrency map preserving output order. The scan reads hundreds of
@@ -450,8 +448,16 @@ async function computeDeps(
     // ships but its .png is culled and the playable 404s it).
     // Spine's atlas is a TEXT manifest and needs its own parser; DragonBones'
     // is JSON, so the generic walk below already finds its `imagePath`.
-    const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
+    const editorType = getEditorType(entry.path);
+    const isSpineAtlas = editorType === 'spine-atlas';
     const isBitmapFont = entry.type === BITMAP_FONT;
+    const preferSibling = isBitmapFont || SKELETAL_ATLAS_TYPES.has(editorType)
+      || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tsj)$/i.test(entry.path);
+    const lookup = (ref: string) => findDocumentAsset(entry.path, ref, file => byPath.get(file), preferSibling ? 'document' : 'project');
+    const pageAsset = (ref: string) => {
+      const id = assetRefId(ref);
+      return id === null ? lookup(ref) : byKey.get(id);
+    };
     try {
       const refs = new Set<string>();
       if (entry.type === 'mesh') {
@@ -464,20 +470,20 @@ async function computeDeps(
       } else if (isBitmapFont) {
         const content = await readTextInRoot(path.join(root, entry.path));
         for (const m of content.matchAll(FNT_PAGE)) {
-          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, m[1])));
+          const dep = pageAsset(m[1]);
           if (dep) refs.add(dep.uuid);
         }
       } else if (isSpineAtlas) {
         const content = await readTextInRoot(path.join(root, entry.path));
         for (const page of parseSpineAtlasPages(content)) {
-          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
+          const dep = pageAsset(page);
           if (dep) refs.add(dep.uuid);
         }
       } else {
         const candidates = await candidatesOf(entry.path, entry.type === 'prefab');
         const resolvePath = (ref: string): string | null => {
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
-          return findDocumentAsset(entry.path, ref, file => byPath.get(file))?.uuid ?? null;
+          return lookup(ref)?.uuid ?? null;
         };
         for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => byKey.has(id));
       }

@@ -57,7 +57,7 @@ export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorContro
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimatorControllerResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const { def } = migrateAnimatorController(JSON.parse(text));
-            await acquireMotionAssets(def, path, ctx);
+            await acquireMotionAssets(def, ctx.sourceAddressOf?.(path) ?? path, ctx);
             return {
                 published: def,
                 value: { controllerId: path },

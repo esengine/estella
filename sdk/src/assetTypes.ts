@@ -73,6 +73,7 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esmesh'], contentType: 'binary', editorType: 'mesh', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', wechatPackInclude: true, hasTransitiveDeps: true },
+    { extensions: ['tsj'], contentType: 'json', editorType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     // Tileset palette (TilesetAssetLoader). Fs-read as JSON at runtime — so it
     // needs the WeChat pack whitelist — and it references an atlas texture by
     // @uuid (transitive dep).
@@ -133,6 +134,8 @@ const MIME_MAP: Record<string, string> = {
     mpeg: 'video/mpeg',
     esv: 'video/mpeg',
     json: 'application/json',
+    tmj: 'application/json',
+    tsj: 'application/json',
     atlas: 'text/plain',
     skel: 'application/octet-stream',
     esmaterial: 'application/json',

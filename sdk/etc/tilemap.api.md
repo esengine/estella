@@ -878,7 +878,7 @@ tileTerrain: Map<number, number>
 
 ## parseTmjWithExternals — function @experimental
 ```
-(json: Record<string, unknown>, resolveExternal: (source: string) => Promise<string>): Promise<TiledMapData | null>
+(json: Record<string, unknown>, resolveExternal: (source: string) => Promise<string>, owner?: { document: string; sourceAddressOf?: (source: string) => string; }): Promise<TiledMapData | null>
 ```
 
 ## peeringRetile — function @experimental

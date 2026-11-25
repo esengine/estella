@@ -117,6 +117,7 @@ describe('a groom document', () => {
         expect(besideFile('assets/fur/meerkat.esgroom', 'meerkat.escurves')).toBe('assets/fur/meerkat.escurves');
         expect(besideFile('assets/fur/meerkat.esgroom', '../shared/a.escurves')).toBe('assets/shared/a.escurves');
         expect(besideFile('/assets/fur/fur.esgroom', '@uuid:0f9a2c1e-1111-4222-8333-444455556666')).toBe('@uuid:0f9a2c1e-1111-4222-8333-444455556666');
+        expect(besideFile('/assets/fur/fur.esgroom', '0f9a2c1e-1111-4222-8333-444455556666')).toBe('0f9a2c1e-1111-4222-8333-444455556666');
         expect(besideFile('assets/fur/meerkat.esgroom', 'assets/other/b.escurves')).toBe('assets/other/b.escurves');
         expect(besideFile('/scenes/groom/fur.esgroom', 'fur.escurves')).toBe('/scenes/groom/fur.escurves');
     });

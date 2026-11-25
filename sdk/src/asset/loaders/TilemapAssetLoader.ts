@@ -3,7 +3,7 @@
 import type { AssetLoader, LoadContext, TilemapResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import {
-    packCollectionGrid, parseTmjWithExternals, resolveTiledRef,
+    packCollectionGrid, parseTmjWithExternals,
     type TiledMapData, type TiledTilesetData,
 } from '../../tilemap/tiledLoader';
 import type { LoadedTilemapTileset, PublishedTilemap } from '../../tilemap/tilesetCache';
@@ -41,8 +41,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'external .tsj could be folded in with nothing recording that the map '
                 + 'depends on it — load it through the app Assets channel.');
         }
-        const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>
-            readSource(resolveTiledRef(path, source)));
+        const mapData = await parseTmjWithExternals(JSON.parse(text), readSource, {
+            document: ctx.sourceAddressOf?.(path) ?? path, sourceAddressOf: ctx.sourceAddressOf,
+        });
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }
@@ -55,10 +56,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 tilesets.push(await this.foldCollection_(path, ts, mapData, ctx));
                 continue;
             }
-            const imagePath = resolveTiledRef(path, ts.image);
             let textureHandle = 0;
             try {
-                const lease = await ctx.acquireTexture(imagePath, true, 'imported');
+                const lease = await ctx.acquireTexture(ts.image, true, 'imported');
                 textureHandle = lease.value.handle;
             } catch (e) {
                 // Loud, with the fix: a dead tileset texture makes every tile that
@@ -67,7 +67,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 // the single most confusing failure this loader can produce.
                 log.error('tilemap',
                     `"${path}": tileset "${ts.name}" image failed to load `
-                    + `("${ts.image}" → "${imagePath}") — its tiles will NOT render `
+                    + `("${ts.image}") — its tiles will NOT render `
                     + '(collision still generates). Check that the image exists at that '
                     + 'path and is imported into the project.', e);
             }
@@ -117,7 +117,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'asset provider cannot decode/compose pixels — load it through the app Assets channel.');
         }
         const tiles = await Promise.all(ts.collectionTiles!.map(async (tile) => {
-            const decoded = await ctx.decodePixels!(resolveTiledRef(mapPath, tile.image));
+            const decoded = await ctx.decodePixels!(tile.image);
             if (decoded.width !== mapData.tileWidth || decoded.height !== mapData.tileHeight) {
                 throw new Error(
                     `[tilemap] "${mapPath}": collection tile "${tile.image}" is `

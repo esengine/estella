@@ -524,11 +524,13 @@ describe('AnimatorController runtime load-by-path', () => {
         const ctx = {
             catalog: { getBuildPath: (p: string) => p },
             loadText: async () => JSON.stringify(withAvatar),
+            sourceAddressOf: () => 'assets/models/loco.esanimator',
             acquireAsset: async (type: string, ref: string) => { acquired.push([type, ref]); },
         } as unknown as LoadContext;
 
-        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/models/loco.esanimator', ctx);
+        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/00ff.esanimator', ctx);
         expect(acquired).toContainEqual(['avatar', 'assets/models/hero.esavatar']);
+        expect(acquired).toContainEqual(['timeline', 'assets/models/idle.estimeline']);
         expect((era.published as { avatar: string }).avatar).toBe('assets/models/hero.esavatar');
     });
 });

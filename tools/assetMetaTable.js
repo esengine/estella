@@ -136,6 +136,7 @@ export const EXT_TO_TYPE = Object.freeze({
     '.estilemap': 'tilemap',
     '.tmx': 'tilemap',
     '.tmj': 'tilemap',
+    '.tsj': 'json', // Tiled external tileset source, with its own image dependencies.
     // Spine (skel / atlas — the .png pair is a plain texture). A JSON skeleton has
     // no extension of its own; see CONTENT_TYPED_EXTENSIONS below.
     '.skel': 'spine',

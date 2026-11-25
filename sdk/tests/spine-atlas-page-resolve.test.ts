@@ -31,7 +31,7 @@ import { loadSpineAssets, loadSpineSceneEntities } from '../src/spine/loadSpineS
 import { SpineManager } from '../src/spine/SpineManager';
 import { textureRefill } from '../src/wasm/textureRefill';
 import { TextureContent } from '../src/wasm';
-import { withAtlasPages } from '../src/runtime/atlasPages';
+import { atlasPagePath, withAtlasPages } from '../src/runtime/atlasPages';
 import { setLinearColorSpace } from '../src/ecs/env';
 import { loadDragonBonesAssets, loadDragonBonesSceneEntities } from '../src/dragonbones/loadDragonBonesScene';
 import { DragonBonesManager } from '../src/dragonbones/DragonBonesManager';
@@ -110,6 +110,12 @@ async function readAndRelease(...args: Parameters<typeof loadSpineAssets>) {
 }
 
 describe('loadSpineAssets resolves atlas page paths through the manifest', () => {
+    it('resolves sibling pages against the atlas and preserves logical and indexed pages', () => {
+        const atlas = 'estella://project/assets/characters/hero.atlas';
+        expect(atlasPagePath(atlas, '../pages/hero.png')).toBe('estella://project/assets/pages/hero.png');
+        expect(atlasPagePath(atlas, 'assets/pages/hero.png')).toBe('assets/pages/hero.png');
+        expect(atlasPagePath(atlas, '@uuid:page')).toBe('@uuid:page');
+    });
     it('transcodes a KTX2-staged page and binds it under the authored page name', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const transcoder: BasisTranscoder = {

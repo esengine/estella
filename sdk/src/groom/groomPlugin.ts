@@ -22,6 +22,7 @@ import { holdShaderWarmup } from '../render/shaderWarmup';
 import { log } from '../util/logger';
 import { decodeCurves, parseGroomDocument, settingsForGroups, type GroomCurves, type GroomDocument, type GroomGroupSettings } from './groomFormat';
 import type { AssetLease } from '../asset/AssetLease';
+import { resolveDocumentRef } from '../asset/documentRef';
 import { buildStrandMesh } from './groomMesh';
 import { growGroom } from './groomGrow';
 
@@ -61,19 +62,7 @@ export function groupUniforms(settings: GroomGroupSettings, maxRadius: number, u
 
 /** Where a path named inside `from` points: relative to its folder, unless it is already from the project's root. */
 export function besideFile(from: string, path: string): string {
-    if (path.startsWith('/') || path.startsWith('assets/') || path.startsWith('@uuid:') || /^[a-z]+:/i.test(path)) return path;
-    // A groom a scene named by uuid arrives as a URL (estella://project/...): its origin is kept whole, not
-    // folded into the path, where `//` would collapse and the curves resolve under the page again.
-    const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(from)?.[0] ?? '';
-    const rest = from.slice(origin.length);
-    const lead = origin ? `${origin}/` : rest.startsWith('/') ? '/' : '';
-    const dir = rest.includes('/') ? rest.slice(0, rest.lastIndexOf('/') + 1) : '';
-    const parts: string[] = [];
-    for (const part of (dir + path).split('/')) {
-        if (part === '..') parts.pop();
-        else if (part !== '.' && part !== '') parts.push(part);
-    }
-    return lead + parts.join('/');
+    return resolveDocumentRef(from, path);
 }
 
 /**

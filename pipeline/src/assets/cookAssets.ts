@@ -43,7 +43,8 @@ import {
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
-import { animatorMotionAssetType, isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { animatorMotionAssetType, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { mapTilesetImages } from '../../../sdk/src/tilemap/tiledRefs';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -296,15 +297,13 @@ function rewriteMaterialRefs(
  * does not survive it. `@uuid:` / `builtin:` / URLs / already-logical refs and
  * anything naming no asset pass through.
  */
+function logicalRef(ref: string, docPath: string, byPath: Map<string, AssetEntry>): string;
+function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown;
 function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown {
-  if (typeof ref !== 'string' || ref.startsWith('@uuid:') || isBuiltinAssetRef(ref) || ref.includes('://')) return ref;
-  const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
-  if (byPath.has(norm)) return ref;
-  const proj = resolveRelativePath(docPath, ref);  // collapses ./ and ../
-  if (!byPath.has(proj)) return ref;
-  // Passthrough-safe spelling: bare when the runtime treats it as absolute,
-  // "/"-rooted otherwise (both registered by the cooked host's maps).
-  return proj.startsWith('assets/') ? proj : `/${proj}`;
+  if (typeof ref !== 'string' || !ref || ref.startsWith('/')) return ref;
+  const target = findDocumentAsset(docPath, ref, file => byPath.get(file), 'document');
+  if (!target) return ref;
+  return target.path.startsWith('assets/') ? target.path : `/${target.path}`;
 }
 
 /**
@@ -416,33 +415,24 @@ function rewriteEnvironmentRefs(
 }
 
 /**
- * Rewrite a Tiled map's tileset `image` (inline) and `source` (external `.tsj`) refs
- * from document-relative (`"../textures/tileset.png"`) to the referenced asset's logical
- * project path — the same shape rewriteMaterialRefs produces. The playable loads a map by
- * its `@uuid` (which carries no directory), so the runtime's `resolveRelativePath(@uuid,
- * "../textures/x.png")` yields a WRONG root-relative path that matches no embedded asset;
- * a directory-free logical ref (`assets/textures/x.png`) resolves to the same inlined
- * asset in every realm. `@uuid:`/URL/already-logical refs pass through unchanged.
+ * A map owns its inline tilesets and references to external sources. A .tsj owns its
+ * grid or collection images. Bake each path before its document moves into staging.
  */
 function rewriteTilemapRefs(
   bytes: Uint8Array,
-  tmjPath: string,
+  docPath: string,
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  const rewrite = (ref: unknown): unknown => logicalRef(ref, tmjPath, byPath);
-  const tilesets = Array.isArray(json.tilesets) ? (json.tilesets as Record<string, unknown>[]) : [];
-  for (const ts of tilesets) {
-    if (typeof ts.image === 'string') ts.image = rewrite(ts.image);    // inline tileset image
-    if (typeof ts.source === 'string') ts.source = rewrite(ts.source); // external .tsj tileset
-    if (Array.isArray(ts.tiles)) {
-      // Image-collection tileset: one image per tile.
-      for (const t of ts.tiles as Record<string, unknown>[]) {
-        if (typeof t?.image === 'string') t.image = rewrite(t.image);
-      }
-    }
+  const rewrite = (ref: string) => logicalRef(ref, docPath, byPath);
+  let staged = json;
+  if (docPath.toLowerCase().endsWith('.tsj')) {
+    staged = mapTilesetImages(json, rewrite);
+  } else if (Array.isArray(json.tilesets)) {
+    staged = { ...json, tilesets: json.tilesets.map(ts => typeof ts.source === 'string'
+      ? { ...ts, source: rewrite(ts.source) } : mapTilesetImages(ts, rewrite)) };
   }
-  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+  return new TextEncoder().encode(JSON.stringify(staged, null, 2) + '\n');
 }
 
 /**
@@ -464,7 +454,7 @@ function unresolvedDocumentRefs(
     if (ref.includes('://') || !/\.[A-Za-z0-9]+$/.test(ref) || !getAssetTypeEntry(ref)) continue;
     // Resolved the way a loader will: refs travel in LOGICAL space, so a sibling
     // is a sibling of the document's project path, not of where staging put it.
-    if (!shipped.has(resolveDocumentRef(docPath, ref))) missing.add(ref);
+    if (!shipped.has(resolveDocumentRef(docPath, ref).replace(/^\//, ''))) missing.add(ref);
   }
   return [...missing];
 }
@@ -1029,7 +1019,7 @@ export async function cookAssets(
       }
       // Tilemaps: relative tileset image/source refs → logical project paths, so the
       // @uuid-loaded map resolves them to the embedded assets (see rewriteTilemapRefs).
-      if (ext.toLowerCase() === '.tmj' || ext.toLowerCase() === '.tmx') {
+      if (/^\.(?:tmj|tmx|tsj)$/i.test(ext)) {
         try {
           data = rewriteTilemapRefs(data, entry.path, byPath);
         } catch (err) {

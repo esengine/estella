@@ -314,6 +314,16 @@ describe('parseTmjJson', () => {
 });
 
 describe('resolveRelativePath', () => {
+    it('keeps unresolved parents while composing the location of a map, external tileset and image', async () => {
+        const data = await parseTmjWithExternals({
+            width: 1, height: 1, tilewidth: 16, tileheight: 16, layers: [],
+            tilesets: [{ firstgid: 1, source: '../sets/cave.tsj' }],
+        }, async () => JSON.stringify({ name: 'Cave', tilewidth: 16, tileheight: 16,
+            columns: 1, tilecount: 1, image: '../textures/stone.png', imagewidth: 16, imageheight: 16 }));
+        expect(data!.tilesets[0].image).toBe('../textures/stone.png');
+        expect(resolveRelativePath('/game/levels/maps/cave.tmj', data!.tilesets[0].image)).toBe('/game/levels/textures/stone.png');
+    });
+
     it('should resolve relative path from base', () => {
         expect(resolveRelativePath('maps/level1.tmj', 'tileset.png')).toBe('maps/tileset.png');
     });

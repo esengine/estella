@@ -75,7 +75,7 @@ import { indexSceneAssets, SceneAssetOwners, type SceneAssetRefs } from './disco
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import { type ReleaseCallback } from './SceneHandle';
-import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+import { assetRefId, extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 import { siblingMeshGIRefs, type MeshGIRefs } from '../gi/meshGIAssets';
 import type { AssetRefCounter } from './AssetRefCounter';
 import type { World } from '../ecs/world';
@@ -3583,7 +3583,7 @@ export class Assets {
         const readSource = <T>(ref: string, fetch: (path: string) => Promise<T>) => {
             recorder.read(ref);
             const record = this.manifestRecord_(ref);
-            const resolved = record ? this.resolveLoadPath_(ref) : ref;
+            const resolved = record || assetRefId(ref) !== null ? this.resolveLoadPath_(ref) : ref;
             const path = resolved === ref && record ? record.asset.path : resolved;
             return read(ref, () => fetch(base.catalog.getBuildPath(path)));
         };
@@ -3616,7 +3616,7 @@ export class Assets {
                 const record = owner && own && (own.asset.path === staged || bindingFile(owner) === ref)
                     ? own : model?.recordForRef(staged);
                 return record?.asset.address ?? base.catalog.addressOf(staged) ?? base.catalog.addressOf(ref)
-                    ?? record?.asset.path ?? ref;
+                    ?? record?.asset.path ?? (assetRefId(ref) === null ? ref : this.resolveRef(ref) ?? ref);
             },
             loadText: path => read(path, () => base.loadText(path)),
             loadBinary: path => read(path, () => base.loadBinary(path)),

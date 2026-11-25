@@ -68,29 +68,57 @@ export function builtinRefId(ref: string): string | null {
  * of those refs to the same logical shape.
  */
 export function resolveDocumentRef(documentPath: string, ref: string): string {
-    return isLogicalAssetRef(ref) || assetRefId(ref) !== null ? ref : resolveRelativePath(documentPath, ref);
+    return rebaseDocumentRef(documentPath, ref, 'project');
+}
+
+/** A relative owner will itself be joined to another document, so keep leading parent segments. */
+export function rebaseDocumentRef(documentPath: string, ref: string, owner: 'project' | 'relative'): string {
+    if (isLocatorOrId(ref)) return ref;
+    const child = ref.replace(/\\/g, '/');
+    return isLogicalAssetRef(child) ? child : joinDocumentPath(documentPath, child, owner === 'relative');
 }
 
 /** @deprecated Name it for the question, not for Tiled: {@link resolveDocumentRef}. */
 export const resolveTiledRef = resolveDocumentRef;
 
-/** Find a path in a project index. Older documents may name a project file or a sibling. */
-export function findDocumentAsset<T>(document: string, ref: string, lookup: (path: string) => T | undefined): T | undefined {
+/** A qualified reference has one owner. Older unqualified names can also be looked up in the project index. */
+export function findDocumentAsset<T>(
+    document: string, ref: string, lookup: (path: string) => T | undefined, first: 'project' | 'document' = 'project',
+): T | undefined {
     const normalized = ref.replace(/\\/g, '/');
-    const direct = normalized.replace(/^\.\//, '').replace(/^\//, '');
-    return lookup(direct) ?? lookup(resolveRelativePath(document, normalized));
+    if (isLocatorOrId(normalized)) return undefined;
+    if (isLogicalAssetRef(normalized)) return lookup(normalized.replace(/^\//, ''));
+    const sibling = resolveDocumentRef(document, normalized).replace(/^\//, '');
+    if (normalized === sibling || normalized.startsWith('./') || normalized.startsWith('../')) return lookup(sibling);
+    return first === 'document' ? lookup(sibling) ?? lookup(normalized) : lookup(normalized) ?? lookup(sibling);
 }
 
+function isLocatorOrId(ref: string): boolean {
+    return ref.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(ref) || assetRefId(ref) !== null;
+}
+
+/** Join path segments literally. Asset references with project or index semantics use resolveDocumentRef. */
 export function resolveRelativePath(basePath: string, relativePath: string): string {
+    return joinDocumentPath(basePath, relativePath.replace(/\\/g, '/'), true);
+}
+
+function joinDocumentPath(basePath: string, child: string, relativeBase: boolean): string {
+    if (child.startsWith('#')) return basePath.split('#', 1)[0] + child;
+    const base = basePath.split(/[?#]/, 1)[0].replace(/\\/g, '/');
+    if (child.startsWith('?')) return base + child;
+    const end = child.search(/[?#]/);
+    const relativePath = end < 0 ? child : child.slice(0, end);
+    const suffix = end < 0 ? '' : child.slice(end);
     // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
     // before normalizing: the "//" after the scheme must survive, but the segment
     // walk below drops empty parts — which would collapse "estella://" to
     // "estella:/" and break the fetch. The editor Play realm resolves assets to
     // absolute estella:// URLs, so a Tiled map's relative tileset image ("../x.png")
     // is joined against such a base.
-    const schemeMatch = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)(\/.*|)$/i.exec(basePath);
-    const prefix = schemeMatch ? schemeMatch[1] : '';
-    const pathPart = schemeMatch ? schemeMatch[2] : basePath;
+    const origin = /^(?:[a-z][a-z0-9+.-]*:)?\/\/[^/]*/i.exec(base)?.[0] ?? '';
+    const pathPart = base.slice(origin.length);
+    const prefix = (origin || pathPart.startsWith('/')) ? origin + '/' : '';
+    const keepParents = relativeBase && !prefix && !isLogicalAssetRef(pathPart);
 
     const lastSlash = pathPart.lastIndexOf('/');
     const baseDir = lastSlash >= 0 ? pathPart.substring(0, lastSlash + 1) : '';
@@ -98,10 +126,11 @@ export function resolveRelativePath(basePath: string, relativePath: string): str
     const resolved: string[] = [];
     for (const part of parts) {
         if (part === '..') {
-            resolved.pop();
+            if (resolved.length && resolved[resolved.length - 1] !== '..') resolved.pop();
+            else if (keepParents) resolved.push('..');
         } else if (part !== '.' && part !== '') {
             resolved.push(part);
         }
     }
-    return prefix ? `${prefix}/${resolved.join('/')}` : resolved.join('/');
+    return prefix + resolved.join('/') + suffix;
 }
