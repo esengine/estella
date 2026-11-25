@@ -8,8 +8,9 @@
   both.
 - Ongoing architecture work covers the engine and the editor. Choose improvements
   from real 2D and 3D workflows, including editing, saving, previewing and
-  exporting. Look for awkward interactions and for engine and editor code that
-  give different answers to the same operation.
+  exporting. Review how shared controls look and behave in real panels,
+  including narrow layouts and keyboard use. Look for awkward interactions
+  and for engine and editor code that give different answers to the same operation.
 - Review actual PR merge status and verification evidence before updating
   roadmap completion. A merged PR alone does not prove device acceptance.
 - Do not add generated-by attribution or assistant co-author trailers to
