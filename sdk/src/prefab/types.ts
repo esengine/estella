@@ -137,6 +137,8 @@ export interface ProcessedEntity {
 
 export interface FlattenContext {
     allocateId: () => number;
+    /** A scene entry may reserve its root id. Its allocator must return other, fresh ids. */
+    rootId?: number;
     loadPrefab: (path: string) => PrefabData | null;
     visited?: Set<string>;
     depth?: number;

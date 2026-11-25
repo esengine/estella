@@ -48,7 +48,8 @@ export function flattenPrefab(
 
     for (const pe of prefab.entities) {
         if (!pe.nestedPrefab) {
-            idMapping.set(pe.prefabEntityId, ctx.allocateId());
+            const reserved = pe.prefabEntityId === prefab.rootEntityId ? ctx.rootId : undefined;
+            idMapping.set(pe.prefabEntityId, reserved ?? ctx.allocateId());
         }
     }
 
@@ -104,7 +105,11 @@ export function flattenPrefab(
             const nested = flattenPrefab(
                 stub ?? nestedPrefab,
                 stub ? rootOverrides(nestedPrefab, nestedOverrides) : nestedOverrides,
-                { ...ctx, visited, depth: depth + 1, ...(virtual ? { deferred: undefined } : {}) },
+                {
+                    ...ctx, visited, depth: depth + 1,
+                    rootId: pe.prefabEntityId === prefab.rootEntityId ? ctx.rootId : undefined,
+                    deferred: virtual ? undefined : ctx.deferred,
+                },
             );
             visited.delete(nestedPath);
             if (virtual) {
@@ -120,6 +125,7 @@ export function flattenPrefab(
             // string used for diff/override/tag addressing is composed.
             for (const ne of nested.entities) {
                 ne.prefabEntityId = joinAddress(pe.prefabEntityId, ne.prefabEntityId);
+                idMapping.set(ne.prefabEntityId, ne.id);
             }
             for (const o of nested.unresolved) {
                 unresolved.push({ ...o, prefabEntityId: joinAddress(pe.prefabEntityId, o.prefabEntityId) });
@@ -127,40 +133,25 @@ export function flattenPrefab(
 
             idMapping.set(pe.prefabEntityId, nested.rootId);
 
-            const nestedRoot = nested.entities.find(e => e.id === nested.rootId);
-            if (nestedRoot) {
-                nestedRoot.parent = pe.parent !== null
-                    ? idMapping.get(pe.parent) ?? null
-                    : null;
-            }
-
             result.push(...nested.entities);
             continue;
         }
 
         const id = idMapping.get(pe.prefabEntityId)!;
-        const isRoot = pe.prefabEntityId === prefab.rootEntityId;
 
         const entity: ProcessedEntity = {
             id,
             prefabEntityId: pe.prefabEntityId,
             name: pe.name,
-            parent: isRoot
-                ? null
-                : (pe.parent !== null ? idMapping.get(pe.parent) ?? null : null),
-            // Filled after every nested slot has an allocated runtime id.
+            // Resolve hierarchy and component references once all slots have ids.
+            parent: null,
             children: [],
             components: cloneComponents(pe.components),
             visible: pe.visible,
             ...(pe.metadata ? { metadata: cloneMetadata(pe.metadata) } : {}),
         };
 
-        // Apply overrides BEFORE remapping so newly added/replaced
-        // components — and property overrides that target an
-        // entityField — get their prefab-entity-id values remapped
-        // to the allocated entity ids in the same pass.
         applyOverrides(entity, overrideBuckets.get(pe.prefabEntityId));
-        remapComponentEntityRefs(entity.components, idMapping);
         result.push(entity);
     }
 
@@ -190,6 +181,9 @@ export function flattenPrefab(
             : (pe.parent !== null ? idMapping.get(pe.parent) ?? null : null);
         const authored = pe.children.map(c => idMapping.get(c)).filter((c): c is number => c !== undefined);
         if (!pe.nestedPrefab) {
+            // A field can name a later slot or one of its descendants. Mounted
+            // components have already resolved their own local references.
+            remapComponentEntityRefs(entity.components, idMapping);
             entity.children = authored;
         } else if (authored.length) {
             // A mounted root keeps its own subtree, then children authored on

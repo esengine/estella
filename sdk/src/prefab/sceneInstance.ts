@@ -43,6 +43,8 @@ import type {
     PrefabEntityId,
     ProcessedEntity,
     ComponentData,
+    FlattenContext,
+    FlattenResult,
 } from './types';
 
 /** Sync nested-prefab resolver passed through to `flattenPrefab`. */
@@ -95,11 +97,11 @@ export function expandInstance(
     loadPrefab: SyncPrefabResolver = NO_NESTED,
     deferred?: DeferredRecord[],
 ): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
-    const { entities, rootId, unresolved } = flattenPrefab(prefab, delta.overrides, {
-        allocateId,
-        loadPrefab,
-        ...(deferred ? { deferred } : {}),
-    });
+    return expandWithContext(prefab, delta, { allocateId, loadPrefab, deferred });
+}
+
+function expandWithContext(prefab: PrefabData, delta: PrefabInstanceDelta, ctx: FlattenContext): FlattenResult {
+    const { entities, rootId, unresolved } = flattenPrefab(prefab, delta.overrides, ctx);
 
     // Structural re-parent overrides move a prefab-origin entity BEFORE the
     // removed-closure runs, so an entity re-parented OUT of a doomed subtree
@@ -120,7 +122,7 @@ export function expandInstance(
 
     // Allocate added ids first so parent refs resolve regardless of order.
     const added: ProcessedEntity[] = delta.added.map((a) => {
-        const id = allocateId();
+        const id = ctx.allocateId();
         idByPrefabId.set(a.prefabEntityId, id);
         return {
             id,
@@ -295,17 +297,10 @@ export function expandEntry(
     loadPrefab: SyncPrefabResolver = NO_NESTED,
     deferred?: DeferredRecord[],
 ): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
-    const { entities, rootId, unresolved } = expandInstance(prefab, entry, allocateId, loadPrefab, deferred);
-    // Pin the root to the persisted scene id (external refs target it); internal
-    // entities keep their fresh ids. Remap the root id + any parent pointing at it.
-    for (const e of entities) {
-        if (e.id === rootId) e.id = entry.id;
-        if (e.parent === rootId) e.parent = entry.id;
-    }
-    const root = entities.find((e) => e.id === entry.id);
-    if (root) root.parent = entry.parent; // attach under the scene parent
-    rebuildChildren(entities);
-    return { entities, rootId: entry.id, unresolved };
+    const result = expandWithContext(prefab, entry, { allocateId, loadPrefab, deferred, rootId: entry.id });
+    const root = result.entities.find(e => e.id === result.rootId);
+    if (root) root.parent = entry.parent;
+    return result;
 }
 
 /**

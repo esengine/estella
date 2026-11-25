@@ -9,6 +9,7 @@ import type {
 } from './types';
 import { getComponent } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
+import { INVALID_ENTITY } from '../types';
 import { hasOwn } from '../util/ownProperties';
 
 /**
@@ -140,7 +141,17 @@ export function diffEntities(
     // Each side's runtime id → its stable id, so entity-ref fields diff in
     // stable-id space instead of against volatile runtime numbers.
     const baseRefMap = new Map<number, PrefabEntityId>();
-    for (const e of baseline) if (e.id !== undefined) baseRefMap.set(e.id, e.prefabEntityId);
+    for (const e of baseline) {
+        if (e.id !== undefined) {
+            baseRefMap.set(e.id, e.prefabEntityId);
+        } else {
+            // Migrated assets have string ids but may still store numeric references.
+            const id = Number(e.prefabEntityId);
+            if (Number.isSafeInteger(id) && id !== INVALID_ENTITY && String(id) === e.prefabEntityId) {
+                baseRefMap.set(id, e.prefabEntityId);
+            }
+        }
+    }
     const instRefMap = new Map<number, PrefabEntityId>();
     for (const e of instance) instRefMap.set(e.id, e.prefabEntityId);
 

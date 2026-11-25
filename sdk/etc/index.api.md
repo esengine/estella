@@ -5030,6 +5030,7 @@ allocateId: () => number
 deferred: DeferredRecord[] | undefined
 depth: number | undefined
 loadPrefab: (path: string) => PrefabData | null
+rootId: number | undefined
 visited: Set<string> | undefined
 ```
 
