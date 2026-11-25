@@ -70,4 +70,4 @@ export { initMiniGameRuntime, type MiniGameRuntimeConfig } from './runtime/miniG
 export type { VideoBackendContext } from './video/PlatformVideoBackend';
 export { MiniGameAudioBackend } from './audio/MiniGameAudioBackend';
 export { MiniGameSocket } from './net/MiniGameSocket';
-export { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from './sideModules';
+export { createMiniGameSideModuleHost, type MiniGameSideModuleFactories, type MiniGameSideModuleBinary } from './sideModules';

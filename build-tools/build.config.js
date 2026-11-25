@@ -5,6 +5,30 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Web hosts import an ES module. Mini-game hosts require the same solver by
+// its CommonJS factory, with the platform's WebAssembly prelude.
+function physicsModules(file, feature, target) {
+    const builds = {};
+    for (const platform of ['web', 'wechat']) {
+        const web = platform === 'web';
+        const name = web ? file : `${file}-wechat`;
+        builds[name] = {
+            buildDir: `build/cmake/${name}`,
+            cmakeFlags: [
+                web ? '-DES_BUILD_WEB=ON' : '-DES_BUILD_WXGAME=ON',
+                '-DES_BUILD_TESTS=OFF', `-DES_ENABLE_${feature}=ON`,
+                `-DES_PHYSICS_ESM=${web ? 'ON' : 'OFF'}`,
+            ],
+            targets: [web ? `${target}_esm` : target],
+            outputs: {
+                [`sdk/${file}.js`]: `wasm/${platform}/${file}.js`,
+                [`sdk/${file}.wasm`]: `wasm/${platform}/${file}.wasm`,
+            },
+        };
+    }
+    return builds;
+}
+
 export default {
     paths: {
         root: path.resolve(__dirname, '..'),
@@ -109,42 +133,9 @@ export default {
                 'sdk/esengine.wxgame.wasm': 'wasm/quickgame/esengine.wxgame.wasm',
             },
         },
-        physics: {
-            buildDir: 'build/cmake/physics',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON', '-DES_PHYSICS_ESM=ON'],
-            // ESM variant (EXPORT_ES6=1, `export default`) — the ONE physics build
-            // for every realm. The SideModuleHost loader resolves the factory the
-            // same way everywhere (fetch / inlined base64 / WeChat require), so
-            // there is no separate side-module or playable physics build.
-            targets: ['physics_module_esm'],
-            outputs: {
-                'sdk/physics.js': 'wasm/web/physics.js',
-                'sdk/physics.wasm': 'wasm/web/physics.wasm',
-            },
-        },
-        physics3d: {
-            buildDir: 'build/cmake/physics3d',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_JOLT=ON', '-DES_PHYSICS_ESM=ON'],
-            // The 3D world, on the same one-flavour terms as the 2D module above.
-            // A project that never asks for it never pays for it — which is the
-            // whole reason physics is a side module rather than engine code.
-            targets: ['physics3d_module_esm'],
-            outputs: {
-                'sdk/physics3d.js': 'wasm/web/physics3d.js',
-                'sdk/physics3d.wasm': 'wasm/web/physics3d.wasm',
-            },
-        },
-        'physics3d-physx': {
-            buildDir: 'build/cmake/physics3d-physx',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_PHYSX=ON', '-DES_PHYSICS_ESM=ON'],
-            // The 3D world over PhysX, for a project that picks the PhysX solver.
-            // Same entry points and factory as physics3d; only the file differs.
-            targets: ['physics3d_physx_module_esm'],
-            outputs: {
-                'sdk/physics3d-physx.js': 'wasm/web/physics3d-physx.js',
-                'sdk/physics3d-physx.wasm': 'wasm/web/physics3d-physx.wasm',
-            },
-        },
+        ...physicsModules('physics', 'BOX2D', 'physics_module'),
+        ...physicsModules('physics3d', 'JOLT', 'physics3d_module'),
+        ...physicsModules('physics3d-physx', 'PHYSX', 'physics3d_physx_module'),
         basis: {
             buildDir: 'build/cmake/basis',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
@@ -222,15 +213,6 @@ export default {
         // they evaluate inside the MiniGame runtime. Web-aligned filenames in a
         // separate wechat dir (synced to desktop/public/wasm-wechat) → exportWeChat
         // require()s `./wasm/physics.js` / `./wasm/spine42.js` exactly as the host expects.
-        'physics-wechat': {
-            buildDir: 'build/cmake/physics-wechat',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BOX2D=ON'],
-            targets: ['physics_module'],
-            outputs: {
-                'sdk/physics.js': 'wasm/wechat/physics.js',
-                'sdk/physics.wasm': 'wasm/wechat/physics.wasm',
-            },
-        },
         'basis-wechat': {
             buildDir: 'build/cmake/basis-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],

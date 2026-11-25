@@ -28,10 +28,10 @@ program
 program
     .command('build')
     .description('Build ESEngine')
-    .option('-t, --target <target>', 'Build target (web, web-threaded, wechat, wechat-lite, spine, spine21, spine38, spine41, spine43, dragonbones, physics, physics-wechat, spine-wechat, dragonbones-wechat, basis, basis-wechat, sdk, all)', 'web')
+    .option('-t, --target <target>', `Build target (${[...Object.keys(config.wasm), 'sdk', 'all'].join(', ')})`, 'web')
     .option('-d, --debug', 'Debug build', false)
     .option('-c, --clean', 'Clean before build', false)
-    .option('--no-cache', 'Disable EHT cache')
+    .option('--no-cache', 'Rebuild without the source caches')
     .option('-v, --verbose', 'Verbose output', false)
     .option('--no-sync', 'Skip syncing to desktop/public')
     .option('--manifest', 'Generate build manifest with timing and sizes', false)
@@ -84,7 +84,12 @@ program
             }
 
             if (options.sync) {
-                await syncToDesktop();
+                await syncToDesktop({
+                    wasm: wasmTargets.length > 0,
+                    sdk: buildSdkFlag,
+                    wasmOutputs: options.target === 'all' ? undefined
+                        : wasmTargets.flatMap(target => Object.values(config.wasm[target].outputs)),
+                });
             }
 
             if (manifest) {

@@ -37,7 +37,7 @@ export {
     type EmbeddedSideModuleEntry,
     type EmbeddedSideModuleRegistry,
 } from './embeddedHost';
-export { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from './miniGameHost';
+export { createMiniGameSideModuleHost, type MiniGameSideModuleFactories, type MiniGameSideModuleBinary } from './miniGameHost';
 /** @deprecated Use `createMiniGameSideModuleHost` — this host never was
  *  WeChat-specific; it serves every mini-game vendor. */
 export { createMiniGameSideModuleHost as createWeChatSideModuleHost } from './miniGameHost';

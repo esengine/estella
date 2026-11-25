@@ -10,13 +10,19 @@
  *          through the platform shim, which is where the per-vendor WASM
  *          divergence already lives.
  */
-import { platformInstantiateWasm } from '../platform';
-import { createSideModuleHost, type EmscriptenFactory, type SideModuleHost } from './host';
+import { platformInstantiateWasm, platformLoadSubpackage } from '../platform';
+import { createSideModuleHost, SideModuleDownloadError, type EmscriptenFactory, type SideModuleHost } from './host';
 import { instantiateWasmModule } from '../wasm/instantiateModule';
 import type { SideModuleId } from './registry';
 
 /** id → the emscripten factory `require('./wasm/<file>.js')` returned. */
 export type MiniGameSideModuleFactories = Partial<Record<SideModuleId, EmscriptenFactory>>;
+
+/** Package-relative binary path and the subpackage to mount before reading it. */
+export interface MiniGameSideModuleBinary {
+    path: string;
+    subpackage?: string;
+}
 
 /**
  * `binarySuffix` is what the EXPORT staged, not what this guesses: a host whose
@@ -25,12 +31,20 @@ export type MiniGameSideModuleFactories = Partial<Record<SideModuleId, Emscripte
  */
 export function createMiniGameSideModuleHost(
     factories: MiniGameSideModuleFactories, binarySuffix = '.wasm',
+    binaries?: Readonly<Record<string, MiniGameSideModuleBinary>>,
 ): SideModuleHost {
     return createSideModuleHost(async (descriptor, id) => {
         const factory = factories[id];
         if (!factory) throw new Error(`side module "${id}" (${descriptor.file}) has no mini-game factory`);
-        // The exporter stages every runtime artifact under wasm/ — same registry,
-        // same layout, so the binary sits beside the glue game.js require()'d.
-        return instantiateWasmModule(factory, imports => platformInstantiateWasm(`wasm/${descriptor.file}${binarySuffix}`, imports));
+        const binary = binaries?.[id];
+        if (binary?.subpackage) {
+            try {
+                await platformLoadSubpackage(binary.subpackage);
+            } catch (cause) {
+                throw new SideModuleDownloadError(`could not load subpackage "${binary.subpackage}": ${cause}`);
+            }
+        }
+        const path = binary?.path ?? `wasm/${descriptor.file}${binarySuffix}`;
+        return instantiateWasmModule(factory, imports => platformInstantiateWasm(path, imports));
     });
 }

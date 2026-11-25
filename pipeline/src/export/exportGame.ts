@@ -546,8 +546,8 @@ export interface ExportGameOptions {
   /** Compress the engine binary to `.wasm.br`, where the target's loader takes
    *  one. Default off; ignored by targets that cannot load it. */
   compressWasm?: boolean;
-  /** Move the engine binary into a 分包 the host loads at startup, off the main
-   *  package's budget. Default off; ignored by targets without subpackages. */
+  /** Put the engine core and its optional binaries into separate subpackages.
+   *  Default off; ignored by targets without subpackages. */
   engineSubpackage?: boolean;
   title?: string;
   platform?: ExportPlatform;

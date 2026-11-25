@@ -57,6 +57,7 @@ PhysX Web 模块为 3.5 MB（gzip 后 1.14 MB）；Jolt 模块为 1.3 MB。对�
 | 平台 | 求解器 |
 |---|---|
 | Web、Windows、Linux、Android | 项目的选择。Windows 可执行文件同时编译两个求解器（增加 4 MB）。Android 包仅在项目选择 PhysX 时携带 `libestella_physx.so`（每个 ABI 约增加 2 MB 下载量、4.9 MB 安装体积）。 |
+| 微信、抖音小游戏 | 场景用到 3D 物理时，包中会携带项目选择的 3D 求解器。场景同时使用 2D 物理时，包中也会携带 Box2D。 |
 | macOS、iOS | 仅 Jolt。PhysX 项目在这些平台上运行于 Jolt，并在启动时记录一次日志。 |
 
 ## 单位

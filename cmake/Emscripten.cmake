@@ -422,30 +422,26 @@ set(ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS ${ES_EMSCRIPTEN_PHYSICS3D_MODULE_FL
 list(REMOVE_ITEM ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS -sEXPORT_ES6=0)
 list(APPEND ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS -sEXPORT_ES6=1 -sENVIRONMENT=web)
 
-function(es_apply_physics3d_module_settings TARGET_NAME)
-    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE -flto)
+function(es_add_physics3d_module TARGET_NAME LIBRARY BASENAME USE_ESM)
+    if(USE_ESM)
+        string(APPEND TARGET_NAME "_esm")
+        set(_FLAGS ${ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS})
+    else()
         set(_FLAGS ${ES_EMSCRIPTEN_PHYSICS3D_MODULE_FLAGS})
         if(ES_BUILD_WXGAME)
             list(APPEND _FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
         endif()
-        string(REPLACE ";" " " LINK_FLAGS_STR "${_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            SUFFIX ".js"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
     endif()
-endfunction()
-
-function(es_apply_physics3d_esm_module_settings TARGET_NAME)
-    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE -flto)
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS3D_ESM_MODULE_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            SUFFIX ".js"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
-    endif()
+    add_executable(${TARGET_NAME} ${ARGN})
+    target_link_libraries(${TARGET_NAME} PRIVATE ${LIBRARY})
+    target_compile_options(${TARGET_NAME} PRIVATE -flto)
+    string(JOIN " " LINK_FLAGS_STR ${_FLAGS})
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        OUTPUT_NAME "${BASENAME}"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        SUFFIX ".js"
+        LINK_FLAGS "${LINK_FLAGS_STR}"
+    )
 endfunction()
 
 function(es_apply_physics_module_settings TARGET_NAME)

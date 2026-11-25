@@ -8,7 +8,7 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 
 export async function syncToDesktop(options = {}) {
-    const { wasm = true, sdk = true } = options;
+    const { wasm = true, sdk = true, wasmOutputs } = options;
 
     const rootDir = config.paths.root;
 
@@ -25,12 +25,13 @@ export async function syncToDesktop(options = {}) {
     let synced = 0;
 
     if (wasm) {
+        const selected = wasmOutputs && new Set(wasmOutputs.map(file => path.resolve(config.paths.output, file)));
         for (const [src, dest] of Object.entries(config.sync.wasm)) {
             const srcPath = path.join(rootDir, src);
             const destPath = path.join(rootDir, dest);
 
             if (existsSync(srcPath)) {
-                synced += await copyFiles(srcPath, destPath, ['.js', '.wasm']);
+                synced += await copyFiles(srcPath, destPath, ['.js', '.wasm'], selected);
             }
         }
         // Stamp a build manifest beside the wasm so the editor can detect
@@ -128,28 +129,20 @@ async function writeWasmManifest(rootDir) {
     }
 }
 
-async function copyFiles(srcDir, destDir, extensions) {
-    if (!existsSync(srcDir)) {
-        return 0;
-    }
-
-    await mkdir(destDir, { recursive: true });
-
-    let count = 0;
+async function copyFiles(srcDir, destDir, extensions, selected) {
     const entries = await readdir(srcDir, { withFileTypes: true });
-
-    for (const entry of entries) {
-        if (!entry.isFile()) continue;
-        if (extensions && !extensions.some(ext => entry.name.endsWith(ext))) continue;
-
+    const files = entries.filter(entry => entry.isFile()
+        && extensions.some(ext => entry.name.endsWith(ext))
+        && (!selected || selected.has(path.join(srcDir, entry.name))));
+    if (!files.length) return 0;
+    await mkdir(destDir, { recursive: true });
+    for (const entry of files) {
         const srcPath = path.join(srcDir, entry.name);
         const destPath = path.join(destDir, entry.name);
         await cp(srcPath, destPath);
         logger.debug(`Synced ${entry.name}`);
-        count++;
     }
-
-    return count;
+    return files.length;
 }
 
 async function copyDirectory(srcDir, destDir) {

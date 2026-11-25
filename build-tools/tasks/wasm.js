@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'path';
-import { mkdir, cp, rm, stat, readFile, rename } from 'fs/promises';
+import { mkdir, mkdtemp, cp, rm, stat, readFile, rename } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -94,13 +94,14 @@ export async function buildWasm(target, options = {}) {
             const currentHash = await computeWasmHash(target, targetConfig, debug);
             const cacheKey = `wasm:${target}`;
 
-            if (!await cache.isChanged(cacheKey, currentHash)) {
+            const outputs = Object.values(targetConfig.outputs);
+            if (!await cache.isChanged(cacheKey, currentHash) && outputs.every(file => existsSync(path.join(outputDir, file)))) {
                 logger.success(`WASM ${target}: No changes detected (cached)`);
                 const result = {
                     target,
                     buildDir,
                     outputDir,
-                    outputs: Object.values(targetConfig.outputs),
+                    outputs,
                     skipped: true,
                 };
                 if (manifest) {
@@ -207,9 +208,17 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
     logger.debug(`CMake build: cmake ${buildArgs.join(' ')}`);
     await runCommand('cmake', buildArgs, { cwd: buildDir, env });
 
-    const wasmOptLevel = config.optimization[target]?.wasmOpt || '-O2';
-    await optimizeWasmFiles(buildDir, targetConfig.outputs, wasmOptLevel, env);
-    await copyOutputs(buildDir, outputDir, targetConfig.outputs);
+    // CMake may reuse its linked binary when restoring a missing published file.
+    // wasm-opt can change its own output on another pass, so optimize a fresh copy.
+    const staging = await mkdtemp(path.join(buildDir, 'publish-'));
+    try {
+        const files = Object.keys(targetConfig.outputs);
+        await copyOutputs(buildDir, staging, Object.fromEntries(files.map(file => [file, file])));
+        await optimizeWasmFiles(staging, targetConfig.outputs, config.optimization[target]?.wasmOpt || '-O2', env);
+        await copyOutputs(staging, outputDir, targetConfig.outputs);
+    } finally {
+        await rm(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
 }
 
 export async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env = undefined) {

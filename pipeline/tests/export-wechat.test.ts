@@ -276,6 +276,7 @@ describe('exportGame (wechat)', () => {
 
     const outWx = path.join(root, 'dist-wechat-module');
     const res = await exportGame({
+      compressWasm: true,
       minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
@@ -299,6 +300,7 @@ describe('exportGame (wechat)', () => {
     // Matched loosely: the bundler re-prints the object literal.
     const bundle = readFileSync(path.join(outWx, 'game-bundle.js'), 'utf8');
     const declaration = bundle.match(/sideModules:\s*\[[^\]]*\]/)?.[0] ?? '(no sideModules in the boot call)';
+    expect(bundle).toContain('wasm/rive.wasm');
     expect(declaration).toContain('"rive"');
     expect(declaration).toContain('RiveModule');
     // Down-levelled like the engine's own glue.

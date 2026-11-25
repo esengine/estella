@@ -93,7 +93,7 @@ export function miniGameVisibilityBridge(target) {
  * come down is a failure a game has to survive, and a stand-in that always
  * succeeds proves only the happy half.
  */
-export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
+export const HOST_PAGE = (entry, failSubpackage = null, { hostGlobal = null, subpackages = [] } = {}) => `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block}
@@ -127,9 +127,17 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
     return document.createElement('canvas');
   };
 
+  const subpackages = ${JSON.stringify(subpackages)};
+  const mounted = new Set();
+  const mountedPath = (p) => {
+    const file = String(p).replace(/^\\.?\\//, '');
+    const pkg = subpackages.find(s => file.startsWith(s.root + '/'));
+    if (pkg && !mounted.has(pkg.name)) throw new Error(file + ' read before mounting ' + pkg.name);
+    return p;
+  };
   const readAsArrayBuffer = (p) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', p, false); // sync: readFileSync is synchronous by contract
+    xhr.open('GET', mountedPath(p), false); // sync: readFileSync is synchronous by contract
     xhr.overrideMimeType('text/plain; charset=x-user-defined');
     xhr.send(null);
     if (xhr.status !== 200 && xhr.status !== 0) throw new Error('no such file: ' + p);
@@ -140,7 +148,7 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
   };
   const readAsText = (p) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', p, false);
+    xhr.open('GET', mountedPath(p), false);
     xhr.send(null);
     if (xhr.status !== 200 && xhr.status !== 0) throw new Error('no such file: ' + p);
     return xhr.responseText;
@@ -228,11 +236,12 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
     onUnhandledRejection: noop, offUnhandledRejection: noop,
     onWindowResize: noop, offWindowResize: noop,
     loadSubpackage: (o) => {
-      if (o && o.name === ${JSON.stringify(failSubpackage)}) {
+      if (o && (o.name === ${JSON.stringify(failSubpackage)} || (subpackages.length && !subpackages.some(s => s.name === o.name)))) {
         o.fail && o.fail({ errMsg: 'loadSubpackage:fail (injected)' });
         o.complete && o.complete();
         return;
       }
+      mounted.add(o.name);
       o.success && o.success(); o.complete && o.complete();
     },
     // Storage is real (localStorage), not a stub: a game that saves on boot and
@@ -255,24 +264,28 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
   // place the vendors genuinely diverge (sdk/src/platform/wechat/wasm.ts), and
   // the reason a browser cannot open one of these packages unaided.
   const asUrl = (p) => '/' + (String(p)[0] === '/' ? String(p).slice(1) : String(p));
-  globalThis.WXWebAssembly = {
+  const hostWasm = {
     instantiate: (pathOrBytes, imports) => (typeof pathOrBytes === 'string'
-      ? fetch(asUrl(pathOrBytes)).then((r) => r.arrayBuffer())
+      ? fetch(asUrl(mountedPath(pathOrBytes))).then((r) => r.arrayBuffer())
         .then((b) => WebAssembly.instantiate(b, imports))
       : WebAssembly.instantiate(pathOrBytes, imports)),
-    compile: (p) => fetch(asUrl(p)).then((r) => r.arrayBuffer()).then((b) => WebAssembly.compile(b)),
+    compile: (p) => fetch(asUrl(mountedPath(p))).then((r) => r.arrayBuffer()).then((b) => WebAssembly.compile(b)),
     Memory: WebAssembly.Memory,
     Table: WebAssembly.Table,
     Module: WebAssembly.Module,
     Instance: WebAssembly.Instance,
   };
 
-  globalThis.wx = wx;
-  // The same object under Douyin's name: it answers the same shape for
-  // everything the engine uses, and its profile supplies no wasm override. What
-  // this page cannot answer for either vendor is the real base library.
-  globalThis.tt = wx;
-  globalThis.TTWebAssembly = globalThis.WXWebAssembly;
+  // A vendor-specific check exposes only the globals that package may use.
+  const hostGlobal = ${JSON.stringify(hostGlobal)};
+  if (hostGlobal !== 'tt') {
+    globalThis.wx = wx;
+    globalThis.WXWebAssembly = hostWasm;
+  }
+  if (hostGlobal !== 'wx') {
+    globalThis.tt = wx;
+    globalThis.TTWebAssembly = hostWasm;
+  }
   globalThis.GameGlobal = globalThis;
   globalThis.canvas = screenCanvas;
 

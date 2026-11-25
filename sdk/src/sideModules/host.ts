@@ -67,6 +67,9 @@ export class SideModuleAbsent extends Error {
     }
 }
 
+/** A later acquire may retry a download the host could not complete. */
+export class SideModuleDownloadError extends Error {}
+
 /**
  * Build a host over a transport. Caches per id (including failures-as-null so a
  * missing artifact isn't refetched every frame). The transport is the only
@@ -120,6 +123,7 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator, option
             }
             const pending: Promise<SideModule | null> = descriptor
                 ? instantiate(descriptor, id).catch((e: unknown) => {
+                      if (e instanceof SideModuleDownloadError) cache.delete(id);
                       // Absent BY DESIGN is the answer null already means; only a
                       // module that was meant to be here is a failure to report.
                       if (e instanceof SideModuleAbsent) log.info('sidemodule', e.message);
@@ -156,6 +160,7 @@ export function isOutOfWasmMemory(error: unknown): boolean {
  * module is there, and telling someone to rebuild it sends them the wrong way.
  */
 function howToFix(id: SideModuleId, error: unknown): string {
+    if (error instanceof SideModuleDownloadError) return error.message;
     if (isOutOfWasmMemory(error)) {
         return 'the module is present, but this process has no WebAssembly memory left to start it: '
             + 'something is holding earlier instances (in the editor, restart it and report this)';

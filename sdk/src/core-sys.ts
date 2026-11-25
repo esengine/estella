@@ -329,6 +329,7 @@ export {
     type EmbeddedSideModuleEntry,
     type EmbeddedSideModuleRegistry,
     type WeChatSideModuleFactories,
+    type MiniGameSideModuleBinary,
 } from './sideModules';
 export { DEFAULT_PHYSICS3D_WORLD, physics3DPluginConfigOf, physics3DInstallConfig, type Physics3DWorldConfig } from './physics3d/worldConfig';
 export { setWorldUnitsPerMeter, worldUnitsPerMeter, worldUnitScale, REFERENCE_UNITS_PER_METER, setWorldGravity, worldGravity, STANDARD_GRAVITY } from './ecs/worldUnits';

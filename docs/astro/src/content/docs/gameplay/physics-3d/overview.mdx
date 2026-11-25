@@ -70,6 +70,7 @@ outcomes for chaotic scenes, such as a ball glancing off the edge of a hinged do
 | Platform | Solver |
 |---|---|
 | Web, Windows, Linux, Android | The project's choice. Windows executables compile both solvers in (adds 4 MB). An Android package carries PhysX as `libestella_physx.so` only when the project selects PhysX (about 2 MB download, 4.9 MB installed, per ABI). |
+| WeChat, Douyin | The package carries the selected 3D solver when a scene uses it. A scene that also uses 2D physics adds Box2D. |
 | macOS, iOS | Jolt only. A PhysX project runs on Jolt there and logs this once at startup. |
 
 ## Units

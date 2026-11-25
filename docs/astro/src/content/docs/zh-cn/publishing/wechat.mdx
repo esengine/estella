@@ -14,7 +14,9 @@ import { Steps, Aside } from '@astrojs/starlight/components';
 ```bash
 node build-tools/cli.js build -t wechat
 # side modules, only if the game uses them:
-node build-tools/cli.js build -t physics-wechat     # physics
+node build-tools/cli.js build -t physics-wechat     # 2D 物理（Box2D）
+node build-tools/cli.js build -t physics3d-wechat   # 3D 物理（Jolt）
+node build-tools/cli.js build -t physics3d-physx-wechat # 3D 物理（PhysX）
 node build-tools/cli.js build -t spine-wechat       # Spine (builds 2.1 + 3.8 + 4.1 + 4.2 + 4.3)
 node build-tools/cli.js build -t dragonbones-wechat # DragonBones
 node build-tools/cli.js build -t basis-wechat       # KTX2 / compressed textures
@@ -46,7 +48,7 @@ node build-tools/cli.js build -t videodec-wechat    # video (MPEG-1 wasm decoder
 |---|---|---|
 | **AppID** | 空 | 写入 `project.config.json`。 |
 | **压缩 wasm 二进制** | 关 | 引擎与每个侧模块以 `.wasm.br` 形式发布。见[引擎二进制](#引擎二进制)。 |
-| **引擎放入分包** | 关 | 将引擎二进制移入启动时加载的分包。 |
+| **引擎放入分包** | 关 | 引擎二进制在启动时加载，各可选引擎模块的二进制在首次使用时从各自的分包加载。 |
 | **通过 EmscriptenGLX 渲染** | 关 | 将引擎与微信的 EmscriptenGLX 链接。见 [EmscriptenGLX](#emscriptenglx)。 |
 
 ### 包结构
@@ -76,7 +78,7 @@ node build-tools/cli.js build -t videodec-wechat    # video (MPEG-1 wasm decoder
 引擎 `.wasm` 是小游戏中最大的单个文件。以下两项设置可使其不占用 4 MB 主包：
 
 - **压缩 wasm 二进制**（与“压缩”中的 **压缩引擎二进制** 为同一设置）将引擎和每个侧模块以 `.wasm.br` 形式发布，约为原大小的三分之一，由微信在加载时解压。需要**基础库 2.14.0** 或更高版本。包中只有压缩后的文件，运行时不检查版本，因此开启后需在微信后台将小游戏的最低基础库设为 2.14.0。
-- **引擎放入分包** 将二进制移入启动时加载的分包，不再计入主包；启动需等待其下载完成，加载条显示下载进度。
+- **引擎放入分包** 会为引擎和每个可选引擎模块分别建立分包。加载条显示启动时的引擎下载进度。场景首次使用 3D 物理时，会加载项目选择的求解器。抖音小游戏沿用这一布局，使用未压缩的二进制文件。
 
 ## EmscriptenGLX
 

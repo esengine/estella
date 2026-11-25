@@ -21,9 +21,11 @@ export { SIDE_MODULES, spineModuleId };
 /** The module that reads a KTX2 — named once, because two things ask about it. */
 const BASIS = 'basis';
 
-/** id → the `build-tools/cli.js build -t <target>` producing its WeChat artifacts. */
+/** Build targets for the require()-based side modules in build/wasm/wechat. */
 export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   physics: 'physics-wechat',
+  physics3d: 'physics3d-wechat',
+  'physics3d:physx': 'physics3d-physx-wechat',
   [BASIS]: 'basis-wechat',
   videodec: 'videodec-wechat',
   dragonbones: 'dragonbones-wechat',

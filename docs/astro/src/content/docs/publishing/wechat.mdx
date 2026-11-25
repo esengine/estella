@@ -16,7 +16,9 @@ builds of the side modules. The editor download includes them. In an engine sour
 ```bash
 node build-tools/cli.js build -t wechat
 # side modules, only if the game uses them:
-node build-tools/cli.js build -t physics-wechat     # physics
+node build-tools/cli.js build -t physics-wechat     # 2D physics (Box2D)
+node build-tools/cli.js build -t physics3d-wechat   # 3D physics (Jolt)
+node build-tools/cli.js build -t physics3d-physx-wechat # 3D physics (PhysX)
 node build-tools/cli.js build -t spine-wechat       # Spine (builds 2.1 + 3.8 + 4.1 + 4.2 + 4.3)
 node build-tools/cli.js build -t dragonbones-wechat # DragonBones
 node build-tools/cli.js build -t basis-wechat       # KTX2 / compressed textures
@@ -53,7 +55,7 @@ node build-tools/cli.js build -t videodec-wechat    # video (MPEG-1 wasm decoder
 |---|---|---|
 | **AppID** | empty | Written into `project.config.json`. |
 | **Compress wasm binaries** | off | Ships the engine and every side module as `.wasm.br`. See [Engine binary](#engine-binary). |
-| **Engine in a subpackage** | off | Moves the engine binary into a subpackage loaded at startup. |
+| **Engine in a subpackage** | off | Loads the engine binary at startup and each optional engine module’s binary on first use, from separate subpackages. |
 | **Render through EmscriptenGLX** | off | Links the engine with WeChat's EmscriptenGLX. See [EmscriptenGLX](#emscriptenglx). |
 
 ### Package layout
@@ -90,8 +92,7 @@ The engine `.wasm` is the largest single file in a mini-game. Two settings keep 
   and every side module as `.wasm.br`, about a third of the size, decompressed by WeChat on load. It requires **base
   library 2.14.0** or later. The package carries only the compressed file and the version is not checked at run time,
   so set the mini-game's minimum base library to 2.14.0 in the WeChat console.
-- **Engine in a subpackage** moves the binary into a subpackage (分包) loaded at startup. It no longer counts toward
-  the main package; startup waits for the download, and the loading bar shows its progress.
+- **Engine in a subpackage** moves the engine binary into a startup subpackage and each optional engine binary into its own subpackage. The loading bar shows the engine download. A scene that uses 3D physics then loads the selected solver on first use. Douyin uses the same layout with uncompressed binaries.
 
 ## EmscriptenGLX
 

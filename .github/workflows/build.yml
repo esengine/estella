@@ -98,6 +98,8 @@ jobs:
         node pipeline/bin/estella.mjs export templates/wechat-minigame --profile wechat --wasm build/wasm/wechat --out output/wechat-starter-ci-production --json output/wechat-starter-ci-production.json
         node tools/tests/export-wechat-starter-fixture.mjs --wasm build/wasm/wechat --out output/wechat-starter-ci-fixture
         node tools/tests/wechat-starter.e2e.mjs --dir output/wechat-starter-ci-fixture --out output/wechat-starter-ci-check
+    - name: Run Box2D and both 3D solvers in WeChat and Douyin packages
+      run: node tools/tests/minigame-physics.e2e.mjs
     - name: Check OpenPaaS 2D and 3D exports in a headless contract host
       run: node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-ci-check
     - name: Check dynamic planar reflections with genuine headless Chromium

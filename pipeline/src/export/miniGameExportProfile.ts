@@ -247,9 +247,7 @@ export interface MiniGameExportProfile {
     readonly esTarget: 'es2016' | 'es2017' | 'es2019' | 'es2020';
     /** Build-target name woven into "runtime not found" errors (`build -t <hint>`). */
     readonly wasmBuildHint: string;
-    /** side-module id → the `build -t <target>` that produces it for THIS vendor.
-     *  The optional modules (physics/basis/videodec/spine) are built per vendor
-     *  runtime, so the "module missing" guidance cannot be a shared constant. */
+    /** Build target for each optional module in this profile's runtime directory. */
     readonly sideModuleBuildTargets: Readonly<Record<string, string>>;
     /** Extensions the packer handles natively (no packOptions.include needed). */
     readonly nativeSuffixes: ReadonlySet<string>;
@@ -484,7 +482,7 @@ export const douyinExportProfile: MiniGameExportProfile = {
     esTarget: 'es2017',
     wasmBuildHint: MINIGAME_ENGINE_BUILD,
     hostGlobal: 'tt',
-    sideModuleBuildTargets: {},
+    sideModuleBuildTargets: WECHAT_MODULE_BUILD_TARGET,
     // Assumed to match WeChat, not read from a Douyin doc: script and config are
     // what a mini-game packer compiles itself everywhere this checkout has looked.
     // Wrong here means a staged file the runtime cannot read, on a device.

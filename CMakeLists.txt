@@ -476,40 +476,19 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     # 3D physics standalone WASM module, on the same terms as the 2D one above:
     # one flavour per configure, the ESM one for the editor's estella:// host.
     if(ES_ENABLE_JOLT)
-        set(ES_PHYSICS3D_SOURCES
+        es_add_physics3d_module(physics3d_module jolt physics3d ${ES_PHYSICS_ESM}
             src/esengine/bindings/modules/physics3d/Physics3DModuleEntry.cpp
             src/esengine/bindings/modules/physics3d/Physics3DConstraints.cpp
         )
-        if(ES_PHYSICS_ESM)
-            add_executable(physics3d_module_esm ${ES_PHYSICS3D_SOURCES})
-            target_link_libraries(physics3d_module_esm PRIVATE jolt)
-            es_apply_physics3d_esm_module_settings(physics3d_module_esm)
-            set_target_properties(physics3d_module_esm PROPERTIES
-                OUTPUT_NAME "physics3d"
-                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-            )
-        else()
-            add_executable(physics3d_module ${ES_PHYSICS3D_SOURCES})
-            target_link_libraries(physics3d_module PRIVATE jolt)
-            es_apply_physics3d_module_settings(physics3d_module)
-            set_target_properties(physics3d_module PROPERTIES
-                OUTPUT_NAME "physics3d"
-                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-            )
-        endif()
     endif()
 
     # The same 3D surface over PhysX: the physics3d_* entry points, the same
     # factory name, a different file. A project picks one backend and ships one.
     if(ES_ENABLE_PHYSX)
         file(GLOB ES_PHYSICS3D_PHYSX_SOURCES src/esengine/bindings/modules/physics3d_physx/*.cpp)
-        add_executable(physics3d_physx_module_esm ${ES_PHYSICS3D_PHYSX_SOURCES})
-        target_link_libraries(physics3d_physx_module_esm PRIVATE physx)
-        es_apply_physics3d_esm_module_settings(physics3d_physx_module_esm)
-        set_target_properties(physics3d_physx_module_esm PROPERTIES
-            OUTPUT_NAME "physics3d-physx"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
+        # Web has always exposed the PhysX ESM target, including default configures.
+        es_add_physics3d_module(physics3d_physx_module physx physics3d-physx ${ES_BUILD_WEB}
+            ${ES_PHYSICS3D_PHYSX_SOURCES})
     endif()
 endif()
 

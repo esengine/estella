@@ -410,9 +410,8 @@ export interface ProjectPackaging {
    */
   compressWasm?: boolean;
   /**
-   * Move the engine binary into a 分包 the host loads at startup, off the main
-   * package's budget. Off by default: it buys main-package room at the cost of a
-   * startup that cannot begin until the host has fetched the 分包.
+   * Split engine binaries into subpackages: the core loads at startup, and each
+   * built-in side module loads when first acquired. Off by default.
    */
   engineSubpackage?: boolean;
   /** Project-relative scene paths NOT shipped as switchable scenes (dev/test

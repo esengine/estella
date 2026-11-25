@@ -23,7 +23,7 @@ const meta = (uuid: string, type: string) => JSON.stringify({ uuid, version: '2.
 
 /** Every module the engine ships, so a test can assert what did NOT come along. */
 const ALL_MODULES = [
-  'physics', 'physics3d', 'basis', 'videodec', 'dragonbones',
+  'physics', 'physics3d', 'physics3d-physx', 'basis', 'videodec', 'dragonbones',
   'spine21', 'spine38', 'spine41', 'spine42', 'spine43',
 ];
 
@@ -68,6 +68,39 @@ function shipped(out: string): string[] {
 
 const entities = (...components: Array<{ type: string; data?: unknown }>) =>
   [{ id: 0, components }];
+
+describe.each(['wechat', 'douyin'] as const)('%s 3D solver artifacts', (platform) => {
+  it.each([
+    { backend3d: 'jolt', file: 'physics3d' },
+    { backend3d: 'physx', file: 'physics3d-physx' },
+  ] as const)('reports the build needed for incompatible or incomplete $backend3d artifacts', async ({ backend3d, file }) => {
+    const f = setup({ version: 4, entities: [{ id: 1, components: [{ type: 'RigidBody3D', data: {} }] }] });
+    try {
+      const wasmDir = path.join(f.root, '_wasm');
+      writeFileSync(path.join(wasmDir, 'esengine.js'), 'module.exports = () => {};');
+      const build = () => exportGame({
+        platform, root: f.root, entryScene: 'scenes/main.esscene', outDir: f.out,
+        hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(f.root, '_sdk'), wasmDir,
+        features: { physics: { backend3d } },
+      });
+      const command = `node build-tools/cli.js build -t ${file}-wechat`;
+      const wrongFormat = await build();
+      expect(wrongFormat.ok).toBe(false);
+      expect(wrongFormat.errors.join('\n')).toContain(`${file}.js is an ES module`);
+      expect(wrongFormat.errors.join('\n')).toContain(command + ' --no-cache');
+
+      writeFileSync(path.join(wasmDir, `${file}.js`), 'module.exports = () => {};');
+      rmSync(path.join(wasmDir, `${file}.wasm`));
+      const incomplete = await build();
+      expect(incomplete.ok).toBe(false);
+      expect(incomplete.errors.join('\n')).toContain(`${file}.wasm is missing`);
+      expect(incomplete.errors.join('\n')).toContain(command);
+      expect(existsSync(path.join(f.out, 'game.js'))).toBe(false);
+    } finally {
+      rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  });
+});
 
 describe('web package side modules', () => {
   it('removes old texture hashes after editing and unreferencing a sprite texture', async () => {

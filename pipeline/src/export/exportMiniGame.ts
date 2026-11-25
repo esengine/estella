@@ -28,7 +28,7 @@
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { minifiesScripts } from './scriptMinify';
-import type { DebugChannelConfig } from 'esengine';
+import type { DebugChannelConfig, MiniGameSideModuleBinary } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
@@ -124,9 +124,10 @@ interface RuntimeLayout {
   /** Engine artifacts to stage: the name in `wasmDir` → the PACKAGE-RELATIVE path
    *  it lands at, so a binary that moves into a 分包 is the same list with a
    *  different path rather than a second staging rule. */
-  readonly files: ReadonlyArray<{ readonly src: string; readonly staged: string; readonly brotli?: true }>;
-  /** The 分包 the engine binary went into, for the host config to declare. */
-  readonly subpackage: { readonly name: string; readonly root: string } | null;
+  readonly files: ReadonlyArray<{ src: string; staged: string; brotli?: boolean }>;
+  readonly engineSubpackage: string | null;
+  readonly subpackages: Array<{ name: string; root: string }>;
+  readonly sideModuleBinaries: Record<string, MiniGameSideModuleBinary>;
   /** Suffix the side-module binaries landed under, for the boot config. */
   readonly sideModuleSuffix: string;
 }
@@ -144,37 +145,46 @@ const BROTLI_SUFFIX = '.wasm.br';
 
 function planRuntimeLayout(
   engineGlueFile: string,
-  sideModules: ReadonlyArray<{ file: string }>,
-  opts: { brotli: boolean; subpackage: boolean; subpackageDir: string },
+  sideModules: ReadonlyArray<{ id: string; file: string }>,
+  opts: { brotli: boolean; subpackage: boolean; subpackageDir: string; groupNames: string[] },
 ): RuntimeLayout {
+  const subpackages: RuntimeLayout['subpackages'] = [];
+  const usedNames = new Set(opts.groupNames);
+  function reserveName(base: string): string {
+    let name = base;
+    for (let i = 2; usedNames.has(name); i++) name = `${base}-${i}`;
+    usedNames.add(name);
+    return name;
+  }
+  const engineSubpackage = opts.subpackage ? reserveName(ENGINE_SUBPACKAGE) : null;
   const engineBinary = engineGlueFile.replace(/\.js$/, '.wasm');
   const engineName = opts.brotli ? `${engineBinary}.br` : engineBinary;
   // Only the BINARY moves. The glue is `require`d by the entry, and a 分包's files
   // are not requirable before the host has loaded it — so it stays beside game.js,
   // which is where every engine that ships this keeps it.
-  const root = `${opts.subpackageDir}/${ENGINE_SUBPACKAGE}`;
-  const enginePath = opts.subpackage ? `${root}/${engineName}` : `wasm/${engineName}`;
-  const binary = opts.brotli
-    ? { src: engineBinary, staged: enginePath, brotli: true as const }
-    : { src: engineBinary, staged: enginePath };
+  const engineDir = engineSubpackage ? `${opts.subpackageDir}/${engineSubpackage}` : 'wasm';
+  const enginePath = `${engineDir}/${engineName}`;
+  if (engineSubpackage) subpackages.push({ name: engineSubpackage, root: engineDir });
   const sideModuleSuffix = opts.brotli ? BROTLI_SUFFIX : '.wasm';
-  return {
-    enginePath,
-    runtimeDir: 'wasm',
-    subpackage: opts.subpackage ? { name: ENGINE_SUBPACKAGE, root } : null,
-    sideModuleSuffix,
-    files: [
-      { src: engineGlueFile, staged: `wasm/${engineGlueFile}` },
-      binary,
-      ...sideModules.flatMap((m) => [
-        { src: `${m.file}.js`, staged: `wasm/${m.file}.js` },
-        // The glue stays raw: a vendor's brotli path takes wasm, not `.js`.
-        opts.brotli
-          ? { src: `${m.file}.wasm`, staged: `wasm/${m.file}${sideModuleSuffix}`, brotli: true as const }
-          : { src: `${m.file}.wasm`, staged: `wasm/${m.file}.wasm` },
-      ]),
-    ],
-  };
+  const files = [
+    { src: engineGlueFile, staged: `wasm/${engineGlueFile}` },
+    { src: engineBinary, staged: enginePath, brotli: opts.brotli },
+  ];
+  const sideModuleBinaries: Record<string, MiniGameSideModuleBinary> = {};
+  for (const { id, file } of sideModules) {
+    // Each optional binary can fit its own package and load when first acquired.
+    // Under wasm/ it is also pruned on a re-export that drops the module.
+    const dir = opts.subpackage ? `wasm/${file}` : 'wasm';
+    const staged = `${dir}/${file}${sideModuleSuffix}`;
+    if (opts.subpackage) {
+      const name = reserveName(`wasm-${file}`);
+      subpackages.push({ name, root: dir });
+      sideModuleBinaries[id] = { path: staged, subpackage: name };
+    }
+    files.push({ src: `${file}.js`, staged: `wasm/${file}.js` },
+      { src: `${file}.wasm`, staged, brotli: opts.brotli });
+  }
+  return { enginePath, runtimeDir: 'wasm', engineSubpackage, subpackages, sideModuleSuffix, sideModuleBinaries, files };
 }
 
 /**
@@ -243,13 +253,20 @@ async function scanSideModules(
 
   const present: Array<{ id: string; file: string }> = [];
   for (const { id, file } of files) {
-    if (existsSync(path.join(wasmDir, `${file}.js`))) { present.push({ id, file }); continue; }
+    const glue = `${file}.js`;
+    const missing = [glue, `${file}.wasm`].find((name) => !existsSync(path.join(wasmDir, name)));
+    if (!missing && !isEsModule(await readFile(path.join(wasmDir, glue), 'utf8'))) {
+      present.push({ id, file });
+      continue;
+    }
     const target = profile.sideModuleBuildTargets[id];
-    // No target means the vendor has no build of this module at all, and naming
-    // one that does not exist sends the reader to build the web artifact instead.
-    errors.push(target
-      ? `content needs "${id}" but ${file}.js is not in the ${profile.id} wasm dir — build it with \`node build-tools/cli.js build -t ${target}\` and re-export.`
-      : `content needs "${id}", which has no ${profile.id} build — the module is not available on this platform.`);
+    const problem = missing
+      ? `${missing} is missing from ${wasmDir}`
+      : `${glue} is an ES module and cannot be loaded with require()`;
+    const hint = target
+      ? `build it with \`node build-tools/cli.js build -t ${target}${missing ? '' : ' --no-cache'}\` and re-export.`
+      : `the module has no ${profile.id} build.`;
+    errors.push(`content needs "${id}" but ${problem} — ${hint}`);
   }
   return present;
 }
@@ -322,8 +339,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** The project's `packaging.compressWasm`; honoured only where the vendor can
    *  load a `.wasm.br` (profile.wasmBrotli) — policy meeting capability. */
   compressWasm?: boolean;
-  /** The project's `packaging.engineSubpackage`: move the engine binary out of
-   *  the main package into a 分包 the host loads at startup. */
+  /** Split runtime binaries into subpackages, with the core loaded at startup. */
   engineSubpackage?: boolean;
   /** What the project says about its engine modules; see ProjectFeatures.modules. */
   features?: ProjectFeatures;
@@ -351,15 +367,15 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // (decided once the content has been read, below, and before any engine file is staged).
   const liteDir = `${opts.wasmDir.replace(/[\/]+$/, '')}-lite`;
   let lite = false;
-  /** The engine's own files come from the GLX runtime when the project asked for it, or the lite one when it can. */
-  const runtimeFile = (name: string): string => {
+  /** Only the engine comes from a GLX/lite variant. Side modules always use the validated pair in wasmDir. */
+  const engineFile = (name: string): string => {
     const fromGlx = path.join(glxDir, name);
     if (glx && existsSync(fromGlx)) return fromGlx;
     const fromLite = path.join(liteDir, name);
     return lite && existsSync(fromLite) ? fromLite : path.join(opts.wasmDir, name);
   };
   const engineGlueFile = profile.engineGlueCandidates
-    .find((f) => existsSync(runtimeFile(f)));
+    .find((f) => existsSync(engineFile(f)));
   if (!engineGlueFile) {
     // The optional-module targets come off the profile, so the guidance names
     // THIS vendor's builds rather than a hardcoded WeChat pair.
@@ -377,10 +393,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // ...and it has to be a build this host can load. The browser artifact throws
   // `Unexpected token 'export'` at the entry's first line: a package that exports
   // clean, installs, and never reaches a frame.
-  if (isEsModule(await readFile(runtimeFile(engineGlueFile), 'utf8'))) {
+  if (isEsModule(await readFile(engineFile(engineGlueFile), 'utf8'))) {
     errors.push(
-      `${runtimeFile(engineGlueFile)} is an ES module, and a ${profile.id} package requires its engine — `
-      + `build the mini-game engine with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``,
+      `${engineFile(engineGlueFile)} is an ES module, and a ${profile.id} package requires its engine — `
+      + `build the mini-game engine with \`node build-tools/cli.js build -t ${profile.wasmBuildHint} --no-cache\``,
     );
     return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
   }
@@ -459,13 +475,18 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //     the runtime's self-gating.
   const moduleChoiceMap = moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id]);
   let spineRuntimes: SpineRuntimePlan['decisions'] | undefined;
+  const moduleErrors: string[] = [];
   const engineSideModules = await scanSideModules(
-    profile, opts.root, cook.includedPaths, cookEntries, absOut, opts.wasmDir, errors,
+    profile, opts.root, cook.includedPaths, cookEntries, absOut, opts.wasmDir, moduleErrors,
     forcedSideModules(moduleChoiceMap),
     opts.features?.physics?.backend3d,
     moduleChoiceMap,
     (spine) => { spineRuntimes = spine.decisions; },
   );
+  if (moduleErrors.length) {
+    return { ok: false, platform: profile.id, outDir: absOut, included: cook.included.length,
+      warnings, errors: [...errors, ...moduleErrors], inclusion: cook.inclusion, spineRuntimes };
+  }
   // …plus the ones the PROJECT supplies. They are not scanned for: a project put
   // them in `.esengine/modules/` in order to use them, and unlike physics or
   // spine there is no component in the scene the engine could recognize as the
@@ -495,12 +516,24 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // Compressing needs both halves: a vendor whose loader takes `.wasm.br`, and a
   // project that asked for it. Either alone leaves the binary as built.
   const brotli = profile.wasmBrotli && (opts.compressWasm ?? false);
+  const cooked = subPackagesOf(cookEntries, profile.subpackageDir);
   const runtimeLayout = planRuntimeLayout(engineGlueFile, engineSideModules, {
     brotli,
     // No API global ⇒ nothing to ask for the 分包 with, so it stays in the main package.
     subpackage: profile.hostGlobal !== null && profile.subpackageDir !== '' && (opts.engineSubpackage ?? false),
     subpackageDir: profile.subpackageDir,
+    groupNames: cooked.subPackages.map(s => s.name),
   });
+  if (brotli) {
+    // Project-supplied binaries are copied as authored, even when engine files compress.
+    for (const m of projectModules.filter(m => m.buildDir)) {
+      runtimeLayout.sideModuleBinaries[m.id] = { path: `wasm/${m.file}.wasm` };
+    }
+  }
+  const sideModuleArgs =
+    (brotli ? `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}` : '') +
+    (Object.keys(runtimeLayout.sideModuleBinaries).length
+      ? `, sideModuleBinaries: ${JSON.stringify(runtimeLayout.sideModuleBinaries)}` : '');
   const engineWasmPath = runtimeLayout.enginePath;
   // The packaged slice of the project's settings, GENERATED rather than listed:
   // a setting added to packagedRuntimeFields reaches this boot without anyone
@@ -602,7 +635,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `}\n` +
     `export async function boot(engineFactory, sideModuleFactories) {\n` +
     `  const projectPlugin = await (projectReady ??= prepareProject());\n` +
-    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${sideModuleArgs}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */
@@ -679,21 +712,20 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   }
 
   // 5. Entry + config (vendor-specific emission).
-  const cooked = subPackagesOf(cookEntries, profile.subpackageDir);
   warnings.push(...cooked.strays);
   // The engine's 分包, if the binary went into one, joins the cook's lazy groups
   // here: the root entry each vendor demands and the host config's declaration
   // are written once, for every subpackage, whatever put it there.
-  const subPackages = {
-    subPackages: runtimeLayout.subpackage
-      ? [...cooked.subPackages, runtimeLayout.subpackage]
-      : cooked.subPackages,
-  };
+  const subPackages = [...cooked.subPackages, ...runtimeLayout.subpackages];
+  // Rematerialize the owned runtime directory before writing entries for its binary subpackages.
+  const wasmOut = path.join(absOut, 'wasm');
+  await rm(wasmOut, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  await mkdir(wasmOut, { recursive: true });
   // A vendor that wants an entry in every subpackage root refuses the package
   // without one, naming the missing file rather than the rule. These roots hold
   // assets the runtime reads by path, so the entry has nothing to do but exist.
   if (profile.subpackageEntry) {
-    for (const sp of subPackages.subPackages) {
+    for (const sp of subPackages) {
       // A cook group's root exists because its assets landed there; the engine's
       // is made by the staging below, which has not run yet.
       await mkdir(path.join(absOut, sp.root), { recursive: true });
@@ -707,7 +739,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   }
   await writeFile(path.join(absOut, profile.entryFile ?? 'game.js'),
     profile.emitEntry({ sideModules, engineGlueFile, runtimeDir: runtimeLayout.runtimeDir,
-      engineSubpackage: runtimeLayout.subpackage?.name ?? null, hostGlobal: profile.hostGlobal }));
+      engineSubpackage: runtimeLayout.engineSubpackage, hostGlobal: profile.hostGlobal }));
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',
@@ -715,7 +747,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     versionCode: opts.versionCode ?? 1,
     icon: await readAppIcon(opts.root, opts.appIcon, warnings),
     orientation: opts.orientation ?? 'portrait',
-    subPackages: subPackages.subPackages,
+    subPackages,
     includeSuffixes: packIncludeSuffixes(cookEntries, profile.nativeSuffixes),
     // Only a bundle that was actually written counts: an entry that failed to
     // build must not leave the config pointing at a directory with no index.js.
@@ -727,28 +759,16 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     await writeFile(path.join(absOut, file), content);
   }
 
-  // 6. The engine runtime + exactly the side modules the scene needs. WeChat's
-  //    main package has a 4MB budget — unneeded side modules must not ride along.
-  //    Rematerialize wasm/ from scratch: it holds EXACTLY this export's runtime
-  //    set and nothing else. A prior export into the same outDir may have staged
-  //    a module this project no longer needs (e.g. basis.js when KTX2 was on),
-  //    and this run — copying only the current set — would leave that stale .js
-  //    behind. The mini-game packer compiles EVERY .js in the package, so a stale
-  //    glue built by an older pipeline (raw es2020 `?.`/`??`, not down-leveled)
-  //    fails real-device compile ("invalid file: wasm/basis.js … Unexpected token .").
-  //    Scoped to wasm/ (exporter-owned); the outDir root also hosts devtools'
-  //    project.private.config.json, so we don't wipe the whole tree.
+  // 6. Stage the validated runtime files at the paths advertised to the host.
   /** Filled by the brotli branch below; the report has no other way to know. */
   const packedFrom: Record<string, number> = {};
   progress({ phase: 'Copying runtime' });
-  const wasmOut = path.join(absOut, 'wasm');
-  await rm(wasmOut, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-  await mkdir(wasmOut, { recursive: true });
   // Engine artifacts only — the project's own come from `.esengine/modules/`,
   // not from the engine runtime dir, and are staged below.
   const { transform } = await loadEsbuild();
+  const engineBinary = engineGlueFile.replace(/\.js$/, '.wasm');
   for (const f of runtimeLayout.files) {
-    const src = runtimeFile(f.src);
+    const src = f.src === engineGlueFile || f.src === engineBinary ? engineFile(f.src) : path.join(opts.wasmDir, f.src);
     if (!existsSync(src)) {
       errors.push(`${profile.id} runtime file missing: ${f.src} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``);
       continue;
@@ -801,7 +821,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     // The size report weighs the main package against a cap the subpackages are
     // NOT on, and it cannot tell a subpackage root from any other directory. The
     // export that made them names them.
-    subPackageRoots: subPackages.subPackages.map((sp) => sp.root),
+    subPackageRoots: subPackages.map((sp) => sp.root),
     ...(Object.keys(packedFrom).length > 0 ? { packedFrom } : {}),
     ...(spineRuntimes ? { spineRuntimes } : {}),
   };

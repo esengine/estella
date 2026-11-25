@@ -30,7 +30,7 @@ import {
     loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers,
     registerPackagedSideModules, glContextAttributes, packagedAppOptions,
 } from './packagedRuntime';
-import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
+import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories, type MiniGameSideModuleBinary } from '../sideModules';
 import type { SceneData } from '../scene/scene';
 import { startDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
@@ -93,6 +93,8 @@ export interface MiniGameRuntimeConfig extends RenderOptions, RuntimeProjectSett
      * spelled the suffix itself would name a file the package does not have.
      */
     sideModuleSuffix?: string;
+    /** Binary locations that differ from wasm/<file> plus the default suffix. */
+    sideModuleBinaries?: Readonly<Record<string, MiniGameSideModuleBinary>>;
     /**
      * Project-supplied modules (`.esengine/modules/<id>/`) the export staged, so
      * their ids resolve to an artifact name.
@@ -331,7 +333,7 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
         }),
         // Physics + spine self-gate off these factories (require()'d in game.js).
         sideModules: config.sideModuleFactories
-            ? createMiniGameSideModuleHost(config.sideModuleFactories, config.sideModuleSuffix)
+            ? createMiniGameSideModuleHost(config.sideModuleFactories, config.sideModuleSuffix, config.sideModuleBinaries)
             : undefined,
         ownsSideModules: true,
     }));

@@ -38,7 +38,7 @@ beforeAll(() => {
   mkdirSync(path.join(root, '.esengine'), { recursive: true });
   writeFileSync(
     path.join(root, '.esengine', 'asset-groups.json'),
-    JSON.stringify({ version: '1.0', groups: { level2: { folder: 'assets/level2', mode: 'subpackage' } } }),
+    JSON.stringify({ version: '1.0', groups: { 'wasm-physics': { folder: 'assets/level2', mode: 'subpackage' } } }),
   );
   mkdirSync(path.join(root, 'scenes'), { recursive: true });
   writeFileSync(
@@ -53,6 +53,8 @@ beforeAll(() => {
   mkdirSync(path.join(root, '_wxwasm'), { recursive: true });
   writeFileSync(path.join(root, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
+  writeFileSync(path.join(root, '_wxwasm', 'physics.js'), 'module.exports = () => {};');
+  writeFileSync(path.join(root, '_wxwasm', 'physics.wasm'), 'physics');
   out = path.join(root, 'dist-wechat');
 }, 60_000);
 
@@ -71,13 +73,16 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       title: 'My Game',
       platform: 'wechat',
       miniGameAppid: 'wxTEST0123456789',
+      engineSubpackage: true,
+      features: { modules: { 'esengine/physics': 'include' } },
       orientation: 'landscape',
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
     expect(res.ok).toBe(true);
 
     const gjson = JSON.parse(readFileSync(path.join(out, 'game.json'), 'utf8'));
-    expect(gjson.subPackages).toContainEqual({ name: 'level2', root: 'subpackages/level2' });
+    expect(gjson.subPackages).toContainEqual({ name: 'wasm-physics', root: 'subpackages/wasm-physics' });
+    expect(gjson.subPackages).toContainEqual({ name: 'wasm-physics-2', root: 'wasm/physics' });
 
     // WeChat rejects a root the package does not carry, and an EMPTY directory
     // does not survive packing — the root must hold the group's files.
