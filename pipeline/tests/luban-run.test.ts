@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installTool, toolStatus } from '../src/tools/externalTools';
 import { lubanErrors, runLuban } from '../src/tools/lubanRun';
-import { LUBAN_DEFAULTS, parseProjectTools, type LubanSetting } from '../src/tools/projectTools';
+import { LUBAN_DEFAULTS, LUBAN_OUTPUT_DEFAULTS, parseProjectTools, type LubanSetting } from '../src/tools/projectTools';
 
 // What Luban's own error lines look like, and what the runner makes of them: always checked.
 describe('reading Luban\'s output', () => {
@@ -31,13 +31,40 @@ describe('the project setting', () => {
         expect(parseProjectTools(undefined)).toBeUndefined();
         expect(parseProjectTools({})).toBeUndefined();
         expect(parseProjectTools({ luban: {} })!.luban).toEqual({ enabled: false, ...LUBAN_DEFAULTS });
-        expect(parseProjectTools({ luban: { enabled: true, dataDir: './assets\\tables/' } })!.luban).toMatchObject({ enabled: true, dataDir: 'assets/tables' });
+        expect(parseProjectTools({ luban: { enabled: true, dataDir: './assets\\tables/' } })!.luban).toMatchObject({ enabled: true, outputs: [{ dataDir: 'assets/tables' }] });
         for (const bad of ['../outside', '/abs', 'C:\\x', 'a//b', '']) {
             expect(() => parseProjectTools({ luban: { codeDir: bad } }), bad).toThrow(/inside the project/);
         }
         expect(() => parseProjectTools({ luban: { enabled: 'yes' } })).toThrow(/true or false/);
         expect(() => parseProjectTools({ luban: { target: 'a b' } })).toThrow(/must be a name/);
         expect(() => parseProjectTools({ luban: { target: 'x; rm -rf /' } })).toThrow(/must be a name/);
+    });
+
+    it('reads a project written with one output as that output', () => {
+        const luban = parseProjectTools({ luban: { enabled: true, target: 'all', codeDir: 'src/cfg', dataDir: 'assets/cfg' } })!.luban!;
+        expect(luban.outputs).toEqual([{ ...LUBAN_OUTPUT_DEFAULTS, target: 'all', codeDir: 'src/cfg', dataDir: 'assets/cfg' }]);
+    });
+
+    it('builds a client and a server from the same tables, each into its own folders', () => {
+        const luban = parseProjectTools({ luban: { enabled: true, outputs: [
+            { target: 'client', codeDir: 'src/gen', dataDir: 'assets/data' },
+            { target: 'server', codeDir: 'server/gen', dataDir: 'server/data' },
+        ] } })!.luban!;
+        expect(luban.outputs.map((o) => [o.target, o.codeDir, o.dataDir, o.codeTarget])).toEqual([
+            ['client', 'src/gen', 'assets/data', 'typescript-json'],
+            ['server', 'server/gen', 'server/data', 'typescript-json'],
+        ]);
+    });
+
+    it('refuses two outputs of one target, or two that would write into one folder', () => {
+        expect(() => parseProjectTools({ luban: { outputs: [] } })).toThrow(/at least one/);
+        expect(() => parseProjectTools({ luban: { outputs: [{ target: 'client' }, { target: 'client', codeDir: 'a', dataDir: 'b' }] } })).toThrow(/"client" twice/);
+        expect(() => parseProjectTools({ luban: { outputs: [{ target: 'client' }, { target: 'server', codeDir: 'src/gen/server', dataDir: 'server/data' }] } }))
+            .toThrow(/code folder of "server" \(src\/gen\/server\) and the code folder of "client"/);
+        expect(() => parseProjectTools({ luban: { outputs: [{ target: 'client' }, { target: 'server', codeDir: 'server/gen', dataDir: 'assets/data' }] } }))
+            .toThrow(/data folder of "server"/);
+        // One output may keep its code and data together.
+        expect(parseProjectTools({ luban: { outputs: [{ target: 'client', codeDir: 'src/cfg', dataDir: 'src/cfg' }] } })!.luban!.outputs).toHaveLength(1);
     });
 });
 
@@ -148,6 +175,45 @@ describe.skipIf(!base || !existsSync(path.join(base, 'external-tools.json')))('L
         expect(existsSync(path.join(root, 'assets/data/tbsite.json'))).toBe(false);
         expect(existsSync(path.join(root, 'assets/data/tbitem.json'))).toBe(true);
     }, 120_000);
+
+    it('builds a client and a server target, each into its own folders, the server with the table only it reads', async () => {
+        const conf = path.join(root, 'config/luban');
+        writeFileSync(path.join(conf, 'luban.conf'), JSON.stringify({
+            groups: [{ names: ['c'], default: true }, { names: ['s'], default: false }], schemaFiles: [{ fileName: 'Defines', type: '' }], dataDir: 'Datas',
+            targets: [
+                { name: 'client', manager: 'Tables', groups: ['c'], topModule: 'cfg' },
+                { name: 'server', manager: 'Tables', groups: ['c', 's'], topModule: 'cfg' },
+            ],
+        }));
+        writeFileSync(path.join(conf, 'Defines/game.xml'), `<module name="">
+  <bean name="Item"><var name="id" type="string"/><var name="name" type="string"/></bean>
+  <table name="TbItem" value="Item" input="items.csv"/>
+  <bean name="Drop"><var name="id" type="string"/><var name="weight" type="int"/></bean>
+  <table name="TbDrop" value="Drop" input="drops.csv" group="s"/>
+</module>`);
+        writeFileSync(path.join(conf, 'Datas/drops.csv'), '##var,id,weight\n##type,string,int\n##,id,权重\n,boss,7\n');
+        const both: LubanSetting = { enabled: true, conf: 'config/luban/luban.conf', outputs: [
+            { ...LUBAN_OUTPUT_DEFAULTS },
+            { ...LUBAN_OUTPUT_DEFAULTS, target: 'server', codeDir: 'server/gen', dataDir: 'server/data' },
+        ] };
+        const got = await run({ setting: both });
+        expect(got.errors).toEqual([]);
+        expect(got.ok).toBe(true);
+        // The client never sees the server's table; the server has both.
+        expect(existsSync(path.join(root, 'assets/data/tbdrop.json'))).toBe(false);
+        expect(existsSync(path.join(root, 'assets/data/tbitem.json'))).toBe(true);
+        expect(JSON.parse(readFileSync(path.join(root, 'server/data/tbdrop.json'), 'utf8'))).toEqual([{ id: 'boss', weight: 7 }]);
+        expect(existsSync(path.join(root, 'server/data/tbitem.json'))).toBe(true);
+        expect(readFileSync(path.join(root, 'server/gen/schema.ts'), 'utf8')).toMatch(/TbDrop/);
+        // Luban writes every type into the code of each target; the tables are what a target picks.
+        expect(readFileSync(path.join(root, 'src/gen/schema.ts'), 'utf8')).not.toMatch(/TbDrop/);
+        expect((await run({ setting: both, check: true })).ok).toBe(true);
+
+        // Dropping the server output removes what it wrote, and leaves the client's.
+        expect((await run()).errors).toEqual([]);
+        expect(existsSync(path.join(root, 'server/data/tbdrop.json'))).toBe(false);
+        expect(existsSync(path.join(root, 'assets/data/tbitem.json'))).toBe(true);
+    }, 180_000);
 });
 
 describe('is the generated output behind the tables?', () => {

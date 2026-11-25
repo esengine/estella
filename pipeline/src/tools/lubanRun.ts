@@ -107,33 +107,42 @@ export async function runLuban(options: LubanRunOptions): Promise<LubanRunResult
     const s = options.setting;
     const conf = inside(root, s.conf);
     if (!existsSync(conf)) return { ok: false, reason: 'failed', changed: [], log: '', errors: [`${s.conf} does not exist`] };
-    const finalCode = inside(root, s.codeDir);
-    const finalData = inside(root, s.dataDir);
 
     // Taken before the run reads anything: a table saved while Luban works is newer than this, so it is seen next time
     // instead of being counted as already generated.
     const startedAt = Date.now();
     const scratch = mkdtempSync(path.join(tmpdir(), 'estella-luban-'));
     try {
-        const outCode = path.join(scratch, 'code');
-        const outData = path.join(scratch, 'data');
-        mkdirSync(outCode, { recursive: true });
-        mkdirSync(outData, { recursive: true });
-        const args = [dll, '--conf', conf, '-t', s.target, '-c', s.codeTarget, '-d', s.dataTarget,
-            '-x', `outputCodeDir=${outCode}`, '-x', `outputDataDir=${outData}`];
-        const env: NodeJS.ProcessEnv = { ...process.env, DOTNET_ROOT: dotnetDir, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1', DOTNET_gcServer: '0' };
-        const run = options.run ?? defaultRun;
-        const { code, output } = await run(dotnet, args, { cwd: path.dirname(conf), env });
-        const errors = lubanErrors(output);
-        if (code !== 0 || errors.length > 0) {
-            return { ok: false, reason: 'failed', changed: [], log: output, errors: errors.length ? errors : [`Luban exited with code ${code}`] };
+        // One run of Luban per output, each into its own scratch folders; nothing reaches the project until every one
+        // has worked, so a server target that fails leaves the client's files as they were too.
+        const made: Array<{ from: string; to: string; rel: string }> = [];
+        let log = '';
+        for (const [i, o] of s.outputs.entries()) {
+            const outCode = path.join(scratch, String(i), 'code');
+            const outData = path.join(scratch, String(i), 'data');
+            mkdirSync(outCode, { recursive: true });
+            mkdirSync(outData, { recursive: true });
+            const args = [dll, '--conf', conf, '-t', o.target, '-c', o.codeTarget, '-d', o.dataTarget,
+                '-x', `outputCodeDir=${outCode}`, '-x', `outputDataDir=${outData}`];
+            const env: NodeJS.ProcessEnv = { ...process.env, DOTNET_ROOT: dotnetDir, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1', DOTNET_gcServer: '0' };
+            const run = options.run ?? defaultRun;
+            const { code, output } = await run(dotnet, args, { cwd: path.dirname(conf), env });
+            log += s.outputs.length > 1 ? `== ${o.target} ==\n${output}\n` : output;
+            const errors = lubanErrors(output);
+            const named = (e: string) => (s.outputs.length > 1 ? `${o.target}: ${e}` : e);
+            if (code !== 0 || errors.length > 0) {
+                return { ok: false, reason: 'failed', changed: [], log, errors: (errors.length ? errors : [`Luban exited with code ${code}`]).map(named) };
+            }
+            const finalCode = inside(root, o.codeDir);
+            const finalData = inside(root, o.dataDir);
+            const these = [
+                ...listFiles(outCode).map((rel) => ({ from: path.join(outCode, rel), to: path.join(finalCode, rel), rel: `${o.codeDir}/${rel}` })),
+                ...listFiles(outData).map((rel) => ({ from: path.join(outData, rel), to: path.join(finalData, rel), rel: `${o.dataDir}/${rel}` })),
+            ];
+            if (these.length === 0) return { ok: false, reason: 'failed', changed: [], log, errors: [named('Luban wrote nothing; check the targets in the project\'s tools.luban settings')] };
+            made.push(...these);
         }
-
-        const made: Array<{ from: string; to: string; rel: string }> = [
-            ...listFiles(outCode).map((rel) => ({ from: path.join(outCode, rel), to: path.join(finalCode, rel), rel: `${s.codeDir}/${rel}` })),
-            ...listFiles(outData).map((rel) => ({ from: path.join(outData, rel), to: path.join(finalData, rel), rel: `${s.dataDir}/${rel}` })),
-        ];
-        if (made.length === 0) return { ok: false, reason: 'failed', changed: [], log: output, errors: ['Luban wrote nothing; check the targets in the project\'s tools.luban settings'] };
+        const output = log;
 
         const ledgerFile = path.join(root, LEDGER);
         const before: string[] = existsSync(ledgerFile) ? (JSON.parse(readFileSync(ledgerFile, 'utf8')) as { files: string[] }).files : [];
