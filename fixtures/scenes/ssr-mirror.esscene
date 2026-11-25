@@ -1,0 +1,175 @@
+{
+ "version": "2.0",
+ "name": "ssr-mirror",
+ "entities": [
+  {
+   "id": 1,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 100,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.9990482215818578,
+       "x": -0.043619387365336,
+       "y": -0.0,
+       "z": -0.0
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 60,
+      "nearPlane": 1,
+      "farPlane": 10000,
+      "isActive": true,
+      "priority": 0
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "ssr",
+        "enabled": true,
+        "uniforms": {
+         "u_skyReflection": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.9396926207859084,
+       "x": -0.3420201433256687,
+       "y": -0.0,
+       "z": -0.0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "intensity": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Mirror",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": -700
+      },
+      "scale": {
+       "x": 10,
+       "y": 1,
+       "z": 10
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": false,
+      "material": "/scenes/ssr-mirror_m0.esmaterial",
+      "color": {
+       "r": 0.2,
+       "g": 0.2,
+       "b": 0.2,
+       "a": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "RedWall",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 150,
+       "z": -1300
+      },
+      "scale": {
+       "x": 8,
+       "y": 3,
+       "z": 0.2
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": false,
+      "opaque": true,
+      "color": {
+       "r": 1,
+       "g": 0.1,
+       "b": 0.1,
+       "a": 1
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

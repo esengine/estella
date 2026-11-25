@@ -146,9 +146,9 @@ void main() {
         return Material.compileShader(source);
     },
     /**
-     * Screen-space reflections. No G-buffer: the surface normal is rebuilt from depth the way
-     * SSAO does, the reflected ray is marched in the world and projected back to the screen at
-     * every step, and a step that lands behind what the depth buffer shows by less than
+     * Screen-space reflections. The surface normal is the G-buffer's (rebuilt from depth where it has none), the reflected ray
+     * is clipped to what the picture shows and marched in steps even on the screen, each projected back to the world, and a
+     * step that lands behind what the depth buffer shows by less than
      * `u_thickness` is a hit. What the ray found is blended over the pixel by a Schlick
      */
     createSsr(): ShaderHandle {
@@ -168,7 +168,7 @@ vec3 project(vec3 P) {
 #pragma version 300 es
 #pragma domain PostProcess
 #pragma param u_intensity float default(1) range(0,2)
-#pragma param u_maxDistance float default(400) range(10,3000)
+#pragma param u_maxDistance float default(20000) range(10,100000)
 #pragma param u_thickness float default(12) range(1,200)
 #pragma param u_floorBias float default(0) range(0,1)
 #pragma param u_puddles float default(0) range(0,1)
@@ -288,22 +288,48 @@ void main() {
     // A ray heading back at the camera has nothing on screen to find.
     if (dot(R, V) > 0.97) { fragColor = scene; return; }
 
+    // The ray as far as the picture can show it: from P until it leaves the view (a side of the frustum, or the plane the eye
+    // stands in), or u_maxDistance if that comes first. Its steps are then spread evenly over the SCREEN, not over the world:
+    // a reflection of a wall forty metres off is as findable as one of a kerb a metre off, and no step is spent where a
+    // pixel is not. Each step's world position is the one the screen point stands for along the ray (1/w is linear on screen).
+    vec4 c0 = u_projection * vec4(P, 1.0);
+    vec4 dc = u_projection * vec4(R, 0.0);
+    float tEnd = u_maxDistance;
+    vec4 inside = vec4(c0.w + c0.x, c0.w - c0.x, c0.w + c0.y, c0.w - c0.y);
+    vec4 change = vec4(dc.w + dc.x, dc.w - dc.x, dc.w + dc.y, dc.w - dc.y);
+    for (int k = 0; k < 4; ++k) {
+        if (change[k] < 0.0) tEnd = min(tEnd, max(inside[k], 0.0) / -change[k]);
+    }
+    // In front of the eye, with room to spare: a perspective w falls toward zero as the ray turns back at the camera.
+    if (dc.w < 0.0) tEnd = min(tEnd, max(c0.w * 0.9, 0.0) / -dc.w);
+    if (tEnd <= 0.0) { fragColor = scene; return; }
+    float w0 = c0.w;
+    float w1 = max(c0.w + dc.w * tEnd, 1e-4);
+
     float steps = clamp(floor(u_ssrSteps + 0.5), 1.0, float(SSR_STEPS_MAX));
-    float stepLen = u_maxDistance / steps;
     float jitter = ign(gl_FragCoord.xy);
     vec3 eye = u_camera.w > 0.5 ? u_camera.xyz : P + u_camera.xyz * 1e4;
     vec3 hitColor = vec3(0.0);
     float hit = 0.0;
     float travelled = 0.0;
+    // The last sample over a surface. One over the sky says nothing (the sky has no depth to be behind): a ray that crossed the
+    // gap under a wall's foot and then met the wall is allowed the whole way from the last surface, not from the gap.
     vec3 prevP = P;
+    float frontT = 0.0;
+    vec2 origin = project(P).xy;
     for (int i = 0; i < SSR_STEPS_MAX; ++i) {
         if (float(i) >= steps) break;
-        float t = (float(i) + jitter) * stepLen + stepLen * 0.5;
+        float f = (float(i) + jitter) / steps + 0.5 / steps;
+        float t = tEnd * (f / w1) / ((1.0 - f) / w0 + f / w1);
+        float stepLen = t - frontT;
         vec3 Q = P + R * t;
         vec3 s = project(Q);
         if (s.z <= 0.0 || s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0) break;
+        // Within a pixel or two of where it left, the ray reads the surface it left: depth's precision puts that a hair
+        // behind itself, and the floor's own colour came back as its reflection, freckling a mirror with dark dots.
+        if (length((s.xy - origin) * vec2(size)) < 1.5) continue;
         float ds = depthAt(screenTexel(s.xy, size), size);
-        if (ds >= 1.0) { prevP = Q; continue; }
+        if (ds >= 1.0) continue;
         vec3 S = worldFromDepth(uvOfTexel(screenTexel(s.xy, size), size), ds);
         // How far the ray has gone past the surface the depth buffer shows there,
         // measured along the view: positive is behind it.
@@ -320,13 +346,21 @@ void main() {
                 if (length(m - eye) - length(Sm - eye) > 0.0) b = m; else a = m;
             }
             vec3 sh = project(b);
+            // The halving can settle across an outline, on what is behind it (the sky under a wall's foot, a farther
+            // surface): what it found there is not what the ray met. The step that first went behind a surface did meet
+            // one, so the search falls back to it, and a reflection's edge is not freckled with whatever lies past it.
+            float dh = depthAt(screenTexel(sh.xy, size), size);
+            vec3 Sh = worldFromDepth(uvOfTexel(screenTexel(sh.xy, size), size), dh);
+            float behindB = length(b - eye) - length(Sh - eye);
+            if (dh >= 1.0 || behindB < -stepLen || behindB > u_thickness + stepLen) sh = s;
             // The reflected surface must face the ray; one seen edge-on is an
             // artefact of the depth buffer's stair-stepping, not a surface.
             vec2 e = min(sh.xy, 1.0 - sh.xy);
             float edge = smoothstep(0.0, 0.1, min(e.x, e.y));
-            // A farther hit is a rougher reflection: blur it by how far it is.
+            // A farther hit is a rougher reflection: blur it by how far it is, in pixels the hit is from where the ray left.
             // Wider with the surface's own roughness, and with how far the ray went.
-            float blur = ((length(b - P) / max(u_maxDistance, 1.0)) * 6.0 + rough * 10.0) * (1.0 - 0.85 * puddle);
+            float far = length((sh.xy - project(P).xy) * vec2(size));
+            float blur = (rough * 10.0 + rough * far * 0.05) * (1.0 - 0.85 * puddle);
             vec2 texel = 1.0 / vec2(textureSize(u_texture, 0));
             vec3 col = texture(u_texture, sh.xy).rgb * 0.4;
             col += texture(u_texture, sh.xy + vec2( blur, 0.0) * texel).rgb * 0.15;
@@ -339,6 +373,7 @@ void main() {
             break;
         }
         prevP = Q;
+        frontT = t;
     }
     vec3 result = mix(scene.rgb, hitColor, clamp(weight * hit, 0.0, 1.0));
     // Where the ray found nothing on screen — it left the picture, or went on to the sky — the surface still
