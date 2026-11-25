@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { skyRadianceAt } from '../src/postprocess/skyEnvironment';
+import { skyRadianceAt, type SkyEnvironmentInput } from '../src/postprocess/skyEnvironment';
 
 // A clear sky, the effect's own defaults where they shape the dome.
 const params = (name: string): number =>
@@ -10,7 +10,7 @@ const params = (name: string): number =>
 /** The sky's light on a surface facing `normal`, cosine-weighted over the dome above the horizon (the ground sends nothing here). */
 function irradiance(elevationDeg: number, normal: [number, number, number]): [number, number, number] {
     const el = (elevationDeg * Math.PI) / 180;
-    const sun = [0, Math.sin(el), -Math.cos(el)];
+    const sky: SkyEnvironmentInput = { sun: [0, Math.sin(el), -Math.cos(el)], params, linear: false };
     const out = new Float64Array(3), sum: [number, number, number] = [0, 0, 0];
     for (let i = 0; i < 24; i++) {
         const up = ((i + 0.5) / 24) * (Math.PI / 2);
@@ -19,7 +19,7 @@ function irradiance(elevationDeg: number, normal: [number, number, number]): [nu
             const d = [Math.cos(up) * Math.sin(az), Math.sin(up), Math.cos(up) * Math.cos(az)];
             const facing = d[0]! * normal[0] + d[1]! * normal[1] + d[2]! * normal[2];
             if (facing <= 0) continue;
-            skyRadianceAt(d, { sun, params }, out);
+            skyRadianceAt(d, sky, out);
             for (let c = 0; c < 3; c++) sum[c] += out[c]! * facing * Math.cos(up);
         }
     }
