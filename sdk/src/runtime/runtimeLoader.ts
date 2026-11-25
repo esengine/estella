@@ -278,17 +278,20 @@ export function sceneUsesI18n(sceneData: SceneData): boolean {
 /** Cells can share the module read even when they have different lifetimes or world settings. */
 const SceneModuleReads = defineResource<{
     lifetime: symbol;
-    host: SideModuleHost;
-    pending: Map<SideModuleId, Promise<SideModule | null>>;
+    hosts: WeakMap<SideModuleHost, Map<SideModuleId, Promise<SideModule | null>>>;
 }>(null!, 'SceneModuleReads');
 
 function readSceneModule(app: App, host: SideModuleHost, lifetime: symbol, id: SideModuleId) {
     let state = app.hasResource(SceneModuleReads) ? app.getResource(SceneModuleReads) : undefined;
-    if (!state || state.lifetime !== lifetime || state.host !== host) {
-        state = { lifetime, host, pending: new Map() };
+    if (!state || state.lifetime !== lifetime) {
+        state = { lifetime, hosts: new WeakMap() };
         app.insertResource(SceneModuleReads, state);
     }
-    const pending = state.pending;
+    let pending = state.hosts.get(host);
+    if (!pending) {
+        pending = new Map();
+        state.hosts.set(host, pending);
+    }
     const shared = pending.get(id);
     if (shared) return shared;
     const read = Promise.resolve().then(() => host.acquire(id)).finally(() => { pending.delete(id); });

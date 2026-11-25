@@ -22,7 +22,8 @@ import { Physics2DPlugin } from '../src/physics/Physics2DPlugin';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import { World } from '../src/ecs/world';
-import type { App } from '../src/app/app';
+import { App } from '../src/app/app';
+import { collectGarbage } from '../src/diagnostics/census';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';
 import type { SceneData } from '../src/scene/scene';
@@ -81,6 +82,53 @@ const options = (app: App) => ({
 const load = (app: App, sceneData: SceneData): Promise<void> => loadRuntimeScene({ ...options(app), sceneData });
 
 describe('subsystems a scene installs for itself', () => {
+    it('rejoins a pending module when a scene returns to its original host', async () => {
+        const app = App.new(), entered = reservePromise<void>(), finish = reservePromise<void>();
+        const first = { acquire: vi.fn(async () => { entered.resolve(); await finish.promise; return null; }) };
+        const second = { acquire: vi.fn(async () => null) };
+        const config = (name: string) => createRuntimeSceneConfig(name, cell(name), { ...options(app), module: null });
+        const a = config('a'), b = config('b'), c = config('c');
+        try {
+            app.setSideModules(first);
+            const reading = a.prepare!();
+            await entered.promise;
+            app.setSideModules(second);
+            await b.prepare!();
+            app.setSideModules(first);
+            const joined = c.prepare!();
+            // All scene data is in memory. Let the third cell reach the pending provider before releasing it.
+            await new Promise(resolve => setTimeout(resolve, 0));
+            finish.resolve();
+            await Promise.all([reading, joined]);
+            expect(first.acquire).toHaveBeenCalledOnce();
+            expect(second.acquire).toHaveBeenCalledOnce();
+        } finally {
+            finish.resolve();
+            for (const scene of [a, b, c]) scene.discardPrepared!();
+            app.quit();
+        }
+    });
+
+    it('lets a retired module host be collected while its app keeps running', async () => {
+        const app = App.new();
+        const retire = async () => {
+            const host = { acquire: async () => null };
+            const ref = new WeakRef(host);
+            app.setSideModules(host);
+            const scene = createRuntimeSceneConfig('old', cell('old'), { ...options(app), module: null });
+            await scene.prepare!();
+            scene.discardPrepared!();
+            app.setSideModules({ acquire: async () => null });
+            return ref;
+        };
+        try {
+            const retired = await retire();
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(collectGarbage()).toBe(true);
+            expect(retired.deref()).toBeUndefined();
+        } finally { app.quit(); }
+    });
+
     it.each(['2D', '3D'] as const)('discards a speculative %s physics request before it installs a world', async dimension => {
         const entered = reservePromise<void>(), finish = reservePromise<void>(), acquired: string[] = [];
         const { app, plugins } = makeFakeApp(acquired, () => { entered.resolve(); return finish.promise; });
