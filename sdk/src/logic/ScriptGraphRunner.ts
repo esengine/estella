@@ -30,6 +30,7 @@ import type { AiOutputs, AiParams, AiParamValue, AiRegistry } from '../ai/fsm/re
 import { invokeAction } from '../ai/fsm/registry';
 import type { Blackboard } from '../ai/fsm/Blackboard';
 import { spawnPrepared, type PreparedPrefab } from '../prefab/preparedPrefab';
+import type { SceneContext } from '../scene/sceneManager';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import {
@@ -231,6 +232,8 @@ export interface ScriptTickContext<Ctx> {
      * context so the core stays wasm-free; whoever knows the world hands it in.
      */
     world?: World;
+    /** The agent's current scene, looked up when a spawn node runs. */
+    sceneForSpawn?: () => Pick<SceneContext, 'adopt'> | null;
     /**
      * The graph a `graph.call` names, resolved when the call runs rather than
      * held on the compiled caller: a graph belongs to the realm that loaded it,
@@ -437,6 +440,7 @@ function activate<Ctx>(
             }
             const parent = Number(pull('parent')) || undefined;
             const { root } = spawnPrepared(tick.world, prepared, {
+                scene: tick.sceneForSpawn?.(),
                 ...(parent === undefined ? {} : { parent: parent as Entity }),
                 position: { x: Number(pull('x')) || 0, y: Number(pull('y')) || 0 },
             });

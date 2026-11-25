@@ -85,7 +85,8 @@ export class PrefabServer {
                 parent: options?.parent,
                 overrides: resolveSpawnOverrides(prefab, pathOrAddress, options?.overrides),
             });
-            if (options?.scene !== false) this.adoptIntoActiveScene_(result);
+            const scene = options?.scene !== false && this.activeScene_();
+            if (scene) for (const entity of result.entities.values()) scene.adopt(entity);
             return result;
         } finally { lease.release(); }
     }
@@ -107,9 +108,9 @@ export class PrefabServer {
             },
             spawn: (options) => {
                 if (!held) throw new Error(`prefab "${pathOrAddress}" was released before this spawn`);
-                const made = spawnPrepared(this.world_, prepared, options?.parent !== undefined ? { parent: options.parent } : undefined);
-                if (options?.scene !== false) this.adoptIntoActiveScene_(made);
-                return made;
+                return spawnPrepared(this.world_, prepared, {
+                    parent: options?.parent, scene: options?.scene === false ? null : this.activeScene_(),
+                });
             },
         };
     }
@@ -119,12 +120,11 @@ export class PrefabServer {
      * the time the entities exist — adopting into whatever is active now is the
      * only owner that is real, and a switch that already happened takes it.
      */
-    private adoptIntoActiveScene_(result: { entities: ReadonlyMap<number, Entity> }): void {
+    private activeScene_() {
         const scenes = this.getScenes_();
-        const active = scenes?.getActive();
-        const ctx = active ? scenes?.getScene(active) : null;
-        if (!ctx) return;
-        for (const entity of result.entities.values()) ctx.adopt(entity);
+        if (!scenes) return null;
+        const active = scenes.getActive();
+        return active ? scenes.getScene(active) : null;
     }
 }
 

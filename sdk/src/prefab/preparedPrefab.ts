@@ -22,6 +22,7 @@
  */
 
 import type { World } from '../ecs/world';
+import type { SceneContext } from '../scene/sceneManager';
 import type { Entity } from '../types';
 import type { Assets } from '../asset/Assets';
 import { loadSceneData, SCENE_FORMAT_VERSION, type SceneData } from '../scene/scene';
@@ -116,6 +117,8 @@ export async function preparePrefabFromSource(
 }
 
 export interface SpawnPreparedOptions {
+    /** Scene that owns every entity in this instance. */
+    scene?: Pick<SceneContext, 'adopt'> | null;
     /** A rejected parent attachment rolls back the spawned hierarchy. */
     parent?: Entity;
     /** Where the root lands. Absent leaves the prefab's own transform. */
@@ -149,6 +152,7 @@ export function spawnPrepared(
             transform.position = { ...transform.position, ...options.position };
             world.set(root, Transform, transform);
         }
+        if (options?.scene) for (const entity of entities.values()) options.scene.adopt(entity);
         return { root, entities };
     } catch (error) {
         if (entities) for (const entity of entities.values()) if (world.valid(entity)) world.despawn(entity);

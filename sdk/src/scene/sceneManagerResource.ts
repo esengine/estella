@@ -12,8 +12,17 @@ import type { SceneManagerState } from './sceneManager';
  */
 export const SceneManager = defineResource<SceneManagerState>(null!, 'SceneManager');
 
+function ownerName(app: App, entity: Entity) {
+    return app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
+}
+
 /** The scene that currently owns this entity, including when it has just been adopted. */
+export function sceneContextForEntity(app: App, entity: Entity) {
+    const name = ownerName(app, entity);
+    return name ? app.getResource(SceneManager).getScene(name) : null;
+}
+
 export function sceneAssetScopeForEntity(app: App, entity: Entity) {
-    const name = app.hasResource(SceneManager) && app.world.tryGet(entity, SceneOwner)?.scene;
+    const name = ownerName(app, entity);
     return name ? app.getResource(SceneManager).assetScopeFor(name) : null;
 }

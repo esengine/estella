@@ -30,13 +30,28 @@ async function fixture(project) {
         ] },
     ] });
     const entity = (id, name, components) => ({ id, name, parent: null, children: [], visible: true, components });
+    const graph = 'assets/logic/agent.esgraph', callee = 'assets/logic/effect.esgraph', prefab = 'assets/art/effect.esprefab';
+    const wire = (from, to) => ({ id: from + '-' + to, from, fromPort: 'then', to, toPort: '' });
+    await asset(project, graph, 'scriptgraph', { version: '1.0', nodes: [
+        { id: 'event', kind: 'event.on', literals: { type: 'spawn-effect' } },
+        { id: 'call', kind: 'graph.call', literals: { graph: callee } },
+    ], edges: [wire('event', 'call')] });
+    await asset(project, callee, 'scriptgraph', { version: '1.0', nodes: [
+        { id: 'in', kind: 'graph.input' }, { id: 'make', kind: 'entity.spawn', literals: { prefab } },
+    ], edges: [wire('in', 'make')] });
+    await asset(project, prefab, 'prefab', { version: '2', name: 'Effect', rootEntityId: 'sprite', entities: [
+        { prefabEntityId: 'sprite', name: 'Spark', parent: null, children: ['mesh'], visible: true,
+            components: [{ type: 'Transform', data: {} }, { type: 'Sprite', data: { texture } }] },
+        { prefabEntityId: 'mesh', name: 'Shard', parent: 'sprite', children: [], visible: true,
+            components: [{ type: 'Transform', data: {} }, { type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture } }] },
+    ] });
     for (const [scene, shape, sampler] of [
         ['hud', { type: 'Sprite', data: { texture } }, { [image]: { filterMode: 'nearest', wrapMode: 'repeat', mipmaps: false } }],
         ['world', { type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture } }, { [texture]: { filterMode: 'linear', wrapMode: 'mirror', mipmaps: true } }],
     ]) {
         await asset(project, 'assets/scenes/' + scene + '.esscene', 'scene', { version: 4, name: scene, textureImporterSettings: sampler, entities: [
             entity(1, 'Caption', [{ type: 'Transform', data: {} }, { type: 'UIRect', data: {} }, { type: 'Text', data: { i18nKey: 'start' } }]),
-            entity(2, scene, [{ type: 'Transform', data: {} }, shape]),
+            entity(2, scene, [{ type: 'Transform', data: {} }, shape, { type: 'ScriptGraphAgent', data: { graph } }]),
             entity(3, scene + '-clip', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
                 { type: 'SpriteAnimator', data: { clip, playing: true } }]),
             entity(4, scene + '-motion', [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
@@ -62,7 +77,7 @@ async function fixture(project) {
     }));
     await fs.mkdir(path.join(project, 'src'));
     await fs.writeFile(path.join(project, 'src/main.ts'), `
-import { addPlugin, Assets, defineSystem, Input, Localization, MeshRenderer, Res, SceneManager, Sprite, Text, Transform } from 'esengine';
+import { addPlugin, Assets, defineSystem, EntityEvents, Input, Localization, MeshRenderer, Parent, Res, SceneManager, Sprite, Text, Transform } from 'esengine';
 addPlugin({ name: 'ReadSceneCaption', build(app) {
     let inputCaption = null;
     let ticks = 0;
@@ -102,6 +117,18 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
             z: app.world.get(motion, Transform).position.z, mesh: name === 'world' && !!app.world.get(motion, MeshRenderer).mesh,
         };
     };
+    const effects = new Map();
+    globalThis.spawnGraphEffect = name => {
+        const scene = app.getResource(SceneManager).getScene(name), before = new Set(scene.entities);
+        app.getResource(EntityEvents).emit(app.world.findEntityByName(name), 'spawn-effect');
+        const created = [...scene.entities].filter(entity => !before.has(entity));
+        const sprite = created.find(entity => app.world.has(entity, Sprite)), mesh = created.find(entity => app.world.has(entity, MeshRenderer));
+        if (created.length !== 2 || sprite == null || mesh == null || app.world.get(mesh, Parent).entity !== sprite)
+            throw new Error(name + ' did not receive the sprite and its mesh child');
+        effects.set(name, created);
+        return [sampling(app.world.get(sprite, Sprite).texture), sampling(app.world.get(mesh, MeshRenderer).texture)];
+    };
+    globalThis.liveEffectParts = name => effects.get(name).filter(entity => app.world.valid(entity)).length;
     globalThis.addCaptionScene = name => app.getResource(SceneManager).loadAdditive(name).then(() => ticks);
     globalThis.removeCaptionScene = name => app.getResource(SceneManager).unload(name).then(() => ticks);
     globalThis.bootReady = () => {
@@ -209,11 +236,13 @@ async function check(browser, project, dir, platform) {
         await advance(await page.evaluate(() => globalThis.addCaptionScene('world')));
         for (const name of ['hud', 'world']) {
             assert.deepEqual(await page.evaluate(name => globalThis.playingSamples(name), name), expected(name), platform + ' additive ' + name);
+            assert.deepEqual(await page.evaluate(name => globalThis.spawnGraphEffect(name), name), [samplers[name], samplers[name]], platform + ' graph ' + name);
         }
         await advance(await page.evaluate(() => globalThis.removeCaptionScene('world')));
+        assert.deepEqual(await page.evaluate(() => ['hud', 'world'].map(name => globalThis.liveEffectParts(name))), [2, 0]);
         assert.deepEqual(await page.evaluate(() => globalThis.playingSamples('hud')), expected('hud'));
         assert.deepEqual(errors, []);
-        console.log(platform + ' passed preload/discard, four switches and additive 2D/3D playback with independent GPU sampling');
+        console.log(platform + ' passed preload/discard, four switches, additive playback and scene-owned 2D/3D graph spawns with independent GPU sampling');
     } catch (error) {
         const state = await page.evaluate(() => globalThis.readCaption?.()).catch(() => null);
         throw new Error(`${platform}: ${JSON.stringify({ state, errors })}`, { cause: error });

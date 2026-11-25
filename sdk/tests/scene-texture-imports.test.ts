@@ -9,9 +9,14 @@ import { SpriteAnimation, SpriteAnimator } from '../src/animation/SpriteAnimator
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import { Assets } from '../src/asset/AssetPlugin';
 import { contentHashHex } from '../src/asset/contentHash';
-import { defineComponent, MeshRenderer, Parent, Sprite, TilemapLayer } from '../src/ecs/component';
+import { defineComponent, MeshRenderer, Parent, SceneOwner, Sprite, TilemapLayer } from '../src/ecs/component';
+import { EntityEvents } from '../src/ecs/entityEvents';
 import { linearColorSpace, setLinearColorSpace } from '../src/ecs/env';
 import { installHotUpdateRebind } from '../src/hotUpdateRebind';
+import { Input, InputState } from '../src/input/input';
+import { registerScriptGraphSupport } from '../src/logic/logicSupport';
+import { ScriptGraphAgent } from '../src/logic/ScriptGraphAgent';
+import { ScriptGraphPlugin } from '../src/logic/ScriptGraphPlugin';
 import { initRuntime, prepareRuntimeScene, publishRuntimeScene, type RuntimeAssetSource } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
 import { SceneManager } from '../src/scene/sceneManager';
@@ -416,6 +421,85 @@ it.skipIf(!HAS_WASM)('sends each painted and Tiled layer its own atlas when both
         expect(handles('home').every((id, i) => id !== before[i])).toBe(true);
         expect(sampling('home')).toMatchObject([nearest, nearest]);
         expect(sampling('next')).toMatchObject([linear, linear]);
+    } finally { close(); }
+});
+
+it.skipIf(!HAS_WASM)('spawns direct and called graph prefabs with the agent’s sampler and scene lifetime', async () => {
+    registerScriptGraphSupport();
+    const core = await loadWasmModule();
+    const app = App.new().connectCpp(new core.Registry(), core, { ownedRegistry: true });
+    const graph = 'logic/main.esgraph', callee = 'logic/effect.esgraph', prefab = 'art/effect.esprefab';
+    const wire = (from: string, to: string) => ({ id: from + '-' + to, from, fromPort: 'then', to, toPort: '' });
+    const spawn = { id: 'spawn', kind: 'entity.spawn', literals: { prefab } };
+    const docs = new Map<string, unknown>([
+        [graph, { version: '1.0', nodes: [
+            { id: 'start', kind: 'event.start' },
+            { id: 'direct', kind: 'event.on', literals: { type: 'direct' } }, spawn,
+            { id: 'nested', kind: 'event.on', literals: { type: 'nested' } },
+            { id: 'call', kind: 'graph.call', literals: { graph: callee } },
+        ], edges: [wire('start', 'call'), wire('direct', 'spawn'), wire('nested', 'call')] }],
+        [callee, { version: '1.0', nodes: [{ id: 'in', kind: 'graph.input' }, spawn], edges: [wire('in', 'spawn')] }],
+        [prefab, { version: '2', name: 'Effect', rootEntityId: 'root', entities: [
+            { prefabEntityId: 'root', name: 'Effect', parent: null, children: ['child'], visible: true,
+                components: [{ type: 'Transform', data: {} }, sprite] },
+            { prefabEntityId: 'child', name: 'Glow', parent: 'root', children: [], visible: true,
+                components: [{ type: 'Transform', data: {} }, mesh] },
+        ] }],
+    ]);
+    const field = { type: 'ScriptGraphAgent', data: { graph } };
+    const { assets, scenes, uploads, close } = await game(field, { backend: {
+        resolveUrl: path => path, fetchBinary: async () => new ArrayBuffer(0),
+        fetchText: async path => { if (!docs.has(path)) throw new Error(path); return JSON.stringify(docs.get(path)); },
+    } }, { app, configure(app) { app.insertResource(Input, new InputState()); app.addPlugin(new ScriptGraphPlugin()); } });
+    try {
+        const emit = (name: string, event: string, owner: string | null = name) => {
+            const before = new Set(app.world.getEntitiesWithComponents([Sprite]));
+            app.getResource(EntityEvents).emit(app.world.findEntityByName(name)!, event);
+            const roots = app.world.getEntitiesWithComponents([Sprite]).filter(entity => !before.has(entity));
+            expect(roots).toHaveLength(1);
+            const [root] = roots;
+            const child = app.world.getEntitiesWithComponents([MeshRenderer]).find(entity => app.world.get(entity, Parent).entity === root)!;
+            expect(child).toBeDefined();
+            const texture = app.world.get(root, Sprite).texture;
+            for (const entity of [root, child]) expect(app.world.tryGet(entity, SceneOwner)?.scene ?? null).toBe(owner);
+            for (const handle of [texture, app.world.get(child, MeshRenderer).texture]) {
+                expect(uploads.get(handle)).toMatchObject(name === 'home' ? nearest : linear);
+            }
+            return { root, child, texture };
+        };
+        await app.tick(1 / 60);
+        await scenes.prepare('next');
+        const first = emit('home', 'direct');
+        await scenes.loadAdditive('next');
+        await app.tick(1 / 60);
+        const started = [...scenes.getScene('next')!.entities].filter(entity => app.world.has(entity, Sprite));
+        expect(started).toHaveLength(1);
+        expect(uploads.get(app.world.get(started[0], Sprite).texture)).toMatchObject(linear);
+        const other = emit('next', 'nested');
+        expect(emit('home', 'nested').texture).toBe(first.texture);
+        expect(emit('next', 'direct').texture).toBe(other.texture);
+        assets.invalidate(file);
+        await assets.assetGraphSettled();
+        const refreshed = emit('home', 'direct');
+        expect(refreshed.texture).not.toBe(first.texture);
+        expect(emit('home', 'nested').texture).toBe(refreshed.texture);
+        scenes.getScene('home')!.adopt(app.world.findEntityByName('next')!);
+        const moved = emit('next', 'nested', 'home');
+        await scenes.unload('next');
+        for (const entity of [other.root, other.child]) expect(app.world.valid(entity)).toBe(false);
+        expect(app.world.valid(moved.root)).toBe(true);
+        const actor = app.world.findEntityByName('home')!;
+        scenes.getScene('home')!.setPersistent(actor, true);
+        await scenes.unload('home');
+        expect(app.world.getEntitiesWithComponents([Sprite])).toHaveLength(0);
+        expect(app.world.getEntitiesWithComponents([MeshRenderer])).toHaveLength(0);
+        const unowned = emit('home', 'direct', null);
+        app.world.despawn(unowned.root);
+        app.world.set(actor, ScriptGraphAgent, { graph: '' });
+        app.getResource(EntityEvents).emit(actor, 'direct');
+        expect(app.world.getEntitiesWithComponents([Sprite])).toHaveLength(0);
+        app.world.despawn(actor);
+        expect(assets.sizes().refRows).toBe(0);
     } finally { close(); }
 });
 

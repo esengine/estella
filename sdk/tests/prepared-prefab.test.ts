@@ -103,6 +103,22 @@ describe.skipIf(!HAS_WASM)('prepared prefabs use the same dependency graph as as
             expect(w.getAllEntities()).toHaveLength(0);
         } finally { for (const e of w.getAllEntities()) if (w.valid(e)) w.despawn(e); prepared.release(); }
     });
+    it('rolls back the whole instance if scene adoption fails partway through', async () => {
+        const source = leaf('root'); source.entities[0].children = ['child'];
+        source.entities.push({ ...leaf('child').entities[0], prefabEntityId: 'child', parent: 'root' });
+        const { assets } = assetsFor({ root: source });
+        const prepared = await preparePrefab(assets, 'root'), w = world();
+        try {
+            const adopt = vi.fn().mockImplementationOnce(() => {}).mockImplementationOnce(() => { throw new Error('retired scene'); });
+            expect(() => spawnPrepared(w, prepared, { scene: { adopt } })).toThrow('retired scene');
+            expect(adopt).toHaveBeenCalledTimes(2);
+            expect(w.getAllEntities()).toHaveLength(0);
+            const retry = spawnPrepared(w, prepared);
+            expect(retry.entities.size).toBe(2);
+            w.despawn(retry.root);
+        } finally { prepared.release(); }
+    });
+
     it('supports live parents, position overrides and an explicit unparented spawn', async () => {
         const { assets } = assetsFor({ root: leaf('root') });
         const prepared = await preparePrefab(assets, 'root'), w = world();

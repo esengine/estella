@@ -21,6 +21,10 @@ graph the package ships are the same data.
 The asset is referenced by path and preloaded with the scene, so it is ready before the agent's first tick. Graphs run in
 **Play** and in the exported game, in the `Update` schedule beside the state-machine interpreter.
 
+When two scenes share a graph, each agent uses its own texture import settings for prefabs, including spawns in a
+called graph. A scene-owned agent's `entity.spawn` adds the whole prefab to its scene, so unloading that scene also
+removes the spawned hierarchy. An agent outside any scene creates an unowned instance.
+
 ![A script graph on its canvas: an Every frame event wired through Set variable, Set property and Branch nodes, with the Inputs, Outputs and Variables list on the left](@/assets/guides/en/script-graph.png)
 
 *The Script Graph Demo example: a bouncer that moves every frame and turns round at an edge. The list on the left shows

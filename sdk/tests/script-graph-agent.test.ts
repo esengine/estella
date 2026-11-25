@@ -162,6 +162,40 @@ describe('a graph on an entity', () => {
         expect(log).toEqual([`bye:${e}`]);
     });
 
+    it('calls a code-registered graph when the agent has no matching asset', () => {
+        registerScriptGraph('effect', graph([
+            { id: 'in', kind: 'graph.input' }, { id: 'n', kind: 'call', ref: 'test.note', literals: { text: 'effect' } },
+        ], [wire('in', 'then', 'n', '')]));
+        registerScriptGraph('caller', graph([
+            { id: 's', kind: 'event.start' }, { id: 'c', kind: 'graph.call', literals: { graph: 'effect' } },
+        ], [wire('s', 'then', 'c', '')]));
+        const world = new FakeWorld(), entity = world.spawn('caller');
+        stepScriptGraphs(world, NO_COMMANDS, 0.1, new Map(), () => undefined);
+        expect(log).toEqual([`effect:${entity}`]);
+    });
+
+    it('restarts a cleared graph and tears it down when an empty agent replaces the entity', () => {
+        registerScriptGraph('lifecycle', graph([
+            { id: 's', kind: 'event.start' }, { id: 'd', kind: 'event.destroy' },
+            { id: 'start', kind: 'call', ref: 'test.note', literals: { text: 'start' } },
+            { id: 'end', kind: 'call', ref: 'test.note', literals: { text: 'end' } },
+        ], [wire('s', 'then', 'start', ''), wire('d', 'then', 'end', '')]));
+        const world = new FakeWorld(), entity = world.spawn('lifecycle'), states = new Map();
+        const tick = () => stepScriptGraphs(world, NO_COMMANDS, 0.1, states);
+        tick();
+        const bb = new ScriptGraphs(states).blackboard(entity);
+        world.set(entity, ScriptGraphAgent, { graph: '' });
+        tick();
+        world.set(entity, ScriptGraphAgent, { graph: 'lifecycle' });
+        tick();
+        expect(new ScriptGraphs(states).blackboard(entity)).toBe(bb);
+        world.despawn(entity);
+        world.spawn('');
+        tick();
+        expect(log).toEqual([`start:${entity}`, `start:${entity}`, `end:${entity}`]);
+        expect(states.size).toBe(0);
+    });
+
     it('rebuilds the instance when the agent is pointed at another graph', () => {
         registerScriptGraph('one', graph(
             [{ id: 'u', kind: 'event.start' }, { id: 'n', kind: 'call', ref: 'test.note', literals: { text: 'one' } }],

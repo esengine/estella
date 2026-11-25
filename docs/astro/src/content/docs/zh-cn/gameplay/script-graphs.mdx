@@ -15,6 +15,9 @@ description: 脚本图参考——.esgraph 资源与 ScriptGraphAgent、执行�
 
 资源按路径引用并随场景预加载，因此在代理首次 tick 之前即已就绪。脚本图在 **Play** 与导出的游戏中运行，位于 `Update` 调度，与状态机解释器并列。
 
+两个场景共用一张图时，各自的代理会按自己的纹理导入设置生成预制体，调用子图时也一样。
+场景中的代理通过 `entity.spawn` 生成的整棵实体树归该场景所有，卸载场景时会一并移除。没有场景归属的代理生成的实例也没有场景归属。
+
 ![画布上的脚本图:Every frame 事件连向 Set variable、Set property 与 Branch 节点,左侧是 Inputs、Outputs 与 Variables 列表](@/assets/guides/zh/script-graph.png)
 
 *Script Graph Demo 示例：每帧移动并在边缘掉头的弹跳物。左侧列表显示每个变量以及读写它的节点数量。*

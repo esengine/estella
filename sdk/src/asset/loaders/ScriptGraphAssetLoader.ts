@@ -29,6 +29,7 @@ import { log } from '../../util/logger';
 
 export class ScriptGraphAssetLoader implements AssetLoader<ScriptGraphResult> {
     readonly type = 'scriptgraph';
+    readonly bindsTextures = true;
     readonly extensions = ['.esgraph'];
 
     readonly registry: RegistryAssetLoader<ScriptGraphResult> = {

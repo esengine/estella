@@ -27,6 +27,8 @@ import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 import { ensureBuiltinScriptNodes } from './builtinNodes';
 import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../ai/worldView';
 import { appRegistryAsset, appRegistryAssets } from '../asset/registryLookup';
+import { sceneContextForEntity } from '../scene/sceneManagerResource';
+import type { SceneContext } from '../scene/sceneManager';
 import { ensureEntityEvents, type EntityEvent, type EntityEventQueue, type Unsubscribe } from '../ecs/entityEvents';
 import { ScriptGraphAgent, getScriptGraph, allScriptGraphs } from './ScriptGraphAgent';
 import {
@@ -54,6 +56,8 @@ export interface ScriptGraphWorldView {
 }
 
 type MutableAiContext = { -readonly [K in keyof AiContext]: AiContext[K] };
+type GraphResolver = (ref: string, entity: Entity) => CompiledScriptGraph | undefined;
+type SpawnSceneResolver = (entity: Entity) => Pick<SceneContext, 'adopt'> | null;
 
 /** Get (creating if needed) an agent's blackboard — lets game code seed data early. */
 export function agentGraphBlackboard(states: Map<Entity, AgentState>, entity: Entity): Blackboard {
@@ -80,6 +84,21 @@ function contextFor(world: ScriptGraphWorldView, commands: CommandsInstance, inp
     return ctx;
 }
 
+function agentTick(
+    ctx: MutableAiContext, entity: Entity, st: AgentState, dt: number,
+    resolveGraph?: GraphResolver, onProblem?: (entity: Entity, message: string) => void, sceneForSpawn?: SpawnSceneResolver,
+): ScriptTickContext<AiContext> {
+    ctx.entity = entity;
+    ctx.dt = dt;
+    ctx.blackboard = st.bb;
+    return {
+        ctx, bb: st.bb, registry: aiRegistry, dt, world: ctx.world,
+        onProblem: message => onProblem?.(entity, message),
+        resolveGraph: ref => resolveGraph?.(ref, entity) ?? getScriptGraph(ref),
+        sceneForSpawn: sceneForSpawn && (() => sceneForSpawn(entity)),
+    };
+}
+
 /**
  * Advance every ScriptGraphAgent one tick, and run `event.destroy` for the ones
  * that left. Presence is diffed against the live query rather than watching for
@@ -91,36 +110,36 @@ export function stepScriptGraphs(
     commands: CommandsInstance,
     dt: number,
     states: Map<Entity, AgentState>,
-    resolveGraph?: (ref: string) => CompiledScriptGraph | undefined,
+    resolveGraph?: (ref: string, entity: Entity) => CompiledScriptGraph | undefined,
     onProblem?: (entity: Entity, message: string) => void,
     input: InputState = noInput(),
+    sceneForSpawn?: (entity: Entity) => Pick<SceneContext, 'adopt'> | null,
 ): void {
     const ctx = contextFor(world, commands, input);
-    const tick = (entity: Entity, st: AgentState, delta: number): ScriptTickContext<AiContext> => {
-        ctx.entity = entity;
-        ctx.dt = delta;
-        ctx.blackboard = st.bb;
-        return {
-            ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: delta,
-            world: world as unknown as World,
-            onProblem: message => onProblem?.(entity, message),
-            ...(resolveGraph ? { resolveGraph } : {}),
-        };
-    };
+    const tick = (entity: Entity, st: AgentState, delta: number) =>
+        agentTick(ctx, entity, st, delta, resolveGraph, onProblem, sceneForSpawn);
 
-    const present = new Set<Entity>();
+    const absent = new Set(states.keys());
     for (const entity of world.getEntitiesWithComponents([ScriptGraphAgent])) {
-        present.add(entity);
+        absent.delete(entity);
         const agent = world.get(entity, ScriptGraphAgent);
-        if (!agent.graph) continue;
 
         let st = states.get(entity);
         if (!st) {
+            if (!agent.graph) continue;
             st = { bb: new Blackboard(), run: null, graphKey: null, compiled: null, missing: new Set() };
             states.set(entity, st);
         }
-
-        const compiled = resolveGraph?.(agent.graph) ?? getScriptGraph(agent.graph);
+        if (st.graphKey !== agent.graph) {
+            st.graphKey = agent.graph;
+            st.run = null;
+        }
+        if (!agent.graph) {
+            st.compiled = null;
+            continue;
+        }
+        const compiled = resolveGraph?.(agent.graph, entity) ?? getScriptGraph(agent.graph);
+        st.compiled = compiled ?? null;
         // A ref nothing has is the loudest thing this system can find: the
         // entity carries a graph, and NOT running it looks exactly like running
         // one that does nothing.
@@ -132,19 +151,20 @@ export function stepScriptGraphs(
             continue;
         }
         st.missing.delete(agent.graph);
-        if (st.run === null || st.graphKey !== agent.graph) {
+        if (st.run === null) {
             st.run = createScriptRunState(compiled);
-            st.graphKey = agent.graph;
-            st.compiled = compiled;
             for (const problem of compiled.problems) onProblem?.(entity, problem);
         }
         stepScriptGraph(compiled, st.run, tick(entity, st, dt));
     }
 
-    if (states.size === present.size) return;
-    for (const [entity, st] of states) {
-        if (present.has(entity)) continue;
-        if (st.compiled && st.run) destroyScriptGraph(st.compiled, st.run, tick(entity, st, 0));
+    for (const entity of absent) {
+        const st = states.get(entity);
+        if (st?.run && st.graphKey) {
+            const lastTick = tick(entity, st, 0);
+            const compiled = lastTick.resolveGraph?.(st.graphKey);
+            if (compiled) destroyScriptGraph(compiled, st.run, lastTick);
+        }
         states.delete(entity);
     }
 }
@@ -186,7 +206,12 @@ function createEventBridge(
     const handle = (event: EntityEvent): void => {
         const self = event.currentTarget;
         const st = states.get(self);
-        if (!st?.compiled || !st.run) return;
+        if (!st?.compiled || !st.run || !st.graphKey) return;
+        const tick = tickOf(self, st);
+        if (tick.ctx.world.tryGet(self, ScriptGraphAgent)?.graph !== st.graphKey) return;
+        // A reload can retire the previous prefab recipes between the frame and this event.
+        const compiled = tick.resolveGraph?.(st.graphKey);
+        if (!compiled) return;
         // The payload's `other` when it has one — physics names the contact's
         // partner there, and that is the entity a game reacts to.
         const data = event.data as { other?: number; payload?: unknown } | undefined;
@@ -194,7 +219,7 @@ function createEventBridge(
         // The fields a node's payload pins read: the event's own, and those of its `payload` (a timeline marker's).
         const inner = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : null;
         const fields = data && typeof data === 'object' ? { ...(data as Record<string, unknown>), ...inner } : undefined;
-        fireScriptGraphEvent(st.compiled, st.run, tickOf(self, st), event.type, event.target as number, other, fields);
+        fireScriptGraphEvent(compiled, st.run, tick, event.type, event.target as number, other, fields);
     };
 
     return {
@@ -266,23 +291,12 @@ export class ScriptGraphPlugin implements Plugin {
 
         // An event arrives outside the system body, so the context it runs on is
         // built from the frame's last known commands and delta.
-        const ctx = contextFor(world, null as unknown as CommandsInstance, noInput());
+        const resolveGraph: GraphResolver = (ref, entity) => appRegistryAsset<CompiledScriptGraph>(app, 'scriptgraph', ref, entity);
+        const sceneForSpawn: SpawnSceneResolver = entity => sceneContextForEntity(app, entity);
         const bridge = createEventBridge(events, states, (entity, st) => {
-            ctx.entity = entity;
-            ctx.dt = dt_;
-            ctx.blackboard = st.bb;
-            ctx.commands = commands_ as CommandsInstance;
-            ctx.input = input_;
-            return {
-                ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: dt_,
-                world: world as unknown as World,
-                onProblem: message => onProblem(entity, message),
-                resolveGraph,
-            };
+            const ctx = contextFor(world, commands_ as CommandsInstance, input_);
+            return agentTick(ctx, entity, st, dt_, resolveGraph, onProblem, sceneForSpawn);
         });
-
-        const resolveGraph = (ref: string): CompiledScriptGraph | undefined =>
-            appRegistryAsset<CompiledScriptGraph>(app, 'scriptgraph', ref);
 
         app.addSystemToSchedule(
             Schedule.Update,
@@ -292,7 +306,7 @@ export class ScriptGraphPlugin implements Plugin {
                     commands_ = commands;
                     dt_ = time.delta;
                     input_ = input;
-                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem, input);
+                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem, input, sceneForSpawn);
                     bridge.sync();
                 },
                 // Asked per analysis, not once: a graph loaded later changes the

@@ -178,6 +178,7 @@ dt: number
 onProblem: ((message: string) => void) | undefined
 registry: AiRegistry<Ctx>
 resolveGraph: ((ref: string) => CompiledScriptGraph | undefined) | undefined
+sceneForSpawn: (() => Pick<SceneContext, "adopt"> | null) | undefined
 world: World | undefined
 ```
 
@@ -437,6 +438,6 @@ ScriptGraphPlugin
 
 ## stepScriptGraphs — function @experimental
 ```
-(world: ScriptGraphWorldView, commands: CommandsInstance, dt: number, states: Map<Entity, AgentState>, resolveGraph?: (ref: string) => CompiledScriptGraph | undefined, onProblem?: (entity: Entity, message: string) => void, input?: InputState): void
+(world: ScriptGraphWorldView, commands: CommandsInstance, dt: number, states: Map<Entity, AgentState>, resolveGraph?: (ref: string, entity: Entity) => CompiledScriptGraph | undefined, onProblem?: (entity: Entity, message: string) => void, input?: InputState, sceneForSpawn?: (entity: Entity) => Pick<SceneContext, "adopt"> | null): void
 ```
 
