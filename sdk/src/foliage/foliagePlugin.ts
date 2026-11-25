@@ -234,6 +234,22 @@ const farLevelsOf = (data: FoliageData, mesh: boolean): number =>
 /** Where far version `level` (1 on) takes over from the one before. */
 const takesOverAt = (data: FoliageData, level: number): number => data.lodDistance * Math.pow(Math.max(data.farStep, 1.01), level - 1);
 
+/** Says which instance a standing cell draws with (0 when it is gone), keeping the count of cells on each. */
+function drawWith(field: FoliageField, cell: Entity, instance: number): void {
+    const was = field.cellInstance_.get(cell) ?? 0;
+    if (was === instance) return;
+    if (was) {
+        const left = (field.instanceCells_.get(was) ?? 1) - 1;
+        if (left > 0) field.instanceCells_.set(was, left); else field.instanceCells_.delete(was);
+    }
+    if (instance) {
+        field.cellInstance_.set(cell, instance);
+        field.instanceCells_.set(instance, (field.instanceCells_.get(instance) ?? 0) + 1);
+    } else {
+        field.cellInstance_.delete(cell);
+    }
+}
+
 /** Run-time facts about the foliage the plugin has grown. */
 export class FoliageField {
     /** @internal */ readonly built_ = new Map<Entity, BuiltFoliage>();
@@ -241,6 +257,9 @@ export class FoliageField {
     readonly authoredWind_ = new Map<number, number>();
     /** Instances of materials no field draws with any more, let go once the cells grown with them are gone. */
     readonly retired_: { instance: number; frames: number }[] = [];
+    /** @internal The instance each standing cell draws with, and how many draw with each: a retired one is let go only once none does. */
+    readonly cellInstance_ = new Map<Entity, number>();
+    /** @internal */ readonly instanceCells_ = new Map<number, number>();
 
     /** @internal */ app_: App | null = null;
 
@@ -321,6 +340,20 @@ export class FoliagePlugin implements Plugin {
                     const kept = built && built.data.material === data.material ? built.instance : 0;
                     if (built && built.instance && !kept) field.retired_.push({ instance: built.instance, frames: 600 });
                     const instance = kept || (data.material ? Material.createInstance(data.material) : 0);
+                    // From one material to another the plants' geometry is the same (only a field with no material paints its own
+                    // colours into it), so the cells standing take the new instance at once: the old one is then drawn by no cell, and
+                    // none is left on an instance whose material has been let go — its shader goes with that material, and a cell drawn
+                    // with it shows its plants' data as colour until its new version is published.
+                    if (built && built.instance && !kept && instance && built.data.material) {
+                        for (const [name, value] of Material.get(built.instance)?.uniforms ?? []) Material.setUniform(instance, name, value);
+                        const moving = [...field.cellInstance_].filter(([, used]) => used === built!.instance).map(([cell]) => cell);
+                        for (const cell of moving) {
+                            if (app.world.valid(cell) && app.world.has(cell, MeshRenderer)) {
+                                app.world.insert(cell, MeshRenderer, { ...(app.world.get(cell, MeshRenderer) as MeshRendererData), material: instance });
+                            }
+                            drawWith(field, cell, instance);
+                        }
+                    }
                     built = { signature, data: { ...data }, source: null, instance, density: null, scale: null, loading: true, epoch: (built?.epoch ?? 0) + 1 };
                     field.built_.set(entity, built);
                     void this.start(app, built);
@@ -379,6 +412,8 @@ export class FoliagePlugin implements Plugin {
         for (const built of field.built_.values()) if (built.instance) Material.release(built.instance);
         for (const r of field.retired_) Material.release(r.instance);
         field.retired_.length = 0;
+        field.cellInstance_.clear();
+        field.instanceCells_.clear();
         field.built_.clear();
         // What had come back and not landed is let go with the field: its cells are no longer anyone's.
         field.landed_.length = 0;
@@ -442,6 +477,7 @@ export class FoliagePlugin implements Plugin {
                 make: (cx, cz, signal) => (waiting || built.loading ? null : this.grow(app, entity, built, cx, cz, away, generation, signal, only)),
                 publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
                 release: (_cx, _cz, cell) => {
+                    if (cell.entity !== null && app.hasResource(FoliageRes)) drawWith(app.getResource(FoliageRes), cell.entity, 0);
                     if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
                     for (const handle of cell.handles) assets.releaseBuiltMesh(handle);
                 },
@@ -645,6 +681,9 @@ export class FoliagePlugin implements Plugin {
                 cullSize: lodCullSizeWithin(radius, data.drawDistance), hysteresis: 0.1, enabled: true,
             });
         }
+        // Counted, so the instance outlives a change of material for as long as this cell does: a cell of the old generation stands
+        // until its new version is published, and drawn with an instance already let go it would show its plants' data as colour.
+        if (built.instance) drawWith(app.getResource(FoliageRes), cell, built.instance);
         return { entity: cell, handles };
     }
 
@@ -656,8 +695,10 @@ export class FoliagePlugin implements Plugin {
             field.built_.delete(entity);
         }
         for (let i = field.retired_.length - 1; i >= 0; i--) {
-            if (--field.retired_[i]!.frames > 0) continue;
-            Material.release(field.retired_[i]!.instance);
+            const r = field.retired_[i]!;
+            if (r.frames > 0) r.frames--;
+            if (r.frames > 0 || field.instanceCells_.has(r.instance)) continue;
+            Material.release(r.instance);
             field.retired_.splice(i, 1);
         }
     }

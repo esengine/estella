@@ -5196,6 +5196,8 @@ zoneWorld: string
 @internal app_: App | null
 @internal authoredWind_: Map<number, number>
 @internal built_: Map<number, BuiltFoliage>
+@internal cellInstance_: Map<number, number>
+@internal instanceCells_: Map<number, number>
 @internal landed_: (() => void)[]
 cellCount: number
 pending: number
