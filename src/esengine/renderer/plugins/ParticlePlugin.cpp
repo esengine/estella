@@ -123,18 +123,23 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
         bool isLocalSpace = emitter.simulationSpace ==
                             static_cast<i32>(ecs::SimulationSpace::Local);
-        glm::vec3 emitterWorldPos = rebased(transform.worldPosition);
-        f32 emitterAngle = 0.0f;
-        glm::vec2 emitterScale(transform.worldScale);
-        f32 cosA = 1.0f, sinA = 0.0f;
-        if (isLocalSpace) {
-            const auto& rot = transform.worldRotation;
-            emitterAngle = 2.0f * std::atan2(rot.z, rot.w);
-            if (std::abs(emitterAngle) > 0.001f) {
-                cosA = std::cos(emitterAngle);
-                sinA = std::sin(emitterAngle);
+        const glm::vec3 emitterWorldPos = rebased(transform.worldPosition);
+        const glm::vec2 emitterScale(transform.worldScale);
+        const auto& rot = transform.worldRotation;
+        const f32 emitterAngle = isLocalSpace ? 2.0f * std::atan2(rot.z, rot.w) : 0.0f;
+        const bool rotateEmitter = std::abs(emitterAngle) > 0.001f;
+        const f32 cosA = rotateEmitter ? std::cos(emitterAngle) : 1.0f;
+        const f32 sinA = rotateEmitter ? std::sin(emitterAngle) : 0.0f;
+        const auto toRenderPosition = [&](glm::vec3 position) {
+            if (!isLocalSpace) return rebased(position);
+            // Scale and turn in the emitter's plane. Depth rides through it.
+            const glm::vec3 relative = position * glm::vec3(emitterScale, 1.0f);
+            if (rotateEmitter) {
+                return emitterWorldPos + glm::vec3(relative.x * cosA - relative.y * sinA,
+                    relative.x * sinA + relative.y * cosA, relative.z);
             }
-        }
+            return emitterWorldPos + relative;
+        };
 
         BlendMode blendMode = static_cast<BlendMode>(emitter.blendMode);
 
@@ -155,23 +160,8 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
         u32 i = 0;
         if (!state->gpu) state->pool.forEachAlive([&](const particle::Particle& p) {
-            glm::vec3 worldPos;
-            glm::vec2 size;
-            if (isLocalSpace) {
-                // The emitter's own turn is about Z, as a flat scene's is; depth
-                // rides through it untouched rather than being dropped.
-                glm::vec3 rel = p.position * glm::vec3(emitterScale, 1.0f);
-                if (std::abs(emitterAngle) > 0.001f) {
-                    worldPos = emitterWorldPos +
-                        glm::vec3(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA, rel.z);
-                } else {
-                    worldPos = emitterWorldPos + rel;
-                }
-                size = glm::vec2(p.size) * emitterScale;
-            } else {
-                worldPos = rebased(p.position);
-                size = glm::vec2(p.size);
-            }
+            const glm::vec3 renderPos = toRenderPosition(p.position);
+            glm::vec2 size = isLocalSpace ? glm::vec2(p.size) * emitterScale : glm::vec2(p.size);
 
             f32 u0 = 0.0f, v0 = 0.0f;
             if (sheet) {
@@ -188,14 +178,14 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                     const glm::vec2 flat = glm::vec2(v) * emitterScale;
                     v = glm::vec3(flat.x * cosA - flat.y * sinA, flat.x * sinA + flat.y * cosA, v.z);
                 }
-                const glm::vec2 seen = particle::velocityOnScreen(v, towardViewer(worldPos, collect_ctx.camera));
+                const glm::vec2 seen = particle::velocityOnScreen(v, towardViewer(renderPos, collect_ctx.camera));
                 const particle::StretchedQuad quad = particle::stretchedQuad(seen, rotation, size.y, lengthScale, velocityScale);
                 rotation = quad.rotation;
                 size.y = quad.length;
             }
 
             ParticleInstanceData& d = inst[i++];
-            d.px = worldPos.x;       d.py = worldPos.y;       d.pz = worldPos.z;
+            d.px = renderPos.x;      d.py = renderPos.y;      d.pz = renderPos.z;
             d.sx = size.x;           d.sy = size.y;
             d.rotation = rotation;
             d.color = packColor(p.color);
@@ -289,14 +279,6 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             };
             const int keep = std::min(std::max(emitter.trailPoints, 2), particle::kMaxTrailPoints);
             const auto& particles = state->pool.particles();
-            auto toWorld = [&](glm::vec3 pos) -> glm::vec3 {
-                if (!isLocalSpace) return pos;
-                glm::vec3 rel = pos * glm::vec3(emitterScale, 1.0f);
-                if (std::abs(emitterAngle) > 0.001f)
-                    return emitterWorldPos +
-                           glm::vec3(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA, rel.z);
-                return emitterWorldPos + rel;
-            };
 
             for (std::size_t idx = 0; idx < particles.size(); ++idx) {
                 const particle::Particle& p = particles[idx];
@@ -306,8 +288,8 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                 // Centerline: recorded points (oldest→newest) then the live head.
                 trail_center_.clear();
                 int m = std::min<int>(state->trail_count[idx], keep);
-                for (int k = 0; k < m; ++k) trail_center_.push_back(toWorld(ring[k]));
-                glm::vec3 head = toWorld(p.position);
+                for (int k = 0; k < m; ++k) trail_center_.push_back(toRenderPosition(ring[k]));
+                const glm::vec3 head = toRenderPosition(p.position);
                 glm::vec3 dHead = head - trail_center_.back();
                 if (glm::dot(dHead, dHead) > 1e-4f) trail_center_.push_back(head);
                 const int n = static_cast<int>(trail_center_.size());

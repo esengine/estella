@@ -25,6 +25,10 @@
 #include "esengine/renderer/plugins/TextPlugin.hpp"
 #include "esengine/renderer/plugins/SpritePlugin.hpp"
 #include "esengine/renderer/plugins/TilemapRenderPlugin.hpp"
+#ifdef ES_ENABLE_PARTICLES
+#include "esengine/renderer/plugins/ParticlePlugin.hpp"
+#include "esengine/particle/ParticleWorlds.hpp"
+#endif
 #include "esengine/tilemap/TilemapWorlds.hpp"
 #include "esengine/ecs/components/TilemapLayer.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
@@ -155,6 +159,58 @@ TEST_CASE("particle input layout matches the shared instance record") {
     CHECK(layout->attributes[5].normalized);
     CHECK(layout->attributes[7].offset == offsetof(ParticleInstanceData, age));
 }
+
+#ifdef ES_ENABLE_PARTICLES
+TEST_CASE("particle trail heads share the particle's render origin in world and local space") {
+    struct RestoreOrigin { ~RestoreOrigin() { setRenderOrigin(glm::dvec3(0.0)); } } restore;
+    const glm::vec3 origin{100000.0f, -20000.0f, 90.0f};
+    setRenderOrigin(glm::dvec3(origin));
+    for (const auto space : {ecs::SimulationSpace::World, ecs::SimulationSpace::Local}) {
+        CAPTURE(static_cast<i32>(space));
+        Harness h;
+        RenderContext context(h.device);
+        resource::ResourceManager resources;
+        resources.init(h.device);
+        ecs::Registry registry;
+        const auto entity = registry.create();
+        auto& transform = registry.emplace<ecs::Transform>(entity);
+        transform.worldPosition = origin + glm::vec3(24, -10, 6);
+        transform.worldRotation = glm::angleAxis(glm::half_pi<f32>(), glm::vec3(0, 0, 1));
+        transform.worldScale = {2, 3, 1};
+        transform.decomposed_ = true;
+        auto& emitter = registry.emplace<ecs::ParticleEmitter>(entity);
+        emitter.simulationSpace = static_cast<i32>(space);
+        emitter.rate = emitter.speedMin = emitter.speedMax = 0;
+        emitter.trailEnabled = true;
+        emitter.trailMinDistance = 0.1f;
+        particle::ParticleWorlds worlds(RandomSource{41});
+        const auto simulation = worlds.forRegistry(registry);
+        simulation->update(registry, 0.0f);
+        REQUIRE(simulation->emitAt(registry, entity, 1, transform.worldPosition, {0, 1, 0}, {30, 20, 8}) == 1);
+        for (int step = 0; step < 4; ++step) simulation->update(registry, 1.0f / 60.0f);
+
+        ParticlePlugin plugin;
+        plugin.setWorlds(&worlds);
+        RenderFrameContext frame{context, resources};
+        plugin.init(frame);
+        Frustum frustum;
+        RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frame, {}};
+        collect.camera = computeCameraView(glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f));
+        plugin.collect(collect);
+
+        REQUIRE(h.pool.vertexBytesUsed(LayoutId::ParticleInstance) == sizeof(ParticleInstanceData));
+        const auto& particle = *reinterpret_cast<const ParticleInstanceData*>(h.pool.vertexData(LayoutId::ParticleInstance));
+        const auto count = h.pool.vertexBytesUsed(LayoutId::Batch) / sizeof(BatchVertex);
+        REQUIRE(count >= 4);
+        const auto* trail = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
+        const auto head = (trail[count - 2].position + trail[count - 1].position) * 0.5f;
+        CHECK(head.x == doctest::Approx(particle.px));
+        CHECK(head.y == doctest::Approx(particle.py));
+        CHECK(head.z == doctest::Approx(particle.pz));
+        resources.shutdown();
+    }
+}
+#endif
 
 TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk culling") {
     for (auto grid : {tilemap::GridType::Orthogonal, tilemap::GridType::Isometric,
