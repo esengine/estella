@@ -137,8 +137,6 @@ protected:
     i32 backendUniformLocation(u32 program, const char* name) override;
     i32 backendAttribLocation(u32 program, const char* name) override;
     void backendSetUniform(i32 nativeLocation, const GfxUniformValue& value) override;
-    u32 backendBoundSamplerUnits() override;
-    void backendIntUniformSet(u32 program) override;
     std::vector<GfxUniformInfo> backendActiveUniforms(u32 program) override;
     u32 backendUniformBlockIndex(u32 program, const char* name) override;
     void backendUniformBlockBinding(u32 program, u32 nativeBlockIndex, u32 bindingPoint) override;
@@ -291,9 +289,6 @@ private:
     // skips the FFI-crossing GL call. 0xFF is an out-of-range BlendMode, so the
     // first real set always issues.
     u32 current_program_name_ = 0;
-    /** The units each linked program samples, by GL program name; read once from the program, forgotten when an integer
-     *  uniform of it is set or it is deleted. */
-    std::unordered_map<u32, u32> sampler_units_;
     BlendMode current_blend_ = static_cast<BlendMode>(0xFF);
     bool current_blend_adds_only_ = false;
 

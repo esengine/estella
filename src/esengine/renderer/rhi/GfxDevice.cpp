@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <utility>
 
 namespace esengine {
@@ -806,7 +807,7 @@ void GfxDevice::setUniformValue(i32 location, const GfxUniformValue& value) {
     auto* record = registry_.programs.find(id);
     if (!record || location < 0 || static_cast<usize>(location) >= record->uniformValues.size()) return;
     record->uniformValues[static_cast<usize>(location)] = value;
-    if (value.type == GfxUniformValue::Type::Int) backendIntUniformSet(id);
+    if (value.type == GfxUniformValue::Type::Int) record->samplerUnits.reset();
     if (!record->realized) return;
     const i32 native = nativeUniformLocation(*record, id, location);
     if (native >= 0) backendSetUniform(native, value);
@@ -867,6 +868,34 @@ void GfxDevice::setUniformMat4(i32 location, const f32* data) {
     v.type = GfxUniformValue::Type::Mat4;
     std::memcpy(v.f, data, 16 * sizeof(f32));
     setUniformValue(location, v);
+}
+
+u32 GfxDevice::boundSamplerUnits() {
+    constexpr u32 kEveryUnit = 0xFFFFFFFFu;
+    auto* record = registry_.programs.find(static_cast<u32>(current_program_));
+    if (!record || !record->realized) return kEveryUnit;
+    if (record->samplerUnits) return *record->samplerUnits;
+    const std::vector<GfxUniformInfo> infos = backendActiveUniforms(static_cast<u32>(current_program_));
+    if (infos.empty()) return kEveryUnit;
+    const auto unitSetFor = [&](const std::string& name) -> i32 {
+        const auto it = std::find(record->uniformNames.begin(), record->uniformNames.end(), name);
+        if (it == record->uniformNames.end()) return -1;
+        const GfxUniformValue& v = record->uniformValues[static_cast<usize>(it - record->uniformNames.begin())];
+        return v.type == GfxUniformValue::Type::Int ? v.i : -1;
+    };
+    u32 units = 0;
+    for (const GfxUniformInfo& info : infos) {
+        if (!isSampler(info.type)) continue;
+        for (u32 e = 0; e < std::max(info.arraySize, 1u); ++e) {
+            const std::string element = info.name + "[" + std::to_string(e) + "]";
+            i32 unit = unitSetFor(element);
+            if (unit < 0 && e == 0) unit = unitSetFor(info.name);
+            if (unit < 0) unit = 0;
+            if (unit < 32) units |= 1u << static_cast<u32>(unit);
+        }
+    }
+    record->samplerUnits = units;
+    return units;
 }
 
 std::vector<GfxUniformInfo> GfxDevice::getActiveUniforms(ShaderHandle program) {

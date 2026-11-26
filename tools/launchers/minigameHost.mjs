@@ -111,6 +111,9 @@ export const HOST_PAGE = (entry, failSubpackage = null, { hostGlobal = null, sub
     absent.prototype = real.prototype;
     globalThis[name] = absent;
   }
+  for (const Gl of [globalThis.WebGLRenderingContext, globalThis.WebGL2RenderingContext]) {
+    if (Gl) Gl.prototype.getUniform = function () { console.log('getUniform not support'); };
+  }
   // Vendor contract: the FIRST createCanvas() hands back the on-screen canvas and
   // every call after it is offscreen scratch. Hand the engine a fresh offscreen
   // one instead and the game runs perfectly, drawing where nobody can see.

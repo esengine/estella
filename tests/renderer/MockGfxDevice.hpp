@@ -71,6 +71,7 @@ struct MockGfxDevice final : GfxDevice {
     int setUniform1fCalls = 0;
     int setUniform4fCalls = 0;
     int getActiveUniformsCalls = 0;
+    std::vector<GfxUniformInfo> activeUniformsAnswer;
     int createTextureCalls = 0;
     int createCompressedTextureCalls = 0;
     int importExternalTextureCalls = 0;
@@ -340,7 +341,7 @@ protected:
         default: break;
         }
     }
-    std::vector<GfxUniformInfo> backendActiveUniforms(u32) override { ++getActiveUniformsCalls; return {}; }
+    std::vector<GfxUniformInfo> backendActiveUniforms(u32) override { ++getActiveUniformsCalls; return activeUniformsAnswer; }
     u32 backendUniformBlockIndex(u32, const char*) override { return blockIndexAnswer; }
     void backendUniformBlockBinding(u32, u32 block, u32 binding) override {
         blockBindingLog.push_back({block, binding});

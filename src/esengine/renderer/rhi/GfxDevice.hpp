@@ -644,7 +644,7 @@ public:
      * @details A unit no active sampler reads can hold anything, so a draw binds only these: what a depth program, a
      *          shadow caster or a material that leaves maps unset never reads is never bound for it.
      */
-    u32 boundSamplerUnits() { return backendBoundSamplerUnits(); }
+    u32 boundSamplerUnits();
 
     /** @brief Sets an integer uniform of the bound program */
     void setUniform1i(i32 location, i32 value);
@@ -982,10 +982,6 @@ protected:
     virtual i32 backendUniformLocation(u32 program, const char* name) = 0;
     virtual i32 backendAttribLocation(u32 program, const char* name) = 0;
     virtual void backendSetUniform(i32 nativeLocation, const GfxUniformValue& value) = 0;
-    /** The units the bound program samples; a backend that cannot say answers every unit. */
-    virtual u32 backendBoundSamplerUnits() { return 0xFFFFFFFFu; }
-    /** An integer uniform of @p program was set: a sampler may have moved to another unit. */
-    virtual void backendIntUniformSet(u32 program) { (void)program; }
     virtual std::vector<GfxUniformInfo> backendActiveUniforms(u32 program) = 0;
     virtual u32 backendUniformBlockIndex(u32 program, const char* name) = 0;
     virtual void backendUniformBlockBinding(u32 program, u32 nativeBlockIndex, u32 bindingPoint) = 0;

@@ -73,6 +73,28 @@ int main() {
                   && device.lastUniform1iVal == static_cast<i32>(sampler.unit), sampler.name);
     }
 
+    {
+        MockGfxDevice device;
+        device.activeUniformsAnswer = {
+            {"u_albedo", GfxUniformType::Sampler2D, 0, 1},
+            {"u_cascades", GfxUniformType::Sampler2DArrayShadow, 0, 2},
+            {"u_tint", GfxUniformType::Vec4, 0, 1},
+        };
+        auto shader = Shader::create(device, "vs", "fs");
+        shader->bind();
+        CHECK(device.boundSamplerUnits() == 0b1u, "a sampler no one set samples unit 0");
+        const int reflections = device.getActiveUniformsCalls;
+        CHECK(device.boundSamplerUnits() == 0b1u && device.getActiveUniformsCalls == reflections,
+              "the sampled units are worked out once a program");
+        shader->setUniform("u_albedo", 3);
+        shader->setUniform("u_cascades[0]", 5);
+        shader->setUniform("u_cascades[1]", 6);
+        CHECK(device.boundSamplerUnits() == ((1u << 3) | (1u << 5) | (1u << 6)),
+              "the sampled units are the ones the device was told, every array element, without asking the backend");
+        shader->unbind();
+        CHECK(device.boundSamplerUnits() == 0xFFFFFFFFu, "no program bound answers every unit");
+    }
+
     // Language capability gate (REARCH_WGSL Phase 1): a source language the
     // backend cannot compile fails fast BEFORE any createProgram call, with a log.
     {

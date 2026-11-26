@@ -459,7 +459,6 @@ bool GLDevice::recreateDevice() {
 }
 
 void GLDevice::resetStateCache() {
-    sampler_units_.clear();
     current_pipeline_id_ = 0;
     current_stencil_mode_ = GfxStencilMode::Off;
     current_program_name_ = 0;
@@ -919,7 +918,6 @@ void GLDevice::backendDeleteProgram(u32 id) {
         pending_programs_.erase(it);
     }
     glDeleteProgram(name);
-    sampler_units_.erase(name);
     if (current_program_name_ == name) current_program_name_ = 0;
     setName(program_names_, id, 0);
 }
@@ -959,62 +957,6 @@ void GLDevice::backendSetUniform(i32 location, const GfxUniformValue& value) {
 
 namespace {
 
-bool isSamplerType(GLenum type) {
-    switch (type) {
-    case GL_SAMPLER_2D: case GL_SAMPLER_3D: case GL_SAMPLER_CUBE: case GL_SAMPLER_2D_SHADOW:
-    case GL_SAMPLER_2D_ARRAY: case GL_SAMPLER_2D_ARRAY_SHADOW: case GL_SAMPLER_CUBE_SHADOW:
-    case GL_INT_SAMPLER_2D: case GL_INT_SAMPLER_3D: case GL_INT_SAMPLER_CUBE: case GL_INT_SAMPLER_2D_ARRAY:
-    case GL_UNSIGNED_INT_SAMPLER_2D: case GL_UNSIGNED_INT_SAMPLER_3D: case GL_UNSIGNED_INT_SAMPLER_CUBE:
-    case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
-        return true;
-    default:
-        return false;
-    }
-}
-
-}  // namespace
-
-u32 GLDevice::backendBoundSamplerUnits() {
-    const u32 program = current_program_name_;
-    if (program == 0) return 0xFFFFFFFFu;
-    if (const auto it = sampler_units_.find(program); it != sampler_units_.end()) return it->second;
-    // Read from the program as it stands, every element of a sampler array: the unit each active sampler was last set to,
-    // which is what a draw has to have bound there. Once a program, not once a draw.
-    u32 units = 0;
-    GLint count = 0;
-    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &count);
-    GLint maxNameLen = 0;
-    glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLen);
-    std::string nameBuf(static_cast<size_t>(std::max(maxNameLen, 64)), '\0');
-    for (GLint i = 0; i < count; ++i) {
-        GLsizei nameLen = 0;
-        GLint size = 0;
-        GLenum type = 0;
-        glGetActiveUniform(program, static_cast<GLuint>(i), static_cast<GLsizei>(nameBuf.size()), &nameLen, &size, &type, nameBuf.data());
-        if (!isSamplerType(type)) continue;
-        std::string base(nameBuf.data(), static_cast<size_t>(nameLen));
-        if (const auto bracket = base.find('['); bracket != std::string::npos) base.erase(bracket);
-        for (GLint e = 0; e < std::max(size, 1); ++e) {
-            const std::string element = size > 1 ? base + "[" + std::to_string(e) + "]" : base;
-            const GLint location = glGetUniformLocation(program, element.c_str());
-            if (location < 0) continue;
-            GLint unit = 0;
-            glGetUniformiv(program, location, &unit);
-            if (unit >= 0 && unit < 32) units |= 1u << static_cast<u32>(unit);
-        }
-    }
-    sampler_units_[program] = units;
-    return units;
-}
-
-void GLDevice::backendIntUniformSet(u32 program) {
-    if (sampler_units_.empty()) return;
-    const u32 name = nameOf(program_names_, program);
-    if (name) sampler_units_.erase(name);
-}
-
-namespace {
-
 GfxUniformType fromGLUniformType(GLenum type) {
     switch (type) {
     case GL_FLOAT:        return GfxUniformType::Float;
@@ -1032,6 +974,14 @@ GfxUniformType fromGLUniformType(GLenum type) {
     case GL_SAMPLER_2D:   return GfxUniformType::Sampler2D;
     case GL_SAMPLER_CUBE: return GfxUniformType::SamplerCube;
     case GL_SAMPLER_2D_ARRAY: return GfxUniformType::Sampler2DArray;
+    case GL_SAMPLER_3D:   return GfxUniformType::Sampler3D;
+    case GL_SAMPLER_2D_SHADOW: return GfxUniformType::Sampler2DShadow;
+    case GL_SAMPLER_CUBE_SHADOW: return GfxUniformType::SamplerCubeShadow;
+    case GL_SAMPLER_2D_ARRAY_SHADOW: return GfxUniformType::Sampler2DArrayShadow;
+    case GL_INT_SAMPLER_2D: case GL_INT_SAMPLER_3D: case GL_INT_SAMPLER_CUBE: case GL_INT_SAMPLER_2D_ARRAY:
+    case GL_UNSIGNED_INT_SAMPLER_2D: case GL_UNSIGNED_INT_SAMPLER_3D: case GL_UNSIGNED_INT_SAMPLER_CUBE:
+    case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+        return GfxUniformType::IntSampler;
     default:              return GfxUniformType::Unknown;
     }
 }

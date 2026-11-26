@@ -758,7 +758,16 @@ enum class GfxUniformType : u8 {
     Sampler2D,
     SamplerCube,
     Sampler2DArray,
+    Sampler3D,
+    Sampler2DShadow,
+    SamplerCubeShadow,
+    Sampler2DArrayShadow,
+    IntSampler,
 };
+
+inline constexpr bool isSampler(GfxUniformType type) {
+    return type >= GfxUniformType::Sampler2D;
+}
 
 struct GfxUniformInfo {
     std::string name;

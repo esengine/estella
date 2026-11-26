@@ -75,6 +75,7 @@ struct GfxProgramRecord {
     /// A location handed out is an index here; the backend's own is resolved per generation.
     std::vector<std::string> uniformNames;
     std::vector<GfxUniformValue> uniformValues;
+    std::optional<u32> samplerUnits;
     std::vector<std::string> blockNames;
     /// Binding point per block name, or GFX_UNBOUND_BLOCK.
     std::vector<u32> blockBindings;
