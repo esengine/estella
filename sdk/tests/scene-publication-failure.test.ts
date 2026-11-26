@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
-import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
+import { loadSceneWithAssets, serializeScene, type SceneData } from '../src/scene/scene';
 import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
 import { EmbeddedBackend } from '../src/asset/Backend';
@@ -111,6 +111,48 @@ describe('scene-owned physics preparation', () => {
 });
 
 describe('scene asset discovery', () => {
+    it.each(['authored', 'packaged', 'prepared prefab'])('keeps failed texture and mesh refs without loading twice (%s)', async door => {
+        const { app, assets, options } = await runtime();
+        connectFakeCpp(app.world);
+        const texture = vi.spyOn(assets, 'acquireTexture').mockRejectedValue(new Error('texture unavailable'));
+        const mesh = vi.fn().mockRejectedValue(new Error('mesh unavailable'));
+        assets.register({ type: 'mesh', extensions: ['.esmesh'], load: mesh, unload() {} });
+        const lateResolve = vi.fn();
+        app.world.setAssetFieldResolver(lateResolve);
+        const components = [
+            { type: 'Sprite', data: { texture: 'missing.png' } },
+            { type: 'MeshRenderer', data: { mesh: 'missing.esmesh' } },
+        ];
+        const data: SceneData = { ...scene, entities: [{ ...scene.entities[0]!, components }] };
+        try {
+            if (door === 'authored') await loadSceneWithAssets(app.world, data, { assets });
+            else if (door === 'packaged') await loadRuntimeScene({ ...options, sceneData: data });
+            else {
+                vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify({
+                    version: '2', name: 'Missing assets', rootEntityId: 'root', entities: [{
+                        prefabEntityId: 'root', name: 'new', parent: null, children: [], visible: true, components,
+                    }],
+                }));
+                const prefab = await assets.preparePrefab('missing.esprefab');
+                try { spawnPrepared(app.world, prefab); } finally { prefab.release(); }
+            }
+            const entity = app.world.findEntityByName('new')!;
+            const snapshot = () => serializeScene(app.world).entities[0]!.components;
+            expect(app.world.get(entity, Sprite).texture).toBe(0);
+            expect(app.world.get(entity, MeshRenderer).mesh).toBe(0);
+            expect(snapshot()).toEqual(expect.arrayContaining(components.map(comp => ({
+                type: comp.type, data: expect.objectContaining(comp.data),
+            }))));
+            expect(texture).toHaveBeenCalledOnce();
+            expect(mesh).toHaveBeenCalledOnce();
+            expect(lateResolve).not.toHaveBeenCalled();
+
+            app.world.update(entity, Sprite, value => { value.texture = 0; });
+            expect(snapshot().find(c => c.type === 'Sprite')?.data.texture).toBe(0);
+            expect(snapshot().find(c => c.type === 'MeshRenderer')?.data.mesh).toBe('missing.esmesh');
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['inline', 'lazy', 'prepared document'])('keeps 2D and 3D authored data across scene revisits (%s)', async source => {
         const { app, options, assets, unloaded } = await runtime();
         connectFakeCpp(app.world);

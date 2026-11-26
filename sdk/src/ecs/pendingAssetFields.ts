@@ -111,11 +111,8 @@ export class PendingAssetFields {
             const ref = authored[field];
             if (typeof ref === 'string' && ref) paths.set(field, ref);
         }
-        const fields = new Set(paths.keys());
-        const write = { component, fields, paths };
-        const writes = this.byEntity.get(entity) ?? new Set<PendingWrite>();
-        this.byEntity.set(entity, writes);
-        writes.add(write);
+        const write = this.remember(entity, component, paths);
+        const { fields } = write;
         const finish = (): void => {
             // Retire the resolver's token while keeping references it could not publish.
             if (fields.size) write.fields = new Set(fields);
@@ -131,6 +128,14 @@ export class PendingAssetFields {
                 else finish();
             } catch (error) { finish(); throw error; }
         };
+    }
+
+    remember(entity: Entity, component: AnyComponentDef, paths: Map<string, string>): PendingWrite {
+        const write = { component, fields: new Set(paths.keys()), paths };
+        const writes = this.byEntity.get(entity) ?? new Set<PendingWrite>();
+        this.byEntity.set(entity, writes);
+        writes.add(write);
+        return write;
     }
 
     remove(entity: Entity): void {

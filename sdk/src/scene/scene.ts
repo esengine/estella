@@ -501,7 +501,31 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
     const fromVersion = checkSceneFormat(raw);
     // Public inputs remain caller-owned. Internal builders can hand over their
     // fresh private records to the same normalization without copying them twice.
-    return migrateOwnedSceneData(JSON.parse(JSON.stringify(raw)) as SceneData, fromVersion);
+    const data = JSON.parse(JSON.stringify(raw)) as SceneData;
+    const unresolved = unresolvedSceneAssets.get(raw);
+    if (unresolved) {
+        const copies = new Map<SceneComponentData, Map<string, string>>();
+        for (const [index, row] of raw.entities.entries()) {
+            if (!Array.isArray(row.components)) continue;
+            row.components.forEach((component, fieldIndex) => {
+                const paths = unresolved.get(component);
+                if (paths) copies.set(data.entities[index]!.components[fieldIndex]!, paths);
+            });
+        }
+        unresolvedSceneAssets.set(data, copies);
+    }
+    return migrateOwnedSceneData(data, fromVersion);
+}
+
+const unresolvedSceneAssets = new WeakMap<SceneData, Map<SceneComponentData, Map<string, string>>>();
+
+/** @internal Retain the authored path beside prepared component data containing the fallback handle. */
+export function recordUnresolvedSceneAsset(scene: SceneData, component: SceneComponentData, field: string, path: string): void {
+    let unresolved = unresolvedSceneAssets.get(scene);
+    if (!unresolved) unresolvedSceneAssets.set(scene, unresolved = new Map());
+    let paths = unresolved.get(component);
+    if (!paths) unresolved.set(component, paths = new Map());
+    paths.set(field, path);
 }
 
 function checkSceneFormat(raw: SceneData): number {
@@ -698,11 +722,12 @@ function* spawnSceneJob(
         // and not an answer: which writes reach a subsystem, and which are field
         // validation, is the difference between a mechanism and a number.
         const byType = onPhase ? new Map<string, number>() : null;
+        const unresolved = unresolvedSceneAssets.get(sceneData);
         for (const entityData of rows) {
             const entity = entityMap.get(entityData.id)!;
             for (const compData of entityData.components) {
                 remapEntityFields(compData, entityMap, external);
-                loadComponent(world, entity, compData, entityData.name);
+                importComponentData(world, entity, compData, 'replace', entityData.name, unresolved?.get(compData));
                 assertCurrent();
                 if (byType) byType.set(compData.type, (byType.get(compData.type) ?? 0) + since());
             }
@@ -935,7 +960,7 @@ export function captureAuthoredComponentData(
  *  records to the same validation and codec pipeline. */
 export function importComponentData(
     world: World, entity: Entity, compData: SceneComponentData,
-    mode: 'replace' | 'patch', entityName?: string,
+    mode: 'replace' | 'patch', entityName?: string, unresolved?: ReadonlyMap<string, string>,
 ): boolean {
     // Legacy-format normalization happens once up-front in migrateSceneData;
     // by here compData is already current-shape.
@@ -994,6 +1019,7 @@ export function importComponentData(
     }
     try {
         if (mode === 'patch') patchComponentFields(world, entity, comp, compData.data);
+        else if (unresolved) world.insertWithUnresolvedAssets(entity, comp, compData.data, unresolved);
         else world.insert(entity, comp, compData.data);
     } catch (err) {
         // Defense in depth: a deeper boundary rejection costs THIS component, not

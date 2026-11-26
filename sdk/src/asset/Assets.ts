@@ -71,7 +71,7 @@ import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
 import { getComponent, getComponentDefaults, type AnyComponentDef } from '../ecs/component';
 import { observesAssetReferences } from './assetReferenceTracking';
-import { getComponentAssetFieldDescriptors } from '../scene/scene';
+import { getComponentAssetFieldDescriptors, recordUnresolvedSceneAsset } from '../scene/scene';
 import { indexSceneAssets, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
@@ -2103,6 +2103,7 @@ export class Assets {
                     const path = result.resolveRef ? result.resolveRef(ref) : this.resolveRef(ref);
                     if (path == null) {
                         comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? emptySceneAssetValue(type);
+                        if (isSceneHandleType(type) && getComponent(comp.type)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
                         continue;
                     }
 
@@ -2113,7 +2114,10 @@ export class Assets {
                     if (!isSceneHandleType(type)) continue;
                     const handle = result[`${type}Handles`].get(path) ?? 0;
                     comp.data[field] = handle;
-                    if (!handle) continue;
+                    if (!handle) {
+                        if (getComponent(comp.type)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
+                        continue;
+                    }
                     if (!this.handlePaths_.get(type)?.has(handle)) this.recordHandlePath_(type, handle, path);
 
                     if (type !== 'texture') continue;

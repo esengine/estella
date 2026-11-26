@@ -1106,6 +1106,16 @@ export class World {
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
 
+    /** @internal Insert prepared data and retain failed paths before component observers run. */
+    insertWithUnresolvedAssets(entity: Entity, component: AnyComponentDef, data: Record<string, unknown>, paths: ReadonlyMap<string, string>): void {
+        if (!isBuiltinComponent(component)) {
+            this.insert(entity, component, data);
+            return;
+        }
+        this.speculation_?.record(this, entity, component);
+        this.insertBuiltin_(entity, component, data, undefined, paths);
+    }
+
     /** @internal Commit a reflected field assignment with the same validation as insert.
      * Other asset fields in the readback can still be placeholders for loads in flight. */
     [commitPropertyEdit]<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>, field: string): void {
@@ -1409,11 +1419,13 @@ export class World {
     // Component storage and write notifications
     // =========================================================================
 
-    private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>, edited?: ReadonlySet<string>): T {
+    private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>, edited?: ReadonlySet<string>,
+        unresolved?: ReadonlyMap<string, string>): T {
         const raw = data as Record<string, unknown> | undefined;
         const refs = this.takeAssetRefs_(component, raw);
         const { merged, isNew } = this.builtin_.insert(entity, component, (refs?.clean ?? data) as Partial<T>);
         const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, edited !== undefined, edited);
+        if (unresolved?.size) (this.pendingAssetFields_ ??= new PendingAssetFields()).remember(entity, component, new Map(unresolved));
         this.finishComponentWrite_(entity, component, merged, isNew, start);
         return merged;
     }
