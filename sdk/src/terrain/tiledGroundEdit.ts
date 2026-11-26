@@ -320,10 +320,8 @@ export class TiledGroundEdit {
                 if (applied) return;
                 assertClean();
                 for (const [i, entry] of chosen.entries()) {
-                    const tile = s.tileAt(entry.x, entry.z);
-                    if (!tile) continue;
-                    const samples = preparedResident.get(i) ?? heightfieldFromPixels(t, t, images[i]!.pixels, HeightmapFormat.RedGreen16).data;
-                    tile.field.data.set(samples);
+                    s.applyImportedHeights(entry.x, entry.z, () =>
+                        preparedResident.get(i) ?? heightfieldFromPixels(t, t, images[i]!.pixels, HeightmapFormat.RedGreen16).data);
                 }
                 s.overview.data.set(ov.data);
                 applied = true;

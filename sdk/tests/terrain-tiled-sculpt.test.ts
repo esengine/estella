@@ -24,7 +24,7 @@ function image(width: number, at: (i: number, j: number) => number): TerrainImag
     return { width, height: width, pixels };
 }
 
-function tiled(budget?: number, missing?: 'entry' | 'image') {
+function tiled(budget?: number, missing?: 'entry' | 'image', beforeRead?: (path: string) => Promise<void> | undefined) {
     const files = new Map<string, TerrainImage>();
     const doc: TerrainTilesDocument = { version: 1, tileSamples: T, tilesX: TILES, tilesZ: TILES, format: HeightmapFormat.RedGreen16, overview: 'o.png', tiles: [] };
     for (let tz = 0; tz < TILES; tz++) for (let tx = 0; tx < TILES; tx++) {
@@ -37,7 +37,12 @@ function tiled(budget?: number, missing?: 'entry' | 'image') {
     }
     const overview: Heightfield = { width: 9, height: 9, data: Float32Array.from({ length: 81 }, (_, k) => ground((k % 9) * 6, Math.floor(k / 9) * 6)) };
     const reads: string[] = [];
-    const source = new TiledSource(doc, params, overview, null, null, async (p) => { reads.push(p); return files.get(p) ?? null; }, budget);
+    const source = new TiledSource(doc, params, overview, null, null, async (p) => {
+        reads.push(p);
+        const pending = beforeRead?.(p);
+        if (pending) await pending;
+        return files.get(p) ?? null;
+    }, budget);
     const modified = new ModifiedSource(source, () => [], { x: 0, y: 0, z: 0 }, 1);
     const remade: number[][] = [];
     const edit = new TiledGroundEdit({ remake: (b) => remade.push([...b]) }, source, modified, SIZE, SIZE);
@@ -341,6 +346,24 @@ describe('a heightmap in and out of ground kept as tiles', () => {
         expect(t.source.overview.data[0]).toBe(0.25);
         staged.apply();
         expect(t.remade).toHaveLength(1);
+    });
+
+    it.each(['all', 'loaded'] as const)('honors the %s scope when a tile read completes after applying the import', async (mode) => {
+        let release!: () => void;
+        const blocked = new Promise<void>(resolve => { release = resolve; });
+        const t = tiled(undefined, undefined, path => path === 't0_0.png' ? blocked : undefined);
+        const reading = t.source.readTile(0, 0);
+        const resident = (await t.source.readTile(1, 0))!;
+        const field: Heightfield = { width: 2, height: 2, data: new Float32Array(4).fill(0.25) };
+        const staged = t.edit.prepareImageImport(field, mode);
+        expect(t.source.stats().reading).toBe(1);
+        staged.apply();
+        release();
+
+        const tile = (await reading)!;
+        expect(tile.field.data[0]).toBeCloseTo(mode === 'all' ? q(0.25) : ground(0, 0), 6);
+        expect(resident.field.data[0]).toBe(0.25);
+        expect(t.reads).toEqual(['t0_0.png', 't1_0.png']);
     });
 
     it('refuses to import over changes not saved', async () => {

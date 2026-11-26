@@ -82,6 +82,7 @@ export class TiledSource implements TerrainSource {
     private readonly entries_ = new Map<string, TerrainTileEntry>();
     private readonly tiles_ = new Map<string, Tile>();
     private readonly reading_ = new Map<string, Promise<Tile | null>>();
+    private readonly importedHeights_ = new Map<string, Heightfield>();
     private readonly dirty_ = new Set<string>();
     private readonly editPins_ = new Map<string, number>();
     private overviewDirty_ = false;
@@ -199,6 +200,16 @@ export class TiledSource implements TerrainSource {
         return this.ensure(`${tx}:${tz}`);
     }
 
+    /** @internal Publish committed heights to resident tiles and to reads that can still return the previous file. */
+    applyImportedHeights(tx: number, tz: number, samples: () => Float32Array): void {
+        const key = `${tx}:${tz}`, tile = this.tile(key);
+        if (tile) tile.field.data.set(samples());
+        else if (this.reading_.has(key)) {
+            const side = this.doc.tileSamples;
+            this.importedHeights_.set(key, { width: side, height: side, data: samples() });
+        }
+    }
+
     /** @internal Whether the document has a tile at (tx, tz). */
     hasTile(tx: number, tz: number): boolean {
         return this.entries_.has(`${tx}:${tz}`);
@@ -289,11 +300,14 @@ export class TiledSource implements TerrainSource {
         if (!entry) return Promise.resolve(null);
         const job = (async (): Promise<Tile | null> => {
             const [h, a, b] = await Promise.all([this.read(entry.height), entry.splat ? this.read(entry.splat) : null, entry.splat2 ? this.read(entry.splat2) : null]);
-            if (!h) throw new Error(`the heights of terrain tile ${key} (${entry.height}) could not be read`);
-            if (h.width !== this.doc.tileSamples || h.height !== this.doc.tileSamples) {
-                throw new Error(`terrain tile ${key} is ${h.width} by ${h.height}, not ${this.doc.tileSamples} a side`);
+            let field = this.importedHeights_.get(key);
+            if (!field) {
+                if (!h) throw new Error(`the heights of terrain tile ${key} (${entry.height}) could not be read`);
+                if (h.width !== this.doc.tileSamples || h.height !== this.doc.tileSamples) {
+                    throw new Error(`terrain tile ${key} is ${h.width} by ${h.height}, not ${this.doc.tileSamples} a side`);
+                }
+                field = heightfieldFromPixels(h.width, h.height, h.pixels, this.doc.format, h.wide);
             }
-            const field = heightfieldFromPixels(h.width, h.height, h.pixels, this.doc.format, h.wide);
             const splat = a && { width: a.width, height: a.height, pixels: a.pixels };
             const splat2 = b && { width: b.width, height: b.height, pixels: b.pixels };
             const tile: Tile = { field, splat, splat2, used: ++this.clock_,
@@ -303,7 +317,10 @@ export class TiledSource implements TerrainSource {
             this.reads_++;
             this.trim(new Set([key]));
             return tile;
-        })().finally(() => this.reading_.delete(key));
+        })().finally(() => {
+            this.reading_.delete(key);
+            this.importedHeights_.delete(key);
+        });
         this.reading_.set(key, job);
         return job;
     }
