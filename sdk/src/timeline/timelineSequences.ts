@@ -21,6 +21,8 @@ export interface SequenceLayer {
     ref: string;
     /** The nested timeline's own time. */
     time: number;
+    /** Elapsed clip time before loops are folded. */
+    phase?: number;
     clip: SequenceClip;
     root: Entity;
 }
@@ -58,7 +60,8 @@ export function collectSequenceLayers(
             const childRoot = clip.root ? resolveChild(root, clip.root) : root;
             if (childRoot == null) return;
             const key = `${keyPrefix}${ti}.${ci}/`;
-            out.push({ key, asset: child, ref: clip.timeline, time: local, clip, root: childRoot });
+            const phase = clip.loop ? (time - clip.start) * clip.speed : local;
+            out.push({ key, asset: child, ref: clip.timeline, time: local, phase, clip, root: childRoot });
             out.push(...collectSequenceLayers(child, local, childRoot, resolveChild, lookup, [...chain, clip.timeline], key, depth + 1));
         });
     });

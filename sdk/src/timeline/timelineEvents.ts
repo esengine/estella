@@ -51,6 +51,7 @@ function pingPongPhase(phase: number, duration: number): number {
  */
 export function playheadRuns(
     from: number, to: number, duration: number, mode: WrapMode, inclusiveStart: boolean,
+    loopEntry: 'departure' | 'arrival' = 'departure',
 ): PlayheadRun[] {
     if (duration <= 0 || to < from) return [];
     const span = to - from;
@@ -64,12 +65,10 @@ export function playheadRuns(
     if (mode === WrapMode.Loop) {
         if (span >= duration) return [{ from: 0, to: duration, inclusiveStart: true }];
         const a = from % duration;
-        // Landing exactly on a lap boundary BEGINS that lap, so an event authored
-        // at 0 belongs to it — the one case where the caller's half-open window
-        // would drop an event rather than hand it to the run before.
-        const opens = inclusiveStart || (a === 0 && from > 0);
+        // The caller owns which step dispatches a lap's time-zero cue when a step lands on the seam.
+        const opens = inclusiveStart || (loopEntry === 'departure' && a === 0 && from > 0);
         const b = a + span;
-        if (b <= duration) return [{ from: a, to: b, inclusiveStart: opens }];
+        if (b < duration || (b === duration && loopEntry === 'departure')) return [{ from: a, to: b, inclusiveStart: opens }];
         // The playhead JUMPED from the end to the start; the head of the clip is a
         // new lap, so an event authored at 0 belongs to it.
         return [

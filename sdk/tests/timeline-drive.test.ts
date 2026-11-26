@@ -359,9 +359,9 @@ describe('nested sequences', () => {
     });
 
     it('fires nested entry and exact loop crossings once, on the update that reaches them', () => {
-        const loop: TimelineAsset = { ...parent, tracks: [{
+        const loop: TimelineAsset = { ...parent, duration: 10, tracks: [{
             type: TrackType.Sequence, name: '', childPath: '', clips: [
-                { start: 1, duration: 4, timeline: 'child', root: '', speed: 1, loop: true },
+                { start: 1, duration: 8, timeline: 'child', root: '', speed: 1, loop: true },
             ],
         }] };
         const punches: TimelineAsset = { ...child, tracks: [{
@@ -380,6 +380,13 @@ describe('nested sequences', () => {
         expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2], [ROOT, 1]]);
         step(0.25);
         expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2], [ROOT, 1]]);
+        onShake.mockClear();
+        step(2);
+        expect(s.nested['0.0/']?.time).toBeCloseTo(0.25);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2]]);
+        onShake.mockClear();
+        step(3.5);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2]]);
     });
 
     it('does not replay a nested cue from the exact start landed on by a paused seek', () => {

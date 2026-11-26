@@ -38,7 +38,7 @@ export interface TimelineState {
     /** Per spine event-track (keyed by track index in asset.tracks): current clip, or -1. */
     spineClipIndices: Record<number, number>;
     /** The timelines playing inside this one, by `SequenceLayer.key`: where each was last step, for edge detection. */
-    nested: Record<string, { time: number; spineClipIndices: Record<number, number> }>;
+    nested: Record<string, { time: number; phase?: number; spineClipIndices: Record<number, number> }>;
     /**
      * The stretch of the timeline played (its playback range): from `rangeStart`, ending (or looping) at `rangeEnd`;
      * 0 is the timeline's own end. Absent, the whole timeline.
@@ -310,6 +310,21 @@ function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: Adva
     ctx.onPropertyApplied?.(root, asset);
 }
 
+function nestedRuns(
+    before: TimelineState['nested'][string] | undefined, time: number, phase: number, duration: number, loop: boolean,
+): PlayheadRun[] {
+    const prev = before?.time ?? 0;
+    const prevPhase = before ? before.phase : 0;
+    if (loop && duration > 0 && prevPhase !== undefined && phase >= prevPhase) {
+        return playheadRuns(prevPhase, phase, duration, WrapMode.Loop, !before, 'arrival');
+    }
+    if (time < prev) return [
+        { from: prev, to: duration, inclusiveStart: false },
+        { from: 0, to: time, inclusiveStart: true },
+    ];
+    return [{ from: prev, to: time, inclusiveStart: !before }];
+}
+
 /**
  * Play the timelines nested in `asset`: each runs on its own clock, samples its property tracks onto
  * its own root and fires its own events. Entering a layer or starting a new lap includes time zero.
@@ -324,6 +339,7 @@ function advanceNested(
         live.add(layer.key);
         sampleLayer(layer.asset, layer.time, layer.root, ctx);
         const before = state.nested[layer.key];
+        const phase = layer.phase ?? layer.time;
         const spineClipIndices = before?.spineClipIndices ?? {};
         if (mode === 'play') {
             const prev = before?.time ?? 0;
@@ -331,18 +347,13 @@ function advanceNested(
             child.time = layer.time;
             child.prevTime = prev;
             child.spineClipIndices = spineClipIndices;
-            const segments: PlayheadRun[] = layer.time < prev
-                ? [
-                    { from: prev, to: layer.asset.duration, inclusiveStart: false },
-                    { from: 0, to: layer.time, inclusiveStart: true },
-                ]
-                : [{ from: prev, to: layer.time, inclusiveStart: !before }];
+            const segments = nestedRuns(before, layer.time, phase, layer.asset.duration, layer.clip.loop);
             for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
                 applyEvent(ctx, e);
             }
             dispatchSignals(ctx, layer.asset, layer.root, segments);
         }
-        state.nested[layer.key] = { time: layer.time, spineClipIndices };
+        state.nested[layer.key] = { time: layer.time, phase, spineClipIndices };
     }
     for (const key of Object.keys(state.nested)) if (!live.has(key)) delete state.nested[key];
 }
