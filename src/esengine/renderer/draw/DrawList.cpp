@@ -629,6 +629,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             ? cmd.vertex_layout
             : buffers.layoutHandle(cmd.layout_id);
         desc.blend = cmd.blend_mode;
+        // Multiply and Screen take the source's colour as it is, which is right only for a premultiplied one: from the engine's
+        // straight-alpha shaders a clear white texel would whiten what is behind it. Their programs' premultiplying twin draws it.
+        if (cmd.blend_mode == BlendMode::Multiply || cmd.blend_mode == BlendMode::Screen) {
+            desc.program = ShaderHandle{materials.premultipliedOutputProgram(cmd.shader_id)};
+        }
         // Opaque is a blend mode, not a second switch beside one: a material that
         // says None is asking for the source to replace the destination, and any
         // other value is asking to read it. Keeping it in the same field is what

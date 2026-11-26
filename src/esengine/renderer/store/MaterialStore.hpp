@@ -31,6 +31,7 @@
 #include <glm/vec4.hpp>
 
 #include <algorithm>
+#include <functional>
 #include <cstring>
 #include <string>
 #include <unordered_map>
@@ -291,6 +292,14 @@ public:
         gbuffer_programs_.insert(programId);
         if (albedo) albedo_programs_.insert(programId);
     }
+
+    /// The program to draw @p programId's colour with under a blend that takes the source's colour as it is (Multiply, Screen):
+    /// its PREMULTIPLY_OUTPUT twin, so a clear texel is nothing there instead of white. @p programId itself when it has none (a
+    /// material's own shader). The frame sets who answers; the draw list asks per command.
+    u32 premultipliedOutputProgram(u32 programId) const {
+        return premultiplied_output_ ? premultiplied_output_(programId) : programId;
+    }
+    void setPremultipliedOutputResolver(std::function<u32(u32)> resolver) { premultiplied_output_ = std::move(resolver); }
 
     /// The name of the shader @p materialId draws with, or "default" for the path's own batch shader.
     const std::string& shaderLabel(u32 materialId) const {
@@ -651,6 +660,7 @@ private:
     static u64 sourceDigest(const std::string& vertex, const std::string& fragment);
     /// Programs compiled with ES_GBUFFER (see programWritesGBuffer).
     mutable std::unordered_set<u32> gbuffer_programs_;
+    std::function<u32(u32)> premultiplied_output_;
     /// Of those, the ones that write `fragAlbedo` too (see programWritesAlbedo).
     mutable std::unordered_set<u32> albedo_programs_;
     TextureHandle sceneColor_ = TextureHandle::Invalid;

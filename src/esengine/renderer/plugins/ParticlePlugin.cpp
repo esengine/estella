@@ -46,19 +46,18 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
     // WGSL twin included) and embedded for the web build. Attribute locations
     // are explicit, so no name bindings.
     if (particle_shader_handle_.isValid()) ctx.resources.releaseShader(particle_shader_handle_);
+    if (particle_premultiplied_handle_.isValid()) ctx.resources.releaseShader(particle_premultiplied_handle_);
     const auto target = ctx.resources.preferredShaderTarget();
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
     // The same feature a material's particle variant is compiled with, so the
     // built-in fragment and an authored one sit on one vertex stage.
-    const std::vector<std::string> features{ "PARTICLE" };
-    resource::ShaderHandle& handle = particle_shader_handle_;
-    handle = ctx.resources.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
-        {}, ctx.resources.preferredShaderLanguage(), ctx.resources.deferLinks());
-    Shader* shader = ctx.resources.getShader(handle);
-    if (shader && shader->isValid()) {
-        particle_shader_id_ = shader->getProgramId();
+    const auto compile = [&](const std::vector<std::string>& features, resource::ShaderHandle& handle) -> u32 {
+        handle = ctx.resources.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
+            {}, ctx.resources.preferredShaderLanguage(), ctx.resources.deferLinks());
+        Shader* shader = ctx.resources.getShader(handle);
+        if (!shader || !shader->isValid()) return 0;
         if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
             // Sampler seeding is a GLSL concept; on WGSL the texture rides the
             // bind group. After it links: at once, or when a draw first needs it.
@@ -70,7 +69,10 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
                 s.unbind();
             });
         }
-    }
+        return shader->getProgramId();
+    };
+    particle_shader_id_ = compile({ "PARTICLE" }, particle_shader_handle_);
+    particle_premultiplied_id_ = compile({ "PARTICLE", "PREMULTIPLY_OUTPUT" }, particle_premultiplied_handle_);
 }
 
 void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
@@ -220,7 +222,9 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         // A material owns shading fully: its program is this one compiled for the
         // particle vertex source, so the author's fragment sees the same quad the
         // built-in one does. A handle nothing registered draws plainly.
-        u32 shaderId = particle_shader_id_;
+        // Multiply and Screen take the colour as it is: the built-in fragment premultiplies for them (see particle_premultiplied_id_).
+        const bool takesColourAsIs = blendMode == BlendMode::Multiply || blendMode == BlendMode::Screen;
+        u32 shaderId = takesColourAsIs && particle_premultiplied_id_ != 0 ? particle_premultiplied_id_ : particle_shader_id_;
         u32 materialId = 0;
         BlendMode blend = blendMode;
         // A material says how its particles meet the depth of the scene, as it does for a sprite or a trail: without one they are the

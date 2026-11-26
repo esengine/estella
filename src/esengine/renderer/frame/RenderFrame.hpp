@@ -758,6 +758,8 @@ public:
     u32 batchProgram(BatchVariant variant);
     u32 batchProgram(const std::vector<std::string>& features);
     u32 displayProgram(u32 program);
+    /// @p program's PREMULTIPLY_OUTPUT twin when it is a batch variant that is not premultiplied already; else @p program.
+    u32 premultipliedOutputProgram(u32 program);
 
     static constexpr u32 STAGE_COUNT = 4;
 
@@ -932,6 +934,8 @@ private:
 
     u32 batch_shader_id_ = 0;
     std::unordered_map<std::string, resource::ShaderHandle> batch_variants_;
+    /// A batch program and the PREMULTIPLY_OUTPUT twin it is drawn with under Multiply or Screen (itself when it has none).
+    std::unordered_map<u32, u32> premultiplied_programs_;
     std::array<const resource::ShaderHandle*, static_cast<usize>(BatchVariant::Count)> batch_variant_handles_{};
     TransientBufferPool pool_;
     DrawList draw_list_;

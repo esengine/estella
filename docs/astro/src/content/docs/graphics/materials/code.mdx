@@ -82,6 +82,11 @@ Texture values are passed as `Material.tex(textureId)`.
 | `BlendMode.Screen` | One, OneMinusSrcColor | Lighten. |
 | `BlendMode.PremultipliedAlpha` | One, OneMinusSrcAlpha | Premultiplied-alpha sources. |
 
+`Multiply` and `Screen` use the source colour as it arrives, so they need it premultiplied by its alpha (`rgb * a`). The
+engine's own sprite, particle and trail shaders do this for you under these two modes. A material's own shader drawn with
+`Multiply` or `Screen` has to output `vec4(color.rgb * color.a, color.a)` itself. If it does not, a half-transparent white
+texel, such as the soft falloff of a glow, brightens whatever is behind it instead of leaving it alone.
+
 ### `CullMode`
 
 | Value | Meaning |

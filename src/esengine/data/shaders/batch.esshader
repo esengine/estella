@@ -14,6 +14,9 @@
 
 // The vertex tint arrives straight; multiply coverage after color conversion.
 #pragma feature PREMULTIPLIED_COLOR
+// What a draw blended as Multiply or Screen is drawn with: those blends add the source's colour as it is, so a straight-alpha
+// texel that is clear but white would light or whiten what is behind it. Premultiplied, a clear texel is nothing.
+#pragma feature PREMULTIPLY_OUTPUT
 
 // Compile-time variant: one resident shape drawn once per instance (Draw.triangles on a
 // buffer, what a Graphics draws through). The vertices are the shape's own, kept on the
@@ -155,6 +158,9 @@ void main() {
     fragColor.rgb = linearToSrgb(fragColor.rgb);
     #endif
   #endif
+#endif
+#ifdef PREMULTIPLY_OUTPUT
+    fragColor.rgb *= fragColor.a;
 #endif
 }
 #pragma end
@@ -303,15 +309,19 @@ struct VSOut {
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT
     #ifdef PREMULTIPLIED_COLOR
-    return vec4f(linearToSrgb(shown.rgb / max(shown.a, 1e-5)) * shown.a, shown.a);
+    var result = vec4f(linearToSrgb(shown.rgb / max(shown.a, 1e-5)) * shown.a, shown.a);
     #else
-    return vec4f(linearToSrgb(shown.rgb), shown.a);
+    var result = vec4f(linearToSrgb(shown.rgb), shown.a);
     #endif
   #else
-    return shown;
+    var result = shown;
   #endif
 #else
-    return shown;
+    var result = shown;
 #endif
+#ifdef PREMULTIPLY_OUTPUT
+    result = vec4f(result.rgb * result.a, result.a);
+#endif
+    return result;
 }
 #pragma end

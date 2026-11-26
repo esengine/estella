@@ -20,6 +20,9 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 #pragma feature PREMULTIPLIED_COLOR
 
 
+#pragma feature PREMULTIPLY_OUTPUT
+
+
 
 
 
@@ -159,6 +162,9 @@ void main() {
     fragColor.rgb = linearToSrgb(fragColor.rgb);
     #endif
   #endif
+#endif
+#ifdef PREMULTIPLY_OUTPUT
+    fragColor.rgb *= fragColor.a;
 #endif
 }
 #pragma end
@@ -307,16 +313,20 @@ struct VSOut {
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT
     #ifdef PREMULTIPLIED_COLOR
-    return vec4f(linearToSrgb(shown.rgb / max(shown.a, 1e-5)) * shown.a, shown.a);
+    var result = vec4f(linearToSrgb(shown.rgb / max(shown.a, 1e-5)) * shown.a, shown.a);
     #else
-    return vec4f(linearToSrgb(shown.rgb), shown.a);
+    var result = vec4f(linearToSrgb(shown.rgb), shown.a);
     #endif
   #else
-    return shown;
+    var result = shown;
   #endif
 #else
-    return shown;
+    var result = shown;
 #endif
+#ifdef PREMULTIPLY_OUTPUT
+    result = vec4f(result.rgb * result.a, result.a);
+#endif
+    return result;
 }
 #pragma end
 )esshader";
@@ -1470,6 +1480,8 @@ fn packNormal(n : vec3f) -> vec2f {
 inline constexpr const char* PARTICLE = R"esshader(#pragma shader "ParticleInstance"
 #pragma version 300 es
 
+#pragma feature PREMULTIPLY_OUTPUT
+
 
 
 
@@ -1487,6 +1499,9 @@ out vec4 fragColor;
 void main() {
     vec4 texColor = texture(u_textures[0], v_texCoord);
     fragColor = texColor * v_color;
+#ifdef PREMULTIPLY_OUTPUT
+    fragColor.rgb *= fragColor.a;
+#endif
 }
 #pragma end
 
@@ -1496,7 +1511,11 @@ void main() {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
 
     let texColor = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord));
-    return texColor * v.v_color;
+    var result = texColor * v.v_color;
+#ifdef PREMULTIPLY_OUTPUT
+    result = vec4f(result.rgb * result.a, result.a);
+#endif
+    return result;
 }
 #pragma end
 )esshader";

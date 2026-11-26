@@ -200,6 +200,7 @@ void RenderFrame::init(u32 width, u32 height) {
     planar_pool_.init();
     probe_pool_.init();
     batch_shader_id_ = initBatchShader();
+    context_.materials().setPremultipliedOutputResolver([this](u32 program) { return premultipliedOutputProgram(program); });
 
     RenderFrameContext initCtx{
         context_,
@@ -4083,6 +4084,37 @@ u32 RenderFrame::displayProgram(u32 program) {
     if (!found || std::find(features.begin(), features.end(), kDisplay) != features.end()) return program;
     features.push_back(kDisplay);
     return batchProgram(features);
+}
+
+u32 RenderFrame::premultipliedOutputProgram(u32 program) {
+    static const std::string kOut = "PREMULTIPLY_OUTPUT", kPremultiplied = "PREMULTIPLIED_COLOR";
+    if (auto it = premultiplied_programs_.find(program); it != premultiplied_programs_.end()) return it->second;
+    std::vector<std::string> features;
+    bool found = false;
+    for (const auto& [key, handle] : batch_variants_) {
+        Shader* shader = resource_manager_.getShader(handle);
+        if (!shader || shader->getProgramId() != program) continue;
+        size_t from = 0;
+        while (from < key.size()) {
+            const size_t bar = key.find('|', from);
+            const size_t to = bar == std::string::npos ? key.size() : bar;
+            if (to > from) features.push_back(key.substr(from, to - from));
+            from = to + 1;
+        }
+        found = true;
+        break;
+    }
+    // Not a batch variant (a material's own program, a plugin's), or one premultiplied already (a premultiplied-alpha source such
+    // as a Spine page): drawn as it is.
+    const auto has = [&](const std::string& f) { return std::find(features.begin(), features.end(), f) != features.end(); };
+    u32 out = program;
+    if (found && !has(kOut) && !has(kPremultiplied)) {
+        features.push_back(kOut);
+        out = batchProgram(features);
+        if (out == 0) out = program;
+    }
+    premultiplied_programs_.emplace(program, out);
+    return out;
 }
 
 resource::ShaderHandle RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {

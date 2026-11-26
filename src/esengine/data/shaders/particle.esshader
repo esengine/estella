@@ -1,5 +1,7 @@
 #pragma shader "ParticleInstance"
 #pragma version 300 es
+// Drawn with this when the emitter blends as Multiply or Screen: those blends take the colour as it is, so a clear texel must be black.
+#pragma feature PREMULTIPLY_OUTPUT
 
 // Fragment-only, on the engine's canonical vertex stage under the PARTICLE
 // feature: what turns instance data into a billboarded quad is the same stage a
@@ -18,6 +20,9 @@ out vec4 fragColor;
 void main() {
     vec4 texColor = texture(u_textures[0], v_texCoord);
     fragColor = texColor * v_color;
+#ifdef PREMULTIPLY_OUTPUT
+    fragColor.rgb *= fragColor.a;
+#endif
 }
 #pragma end
 
@@ -27,6 +32,10 @@ void main() {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     // Through the mip chain, as the GLSL twin's texture() is.
     let texColor = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord));
-    return texColor * v.v_color;
+    var result = texColor * v.v_color;
+#ifdef PREMULTIPLY_OUTPUT
+    result = vec4f(result.rgb * result.a, result.a);
+#endif
+    return result;
 }
 #pragma end
