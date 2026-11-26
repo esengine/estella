@@ -25,7 +25,7 @@ describe('EditorView camera', () => {
 
     // Configuration: synthetic (no entity), full-frame, clears color+depth.
     expect(cam.entity).toBe(-1);
-    expect(cam.viewportRect).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    expect(cam.viewport).toEqual({ x: 0, y: 0, w: 800, h: 600 });
     expect(cam.clearFlags).toBe(ClearFlags.ColorAndDepth);
     expect(cam.cameraX).toBe(100);
     expect(cam.cameraY).toBe(50);

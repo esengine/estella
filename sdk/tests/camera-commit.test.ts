@@ -160,6 +160,34 @@ describe('the camera a frame was drawn with', () => {
         expect(app.getResource(PresentedCameraView).screenToWorld(200, 300)?.x).toBeCloseTo(x, 3);
     });
 
+    it('uses the exact pixel bounds and aspect for a split viewport on an odd-sized surface', async () => {
+        const { app, cam } = bootWithCamera({ width: 801, height: 601 });
+        app.world.update(cam, Camera, data => { data.viewport = { x: 0.5, y: 0, z: 0.5, w: 0.5 }; });
+        const draw = vi.spyOn(app.pipeline!, 'renderCamera');
+
+        await app.tick(1 / 60);
+
+        expect(draw.mock.lastCall?.[0].viewportPixels).toEqual({ x: 401, y: 301, w: 400, h: 300 });
+        expect(drawnWith![5] / drawnWith![0]).toBeCloseTo(400 / 300, 6);
+        expect(app.getResource(CameraCommit)).toMatchObject({ vpX: 401, vpY: 301, vpW: 400, vpH: 300 });
+        expect(app.getResource(PresentedCameraView).worldToScreen(0, 0)).toMatchObject({ x: 601, y: 451 });
+        const picked = app.getResource(PresentedCameraView).screenToWorld(601, 451);
+        expect(picked?.x).toBeCloseTo(0, 6);
+        expect(picked?.y).toBeCloseTo(0, 6);
+    });
+
+    it('skips a viewport whose rounded edges enclose no pixels', async () => {
+        const { app, cam } = bootWithCamera();
+        app.world.update(cam, Camera, data => { data.viewport = { x: 0.51 / 800, y: 0, z: 0.51 / 800, w: 1 }; });
+        const draw = vi.spyOn(app.pipeline!, 'renderCamera');
+
+        await app.tick(1 / 60);
+
+        expect(draw).not.toHaveBeenCalled();
+        expect(app.getResource(CameraCommit).valid).toBe(false);
+        expect(app.getResource(UICameraInfo).valid).toBe(false);
+    });
+
     it('an offscreen camera cannot take over screen picking, commits or HUD layers', async () => {
         const { app, cam } = bootWithCamera();
         const registry = app.world.getCppRegistry() as unknown as Record<string, unknown> & CppRegistry;
@@ -170,15 +198,18 @@ describe('the camera a frame was drawn with', () => {
             position: { x: 1000, y: 0, z: 0 }, worldPosition: { x: 1000, y: 0, z: 0 },
         });
         vi.spyOn(Renderer, 'createRenderTarget').mockReturnValue(7);
-        const target = RenderTexture.create({ width: 128, height: 256 });
+        const target = RenderTexture.create({ width: 129, height: 257 });
         const draws = vi.spyOn(app.pipeline!, 'renderCamera');
-        app.world.insert(offscreen, Camera, { isActive: true, renderTarget: target._handle, cullingMask: 2, orthoSize: 50 });
+        app.world.insert(offscreen, Camera, {
+            isActive: true, renderTarget: target._handle, cullingMask: 2, orthoSize: 50,
+            viewport: { x: 0.5, y: 0, z: 0.5, w: 0.5 },
+        });
         registry.getCameraEntities = () => [cam, offscreen];
         expect(registry.getCamera(cam).cullingMask).toBe(1);
         expect(registry.getCamera(offscreen).renderTarget).toBe(7);
         await app.tick(1 / 60);
-        expect(draws.mock.calls.map(([p]) => [p.cameraEntity, p.renderTarget, p.viewportPixels.w, p.viewportPixels.h]))
-            .toEqual([[offscreen, 7, 128, 256], [cam, 0, 800, 600]]);
+        expect(draws.mock.calls.map(([p]) => [p.cameraEntity, p.renderTarget, p.viewportPixels]))
+            .toEqual([[offscreen, 7, { x: 65, y: 129, w: 64, h: 128 }], [cam, 0, { x: 0, y: 0, w: 800, h: 600 }]]);
         const ui = app.getResource(UICameraInfo);
         expect(ui.viewProjection[12]).toBeCloseTo(0);
         expect(app.getResource(CameraCommit).viewProjection[12]).toBeCloseTo(0);

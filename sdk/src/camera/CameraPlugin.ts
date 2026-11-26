@@ -45,7 +45,7 @@ import { pendingShaders } from '../render/shaderWarmup';
 import { renderTargetSize } from '../render/renderTexture';
 import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
-import type { RenderPipeline } from '../render/renderPipeline';
+import type { RenderPipeline, Viewport } from '../render/renderPipeline';
 import { xrPresentation, placeEye, headingOf, sharedEyeView, type XRPresentationState } from '../xr/xrPresentation';
 import { XRController, XRHead, syncXRPoses } from '../xr/xrComponents';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
@@ -67,7 +67,7 @@ interface CameraInfo {
     /** The same view-projection for the render origin (render/renderOrigin.ts): what the renderer is begun with. Equal to `viewProjection` while the origin is zero. */
     renderViewProjection: Float32Array;
     renderOrigin: Vec3;
-    viewportRect: { x: number; y: number; w: number; h: number };
+    viewport: Viewport;
     clearFlags: number;
     priority: number;
     halfW: number;
@@ -88,7 +88,7 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
         viewProjection: new Float32Array(16),
         renderViewProjection: new Float32Array(16),
         renderOrigin: { x: 0, y: 0, z: 0 },
-        viewportRect: { x: 0, y: 0, w: 0, h: 0 },
+        viewport: { x: 0, y: 0, w: 0, h: 0 },
         clearFlags: 0,
         priority: 0,
         halfW: 0,
@@ -345,7 +345,8 @@ export function buildCameraInfo(
     const target = pov.renderTarget ? renderTargetSize(pov.renderTarget) : null;
     width = target?.width ?? width;
     height = target?.height ?? height;
-    const aspect = (pov.viewport.z * width) / (pov.viewport.w * height);
+    const viewport = viewportPixels({ x: pov.viewport.x, y: pov.viewport.y, w: pov.viewport.z, h: pov.viewport.w }, width, height);
+    const aspect = Math.max(1, viewport.w) / Math.max(1, viewport.h);
     let projection: Float32Array;
     let halfW = 0;
     let halfH = 0;
@@ -379,7 +380,7 @@ export function buildCameraInfo(
     let camX = pov.x;
     let camY = pov.y;
     if (pov.pixelPerfect && pov.projection === ProjectionType.Orthographic) {
-        const worldPerPixel = (2 * halfH) / Math.max(pov.viewport.w * height, 1);
+        const worldPerPixel = (2 * halfH) / Math.max(1, viewport.h);
         camX = snapToPixelGrid(pov.x, worldPerPixel);
         camY = snapToPixelGrid(pov.y, worldPerPixel);
     }
@@ -410,10 +411,7 @@ export function buildCameraInfo(
                 : invertViewZ(camX - origin.x, camY - origin.y, pov.z - origin.z, Math.cos(pov.rotation), Math.sin(pov.rotation));
         cam.renderViewProjection.set(multiply(projection, near));
     }
-    cam.viewportRect.x = pov.viewport.x;
-    cam.viewportRect.y = pov.viewport.y;
-    cam.viewportRect.w = pov.viewport.z;
-    cam.viewportRect.h = pov.viewport.w;
+    cam.viewport = viewport;
     cam.clearFlags = pov.clearFlags;
     cam.priority = pov.priority;
     cam.halfW = halfW;
@@ -776,14 +774,17 @@ function copyRebasedProjection(target: Pick<CameraCommitData, 'rebasedProjection
 // Texture passes run first, but only a screen camera can describe where a
 // pointer lands or what the composited screen was drawn through.
 function primaryScreenCamera(cameras: CameraInfo[]): CameraInfo | null {
-    return cameras.find(cam => cam.renderTarget === 0) ?? null;
+    return cameras.find(cam => cam.renderTarget === 0 && hasViewportPixels(cam)) ?? null;
 }
 
-/** A texture camera has no output once its target is released. */
-function cameraPassSurface(cam: CameraInfo, width: number, height: number, screenTarget = 0) {
-    if (cam.renderTarget === 0) return { width, height, renderTarget: screenTarget };
-    const size = renderTargetSize(cam.renderTarget);
-    return size && { ...size, renderTarget: cam.renderTarget };
+function hasViewportPixels(cam: CameraInfo): boolean {
+    return cam.viewport.w > 0 && cam.viewport.h > 0;
+}
+
+function cameraPassTarget(cam: CameraInfo, screenTarget = 0): number | null {
+    if (!hasViewportPixels(cam)) return null;
+    if (cam.renderTarget === 0) return screenTarget;
+    return renderTargetSize(cam.renderTarget) ? cam.renderTarget : null;
 }
 
 function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, height: number, cameras: CameraInfo[]): void {
@@ -796,9 +797,7 @@ function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, hei
         // In the same statement group as the write it names: a revision published
         // apart from the matrix is a reader's chance to see one without the other.
         uiCam.revision++;
-        // Against the WINDOW, not the camera's render target: this rect is what a
-        // pointer's coordinates are normalised by, and a pointer is on the window.
-        const box = viewportPixels(cam.viewportRect, width, height);
+        const box = cam.viewport;
         // ...and then where the image actually lands inside it, which is the same
         // rect only while the present does not letterbox. screenToWorld maps a
         // point through THIS, so it has to be the picture's rect, not the camera's.
@@ -1128,24 +1127,20 @@ export function cameraPlugin(
                                     if (cam === xrRig) drawEyes(app, pipeline, xr, cam, cppRegistry, elapsed, clearColor);
                                     continue;
                                 }
-                                // A camera drawing into a texture is measured against
-                                // THAT surface: its viewport rect is a fraction, and
-                                // the fraction is of the target it draws to.
-                                const surface = cameraPassSurface(cam, width, height);
-                                if (!surface) continue;
-                                const rect = viewportPixels(cam.viewportRect, surface.width, surface.height);
+                                const target = cameraPassTarget(cam);
+                                if (target === null) continue;
                                 pipeline.renderCamera({
                                     registry: { _cpp: cppRegistry },
                                     viewProjection: cam.viewProjection,
                                     renderViewProjection: cam.renderViewProjection,
                                     renderOrigin: cam.renderOrigin,
-                                    viewportPixels: rect,
+                                    viewportPixels: cam.viewport,
                                     clearFlags: cam.clearFlags,
                                     elapsed,
                                     cameraEntity: cam.entity,
                                     clearColor: cameraClearColor(cam.entity as Entity, clearColor),
                                     cullingMask: cam.cullingMask,
-                                    renderTarget: surface.renderTarget,
+                                    renderTarget: target,
                                     // The world the camera shows vertically is what the
                                     // render size matches, so worldPerPixel lands on 1.
                                     worldHeight: 2 * cam.halfH,
@@ -1272,12 +1267,11 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         }
         if (!target) pipeline.beginScreenCapture();
         for (const cam of cameras) {
-            const surface = cameraPassSurface(cam, width, height, target);
-            if (!surface) continue;
-            const rect = viewportPixels(cam.viewportRect, surface.width, surface.height);
+            const passTarget = cameraPassTarget(cam, target);
+            if (passTarget === null) continue;
             pipeline.renderCamera({ registry: { _cpp: registry }, viewProjection: cam.viewProjection, renderViewProjection: cam.renderViewProjection,
-                renderOrigin: cam.renderOrigin, viewportPixels: rect, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
-                clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: surface.renderTarget });
+                renderOrigin: cam.renderOrigin, viewportPixels: cam.viewport, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
+                clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: passTarget });
             drewCamera = true;
         }
         if (!target) pipeline.endScreenCapture();

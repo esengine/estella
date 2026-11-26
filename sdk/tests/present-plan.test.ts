@@ -160,14 +160,17 @@ describe('viewportPixels', () => {
             .toEqual({ x: 0, y: 300, w: 800, h: 300 });
     });
 
-    it('split-screen quadrants tile the surface with no gap and no overlap', () => {
+    it.each([[1024, 768], [1025, 769]])('split-screen quadrants tile a %s by %s surface', (width, height) => {
         const quads = [
             { x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
             { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 },
-        ].map((r) => viewportPixels(r, 1024, 768));
-        const covered = quads.reduce((n, q) => n + q.w * q.h, 0);
-        expect(covered).toBe(1024 * 768);
-        expect(new Set(quads.map((q) => `${q.x},${q.y}`)).size).toBe(4);
+        ].map((r) => viewportPixels(r, width, height));
+        const x = Math.round(width / 2);
+        const y = Math.round(height / 2);
+        expect(quads).toEqual([
+            { x: 0, y: 0, w: x, h: y }, { x, y: 0, w: width - x, h: y },
+            { x: 0, y, w: x, h: height - y }, { x, y, w: width - x, h: height - y },
+        ]);
     });
 
     it('measures against whatever surface it is given, which stays the caller choice', () => {
