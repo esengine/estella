@@ -5,16 +5,15 @@ import type { World } from '../../ecs/world';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { ScreenOverlayData } from '../core/screen-overlay';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
-import { screenToWorld, projectWorldPoint, createInvVPCache, screenRay, type WorldRay } from './math';
+import { screenToWorld, projectWorldPoint, createInvVPCache, screenRay,
+  cameraScreenToWorld, cameraScreenRay, projectCameraPoint, type WorldRay } from './math';
 
 const NO_HIT = 0xffffffff;
 const vpCache = createInvVPCache();
 const overlayCache = createInvVPCache();
 
 export function screenToUiWorld(camera: UICameraData, screenGLX: number, screenGLY: number): { x: number; y: number } {
-  vpCache.update(camera.viewProjection);
-  const invVP = vpCache.getInverse(camera.viewProjection);
-  return screenToWorld(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+  return cameraScreenToWorld(camera, vpCache, screenGLX, screenGLY);
 }
 
 /**
@@ -24,9 +23,7 @@ export function screenToUiWorld(camera: UICameraData, screenGLX: number, screenG
  *          picking cannot use: a mesh is a solid and a sprite stands at any depth.
  */
 export function uiPointerRay(camera: UICameraData, screenGLX: number, screenGLY: number): WorldRay {
-  vpCache.update(camera.viewProjection);
-  const invVP = vpCache.getInverse(camera.viewProjection);
-  return screenRay(screenGLX, screenGLY, invVP, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+  return cameraScreenRay(camera, vpCache, screenGLX, screenGLY);
 }
 
 /**
@@ -92,8 +89,7 @@ export function uiLayoutToScreen(
 }
 
 export function uiWorldToScreen(camera: UICameraData, worldX: number, worldY: number): { x: number; y: number } {
-  const p = projectWorldPoint(worldX, worldY, 0, camera.viewProjection,
-                              camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+  const p = projectCameraPoint(camera, worldX, worldY, 0);
   return { x: p.x, y: p.y };
 }
 

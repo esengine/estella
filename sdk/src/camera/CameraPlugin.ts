@@ -23,9 +23,9 @@ import { StateDrivenCamera } from './StateDrivenCamera';
 import { CameraDolly } from './CameraDolly';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { CameraCommit, cameraCommitChanged } from './CameraCommit';
+import { CameraCommit, cameraCommitChanged, type CameraCommitData } from './CameraCommit';
 import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from './Camera';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
@@ -66,6 +66,7 @@ interface CameraInfo {
     viewProjection: Float32Array;
     /** The same view-projection for the render origin (render/renderOrigin.ts): what the renderer is begun with. Equal to `viewProjection` while the origin is zero. */
     renderViewProjection: Float32Array;
+    renderOrigin: Vec3;
     viewportRect: { x: number; y: number; w: number; h: number };
     clearFlags: number;
     priority: number;
@@ -86,6 +87,7 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
         entity: 0,
         viewProjection: new Float32Array(16),
         renderViewProjection: new Float32Array(16),
+        renderOrigin: { x: 0, y: 0, z: 0 },
         viewportRect: { x: 0, y: 0, w: 0, h: 0 },
         clearFlags: 0,
         priority: 0,
@@ -394,6 +396,9 @@ export function buildCameraInfo(
     cam.entity = pov.entity;
     cam.viewProjection.set(multiply(projection, view));
     const origin = renderOrigin();
+    cam.renderOrigin.x = origin.x;
+    cam.renderOrigin.y = origin.y;
+    cam.renderOrigin.z = origin.z;
     if (origin.x === 0 && origin.y === 0 && origin.z === 0) {
         cam.renderViewProjection.set(cam.viewProjection);
     } else {
@@ -723,7 +728,8 @@ function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): vo
         commit.valid = false;
         return;
     }
-    const moved = !commit.valid
+    const rebasedMoved = copyRebasedProjection(commit, cam);
+    const moved = !commit.valid || rebasedMoved
         || commit.vpX !== uiCam.vpX || commit.vpY !== uiCam.vpY
         || commit.vpW !== uiCam.vpW || commit.vpH !== uiCam.vpH
         || !sameMatrix(commit.viewProjection, cam.viewProjection);
@@ -744,6 +750,27 @@ function sameMatrix(a: Float32Array, b: Float32Array): boolean {
     return true;
 }
 
+/** Publish the relative matrix with the exact origin it was built against. */
+function copyRebasedProjection(target: Pick<CameraCommitData, 'rebasedProjection'>, cam: CameraInfo): boolean {
+    const { x, y, z } = cam.renderOrigin;
+    const previous = target.rebasedProjection;
+    if (x === 0 && y === 0 && z === 0) {
+        target.rebasedProjection = undefined;
+        return previous !== undefined;
+    }
+    const next = previous ?? { origin: { x, y, z }, viewProjection: new Float32Array(16) };
+    const moved = !previous || next.origin.x !== x || next.origin.y !== y || next.origin.z !== z
+        || !sameMatrix(next.viewProjection, cam.renderViewProjection);
+    if (moved) {
+        next.origin.x = x;
+        next.origin.y = y;
+        next.origin.z = z;
+        next.viewProjection.set(cam.renderViewProjection);
+        target.rebasedProjection = next;
+    }
+    return moved;
+}
+
 // Texture passes run first, but only a screen camera can describe where a
 // pointer lands or what the composited screen was drawn through.
 function primaryScreenCamera(cameras: CameraInfo[]): CameraInfo | null {
@@ -756,6 +783,7 @@ function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, hei
     const cam = primaryScreenCamera(cameras);
     if (cam) {
         uiCam.viewProjection.set(cam.viewProjection);
+        copyRebasedProjection(uiCam, cam);
         // In the same statement group as the write it names: a revision published
         // apart from the matrix is a reader's chance to see one without the other.
         uiCam.revision++;

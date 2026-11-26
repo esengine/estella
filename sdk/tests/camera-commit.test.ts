@@ -16,6 +16,9 @@ import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 import { cameraPlugin } from '../src/camera/CameraPlugin';
 import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
+import { CameraView, PresentedCameraView } from '../src/camera/Camera';
+import { followRenderOrigin, resetRenderOrigin, setRenderOriginStep } from '../src/render/renderOrigin';
+import { screenToUiWorld, uiWorldToScreen } from '../src/ui/util/ui-pick';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
 import { RenderPipeline } from '../src/render/renderPipeline';
@@ -51,11 +54,11 @@ describe('the camera a frame was drawn with', () => {
     }
 
     /** An app with one orthographic camera, drawing through the fake backend. */
-    function bootWithCamera(viewport = { width: 800, height: 600 }) {
+    function bootWithCamera(viewport = { width: 800, height: 600 }, x = 0) {
         const { app, module } = bootMockApp();
         const registry = registryOf(module);
         const cam = app.world.spawn('camera') as Entity;
-        app.world.insert(cam, Transform, { position: { x: 0, y: 0, z: 0 } });
+        app.world.insert(cam, Transform, { position: { x, y: 0, z: 0 }, worldPosition: { x, y: 0, z: 0 } });
         app.world.insert(cam, Camera, {
             isActive: true, projectionType: ProjectionType.Orthographic, orthoSize: 300,
         });
@@ -71,7 +74,7 @@ describe('the camera a frame was drawn with', () => {
         drawnWith = null;
         setPlatform({ now: () => 0, devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
     });
-    afterEach(() => { setRendererBackend(null); });
+    afterEach(() => { setRendererBackend(null); resetRenderOrigin(); });
 
     it('is published, and names the write it came from', async () => {
         const { app } = bootWithCamera();
@@ -84,6 +87,32 @@ describe('the camera a frame was drawn with', () => {
         // would send every overlay somewhere the frame never drew.
         expect(drawnWith).not.toBeNull();
         expect(Array.from(commit.viewProjection)).toEqual(Array.from(drawnWith!));
+    });
+
+    it('projects and picks where the renderer draws a distant rebased camera', async () => {
+        const x = 7 * 2 ** 26 + 32;
+        setRenderOriginStep(1024);
+        const { app } = bootWithCamera(undefined, x);
+        await app.tick(1 / 60);
+
+        expect(drawnWith?.[12]).toBeCloseTo(-32 / 400);
+        const sampleX = 424;
+        const presented = app.getResource(PresentedCameraView);
+        const ui = app.getResource(UICameraInfo);
+        const committed = app.getResource(CameraCommit).rebasedProjection;
+        expect(committed?.origin).toEqual({ x: x - 32, y: 0, z: 0 });
+        expect(committed?.viewProjection).toEqual(drawnWith);
+        expect(committed?.viewProjection).not.toBe(ui.rebasedProjection?.viewProjection);
+        for (const camera of [presented, app.getResource(CameraView)]) {
+            expect(camera.screenToWorld(sampleX, 300)?.x).toBeCloseTo(x + 24, 4);
+            expect(camera.screenRay(sampleX, 300)?.origin.x).toBeCloseTo(x + 24, 4);
+            expect(camera.worldToScreen(x + 24, 0)?.x).toBeCloseTo(sampleX, 4);
+        }
+        expect(screenToUiWorld(ui, sampleX, 300).x).toBeCloseTo(x + 24, 4);
+        expect(uiWorldToScreen(ui, x + 24, 0).x).toBeCloseTo(sampleX, 4);
+        ui.rebasedProjection?.viewProjection.fill(99);
+        followRenderOrigin(x + 8192, 0, 0);
+        expect(presented.screenToWorld(sampleX, 300)?.x).toBeCloseTo(x + 24, 4);
     });
 
     it('an offscreen camera cannot take over screen picking, commits or HUD layers', async () => {

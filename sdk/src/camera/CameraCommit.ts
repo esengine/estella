@@ -18,13 +18,16 @@
  *          to having used the same one.
  */
 import { defineResource } from '../ecs/resource';
+import type { RebasedProjection } from '../ui/util/math';
 
 /** @beta */
 export interface CameraCommitData {
     /** The {@link UICameraData.revision} this frame was drawn with; 0 = none. */
     revision: number;
-    /** The view-projection that drew it — a copy, not the live resource's array. */
+    /** The absolute view-projection, copied for this frame. */
     viewProjection: Float32Array;
+    /** The render-space matrix and origin copied together when origin rebasing is active. */
+    rebasedProjection?: RebasedProjection;
     /** Where the picture landed, in window pixels. */
     vpX: number;
     vpY: number;

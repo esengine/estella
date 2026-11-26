@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineResource } from '../../ecs/resource';
+import type { RebasedProjection } from '../util/math';
 
 /**
  * The surface UI lays out against: its pixel size and the scale mapping design
@@ -10,6 +11,7 @@ import { defineResource } from '../../ecs/resource';
  */
 export interface UICameraData {
     viewProjection: Float32Array;
+    rebasedProjection?: RebasedProjection;
     vpX: number;
     vpY: number;
     vpW: number;

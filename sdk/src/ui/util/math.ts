@@ -5,7 +5,7 @@
 // for it.
 import { invertMatrix4 } from '../../math/mat4';
 import { q } from '../../math/quat';
-import type { Vec3 } from '../../types';
+import type { Vec2, Vec3 } from '../../types';
 
 export { invertMatrix4 };
 
@@ -14,6 +14,21 @@ export interface ScreenRect {
     y: number;
     w: number;
     h: number;
+}
+
+/** A render projection and the world origin its coordinates are relative to. */
+export interface RebasedProjection {
+    viewProjection: Float32Array;
+    origin: Vec3;
+}
+
+export interface WorldCameraProjection {
+    viewProjection: Float32Array;
+    rebasedProjection?: RebasedProjection;
+    vpX: number;
+    vpY: number;
+    vpW: number;
+    vpH: number;
 }
 
 export function intersectRects(a: ScreenRect, b: ScreenRect): ScreenRect {
@@ -259,6 +274,41 @@ export function createInvVPCache() {
             return invVP;
         },
     };
+}
+
+/** Project a world point using the same local coordinates as the draw pass. */
+export function projectCameraPoint(camera: WorldCameraProjection, x: number, y: number, z: number): ProjectedPoint {
+    const rebased = camera.rebasedProjection;
+    const origin = rebased?.origin;
+    return projectWorldPoint(x - (origin?.x ?? 0), y - (origin?.y ?? 0), z - (origin?.z ?? 0),
+                             rebased?.viewProjection ?? camera.viewProjection, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+}
+
+function cameraInverse(camera: WorldCameraProjection, cache: ReturnType<typeof createInvVPCache>): Float32Array {
+    const vp = camera.rebasedProjection?.viewProjection ?? camera.viewProjection;
+    cache.update(vp);
+    return cache.getInverse(vp);
+}
+
+export function cameraScreenRay(camera: WorldCameraProjection, cache: ReturnType<typeof createInvVPCache>, x: number, y: number): WorldRay {
+    const ray = screenRay(x, y, cameraInverse(camera, cache), camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+    const origin = camera.rebasedProjection?.origin;
+    if (origin) {
+        ray.origin.x += origin.x;
+        ray.origin.y += origin.y;
+        ray.origin.z += origin.z;
+    }
+    return ray;
+}
+
+export function cameraScreenToWorld(camera: WorldCameraProjection, cache: ReturnType<typeof createInvVPCache>, x: number, y: number, planeZ = 0): Vec2 {
+    const origin = camera.rebasedProjection?.origin;
+    const point = screenToWorld(x, y, cameraInverse(camera, cache), camera.vpX, camera.vpY, camera.vpW, camera.vpH, planeZ - (origin?.z ?? 0));
+    if (origin) {
+        point.x += origin.x;
+        point.y += origin.y;
+    }
+    return point;
 }
 
 export function pointInOBB(

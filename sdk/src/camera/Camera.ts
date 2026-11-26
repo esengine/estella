@@ -6,7 +6,8 @@ import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
 import { platformDevicePixelRatio } from '../platform';
 import { CameraCommit } from './CameraCommit';
 import type { Vec3 } from '../types';
-import { pointerToScreen, screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
+import { pointerToScreen, cameraScreenToWorld, projectCameraPoint, projectDirectionAt, nearPlaneSide, isProjectable,
+    createInvVPCache, cameraScreenRay, type WorldCameraProjection, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -27,13 +28,7 @@ const CLIP_NUDGE = 1e-4;
  * cameras can both supply, one being resolved and one already drawn with.
  * @beta
  */
-export interface CameraLens {
-    viewProjection: Float32Array;
-    vpX: number;
-    vpY: number;
-    vpW: number;
-    vpH: number;
-}
+export type CameraLens = WorldCameraProjection;
 
 /** The camera currently being resolved — moves twice a frame. */
 const liveLens = (app: App): CameraLens | null => {
@@ -94,9 +89,7 @@ export class CameraViewAPI {
     screenToWorld(screenX: number, screenY: number, planeZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
-        this.invVPCache.update(cam.viewProjection);
-        const invVP = this.invVPCache.getInverse(cam.viewProjection);
-        return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH, planeZ);
+        return cameraScreenToWorld(cam, this.invVPCache, screenX, screenY, planeZ);
     }
 
     /**
@@ -134,9 +127,7 @@ export class CameraViewAPI {
     screenRay(screenX: number, screenY: number): WorldRay | null {
         const cam = this.cam();
         if (!cam) return null;
-        this.invVPCache.update(cam.viewProjection);
-        const invVP = this.invVPCache.getInverse(cam.viewProjection);
-        return screenRay(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        return cameraScreenRay(cam, this.invVPCache, screenX, screenY);
     }
 
     /**
@@ -153,8 +144,7 @@ export class CameraViewAPI {
     worldToScreen(worldX: number, worldY: number, worldZ = 0): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
-        const p = projectWorldPoint(worldX, worldY, worldZ,
-                                    cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        const p = projectCameraPoint(cam, worldX, worldY, worldZ);
         return isProjectable(p) ? { x: p.x, y: p.y } : null;
     }
 
@@ -168,8 +158,7 @@ export class CameraViewAPI {
     clipSegment(a: Vec3, b: Vec3): { a: Vec3; b: Vec3 } | null {
         const cam = this.cam();
         if (!cam) return null;
-        const at = (p: Vec3) => projectWorldPoint(p.x, p.y, p.z,
-                                                  cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        const at = (p: Vec3) => projectCameraPoint(cam, p.x, p.y, p.z);
         const sa = nearPlaneSide(at(a));
         const sb = nearPlaneSide(at(b));
         if (sa >= 0 && sb >= 0) return { a, b };
@@ -194,11 +183,10 @@ export class CameraViewAPI {
     projectDirectionAt(at: Vec3, dir: Vec3): { x: number; y: number } | null {
         const cam = this.cam();
         if (!cam) return null;
-        const p = projectWorldPoint(at.x, at.y, at.z,
-                                    cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+        const p = projectCameraPoint(cam, at.x, at.y, at.z);
         if (!isProjectable(p)) return null;
         return projectDirectionAt(p, dir.x, dir.y, dir.z,
-                                  cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
+                                  cam.rebasedProjection?.viewProjection ?? cam.viewProjection, cam.vpX, cam.vpY, cam.vpW, cam.vpH);
     }
 
     getWorldMousePosition(): { x: number; y: number } | null {
