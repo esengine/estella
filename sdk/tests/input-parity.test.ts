@@ -73,24 +73,32 @@ describe('input adapter parity (web vs native)', () => {
 
         // offsetX/offsetY are what the web adapter reads and what a layout would
         // normally compute; there is no layout here, so they are set directly.
-        const mouse = (type: string, button: number, x: number, y: number, dx = 0, dy = 0) => {
+        const mouse = (type: string, button: number, x: number, y: number, dx = 0, dy = 0, offsetX = x) => {
             const e = new MouseEvent(type, { button, bubbles: true, clientX: x + 10, clientY: y + 15 });
-            Object.defineProperty(e, 'offsetX', { value: x });
+            Object.defineProperty(e, 'offsetX', { value: offsetX });
             Object.defineProperty(e, 'offsetY', { value: y });
             Object.defineProperty(e, 'movementX', { value: dx });
             Object.defineProperty(e, 'movementY', { value: dy });
             return e;
         };
-        element.dispatchEvent(mouse('mousedown', 2, 10, 20));
-        element.dispatchEvent(mouse('mousemove', 0, 11, 21, 4, -3));
-        // mouseup and the keys are bound to the DOCUMENT — a button released off
-        // the canvas still ends the drag — so that is where they are dispatched.
-        document.dispatchEvent(mouse('mouseup', 2, 42, 24));
-        element.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 48, deltaMode: 0 }));
-        document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
-        document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
-
-        web.unbindInputEvents();
+        const outside = document.body.appendChild(document.createElement('div'));
+        outside.addEventListener('mousemove', e => e.stopPropagation());
+        outside.addEventListener('mouseup', e => e.stopPropagation());
+        try {
+            outside.dispatchEvent(mouse('mousemove', 0, 820, 15));
+            element.dispatchEvent(mouse('mousedown', 2, 10, 20));
+            element.dispatchEvent(mouse('mousemove', 0, 11, 21, 4, -3));
+            // Here offsetX belongs to the sibling, not the bound canvas.
+            outside.dispatchEvent(mouse('mousemove', 0, 830, 21, 7, 0, 20));
+            outside.dispatchEvent(mouse('mouseup', 2, 842, 24));
+            outside.dispatchEvent(mouse('mousemove', 0, 850, 28));
+            element.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 48, deltaMode: 0 }));
+            document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+            document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+        } finally {
+            outside.remove();
+            web.unbindInputEvents();
+        }
         return trace;
     }
 
@@ -104,7 +112,8 @@ describe('input adapter parity (web vs native)', () => {
         type Pointer = (t: number, b: number, x: number, y: number, dx?: number, dy?: number) => void;
         (scope.es_onNativePointer as Pointer)(0, 2, 10, 20);
         (scope.es_onNativePointer as Pointer)(1, 0, 11, 21, 4, -3);
-        (scope.es_onNativePointer as Pointer)(2, 2, 42, 24);
+        (scope.es_onNativePointer as Pointer)(1, 0, 830, 21, 7, 0);
+        (scope.es_onNativePointer as Pointer)(2, 2, 842, 24);
         (scope.es_onNativeWheel as (dx: number, dy: number) => void)(0, 48);
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(true, 'KeyW');
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(false, 'KeyW');
@@ -118,7 +127,8 @@ describe('input adapter parity (web vs native)', () => {
         expect(web).toEqual([
             'pointerDown 2 10,20',
             'pointerMove 11,21 delta 4,-3',
-            'pointerUp 2 at 42,24',
+            'pointerMove 830,21 delta 7,0',
+            'pointerUp 2 at 842,24',
             'wheel 0,48',
             'keyDown KeyW',
             'keyUp KeyW',

@@ -262,6 +262,13 @@ class WebPlatformAdapter implements PlatformAdapter {
             const me = e as MouseEvent;
             callbacks.onPointerMove(me.offsetX, me.offsetY, me.movementX, me.movementY);
         };
+        const onOutsideMouseMove = (e: Event) => {
+            // The canvas already receives its own moves, including pointer lock.
+            if (!heldButtons.size || e.target === el || doc.pointerLockElement === el || e.composedPath().includes(el)) return;
+            const mouse = e as MouseEvent;
+            const rect = el.getBoundingClientRect();
+            callbacks.onPointerMove(mouse.clientX - rect.left, mouse.clientY - rect.top, mouse.movementX, mouse.movementY);
+        };
         const onMouseDown = (e: Event) => {
             const me = e as MouseEvent;
             heldButtons.add(me.button);
@@ -334,7 +341,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             scope.listen(doc, 'visibilitychange', onVisibilityChange);
             scope.listen(doc, 'keydown', onKeyDown);
             scope.listen(doc, 'keyup', onKeyUp);
-            scope.listen(doc, 'mouseup', onMouseUp);
+            scope.listen(doc, 'mouseup', onMouseUp, { capture: true });
             // Offscreen surfaces have no DOM coordinates or pointer target.
             if (typeof el.getBoundingClientRect !== 'function') return;
             if (target && el.ownerDocument) {
@@ -342,6 +349,8 @@ class WebPlatformAdapter implements PlatformAdapter {
                     if (this.inputBinding_.owner === callbacks) this.bindInputEvents(callbacks, el);
                 });
             }
+            // Another DOM control may stop bubbling while a canvas drag crosses it.
+            scope.listen(doc, 'mousemove', onOutsideMouseMove, { capture: true });
             scope.listen(el, 'mousemove', onMouseMove);
             scope.listen(el, 'mousedown', onMouseDown);
             scope.listen(el, 'touchstart', onTouchStart, { passive: false });
