@@ -62,7 +62,7 @@ class TimelinePlaybackSystem {
     private active_ = true;
     private timeline_: TimelineAPI | null = null;
     private readonly frames_ = new TimelineSpriteFrames();
-    private offDespawn_: (() => void) | null = null;
+    private detachPlayers_: (() => void) | null = null;
     /** Each player's state as of last frame, to tell what it did this one. */
     private readonly lastPlayback_ = new Map<Entity, { playing: boolean; laps: number }>();
     /** The audio clips each player is playing. */
@@ -73,6 +73,11 @@ class TimelinePlaybackSystem {
 
     install(app: App): void {
         const world = app.world;
+        const directorFor = () => app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
+        const clearShot = (entity: Entity) => {
+            const director = directorFor();
+            if (director) setTimelineShot(director, entity, null);
+        };
 
         // The api's play/pause/stop write through to the component flags (the
         // authoritative channel this system reconciles from — see PlayerFlagChannel).
@@ -87,7 +92,10 @@ class TimelinePlaybackSystem {
         const timeline = new TimelineAPI({
             raise: entity => setFlags(entity, true, false),
             lower: entity => setFlags(entity, false, false),
-            reset: entity => setFlags(entity, false, true),
+            reset: entity => {
+                clearShot(entity);
+                setFlags(entity, false, true);
+            },
         });
         this.timeline_ = timeline;
         app.insertResource(Timeline, timeline);
@@ -139,14 +147,22 @@ class TimelinePlaybackSystem {
         };
 
         this.spawner_ = spawner;
-        this.offDespawn_ = world.onDespawn((entity: Entity) => {
-            app.getResource(Timeline).removeState(entity);
-            this.frames_.forget(entity);
-            this.voices_.stop(entity);
-            this.spawns_.forget(entity, this.spawner_);
+        const releasePlayer = (entity: Entity) => {
+            timeline.removeState(entity);
             this.lastPlayback_.delete(entity);
-            if (app.hasResource(CameraDirector)) setTimelineShot(app.getResource(CameraDirector), entity, null);
-        });
+            clearShot(entity);
+            this.forgetOutputs(entity);
+        };
+        const offDespawn = world.onDespawn(releasePlayer);
+        const offRemoval = world.onComponentRemoval(TimelinePlayer, releasePlayer);
+        this.detachPlayers_ = () => {
+            offDespawn();
+            offRemoval();
+            const director = directorFor();
+            if (director && timeline.getState(director.timelineOwner as Entity)) {
+                setTimelineShot(director, director.timelineOwner, null);
+            }
+        };
 
         // The timeline runs entirely in TS: a per-entity clock, the shared evaluator and edge-detected event dispatch;
         // property writes land via world.set (the editor preview's path). Slow motion a timeline keys (a Time Dilation
@@ -163,7 +179,7 @@ class TimelinePlaybackSystem {
                 if (!this.active_) return;
                 const tl = app.getResource(Timeline);
                 const audio: AudioAPI | null = app.hasResource(Audio) ? app.getResource(Audio) : null;
-                const director = app.hasResource(CameraDirector) ? app.getResource(CameraDirector) : null;
+                const director = directorFor();
                 // Paths resolve below their root, or through the playing player's bindings (`@Name`).
                 let current = 0 as Entity;
                 const deps: SampleDeps = {
@@ -173,16 +189,16 @@ class TimelinePlaybackSystem {
                 };
 
                 for (const entity of world.getEntitiesWithComponents([TimelinePlayer])) {
-                    const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
+                    const player = world.tryGet(entity, TimelinePlayer);
+                    if (!player) continue;
                     current = entity;
                     // A code registration first, then this app's realm — by the
                     // ref the component carries, since the slot answers to that
                     // spelling as well as to the path it resolved to.
                     const published = player.timeline && tl.playback(player.timeline, entity);
                     if (!published) {
-                        this.frames_.forget(entity);
-                        this.voices_.stop(entity);
-                        this.spawns_.forget(entity, this.spawner_);
+                        if (director) setTimelineShot(director, entity, null);
+                        this.forgetOutputs(entity);
                         continue;
                     }
                     const { asset, textureHandles } = published;
@@ -204,7 +220,9 @@ class TimelinePlaybackSystem {
                         syncSpawns: time => this.spawns_.sync(entity, asset, time, spawner,
                             path => deps.resolveChild(entity, path), published.prefabs),
                         lookup: (ref) => tl.getAsset(ref, entity),
-                        onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,
+                        onShot: director ? (shot) => {
+                            if (this.active_ && state.started && tl.getState(entity) === state) setTimelineShot(director, entity, shot);
+                        } : undefined,
                         // A shake: an impulse from where the track's entity is, or the view shaken where it is.
                         onShake: (from, force) => {
                             if (force <= 0 || fireImpulse(world, from, force)) return;
@@ -223,6 +241,8 @@ class TimelinePlaybackSystem {
                             }
                         },
                     });
+                    // A cue can retire the player synchronously during the advance.
+                    if (!this.active_ || tl.getState(entity) !== state) continue;
                     this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
@@ -254,9 +274,15 @@ class TimelinePlaybackSystem {
         this.frames_.clear();
     }
 
+    private forgetOutputs(entity: Entity): void {
+        this.frames_.forget(entity);
+        try { this.voices_.stop(entity); }
+        finally { this.spawns_.forget(entity, this.spawner_); }
+    }
+
     dispose(): void {
         this.active_ = false;
-        this.offDespawn_?.();
+        this.detachPlayers_?.();
         this.timeline_?.clearStates();
         this.lastPlayback_.clear();
         this.frames_.clear();

@@ -3,15 +3,20 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { Audio, type AudioAPI } from '../src/audio/Audio';
+import { CameraDirector, createDirectorState } from '../src/camera/CameraDirector';
+import { EntityEvents } from '../src/ecs/entityEvents';
 import { Prefabs, type PrefabServer } from '../src/prefab/prefabServer';
 import { Timeline } from '../src/timeline/TimelineControl';
-import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
+import { TimelinePlayer, TimelinePlugin, timelineSignalType } from '../src/timeline/TimelinePlugin';
 import { TrackType, WrapMode, type TimelineAsset } from '../src/timeline/TimelineTypes';
 
 const apps: App[] = [];
 const asset: TimelineAsset = {
     version: '1.3', type: 'timeline', duration: 5, wrapMode: WrapMode.Once,
     tracks: [
+        { type: TrackType.Camera, name: '', childPath: '', clips: [
+            { start: 0, duration: 5, camera: '@View' },
+        ] },
         { type: TrackType.Audio, name: '', childPath: '', events: [
             { time: 0, duration: 5, clip: 'dialogue.wav', volume: 1 },
         ] },
@@ -35,12 +40,68 @@ function playerIn(plugin: TimelinePlugin) {
     const timeline = app.getResource(Timeline);
     timeline.registerAsset('intro', asset);
     const player = app.world.spawn();
-    app.world.insert(player, TimelinePlayer, { timeline: 'intro', playing: true });
-    return { app, player, timeline, voice, playClip, spawn, release };
+    const camera = app.world.spawn();
+    const director = createDirectorState();
+    app.insertResource(CameraDirector, director);
+    app.world.insert(player, TimelinePlayer, { timeline: 'intro', playing: true, bindingNames: ['View'], bindings: [camera] });
+    return { app, player, timeline, voice, playClip, spawn, release, camera, director };
 }
 
 afterEach(() => {
     for (const app of apps.splice(0)) app.quit();
+});
+
+it.each(['stop', 'unpublish', 'remove', 'cleanup'] as const)('gives back the camera on %s after a pause', async action => {
+    const plugin = new TimelinePlugin();
+    const { app, player, timeline, director, camera, voice, release } = playerIn(plugin);
+    await app.tick(0.1);
+    expect(director.timelineShot?.to).toBe(camera);
+    timeline.pause(player);
+    await app.tick(0.1);
+    expect(director.timelineShot?.to).toBe(camera);
+
+    if (action === 'stop') timeline.stop(player);
+    if (action === 'unpublish') timeline.unregisterAsset('intro');
+    if (action === 'remove') app.world.remove(player, TimelinePlayer);
+    if (action === 'cleanup') plugin.cleanup(app);
+    await app.tick(0.1);
+
+    expect(director.timelineShot).toBeNull();
+    expect(director.timelineOwner).toBe(-1);
+    expect(app.world.valid(player)).toBe(true);
+    if (action === 'remove') {
+        expect(timeline.getState(player)).toBeUndefined();
+        expect(voice.stop).toHaveBeenCalledOnce();
+        expect(release).toHaveBeenCalledOnce();
+    }
+});
+
+it('does not restore a shot or player removed by its own timeline marker', async () => {
+    const { app, player, timeline, director } = playerIn(new TimelinePlugin());
+    timeline.registerAsset('intro', { ...asset, duration: 1, tracks: [asset.tracks[0]!, {
+        type: TrackType.Marker, childPath: '', name: '', markers: [{ time: 0.75, name: 'retire' }],
+    }] });
+    app.getResource(EntityEvents).on(player, timelineSignalType('retire'), () => app.world.remove(player, TimelinePlayer));
+    await app.tick(0.5);
+    expect(director.timelineOwner).toBe(player);
+    await app.tick(0.5);
+    expect(app.world.has(player, TimelinePlayer)).toBe(false);
+    expect(timeline.getState(player)).toBeUndefined();
+    expect(director.timelineShot).toBeNull();
+});
+
+it('does not take back a shot after a marker stops its player', async () => {
+    const { app, player, timeline, director } = playerIn(new TimelinePlugin());
+    timeline.registerAsset('intro', { ...asset, tracks: [asset.tracks[0]!, {
+        type: TrackType.Marker, childPath: '', name: '', markers: [{ time: 0.75, name: 'stop' }],
+    }] });
+    app.getResource(EntityEvents).on(player, timelineSignalType('stop'), () => timeline.stop(player));
+    await app.tick(0.5);
+    expect(director.timelineOwner).toBe(player);
+    await app.tick(0.5);
+    expect(director.timelineShot).toBeNull();
+    expect(timeline.getCurrentTime(player)).toBe(0);
+    expect(app.world.get(player, TimelinePlayer).playing).toBe(false);
 });
 
 it('plays the same entity ID independently in two apps sharing a timeline plugin', async () => {
@@ -67,6 +128,7 @@ it('plays the same entity ID independently in two apps sharing a timeline plugin
     expect(second.timeline.getCurrentTime(second.player)).toBeCloseTo(0.2);
     second.app.world.despawn(second.player);
     expect(second.timeline.getState(second.player)).toBeUndefined();
+    expect(second.director.timelineShot).toBeNull();
     expect(second.voice.stop).toHaveBeenCalledOnce();
     expect(second.release).toHaveBeenCalledOnce();
 });
