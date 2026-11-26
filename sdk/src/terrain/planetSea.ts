@@ -155,5 +155,5 @@ void main() {
 #pragma end
 `;
 
-export const PLANET_SEA_SHADER_TEMPLATE = makeBuiltinShaderTemplate('planet-sea', 'Planet Sea',
+export const PLANET_SEA_SHADER_TEMPLATE = /* @__PURE__ */ makeBuiltinShaderTemplate('planet-sea', 'Planet Sea',
     'The sea of a planet: a lit, translucent surface in a colour.', PLANET_SEA);

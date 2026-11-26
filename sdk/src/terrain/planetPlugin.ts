@@ -95,6 +95,7 @@ export interface PlanetData {
     tintLayers: boolean;
 }
 
+// The calls in the defaults are marked pure: a blank package must be able to drop the Planet definition (check-lean-bundle).
 const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
 
 /**
@@ -102,10 +103,10 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  *
  * @experimental
  */
-export const Planet: ComponentDef<PlanetData> = defineComponent<PlanetData>('Planet', {
+export const Planet: ComponentDef<PlanetData> = /* @__PURE__ */ defineComponent<PlanetData>('Planet', {
     radius: 4000, provider: '', world: '', generatorVersion: 1, seed: 1, cellSize: 1.5, detail: 1.5,
-    layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
-    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, seaWaveLength: 30, seaWaveSteepness: 0.5, seaShallowDepth: 8, layers: [] as string[], tintLayers: false,
+    layerColor0: /* @__PURE__ */ rgb(0.28, 0.46, 0.2), layerColor1: /* @__PURE__ */ rgb(0.45, 0.36, 0.24), layerColor2: /* @__PURE__ */ rgb(0.93, 0.95, 0.98), layerColor3: /* @__PURE__ */ rgb(0.4, 0.38, 0.36),
+    macroScale: 90, macroVariation: 0.35, collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6, gravity: 0, sea: false, seaLevel: 0, seaColor: /* @__PURE__ */ rgb(0.06, 0.28, 0.42), seaOpacity: 0.82, seaWaveLength: 30, seaWaveSteepness: 0.5, seaShallowDepth: 8, layers: [] as string[], tintLayers: false,
 }, {
     fields: {
         radius: { min: 1, category: 'Shape', tooltip: 'The planet\'s radius in metres. The planet stands at its entity, unrotated and unscaled.' },
@@ -678,4 +679,4 @@ function signatureOf(d: PlanetData): string {
     return JSON.stringify([d.radius, d.provider, d.world, d.generatorVersion, d.seed, d.cellSize, d.detail]);
 }
 
-export const planetPlugin = new PlanetPlugin();
+export const planetPlugin = /* @__PURE__ */ new PlanetPlugin();

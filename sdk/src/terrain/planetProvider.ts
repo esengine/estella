@@ -53,7 +53,7 @@ export interface PlanetProvider {
     sample(region: PlanetRegion): PlanetSamples | Promise<PlanetSamples>;
 }
 
-const providers_ = new Map<string, PlanetProvider>();
+const providers_ = /* @__PURE__ */ new Map<string, PlanetProvider>();
 let revision_ = 0;
 
 /**
