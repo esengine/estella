@@ -197,6 +197,7 @@ timeline: string
 asset: TimelineAsset
 clip: SequenceClip
 key: string
+phase: number | undefined
 ref: string
 root: number
 time: number
@@ -462,12 +463,12 @@ PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | Acti
 
 ## playheadRuns — function @experimental
 ```
-(from: number, to: number, duration: number, mode: WrapMode, inclusiveStart: boolean): PlayheadRun[]
+(from: number, to: number, duration: number, mode: WrapMode, inclusiveStart: boolean, loopEntry?: "arrival" | "departure"): PlayheadRun[]
 ```
 
 ## resolveActiveShot — function @experimental
 ```
-(asset: TimelineAsset, time: number, root: Entity, resolveChild: ChildResolver, lookup: SequenceLookup): ActiveShot | null
+(asset: TimelineAsset, time: number, root: Entity, resolveChild: ChildResolver, lookup: SequenceLookup, layers?: readonly SequenceLayer[]): ActiveShot | null
 ```
 
 ## resolveChildEntity — function @experimental

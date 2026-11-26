@@ -891,6 +891,7 @@ origin: { x: number; z: number; }
 paint: (layer: number, x: number, z: number, radius: number, falloff: number, strength: number, erase?: boolean, profile?: BrushProfile, settings?: TerrainPaintSettings) => void
 paintTargets: TerrainPaintTarget[] | undefined
 prepareBrushes: (brushes: readonly Brush[]) => Promise<() => void>
+prepareImageImport: (field: Heightfield, mode: "all" | "loaded") => { images: TiledGroundImage[]; assertClean(): void; apply(): void; }
 sameSource: (other: TiledGroundEdit) => boolean
 samplesX: number
 samplesZ: number
@@ -907,6 +908,7 @@ static prototype: TiledGroundEdit
 ## TiledGroundImage — interface @experimental
 ```
 height: number
+heightFormat: number | undefined
 path: string
 pixels: Uint8Array<ArrayBufferLike>
 width: number
