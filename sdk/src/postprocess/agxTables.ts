@@ -17,7 +17,7 @@
  *          four (in the top of a byte) in the other.
  */
 import type { BuiltinTexture } from './effects';
-import { inflateRaw } from './inflate';
+import { inflateRaw } from '../util/inflate';
 import { AGX_BASE_BITS, AGX_BASE_DATA, AGX_BASE_SIZE, AGX_LOOK_BITS, AGX_LOOK_DATA, AGX_LOOK_SIZE } from './agxLut.generated';
 
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

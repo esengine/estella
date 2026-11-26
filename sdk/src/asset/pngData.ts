@@ -6,10 +6,10 @@
  *
  * The image path decodes through a 2D canvas, which keeps colour premultiplied by alpha: a texel whose alpha is 0 comes back
  * with red, green and blue at 0 too. For a picture that is right; for a splatmap whose alpha is the fourth layer's weight it
- * erased the other three wherever that layer was absent. This inflates the stream itself (DecompressionStream) and undoes the
- * row filters, so every channel is the byte the file holds.
+ * erased the other three wherever that layer was absent. This inflates the stream and undoes the row filters directly.
  */
 import type { DecodedPixels } from './imageDecode';
+import { inflateZlib } from '../util/inflate';
 
 const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
@@ -30,7 +30,10 @@ function header(bytes: Uint8Array): { width: number; height: number; channels: n
     return { width, height, channels, depth };
 }
 
-async function inflate(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
+async function inflate(data: Uint8Array<ArrayBuffer>, size: number): Promise<Uint8Array> {
+    if (typeof DecompressionStream !== 'function' || typeof Blob !== 'function' || typeof Response !== 'function') {
+        return inflateZlib(data, size);
+    }
     const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
     return new Uint8Array(await new Response(stream).arrayBuffer());
 }
@@ -41,12 +44,11 @@ const paeth = (a: number, b: number, c: number): number => {
 };
 
 /**
- * The RGBA bytes of a PNG, top row first, as stored; null when it is not a PNG this reads or the host has no
- * DecompressionStream, and the caller decodes it as an image instead.
+ * The RGBA bytes of a PNG, top row first, as stored; null when it uses an unsupported PNG format.
  */
 export async function decodePngData(bytes: Uint8Array): Promise<PngData | null> {
     const head = header(bytes);
-    if (!head || typeof DecompressionStream !== 'function') return null;
+    if (!head) return null;
     const { width, height, channels, depth } = head;
     // The row filters work on bytes, a pixel's width apart: two bytes a channel at 16 bits.
     const size = depth / 8, step = channels * size;
@@ -54,6 +56,7 @@ export async function decodePngData(bytes: Uint8Array): Promise<PngData | null> 
     const parts: Uint8Array[] = [];
     for (let at = 8; at + 8 <= bytes.length;) {
         const length = view.getUint32(at);
+        if (at + 12 + length > bytes.length) return null;
         const type = String.fromCharCode(bytes[at + 4]!, bytes[at + 5]!, bytes[at + 6]!, bytes[at + 7]!);
         if (type === 'IDAT') parts.push(bytes.subarray(at + 8, at + 8 + length));
         if (type === 'IEND') break;
@@ -61,9 +64,10 @@ export async function decodePngData(bytes: Uint8Array): Promise<PngData | null> 
     }
     const joined = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     parts.reduce((at, p) => (joined.set(p, at), at + p.length), 0);
-    const raw = await inflate(joined);
     const stride = width * step;
-    if (raw.length < (stride + 1) * height) return null;
+    const rawSize = (stride + 1) * height;
+    const raw = await inflate(joined, rawSize);
+    if (raw.length !== rawSize) return null;
     const rows = new Uint8Array(stride * height);
     for (let y = 0; y < height; y++) {
         const filter = raw[y * (stride + 1)]!;

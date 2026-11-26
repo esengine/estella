@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { deflateSync } from 'node:zlib';
 import { decodePngData } from '../src/asset/pngData';
+import { Assets } from '../src/asset/AssetPlugin';
+import type { App } from '../src/app/app';
+import { imagePixelsAt } from '../src/terrain/layerArrays';
 
 /** A PNG of `rows` (bytes per row, unfiltered), each row written with `filter` applied, of colour `type` (0 grey, 2 RGB, 6 RGBA). */
-function png(width: number, height: number, type: number, rows: number[][], filter = 0): Uint8Array {
-    const channels = { 0: 1, 2: 3, 6: 4 }[type as 0 | 2 | 6];
+function png(width: number, height: number, type: number, rows: number[][], filter = 0, depth = 8): Uint8Array {
+    const stride = { 0: 1, 2: 3, 6: 4 }[type as 0 | 2 | 6] * depth / 8;
     const raw: number[] = [];
     rows.forEach((row, y) => {
         raw.push(filter);
         row.forEach((v, x) => {
-            const a = x >= channels ? row[x - channels]! : 0;
+            const a = x >= stride ? row[x - stride]! : 0;
             const b = y > 0 ? rows[y - 1]![x]! : 0;
-            const c = x >= channels && y > 0 ? rows[y - 1]![x - channels]! : 0;
+            const c = x >= stride && y > 0 ? rows[y - 1]![x - stride]! : 0;
             const p = a + b - c;
             const pred = filter === 1 ? a : filter === 2 ? b : filter === 3 ? (a + b) >> 1
                 : filter === 4 ? (Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c) : 0;
@@ -27,11 +30,41 @@ function png(width: number, height: number, type: number, rows: number[][], filt
     const ihdr = new Uint8Array(13);
     new DataView(ihdr.buffer).setUint32(0, width);
     new DataView(ihdr.buffer).setUint32(4, height);
-    ihdr[8] = 8; ihdr[9] = type;
+    ihdr[8] = depth; ihdr[9] = type;
     return new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, ...chunk('IHDR', ihdr), ...chunk('IDAT', deflateSync(Buffer.from(raw))), ...chunk('IEND', new Uint8Array())]);
 }
 
 describe('a PNG read as data', () => {
+    it('reads terrain PNG samples exactly without DOM bitmap or decompression APIs', async () => {
+        const bytes = png(2, 2, 0, [[0x12, 0x34, 0xff, 0xfe], [0x80, 0x01, 0, 0]], 4, 16);
+        const fetchBinary = vi.fn(async () => bytes.slice().buffer);
+        const app = { hasResource: (r: unknown) => r === Assets, getResource: () => ({
+            fetchBinary, resolveLoadPath: () => 'assets/ground.png',
+        }) } as unknown as App;
+        vi.stubGlobal('createImageBitmap', undefined);
+        vi.stubGlobal('DecompressionStream', undefined);
+        vi.stubGlobal('Blob', undefined);
+        try {
+            const image = await imagePixelsAt(app, '@uuid:heightmap');
+            expect(image?.wide).toEqual(Uint16Array.of(0x1234, 0xfffe, 0x8001, 0));
+            expect(fetchBinary).toHaveBeenCalledWith('@uuid:heightmap');
+            const splat = await decodePngData(png(1, 1, 6, [[255, 0, 0, 0]]));
+            expect(splat?.pixels).toEqual(Uint8Array.of(255, 0, 0, 0));
+        } finally { vi.unstubAllGlobals(); }
+    });
+
+    it('rejects bad zlib checksums and inflated sizes on the portable path', async () => {
+        const badChecksum = png(1, 1, 0, [[200]]);
+        const length = new DataView(badChecksum.buffer).getUint32(33);
+        badChecksum[41 + length - 1]! ^= 1;
+        const badSize = png(1, 1, 0, [[200, 100]]);
+        vi.stubGlobal('DecompressionStream', undefined);
+        try {
+            await expect(decodePngData(badChecksum)).rejects.toThrow('checksum');
+            await expect(decodePngData(badSize)).rejects.toThrow(/too much|stored block length/);
+        } finally { vi.unstubAllGlobals(); }
+    });
+
     it('keeps red, green and blue where alpha is zero, which a canvas premultiplies away', async () => {
         // A splatmap texel with no rock (alpha 0) and all grass: the grass weight must survive.
         const out = await decodePngData(png(2, 1, 6, [[255, 0, 0, 0, 10, 200, 30, 0]]));

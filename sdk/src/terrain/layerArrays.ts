@@ -26,12 +26,16 @@ export async function imagePixelsAt(app: App, path: string): Promise<{ width: nu
     try {
         // A recipe is drawn, and is then pixels as a decoded image's are.
         if (isTextureRecipePath(path)) return await renderTextureRecipe(path, (p) => assets.fetchBinary(p));
-        // The bytes the asset layer would load, decoded unmodified (no premultiply, no colour conversion): a height is data.
-        if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined') {
+        const bitmap = typeof createImageBitmap === 'function' && typeof Blob !== 'undefined';
+        const resolved = bitmap ? path : assets.resolveLoadPath(path);
+        // Read PNG data before a platform image decoder can reduce its height or weight channels.
+        if (bitmap || /\.png(?:[?#]|$)/i.test(resolved)) {
             const bytes = new Uint8Array(await assets.fetchBinary(path));
-            return await decodePngData(bytes) ?? await decodeImagePixels(new Blob([bytes]));
+            const png = await decodePngData(bytes);
+            if (png) return png;
+            if (bitmap) return await decodeImagePixels(new Blob([bytes]));
         }
-        const image = await platformLoadImagePixels(assets.resolveLoadPath(path));
+        const image = await platformLoadImagePixels(resolved);
         return { width: image.width, height: image.height, pixels: image.pixels };
     } catch (e) {
         log.warn('terrain', `reading ${path} failed`, e);

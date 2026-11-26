@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
 import { agxEffects } from '../src/postprocess/sources/agx';
 import { getEffectDef } from '../src/postprocess/effects';
-import { inflateRaw } from '../src/postprocess/inflate';
+import { inflateRaw } from '../src/util/inflate';
 import { AGX_BASE_SIZE, AGX_LOOK_SIZE, agxAtlasColumns } from '../src/postprocess/agxTables';
 
 describe('the AgX tables an effect brings itself', () => {
