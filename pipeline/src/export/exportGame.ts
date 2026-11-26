@@ -30,6 +30,7 @@ import { exportedAssetFiles, pruneExportedAssets } from './assetCleanup';
 import type { DebugChannelConfig, PackagedGameConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
+import { normalizeScenePath, projectSceneEntry, type ProjectSceneEntry } from '../project/sceneNames';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -129,10 +130,7 @@ export interface NativeAppConfig {
 }
 
 /** A switchable scene the export ships: SceneManager name + project-relative path. */
-export interface ExportScene {
-  name: string;
-  path: string;
-}
+export type ExportScene = ProjectSceneEntry;
 
 /**
  * The entry scene is always first and ships even if excluded. Other scenes
@@ -140,15 +138,11 @@ export interface ExportScene {
  * `SceneManager.switchTo` uses extensionless paths relative to `scenesDir`,
  * or to the project root for an entry outside that directory.
  */
-export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string, excludeScenes?: string[]): Promise<ExportScene[]> {
-  const excluded = new Set((excludeScenes ?? []).map((p) => p.replace(/\\/g, '/')));
-  const dir = (scenesDir ?? path.dirname(entryScene)).replace(/\\/g, '/');
-  const sceneName = (projectPath: string): string => {
-    const p = projectPath.replace(/\\/g, '/');
-    const rel = p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p;
-    return rel.replace(/\.esscene$/i, '');
-  };
-  const scenes: ExportScene[] = [{ name: sceneName(entryScene), path: entryScene.replace(/\\/g, '/') }];
+export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string, excludeScenes?: string[]): Promise<[ExportScene, ...ExportScene[]]> {
+  const excluded = new Set((excludeScenes ?? []).map(normalizeScenePath));
+  const dir = normalizeScenePath(scenesDir ?? path.posix.dirname(normalizeScenePath(entryScene)));
+  const first = projectSceneEntry(entryScene, dir);
+  const scenes: [ExportScene, ...ExportScene[]] = [first];
   const absDir = path.join(root, dir);
   if (existsSync(absDir)) {
     const walk = async (sub: string): Promise<void> => {
@@ -156,9 +150,9 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
         const rel = sub ? `${sub}/${entry.name}` : entry.name;
         if (entry.isDirectory()) await walk(rel);
         else if (/\.esscene$/i.test(entry.name)) {
-          const projectPath = `${dir}/${rel}`;
-          if (projectPath !== scenes[0].path && !excluded.has(projectPath)) {
-            scenes.push({ name: sceneName(projectPath), path: projectPath });
+          const projectPath = dir ? `${dir}/${rel}` : rel;
+          if (projectPath !== first.path && !excluded.has(projectPath)) {
+            scenes.push(projectSceneEntry(projectPath, dir));
           }
         }
       }
@@ -803,6 +797,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   const progress = opts.onProgress ?? (() => {});
   const debugChannel = packagedDebugChannel(opts);
   const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
+  const entryScene = scenes[0].path;
 
   // Cutting a world is part of the common cook below, which the three pipelines
   // that follow do not reach. Shipping an unstreamed world to them is a real
@@ -827,7 +822,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (streamed.length > 0) refuseStreamedWorld('a mini-game package');
     return await exportMiniGame(opts.miniGameProfile, {
       root: opts.root,
-      entryScene: opts.entryScene,
+      entryScene,
       scenes,
       scriptsEntry: opts.scriptsEntry,
       sdkDir: opts.sdkDistDir,
@@ -872,7 +867,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (streamed.length > 0) refuseStreamedWorld(`the ${builtinMiniGame.id} package`);
     return await exportMiniGame(builtinMiniGame, {
       root: opts.root,
-      entryScene: opts.entryScene,
+      entryScene,
       scenes,
       scriptsEntry: opts.scriptsEntry,
       sdkDir: opts.sdkDistDir,
@@ -914,8 +909,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (streamed.length > 0) refuseStreamedWorld('a playable ad (one inlined file)');
     return await exportPlayable({
       root: opts.root,
-      entryScene: opts.entryScene,
-      ...(opts.playableScenes === 'all' ? { scenesDir: opts.scenesDir ?? path.dirname(opts.entryScene), excludeScenes: opts.excludeScenes } : {}),
+      scenes: opts.playableScenes === 'all' ? scenes : [{ path: entryScene, name: path.posix.basename(entryScene).replace(/\.[^.]+$/, '') }],
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
@@ -1374,7 +1368,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // Typed against the SDK's contract, so a field the runtimes read can never be
   // spelled differently here — the two sides share one declaration.
   const gameConfig: PackagedGameConfig = {
-    entryScene: opts.entryScene, scenes,
+    entryScene, scenes,
     ...(platform === 'web' && opts.webChannel ? { webChannel: opts.webChannel } : {}),
     ...(platform === 'web' && opts.webChannel === 'crazygames' && opts.leaderboardEncryptionKey
       ? { leaderboardEncryptionKey: opts.leaderboardEncryptionKey } : {}),

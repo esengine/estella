@@ -19,7 +19,7 @@
  *        + fs); IPC wiring in main.ts.
  */
 import type { ModelBakesFile } from '../modeling/loadBakeFile';
-import { discoverProjectScenes } from './exportGame';
+import type { ProjectSceneEntry } from '../project/sceneNames';
 import { minifiesScripts } from './scriptMinify';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
@@ -201,10 +201,8 @@ function playableRuntimeFields(rc: Parameters<typeof packagedRuntimeFields>[0]) 
 
 export async function exportPlayable(opts: {
   root: string;
-  entryScene: string;
-  /** With this, every scene of the folder is inlined beside the entry (a game that switches scenes); without it, the entry alone, as an ad is. */
-  scenesDir?: string;
-  excludeScenes?: string[];
+  /** Scene list in runtime order, with the selected entry first. */
+  scenes: readonly [ProjectSceneEntry, ...ProjectSceneEntry[]];
   scriptsEntry?: string;
   hostsDir: string;
   /** The official `estella-plugin-*` packages the editor ships (`plugins/`);
@@ -266,10 +264,8 @@ export async function exportPlayable(opts: {
   // where the bytes are JOINED — reading the finished HTML back would drift.
   const spans: { path: string; bytes: number }[] = [];
 
-  const sceneList = opts.scenesDir !== undefined
-    ? await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes)
-    : [{ name: path.basename(opts.entryScene).replace(/\.[^.]+$/, ''), path: opts.entryScene }];
-  const sceneName = sceneList[0]!.name;
+  const sceneList = opts.scenes;
+  const sceneName = sceneList[0].name;
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
   progress({ phase: 'Cooking assets' });
   // No KTX2 transcoder: PNGs honor Max Size through the raw-image path. Audio

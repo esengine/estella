@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { exportGame } from '../src/export/exportGame';
+import { discoverProjectScenes, exportGame } from '../src/export/exportGame';
 import { splashScript } from '../src/export/splash';
 import { runtimeHostPrebuild } from '../src/bundle/runtimeHosts';
 import { build } from 'esbuild';
@@ -247,18 +247,20 @@ describe('exportGame (playable)', () => {
   }, 60_000);
 
   it('boots the selected nested scene when an all-scenes playable includes another scene with the same filename', async () => {
-    const scenesDir = 'levels';
+    const scenesDir = '.\\levels\\';
     const entryScene = 'levels/campaign/intro.esscene';
     mkdirSync(path.join(root, 'levels/campaign'), { recursive: true });
     for (const [file, name, uuid] of [
       [entryScene, 'Campaign intro', '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
       ['levels/intro.esscene', 'Standalone intro', '22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      ['levels/dev.esscene', 'Dev scene', '33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
     ]) {
       writeFileSync(path.join(root, file), JSON.stringify({ version: '1.0', name, entities: [] }));
       writeFileSync(path.join(root, `${file}.meta`), meta(uuid, 'scene'));
     }
     const result = await exportGame({
-      root, entryScene, scenesDir, playableScenes: 'all', platform: 'playable',
+      root, entryScene: `.\\${entryScene.replaceAll('/', '\\')}`, scenesDir,
+      excludeScenes: ['.\\levels\\dev.esscene'], playableScenes: 'all', platform: 'playable',
       hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-nested'),
     });
@@ -268,9 +270,22 @@ describe('exportGame (playable)', () => {
     const first = JSON.parse(html.match(/window\.__GAME_FIRST__=("[^";]*");/)![1]);
     expect(scenes.find(scene => scene.name === first)?.data.name).toBe('Campaign intro');
     expect(first).toBe('campaign/intro');
-    expect(scenes.find(scene => scene.name === 'intro')?.data.name).toBe('Standalone intro');
+    expect(scenes.map(scene => scene.name)).toEqual(['campaign/intro', 'intro']);
+    expect(scenes[1]?.data.name).toBe('Standalone intro');
     expect(result.inlineParts?.some(part => part.path === 'scenes/campaign/intro.json')).toBe(true);
   }, 60_000);
+
+  it('discovers a project-root entry once and matches exclusions with dot segments', async () => {
+    const project = path.join(root, 'root-layout');
+    mkdirSync(path.join(project, 'campaign'), { recursive: true });
+    for (const file of ['intro.esscene', 'campaign/next.esscene', 'campaign/dev.esscene']) {
+      writeFileSync(path.join(project, file), '{}');
+    }
+    expect(await discoverProjectScenes(project, '.\\intro.esscene', '.', ['campaign/./dev.esscene'])).toEqual([
+      { name: 'intro', path: 'intro.esscene' },
+      { name: 'campaign/next', path: 'campaign/next.esscene' },
+    ]);
+  });
 
   // How a texture is sampled is in its .meta, and the manifest is the only way that reaches a package. A playable was handed none:
   // every texture took the defaults, so a wall or a ground whose picture repeats drew one copy and smeared its edge over the rest,
