@@ -136,6 +136,51 @@ describe('input adapter parity (web vs native)', () => {
         expect(driveNative()).toEqual(web);
     });
 
+    it.each([[1, 1], [2, 1.5]])('keeps mouse and touch in canvas coordinates with borders and scale %s × %s', (scaleX, scaleY) => {
+        const { callbacks, trace } = recorder();
+        const outside = document.body.appendChild(document.createElement('div'));
+        Object.defineProperties(element, {
+            offsetWidth: { value: 210 }, offsetHeight: { value: 108 },
+            clientLeft: { value: 5 }, clientTop: { value: 4 },
+        });
+        element.getBoundingClientRect = () => new DOMRect(30, 40, 210 * scaleX, 108 * scaleY);
+        const client = (x: number, y: number) => ({ clientX: 30 + (x + 5) * scaleX, clientY: 40 + (y + 4) * scaleY });
+        const mouse = (type: string, target: HTMLElement, x: number, y: number) => {
+            const e = new MouseEvent(type, { bubbles: true, ...client(x, y) });
+            Object.defineProperties(e, {
+                offsetX: { value: target === element ? x : 3 },
+                offsetY: { value: target === element ? y : 6 },
+            });
+            target.dispatchEvent(e);
+        };
+        const touch = (type: string, x: number, y: number) => {
+            const e = new Event(type, { cancelable: true });
+            Object.defineProperty(e, 'changedTouches', { value: [{ identifier: 9, ...client(x, y) }] });
+            element.dispatchEvent(e);
+        };
+        webAdapter.bindInputEvents(callbacks, element);
+        try {
+            mouse('mousedown', element, 20, 15);
+            mouse('mousemove', outside, 220, 18);
+            mouse('mouseup', outside, 225, 19);
+            mouse('mousedown', element, 20, 15);
+            mouse('mouseup', element, 20, 15);
+            touch('touchstart', 20, 15);
+            touch('touchmove', 220, 18);
+            touch('touchend', 225, 19);
+        } finally {
+            webAdapter.unbindInputEvents();
+            outside.remove();
+        }
+        expect(trace).toEqual([
+            'pointerDown 0 20,15', 'pointerMove 220,18 delta 0,0', 'pointerUp 0 at 225,19',
+            'pointerDown 0 20,15', 'pointerUp 0 at 20,15',
+            'touchStart 9 20,15', 'pointerDown 0 20,15',
+            'touchMove 9 220,18', 'pointerMove 220,18',
+            'touchEnd 9 at 225,19', 'pointerUp 0 at 225,19',
+        ]);
+    });
+
     it('accumulates native relative motion even when the cursor is stationary', () => {
         const scope = hostScope();
         const native = new NativePlatformAdapter(createHostBridge(scope));

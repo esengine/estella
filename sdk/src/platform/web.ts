@@ -36,6 +36,20 @@ import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCache
 
 const WHEEL_LINE_HEIGHT = 16;
 
+/** Convert viewport coordinates to the same layout pixels as a surface's DOM offsets. */
+function surfacePointerFrame(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    const width = el.offsetWidth, height = el.offsetHeight;
+    // Axis-aligned CSS scaling changes the client rect but not the layout dimensions.
+    const scaleX = width > 0 && rect.width > 0 ? width / rect.width : 1;
+    const scaleY = height > 0 && rect.height > 0 ? height / rect.height : 1;
+    return {
+        left: rect.left + el.clientLeft / scaleX,
+        top: rect.top + el.clientTop / scaleY,
+        scaleX, scaleY,
+    };
+}
+
 /** A dock can move the canvas or any of its containers into another document. */
 function followInputDocument(el: HTMLElement, scope: ListenerScope, onAdopt: () => void): void {
     const doc = el.ownerDocument;
@@ -259,59 +273,58 @@ class WebPlatformAdapter implements PlatformAdapter {
         };
         const onVisibilityChange = () => { if (doc.hidden) onBlur(); };
         const onMouseMove = (e: Event) => {
-            const me = e as MouseEvent;
-            callbacks.onPointerMove(me.offsetX, me.offsetY, me.movementX, me.movementY);
+            const mouse = e as MouseEvent;
+            if (mouse.target === el || doc.pointerLockElement === el) {
+                callbacks.onPointerMove(mouse.offsetX, mouse.offsetY, mouse.movementX, mouse.movementY);
+                return;
+            }
+            const { left, top, scaleX, scaleY } = surfacePointerFrame(el);
+            callbacks.onPointerMove((mouse.clientX - left) * scaleX, (mouse.clientY - top) * scaleY, mouse.movementX, mouse.movementY);
         };
         const onOutsideMouseMove = (e: Event) => {
             // The canvas already receives its own moves, including pointer lock.
             if (!heldButtons.size || e.target === el || doc.pointerLockElement === el || e.composedPath().includes(el)) return;
-            const mouse = e as MouseEvent;
-            const rect = el.getBoundingClientRect();
-            callbacks.onPointerMove(mouse.clientX - rect.left, mouse.clientY - rect.top, mouse.movementX, mouse.movementY);
+            onMouseMove(e);
         };
         const onMouseDown = (e: Event) => {
-            const me = e as MouseEvent;
-            heldButtons.add(me.button);
-            callbacks.onPointerDown(me.button, me.offsetX, me.offsetY);
+            const mouse = e as MouseEvent;
+            heldButtons.add(mouse.button);
+            if (mouse.target === el || doc.pointerLockElement === el) {
+                callbacks.onPointerDown(mouse.button, mouse.offsetX, mouse.offsetY);
+                return;
+            }
+            const { left, top, scaleX, scaleY } = surfacePointerFrame(el);
+            callbacks.onPointerDown(mouse.button, (mouse.clientX - left) * scaleX, (mouse.clientY - top) * scaleY);
         };
         const onMouseUp = (e: Event) => {
             const mouse = e as MouseEvent;
             if (!heldButtons.delete(mouse.button)) return;
-            // Release is listened for on the document, so offsetX/Y may belong to another element.
-            if (typeof el.getBoundingClientRect === 'function' && doc.pointerLockElement !== el) {
-                const rect = el.getBoundingClientRect();
-                callbacks.onPointerUp(mouse.button, mouse.clientX - rect.left, mouse.clientY - rect.top);
-            } else callbacks.onPointerUp(mouse.button);
+            if (doc.pointerLockElement === el) {
+                callbacks.onPointerUp(mouse.button);
+            } else if (mouse.target === el) {
+                callbacks.onPointerUp(mouse.button, mouse.offsetX, mouse.offsetY);
+            } else {
+                const { left, top, scaleX, scaleY } = surfacePointerFrame(el);
+                callbacks.onPointerUp(mouse.button, (mouse.clientX - left) * scaleX, (mouse.clientY - top) * scaleY);
+            }
         };
         const pointer = createPrimaryPointer(callbacks);
 
-        const onTouchStart = (e: Event) => {
+        const forwardTouches = (e: Event, receive: (id: number, x: number, y: number) => void) => {
             e.preventDefault();
             const te = e as TouchEvent;
-            const rect = el.getBoundingClientRect();
+            const { left, top, scaleX, scaleY } = surfacePointerFrame(el);
             for (let i = 0; i < te.changedTouches.length; i++) {
                 const touch = te.changedTouches[i];
-                heldTouches.add(touch.identifier);
-                pointer.start(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
+                receive(touch.identifier, (touch.clientX - left) * scaleX, (touch.clientY - top) * scaleY);
             }
         };
-        const onTouchMove = (e: Event) => {
-            e.preventDefault();
-            const te = e as TouchEvent;
-            const rect = el.getBoundingClientRect();
-            for (let i = 0; i < te.changedTouches.length; i++) {
-                const touch = te.changedTouches[i];
-                pointer.move(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
-            }
+        const beginTouch = (id: number, x: number, y: number) => {
+            heldTouches.add(id);
+            pointer.start(id, x, y);
         };
-        const onTouchEnd = (e: Event) => {
-            e.preventDefault();
-            const te = e as TouchEvent;
-            const rect = el.getBoundingClientRect();
-            for (let i = 0; i < te.changedTouches.length; i++) {
-                const touch = te.changedTouches[i];
-                if (heldTouches.delete(touch.identifier)) pointer.end(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
-            }
+        const endTouch = (id: number, x: number, y: number) => {
+            if (heldTouches.delete(id)) pointer.end(id, x, y);
         };
         const onTouchCancel = (e: Event) => {
             const te = e as TouchEvent;
@@ -353,9 +366,9 @@ class WebPlatformAdapter implements PlatformAdapter {
             scope.listen(doc, 'mousemove', onOutsideMouseMove, { capture: true });
             scope.listen(el, 'mousemove', onMouseMove);
             scope.listen(el, 'mousedown', onMouseDown);
-            scope.listen(el, 'touchstart', onTouchStart, { passive: false });
-            scope.listen(el, 'touchmove', onTouchMove, { passive: false });
-            scope.listen(el, 'touchend', onTouchEnd, { passive: false });
+            scope.listen(el, 'touchstart', e => forwardTouches(e, beginTouch), { passive: false });
+            scope.listen(el, 'touchmove', e => forwardTouches(e, pointer.move), { passive: false });
+            scope.listen(el, 'touchend', e => forwardTouches(e, endTouch), { passive: false });
             scope.listen(el, 'touchcancel', onTouchCancel);
             scope.listen(el, 'wheel', onWheel);
         });
