@@ -218,7 +218,8 @@ export class TiledGroundEdit {
                 images.push({ path: doc.overviewSplat2, ...b });
             }
         }
-        return { images, document: named ? doc : null };
+        this.source.documentDirty ||= named;
+        return { images, document: this.source.documentDirty ? doc : null };
     }
 
     /**

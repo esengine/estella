@@ -172,7 +172,12 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
 }, {
-    assetFields: [{ field: 'heightmap', type: 'image' }, { field: 'splatmap', type: 'image' }, { field: 'splatmap2', type: 'image' }, { field: 'colorMap', type: 'texture' }, { field: 'occlusionMap', type: 'texture' }, { field: 'material', type: 'material' }],
+    assetFields: [
+        { field: 'heightmap', type: 'image' }, { field: 'tiles', type: 'terrain-tiles' },
+        { field: 'splatmap', type: 'image' }, { field: 'splatmap2', type: 'image' },
+        { field: 'colorMap', type: 'texture' }, { field: 'occlusionMap', type: 'texture' },
+        { field: 'material', type: 'material' },
+    ],
     discoverAssets: (data) => {
         const refs = Terrain.assetFields.flatMap(({ field, type }) => {
             const path = data[field];

@@ -6,6 +6,8 @@ import { registerComponent } from '../src/ecs/component';
 import { Animator } from '../src/animation/Animator';
 import { SpriteAnimator } from '../src/animation/SpriteAnimator';
 import { TimelinePlayer } from '../src/timeline/TimelinePlayerComponent';
+import { Terrain } from '../src/terrain/terrainPlugin';
+import { discoverSceneAssets } from '../src/asset/discoverAssets';
 import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
 import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
 import { Catalog, type CatalogData } from '../src/asset/Catalog';
@@ -174,6 +176,27 @@ it('keeps registered scene names with a resolver that rejects unknown files', as
         expect(result.missing).toEqual([]);
         assets.resolveSceneAssetPaths(scene, result);
         expect(scene.entities[0].components).toEqual(components);
+        expect(backend.fetchText).not.toHaveBeenCalled();
+    } finally { result.scope.releaseAll(); }
+});
+
+it('discovers and resolves a tiled terrain document without eagerly fetching it', async () => {
+    registerComponent(Terrain._name, Terrain);
+    const backend = createMockBackend();
+    const assets = Assets.create({ backend, module: mockModule });
+    const uuid = '@uuid:11111111-1111-4111-8111-111111111111';
+    const path = 'assets/terrain/ground.esterrain';
+    const resolve = (ref: string) => ref === uuid ? path : ref;
+    assets.setAssetRefResolver(resolve);
+    const scene: SceneData = { version: '1.0', name: 'Tiles', entities: [{
+        id: 1, name: 'Ground', parent: null, children: [], components: [{ type: 'Terrain', data: { tiles: uuid } }],
+    }] };
+    expect(discoverSceneAssets(scene, resolve).byType.get('terrain-tiles')).toContain(path);
+    const result = await assets.preloadSceneAssets(scene);
+    try {
+        expect(result.missing).toEqual([]);
+        assets.resolveSceneAssetPaths(scene, result);
+        expect(scene.entities[0]?.components[0]?.data.tiles).toBe(path);
         expect(backend.fetchText).not.toHaveBeenCalled();
     } finally { result.scope.releaseAll(); }
 });

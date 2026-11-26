@@ -292,7 +292,7 @@ interface GroupAssetChannel {
 }
 
 // These components read raw files or host streams themselves unless a project installs a typed loader.
-const SYSTEM_READ_SCENE_TYPES = new Set(['image', 'video', 'groom', 'terrain-layer-info', 'physical-material']);
+const SYSTEM_READ_SCENE_TYPES = new Set(['image', 'video', 'groom', 'terrain-tiles', 'terrain-layer-info', 'physical-material']);
 
 interface BatchAsset {
     ref: string;
@@ -2106,7 +2106,7 @@ export class Assets {
                         continue;
                     }
 
-                    if (type === 'image' || type === 'groom') {
+                    if (type === 'image' || type === 'groom' || type === 'terrain-tiles') {
                         comp.data[field] = this.resolveRef(ref) ?? path;
                         continue;
                     }

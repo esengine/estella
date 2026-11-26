@@ -229,6 +229,9 @@ describe('brushes on ground kept as tiles', () => {
         expect(out.images.map((i) => i.path).sort()).toEqual(['o.png', 'o_splat.png', 't0_0.png', 't0_0_splat.png']);
         expect(out.document?.tiles.find((e) => e.x === 0 && e.z === 0)?.splat).toBe('t0_0_splat.png');
         expect(out.document?.overviewSplat).toBe('o_splat.png');
+        expect(t.edit.saveImages().document?.overviewSplat).toBe('o_splat.png');
+        t.edit.saved();
+        expect(t.edit.saveImages().document).toBeNull();
     });
 });
 

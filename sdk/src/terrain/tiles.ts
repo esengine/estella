@@ -85,6 +85,8 @@ export class TiledSource implements TerrainSource {
     private readonly dirty_ = new Set<string>();
     private readonly editPins_ = new Map<string, number>();
     private overviewDirty_ = false;
+    /** @internal Whether newly named images still need to be written to the manifest. */
+    documentDirty = false;
     private clock_ = 0;
     private bytes_ = 0;
     private reads_ = 0;
@@ -226,6 +228,7 @@ export class TiledSource implements TerrainSource {
     markSaved(): void {
         this.dirty_.clear();
         this.overviewDirty_ = false;
+        this.documentDirty = false;
         this.trim();
     }
 
