@@ -122,7 +122,8 @@ export class RenderPipeline {
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
     private warnedMissingPresent_ = false;
-    /** The last camera the frame drew to the screen: the view the over-screen callbacks are drawn through. */
+    private presentationTarget_ = 0;
+    /** The last camera that drew to this frame's output surface. */
     private overScreenView_: {
         viewProjection: Float32Array;
         relative?: { viewProjection: Float32Array; origin: Vec3 };
@@ -188,8 +189,10 @@ export class RenderPipeline {
         }
     }
 
-    beginFrame(elapsedSec = 0): void {
+    /** `presentationTarget` is the frame's output, even when intermediate cameras draw into other targets. */
+    beginFrame(elapsedSec = 0, presentationTarget = 0): void {
         this.frameElapsed_ = elapsedSec;
+        this.presentationTarget_ = presentationTarget;
         this.overScreenView_ = null;
         this.applyQuality_?.();
         this.quality_?.setLimitation('fixed-render-resolution', false);
@@ -268,9 +271,10 @@ export class RenderPipeline {
     /**
      * Draw the over-screen callbacks over everything the frame shows: after the
      * screen overlay and before the frame ends, through the view of the last
-     * camera drawn to the screen. A frame with no such camera draws none of them.
+     * camera drawn to the output surface. A frame with no such camera draws none of them.
      */
-    renderOverScreen(target = 0): void {
+    renderOverScreen(target = this.presentationTarget_): void {
+        if (target !== this.presentationTarget_) return;
         const view = this.overScreenView_;
         this.overScreenView_ = null;
         if (!view || overScreenCallbacks.entries.size === 0 || !isDrawAPIReady() || !Renderer.hasDrawOverScreen()) return;
@@ -320,6 +324,7 @@ export class RenderPipeline {
         viewport: Viewport,
         _elapsed: number,
         replay = false,
+        presentsFrame = true,
     ): void {
         // Underlays (editor grid / world-space guides) draw first so the scene's
         // sprites, flushed below, occlude them.
@@ -335,7 +340,7 @@ export class RenderPipeline {
         }
         Renderer.flush();
 
-        this.executeDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp);
+        this.executeDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp, presentsFrame);
     }
 
     render(params: RenderParams): void {
@@ -430,9 +435,10 @@ export class RenderPipeline {
         // The camera IS the view: a level picked from how big something looks is
         // this camera's answer, and the next camera must be free to disagree.
         Renderer.setViewId(cameraEntity ?? 0);
-        this.submitScene(registry, viewProjection, scene, elapsed, replayed);
+        const presentsFrame = (params.renderTarget ?? 0) === this.presentationTarget_;
+        this.submitScene(registry, viewProjection, scene, elapsed, replayed, presentsFrame);
         Renderer.end();
-        if (!params.renderTarget && overScreenCallbacks.entries.size > 0) {
+        if (presentsFrame && overScreenCallbacks.entries.size > 0) {
             const origin = params.renderOrigin;
             this.overScreenView_ = {
                 viewProjection: Float32Array.from(viewProjection), viewport: { ...present }, registry: registry._cpp,
@@ -462,8 +468,8 @@ export class RenderPipeline {
         if (drew) Draw.end();
     }
 
-    private executeDrawCallbacks(viewProjection: Float32Array, viewport: Viewport, elapsed: number, registry: CppRegistry): void {
-        const lateHere = overScreenCallbacks.entries.size > 0 && !Renderer.hasDrawOverScreen();
+    private executeDrawCallbacks(viewProjection: Float32Array, viewport: Viewport, elapsed: number, registry: CppRegistry, presentsFrame: boolean): void {
+        const lateHere = presentsFrame && overScreenCallbacks.entries.size > 0 && !Renderer.hasDrawOverScreen();
         if ((!sceneDrawCallbacks.entries.size && !lateHere) || !isDrawAPIReady()) return;
         const frame = { viewProjection, width: viewport.w, height: viewport.h };
         let started = false;

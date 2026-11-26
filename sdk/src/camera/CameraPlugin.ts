@@ -1243,7 +1243,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     const elapsed = pipeline.frameElapsed;
     let drewCamera = false;
     Renderer.resize(width, height);
-    pipeline.beginFrame(elapsed);
+    pipeline.beginFrame(elapsed, target ?? 0);
     try {
         Renderer.updateTransforms({ _cpp: registry });
         // An authored-camera preview ignores director selection (so an inactive
@@ -1276,7 +1276,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         if (!target) pipeline.endScreenCapture();
         Renderer.setViewport(0, 0, width, height);
         if (app.hasResource(ScreenOverlay)) pipeline.renderScreenOverlay({ _cpp: registry }, app.getResource(ScreenOverlay), target ?? 0);
-        pipeline.renderOverScreen(target ?? 0);
+        pipeline.renderOverScreen();
     } finally {
         pipeline.endFrame();
     }

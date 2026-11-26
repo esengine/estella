@@ -151,6 +151,35 @@ describe('RenderPipeline', () => {
         expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(2);
     });
 
+    it('uses only the camera of an explicit frame output for over-screen draws', () => {
+        const callback = vi.fn();
+        registerOverScreenDrawCallback('handles', callback);
+        const captured = new Float32Array(16).fill(1);
+        pipeline.beginFrame(0, 7);
+        pipeline.renderCamera({ registry, viewProjection: captured, renderTarget: 7,
+            viewportPixels: { x: 5, y: 10, w: 160, h: 90 }, clearFlags: 3, elapsed: 0 });
+        pipeline.renderCamera({ registry, viewProjection, renderTarget: 9,
+            viewportPixels: { x: 0, y: 0, w: 128, h: 256 }, clearFlags: 3, elapsed: 0 });
+        pipeline.renderOverScreen(9);
+        expect(callback).not.toHaveBeenCalled();
+        pipeline.renderOverScreen();
+        expect(callback.mock.lastCall?.[1]).toEqual({ viewProjection: captured, width: 160, height: 90 });
+        expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(1);
+        expect(Renderer.drawOverScreen).toHaveBeenCalledWith(5, 10, 160, 90, 7);
+    });
+
+    it('keeps the legacy overlay fallback off unrelated texture cameras', () => {
+        vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(false);
+        const callback = vi.fn();
+        registerOverScreenDrawCallback('handles', callback);
+        pipeline.beginFrame(0, 7);
+        const params = { registry, viewProjection, viewportPixels: { x: 0, y: 0, w: 128, h: 256 }, clearFlags: 3, elapsed: 0 };
+        pipeline.renderCamera({ ...params, renderTarget: 9 });
+        expect(callback).not.toHaveBeenCalled();
+        pipeline.renderCamera({ ...params, renderTarget: 7 });
+        expect(callback).toHaveBeenCalledTimes(1);
+    });
+
     it('draws the over-screen callbacks with the scene on a core with no over-screen pass', () => {
         vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(false);
         const handles = vi.fn();
