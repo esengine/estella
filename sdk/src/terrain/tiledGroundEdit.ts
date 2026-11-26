@@ -231,18 +231,22 @@ export class TiledGroundEdit {
         }
         const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
         if (chosen.length === 0) return null;
-        const x0 = 0, z0 = 0;
         const field: Heightfield = { width: s.samplesX, height: s.samplesZ, data: new Float32Array(s.samplesX * s.samplesZ) };
-        const ov = s.overview;
-        for (let j = 0; j < field.height; j++) for (let i = 0; i < field.width; i++) {
-            const u = (x0 + i) / (s.samplesX - 1) * (ov.width - 1), v = (z0 + j) / (s.samplesZ - 1) * (ov.height - 1);
-            field.data[j * field.width + i] = bilinear(ov.data, ov.width, u, v);
+        if (mode === 'loaded') {
+            const ov = s.overview;
+            for (let j = 0; j < field.height; j++) for (let i = 0; i < field.width; i++) {
+                const u = i / (s.samplesX - 1) * (ov.width - 1), v = j / (s.samplesZ - 1) * (ov.height - 1);
+                field.data[j * field.width + i] = bilinear(ov.data, ov.width, u, v);
+            }
         }
         for (const e of chosen) {
             const tile = s.tileAt(e.x, e.z) ?? (mode === 'all' ? await s.readTile(e.x, e.z) : null);
-            if (!tile) continue;
+            if (!tile) {
+                if (mode === 'all') throw new Error(`Terrain tile ${e.x}:${e.z} is missing. Full export requires every tile.`);
+                continue;
+            }
             for (let j = 0; j < t; j++) {
-                const row = (e.z * n + j - z0) * field.width + (e.x * n - x0);
+                const row = (e.z * n + j) * field.width + e.x * n;
                 field.data.set(tile.field.data.subarray(j * t, j * t + t), row);
             }
         }

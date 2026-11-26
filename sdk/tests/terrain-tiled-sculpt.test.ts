@@ -257,12 +257,12 @@ describe('a heightmap in and out of ground kept as tiles', () => {
     const heightsOf = (img: { width: number; height: number; pixels: Uint8Array }): Float32Array =>
         Float32Array.from({ length: img.width * img.height }, (_, k) => (img.pixels[k * 4]! * 256 + img.pixels[k * 4 + 1]!) / 65535);
 
-    it('exports every tile as the whole field', async () => {
-        const t = tiled();
+    it('exports every tile byte-for-byte even when tiles are evicted during export', async () => {
+        const t = tiled(T * T * Float32Array.BYTES_PER_ELEMENT);
         const out = (await t.edit.exportImage('all'))!;
         expect([out.width, out.height]).toEqual([N, N]);
-        const got = heightsOf(out);
-        for (let k = 0; k < N * N; k++) expect(got[k]).toBeCloseTo(ground(k % N, Math.floor(k / N)), 4);
+        expect(out.pixels).toEqual(image(N, ground).pixels);
+        expect(t.source.stats().evictions).toBe(TILES * TILES - 1);
     });
 
     it('rejects a full export with an unlisted tile and still allows exporting loaded tiles', async () => {
