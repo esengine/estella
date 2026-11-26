@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
-import { cameraPlugin } from '../src/camera/CameraPlugin';
+import { cameraPlugin, renderCameraFrame } from '../src/camera/CameraPlugin';
 import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
 import { CameraView, PresentedCameraView } from '../src/camera/Camera';
 import { followRenderOrigin, resetRenderOrigin, setRenderOriginStep } from '../src/render/renderOrigin';
@@ -22,7 +22,8 @@ import { screenToUiWorld, uiWorldToScreen } from '../src/ui/util/ui-pick';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
 import { RenderPipeline } from '../src/render/renderPipeline';
-import { setRendererBackend, type RendererBackend } from '../src/render/renderer';
+import { Renderer, setRendererBackend, type RendererBackend } from '../src/render/renderer';
+import { RenderTexture } from '../src/render/renderTexture';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { Camera, Transform, ProjectionType } from '../src/ecs/component';
 import { Query, Mut } from '../src/ecs/query';
@@ -74,7 +75,7 @@ describe('the camera a frame was drawn with', () => {
         drawnWith = null;
         setPlatform({ now: () => 0, devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
     });
-    afterEach(() => { setRendererBackend(null); resetRenderOrigin(); });
+    afterEach(() => { setRendererBackend(null); resetRenderOrigin(); vi.restoreAllMocks(); });
 
     it('is published, and names the write it came from', async () => {
         const { app } = bootWithCamera();
@@ -124,20 +125,55 @@ describe('the camera a frame was drawn with', () => {
         app.world.insert(offscreen, Transform, {
             position: { x: 1000, y: 0, z: 0 }, worldPosition: { x: 1000, y: 0, z: 0 },
         });
-        app.world.insert(offscreen, Camera, { isActive: true, renderTarget: 7, cullingMask: 2, orthoSize: 50 });
+        vi.spyOn(Renderer, 'createRenderTarget').mockReturnValue(7);
+        const target = RenderTexture.create({ width: 128, height: 256 });
+        const draws = vi.spyOn(app.pipeline!, 'renderCamera');
+        app.world.insert(offscreen, Camera, { isActive: true, renderTarget: target._handle, cullingMask: 2, orthoSize: 50 });
         registry.getCameraEntities = () => [cam, offscreen];
         expect(registry.getCamera(cam).cullingMask).toBe(1);
         expect(registry.getCamera(offscreen).renderTarget).toBe(7);
         await app.tick(1 / 60);
+        expect(draws.mock.calls.map(([p]) => [p.cameraEntity, p.renderTarget, p.viewportPixels.w, p.viewportPixels.h]))
+            .toEqual([[offscreen, 7, 128, 256], [cam, 0, 800, 600]]);
         const ui = app.getResource(UICameraInfo);
         expect(ui.viewProjection[12]).toBeCloseTo(0);
         expect(app.getResource(CameraCommit).viewProjection[12]).toBeCloseTo(0);
         expect(app.getResource(ScreenOverlay).layerMask).toBe(1);
+        RenderTexture.release(target);
+        draws.mockClear();
+        await app.tick(1 / 60);
+        expect(draws.mock.calls.map(([p]) => p.cameraEntity)).toEqual([cam]);
         registry.getCameraEntities = () => [offscreen];
         await app.tick(1 / 60);
         expect(app.getResource(UICameraInfo).valid).toBe(false);
         expect(app.getResource(CameraCommit).valid).toBe(false);
         expect(app.getResource(ScreenOverlay).layerMask).toBe(0xFFFFFFFF);
+    });
+
+    it('keeps authored render targets in an immediate frame and uses the preview surface for an explicit camera', () => {
+        const { app, cam } = bootWithCamera();
+        const registry = app.world.getCppRegistry() as unknown as Record<string, unknown> & CppRegistry;
+        const offscreen = app.world.spawn('texture camera');
+        app.world.insert(offscreen, Transform);
+        vi.spyOn(Renderer, 'createRenderTarget').mockReturnValue(8);
+        const target = RenderTexture.create({ width: 128, height: 256 });
+        app.world.insert(offscreen, Camera, { isActive: true, renderTarget: target._handle, orthoSize: 50 });
+        registry.getCameraEntities = () => [cam, offscreen];
+        const draws = vi.spyOn(app.pipeline!, 'renderCamera');
+        try {
+            expect(renderCameraFrame(app, 800, 600)).toBe(true);
+            expect(draws.mock.calls.map(([p]) => [p.cameraEntity, p.renderTarget, p.viewportPixels.w, p.viewportPixels.h]))
+                .toEqual([[offscreen, 8, 128, 256], [cam, 0, 800, 600]]);
+            draws.mockClear();
+            expect(renderCameraFrame(app, 320, 180, undefined, 9)).toBe(true);
+            expect(draws.mock.calls.map(([p]) => [p.cameraEntity, p.renderTarget, p.viewportPixels.w, p.viewportPixels.h]))
+                .toEqual([[offscreen, 8, 128, 256], [cam, 9, 320, 180]]);
+            draws.mockClear();
+            expect(renderCameraFrame(app, 320, 180, offscreen, 9)).toBe(true);
+            const preview = draws.mock.lastCall?.[0];
+            expect(preview).toMatchObject({ cameraEntity: offscreen, renderTarget: 9, viewportPixels: { w: 320, h: 180 } });
+            expect(preview!.viewProjection[5] / preview!.viewProjection[0]).toBeCloseTo(320 / 180);
+        } finally { RenderTexture.release(target); }
     });
 
     it('is a copy, so a later write cannot move it under a reader', async () => {

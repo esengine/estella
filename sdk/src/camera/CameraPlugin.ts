@@ -777,6 +777,13 @@ function primaryScreenCamera(cameras: CameraInfo[]): CameraInfo | null {
     return cameras.find(cam => cam.renderTarget === 0) ?? null;
 }
 
+/** A texture camera has no output once its target is released. */
+function cameraPassSurface(cam: CameraInfo, width: number, height: number, screenTarget = 0) {
+    if (cam.renderTarget === 0) return { width, height, renderTarget: screenTarget };
+    const size = renderTargetSize(cam.renderTarget);
+    return size && { ...size, renderTarget: cam.renderTarget };
+}
+
 function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, height: number, cameras: CameraInfo[]): void {
     publishScreenLayout(app, frameCanvas.fit, width, height);
     const uiCam = app.getResource(UICameraInfo);
@@ -1119,29 +1126,24 @@ export function cameraPlugin(
                                     if (cam === xrRig) drawEyes(app, pipeline, xr, cam, cppRegistry, elapsed, clearColor);
                                     continue;
                                 }
-                                const vp = cam.viewportRect;
                                 // A camera drawing into a texture is measured against
                                 // THAT surface: its viewport rect is a fraction, and
                                 // the fraction is of the target it draws to.
-                                const target = cam.renderTarget !== 0
-                                    ? renderTargetSize(cam.renderTarget) : null;
-                                const w = target?.width ?? width;
-                                const h = target?.height ?? height;
-                                const { x: px, y: py, w: pw, h: ph } = viewportPixels(vp, w, h);
+                                const surface = cameraPassSurface(cam, width, height);
+                                if (!surface) continue;
+                                const rect = viewportPixels(cam.viewportRect, surface.width, surface.height);
                                 pipeline.renderCamera({
                                     registry: { _cpp: cppRegistry },
                                     viewProjection: cam.viewProjection,
                                     renderViewProjection: cam.renderViewProjection,
                                     renderOrigin: cam.renderOrigin,
-                                    viewportPixels: { x: px, y: py, w: pw, h: ph },
+                                    viewportPixels: rect,
                                     clearFlags: cam.clearFlags,
                                     elapsed,
                                     cameraEntity: cam.entity,
                                     clearColor: cameraClearColor(cam.entity as Entity, clearColor),
                                     cullingMask: cam.cullingMask,
-                                    // A released target leaves the handle behind; drawing
-                                    // to it would draw nowhere, so it falls to the screen.
-                                    renderTarget: target ? cam.renderTarget : 0,
+                                    renderTarget: surface.renderTarget,
                                     // The world the camera shows vertically is what the
                                     // render size matches, so worldPerPixel lands on 1.
                                     worldHeight: 2 * cam.halfH,
@@ -1239,6 +1241,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     if (!pipeline || !registry || width <= 0 || height <= 0) return false;
     if (target && pipeline.screenEffectsActive) return false;
     const elapsed = pipeline.frameElapsed;
+    let drewCamera = false;
     Renderer.resize(width, height);
     pipeline.beginFrame(elapsed);
     try {
@@ -1250,7 +1253,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
             ? resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], elapsed, false)
             : collectCameraPOVs(module, registry, width, height, app.world)
                 .filter(pov => pov.entity === entity)
-                .map((pov, i) => buildCameraInfo(pov, width, height, frameCanvas.fit, [], i));
+                .map((pov, i) => buildCameraInfo({ ...pov, renderTarget: 0 }, width, height, frameCanvas.fit, [], i));
         if (!cameras.length) return false;
         const clearColor = frameCanvas.data?.backgroundColor;
         const policy = app.hasResource(ScreenScaling) ? app.getResource(ScreenScaling).renderPolicy : undefined;
@@ -1262,10 +1265,13 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         }
         if (!target) pipeline.beginScreenCapture();
         for (const cam of cameras) {
-            const rect = viewportPixels(cam.viewportRect, width, height);
+            const surface = cameraPassSurface(cam, width, height, target);
+            if (!surface) continue;
+            const rect = viewportPixels(cam.viewportRect, surface.width, surface.height);
             pipeline.renderCamera({ registry: { _cpp: registry }, viewProjection: cam.viewProjection, renderViewProjection: cam.renderViewProjection,
                 renderOrigin: cam.renderOrigin, viewportPixels: rect, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
-                clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: target ?? 0 });
+                clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: surface.renderTarget });
+            drewCamera = true;
         }
         if (!target) pipeline.endScreenCapture();
         Renderer.setViewport(0, 0, width, height);
@@ -1274,7 +1280,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     } finally {
         pipeline.endFrame();
     }
-    return true;
+    return drewCamera;
 }
 
 /** Publish what a frame of the screen at this size says about its cameras (the renderer's size, the UI's camera, the screen
