@@ -5,6 +5,7 @@ import type { TextEditorEvent } from '../src/platform/types';
 import type { TextInputFilter } from '../src/ui/text/text-input';
 import { bootMockApp } from './helpers/mockApp';
 import { log } from '../src/util/logger';
+import { EditorHiddenEntities } from '../src/camera/EditorView';
 
 const measurements = vi.hoisted(() => [] as Array<{ dispose: ReturnType<typeof vi.fn> }>);
 const dimensions = vi.hoisted(() => ({ width: vi.fn(() => 0), height: vi.fn(() => 0) }));
@@ -131,6 +132,46 @@ it.each(['editor', 'runtime without an editing surface'])('draws field values an
     await app.tick(1 / 60);
     expect(app.world.valid(child)).toBe(false);
     expect(app.world.valid(field)).toBe(true);
+});
+
+it.each(['UI', 'world'] as const)('hides generated %s field visuals in Edit and draws the current value when shown or played', async domain => {
+    dimensions.width.mockReturnValue(160);
+    dimensions.height.mockReturnValue(40);
+    const app = build(new TextInputPlugin(), true), world = app.world;
+    const field = world.spawn();
+    world.insert(field, Transform, {});
+    if (domain === 'UI') world.insert(field, UINode, {});
+    else world.insert(field, ContentRect, { size: { x: 160, y: 40 } });
+    world.insert(field, TextInput, { value: 'before' });
+    const hidden = new Set([field]);
+    app.insertResource(EditorHiddenEntities, hidden);
+    const glyphs = () => world.getEntitiesWithComponents([Text]).map(e => world.get(e, Text).content);
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual([]);
+    expect(world.has(field, UIVisual)).toBe(false);
+    expect(world.has(field, UIMask)).toBe(false);
+    expect(measurements).toHaveLength(0);
+    hidden.delete(field);
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual(['before']);
+    expect(world.has(field, UIVisual)).toBe(domain === 'UI');
+    expect(world.has(field, UIMask)).toBe(true);
+    hidden.add(field);
+    world.update(field, TextInput, ti => { ti.value = 'after'; });
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual([]);
+    expect(world.has(field, UIVisual)).toBe(false);
+    expect(world.has(field, UIMask)).toBe(false);
+    expect(world.get(field, TextInput).value).toBe('after');
+    setPlayMode(true);
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual(['after']);
+    setPlayMode(false);
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual([]);
+    hidden.delete(field);
+    await app.tick(1 / 60);
+    expect(glyphs()).toEqual(['after']);
 });
 
 it('opens and releases the input surface when the same edit world enters and leaves Play', async () => {

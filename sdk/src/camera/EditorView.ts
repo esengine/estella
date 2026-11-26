@@ -19,7 +19,7 @@
  */
 import { defineResource } from '../ecs/resource';
 import { invertViewOrbit } from '../math/mat4';
-import type { Vec3 } from '../types';
+import type { Entity, Vec3 } from '../types';
 
 export interface EditorViewData {
   /** When true, the framebuffer + screen<->world use this view, not scene cameras. */
@@ -135,6 +135,10 @@ export function setEditorViewHalfHeight(view: EditorViewData, halfH: number): vo
 }
 
 export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIEW }, 'EditorView');
+
+/** Effective editor-eye state for owners of generated visuals. The edit host supplies
+ * runtime handles from the current scene, including owners hidden by an ancestor. */
+export const EditorHiddenEntities = defineResource<ReadonlySet<Entity> | null>(null, 'EditorHiddenEntities');
 
 /**
  * True when the view is turned away from the head-on 2D one. Absent angles read

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app/app';
+import { EditorHiddenEntities } from '../../camera/EditorView';
 import type { Color, Entity } from '../../types';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { registerComponent } from '../../ecs/component';
@@ -541,9 +542,11 @@ export class TextInputPlugin implements Plugin {
                 }
 
                 const localization = playing && app.hasResource(Localization) ? app.getResource(Localization) : undefined;
+                const hidden = playing ? null : app.getResource(EditorHiddenEntities);
                 for (const entity of world.getEntitiesWithComponents([TextInput])) {
-                    const ti = world.get(entity, TextInput) as TextInputData;
-                    const box = boxOf(entity);
+                    // The edit host projects authored renderers. This system owns the
+                    // field's generated glyphs, fill and clip, in both layout domains.
+                    const box = hidden?.has(entity) ? null : boxOf(entity);
                     if (!box || box.w <= 0 || box.h <= 0) {
                         const ch = childrenOf.get(entity);
                         if (ch) releaseField(entity, ch);
@@ -552,6 +555,7 @@ export class TextInputPlugin implements Plugin {
                     const w = box.w;
                     const h = box.h;
 
+                    const ti = world.get(entity, TextInput) as TextInputData;
                     const ch = ensureChildren(entity, ti, box);
                     ensureBackground(entity, ti, ch);
                     // While focused, the editing surface is the single source of

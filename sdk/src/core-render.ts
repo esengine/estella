@@ -45,7 +45,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 export { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView, type CameraLens } from './camera/Camera';
 export { CameraCommit, onCameraCommitChanged, cameraCommitChanged,
          type CameraCommitData, type CameraCommitListener } from './camera/CameraCommit';
-export { EditorView, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, editorViewWorldPerPixel, setEditorViewHalfHeight, editorViewIsOrbited, editorViewAxes, editorViewAxisAngles, editorViewBasis, editorViewEye, editorViewStandoff, editorViewClipFar, editorViewClipNear, editorViewWorkPlane, editorViewGridPlane, screenWorkAxes, worldAxisVector, moveEditorViewFocus, editorViewBoxExtent } from './camera/EditorView';
+export { EditorView, EditorHiddenEntities, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, editorViewWorldPerPixel, setEditorViewHalfHeight, editorViewIsOrbited, editorViewAxes, editorViewAxisAngles, editorViewBasis, editorViewEye, editorViewStandoff, editorViewClipFar, editorViewClipNear, editorViewWorkPlane, editorViewGridPlane, screenWorkAxes, worldAxisVector, moveEditorViewFocus, editorViewBoxExtent } from './camera/EditorView';
 export type { EditorViewData, ScreenAxis, EditorViewBasis, EditorWorkPlane, WorldAxis } from './camera/EditorView';
 export { EditorViewLighting, DEFAULT_EDITOR_VIEW_LIGHTING, EDITOR_EXPOSURE_RANGE, editorViewLightingIsOverriding, resetEditorViewLighting, editorViewLightingArgs, studioPreviewReport } from './camera/EditorViewLighting';
 export type { EditorViewLightingData, EditorLightingMode, StudioPreviewReport, SkyUnavailable, SceneDark } from './camera/EditorViewLighting';
