@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { App } from '../src/app/app';
 import { World } from '../src/ecs/world';
-import { Sprite, Transform, Disabled, defineComponent, unregisterComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { Sprite, Transform, Disabled, defineComponent, getUserComponents, unregisterComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
-import { hasVisibility, isEntityVisible } from '../src/ecs/entityUtils';
+import { hasVisibility, isEntityVisible, setEntityVisible } from '../src/ecs/entityUtils';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
 import { createMockModule } from './mocks/wasm';
 
@@ -101,6 +101,32 @@ describe('runtime snapshot visibility', () => {
         } finally {
             unregisterComponent(first._name);
             unregisterComponent(second._name);
+        }
+    });
+
+    it('preserves renderer priority when an alias is added and follows the surviving registration', () => {
+        const { world, app } = fixture();
+        const first = defineComponent('SnapshotAliasOriginal', { visible: false }, { renderableField: 'visible' });
+        const second = defineComponent('SnapshotAliasSecond', { visible: true }, { renderableField: 'visible' });
+        const alias = 'SnapshotAliasSurvivor';
+        try {
+            const entity = world.spawn();
+            world.insert(entity, second);
+            world.insert(entity, first);
+            getUserComponents().set(alias, first);
+            expect(isEntityVisible(world, entity)).toBe(false);
+            expect(worldSnapshot(app, entity, false).selected?.hidden).toBe(true);
+            unregisterComponent(first._name);
+            expect(worldSnapshot(app, entity, false).selected?.hidden).toBe(false);
+            expect(isEntityVisible(world, entity)).toBe(true);
+            world.remove(entity, second);
+            expect(worldSnapshot(app, entity, true).selected).toMatchObject({ hideable: true, hidden: true });
+            setEntityVisible(world, entity, true);
+            expect(worldSnapshot(app, entity, false).selected?.hidden).toBe(false);
+        } finally {
+            unregisterComponent(first._name);
+            unregisterComponent(second._name);
+            unregisterComponent(alias);
         }
     });
 });

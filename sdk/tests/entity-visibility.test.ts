@@ -21,6 +21,7 @@ describe('Entity visibility helpers', () => {
             // entity with no Children is where that walk stops.
             valid: () => true,
             getCppRegistry: () => null,
+            getComponentTypes: () => [...components.keys()],
             has: (_e: number, comp: any) => components.has(key(comp)),
             get: (_e: number, comp: any) => components.get(key(comp)),
             set: (_e: number, comp: any, data: any) => {

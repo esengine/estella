@@ -10,27 +10,14 @@ import type { App } from '../app/app';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { isLiveEntity, liveEntities } from '../ecs/liveEntityHandles';
-import { getComponent, renderableComponents, type AnyComponentDef, type RenderableComponentDef } from '../ecs/component';
+import { getComponent, type AnyComponentDef } from '../ecs/component';
+import { entityVisibilityIndex, entityVisibilitySource } from '../ecs/entityUtils';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { Assets } from '../asset/AssetPlugin';
-import { UINode, UIDisplay } from '../ui/core/ui-node';
 import { sceneOriginOf } from '../scene/sceneOrigins';
 
 /** Kept as the tree's own shape (name, parent, children) rather than as rows. */
 const STRUCTURAL = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
-
-type RendererPriority = { definition: RenderableComponentDef; rank: number };
-const rendererPriorities = new WeakMap<readonly RenderableComponentDef[], ReadonlyMap<string, RendererPriority>>();
-
-function rendererPriorityIndex(): ReadonlyMap<string, RendererPriority> {
-    const renderers = renderableComponents();
-    let index = rendererPriorities.get(renderers);
-    if (!index) {
-        index = new Map(renderers.map((definition, rank) => [definition._name, { definition, rank }]));
-        rendererPriorities.set(renderers, index);
-    }
-    return index;
-}
 
 export interface SnapshotComponent {
     type: string;
@@ -164,38 +151,24 @@ export function worldSnapshot(
 
     const nameOf = (e: number): string =>
         (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
-    const priorities = rendererPriorityIndex();
+    const visibilityIndex = entityVisibilityIndex();
     const visibilityReaders = new Map<AnyComponentDef, (entity: number) => unknown>();
     const visibilityOf = (e: number, types: string[], components?: readonly SnapshotComponent[]): Pick<SnapshotEntity, 'hideable' | 'hidden'> => {
-        let source: AnyComponentDef | undefined;
-        let rank = Infinity;
-        for (const type of types) {
-            if (type === UINode._name) {
-                source = UINode;
-                break;
-            }
-            const candidate = priorities.get(type);
-            if (candidate && candidate.rank < rank) {
-                source = candidate.definition;
-                rank = candidate.rank;
-            }
-        }
+        const source = entityVisibilitySource(types, visibilityIndex);
         if (!source) return {};
-        const field = source === UINode ? 'display' : source.renderableField!;
-        const sourceName = source._name;
-        const sampled = components?.find(component => component.type === sourceName)?.data[field];
-        if (sampled !== undefined) return { hideable: true, hidden: source === UINode ? sampled === UIDisplay.None : sampled === false };
-        let read = visibilityReaders.get(source);
+        const { definition, name, field, hiddenValue } = source;
+        const sampled = components?.find(component => component.type === name)?.data[field];
+        if (sampled !== undefined) return { hideable: true, hidden: sampled === hiddenValue };
+        let read = visibilityReaders.get(definition);
         if (!read) {
-            const getter = world.resolveGetter(source);
-            read = getter ? (entity) => getter(entity as never) : (entity) => world.get(entity as never, source);
-            visibilityReaders.set(source, read);
+            const getter = world.resolveGetter(definition);
+            read = getter ? (entity) => getter(entity as never) : (entity) => world.get(entity as never, definition);
+            visibilityReaders.set(definition, read);
         }
         // Only the flag escapes: direct getters borrow their component value.
         const value = read(e) as Record<string, unknown> | null;
-        const data = value && value[field] !== undefined ? value : world.get(e as never, source) as Record<string, unknown>;
-        const hidden = source === UINode ? data.display === UIDisplay.None : data[field] === false;
-        return { hideable: true, hidden };
+        const data = value && value[field] !== undefined ? value : world.get(e as never, definition) as Record<string, unknown>;
+        return { hideable: true, hidden: data[field] === hiddenValue };
     };
     // Only the entry scene's ids name documents an editor has open.
     const srcOf = (e: number): number | undefined => {

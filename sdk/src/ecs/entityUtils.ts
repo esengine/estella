@@ -16,8 +16,57 @@
  */
 import type { Entity } from '../types';
 import type { World } from './world';
-import { Disabled, renderableComponents, Transform } from './component';
-import { UINode, UIDisplay, type UINodeData } from '../ui/core/ui-node';
+import { Disabled, getComponent, getComponentRegistry, renderableComponents, Transform, type AnyComponentDef, type RenderableComponentDef } from './component';
+import { UINode, UIDisplay } from '../ui/core/ui-node';
+
+interface VisibilitySource {
+    name: string;
+    definition: AnyComponentDef;
+    rank: number;
+    field: string;
+    hiddenValue: false | UIDisplay.None;
+    shownValue: true | UIDisplay.Flex;
+}
+
+const uiVisibility: VisibilitySource = {
+    name: UINode._name, definition: UINode, rank: -1, field: 'display',
+    hiddenValue: UIDisplay.None, shownValue: UIDisplay.Flex,
+};
+const visibilityIndexes = new WeakMap<readonly RenderableComponentDef[], ReadonlyMap<string, VisibilitySource>>();
+
+/** @internal Visibility fields keyed by the catalogue names returned by component inspection. */
+export function entityVisibilityIndex(): ReadonlyMap<string, VisibilitySource> {
+    const renderers = renderableComponents();
+    const cached = visibilityIndexes.get(renderers);
+    if (cached) return cached;
+    const ranks = new Map<RenderableComponentDef, number>();
+    for (const [rank, definition] of renderers.entries()) {
+        if (!ranks.has(definition)) ranks.set(definition, rank);
+    }
+    const index = new Map<string, VisibilitySource>();
+    for (const name of getComponentRegistry().keys()) {
+        const definition = getComponent(name) as RenderableComponentDef;
+        const rank = ranks.get(definition);
+        if (rank === undefined) continue;
+        index.set(name, { name, definition, rank, field: definition.renderableField, hiddenValue: false, shownValue: true });
+    }
+    index.set(uiVisibility.name, uiVisibility);
+    visibilityIndexes.set(renderers, index);
+    return index;
+}
+
+/** @internal UI display takes priority, followed by the first registered renderer present. */
+export function entityVisibilitySource(
+    types: readonly string[], index = entityVisibilityIndex(),
+): VisibilitySource | undefined {
+    let primary: VisibilitySource | undefined;
+    for (const type of types) {
+        const candidate = index.get(type);
+        if (candidate === uiVisibility) return candidate;
+        if (candidate && (!primary || candidate.rank < primary.rank)) primary = candidate;
+    }
+    return primary;
+}
 
 /**
  * Whether hiding this entity would do anything — it has a UI node, or at least
@@ -25,8 +74,7 @@ import { UINode, UIDisplay, type UINodeData } from '../ui/core/ui-node';
  * which has nothing of its own to hide.
  */
 export function hasVisibility(world: World, entity: Entity): boolean {
-    if (world.has(entity, UINode)) return true;
-    return renderableComponents().some((comp) => world.has(entity, comp));
+    return entityVisibilitySource(world.getComponentTypes(entity)) !== undefined;
 }
 
 /**
@@ -39,30 +87,21 @@ export function hasVisibility(world: World, entity: Entity): boolean {
  * keep drawing.
  */
 export function setEntityVisible(world: World, entity: Entity, visible: boolean): void {
-    if (world.has(entity, UINode)) {
-        const node = world.get(entity, UINode) as UINodeData;
-        node.display = visible ? UIDisplay.Flex : UIDisplay.None;
-        world.set(entity, UINode, node);
-        return;
-    }
-    for (const comp of renderableComponents()) {
-        if (!world.has(entity, comp)) continue;
-        const data = world.get(entity, comp) as Record<string, unknown>;
-        data[comp.renderableField] = visible;
-        world.set(entity, comp, data as never);
+    const types = world.getComponentTypes(entity);
+    const index = entityVisibilityIndex();
+    const sources = types.includes(uiVisibility.name) ? [uiVisibility]
+        : types.map(type => index.get(type)).filter(source => source !== undefined).sort((a, b) => a.rank - b.rank);
+    for (const { definition, field, hiddenValue, shownValue } of sources) {
+        const data = world.get(entity, definition) as Record<string, unknown>;
+        data[field] = visible ? shownValue : hiddenValue;
+        world.set(entity, definition, data as never);
     }
 }
 
 /** The reading {@link setEntityVisible} writes. An entity with nothing to hide is visible. */
 export function isEntityVisible(world: World, entity: Entity): boolean {
-    if (world.has(entity, UINode)) {
-        return (world.get(entity, UINode) as UINodeData).display !== UIDisplay.None;
-    }
-    for (const comp of renderableComponents()) {
-        if (!world.has(entity, comp)) continue;
-        return (world.get(entity, comp) as Record<string, unknown>)[comp.renderableField] !== false;
-    }
-    return true;
+    const source = entityVisibilitySource(world.getComponentTypes(entity));
+    return !source || (world.get(entity, source.definition) as Record<string, unknown>)[source.field] !== source.hiddenValue;
 }
 
 /**

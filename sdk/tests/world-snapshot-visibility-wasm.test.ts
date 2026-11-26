@@ -6,6 +6,7 @@ import { World } from '../src/ecs/world';
 import { Sprite, MeshRenderer, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
+import { hasVisibility, isEntityVisible, setEntityVisible } from '../src/ecs/entityUtils';
 import { serializeScene } from '../src/scene/scene';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -33,6 +34,11 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             const full = worldSnapshot(app, entity, true);
             expect(full.selected).toEqual(detail);
             expect(full.tree?.entities.find(row => row.id === entity)?.components).toContainEqual({ type, data: {} });
+            expect(hasVisibility(world, entity)).toBe(true);
+            expect(isEntityVisible(world, entity)).toBe(false);
+            setEntityVisible(world, entity, true);
+            expect(worldSnapshot(app, entity, false).selected?.hidden).toBe(false);
+            expect(isEntityVisible(world, entity)).toBe(true);
             if (type === 'Sprite') registry.removeSprite(entity);
             else registry.removeMeshRenderer(entity);
             expect(worldSnapshot(app, entity, false).selected?.components).toEqual([]);
