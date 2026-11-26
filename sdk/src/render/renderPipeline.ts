@@ -8,12 +8,12 @@
 import type { CppRegistry } from '../wasm';
 import type { App } from '../app/app';
 import type { World } from '../ecs/world';
-import type { Entity } from '../types';
+import type { Entity, Vec3 } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
 import { screenOverlayPasses, type ScreenOverlayData } from '../ui/core/screen-overlay';
 import { Draw, beginPresentedDraw, endPresentedDraw, isDrawAPIReady } from './draw';
-import { sceneDrawCallbacks, preSceneCallbacks, overScreenCallbacks } from './customDraw';
+import { sceneDrawCallbacks, preSceneCallbacks, overScreenCallbacks, type DrawFrameInfo } from './customDraw';
 import { log } from '../util/logger';
 import { planPresent, RenderResolution } from '../camera/presentPlan';
 import type { QualityController } from './quality';
@@ -82,6 +82,8 @@ export interface CameraRenderParams {
     viewProjection: Float32Array;
     /** The view-projection for the render origin, which the renderer is begun with; absent, `viewProjection` (the origin is zero). */
     renderViewProjection?: Float32Array;
+    /** The world origin of `renderViewProjection`, for render-space over-screen callbacks. */
+    renderOrigin?: Readonly<Vec3>;
     viewportPixels: Viewport;
     clearFlags: number;
     elapsed: number;
@@ -123,6 +125,7 @@ export class RenderPipeline {
     /** The last camera the frame drew to the screen: the view the over-screen callbacks are drawn through. */
     private overScreenView_: {
         viewProjection: Float32Array;
+        relative?: { viewProjection: Float32Array; origin: Vec3 };
         viewport: Viewport;
         registry: CppRegistry;
         activeScenes: ReadonlySet<string> | null;
@@ -271,14 +274,19 @@ export class RenderPipeline {
         const view = this.overScreenView_;
         this.overScreenView_ = null;
         if (!view || overScreenCallbacks.entries.size === 0 || !isDrawAPIReady() || !Renderer.hasDrawOverScreen()) return;
-        const { viewProjection, viewport } = view;
-        const frame = { viewProjection, width: viewport.w, height: viewport.h };
-        const drew = overScreenCallbacks.dispatch(view.registry, view.activeScenes,
-            () => beginPresentedDraw(viewProjection, viewport.w, viewport.h), fn => fn(this.frameElapsed_, frame));
-        if (drew) {
-            endPresentedDraw();
-            Renderer.drawOverScreen(viewport.x, viewport.y, viewport.w, viewport.h, target);
-        }
+        const { viewProjection, viewport, relative } = view;
+        const size = { width: viewport.w, height: viewport.h };
+        const draw = (frame: DrawFrameInfo, renderSpace?: boolean) => {
+            const drew = overScreenCallbacks.dispatch(view.registry, view.activeScenes,
+                () => beginPresentedDraw(frame.viewProjection, frame.width, frame.height),
+                fn => fn(this.frameElapsed_, frame), renderSpace);
+            if (drew) {
+                endPresentedDraw();
+                Renderer.drawOverScreen(viewport.x, viewport.y, viewport.w, viewport.h, target);
+            }
+        };
+        draw({ viewProjection, ...size }, relative ? false : undefined);
+        if (relative) draw({ ...relative, ...size }, true);
     }
 
     /** Whether a screen-level effect stack is on: it draws the whole screen, so a frame meant for a render target cannot hold it. */
@@ -425,8 +433,12 @@ export class RenderPipeline {
         this.submitScene(registry, viewProjection, scene, elapsed, replayed);
         Renderer.end();
         if (!params.renderTarget && overScreenCallbacks.entries.size > 0) {
+            const origin = params.renderOrigin;
             this.overScreenView_ = {
                 viewProjection: Float32Array.from(viewProjection), viewport: { ...present }, registry: registry._cpp,
+                relative: params.renderViewProjection && origin && (origin.x !== 0 || origin.y !== 0 || origin.z !== 0)
+                    ? { viewProjection: Float32Array.from(params.renderViewProjection), origin: { x: origin.x, y: origin.y, z: origin.z } }
+                    : undefined,
                 activeScenes: this.activeScenes_ && new Set(this.activeScenes_),
             };
         }

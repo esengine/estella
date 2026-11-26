@@ -391,6 +391,7 @@ export {
     type DrawCallback,
     type DrawCallbackOptions,
     type DrawFrameInfo,
+    type OverScreenDrawOptions,
     registerPreSceneDrawCallback,
     unregisterPreSceneDrawCallback,
     registerOverScreenDrawCallback,

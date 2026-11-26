@@ -130,6 +130,27 @@ describe('RenderPipeline', () => {
         expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(1);
     });
 
+    it('draws render-space overlays through the captured relative projection and origin', () => {
+        const canonical = vi.fn(), relative = vi.fn();
+        registerOverScreenDrawCallback('normal', canonical);
+        registerOverScreenDrawCallback('precise', relative, { renderSpace: true });
+        const renderViewProjection = new Float32Array(16).fill(2);
+        const renderOrigin = { x: 2 ** 28, y: 0, z: 1024 };
+        pipeline.beginFrame(0);
+        pipeline.renderCamera({ registry, viewProjection, renderViewProjection, renderOrigin,
+            viewportPixels: { x: 0, y: 0, w: 800, h: 600 }, clearFlags: 3, elapsed: 0 });
+        renderOrigin.x = 0;
+        renderViewProjection.fill(3);
+        pipeline.renderOverScreen();
+
+        const expectedProjection = new Float32Array(16).fill(2);
+        expect(canonical.mock.lastCall?.[1]).toEqual({ viewProjection, width: 800, height: 600 });
+        expect(relative.mock.lastCall?.[1]).toEqual({ viewProjection: expectedProjection, width: 800, height: 600,
+            origin: { x: 2 ** 28, y: 0, z: 1024 } });
+        expect(beginPresentedDraw).toHaveBeenNthCalledWith(2, expectedProjection, 800, 600);
+        expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(2);
+    });
+
     it('draws the over-screen callbacks with the scene on a core with no over-screen pass', () => {
         vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(false);
         const handles = vi.fn();

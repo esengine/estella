@@ -908,6 +908,7 @@ function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, r
             registry: { _cpp: registry },
             viewProjection: placed.viewProjection,
             renderViewProjection: placed.renderViewProjection,
+            renderOrigin: origin,
             viewportPixels: eye.viewport,
             clearFlags: rig.clearFlags,
             elapsed,
@@ -1131,6 +1132,7 @@ export function cameraPlugin(
                                     registry: { _cpp: cppRegistry },
                                     viewProjection: cam.viewProjection,
                                     renderViewProjection: cam.renderViewProjection,
+                                    renderOrigin: cam.renderOrigin,
                                     viewportPixels: { x: px, y: py, w: pw, h: ph },
                                     clearFlags: cam.clearFlags,
                                     elapsed,
@@ -1262,7 +1264,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         for (const cam of cameras) {
             const rect = viewportPixels(cam.viewportRect, width, height);
             pipeline.renderCamera({ registry: { _cpp: registry }, viewProjection: cam.viewProjection, renderViewProjection: cam.renderViewProjection,
-                viewportPixels: rect, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
+                renderOrigin: cam.renderOrigin, viewportPixels: rect, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
                 clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: target ?? 0 });
         }
         if (!target) pipeline.endScreenCapture();
