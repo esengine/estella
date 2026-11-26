@@ -17,7 +17,7 @@ import { applyWrapMode, sampleTimeline, type SampleDeps, type SampleOptions } fr
 import { applyTimelineEvent, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
 import { forEachParticleEvent, playheadRuns, runCrosses, collectSignals, type PlayheadRun, type TimelineSignal } from './timelineEvents';
-import { collectSequenceLayers, resolveActiveShot, type ActiveShot, type SequenceLookup } from './timelineSequences';
+import { collectSequenceLayers, resolveActiveShot, type ActiveShot, type SequenceLayer, type SequenceLookup } from './timelineSequences';
 import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
@@ -179,11 +179,13 @@ function applyEvent(ctx: AdvanceContext, e: FiredEvent): void {
     applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
 }
 
-function dispatchSignals(ctx: AdvanceContext, asset: TimelineAsset, root: Entity, runs: readonly PlayheadRun[]): void {
-    if (!ctx.onSignals) return;
+function dispatchSignals(ctx: AdvanceContext, asset: TimelineAsset, root: Entity, runs: readonly PlayheadRun[]): boolean {
+    if (!ctx.onSignals) return false;
     const signals: TimelineSignal[] = [];
     collectSignals(asset, runs, signals);
-    if (signals.length) ctx.onSignals(signals, root);
+    if (!signals.length) return false;
+    ctx.onSignals(signals, root);
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,8 +257,8 @@ export function advanceTimelineTS(
         ctx.syncSpawns?.(!state.started && state.time === 0 ? null : state.time);
         if (seeking && state.started) {
             sampleLayer(asset, state.time, root, ctx);
-            if (ctx.lookup) advanceNested(asset, root, state, ctx, ctx.lookup, 'seek');
-            ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES));
+            const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, 'seek') : [];
+            ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES, layers));
         }
         return false;
     }
@@ -295,8 +297,8 @@ export function advanceTimelineTS(
     dispatchSignals(ctx, asset, root, segments);
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
-    if (ctx.lookup) advanceNested(asset, root, state, ctx, ctx.lookup);
-    ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, lookup));
+    const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup) : [];
+    ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, lookup, layers));
 
     if (wrapped.stopped) state.playing = false;
     return wrapped.stopped;
@@ -333,9 +335,12 @@ function nestedRuns(
 function advanceNested(
     asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
     mode: 'play' | 'seek' = 'play',
-): void {
+): SequenceLayer[] | undefined {
+    const time = state.time;
+    const layers = collectSequenceLayers(asset, time, root, ctx.deps.resolveChild, lookup);
+    let refresh = !!ctx.onPropertyApplied && layers.length > 0;
     const live = new Set<string>();
-    for (const layer of collectSequenceLayers(asset, state.time, root, ctx.deps.resolveChild, lookup)) {
+    for (const layer of layers) {
         live.add(layer.key);
         sampleLayer(layer.asset, layer.time, layer.root, ctx);
         const before = state.nested[layer.key];
@@ -348,12 +353,15 @@ function advanceNested(
             child.prevTime = prev;
             child.spineClipIndices = spineClipIndices;
             const segments = nestedRuns(before, layer.time, phase, layer.asset.duration, layer.clip.loop);
-            for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
+            const events = detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments);
+            for (const e of events) {
                 applyEvent(ctx, e);
             }
-            dispatchSignals(ctx, layer.asset, layer.root, segments);
+            refresh = dispatchSignals(ctx, layer.asset, layer.root, segments) || events.length > 0 || refresh;
         }
         state.nested[layer.key] = { time: layer.time, phase, spineClipIndices };
     }
     for (const key of Object.keys(state.nested)) if (!live.has(key)) delete state.nested[key];
+    // Script callbacks can seek or rebind before the shot resolves.
+    return refresh || time !== state.time ? undefined : layers;
 }

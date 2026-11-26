@@ -132,9 +132,11 @@ export interface ActiveShot {
 /**
  * The shot at `time` across a timeline and the ones nested in it: the outermost timeline that has a camera
  * answer wins, so a parent's cut is not overridden by what a child inside it was doing.
+ * Supply layers collected for this sample to reuse their resolved roots.
  */
 export function resolveActiveShot(
     asset: TimelineAsset, time: number, root: Entity, resolveChild: ChildResolver, lookup: SequenceLookup,
+    layers?: readonly SequenceLayer[],
 ): ActiveShot | null {
     const tryAsset = (a: TimelineAsset, t: number, r: Entity): ActiveShot | null => {
         for (const track of a.tracks) {
@@ -150,7 +152,7 @@ export function resolveActiveShot(
     };
     const own = tryAsset(asset, time, root);
     if (own) return own;
-    for (const layer of collectSequenceLayers(asset, time, root, resolveChild, lookup)) {
+    for (const layer of layers ?? collectSequenceLayers(asset, time, root, resolveChild, lookup)) {
         const shot = tryAsset(layer.asset, layer.time, layer.root);
         if (shot) return shot;
     }

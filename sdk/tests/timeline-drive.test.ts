@@ -358,6 +358,41 @@ describe('nested sequences', () => {
         expect(Object.keys(s.nested)).toHaveLength(0);
     });
 
+    it('uses the sampled nested layer to resolve its shot in the same step', () => {
+        const shooting = { ...child, tracks: [{
+            type: TrackType.Camera, name: '', childPath: '',
+            clips: [{ start: 0, duration: 2, camera: 'Camera' }],
+        }] } satisfies TimelineAsset;
+        const findTimeline = vi.fn(() => shooting);
+        const resolveChild = (root: number, path: string) => path === 'Camera' ? 2 : resolveRoot(root, path);
+        const onShot = vi.fn();
+        const s = createTimelineState(WrapMode.Once);
+        s.playing = true;
+        advanceTimelineTS(parent, ROOT, s, 1.5, { deps: { ...deps, resolveChild }, lookup: findTimeline, onShot });
+        expect(onShot).toHaveBeenCalledWith({ from: null, to: 2, weight: 1, curve: 3 });
+        expect(findTimeline).toHaveBeenCalledOnce();
+    });
+
+    it('resolves the updated nested shot after a cue replaces its timeline', () => {
+        const old: TimelineAsset = { ...child, tracks: [{
+            type: TrackType.Marker, name: '', childPath: '', markers: [{ name: 'replace', time: 0 }],
+        }] };
+        const updated: TimelineAsset = { ...child, tracks: [{
+            type: TrackType.Camera, name: '', childPath: '', clips: [{ start: 0, duration: 2, camera: 'Camera' }],
+        }] };
+        let current = old;
+        const onShot = vi.fn();
+        const s = createTimelineState(WrapMode.Once);
+        s.playing = true;
+        advanceTimelineTS(parent, ROOT, s, 1.5, {
+            deps: { ...deps, resolveChild: (root, path) => path === 'Camera' ? 2 : resolveRoot(root, path) },
+            lookup: () => current,
+            onSignals: () => { current = updated; },
+            onShot,
+        });
+        expect(onShot).toHaveBeenCalledWith({ from: null, to: 2, weight: 1, curve: 3 });
+    });
+
     it('fires nested entry and exact loop crossings once, on the update that reaches them', () => {
         const loop: TimelineAsset = { ...parent, duration: 10, tracks: [{
             type: TrackType.Sequence, name: '', childPath: '', clips: [
