@@ -141,18 +141,7 @@ export function diffEntities(
 
     // Each side's runtime id → its stable id, so entity-ref fields diff in
     // stable-id space instead of against volatile runtime numbers.
-    const baseRefMap = new Map<number, PrefabEntityId>();
-    for (const e of baseline) {
-        if (e.id !== undefined) {
-            baseRefMap.set(e.id, e.prefabEntityId);
-        } else {
-            // Migrated assets have string ids but may still store numeric references.
-            const id = Number(e.prefabEntityId);
-            if (Number.isSafeInteger(id) && id !== INVALID_ENTITY && String(id) === e.prefabEntityId) {
-                baseRefMap.set(id, e.prefabEntityId);
-            }
-        }
-    }
+    const baseRefMap = baselineRefIds(baseline);
     const instRefMap = new Map<number, PrefabEntityId>();
     for (const e of instance) instRefMap.set(e.id, e.prefabEntityId);
 
@@ -305,6 +294,19 @@ function diffComponents(
             }
         }
     }
+}
+
+/** Translate flattened ids and numeric ids in older assets back to stable addresses. */
+export function baselineRefIds(baseline: readonly DiffBaselineEntity[]): Map<number, PrefabEntityId> {
+    const ids = new Map<number, PrefabEntityId>();
+    for (const e of baseline) {
+        if (e.id !== undefined) ids.set(e.id, e.prefabEntityId);
+        else {
+            const id = Number(e.prefabEntityId);
+            if (Number.isSafeInteger(id) && id !== INVALID_ENTITY && String(id) === e.prefabEntityId) ids.set(id, e.prefabEntityId);
+        }
+    }
+    return ids;
 }
 
 function deepEqual(a: unknown, b: unknown, eps = 0): boolean {

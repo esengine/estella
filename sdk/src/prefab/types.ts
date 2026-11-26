@@ -41,6 +41,7 @@ export interface PrefabData {
      * on top of the merged result.
      */
     basePrefab?: string;
+    /** Edits authored in this asset's address space, including targets inside mounted prefabs. */
     overrides?: PrefabOverride[];
 }
 

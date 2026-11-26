@@ -28,6 +28,7 @@
 
 import { flattenPrefab, preparePrefabBindings } from './flatten';
 import { instanceRef, mapComponentRefs } from './entityRef';
+import { isSceneTarget, sharedPrefabEdits } from './publishBindings';
 import { diffEntities } from './diff';
 import type { DeferredRecord } from './deferred';
 import type { DiffBaselineEntity } from './diff';
@@ -35,6 +36,8 @@ import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
+import { cloneJsonValue } from '../util/cloneJsonValue';
+import { PREFAB_ADDRESS_SEP } from './types';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,
@@ -124,28 +127,29 @@ function expandWithContext(prefab: PrefabData, delta: PrefabInstanceDelta, ctx: 
             if (removed.has(entity.prefabEntityId)) removedIds.add(entity.id);
         }
     }
-    // Allocate added ids first so parent refs resolve regardless of order.
-    const added: ProcessedEntity[] = delta.added.map((a) => {
+    // A saved scene can still describe a member as added after Apply published it.
+    // Keep the asset's identity and overlay that scene's saved values on the member.
+    const all = kept.slice();
+    const members = new Map(delta.added.length ? kept.map(e => [e.prefabEntityId, e] as const) : []);
+    for (const a of delta.added) {
+        if (members.has(a.prefabEntityId)) continue;
         const id = ctx.allocateId();
         idByPrefabId.set(a.prefabEntityId, id);
-        return {
-            id,
-            prefabEntityId: a.prefabEntityId,
-            name: a.name,
-            parent: rootId,
-            children: [],
-            components: cloneComponents(a.components),
-            visible: a.visible,
-        };
-    });
-    delta.added.forEach((a, i) => {
-        const parent = a.parentId == null ? undefined : idByPrefabId.get(a.parentId);
-        added[i].parent = parent === undefined || removedIds.has(parent) ? rootId : parent;
-        for (const component of added[i].components) mapComponentRefs(component, ref => instanceRef(ref, idByPrefabId));
-    });
-
-    const all = [...kept, ...added];
+        const member = { id, prefabEntityId: a.prefabEntityId, name: a.name, parent: rootId, children: [], components: [], visible: a.visible };
+        all.push(member);
+        members.set(a.prefabEntityId, member);
+    }
     plan.applyEdits(kept);
+    for (const a of delta.added) {
+        const member = members.get(a.prefabEntityId)!;
+        if (member.id === rootId) continue;
+        const parent = a.parentId == null ? undefined : idByPrefabId.get(a.parentId);
+        member.parent = parent === undefined || removedIds.has(parent) ? rootId : parent;
+        member.name = a.name;
+        member.visible = a.visible;
+        member.components = cloneComponents(a.components);
+        for (const comp of member.components) mapComponentRefs(comp, ref => instanceRef(ref, idByPrefabId));
+    }
     if (removedIds.size) {
         for (const entity of all) {
             for (const component of entity.components) {
@@ -277,7 +281,7 @@ function collapseBaseline(
     prefab: PrefabData,
     loadPrefab: SyncPrefabResolver,
 ): { entities: DiffBaselineEntity[]; parentOf: Map<PrefabEntityId, PrefabEntityId | null> } {
-    const hasNested = !!prefab.basePrefab || prefab.entities.some((e) => e.nestedPrefab);
+    const hasNested = !!prefab.basePrefab || !!prefab.overrides?.length || prefab.entities.some((e) => e.nestedPrefab);
     if (!hasNested) {
         const parentOf = new Map<PrefabEntityId, PrefabEntityId | null>();
         for (const e of prefab.entities) parentOf.set(e.prefabEntityId, e.parent);
@@ -347,21 +351,27 @@ export interface SourceDelta {
  * name/visibility/metadata edits; this also inserts `added` entities (linked
  * under their parent) and deletes `removed` subtree roots and their descendants
  * (never the prefab root), so an instance's structural changes truly enter the
- * asset. Pure: `source` is not mutated. Nested-scoped ids (composed `slot/…`
- * addresses) that don't exist on this source are skipped — structural apply
- * targets the top-level asset.
+ * asset. Edits to mounted members keep their composed addresses on this asset.
+ * Structural changes target its own entity table. Scene bindings stay on the
+ * instance. Supply the resolver to preserve inherited defaults in mixed lists.
+ * Pure: `source` is not mutated.
  */
-export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): PrefabData {
-    // An entity-ref field bound to something OUTSIDE the instance (an ExposeRef
-    // slot bound to a scene entity) collapses to a `property` override whose value
-    // is a raw runtime id — the diff leaves cross-instance refs numeric, while an
-    // intra-prefab ref normalises to a stable string id. That binding is per-INSTANCE
-    // state; baking it would hard-code one instance's scene id into the SHARED
-    // prefab. Drop those overrides here so Apply never leaks a scene id into the asset.
-    const overrides = delta.overrides.filter((o) => !isExternalEntityRefOverride(o));
+export function applyDeltaToSource(source: PrefabData, delta: SourceDelta, loadPrefab?: SyncPrefabResolver): PrefabData {
+    const { overrides, added } = sharedPrefabEdits(delta, () => loadPrefab ? collapseBaseline(source, loadPrefab).entities : source.entities);
 
-    // 1. Property / component / name / visibility / metadata overrides.
-    let next = applyOverridesToSource(source, overrides);
+    // A mounted or inherited entity is owned by another file. Layer its edits
+    // in this asset's address space so a target in a sibling slot still resolves.
+    const previouslyLayered = new Set(source.overrides?.map(o => o.prefabEntityId));
+    const slots = new Set(source.entities.filter(e => e.nestedPrefab).map(e => e.prefabEntityId));
+    const layered = overrides.filter(o => {
+        if (o.type === 'parent') return false;
+        const separator = o.prefabEntityId.indexOf(PREFAB_ADDRESS_SEP);
+        return !!source.basePrefab || previouslyLayered.has(o.prefabEntityId)
+            || (separator >= 0 && slots.has(o.prefabEntityId.slice(0, separator)));
+    });
+    const layers = new Set(layered);
+    let next = applyOverridesToSource(source, overrides.filter(o => !layers.has(o)));
+    if (layered.length) next.overrides = [...(next.overrides ?? []), ...cloneJsonValue(layered)];
 
     // 2. Re-parent overrides, BEFORE the removed-closure so an entity moved out
     //    of a doomed subtree survives (mirrors expandInstance). Targets among the
@@ -413,11 +423,11 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     }
 
     // 4. Added: append new entities and link each under its parent (root default).
-    if (delta.added.length > 0) {
+    if (added.length > 0) {
         const entities: PrefabEntityData[] = next.entities.map((e) => ({ ...e, children: [...e.children] }));
         const byId = new Map<PrefabEntityId, PrefabEntityData>();
         for (const e of entities) byId.set(e.prefabEntityId, e);
-        for (const a of delta.added) {
+        for (const a of added) {
             // Identity must stay unique: an added id that already exists in the
             // source (e.g. a delta applied twice without re-diffing) would mint a
             // duplicate that mis-addresses every future override. Skip it.
@@ -433,7 +443,7 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
             entities.push(entity);
             byId.set(a.prefabEntityId, entity);
         }
-        for (const a of delta.added) {
+        for (const a of added) {
             const parent = byId.get(a.parentId ?? next.rootEntityId);
             if (parent && !parent.children.includes(a.prefabEntityId)) parent.children.push(a.prefabEntityId);
         }
@@ -441,16 +451,6 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     }
 
     return next;
-}
-
-/** True for a `property` override on an entity-ref field whose value is a raw
- *  runtime id — an ExposeRef binding to something outside the instance. Such a
- *  binding is per-instance and must not be baked into the shared prefab source. */
-function isExternalEntityRefOverride(o: PrefabOverride): boolean {
-    if (o.type !== 'property' || !o.componentType || o.propertyName === undefined) return false;
-    const def = getComponent(o.componentType);
-    if (!def || !def.entityFields.includes(o.propertyName)) return false;
-    return typeof o.value === 'number' && o.value !== INVALID_ENTITY;
 }
 
 /** Walk `node`'s parent chain in a stable-id entity map; true if `ancestor` is on
@@ -483,7 +483,8 @@ function isAncestor(
  *
  * A variant cannot DELETE a base entity (merge only replaces / appends), so
  * `delta.removed` is not representable and is ignored here; a caller that must
- * surface dropped removals should inspect it first. Pure: neither `base` nor
+ * surface dropped removals should inspect it first. Supply the resolver when
+ * inheriting reference defaults from a nested prefab or a variant base. Pure: neither `base` nor
  * `delta` is mutated.
  */
 export function buildVariant(
@@ -491,8 +492,10 @@ export function buildVariant(
     baseRef: string,
     name: string,
     delta: { overrides: readonly PrefabOverride[]; added: readonly AddedEntity[] },
+    loadPrefab?: SyncPrefabResolver,
 ): PrefabData {
-    const entities: PrefabEntityData[] = delta.added.map((a) => ({
+    const { overrides, added } = sharedPrefabEdits(delta, () => loadPrefab ? collapseBaseline(base, loadPrefab).entities : base.entities);
+    const entities: PrefabEntityData[] = added.map((a) => ({
         prefabEntityId: a.prefabEntityId,
         name: a.name,
         // Additions attach to a base entity (or another addition); parentId=null
@@ -508,7 +511,7 @@ export function buildVariant(
         rootEntityId: base.rootEntityId,
         basePrefab: baseRef,
         entities,
-        ...(delta.overrides.length ? { overrides: delta.overrides.map((o) => ({ ...o })) } : {}),
+        ...(overrides.length ? { overrides: overrides.map(o => ({ ...o })) } : {}),
     };
 }
 
@@ -582,9 +585,9 @@ export function collectExternalEntityRefs(
             const def = getComponent(comp.type);
             if (!def || def.entityFields.length === 0) continue;
             for (const field of def.entityFields) {
-                const v = comp.data[field];
-                if (typeof v === 'number' && v !== INVALID_ENTITY && !inSubtree.has(v)) {
-                    out.push({ entityId: e.id, componentType: comp.type, field, target: v });
+                const value = comp.data[field];
+                for (const target of Array.isArray(value) ? value : [value]) {
+                    if (isSceneTarget(target) && !inSubtree.has(target)) out.push({ entityId: e.id, componentType: comp.type, field, target });
                 }
             }
         }

@@ -16669,7 +16669,7 @@ AnimationPlugin
 
 ## applyDeltaToSource — function @experimental
 ```
-(source: PrefabData, delta: SourceDelta): PrefabData
+(source: PrefabData, delta: SourceDelta, loadPrefab?: SyncPrefabResolver): PrefabData
 ```
 
 ## applyOverrides — function @experimental
@@ -16934,7 +16934,7 @@ BreakablePlugin
 
 ## buildVariant — function @experimental
 ```
-(base: PrefabData, baseRef: string, name: string, delta: { overrides: readonly PrefabOverride[]; added: readonly AddedEntity[]; }): PrefabData
+(base: PrefabData, baseRef: string, name: string, delta: { overrides: readonly PrefabOverride[]; added: readonly AddedEntity[]; }, loadPrefab?: SyncPrefabResolver): PrefabData
 ```
 
 ## buildWaterfall — function @experimental

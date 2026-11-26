@@ -97,7 +97,8 @@ export function validateOverrides(
         const map = new Map<PrefabEntityId, PrefabEntityData>();
         for (const e of target.entities) map.set(e.prefabEntityId, e);
         for (const o of overrides) {
-            const entity = map.get(o.prefabEntityId);
+            const entity = overrideTarget(target, map, o.prefabEntityId, options?.loadPrefab);
+            if (entity === undefined) continue;
             if (!entity) {
                 stale.push({
                     override: o,
@@ -137,6 +138,27 @@ export function validateOverrides(
     }
 
     return { stale, orphanedChildren, duplicateIds, invalidIds };
+}
+
+/** Missing documents are unverifiable. A missing member in a resolved asset is stale. */
+function overrideTarget(prefab: PrefabData, index: Map<string, PrefabEntityData>, address: string,
+    load?: (ref: string) => PrefabData | null): PrefabEntityData | null | undefined {
+    let document = prefab, id = address;
+    const seen = new Set<string>();
+    for (;;) {
+        const separator = id.indexOf(PREFAB_ADDRESS_SEP);
+        const localId = separator < 0 ? id : id.slice(0, separator);
+        const entity = document === prefab ? index.get(localId) : document.entities.find(e => e.prefabEntityId === localId);
+        if (separator < 0 && entity) return entity;
+        const ref = entity ? entity.nestedPrefab?.prefabPath : document.basePrefab;
+        if (!ref) return null;
+        if (!load || seen.has(ref)) return undefined;
+        const next = load(ref);
+        if (!next) return undefined;
+        seen.add(ref);
+        if (entity) id = id.slice(separator + 1);
+        document = next;
+    }
 }
 
 function reasonForOverride(
@@ -282,7 +304,8 @@ export function validatePrefab(
                 push('invalid-override', 'error', `${site} override on "${o.prefabEntityId}": ${shape}`, o.prefabEntityId);
                 continue;
             }
-            const entity = map.get(o.prefabEntityId);
+            const entity = overrideTarget(target, map, o.prefabEntityId, options?.loadPrefab);
+            if (entity === undefined) continue;
             if (!entity) {
                 push('stale-override', 'warning', `${site} override targets "${o.prefabEntityId}", not found in "${target.name}"`, o.prefabEntityId);
                 continue;

@@ -6,12 +6,12 @@ import { mapEntityRefField } from '../ecs/entityRefField';
 import { INVALID_ENTITY } from '../types';
 import { hasOwn } from '../util/ownProperties';
 
-type RefMapper = (value: unknown) => unknown;
+type RefMapper = (value: unknown, field: string, index?: number) => unknown;
 
 /** Translate only declared fields present on this component. The caller owns its data. */
 export function mapComponentRefs(component: ComponentData, map: RefMapper): void {
     for (const field of getComponent(component.type)?.entityFields ?? []) {
-        if (hasOwn(component.data, field)) component.data[field] = mapEntityRefField(component.data[field], map);
+        if (hasOwn(component.data, field)) component.data[field] = mapEntityRefField(component.data[field], (v, i) => map(v, field, i));
     }
 }
 
@@ -19,7 +19,8 @@ export function mapComponentRefs(component: ComponentData, map: RefMapper): void
 export function mapOverrideRefs(patch: PrefabOverride, map: RefMapper): PrefabOverride {
     if (patch.type === 'property' && patch.componentType && patch.propertyName !== undefined
         && getComponent(patch.componentType)?.entityFields.includes(patch.propertyName)) {
-        return { ...patch, value: mapEntityRefField(patch.value, map) };
+        const field = patch.propertyName;
+        return { ...patch, value: mapEntityRefField(patch.value, (v, i) => map(v, field, i)) };
     }
     if ((patch.type === 'component_added' || patch.type === 'component_replaced') && patch.componentData) {
         const componentData = { ...patch.componentData, data: { ...patch.componentData.data } };

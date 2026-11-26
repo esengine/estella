@@ -109,6 +109,7 @@ function assemblePrefab(prefab: PrefabData, overrides: PrefabOverride[], ctx: As
     if (prefab.basePrefab) {
         return flattenVariant(prefab, overrides, ctx, depth);
     }
+    if (prefab.overrides?.length) overrides = [...prefab.overrides, ...overrides];
 
     validateParentChildConsistency(prefab);
 
@@ -342,12 +343,9 @@ function flattenVariant(
 
     const merged = mergeVariantEntities(resolvedBase, variant);
 
-    const variantOverrides = merged.overrides ?? [];
-    const combinedOverrides = [...variantOverrides, ...instanceOverrides];
-
     const result = assemblePrefab(
         merged,
-        combinedOverrides,
+        instanceOverrides,
         { ...ctx, visited, depth: depth + 1 },
     );
     visited.delete(basePath); // pop the ancestor stack (see nested branch)

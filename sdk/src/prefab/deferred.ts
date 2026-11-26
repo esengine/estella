@@ -48,7 +48,7 @@ export function deferredBindings(overrides: readonly PrefabOverride[],
 export function isDeferredInstance(prefab: PrefabData, overrides: readonly PrefabOverride[]): boolean {
     const root = prefab.entities.find((e) => e.prefabEntityId === prefab.rootEntityId);
     let marked = root?.metadata?.[DEFERRED_KEY] === true;
-    for (const o of overrides) {
+    for (const o of prefab.overrides?.length ? [...prefab.overrides, ...overrides] : overrides) {
         if (o.prefabEntityId !== prefab.rootEntityId || o.metadataKey !== DEFERRED_KEY) continue;
         if (o.type === 'metadata_set') marked = o.value === true;
         else if (o.type === 'metadata_removed') marked = false;
@@ -69,7 +69,8 @@ export function rootOnly(prefab: PrefabData): PrefabData | null {
     if (prefab.basePrefab) return null;
     const root = prefab.entities.find((e) => e.prefabEntityId === prefab.rootEntityId);
     if (!root || root.nestedPrefab) return null;
-    return { ...prefab, entities: [{ ...root, children: [] }] };
+    return { ...prefab, entities: [{ ...root, children: [] }],
+        ...(prefab.overrides ? { overrides: rootOverrides(prefab, prefab.overrides) } : {}) };
 }
 
 /** Overrides that address the root itself: the only ones a root-only stand-in can use. */
