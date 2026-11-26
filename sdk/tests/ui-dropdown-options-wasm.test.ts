@@ -8,12 +8,21 @@ import { Canvas, Disabled, Parent } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { Interactable } from '../src/ui/input/interactable';
 import { Focusable } from '../src/ui/input/focusable';
-import { UINode } from '../src/ui/core/ui-node';
-import { Text } from '../src/ui/core/text';
+import { UINode, UIPointerEvents } from '../src/ui/core/ui-node';
+import { spawnUIEntity } from '../src/ui/core/compose';
+import { px } from '../src/ui/core/dimension';
+import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
+import { ScreenLayout, screenLayoutRect, screenProjection } from '../src/ui/core/screen-layout';
+import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
+import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { uiHitAtScreen } from '../src/ui/util/ui-pick';
+import { Text, TextAlign, TextOverflow } from '../src/ui/core/text';
 import { UIEventQueue } from '../src/ui/core/events';
 import { UIDropdown, createDropdownSystem } from '../src/ui/behavior/dropdown';
 import { createDropdown } from '../src/ui/widgets/dropdown';
 import { UIController } from '../src/ui/controller/ui-controller';
+import { UICollections } from '../src/ui/collection/collection-host';
+import { ScrollContainer } from '../src/ui/collection/scroll-container';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -26,6 +35,92 @@ describe.skipIf(!HAS_WASM)('dropdown live options on real WASM', () => {
         app.addSystemToSchedule(Schedule.Update, createDropdownSystem(app.world, events));
     });
     afterEach(() => { app.quit({ keepRenderer: true }); registry.delete(); });
+    const smallScreen = () => {
+        const layout = screenLayoutRect(null, 320, 180, { left: 8, bottom: 8, right: 8, top: 8 });
+        const overlay = { ...defaultScreenOverlay(), active: true, projection: screenProjection(layout),
+            vpW: 320, vpH: 180, surfaceW: 320, surfaceH: 180 };
+        app.insertResource(ScreenLayout, layout);
+        app.insertResource(ScreenOverlay, overlay);
+        const canvas = spawnUIEntity({ world: app.world, node: { fill: true } });
+        app.world.insert(canvas, Canvas);
+        const solve = () => {
+            engine.uiLayout_update(registry, layout.left, layout.bottom, layout.right, layout.top, true);
+            engine.transform_update(registry);
+        };
+        const hit = (x: number, top: number) => uiHitAtScreen(app.world, UICameraInfo._default, overlay, x, 180 - top);
+        return { canvas, solve, hit };
+    };
+    it('opens above a bottom-edge trigger and lets players pick the last row outside its masked parent', async () => {
+        const { world } = app, { canvas, solve, hit } = smallScreen();
+        const strip = spawnUIEntity({ world, parent: canvas, node: { position: 1, insetLeft: px(90),
+            insetTop: px(140), width: px(120), height: px(24) } });
+        world.insert(strip, UIMask, { enabled: true, mode: MaskMode.Scissor });
+        const dd = createDropdown({ world, events, parent: strip, options: ['Low', 'Medium', 'High'], optionHeight: 24 });
+        solve(); await app.tick(1 / 60);
+        expect(hit(150, 152)).toBe(dd.entity);
+        dd.open(); await app.tick(1 / 60); solve();
+        const rows = world.getEntitiesWithComponents([UIController]).filter(e => e !== dd.entity);
+        expect(rows).toHaveLength(3);
+        expect(hit(150, 126)).toBe(rows[2]);
+        events.emit(rows[2]!, 'click');
+        expect(dd.getSelectedIndex()).toBe(2);
+        expect(dd.isOpen()).toBe(false);
+        dd.open(); await app.tick(1 / 60); solve();
+        world.update(strip, UINode, n => { n.pointerEvents = UIPointerEvents.None; });
+        await app.tick(1 / 60); solve();
+        expect(dd.isOpen()).toBe(false); expect(hit(150, 126)).toBeNull();
+    });
+    it('uses the safe area and keeps the current row visible on open, keyboard selection and resize', async () => {
+        const { world } = app, { canvas, solve, hit } = smallScreen();
+        const attached = new Map<number, ScrollContainer>();
+        app.insertResource(UICollections, { registerListView() {}, unregisterListView() {},
+            attachScrollContainer: (e, c) => attached.set(e, c), detachScrollContainer: e => { attached.delete(e); } });
+        const dd = createDropdown({ world, events, parent: canvas, node: { position: 1, insetLeft: px(227),
+            insetTop: px(12), width: px(100), height: px(24) }, optionHeight: 24, selectedIndex: 8,
+            options: Array.from({ length: 9 }, (_, i) => 'Quality ' + i) });
+        solve(); dd.open(); await app.tick(1 / 60); solve();
+        const rows = world.getEntitiesWithComponents([UIController]).filter(e => e !== dd.entity);
+        const [panel, scroll] = [...attached.entries()][0]!;
+        expect(scroll.getViewportSize()).toEqual({ x: 100, y: 133 });
+        expect(hit(218, 157)).toBe(rows[8]);
+        expect(hit(315, 157)).toBeNull();
+        expect(world.get(world.getEntitiesWithComponents([Text]).find(e => world.get(e, Text).content === '✓')!, Parent).entity).toBe(rows[8]);
+        const label = world.get(dd.labelEntity, Text);
+        expect(label.align).toBe(TextAlign.Left); expect(label.overflow).toBe(TextOverflow.Ellipsis);
+        // Browsing the list doesn't change the selection or yank the viewport back.
+        scroll.setOffset({ x: 0, y: 0 }); await app.tick(1 / 60); solve();
+        expect(hit(235, 55)).toBe(rows[0]);
+        expect(dd.getSelectedIndex()).toBe(8);
+        world.update(dd.entity, Focusable, f => { f.isFocused = true; });
+        const input = new InputState(); input.noteKeyDown('ArrowUp'); app.insertResource(Input, input);
+        await app.tick(1 / 60); solve(); input.keysPressed.clear();
+        expect(dd.getSelectedIndex()).toBe(7);
+        expect(hit(235, 157)).toBe(rows[7]);
+        const layout = app.getResource(ScreenLayout); layout.safeBottom += 48;
+        await app.tick(1 / 60); solve();
+        expect(scroll.getViewportSize().y).toBe(85);
+        expect(hit(235, 109)).toBe(rows[7]);
+        expect(hit(235, 154)).toBeNull();
+        dd.dispose();
+        expect(world.valid(panel)).toBe(false); expect(attached.size).toBe(0);
+        expect(world.getEntitiesWithComponents([Canvas])).toEqual([canvas]);
+    });
+    it('handles empty options and retires the previous list when another control opens', async () => {
+        const { world } = app;
+        const empty = createDropdown({ world, events, options: [] as { name: string }[], optionToLabel: o => o.name });
+        empty.open();
+        expect(world.get(empty.labelEntity, Text).content).toBe('');
+        expect(empty.isOpen()).toBe(false);
+        const a = createDropdown({ world, events, options: ['A'] });
+        const b = createDropdown({ world, events, options: ['B'] });
+        a.open();
+        const click = events.emit(b.entity, 'click');
+        // The enclosing scroll view also hears this dispatch.
+        events.emitBubbled(world.spawn(), click);
+        expect(a.isOpen()).toBe(false); expect(b.isOpen()).toBe(true);
+        world.update(b.entity, UIDropdown, d => { d.options = []; }); await app.tick(1 / 60);
+        expect(b.isOpen()).toBe(false);
+    });
     it('renaming the selected option repaints the label without changing selection', async () => {
         const changed = vi.fn(), dd = createDropdown({ world: app.world, events, options: ['old'], onSelect: changed });
         await app.tick(1 / 60);

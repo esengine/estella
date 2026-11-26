@@ -203,6 +203,9 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 ## Dropdown
 
 `createDropdown(opts)` shows the current selection and opens a popup of option rows.
+The popup stays inside the screen’s safe area, including when the button is inside a
+scroll view. It can open above the button. A long list shows up to eight rows at a time.
+Use the wheel or drag to browse, or use the arrow keys to move the check mark and selection together.
 It's generic over the option type. Returns a `DropdownHandle<T>`.
 
 ```typescript

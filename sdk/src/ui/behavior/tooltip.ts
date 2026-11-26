@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Canvas, Transform, Parent, defineComponent } from '../../ecs/component';
+import { defineComponent } from '../../ecs/component';
 import { defineSystem } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { Input, type InputState } from '../../input/input';
 import { primaryPointerCancellationVersion } from '../../input/pointerCancellation';
-import { worldEngineApi, type EngineApi } from '../../ecs/bridge/engineApi';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import type { InstantiatePrefabResult } from '../../prefab';
@@ -22,7 +21,7 @@ import { Focusable, type FocusManagerState, FocusManager } from '../input/focusa
 import { Interactable, UIInteraction } from '../input/interactable';
 import { createLiveVisibilityQuery } from '../util/live-visibility';
 import { isFocusEligible } from '../input/focus-inspection';
-import { isScreenEntity, uiWorldToScreen, screenToUiLayout } from '../util/ui-pick';
+import { createPopupBoundsReader, createPopupCanvas, type PopupBounds } from '../util/popup-anchor';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 import { measureText } from '../text/measure-text';
@@ -53,10 +52,9 @@ export const UITooltip = defineComponent<UITooltipData>('UITooltip', {
     side: { enum: [{ label: 'Bottom', value: 0 }, { label: 'Top', value: 1 }, { label: 'Left', value: 2 }, { label: 'Right', value: 3 }] },
 } });
 
-interface Box { left: number; right: number; top: number; bottom: number }
 /** Layout-domain placement. Flip first, then clamp; oversized bubbles stay inside the safe box. */
-export function placeTooltip(target: Box, width: number, height: number, side: number, gap: number,
-    bounds: Box, avoidEdges: boolean): { x: number; y: number } {
+export function placeTooltip(target: PopupBounds, width: number, height: number, side: number, gap: number,
+    bounds: PopupBounds, avoidEdges: boolean): { x: number; y: number } {
     const position = (s: number) => ({
         x: s === 2 ? target.left - gap - width : s === 3 ? target.right + gap : (target.left + target.right - width) / 2,
         y: s === 1 ? target.top + gap : s === 0 ? target.bottom - gap - height : (target.top + target.bottom - height) / 2,
@@ -104,7 +102,8 @@ export function previewTooltip(world: World, target: Entity): () => void {
 /** Owns all transient entities, asynchronous loads and matrix memory for one App. */
 export function createTooltipSystem(world: World, prefabHost?: TooltipPrefabHost, isPlaying = () => true) {
     const states = new Map<Entity, TooltipState>();
-    let disposed = false, owner: EngineApi | null = null, matrixPtr = 0, cancellation = -1;
+    const bounds = createPopupBoundsReader(world);
+    let disposed = false, cancellation = -1;
     let touchBlocksHover = false, touchMouseX = 0, touchMouseY = 0;
     const close = (s: TooltipState) => {
         s.pending = undefined;
@@ -119,30 +118,7 @@ export function createTooltipSystem(world: World, prefabHost?: TooltipPrefabHost
     const reset = () => { for (const s of states.values()) close(s); states.clear(); };
     const dispose = () => {
         disposed = true; offDespawn(); reset();
-        if (matrixPtr) owner?._free?.(matrixPtr);
-        matrixPtr = 0; owner = null;
-    };
-    const boundsOf = (e: Entity, camera: UICameraData, overlay: ScreenOverlayData): Box | null => {
-        const engine = worldEngineApi(world), registry = world.getCppRegistry();
-        if (!engine || !registry || !world.has(e, Transform)) return null;
-        const w = engine.getUINodeComputedWidth?.(registry, e) ?? 0;
-        const h = engine.getUINodeComputedHeight?.(registry, e) ?? 0;
-        if (!(w > 0 && h > 0)) return null;
-        if (owner !== engine) { if (matrixPtr) owner?._free?.(matrixPtr); matrixPtr = 0; owner = engine; }
-        if (!matrixPtr && engine._malloc && engine._free) matrixPtr = engine._malloc(64);
-        if (!matrixPtr || !engine.transform_copyFlatRenderMatrix?.(registry, e, matrixPtr)) return null;
-        const heap = engine.HEAPU8;
-        if (!heap) return null;
-        const m = new Float32Array(heap.buffer, heap.byteOffset + matrixPtr, 16);
-        const screen = isScreenEntity(world, e);
-        const xs: number[] = [], ys: number[] = [];
-        for (const x of [-w / 2, w / 2]) for (const y of [-h / 2, h / 2]) {
-            const wx = m[0] * x + m[4] * y + m[12], wy = m[1] * x + m[5] * y + m[13];
-            const pixel = screen ? null : uiWorldToScreen(camera, wx, wy);
-            const p = pixel ? screenToUiLayout(overlay, pixel.x, pixel.y) : { x: wx, y: wy };
-            xs.push(p.x); ys.push(p.y);
-        }
-        return { left: Math.min(...xs), right: Math.max(...xs), bottom: Math.min(...ys), top: Math.max(...ys) };
+        bounds.dispose();
     };
     const system = defineSystem([Res(Input), Res(Time), Res(ScreenLayout), Res(ScreenOverlay),
         Res(UICameraInfo), Res(UIControlPointers), Res(FocusManager)],
@@ -192,20 +168,12 @@ export function createTooltipSystem(world: World, prefabHost?: TooltipPrefabHost
             s.elapsed += Number.isFinite(time.delta) ? Math.max(0, time.delta) : 0;
             const delay = trigger === 'focus' ? 0 : trigger === 'touch' ? d.longPressDelay : d.hoverDelay;
             if (s.elapsed < (Number.isFinite(delay) ? Math.max(0, delay) : 0)) continue;
-            const target = boundsOf(e, camera, overlay);
+            const target = bounds.read(e, camera, overlay);
             if (!target) { close(s); continue; }
             const signature = JSON.stringify([d.content, d.stylePrefab]);
             if (s.signature !== signature) { close(s); s.signature = signature; }
             if (s.overlay === undefined) {
-                const canvas = spawnUIEntity({ world, node: { fill: true, pointerEvents: UIPointerEvents.None } });
-                let ancestor = e;
-                const visited = new Set<Entity>();
-                while (world.valid(ancestor) && !world.has(ancestor, Canvas) && world.has(ancestor, Parent) && !visited.has(ancestor)) {
-                    visited.add(ancestor); ancestor = world.get(ancestor, Parent).entity;
-                }
-                const canvasData = structuredClone(world.has(ancestor, Canvas) ? world.get(ancestor, Canvas) : Canvas._default);
-                // The screen domain is shared; this late root is only a non-interactive paint layer.
-                world.insert(canvas, Canvas, canvasData);
+                const canvas = createPopupCanvas(world, e, UIPointerEvents.None);
                 s.overlay = canvas;
                 if (d.stylePrefab && prefabHost) {
                     const token = {}; s.pending = token;

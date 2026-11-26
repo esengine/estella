@@ -21,19 +21,27 @@ import { Input, type InputState } from '../../input/input';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
-import { px, percent } from '../core/dimension';
-import { UINode } from '../core/ui-node';
+import { auto, px, percent } from '../core/dimension';
+import { UINode, UIPositionType, UIPointerEvents } from '../core/ui-node';
+import { UIMask } from '../core/ui-mask';
+import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
+import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
+import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
+import { UICollections, type CollectionHost } from '../collection/collection-host';
+import { createScrollView, type ScrollViewHandle } from '../collection/scroll-view';
+import { createPopupBoundsReader, createPopupCanvas } from '../util/popup-anchor';
 import { spawnUIEntity } from '../core/compose';
-import { Text, type TextData } from '../core/text';
+import { Text, TextAlign, TextOverflow, type TextData } from '../core/text';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Interactable, makeWidgetInteractable, type InteractableData } from '../input/interactable';
-import { Focusable, type FocusableData } from '../input/focusable';
-import { UIController, interactionController, type UIControllerData, INTERACTION_CONTROLLER } from '../controller/ui-controller';
+import { Focusable, FocusManager, type FocusManagerState, type FocusableData } from '../input/focusable';
+import { UIControlPointers, type UIControlPointersData } from '../input/control-pointers';
+import { UIController, interactionController, setControllerPage, type UIControllerData, INTERACTION_CONTROLLER } from '../controller/ui-controller';
 import { UIGear } from '../controller/ui-gear';
 import { interactionGears } from '../controller/interaction-gears';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
-import { EntityStateMap, walkParentChain } from '../util/helpers';
+import { EntityStateMap, isPointerBlockedInTree, walkParentChain } from '../util/helpers';
 
 export interface UIDropdownData {
     /** Display labels, one per option. */
@@ -53,15 +61,30 @@ export const UIDropdown = defineComponent<UIDropdownData>('UIDropdown', {
 }, { entityFields: ['label'] });
 
 interface PopupState {
-    panel: Entity;
+    view: ScrollViewHandle;
+    bounds: ReturnType<typeof createPopupBoundsReader>;
+    canvas?: Entity;
+    host?: CollectionHost;
+    revealed?: number;
+    check: Entity;
     rows: Entity[];
     unsubs: Array<() => void>;
     options: string[];
     optionHeight: number;
 }
 
+const POPUP_PADDING = 3;
+const POPUP_GAP = 3;
+const MAX_VISIBLE_ROWS = 8;
+export const DROPDOWN_CONTROLLER = '$dropdown';
+const rowHeight = (height: number) => Number.isFinite(height) && height > 0 ? height : UIDropdown._default.optionHeight;
+
+export function clampDropdownIndex(index: number, count: number): number {
+    return Math.max(0, Math.min(Number.isFinite(index) ? Math.trunc(index) : 0, count - 1));
+}
+
 function popupMatches(p: PopupState, d: UIDropdownData): boolean {
-    if (p.optionHeight !== d.optionHeight || p.options.length !== d.options.length) return false;
+    if (p.optionHeight !== rowHeight(d.optionHeight) || p.options.length !== d.options.length) return false;
     for (let i = 0; i < p.options.length; i++) if (p.options[i] !== d.options[i]) return false;
     return true;
 }
@@ -69,8 +92,8 @@ function popupMatches(p: PopupState, d: UIDropdownData): boolean {
 function dropdownAvailable(world: World, e: Entity): boolean {
     if (!world.isEntityActive(e) || world.isDestructionPending(e) || !world.has(e, UIDropdown)) return false;
     if (world.has(e, Interactable) && !(world.get(e, Interactable) as InteractableData).enabled) return false;
-    return !world.has(e, UINode)
-        || !worldEngineApi(world)?.getUINodeHiddenInTree?.(world.getCppRegistry()!, e);
+    return !isPointerBlockedInTree(world, e) && (!world.has(e, UINode)
+        || !worldEngineApi(world)?.getUINodeHiddenInTree?.(world.getCppRegistry()!, e));
 }
 
 // Popup registries are runtime-only and per-world (unit tests run many worlds).
@@ -89,53 +112,72 @@ export function isDropdownOpen(world: World, e: Entity): boolean {
     return popupsOf(world).has(e);
 }
 
+function setExpanded(world: World, e: Entity, expanded: boolean): void {
+    if (world.valid(e) && !world.isDestructionPending(e) && world.has(e, UIController)
+        && world.get(e, UIController).controllers.some(c => c.name === DROPDOWN_CONTROLLER)) {
+        setControllerPage(world, e, DROPDOWN_CONTROLLER, expanded ? 'open' : 'closed');
+    }
+}
+
 export function closeDropdown(world: World, e: Entity): void {
     const popups = popupsOf(world);
     const p = popups.get(e);
     if (!p) return;
     popups.delete(e);
+    setExpanded(world, e, false);
     for (const off of p.unsubs) off();
-    if (world.valid(p.panel)) world.despawn(p.panel);
+    p.bounds.dispose();
+    p.host?.detachScrollContainer(p.view.entity);
+    p.view.dispose();
+    if (p.canvas !== undefined && world.valid(p.canvas)) world.despawn(p.canvas);
+}
+
+export function closeAllDropdowns(world: World): void {
+    for (const owner of [...popupsOf(world).keys()]) closeDropdown(world, owner);
 }
 
 export function openDropdown(world: World, events: UIEventQueue, e: Entity): void {
     const popups = popupsOf(world);
     if (popups.has(e) || !dropdownAvailable(world, e)) return;
-    const d = world.get(e, UIDropdown) as UIDropdownData;
-    const options = [...d.options], optionHeight = d.optionHeight;
+    if (!world.get(e, UIDropdown).options.length) return;
+    closeAllDropdowns(world);
+    if (popups.has(e) || !dropdownAvailable(world, e)) return;
+    const d = world.get(e, UIDropdown);
+    const options = [...d.options], optionHeight = rowHeight(d.optionHeight);
+    if (!options.length) return;
 
     // Fresh theme resolution per open — the popup is transient, so a stale
     // capture would pin whatever theme was active earlier.
     const t = themeColors();
-    const panel = spawnUIEntity({
-        world,
-        parent: e,
-        // Below the button: absolute, full width, top at the button's bottom edge.
+    const size = { x: 0, y: options.length * optionHeight + 2 * POPUP_PADDING };
+    const view = createScrollView({
+        world, parent: e, viewportSize: size, contentSize: size,
+        // The trigger owns the popup until a rendered anchor and screen are available.
         node: {
-            position: 1,
+            position: UIPositionType.Absolute, width: auto(),
             insetLeft: px(0),
             insetRight: px(0),
             insetTop: percent(100),
-            height: px(options.length * optionHeight),
         },
-        visual: { color: t.surfaceElevated },
+        background: { color: t.control },
     });
-    markThemed(world, panel, { visual: 'surfaceElevated' });
+    world.insert(view.content, UINode, { ...world.get(view.content, UINode), width: percent(100) });
+    markThemed(world, view.entity, { visual: 'control' });
 
     const unsubs: Array<() => void> = [];
     const rows: Entity[] = [];
     for (let i = 0; i < options.length; i++) {
         const row = spawnUIEntity({
             world,
-            parent: panel,
+            parent: view.content,
             node: {
                 position: 1,
-                insetLeft: px(0),
-                insetRight: px(0),
-                insetTop: px(i * optionHeight),
+                insetLeft: px(POPUP_PADDING),
+                insetRight: px(POPUP_PADDING),
+                insetTop: px(POPUP_PADDING + i * optionHeight),
                 height: px(optionHeight),
             },
-            visual: { color: t.control },
+            visual: { color: t.surfaceElevated },
         });
         // Rows are pointer-only: the popup is transient, so they stay out of
         // the Tab ring. 'selected' is NOT driver-owned — the keyboard highlight
@@ -146,24 +188,24 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
         });
         world.insert(row, UIGear, {
             bindings: interactionGears({
-                normal: { color: t.control },
-                hover: { color: t.primaryHover },
-                pressed: { color: t.primaryActive },
-                selected: { color: t.primaryActive },
+                normal: { color: t.surfaceElevated },
+                hover: { color: t.controlHover },
+                pressed: { color: t.controlActive },
+                selected: { color: t.controlFocus },
             }),
         });
         markThemed(world, row, {
             states: {
-                normal: 'control', hover: 'primaryHover',
-                pressed: 'primaryActive', selected: 'primaryActive',
+                normal: 'surfaceElevated', hover: 'controlHover',
+                pressed: 'controlActive', selected: 'controlFocus',
             },
         });
 
         const rowLabel = spawnUIEntity({
             world,
             parent: row,
-            node: { fill: true },
-            text: { content: options[i]!, color: t.text },
+            node: { fill: true, insetLeft: px(8), insetRight: px(24) },
+            text: { content: options[i]!, color: t.text, align: TextAlign.Left, overflow: TextOverflow.Ellipsis },
         });
         markThemed(world, rowLabel, { text: 'text' });
 
@@ -181,14 +223,22 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
         }));
         rows.push(row);
     }
-    popups.set(e, { panel, rows, unsubs, options, optionHeight });
-    highlightRow(world, rows, d.selectedIndex);
+    const check = spawnUIEntity({ world, parent: rows[0], node: {
+        position: UIPositionType.Absolute, insetTop: px(0), insetBottom: px(0), insetRight: px(4), width: px(16),
+    }, text: { content: '✓', color: t.text } });
+    markThemed(world, check, { text: 'text' });
+    const popup = { view, bounds: createPopupBoundsReader(world), rows, check, unsubs, options, optionHeight };
+    popups.set(e, popup);
+    setExpanded(world, e, true);
+    highlightRow(world, popup, clampDropdownIndex(d.selectedIndex, options.length));
 }
 
 /** Keyboard highlight: the selected row holds the non-driver-owned 'selected'
  *  page; every other row returns to 'normal', handing pointer hover back to
  *  the driver. */
-function highlightRow(world: World, rows: Entity[], selected: number): void {
+function highlightRow(world: World, popup: PopupState, selected: number): void {
+    const { rows, check } = popup;
+    if (rows[selected] !== undefined) world.setParent(check, rows[selected]!);
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i]!;
         if (!world.valid(row) || !world.has(row, UIController)) continue;
@@ -203,12 +253,82 @@ function highlightRow(world: World, rows: Entity[], selected: number): void {
     }
 }
 
+/** Place the list against the visible trigger. Only the trigger is clipped by its
+ *  ancestors. The options use the same scroll viewport as other engine UI. */
+function placePopup(world: World, owner: Entity, p: PopupState, selected: number,
+    layout: ScreenLayoutData, overlay: ScreenOverlayData, camera: UICameraData, host: CollectionHost | null): void {
+    if (!layout?.valid || !overlay?.active) return;
+    const anchor = p.bounds.read(owner, camera, overlay);
+    if (!anchor) {
+        if (p.canvas !== undefined) closeDropdown(world, owner);
+        return;
+    }
+    const anchorWidth = anchor.right - anchor.left;
+    walkParentChain(world, owner, ancestor => {
+        if (!world.has(ancestor, UIMask) || !world.get(ancestor, UIMask).enabled) return false;
+        const clip = p.bounds.read(ancestor, camera, overlay);
+        if (clip) {
+            anchor.left = Math.max(anchor.left, clip.left); anchor.right = Math.min(anchor.right, clip.right);
+            anchor.bottom = Math.max(anchor.bottom, clip.bottom); anchor.top = Math.min(anchor.top, clip.top);
+        }
+        return false;
+    });
+    if (Math.min(anchor.right, layout.right) <= Math.max(anchor.left, layout.left)
+        || Math.min(anchor.top, layout.top) <= Math.max(anchor.bottom, layout.bottom)) {
+        closeDropdown(world, owner);
+        return;
+    }
+
+    const fullHeight = p.options.length * p.optionHeight + 2 * POPUP_PADDING;
+    const preferredHeight = Math.min(fullHeight, MAX_VISIBLE_ROWS * p.optionHeight + 2 * POPUP_PADDING);
+    const width = Math.fround(Math.min(anchorWidth, layout.safeRight - layout.safeLeft));
+    const safeHeight = layout.safeTop - layout.safeBottom;
+    if (width <= 0 || safeHeight <= 0) { closeDropdown(world, owner); return; }
+    const below = anchor.bottom - POPUP_GAP - layout.safeBottom;
+    const above = layout.safeTop - anchor.top - POPUP_GAP;
+    const up = below < preferredHeight && above > below;
+    const room = up ? above : below;
+    // A trigger can itself fill the screen. Allow overlap to keep a whole row reachable.
+    const height = Math.fround(Math.min(preferredHeight, safeHeight, room < p.optionHeight + 2 * POPUP_PADDING ? safeHeight : room));
+    const x = Math.max(layout.safeLeft, Math.min(anchor.left, layout.safeRight - width));
+    const y = Math.min(layout.safeTop, Math.max(layout.safeBottom + height,
+        up ? anchor.top + POPUP_GAP + height : anchor.bottom - POPUP_GAP));
+
+    const { view } = p;
+    if (p.canvas === undefined) {
+        p.canvas = createPopupCanvas(world, owner, UIPointerEvents.Auto);
+        world.setParent(view.entity, p.canvas);
+    }
+    const scrollHost = height < fullHeight ? host ?? undefined : undefined;
+    if (p.host !== scrollHost) {
+        p.host?.detachScrollContainer(view.entity);
+        scrollHost?.attachScrollContainer(view.entity, view.scroll);
+        p.host = scrollHost;
+    }
+    const node = world.get(view.entity, UINode);
+    const left = Math.fround(x - layout.left), top = Math.fround(layout.top - y);
+    if (node.width.unit !== 0 || node.width.value !== width || node.height.value !== height
+        || node.insetLeft.value !== left || node.insetTop.unit !== 0 || node.insetTop.value !== top) {
+        world.insert(view.entity, UINode, { ...node, width: px(width), height: px(height),
+            insetLeft: px(left), insetTop: px(top), insetRight: auto() });
+    }
+    const size = view.scroll.getViewportSize();
+    const resized = size.y !== height;
+    if (resized || size.x !== width) view.scroll.setSizes({ x: width, y: height }, { x: width, y: fullHeight });
+    if (resized || p.revealed !== selected) {
+        const offset = view.scroll.getOffset().y, rowTop = POPUP_PADDING + selected * p.optionHeight;
+        const y = Math.min(rowTop - POPUP_PADDING, Math.max(offset, rowTop + p.optionHeight + POPUP_PADDING - height));
+        view.scrollTo({ x: 0, y });
+        p.revealed = selected;
+    }
+}
+
 /** True when `entity` is inside the popup subtree of any open dropdown. */
 function insideAnyPopup(world: World, entity: Entity): boolean {
     const popups = popupsOf(world);
     if (popups.size === 0) return false;
     const panels = new Set<number>();
-    for (const p of popups.values()) panels.add(p.panel as number);
+    for (const p of popups.values()) panels.add(p.view.entity as number);
     if (panels.has(entity as number)) return true;
     let inside = false;
     walkParentChain(world, entity, (ancestor) => {
@@ -231,6 +351,7 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
     // popup; a click inside a popup is the row handler's business; any other
     // click closes every open popup (click-outside-to-close).
     events.on(UIEventType.Click, (ev) => {
+        if (ev.currentTarget !== ev.target) return;
         const target = ev.target;
         if (world.valid(target) && world.has(target, UIDropdown)) {
             if (!dropdownAvailable(world, target)) {
@@ -242,18 +363,24 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
             return;
         }
         if (insideAnyPopup(world, target)) return;
-        for (const e of [...popupsOf(world).keys()]) closeDropdown(world, e);
+        closeAllDropdowns(world);
     });
 
     world.onDespawn((e) => {
-        // The popup subtree dies with its parent; drop the bookkeeping.
+        // A screen popup lives outside the owner's clipping tree.
         if (popupsOf(world).has(e)) closeDropdown(world, e);
     });
 
-    return defineSystem([Res(Input)], (input: InputState) => {
+    return defineSystem([Res(Input), Res(ScreenLayout), Res(ScreenOverlay), Res(UICameraInfo), Res(UICollections), Res(UIControlPointers), Res(FocusManager)],
+    (input: InputState, layout: ScreenLayoutData, overlay: ScreenOverlayData, camera: UICameraData,
+        host: CollectionHost | null, pointers: UIControlPointersData, focus: FocusManagerState) => {
         const popups = popupsOf(world);
         // Inactive owners disappear from component queries but still own popup entries.
         if (popups.size > 0) {
+            // Empty space has no entity to emit a Click. The input system still records the press.
+            for (const pointer of pointers?.pointers.values() ?? []) {
+                if (pointer.pressed && pointer.pressedEntity === null) { closeAllDropdowns(world); break; }
+            }
             for (const e of popups.keys()) {
                 if (!dropdownAvailable(world, e)) closeDropdown(world, e);
             }
@@ -261,8 +388,7 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
         for (const e of world.getEntitiesWithComponents([UIDropdown])) {
             if (!world.valid(e) || !world.has(e, UIDropdown)) continue;
             let d = world.get(e, UIDropdown) as UIDropdownData;
-            const index = Number.isFinite(d.selectedIndex) ? Math.trunc(d.selectedIndex) : 0;
-            const clamped = Math.max(0, Math.min(index, d.options.length - 1));
+            const clamped = clampDropdownIndex(d.selectedIndex, d.options.length);
             if (clamped !== d.selectedIndex) {
                 d.selectedIndex = clamped;
                 world.insert(e, UIDropdown, d);
@@ -289,8 +415,13 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                     d.selectedIndex = next;
                     world.insert(e, UIDropdown, d);
                 }
-                if (open && (input.isKeyPressed('Enter') || input.isKeyPressed('Escape'))) {
+                if (open && input.isKeyPressed('Escape')) {
                     closeDropdown(world, e);
+                } else if (focus?.focusedEntity !== e && (input.isKeyPressed('Enter') || input.isKeyPressed('Space'))) {
+                    // FocusSystem emits the click for its focused entity. A standalone
+                    // behavior system also supports an explicitly focused control.
+                    if (open) closeDropdown(world, e);
+                    else openDropdown(world, events, e);
                 }
             }
 
@@ -315,9 +446,11 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                     }
                 }
                 const popup = popups.get(e);
-                if (popup) highlightRow(world, popup.rows, d.selectedIndex);
+                if (popup) highlightRow(world, popup, d.selectedIndex);
                 if (emitChange) events.emit(e, UIEventType.Change, { index: d.selectedIndex });
             }
+            const popup = popups.get(e);
+            if (popup) placePopup(world, e, popup, d.selectedIndex, layout, overlay, camera, host);
         }
         shown.cleanup(world);
     }, { name: 'UIDropdownSystem' });

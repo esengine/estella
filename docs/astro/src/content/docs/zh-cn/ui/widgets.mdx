@@ -191,7 +191,8 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 
 ## Dropdown 下拉框
 
-`createDropdown(opts)` 显示当前选中项,并打开一个选项行弹窗。对选项类型泛型。
+`createDropdown(opts)` 显示当前选中项，支持自定义选项类型。按钮放在滚动面板内时，菜单也会在屏幕安全区内展开。下方空间不足时可向上展开。
+长列表一次最多显示八行。用滚轮或拖动可以浏览选项，用上下方向键可以移动选中项，勾选标记随之移动。
 返回 `DropdownHandle<T>`。
 
 ```typescript

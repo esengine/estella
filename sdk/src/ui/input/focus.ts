@@ -22,6 +22,7 @@ import { UITabView, tabViewBindings } from '../behavior/tab-view';
 import { UITreeView } from '../behavior/tree-view';
 import { UIColorPicker } from '../behavior/color-picker';
 import { UISlider } from '../behavior/slider';
+import { UIDropdown } from '../behavior/dropdown';
 
 export class FocusPlugin implements Plugin {
     name = PluginName.Focus;
@@ -48,6 +49,7 @@ export class FocusPlugin implements Plugin {
                 const focused = focusManager.focusedEntity;
                 if (focused !== null && isFocusEligible(world, focused)
                     && (world.has(focused, UITreeView) || world.has(focused, UISlider)
+                        || ((code === 'ArrowUp' || code === 'ArrowDown') && world.has(focused, UIDropdown))
                         || (code.startsWith('Arrow') && world.getEntitiesWithComponents([UIColorPicker]).some(root => world.get(root, UIColorPicker).sv === focused)))) return true;
                 return world.getEntitiesWithComponents([UITabView]).some(root => {
                     const d = world.get(root, UITabView);

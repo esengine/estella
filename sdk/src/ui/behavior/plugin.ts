@@ -18,6 +18,7 @@ import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { UICollections } from '../collection/collection-host';
 import { UIConsumesDrag } from '../input/drag-consumption';
+import { UIControlPointers, type UIControlPointersData } from '../input/control-pointers';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
 import { createScrollAdoptSystem } from './scroll';
 import { engineApi } from '../../ecs/bridge/engineApi';
@@ -29,7 +30,7 @@ import { getEntityDepth, walkParentChain } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
 import { UISlider, createSliderSystem } from './slider';
 import { UIToggle, UIToggleGroup, createToggleSystem } from './toggle';
-import { UIDropdown, createDropdownSystem } from './dropdown';
+import { UIDropdown, closeAllDropdowns, createDropdownSystem } from './dropdown';
 import { createScrollbarSystem } from './scrollbar';
 import { registerComponent } from '../../ecs/component';
 import { VirtualJoystick, VirtualButton, createVirtualControlSystem } from './virtual-controls';
@@ -168,8 +169,10 @@ export class UIBehaviorPlugin implements Plugin {
             if (!prefabs) return Promise.reject(new Error('Tooltip style prefabs require PrefabsPlugin'));
             return prefabs.instantiate(ref, { parent, scene: false });
         } }, playModeOnly);
-        const offTooltipExecution = app.onExecutionChange(held => { if (held) tooltips.reset(); });
-        this.controlCleanup_.set(app, () => { virtualControls.dispose(); offTooltipExecution(); tooltips.dispose(); });
+        const offPopupExecution = app.onExecutionChange(held => {
+            if (held) { tooltips.reset(); closeAllDropdowns(world); }
+        });
+        this.controlCleanup_.set(app, () => { virtualControls.dispose(); offPopupExecution(); tooltips.dispose(); closeAllDropdowns(world); });
         app.addSystemToSchedule(Schedule.Update, tooltips.system);
 
         registerComponent('UIDropdown', UIDropdown);
@@ -184,7 +187,7 @@ export class UIBehaviorPlugin implements Plugin {
         // reason the widget does — one input path, one container registry.
         app.addSystemToSchedule(
             Schedule.Update,
-            createScrollAdoptSystem(world, engineApi(app), world.getCppRegistry() as CppRegistry, this),
+            createScrollAdoptSystem(world, engine, registry, app.getResource(UICollections)),
             { runIf: playModeOnly },
         );
 
@@ -218,27 +221,15 @@ export class UIBehaviorPlugin implements Plugin {
         // container; the first container found is the innermost, preserving
         // nested-list arbitration. `dragOnly` keeps the drag path to drag-scroll
         // containers.
-        const hoveredScrollTarget = (dragOnly: boolean): Entity | null => {
-            let hovered: Entity | null = null;
-            let hoveredDepth = -1;
-            for (const entity of world.getEntitiesWithComponents([UIInteraction])) {
-                const ui = world.get(entity, UIInteraction) as UIInteractionData;
-                if (!ui.hovered) continue;
-                const depth = getEntityDepth(world, entity);
-                if (depth > hoveredDepth) {
-                    hoveredDepth = depth;
-                    hovered = entity;
-                }
-            }
-            if (hovered === null) return null;
-            if (dragOnly && world.has(hovered, UIConsumesDrag)) return null;
+        const scrollTargetOf = (hit: Entity, dragOnly: boolean): Entity | null => {
+            if (dragOnly && world.has(hit, UIConsumesDrag)) return null;
             const eligible = (e: Entity): boolean => {
                 const c = scrollContainers.get(e);
                 return !!c && scrollAvailable(e) && (!dragOnly || c.getDragScroll());
             };
-            if (eligible(hovered)) return hovered;
+            if (eligible(hit)) return hit;
             let found: Entity | null = null;
-            walkParentChain(world, hovered, (ancestor) => {
+            walkParentChain(world, hit, (ancestor) => {
                 if (dragOnly && world.has(ancestor, UIConsumesDrag)) return true;
                 if (eligible(ancestor)) {
                     found = ancestor;
@@ -247,6 +238,17 @@ export class UIBehaviorPlugin implements Plugin {
                 return false;
             });
             return found;
+        };
+        const hoveredScrollTarget = (dragOnly: boolean): Entity | null => {
+            let hovered: Entity | null = null;
+            let hoveredDepth = -1;
+            for (const entity of world.getEntitiesWithComponents([UIInteraction])) {
+                const ui = world.get(entity, UIInteraction) as UIInteractionData;
+                if (!ui.hovered) continue;
+                const depth = getEntityDepth(world, entity);
+                if (depth > hoveredDepth) { hoveredDepth = depth; hovered = entity; }
+            }
+            return hovered === null ? null : scrollTargetOf(hovered, dragOnly);
         };
 
         app.addSystemToSchedule(
@@ -270,14 +272,15 @@ export class UIBehaviorPlugin implements Plugin {
         // capture shape as DragSystem.
         let pendingEntity: Entity | null = null;
         let activeEntity: Entity | null = null;
+        let dragPointer: number | undefined;
         let capturedContainer: ScrollContainer | null = null;
         let lastCancellationVersion = primaryPointerCancellationVersion(app.getResource(Input));
         let grabStartWorld: Vec2 = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-            [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout), Res(ScreenOverlay)],
+            [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout), Res(ScreenOverlay), Res(UIControlPointers)],
             (input: InputState, camera: UICameraData, time: TimeData, layout: ScreenLayoutData,
-             overlay: ScreenOverlayData) => {
+             overlay: ScreenOverlayData, pointers: UIControlPointersData) => {
                 const cancellationVersion = primaryPointerCancellationVersion(input);
                 const cancelled = cancellationVersion !== lastCancellationVersion;
                 lastCancellationVersion = cancellationVersion;
@@ -304,12 +307,15 @@ export class UIBehaviorPlugin implements Plugin {
                 // arms the drag; the nearest container wins so a nested list
                 // scrolls itself, not its ancestor.
                 if (input.isMouseButtonPressed(0) && input.isMouseButtonDown(0)) {
-                    const best = hoveredScrollTarget(true);
+                    const primary = [...pointers.pointers.values()].find(pointer => pointer.down);
+                    const best = primary ? (primary.pressedEntity === null ? null : scrollTargetOf(primary.pressedEntity, true))
+                        : hoveredScrollTarget(true);
                     if (best !== null) {
                         const container = scrollContainers.get(best)!;
                         capturedContainer = container;
                         dynamicsFor(best, container).stop();
                         pendingEntity = best;
+                        dragPointer = primary?.id;
                         grabStartWorld = pointerFor(best);
                     }
                 }
@@ -333,6 +339,9 @@ export class UIBehaviorPlugin implements Plugin {
                             activeEntity = pendingEntity;
                             pendingEntity = null;
                             dynamicsFor(activeEntity, container).grab();
+                            // A drag may end on the very same row (especially at a clamped end).
+                            // Retire its click capture as soon as the viewport takes the gesture.
+                            if (dragPointer !== undefined) pointers.cancelHold(dragPointer);
                         }
                     }
                 }

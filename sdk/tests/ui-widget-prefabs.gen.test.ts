@@ -224,7 +224,7 @@ describe('UI widget prefab codegen', () => {
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
     });
 
-    it('Dropdown: button + label, options + selection in UIDropdown (popup is runtime-only)', () => {
+    it('Dropdown: button, label and indicator in the prefab, option rows at runtime', () => {
         registerComponent('UIDropdown', UIDropdown);
         const prefab = generate('Dropdown', (world) =>
             createDropdown<string>({
@@ -239,6 +239,12 @@ describe('UI widget prefab codegen', () => {
         const ddComp = rootEnt.components.find((cc) => cc.type === 'UIDropdown')!;
         expect(ddComp.data.options).toEqual(['One', 'Two', 'Three']);
         expect(rootEnt.children).toContain(ddComp.data.label);
+        const captions = rootEnt.children.map(id => entityById(prefab, id).components.find(c => c.type === 'Text')?.data.content);
+        expect(captions).toEqual(['One', '▾']);
+        const indicator = entityById(prefab, rootEnt.children[1]!);
+        expect(indicator.components.find(c => c.type === 'UIGear')?.data.bindings).toContainEqual({
+            controller: '$dropdown', component: 'Text', property: 'content', pages: { closed: '▾', open: '▴' },
+        });
     });
 
     it('ListView: a clipped viewport shell (items are populated by createListView in code)', () => {

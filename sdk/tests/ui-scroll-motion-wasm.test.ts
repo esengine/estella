@@ -17,6 +17,9 @@ import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { UIConsumesDrag } from '../src/ui/input/drag-consumption';
+import { UIControlPointers } from '../src/ui/input/control-pointers';
+import { UICollections } from '../src/ui/collection/collection-host';
+import { UIScroll } from '../src/ui/core/ui-scroll';
 
 describe.skipIf(!HAS_WASM)('scroll motion ownership on real WASM', () => {
     let engine: ESEngineModule, registry: CppRegistry, app: App, plugin: UIBehaviorPlugin;
@@ -44,6 +47,36 @@ describe.skipIf(!HAS_WASM)('scroll motion ownership on real WASM', () => {
     async function drag() {
         input.noteMouseDown(0); await step(0); await step(40); await step(80);
     }
+    it('adopts a scene scroll view into its own app when a preview shares the plugin', async () => {
+        const previewRegistry = new engine.Registry(), preview = App.new();
+        preview.connectCpp(previewRegistry, engine); preview.insertResource(UIEvents, new UIEventQueue());
+        plugin.build(preview);
+        try {
+            const playHost = vi.spyOn(app.getResource(UICollections), 'attachScrollContainer');
+            const previewHost = vi.spyOn(preview.getResource(UICollections), 'attachScrollContainer');
+            const content = app.world.spawn(); app.world.insert(content, UINode); app.world.setParent(content, entity);
+            app.world.insert(entity, UIScroll, { ...UIScroll._default, content });
+            await step(0);
+            expect(playHost).toHaveBeenCalledWith(entity, expect.any(ScrollContainer));
+            expect(previewHost).not.toHaveBeenCalled();
+        } finally {
+            plugin.cleanup(preview); preview.quit({ keepRenderer: true }); previewRegistry.delete();
+        }
+    });
+    it('a drag at a clamped end cancels the pressed row once, while a tap keeps its click', async () => {
+        const scroll = container(), cancelHold = vi.fn();
+        plugin.attachScrollContainer(entity, scroll);
+        const row = app.world.spawn(); app.world.setParent(row, entity);
+        const pointer = { id: 4, down: true, pressed: true, entity: row, pressedEntity: row,
+            worldX: 0, worldY: 0, layoutX: 0, layoutY: 0, screenX: 0, screenY: 0 };
+        app.insertResource(UIControlPointers, { pointers: new Map([[4, pointer]]), cancelHold });
+        input.noteMouseDown(0); await step(0);
+        input.noteMouseUp(0); await step(0);
+        expect(cancelHold).not.toHaveBeenCalled();
+        input.noteMouseDown(0); await step(0); await step(-9); await step(-12);
+        expect(scroll.getOffset().y).toBe(0);
+        expect(cancelHold.mock.calls).toEqual([[4]]);
+    });
     it('a child control consumes drag without preventing the parent wheel scroll', async () => {
         const scroll = container(); plugin.attachScrollContainer(entity, scroll);
         const child = app.world.spawn(); app.world.setParent(child, entity);

@@ -3,17 +3,22 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../ecs/world';
 
-import { UIController, interactionController } from '../controller/ui-controller';
-import { UIGear } from '../controller/ui-gear';
+import { UIController, controllerState, interactionController } from '../controller/ui-controller';
+import { UIGear, gearBinding } from '../controller/ui-gear';
 import { interactionGears } from '../controller/interaction-gears';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
 import { spawnUIEntity, type UINodeInit } from '../core/compose';
+import { px } from '../core/dimension';
+import { UIPositionType } from '../core/ui-node';
+import { TextAlign, TextOverflow } from '../core/text';
 import { makeWidgetInteractable } from '../input/interactable';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 import {
     UIDropdown,
+    DROPDOWN_CONTROLLER,
+    clampDropdownIndex,
     isDropdownOpen,
     openDropdown,
     closeDropdown,
@@ -71,7 +76,8 @@ export interface DropdownHandle<T> {
 export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const { world, events } = opts;
     const labelOf = opts.optionToLabel ?? ((o: T) => String(o));
-    const selectedIndex = opts.selectedIndex ?? 0;
+    const labels = opts.options.map((option, index) => labelOf(option, index));
+    const selectedIndex = clampDropdownIndex(opts.selectedIndex ?? 0, labels.length);
 
     const c = themeColors();
     const btnColors = {
@@ -93,29 +99,35 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         tabIndex: opts.tabIndex,
     });
     world.insert(button, UIController, {
-        controllers: [interactionController(['normal', 'hover', 'pressed'])],
+        controllers: [interactionController(['normal', 'hover', 'pressed', 'focused']), controllerState(DROPDOWN_CONTROLLER, ['closed', 'open'])],
     });
     world.insert(button, UIGear, {
         bindings: interactionGears({
             normal: { color: btnColors.normal },
             hover: { color: btnColors.hover },
             pressed: { color: btnColors.pressed },
+            focused: { color: c.controlFocus },
         }),
     });
     if (opts.buttonStates === undefined) {
-        markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } });
+        markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive', focused: 'controlFocus' } });
     }
 
     const label = spawnUIEntity({
         world,
         parent: button,
-        node: { fill: true },
-        text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex), color: c.text },
+        node: { fill: true, insetLeft: px(11), insetRight: px(24) },
+        text: { content: labels[selectedIndex] ?? '', color: c.text, align: TextAlign.Left, overflow: TextOverflow.Ellipsis },
     });
     markThemed(world, label, { text: 'text' });
+    const indicator = spawnUIEntity({ world, parent: button, node: {
+        position: UIPositionType.Absolute, insetTop: px(0), insetBottom: px(0), insetRight: px(5), width: px(16),
+    }, text: { content: '▾', color: c.text } });
+    markThemed(world, indicator, { text: 'text' });
+    world.insert(indicator, UIGear, { bindings: [gearBinding(DROPDOWN_CONTROLLER, 'Text', 'content', { closed: '▾', open: '▴' })] });
 
     world.insert(button, UIDropdown, {
-        options: opts.options.map((o, i) => labelOf(o, i)),
+        options: labels,
         selectedIndex,
         optionHeight: opts.optionHeight ?? 32,
         label,
