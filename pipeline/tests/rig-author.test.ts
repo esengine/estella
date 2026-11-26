@@ -123,6 +123,21 @@ describe('a clip for a rig', () => {
     expect(() => buildRigClip({ duration: 1, bones: { body: { reach: [[0, 1, 1]] } } }, rig)).toThrow(/no parent/);
   });
 
+  it('keeps a child flat while its parent reaches, and copies a motion shifted', () => {
+    const r = { ...rig, bones: rig.bones.map((b) => ({ ...b })) };
+    // A short "foot" under lower, so lower's reach has a child to keep flat.
+    r.bones.push({ name: 'foot', parent: 2, x: 36, y: 0, rotation: 0, length: 10, id: 'b9' });
+    const { timeline } = buildRigClip({ duration: 1, loop: false, bones: { lower: { reach: [[0, 40, 20], [1, 10, 80]], bend: 1, flat: true }, foot: { turn: [[0, 0], [1, 20]] } } }, r);
+    const world = (t: number): number => { const m = poseWorlds(r, sampleRigPose(r, timeline, t))[3]!; return Math.atan2(m[1], m[0]) * 180 / Math.PI; };
+    expect(world(0)).toBeCloseTo(0, 0);
+    expect(world(1)).toBeCloseTo(20, 0);
+    const like = buildRigClip({ duration: 1, ease: 'linear', bones: { upper: { turn: [[0, 0], [0.5, 40], [1, 0]] }, lower: { like: { bone: 'upper', shift: 0.25 } } } }, rig).timeline;
+    const lower = (t: number): number => (sampleRigPose(rig, like, t).rotation[2]! - rig.bones[2]!.rotation) * 180 / Math.PI;
+    const upper = (t: number): number => (sampleRigPose(rig, like, t).rotation[1]! - rig.bones[1]!.rotation) * 180 / Math.PI;
+    for (const t of [0, 0.1, 0.3, 0.6, 0.9]) expect(lower(t)).toBeCloseTo(upper((t - 0.25 + 1) % 1), 1);
+    expect(() => buildRigClip({ duration: 1, bones: { lower: { like: { bone: 'upper' } } } }, rig)).toThrow(/has no motion/);
+  });
+
   it('measures how a tip on the ground moves while it is down', () => {
     // The whole figure carried back 60 px over the clip: every tip is down all the time, moving at -60 px/s and nowhere else.
     const { timeline } = buildRigClip({ duration: 1, loop: false, ease: 'linear', bones: { body: { move: [[0, 0, 0], [1, -60, 0]] } } }, rig);
@@ -149,6 +164,10 @@ describe('a clip for a rig', () => {
     expect(times[7]).toBeCloseTo(0.875);
     const c = clipSheet(rig, tex, timeline, times, leafBones(rig), 120);
     expect(c.width).toBe(960);
+    // Measured on the drawing, not the mesh: the body's bottom edge is drawn on the ground, and it says which part is lowest.
+    const m = measureClip(rig, timeline, [0], [2], tex);
+    expect(m.frames[0]!.lowPart).toBe('body');
+    expect(Math.abs(m.frames[0]!.low)).toBeLessThan(1.5);
     expect(coloured(c)).toBeGreaterThan(200);
   });
 });

@@ -188,13 +188,54 @@ export function rigSheet(rig: RigSource, tex: RigBitmap, size = 300, bend = 30):
   return { ...out, labels };
 }
 
-export interface RigClipFrame { time: number; low: number; tips: Record<string, [number, number]> }
+export interface RigClipFrame {
+  time: number;
+  /** The lowest point drawn, 0 being the ground; and which part it is on. */
+  low: number;
+  lowPart?: string;
+  tips: Record<string, [number, number]>;
+}
+
+/** A point on the edge of what a part draws, held as where it sits between three vertices, so it follows the skin as they do. */
+interface EdgePoint { part: number; a: number; b: number; c: number; wa: number; wb: number; wc: number }
+
+/**
+ * Points round the outline of every part's drawing, a couple of pixels apart. The mesh is a grid of cells reaching past the drawing,
+ * so its vertices say where the cells are, not where the boot ends: the lowest vertex sat a cell under the sole.
+ */
+export function rigEdgePoints(rig: RigSource, tex: RigBitmap, threshold = 8): EdgePoint[] {
+  const out: EdgePoint[] = [];
+  const drawn = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < tex.width && y < tex.height && tex.rgba[(y * tex.width + x) * 4 + 3]! >= threshold;
+  rig.parts.forEach((part, p) => {
+    const { x: rx, y: ry, w, h } = part.rect, v = part.vertices;
+    // Every other pixel, and the last row and column always: the sole is the last row.
+    const steps = (n: number): number[] => [...Array.from({ length: Math.ceil(n / 2) }, (_, k) => k * 2), ...(n % 2 === 0 ? [n - 1] : [])];
+    for (const y of steps(h)) for (const x of steps(w)) {
+      const px = rx + x, py = ry + y;
+      if (!drawn(px, py) || (drawn(px - 1, py) && drawn(px + 1, py) && drawn(px, py - 1) && drawn(px, py + 1))) continue;
+      // On the pixel's outer edge, toward what is empty, which is where the drawing ends.
+      const cx = x + 0.5 + (!drawn(px - 1, py) ? -0.49 : !drawn(px + 1, py) ? 0.49 : 0);
+      const cy = y + 0.5 + (!drawn(px, py + 1) ? 0.49 : !drawn(px, py - 1) ? -0.49 : 0);
+      for (let t = 0; t < part.triangles.length; t += 3) {
+        const a = part.triangles[t]!, b = part.triangles[t + 1]!, c = part.triangles[t + 2]!;
+        const ax = v[a * 2]!, ay = v[a * 2 + 1]!, bx = v[b * 2]!, by = v[b * 2 + 1]!, qx = v[c * 2]!, qy = v[c * 2 + 1]!;
+        const area = (bx - ax) * (qy - ay) - (qx - ax) * (by - ay);
+        if (Math.abs(area) < 1e-9) continue;
+        const wa = ((bx - cx) * (qy - cy) - (qx - cx) * (by - cy)) / area, wb = ((qx - cx) * (ay - cy) - (ax - cx) * (qy - cy)) / area, wc = 1 - wa - wb;
+        if (wa < -1e-6 || wb < -1e-6 || wc < -1e-6) continue;
+        out.push({ part: p, a, b, c, wa, wb, wc });
+        break;
+      }
+    }
+  });
+  return out;
+}
 
 /** What a clip's frames measure, in character pixels: the lowest point drawn and where each traced bone's tip is. */
 export interface RigClipMeasure {
   frames: RigClipFrame[];
   /**
-   * By traced bone, while its tip is down on its lowest (within 1.5 px), measured over the longest such stretch: `speed`, px per second
+   * By traced bone, while its tip is down on its lowest (within 3 px), measured over the longest such stretch: `speed`, px per second
    * sideways (negative is backward), `wobble`, px it strays from moving at that one speed, and `share`, the part of the clip it is down.
    * A foot planted in an idle has speed 0; in a walk played in place it moves back at the speed the game moves the character, steadily,
    * so wobble near 0 is what a planted foot looks like either way.
@@ -213,15 +254,21 @@ export function clipTimes(duration: number, count: number, loop: boolean): numbe
 /** The leaf bones: hands, feet, the head's top, what a trace follows when none is named. */
 export const leafBones = (rig: RigSource): number[] => rig.bones.flatMap((_, i) => (rig.bones.some((b) => b.parent === i) ? [] : [i]));
 
-export function measureClip(rig: RigSource, timeline: RigTimeline, times: readonly number[], traced: readonly number[]): RigClipMeasure {
+export function measureClip(rig: RigSource, timeline: RigTimeline, times: readonly number[], traced: readonly number[], tex?: RigBitmap): RigClipMeasure {
   const upp = rig.unitsPerPixel;
+  const edge = tex ? rigEdgePoints(rig, tex) : null;
   const frames: RigClipFrame[] = times.map((time) => {
     const p = posed(rig, sampleRigPose(rig, timeline, time));
-    let low = Infinity;
-    for (const verts of p.skinned) for (let i = 1; i < verts.length; i += 2) low = Math.min(low, verts[i]!);
+    let low = Infinity, lowPart: string | undefined;
+    if (edge?.length) {
+      for (const e of edge) {
+        const s = p.skinned[e.part]!, y = s[e.a * 2 + 1]! * e.wa + s[e.b * 2 + 1]! * e.wb + s[e.c * 2 + 1]! * e.wc;
+        if (y < low) { low = y; lowPart = rig.parts[e.part]!.name; }
+      }
+    } else for (const verts of p.skinned) for (let i = 1; i < verts.length; i += 2) low = Math.min(low, verts[i]!);
     const tips: Record<string, [number, number]> = {};
     for (const b of traced) { const [x, y] = boneTip(rig, p.worlds, b); tips[rig.bones[b]!.name] = [r1(x / upp), r1(y / upp)]; }
-    return { time: Math.round(time * 1000) / 1000, low: r1(low / upp), tips };
+    return { time: Math.round(time * 1000) / 1000, low: r1(low / upp), ...(lowPart ? { lowPart } : {}), tips };
   });
   // Measured on a fine step of its own, not on the frames shown: eight frames are too few to tell a slide from a step.
   const loop = timeline.wrapMode === 'loop', n = 60;
@@ -232,7 +279,7 @@ export function measureClip(rig: RigSource, timeline: RigTimeline, times: readon
   });
   const planted: RigClipMeasure['planted'] = {};
   traced.forEach((b, j) => {
-    const ys = fine.map((f) => f.tips[j]![1]), floor = Math.min(...ys), down = ys.map((y) => y - floor <= 1.5);
+    const ys = fine.map((f) => f.tips[j]![1]), floor = Math.min(...ys), down = ys.map((y) => y - floor <= 3);
     // The longest run of samples down, round the end of a loop and back to its start.
     let best: number[] = [];
     for (let start = 0; start < n; start++) {

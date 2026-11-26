@@ -33,6 +33,13 @@ export interface RigBoneMotion {
   reach?: RigKey[];
   /** Which way the joint between the two bends: -1 (default) the lower bone turns clockwise from the upper, a knee of a character facing right; 1 an elbow. */
   bend?: number;
+  /**
+   * With `reach`: this bone's child (a foot under a shin) keeps the angle it has in the rig's pose whatever the leg does, so a foot
+   * stays flat on the ground; the child's own `turn` keys are added on top, to roll onto the toe or lift the toe at a heel strike.
+   */
+  flat?: boolean;
+  /** Moves as another bone does, `shift` seconds later (round the loop): the far leg as the near one half a cycle on. Keys written here as well replace that kind. */
+  like?: { bone: string; shift?: number };
   /** How this bone's keys run into the next where a key does not say. */
   ease?: RigEase;
 }
@@ -75,7 +82,9 @@ export function checkRigClip(clip: RigClipSpec, rig: RigSource): string[] {
   for (const [bone, motion] of Object.entries(clip.bones)) {
     if (!names.has(bone)) { out.push(`"${bone}" is not a bone of this rig (${[...names].join(', ')})`); continue; }
     if (motion.ease !== undefined && !(motion.ease in EASES)) out.push(`"${bone}": \`ease\` is "smooth", "linear" or "step"`);
-    for (const kind of Object.keys(motion)) if (kind !== 'ease' && kind !== 'bend' && !(kind in CHANNELS)) out.push(`"${bone}": "${kind}" is not a motion; there are turn, move, scale and reach`);
+    if (motion.flat !== undefined && (typeof motion.flat !== 'boolean' || !motion.reach)) out.push(`"${bone}": \`flat\` is true or false, beside \`reach\``);
+    if (motion.flat && !rig.bones.some((b) => rig.bones[b.parent]?.name === bone)) out.push(`"${bone}" has no child bone to keep flat`);
+    for (const kind of Object.keys(motion)) if (kind !== 'ease' && kind !== 'bend' && kind !== 'flat' && !(kind in CHANNELS)) out.push(`"${bone}": "${kind}" is not a motion; there are turn, move, scale and reach`);
     if (motion.bend !== undefined && motion.bend !== 1 && motion.bend !== -1) out.push(`"${bone}": \`bend\` is 1 or -1`);
     if (motion.reach) {
       const b = rig.bones.find((x) => x.name === bone)!, parent = rig.bones[b.parent];
@@ -111,6 +120,52 @@ export function checkRigClip(clip: RigClipSpec, rig: RigSource): string[] {
   return out;
 }
 
+/** A value of a key list at `t`, straight between keys and held past the ends: where a shifted copy has to start and end. */
+function keyAt(keys: RigKey[], t: number): number[] {
+  const nums = keys.map((k) => k.filter((v) => typeof v === 'number') as number[]);
+  if (t <= nums[0]![0]!) return nums[0]!.slice(1);
+  for (let i = 1; i < nums.length; i++) {
+    const a = nums[i - 1]!, b = nums[i]!;
+    if (t <= b[0]!) { const f = (t - a[0]!) / (b[0]! - a[0]! || 1); return a.slice(1).map((v, j) => v + (b[j + 1]! - v) * f); }
+  }
+  return nums[nums.length - 1]!.slice(1);
+}
+
+/** Keys moved `shift` later. In a loop what runs past the end comes round to the start, with a key made at 0 and at the end so it still closes. */
+function shiftKeys(keys: RigKey[], shift: number, duration: number, loop: boolean): RigKey[] {
+  const r = (v: number): number => Math.round(v * 10000) / 10000;
+  if (!loop) return keys.map((k) => [r((k[0] as number) + shift), ...k.slice(1)] as RigKey).filter((k) => (k[0] as number) >= 0 && (k[0] as number) <= duration + 1e-9);
+  const hasBoth = Math.abs((keys[0]![0] as number)) < 1e-9 && Math.abs((keys[keys.length - 1]![0] as number) - duration) < 1e-9;
+  const body = hasBoth ? keys.slice(0, -1) : keys;
+  const moved = body.map((k) => [r((((k[0] as number) + shift) % duration + duration) % duration), ...k.slice(1)] as RigKey).sort((a, b) => (a[0] as number) - (b[0] as number));
+  // The value at the seam, from the source at the time that lands on 0.
+  const seam = keyAt(keys, ((-shift % duration) + duration) % duration);
+  const out = moved.filter((k) => (k[0] as number) > 1e-9);
+  return [[0, ...seam.map((v) => r(v))], ...out, [r(duration), ...seam.map((v) => r(v))]];
+}
+
+/** Writes out every `like` as the keys it stands for. */
+function expandLikes(clip: RigClipSpec): RigClipSpec {
+  if (!clip?.bones || !Object.values(clip.bones).some((m) => m?.like)) return clip;
+  const out: RigClipSpec = { ...clip, bones: {} };
+  for (const [name, motion] of Object.entries(clip.bones)) {
+    if (!motion?.like) { out.bones[name] = motion; continue; }
+    const { like, ...own } = motion;
+    const source = clip.bones[like?.bone];
+    if (!source) throw new Error(`"${name}".like names "${like?.bone}", which has no motion in this clip`);
+    if (source.like) throw new Error(`"${name}".like names "${like.bone}", which is itself a copy; name the bone it copies`);
+    const shift = like.shift ?? 0;
+    if (!Number.isFinite(shift)) throw new Error(`"${name}".like.shift must be seconds`);
+    const copy: RigBoneMotion = { ...source };
+    for (const kind of Object.keys(CHANNELS) as (keyof typeof CHANNELS)[]) {
+      const keys = source[kind];
+      if (keys?.length) copy[kind] = shiftKeys(keys, shift, clip.duration, clip.loop ?? true);
+    }
+    out.bones[name] = { ...copy, ...own };
+  }
+  return out;
+}
+
 /** Tangents that pass smoothly through each key, as a hand would draw the curve; a loop's ends meet with the same slope. */
 function smoothTangents(times: number[], values: number[], duration: number, loop: boolean): number[] {
   const n = times.length, out = new Array<number>(n).fill(0);
@@ -139,7 +194,9 @@ function solveReaches(clip: RigClipSpec, rig: RigSource, notes: string[]): RigCl
     const i = rig.bones.findIndex((b) => b.name === name), bone = rig.bones[i]!, p = bone.parent, parent = rig.bones[p]!;
     const bend = motion.bend ?? -1;
     const upper = Math.hypot(bone.x, bone.y), lower = bone.length, offset = Math.atan2(bone.y, bone.x);
-    const turnsUp: RigKey[] = [], turnsLow: RigKey[] = [];
+    const turnsUp: RigKey[] = [], turnsLow: RigKey[] = [], turnsChild: RigKey[] = [];
+    const child = motion.flat ? rig.bones.findIndex((b) => b.parent === i) : -1;
+    const bindWorld = rigBoneWorlds(rig.bones);
     let far = 0;
     for (const key of motion.reach!) {
       const t = key[0] as number, ease = key.find((v) => typeof v === 'string');
@@ -160,17 +217,25 @@ function solveReaches(clip: RigClipSpec, rig: RigSource, notes: string[]): RigCl
       const upDeg = wrap(upTurn - above - parent.rotation) / DEG, lowDeg = wrap(lowTurn - upTurn - bone.rotation) / DEG;
       turnsUp.push([t, Math.round(upDeg * 100) / 100, ...(ease ? [ease] : [])]);
       turnsLow.push([t, Math.round(lowDeg * 100) / 100, ...(ease ? [ease] : [])]);
+      if (child >= 0) {
+        // Its own turn keys, as the rest of the clip has them at this time, on top of the angle it has in the rig's pose.
+        const extra = sampleRigPose(rig, base, t).rotation[child]! - rig.bones[child]!.rotation;
+        const local = bindWorld[child]!.rotation + extra - lowTurn;
+        turnsChild.push([t, Math.round(wrap(local - rig.bones[child]!.rotation) / DEG * 100) / 100, ...(ease ? [ease] : [])]);
+      }
     }
     if (far > 0) notes.push(`${name}.reach: some targets are out of reach, up to ${Math.round(far * 10) / 10} px past what "${parent.name}" and "${name}" stretch to; it reaches as far as it can`);
     out.bones[parent.name] = { ...(out.bones[parent.name] ?? {}), turn: turnsUp, ...(motion.ease ? { ease: motion.ease } : {}) };
-    const { reach: _r, bend: _b, ...own } = motion;
+    const { reach: _r, bend: _b, flat: _f, ...own } = motion;
     out.bones[name] = { ...own, turn: turnsLow };
+    if (child >= 0) out.bones[rig.bones[child]!.name] = { ...(out.bones[rig.bones[child]!.name] ?? {}), turn: turnsChild };
   }
   return out;
 }
 
 /** The `.estimeline` a clip is, for this rig. Throws on one {@link checkRigClip} refuses. */
-export function buildRigClip(spec: RigClipSpec, rig: RigSource): { timeline: RigTimeline; notes: string[] } {
+export function buildRigClip(given: RigClipSpec, rig: RigSource): { timeline: RigTimeline; notes: string[] } {
+  const spec = expandLikes(given);
   const problems = checkRigClip(spec, rig);
   if (problems.length) throw new Error(problems.join('; '));
   const reachNotes: string[] = [];
