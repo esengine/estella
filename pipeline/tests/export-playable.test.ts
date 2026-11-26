@@ -246,7 +246,7 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
-  it('boots the selected nested scene when an all-scenes playable includes another scene with the same filename', async () => {
+  it.each([undefined, 'all'] as const)('keeps the nested startup scene name in Playable mode %s', async playableScenes => {
     const scenesDir = '.\\levels\\';
     const entryScene = 'levels/campaign/intro.esscene';
     mkdirSync(path.join(root, 'levels/campaign'), { recursive: true });
@@ -260,9 +260,9 @@ describe('exportGame (playable)', () => {
     }
     const result = await exportGame({
       root, entryScene: `.\\${entryScene.replaceAll('/', '\\')}`, scenesDir,
-      excludeScenes: ['.\\levels\\dev.esscene'], playableScenes: 'all', platform: 'playable',
+      excludeScenes: ['.\\levels\\dev.esscene'], playableScenes, platform: 'playable',
       hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
-      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-nested'),
+      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, `dist-nested-${playableScenes ?? 'default'}`),
     });
     expect(result.ok, result.errors.join('\n')).toBe(true);
     const html = readFileSync(path.join(result.outDir, 'index.html'), 'utf8');
@@ -270,12 +270,13 @@ describe('exportGame (playable)', () => {
     const first = JSON.parse(html.match(/window\.__GAME_FIRST__=("[^";]*");/)![1]);
     expect(scenes.find(scene => scene.name === first)?.data.name).toBe('Campaign intro');
     expect(first).toBe('campaign/intro');
-    expect(scenes.map(scene => scene.name)).toEqual(['campaign/intro', 'intro']);
-    expect(scenes[1]?.data.name).toBe('Standalone intro');
+    expect(scenes.map(scene => [scene.name, scene.data.name])).toEqual(playableScenes === 'all'
+      ? [['campaign/intro', 'Campaign intro'], ['intro', 'Standalone intro']]
+      : [['campaign/intro', 'Campaign intro']]);
     expect(result.inlineParts?.some(part => part.path === 'scenes/campaign/intro.json')).toBe(true);
   }, 60_000);
 
-  it('packages an outside entry and a scenes-directory scene with the same runtime name', async () => {
+  it.each(['entry', 'all'] as const)('keeps the outside startup scene alias in Playable mode %s', async playableScenes => {
     const entryScene = 'previews/intro.esscene';
     const sibling = 'collision-scenes/previews/intro.esscene';
     mkdirSync(path.join(root, 'previews'), { recursive: true });
@@ -288,17 +289,17 @@ describe('exportGame (playable)', () => {
       writeFileSync(path.join(root, `${file}.meta`), meta(uuid, 'scene'));
     }
     const opts = {
-      root, entryScene, scenesDir: 'collision-scenes', playableScenes: 'all', platform: 'playable',
+      root, entryScene, scenesDir: 'collision-scenes', playableScenes, platform: 'playable',
       hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
-      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-collision'),
+      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, `dist-collision-${playableScenes}`),
     } as const;
     const result = await exportGame(opts);
     expect(result.ok, result.errors.join('\n')).toBe(true);
     const html = readFileSync(path.join(result.outDir, 'index.html'), 'utf8');
     const scenes = JSON.parse(inlinedText(html, '__GAME_SCENES__')) as Array<{ name: string; data: { name: string } }>;
-    expect(scenes.map(scene => [scene.name, scene.data.name])).toEqual([
-      ['@project/previews/intro', 'Preview intro'], ['previews/intro', 'Game intro'],
-    ]);
+    expect(scenes.map(scene => [scene.name, scene.data.name])).toEqual(playableScenes === 'all'
+      ? [['@project/previews/intro', 'Preview intro'], ['previews/intro', 'Game intro']]
+      : [['@project/previews/intro', 'Preview intro']]);
     expect(html).toContain('window.__GAME_FIRST__="@project/previews/intro";');
     expect(await discoverProjectScenes(root, entryScene, opts.scenesDir, [sibling])).toEqual([
       { name: '@project/previews/intro', path: entryScene },

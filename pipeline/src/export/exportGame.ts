@@ -906,7 +906,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (streamed.length > 0) refuseStreamedWorld('a playable ad (one inlined file)');
     return await exportPlayable({
       root: opts.root,
-      scenes: opts.playableScenes === 'all' ? scenes : [{ path: entryScene, name: path.posix.basename(entryScene).replace(/\.[^.]+$/, '') }],
+      scenes: opts.playableScenes === 'all' ? scenes : [scenes[0]],
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
