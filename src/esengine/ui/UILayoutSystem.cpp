@@ -479,15 +479,19 @@ void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
     }
 }
 
-/** @brief Adds @p entity and its whole Transform subtree to @p out. */
-void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out, std::vector<u32>& rootByIndex) {
-    std::vector<Entity> pending{entity};
+/** @brief Record each entity and its screen root along the transform hierarchy. */
+void addScreenSubtree(Registry& registry, Entity entity, std::vector<u32>& members,
+                      std::vector<u32>& rootByIndex, std::vector<Entity>& pending) {
+    pending.push_back(entity);
     while (!pending.empty()) {
         const Entity current = pending.back();
         pending.pop_back();
-        if (!registry.valid(current) || !out.insert(current.id()).second) continue;
-        if (current.index() >= rootByIndex.size()) rootByIndex.resize(current.index() + 1, 0);
-        rootByIndex[current.index()] = entity.id();
+        if (!registry.valid(current)) continue;
+        const u32 index = current.index();
+        if (index >= rootByIndex.size()) rootByIndex.resize(index + 1, 0);
+        if (rootByIndex[index] != 0) continue;
+        rootByIndex[index] = entity.id();
+        members.push_back(current.id());
         auto* children = registry.tryGet<Children>(current);
         if (!children) continue;
         for (Entity child : children->entities) pending.push_back(child);
@@ -502,15 +506,23 @@ void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out,
  *          Sprite parented into a HUD is not a layout node, yet its transform
  *          composes from a screen root all the same.
  */
-void collectScreenDomain(Registry& registry, std::unordered_set<u32>& out, std::vector<u32>& roots, std::vector<u32>& rootByIndex) {
-    out.clear();
-    roots.clear();
+void collectScreenDomain(Registry& registry, UIRenderData& tables, std::vector<u32>& members,
+                         std::vector<u32>& next, std::vector<Entity>& pending) {
+    for (const u32 id : members) tables.rootByIndex[Entity::fromRaw(id).index()] = 0;
+    tables.roots.clear();
+    next.clear();
     registry.each<Canvas>([&](Entity entity, Canvas&) {
         if (!registry.has<UINode>(entity) || !registry.has<Transform>(entity)) return;
         if (!isScreenRoot(registry, entity)) return;
-        roots.push_back(entity.id());
-        addSubtree(registry, entity, out, rootByIndex);
+        tables.roots.push_back(entity.id());
+        addScreenSubtree(registry, entity, next, tables.rootByIndex, pending);
     });
+    // Keep the renderer's membership set when the walk returns the same IDs.
+    if (next != members) {
+        tables.domain.clear();
+        tables.domain.insert(next.begin(), next.end());
+        members.swap(next);
+    }
 }
 
 void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
@@ -600,7 +612,7 @@ bool UISystem::layoutUpdate(
     // Beside the rebuild and never behind the skip gate below: a frame that needs
     // no re-solve can still have reparented something, and a renderer reading a
     // stale set would draw it in the wrong domain rather than in the wrong place.
-    collectScreenDomain(registry, tables.domain, tables.roots, tables.rootByIndex);
+    collectScreenDomain(registry, tables, screenMembers_, nextScreenMembers_, screenPending_);
     tables.laidOut = true;
 
     // Layout belongs to Canvas; visibility and input inheritance belong to the

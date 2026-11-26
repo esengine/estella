@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform } from '../src/ecs/component';
+import { entityIndex } from '../src/types';
 import { UINode } from '../src/ui/core/ui-node';
 import { px } from '../src/ui/core/dimension';
 import { Text } from '../src/ui/core/text';
@@ -70,6 +71,36 @@ describe.skipIf(!HAS_WASM)('screen domain ownership on real WASM', () => {
         expect(engine.ui_isScreenDomain!(registry, entity)).toBe(true);
         app.world.despawn(entity);
         expect(engine.ui_isScreenDomain!(registry, entity)).toBe(false);
+    });
+    it('refreshes screen membership when only non-layout descendants change', () => {
+        const { app, registry, entity: canvas } = make(true);
+        const world = app.world;
+        const decoration = world.spawn();
+        world.insert(decoration, Transform);
+        world.setParent(decoration, canvas);
+        const layout = (dirty = false) => engine.uiLayout_update(registry, -50, -50, 50, 50, dirty);
+        const isScreen = (entity: number) => engine.ui_isScreenDomain!(registry, entity);
+
+        expect(layout(true)).toBe(true);
+        expect(isScreen(decoration)).toBe(true);
+        world.removeParent(decoration);
+        expect(layout()).toBe(false);
+        expect(isScreen(decoration)).toBe(false);
+        world.setParent(decoration, canvas);
+        expect(layout()).toBe(false);
+        expect(isScreen(decoration)).toBe(true);
+
+        world.despawn(decoration);
+        const replacement = world.spawn();
+        world.insert(replacement, Transform);
+        expect(entityIndex(replacement)).toBe(entityIndex(decoration));
+        expect(isScreen(replacement)).toBe(false);
+        expect(layout()).toBe(false);
+        expect(isScreen(replacement)).toBe(false);
+        world.setParent(replacement, canvas);
+        expect(layout()).toBe(false);
+        expect(isScreen(replacement)).toBe(true);
+        expect(isScreen(decoration)).toBe(false);
     });
     it('retains each world’s hit, pick list and input change cursor across interleaved queries', () => {
         const hud = make(true), preview = make(true);

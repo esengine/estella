@@ -86,6 +86,8 @@ private:
     f32 lastBoxW_{0}, lastBoxH_{0}, lastBoxCX_{0}, lastBoxCY_{0};
     bool lastAnimActive_{false};
     bool layoutPrimed_{false};  // force a solve on the very first pass
+    std::vector<u32> screenMembers_, nextScreenMembers_;
+    std::vector<Entity> screenPending_;
     Shared<UIRenderData> render_;
 };
 
@@ -175,7 +177,7 @@ public:
      * @details Resolved once at a subtree's root and inherited by all of it: a
      *          Canvas with no Transform parent IS the screen. The whole Transform
      *          subtree, not just the laid-out nodes — what decides the domain is
-     *          where a transform composes FROM. Rebuilt by every layout pass.
+     *          where a transform composes FROM. Refreshed by every layout pass.
      */
     const std::unordered_set<u32>& screenDomain() const { return lastLayout().domain; }
 
