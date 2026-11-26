@@ -16,7 +16,7 @@ import type { Entity } from '../types';
 import { CHUNK_SIZE, recodeCell } from './chunkCodec';
 import { buildTerrainIndices, resolveAutotileMatch, TERRAIN_NEIGHBORS } from './autotile';
 import { tileIdOf, TILE_FLIP_D, TILE_FLIP_H, TILE_FLIP_V, TILE_ID_MASK } from './tileBits';
-import { tileCellCenter, TilemapOrientation, type TileGridParams } from './tileGeometry';
+import { tileCellCenter, tileWorldFrame, TilemapOrientation, type TileGridParams } from './tileGeometry';
 import { tileCollisionTable } from './tileQuery';
 import { Tilemaps, type TilemapToolkit } from './tilemapAPI';
 import { TilemapRuntimeState } from './tilemapPlugin';
@@ -142,7 +142,8 @@ export class DestructibleTilemap {
 
     /** The cell under a world position, through the layer's origin, rotation and grid. */
     worldToTile(worldX: number, worldY: number): { x: number; y: number } {
-        const local = this.toLocal_(worldX, worldY), t = this.tiles_.worldToTile(this.layer, local.x, local.y, 0, 0);
+        const local = this.toLocal_(worldX, worldY);
+        const t = this.tiles_.worldToTile(this.layer, local.x, local.y, 0, 0);
         return { x: Math.floor(t.x), y: Math.floor(t.y) };
     }
 
@@ -232,17 +233,15 @@ export class DestructibleTilemap {
 
     /** A grid over a rectangle of this layer, already placed where the layer is drawn and kept in step. Needs an orthogonal, unrotated layer with square cells. */
     createNavGrid(opts: TileNavGridOptions): NavGrid {
-        const data = this.data_(), rotated = this.rotation_() !== 0;
-        if (rotated || (data.orientation ?? 0) !== TilemapOrientation.Orthogonal || data.cellSize.x !== data.cellSize.y) {
+        const data = this.data_(), frame = this.frame_(data);
+        if (frame.rotation !== 0 || (data.orientation ?? 0) !== TilemapOrientation.Orthogonal || data.cellSize.x !== data.cellSize.y) {
             throw new Error('createNavGrid needs an orthogonal, unrotated tile layer with square cells');
         }
         const tileX = opts.tileX ?? 0, tileY = opts.tileY ?? 0;
-        this.app.world.ensureTransformsComposed();
-        const at = this.app.world.get(this.layer, Transform).worldPosition;
         const bottomLeft = tileCellCenter(this.grid_(), tileX, tileY + opts.height - 1);
         const grid = new NavGrid({
             width: opts.width, height: opts.height, cellSize: data.cellSize.x,
-            origin: { x: at.x + data.originOffset.x + bottomLeft.x, y: at.y + data.originOffset.y + bottomLeft.y, z: at.z },
+            origin: { x: frame.x + bottomLeft.x, y: frame.y + bottomLeft.y, z: frame.z },
         });
         this.syncNavGrid(grid, opts);
         return grid;
@@ -469,18 +468,17 @@ export class DestructibleTilemap {
         };
     }
 
-    private rotation_(): number {
+    private frame_(data = this.data_()): ReturnType<typeof tileWorldFrame> {
         this.app.world.ensureTransformsComposed();
-        const q = this.app.world.get(this.layer, Transform).worldRotation;
-        return 2 * Math.atan2(q.z, q.w);
+        const transform = this.app.world.get(this.layer, Transform);
+        return tileWorldFrame(transform.worldPosition, transform.worldRotation, data.originOffset);
     }
 
     private toLocal_(worldX: number, worldY: number): { x: number; y: number } {
-        this.app.world.ensureTransformsComposed();
-        const transform = this.app.world.get(this.layer, Transform), offset = this.data_().originOffset;
-        const dx = worldX - transform.worldPosition.x, dy = worldY - transform.worldPosition.y;
-        const angle = this.rotation_(), c = Math.cos(angle), s = Math.sin(angle);
-        return { x: dx * c + dy * s - offset.x, y: -dx * s + dy * c - offset.y };
+        const frame = this.frame_();
+        const dx = worldX - frame.x, dy = worldY - frame.y;
+        const c = Math.cos(frame.rotation), s = Math.sin(frame.rotation);
+        return { x: dx * c + dy * s, y: -dx * s + dy * c };
     }
 }
 

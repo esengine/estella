@@ -20,6 +20,7 @@
 // the number a cell placement switches on is the number the engine's grid uses.
 export { TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex } from '../wasm/wasm.generated';
 import { TilemapOrientation } from '../wasm/wasm.generated';
+import type { Quat, Vec3 } from '../types';
 
 /** The layout inputs a cell placement needs — a subset of the TilemapLayer component. */
 export interface TileGridParams {
@@ -38,6 +39,15 @@ export interface TileGridParams {
 export interface Vec2Like {
     x: number;
     y: number;
+}
+
+/** The grid origin and planar angle used by the tile renderer. The offset is layer-local. */
+export function tileWorldFrame(position: Vec3, q: Quat, offset?: Vec2Like): Vec3 & { rotation: number } {
+    // Mirror TilemapRenderPlugin's projection of the full quaternion onto the XY plane.
+    const rotation = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+    const x = offset?.x ?? 0, y = offset?.y ?? 0;
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: position.x + cos * x - sin * y, y: position.y + sin * x + cos * y, z: position.z, rotation };
 }
 
 /** Layout without cell dimensions, for consumers that already receive tile width/height. */

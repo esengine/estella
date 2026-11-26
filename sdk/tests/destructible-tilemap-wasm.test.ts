@@ -138,6 +138,32 @@ describe.skipIf(!HAS_WASM)('destructible tilemap', () => {
             // A quarter turn counter-clockwise carries layer (x, y) to world (-y, x).
             expect(map.worldToTile(3.5 * 16, 2.5 * 16)).toEqual({ x: 2, y: 3 });
         });
+
+        it('aims digging and explosions at the drawn cells of a tilted layer', () => {
+            const { world, tiles, layer, open } = bare();
+            world.update(layer, Transform, t => {
+                t.position = { x: 100, y: 200, z: 0 };
+                t.rotation = { x: 0.5, y: 0.5, z: 0, w: Math.SQRT1_2 };
+            });
+            world.update(layer, TilemapLayer, l => { l.originOffset = { x: 32, y: -16 }; });
+            const map = open();
+            const drawnCenter = (x: number, y: number) => {
+                const lx = 32 + (x + 0.5) * 16, ly = -16 - (y + 0.5) * 16;
+                return { x: 100 + (lx - ly) * Math.SQRT1_2, y: 200 + (lx + ly) * Math.SQRT1_2 };
+            };
+            tiles.setTile(layer, 2, 3, 1);
+            tiles.setTile(layer, 3, 3, 1);
+            const dig = drawnCenter(2, 3), blast = drawnCenter(3, 3);
+            expect(map.digAtWorld(dig.x, dig.y)).toMatchObject({ x: 2, y: 3, destroyed: true });
+            expect(map.explode(blast.x, blast.y, 7, 2)).toMatchObject([{ x: 3, y: 3, destroyed: true }]);
+        });
+
+        it('converts to grid-local coordinates before float rounding at a distant origin', () => {
+            const { world, layer, open } = bare();
+            const farX = 2 ** 28;
+            world.update(layer, Transform, t => { t.position.x = farX; });
+            expect(open().worldToTile(farX + 24, -8)).toEqual({ x: 1, y: 0 });
+        });
     });
 
     describe('explosions', () => {
@@ -507,6 +533,14 @@ describe.skipIf(!HAS_WASM)('destructible tilemap', () => {
             const grid = map.createNavGrid({ width: 5, height: 4 });
             const built = navGridFromTilemapLayer(layer, { width: 5, height: 4, cellSize: 16 });
             expect([...grid.walkable]).toEqual([...built.walkable]);
+        });
+
+        it('accepts either quaternion sign for an unrotated navigation grid', () => {
+            const { world, layer, open } = bare();
+            world.update(layer, Transform, t => { t.rotation = { x: 0, y: 0, z: 0, w: -1 }; });
+            world.update(layer, TilemapLayer, l => { l.originOffset = { x: 32, y: 16 }; });
+            const grid = open().createNavGrid({ width: 2, height: 2 });
+            expect(grid.cellToWorld(0, 0)).toMatchObject({ x: 40, y: -8 });
         });
 
         it('honours a tile rectangle, a predicate, and stops when told', () => {
