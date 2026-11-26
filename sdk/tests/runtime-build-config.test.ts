@@ -9,6 +9,10 @@ import { packagedRuntimeInit } from '../src/runtime/packagedRuntime';
 import { initRuntime } from '../src/runtime/runtimeLoader';
 import { EmbeddedBackend } from '../src/asset/Backend';
 import { App } from '../src/app/app';
+import { setAppSurfaceSize } from '../src/app/surface';
+import { Camera } from '../src/ecs/component';
+import { sceneManagerPlugin } from '../src/scene/scenePlugin';
+import { bootMockApp } from './helpers/mockApp';
 import { createMockModule } from './mocks/wasm';
 
 describe('packagedRuntimeInit', () => {
@@ -54,6 +58,35 @@ describe('packagedRuntimeInit', () => {
         expect(options).toMatchObject({ ...settings, uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } } });
         expect(options).not.toHaveProperty('entryScene');
         expect(options).not.toHaveProperty('uiThemeColors');
+    });
+});
+
+describe('the packaged game camera at startup', () => {
+    it.each([
+        { width: 720, height: 1280, expected: 720 / 1280 },
+        { width: 0, height: 0, expected: 4 / 3 },
+    ])('uses the drawable surface ($width × $height) after the first scene loads', async ({ width, height, expected }) => {
+        const { app, module } = bootMockApp();
+        module.transform_update = vi.fn();
+        app.addPlugin(sceneManagerPlugin);
+        let surface = { width: 800, height: 600 };
+        setAppSurfaceSize(app, () => surface);
+        try {
+            await initRuntime({
+                app, module, firstScene: 'Main', aspectRatio: 4 / 3,
+                source: { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } },
+                scenes: [{ name: 'Main', data: { version: 4, name: 'Main', entities: [{
+                    id: 1, name: 'Camera', parent: null, children: [], components: [{ type: 'Camera', data: { aspectRatio: 0 } }],
+                }] } }],
+                prepareWorld: async () => {
+                    surface = { width, height };
+                    return null;
+                },
+            });
+            const [entity] = app.world.getEntitiesWithComponents([Camera]);
+            expect(entity).toBeDefined();
+            expect(app.world.get(entity!, Camera).aspectRatio).toBeCloseTo(expected);
+        } finally { app.quit({ keepRenderer: true }); }
     });
 });
 

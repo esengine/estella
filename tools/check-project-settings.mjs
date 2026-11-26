@@ -199,12 +199,11 @@ if (fields.length === 0) {
 // the alternative is importing the editor's module graph into a lint script.
 const editorApplyAt = storeSrc.indexOf('private applyEditorRuntimeConfig');
 const editorApply = storeSrc.slice(editorApplyAt, storeSrc.indexOf('\n  }\n', editorApplyAt));
-// Found by its name and not its parameter list, which grew (a pinned asset) and left the search finding nothing: every
-// setting then read as never reaching Play. A payload that cannot be found is said, not read as an empty one.
-const playPayloadAt = storeSrc.indexOf('async playPayload(');
-const playPayloadEnd = storeSrc.indexOf('audioFeature()', playPayloadAt);
+// Inspect the builder that writes the payload. The public Play entry point only captures the requested scene.
+const playPayloadAt = storeSrc.search(/^  (?:private )?(?:async )?buildPlayPayload\(/m);
+const playPayloadEnd = storeSrc.indexOf('\n  }', playPayloadAt);
 if (playPayloadAt < 0 || playPayloadEnd < 0) {
-  console.error(`check-project-settings: could not find ProjectStore.playPayload in ${STORE} — has it moved or been renamed?`);
+  console.error(`check-project-settings: could not find ProjectStore.buildPlayPayload in ${STORE} — has it moved or been renamed?`);
   process.exit(1);
 }
 const playPayload = storeSrc.slice(playPayloadAt, playPayloadEnd);

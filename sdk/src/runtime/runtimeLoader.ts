@@ -30,6 +30,7 @@ import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
 import { applyAudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { RuntimeProjectSettings } from './projectSettings';
 import type { App } from '../app/app';
+import { surfaceSizeOf } from '../app/surface';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource, installRuntimeAssets } from '../asset/AssetPlugin';
 import { basisTranscoderFor } from '../asset/basisWorkers';
@@ -1103,6 +1104,7 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
     /** The Steam application id; present ⇒ try to bring a Steam client up and let
      *  it answer for achievements. Absent or unavailable keeps the local one. */
     steamAppId?: number;
+    /** The startup aspect to use if the app has no usable drawable surface yet. */
     aspectRatio?: number;
     /**
      * The compiled twins a build produced (docs/REARCH_AOT.md): bytes, because
@@ -1287,7 +1289,12 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         life.throwIfAborted();
     }
 
-    if (aspectRatio !== undefined) {
-        updateCameraAspectRatio(app.world, aspectRatio);
+    // A window can resize, or a phone can rotate, while the first scene loads.
+    // Sample the same drawable surface the camera uses once loading is done.
+    const surface = surfaceSizeOf(app);
+    const liveAspect = surface && surface.width > 0 && surface.height > 0 ? surface.width / surface.height : 0;
+    const initialAspect = liveAspect > 0 && Number.isFinite(liveAspect) ? liveAspect : aspectRatio;
+    if (initialAspect !== undefined && initialAspect > 0 && Number.isFinite(initialAspect)) {
+        updateCameraAspectRatio(app.world, initialAspect);
     }
 }
