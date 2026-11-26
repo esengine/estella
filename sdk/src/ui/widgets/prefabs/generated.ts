@@ -9941,6 +9941,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
         "name": "Dropdown",
         "parent": null,
         "children": [
+          "3",
           "2",
           "1"
         ],
@@ -10190,14 +10191,14 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               ],
               "selectedIndex": 0,
               "optionHeight": 30,
-              "label": "2"
+              "label": "3"
             }
           }
         ],
         "visible": true
       },
       {
-        "prefabEntityId": "2",
+        "prefabEntityId": "3",
         "name": "Label",
         "parent": "0",
         "children": [],
@@ -10302,7 +10303,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "unit": 0
               },
               "insetRight": {
-                "value": 24,
+                "value": 28,
                 "unit": 0
               },
               "insetBottom": {
@@ -10372,8 +10373,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
         "visible": true
       },
       {
-        "prefabEntityId": "1",
-        "name": "Label",
+        "prefabEntityId": "2",
+        "name": "Node",
         "parent": "0",
         "children": [],
         "components": [
@@ -10386,10 +10387,10 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "z": 0
               },
               "rotation": {
-                "w": 1,
+                "w": 0.9396926207859084,
                 "x": 0,
                 "y": 0,
-                "z": 0
+                "z": -0.3420201433256687
               },
               "scale": {
                 "x": 1,
@@ -10422,12 +10423,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "opacity": 1,
               "pointerEvents": 0,
               "width": {
-                "value": 16,
+                "value": 8,
                 "unit": 0
               },
               "height": {
-                "value": 0,
-                "unit": 2
+                "value": 2,
+                "unit": 0
               },
               "minWidth": {
                 "value": 0,
@@ -10457,7 +10458,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "unit": 0
               },
               "marginTop": {
-                "value": 0,
+                "value": -1,
                 "unit": 0
               },
               "marginRight": {
@@ -10473,74 +10474,54 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "unit": 2
               },
               "insetTop": {
-                "value": 0,
-                "unit": 0
+                "value": 50,
+                "unit": 1
               },
               "insetRight": {
-                "value": 5,
+                "value": 15,
                 "unit": 0
               },
               "insetBottom": {
                 "value": 0,
-                "unit": 0
+                "unit": 2
               }
             }
           },
           {
-            "type": "Text",
+            "type": "UIVisual",
             "data": {
-              "content": "▾",
-              "i18nKey": "",
-              "font": 0,
-              "fontFamily": "",
-              "fontSize": 14,
+              "visualType": 1,
+              "texture": 0,
               "color": {
                 "r": 0.92,
                 "g": 0.92,
                 "b": 0.94,
                 "a": 1
               },
-              "align": 1,
-              "verticalAlign": 1,
-              "wordWrap": false,
-              "overflow": 0,
-              "lineHeight": 1.2,
-              "letterSpacing": 0,
-              "bold": false,
-              "italic": false,
-              "strokeColor": {
-                "r": 0,
-                "g": 0,
-                "b": 0,
-                "a": 1
+              "fit": 0,
+              "uvOffset": {
+                "x": 0,
+                "y": 0
               },
-              "strokeWidth": 0,
-              "shadowColor": {
-                "r": 0,
-                "g": 0,
-                "b": 0,
-                "a": 1
+              "uvScale": {
+                "x": 1,
+                "y": 1
               },
-              "shadowBlur": 0,
-              "shadowOffsetX": 0,
-              "shadowOffsetY": 0,
-              "underline": false,
-              "richText": false,
-              "renderMode": 0,
-              "layer": 0,
-              "boxWidth": 0,
-              "boxHeight": 0,
-              "boxPivot": {
-                "x": 0.5,
-                "y": 0.5
+              "sliceBorder": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 0
               },
+              "tileSize": {
+                "x": 32,
+                "y": 32
+              },
+              "fillMethod": 0,
+              "fillOrigin": 0,
+              "fillAmount": 1,
+              "material": 0,
               "enabled": true
-            }
-          },
-          {
-            "type": "ThemeStyle",
-            "data": {
-              "text": "text"
             }
           },
           {
@@ -10549,14 +10530,197 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "bindings": [
                 {
                   "controller": "$dropdown",
-                  "component": "Text",
-                  "property": "content",
+                  "component": "Transform",
+                  "property": "rotation.z",
                   "pages": {
-                    "closed": "▾",
-                    "open": "▴"
+                    "closed": -0.3420201433256687,
+                    "open": 0.3420201433256687
                   }
                 }
               ]
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "text"
+            }
+          }
+        ],
+        "visible": true
+      },
+      {
+        "prefabEntityId": "1",
+        "name": "Node",
+        "parent": "0",
+        "children": [],
+        "components": [
+          {
+            "type": "Transform",
+            "data": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 0.9396926207859084,
+                "x": 0,
+                "y": 0,
+                "z": 0.3420201433256687
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "worldPosition": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldRotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldScale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "type": "UINode",
+            "data": {
+              "position": 1,
+              "display": 0,
+              "opacity": 1,
+              "pointerEvents": 0,
+              "width": {
+                "value": 8,
+                "unit": 0
+              },
+              "height": {
+                "value": 2,
+                "unit": 0
+              },
+              "minWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "minHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "flexGrow": 0,
+              "flexShrink": 1,
+              "flexBasis": {
+                "value": 0,
+                "unit": 2
+              },
+              "alignSelf": 0,
+              "marginLeft": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginTop": {
+                "value": -1,
+                "unit": 0
+              },
+              "marginRight": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginBottom": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetLeft": {
+                "value": 0,
+                "unit": 2
+              },
+              "insetTop": {
+                "value": 50,
+                "unit": 1
+              },
+              "insetRight": {
+                "value": 9,
+                "unit": 0
+              },
+              "insetBottom": {
+                "value": 0,
+                "unit": 2
+              }
+            }
+          },
+          {
+            "type": "UIVisual",
+            "data": {
+              "visualType": 1,
+              "texture": 0,
+              "color": {
+                "r": 0.92,
+                "g": 0.92,
+                "b": 0.94,
+                "a": 1
+              },
+              "fit": 0,
+              "uvOffset": {
+                "x": 0,
+                "y": 0
+              },
+              "uvScale": {
+                "x": 1,
+                "y": 1
+              },
+              "sliceBorder": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 0
+              },
+              "tileSize": {
+                "x": 32,
+                "y": 32
+              },
+              "fillMethod": 0,
+              "fillOrigin": 0,
+              "fillAmount": 1,
+              "material": 0,
+              "enabled": true
+            }
+          },
+          {
+            "type": "UIGear",
+            "data": {
+              "bindings": [
+                {
+                  "controller": "$dropdown",
+                  "component": "Transform",
+                  "property": "rotation.z",
+                  "pages": {
+                    "closed": 0.3420201433256687,
+                    "open": -0.3420201433256687
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "text"
             }
           }
         ],

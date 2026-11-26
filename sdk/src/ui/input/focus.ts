@@ -22,7 +22,10 @@ import { UITabView, tabViewBindings } from '../behavior/tab-view';
 import { UITreeView } from '../behavior/tree-view';
 import { UIColorPicker } from '../behavior/color-picker';
 import { UISlider } from '../behavior/slider';
-import { UIDropdown } from '../behavior/dropdown';
+import { UIDropdown } from '../core/dropdown-popup';
+import { UIDialog } from '../core/ui-dialog';
+import { UIControlPointers, type UIControlPointersData } from './control-pointers';
+import { escapeLayer } from './overlay-input';
 
 export class FocusPlugin implements Plugin {
     name = PluginName.Focus;
@@ -67,8 +70,8 @@ export class FocusPlugin implements Plugin {
         }));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Input), Res(UIEvents)],
-            (input: InputState, events: UIEventQueue) => {
+            [Res(Input), Res(UIEvents), Res(UIControlPointers)],
+            (input: InputState, events: UIEventQueue, pointers: UIControlPointersData) => {
                 // Live eligibility also governs stale focus and pointer focus, so
                 // opening a dialog cannot leave activation on a background control.
                 // Asked of the one entity in question: the whole Tab ring is sorted only when Tab is pressed.
@@ -90,11 +93,24 @@ export class FocusPlugin implements Plugin {
                     }
                 }
 
-                // A press anywhere that is not a focusable clears focus, and so
-                // does Escape — standard focus-dismissal affordances.
+                // A row or a scrim dismissing the list belongs to the button for
+                // this press, even when a quick tap has already destroyed the row.
+                if (!pressedFocusable) for (const pointer of pointers?.pointers.values() ?? []) {
+                    const popup = pointer.popupAtPress;
+                    if (!pointer.pressed || !popup) continue;
+                    const hit = pointer.pressedEntity;
+                    if ((popup.inside || (hit !== null && world.valid(hit) && world.has(hit, UIDialog)))
+                        && isFocusEligible(world, popup.owner)) {
+                        setFocus(popup.owner, false);
+                        pressedFocusable = true;
+                        break;
+                    }
+                }
+
                 if (focusManager.focusedEntity !== null) {
                     const pressedElsewhere = input.isMouseButtonPressed(0) && !pressedFocusable;
-                    if (pressedElsewhere || input.isKeyPressed('Escape')) clearFocus();
+                    const escapeBlurs = input.isKeyPressed('Escape') && !escapeLayer(world, focusManager.focusedEntity);
+                    if (pressedElsewhere || escapeBlurs) clearFocus();
                 }
 
                 // Keyboard activation: Enter/Space on the focused control acts as

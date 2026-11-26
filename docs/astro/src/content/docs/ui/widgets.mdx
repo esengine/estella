@@ -243,12 +243,12 @@ createDropdown({
 (the child `Text` showing the current selection).
 
 <Aside type="note">
-  Labels + selection live in a **`UIDropdown` component**; the behavior system owns
-  the popup (click toggles it, **a click anywhere else closes it**), row selection,
-  and the keyboard: arrows step the selection open or closed (the open popup
-  highlights the selected row), **Enter** confirms and **Escape** dismisses — so a
-  prefab-placed dropdown is fully functional without code. The popup is rebuilt on
-  each open with fresh theme roles.
+  The chevron points up while the list is open. The **`UIDropdown` component**
+  stores the labels and selected index for both scripted and prefab controls.
+  Click the button or press **Enter** to toggle
+  the list. **Up** and **Down** change the selection immediately. **Escape** or
+  a click outside closes the list. Choosing a row keeps focus on its button.
+  Moving to another control with **Tab** also closes the list. Each open uses the current theme.
 </Aside>
 
 ## Dialog
@@ -291,6 +291,9 @@ backdrop root) / `panelEntity`.
   Dismissal is data-driven by a **`UIDialog` component** on the backdrop root, and the
   open state IS the root's `UINode.display` — so a dialog instantiated from the editor
   prefab closes on Escape / scrim clicks without any code hookup.
+  With a dropdown open, the first Escape or scrim press closes the list.
+  The next Escape goes to the innermost visible dialog in the focused branch.
+  If that dialog disables Escape, its parent stays open too.
 </Aside>
 
 ## Text input

@@ -14,11 +14,9 @@
  * The popup is a transient runtime subtree, rebuilt on each open with fresh
  * theme colors and tagged with ThemeStyle roles for live re-theming.
  */
-import { defineComponent } from '../../ecs/component';
 import { defineSystem, type SystemDef } from '../../ecs/system';
 import { Res } from '../../ecs/resource';
 import { Input, type InputState } from '../../input/input';
-import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { auto, px, percent } from '../core/dimension';
@@ -28,12 +26,12 @@ import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { UICollections, type CollectionHost } from '../collection/collection-host';
-import { createScrollView, type ScrollViewHandle } from '../collection/scroll-view';
+import { createScrollView } from '../collection/scroll-view';
 import { createPopupBoundsReader, createPopupCanvas } from '../util/popup-anchor';
 import { spawnUIEntity } from '../core/compose';
 import { Text, TextAlign, TextOverflow, type TextData } from '../core/text';
 import { UIEventType, type UIEventQueue } from '../core/events';
-import { Interactable, makeWidgetInteractable, type InteractableData } from '../input/interactable';
+import { makeWidgetInteractable } from '../input/interactable';
 import { Focusable, FocusManager, type FocusManagerState, type FocusableData } from '../input/focusable';
 import { UIControlPointers, type UIControlPointersData } from '../input/control-pointers';
 import { UIController, interactionController, setControllerPage, type UIControllerData, INTERACTION_CONTROLLER } from '../controller/ui-controller';
@@ -41,37 +39,11 @@ import { UIGear } from '../controller/ui-gear';
 import { interactionGears } from '../controller/interaction-gears';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
-import { EntityStateMap, isPointerBlockedInTree, walkParentChain } from '../util/helpers';
+import { EntityStateMap, walkParentChain } from '../util/helpers';
+import { UIDropdown, openList, popupOf, isDropdownOpen, isPopupHit, type PopupState, type UIDropdownData } from '../core/dropdown-popup';
+import { dropdownAvailable, escapeLayer } from '../input/overlay-input';
+export { UIDropdown, isDropdownOpen, type UIDropdownData } from '../core/dropdown-popup';
 
-export interface UIDropdownData {
-    /** Display labels, one per option. */
-    options: string[];
-    selectedIndex: number;
-    /** Popup row height in px. */
-    optionHeight: number;
-    /** The button's label Text entity (content tracks the selection). */
-    label: Entity;
-}
-
-export const UIDropdown = defineComponent<UIDropdownData>('UIDropdown', {
-    options: [],
-    selectedIndex: 0,
-    optionHeight: 32,
-    label: 0 as Entity,
-}, { entityFields: ['label'] });
-
-interface PopupState {
-    view: ScrollViewHandle;
-    bounds: ReturnType<typeof createPopupBoundsReader>;
-    canvas?: Entity;
-    host?: CollectionHost;
-    revealed?: number;
-    check: Entity;
-    rows: Entity[];
-    unsubs: Array<() => void>;
-    options: string[];
-    optionHeight: number;
-}
 
 const POPUP_PADDING = 3;
 const POPUP_GAP = 3;
@@ -89,28 +61,6 @@ function popupMatches(p: PopupState, d: UIDropdownData): boolean {
     return true;
 }
 
-function dropdownAvailable(world: World, e: Entity): boolean {
-    if (!world.isEntityActive(e) || world.isDestructionPending(e) || !world.has(e, UIDropdown)) return false;
-    if (world.has(e, Interactable) && !(world.get(e, Interactable) as InteractableData).enabled) return false;
-    return !isPointerBlockedInTree(world, e) && (!world.has(e, UINode)
-        || !worldEngineApi(world)?.getUINodeHiddenInTree?.(world.getCppRegistry()!, e));
-}
-
-// Popup registries are runtime-only and per-world (unit tests run many worlds).
-const popupsByWorld = new WeakMap<World, Map<Entity, PopupState>>();
-
-function popupsOf(world: World): Map<Entity, PopupState> {
-    let m = popupsByWorld.get(world);
-    if (!m) {
-        m = new Map();
-        popupsByWorld.set(world, m);
-    }
-    return m;
-}
-
-export function isDropdownOpen(world: World, e: Entity): boolean {
-    return popupsOf(world).has(e);
-}
 
 function setExpanded(world: World, e: Entity, expanded: boolean): void {
     if (world.valid(e) && !world.isDestructionPending(e) && world.has(e, UIController)
@@ -120,10 +70,9 @@ function setExpanded(world: World, e: Entity, expanded: boolean): void {
 }
 
 export function closeDropdown(world: World, e: Entity): void {
-    const popups = popupsOf(world);
-    const p = popups.get(e);
+    const p = popupOf(world, e);
     if (!p) return;
-    popups.delete(e);
+    openList.delete(world);
     setExpanded(world, e, false);
     for (const off of p.unsubs) off();
     p.bounds.dispose();
@@ -133,15 +82,17 @@ export function closeDropdown(world: World, e: Entity): void {
 }
 
 export function closeAllDropdowns(world: World): void {
-    for (const owner of [...popupsOf(world).keys()]) closeDropdown(world, owner);
+    const popup = openList.get(world);
+    if (popup) closeDropdown(world, popup.owner);
 }
 
 export function openDropdown(world: World, events: UIEventQueue, e: Entity): void {
-    const popups = popupsOf(world);
-    if (popups.has(e) || !dropdownAvailable(world, e)) return;
+    if (isDropdownOpen(world, e) || !dropdownAvailable(world, e)) return;
     if (!world.get(e, UIDropdown).options.length) return;
-    closeAllDropdowns(world);
-    if (popups.has(e) || !dropdownAvailable(world, e)) return;
+    if (openList.has(world)) {
+        closeAllDropdowns(world);
+        if (openList.has(world) || !dropdownAvailable(world, e)) return;
+    }
     const d = world.get(e, UIDropdown);
     const options = [...d.options], optionHeight = rowHeight(d.optionHeight);
     if (!options.length) return;
@@ -227,8 +178,8 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
         position: UIPositionType.Absolute, insetTop: px(0), insetBottom: px(0), insetRight: px(4), width: px(16),
     }, text: { content: '✓', color: t.text } });
     markThemed(world, check, { text: 'text' });
-    const popup = { view, bounds: createPopupBoundsReader(world), rows, check, unsubs, options, optionHeight };
-    popups.set(e, popup);
+    const popup = { owner: e, view, bounds: createPopupBoundsReader(world), rows, check, unsubs, options, optionHeight };
+    openList.set(world, popup);
     setExpanded(world, e, true);
     highlightRow(world, popup, clampDropdownIndex(d.selectedIndex, options.length));
 }
@@ -323,23 +274,6 @@ function placePopup(world: World, owner: Entity, p: PopupState, selected: number
     }
 }
 
-/** True when `entity` is inside the popup subtree of any open dropdown. */
-function insideAnyPopup(world: World, entity: Entity): boolean {
-    const popups = popupsOf(world);
-    if (popups.size === 0) return false;
-    const panels = new Set<number>();
-    for (const p of popups.values()) panels.add(p.view.entity as number);
-    if (panels.has(entity as number)) return true;
-    let inside = false;
-    walkParentChain(world, entity, (ancestor) => {
-        if (panels.has(ancestor as number)) {
-            inside = true;
-            return true;
-        }
-        return false;
-    });
-    return inside;
-}
 
 /**
  * Popup lifecycle + selection + keyboard + label sync for every UIDropdown.
@@ -362,29 +296,33 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
             else openDropdown(world, events, target);
             return;
         }
-        if (insideAnyPopup(world, target)) return;
+        const open = openList.get(world);
+        if (open && isPopupHit(world, open, target)) return;
         closeAllDropdowns(world);
     });
 
+    events.on(UIEventType.Blur, ev => {
+        if (ev.target === ev.currentTarget && isDropdownOpen(world, ev.target)) closeDropdown(world, ev.target);
+    });
     world.onDespawn((e) => {
         // A screen popup lives outside the owner's clipping tree.
-        if (popupsOf(world).has(e)) closeDropdown(world, e);
+        if (isDropdownOpen(world, e)) closeDropdown(world, e);
     });
 
     return defineSystem([Res(Input), Res(ScreenLayout), Res(ScreenOverlay), Res(UICameraInfo), Res(UICollections), Res(UIControlPointers), Res(FocusManager)],
     (input: InputState, layout: ScreenLayoutData, overlay: ScreenOverlayData, camera: UICameraData,
         host: CollectionHost | null, pointers: UIControlPointersData, focus: FocusManagerState) => {
-        const popups = popupsOf(world);
+        const openPopup = openList.get(world);
         // Inactive owners disappear from component queries but still own popup entries.
-        if (popups.size > 0) {
+        if (openPopup) {
+            const escape = input.isKeyPressed('Escape') ? escapeLayer(world, focus?.focusedEntity) : null;
             // Empty space has no entity to emit a Click. The input system still records the press.
-            for (const pointer of pointers?.pointers.values() ?? []) {
-                if (pointer.pressed && pointer.pressedEntity === null) { closeAllDropdowns(world); break; }
-            }
-            for (const e of popups.keys()) {
-                if (!dropdownAvailable(world, e)) closeDropdown(world, e);
-            }
+            const emptyPress = pointers && [...pointers.pointers.values()].some(p => p.pressed && p.pressedEntity === null);
+            if ((escape?.kind === 'dropdown' && escape.entity === openPopup.owner)
+                || emptyPress || !dropdownAvailable(world, openPopup.owner)) closeDropdown(world, openPopup.owner);
         }
+        const stepDown = input.isKeyPressed('ArrowDown'), stepUp = input.isKeyPressed('ArrowUp');
+        const activate = input.isKeyPressed('Enter') || input.isKeyPressed('Space');
         for (const e of world.getEntitiesWithComponents([UIDropdown])) {
             if (!world.valid(e) || !world.has(e, UIDropdown)) continue;
             let d = world.get(e, UIDropdown) as UIDropdownData;
@@ -393,7 +331,7 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                 d.selectedIndex = clamped;
                 world.insert(e, UIDropdown, d);
             }
-            const previousPopup = popups.get(e);
+            const previousPopup = popupOf(world, e);
             if (previousPopup && !popupMatches(previousPopup, d)) {
                 closeDropdown(world, e);
                 if (!world.valid(e) || !world.has(e, UIDropdown)) continue;
@@ -407,17 +345,15 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
             const focused = world.has(e, Focusable)
                 && (world.get(e, Focusable) as FocusableData).isFocused;
             const open = isDropdownOpen(world, e);
-            if (focused && dropdownAvailable(world, e) && d.options.length > 0) {
+            if (focused && (stepDown || stepUp || activate) && d.options.length > 0 && dropdownAvailable(world, e)) {
                 let next = d.selectedIndex;
-                if (input.isKeyPressed('ArrowDown')) next = Math.min(next + 1, d.options.length - 1);
-                if (input.isKeyPressed('ArrowUp')) next = Math.max(next - 1, 0);
+                if (stepDown) next = Math.min(next + 1, d.options.length - 1);
+                if (stepUp) next = Math.max(next - 1, 0);
                 if (next !== d.selectedIndex) {
                     d.selectedIndex = next;
                     world.insert(e, UIDropdown, d);
                 }
-                if (open && input.isKeyPressed('Escape')) {
-                    closeDropdown(world, e);
-                } else if (focus?.focusedEntity !== e && (input.isKeyPressed('Enter') || input.isKeyPressed('Space'))) {
+                if (focus?.focusedEntity !== e && activate) {
                     // FocusSystem emits the click for its focused entity. A standalone
                     // behavior system also supports an explicitly focused control.
                     if (open) closeDropdown(world, e);
@@ -445,11 +381,11 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                         world.insert(d.label, Text, txt);
                     }
                 }
-                const popup = popups.get(e);
+                const popup = popupOf(world, e);
                 if (popup) highlightRow(world, popup, d.selectedIndex);
                 if (emitChange) events.emit(e, UIEventType.Change, { index: d.selectedIndex });
             }
-            const popup = popups.get(e);
+            const popup = popupOf(world, e);
             if (popup) placePopup(world, e, popup, d.selectedIndex, layout, overlay, camera, host);
         }
         shown.cleanup(world);

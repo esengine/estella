@@ -10,6 +10,9 @@ export interface ControlPointer {
     entity: Entity | null;
     /** Press edge target, only populated in the frame the capture starts. */
     pressedEntity: Entity | null;
+    /** Floating list present at the press edge. Its button owns focus for hits
+     *  inside it, including a tap that destroys the row before FocusSystem runs. */
+    popupAtPress?: { owner: Entity; viewport: Entity; inside: boolean };
     layoutX: number;
     layoutY: number;
     worldX: number;

@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Color, Entity } from '../../types';
 import type { World } from '../../ecs/world';
+import { Transform } from '../../ecs/component';
+import { q } from '../../math/quat';
 
 import { UIController, controllerState, interactionController } from '../controller/ui-controller';
 import { UIGear, gearBinding } from '../controller/ui-gear';
@@ -9,7 +11,7 @@ import { interactionGears } from '../controller/interaction-gears';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
 import { spawnUIEntity, type UINodeInit } from '../core/compose';
-import { px } from '../core/dimension';
+import { percent, px } from '../core/dimension';
 import { UIPositionType } from '../core/ui-node';
 import { TextAlign, TextOverflow } from '../core/text';
 import { makeWidgetInteractable } from '../input/interactable';
@@ -116,15 +118,24 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const label = spawnUIEntity({
         world,
         parent: button,
-        node: { fill: true, insetLeft: px(11), insetRight: px(24) },
+        node: { fill: true, insetLeft: px(11), insetRight: px(28) },
         text: { content: labels[selectedIndex] ?? '', color: c.text, align: TextAlign.Left, overflow: TextOverflow.Ellipsis },
     });
     markThemed(world, label, { text: 'text' });
-    const indicator = spawnUIEntity({ world, parent: button, node: {
-        position: UIPositionType.Absolute, insetTop: px(0), insetBottom: px(0), insetRight: px(5), width: px(16),
-    }, text: { content: '▾', color: c.text } });
-    markThemed(world, indicator, { text: 'text' });
-    world.insert(indicator, UIGear, { bindings: [gearBinding(DROPDOWN_CONTROLLER, 'Text', 'content', { closed: '▾', open: '▴' })] });
+    // Two strokes keep the chevron legible at its design size across fonts.
+    // Both rotations share the same quaternion w when flipped about their centres.
+    for (const [right, angle] of [[15, -40], [9, 40]] as const) {
+        const stroke = spawnUIEntity({ world, parent: button, node: {
+            position: UIPositionType.Absolute, insetTop: percent(50), marginTop: px(-1),
+            insetRight: px(right), width: px(8), height: px(2),
+        }, visual: { color: c.text } });
+        const rotation = q.setAngleZ(undefined, angle);
+        world.insert(stroke, Transform, { ...world.get(stroke, Transform), rotation });
+        world.insert(stroke, UIGear, { bindings: [
+            gearBinding(DROPDOWN_CONTROLLER, 'Transform', 'rotation.z', { closed: rotation.z, open: -rotation.z }),
+        ] });
+        markThemed(world, stroke, { visual: 'text' });
+    }
 
     world.insert(button, UIDropdown, {
         options: labels,

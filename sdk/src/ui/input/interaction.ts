@@ -30,6 +30,8 @@ import { inputRouter } from '../../input/inputRouter';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
 import { UIControlPointers, type ControlPointer, type UiPointerEventData } from './control-pointers';
+import { openList, isPopupHit } from '../core/dropdown-popup';
+import { dropdownAvailable } from './overlay-input';
 
 function emitWithBubbling(
     world: World,
@@ -256,13 +258,21 @@ export class UIInteractionPlugin implements Plugin {
                         case 'hoverExit':
                             events.emit(event.entity, UIEventType.HoverExit);
                             break;
-                        case 'press':
+                        case 'press': {
+                            const point = controlPointers.get(event.pointer);
+                            const popup = openList.get(world);
+                            if (point && popup && dropdownAvailable(world, popup.owner)) {
+                                point.popupAtPress = {
+                                    owner: popup.owner, viewport: popup.view.entity, inside: isPopupHit(world, popup, event.entity),
+                                };
+                            }
                             ensureComponent(world, event.entity, UIInteraction);
                             // A complete click may arrive between frames. Preserve its
                             // edge even when the final held-state is already false.
                             world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justPressed: true });
                             emitWithBubbling(world, events, event.entity, UIEventType.Press, dataFor(event.pointer));
                             break;
+                        }
                         case 'release':
                             if (world.has(event.entity, UIInteraction))
                                 world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justReleased: true });

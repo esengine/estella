@@ -239,12 +239,19 @@ describe('UI widget prefab codegen', () => {
         const ddComp = rootEnt.components.find((cc) => cc.type === 'UIDropdown')!;
         expect(ddComp.data.options).toEqual(['One', 'Two', 'Three']);
         expect(rootEnt.children).toContain(ddComp.data.label);
-        const captions = rootEnt.children.map(id => entityById(prefab, id).components.find(c => c.type === 'Text')?.data.content);
-        expect(captions).toEqual(['One', '▾']);
-        const indicator = entityById(prefab, rootEnt.children[1]!);
-        expect(indicator.components.find(c => c.type === 'UIGear')?.data.bindings).toContainEqual({
-            controller: '$dropdown', component: 'Text', property: 'content', pages: { closed: '▾', open: '▴' },
+        const [label, ...strokes] = rootEnt.children.map(id => entityById(prefab, id));
+        expect(label.components.find(c => c.type === 'Text')?.data.content).toBe('One');
+        expect(strokes).toHaveLength(2);
+        const angles = strokes.map(stroke => {
+            const z = stroke.components.find(c => c.type === 'Transform')!.data.rotation.z;
+            expect(stroke.components.find(c => c.type === 'ThemeStyle')?.data.visual).toBe('text');
+            expect(stroke.components.find(c => c.type === 'UIGear')?.data.bindings).toContainEqual({
+                controller: '$dropdown', component: 'Transform', property: 'rotation.z', pages: { closed: z, open: -z },
+            });
+            return z;
         });
+        expect(angles[0]).toBeLessThan(0);
+        expect(angles[1]).toBe(-angles[0]);
     });
 
     it('ListView: a clipped viewport shell (items are populated by createListView in code)', () => {
