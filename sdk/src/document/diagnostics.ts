@@ -54,6 +54,9 @@ export interface DocumentNode {
 /** Whether a document names its entities by string or by number, for messages. */
 const quote = (id: DocumentEntityId): string => (typeof id === 'string' ? `"${id}"` : String(id));
 
+export const duplicateDocumentIdMessage = (id: DocumentEntityId): string =>
+    `entity id ${quote(id)} appears more than once`;
+
 /** @internal Index wide immutable link lists once; tiny lists need no index. */
 export function createChildLookup<Id extends DocumentEntityId>(): (children: readonly Id[], id: Id) => boolean {
     let indexes: Map<readonly Id[], ReadonlySet<Id>> | undefined;
@@ -79,7 +82,7 @@ export function checkDocumentIds(
     const byId = new Map<DocumentEntityId, DocumentNode>();
     for (const node of nodes) {
         if (byId.has(node.id)) {
-            push('duplicate-id', 'error', `entity id ${quote(node.id)} appears more than once`, node.id);
+            push('duplicate-id', 'error', duplicateDocumentIdMessage(node.id), node.id);
         } else {
             byId.set(node.id, node);
         }

@@ -199,6 +199,28 @@ describe('Prefab scene loading (PF1)', () => {
         expect(out.entities.map((e) => e.name)).toEqual(['Ground']);
     });
 
+    it('rejects duplicate authored ids before missing prefab sources can hide them', async () => {
+        const scene = {
+            version: '1.0',
+            name: 'Duplicate prefab root',
+            entities: [
+                { id: 1, name: 'Ground', parent: null, children: [], components: [] },
+                { id: 1, prefab: '@uuid:missing', parent: null, overrides: [], added: [], removed: [] },
+            ],
+        } as unknown as SceneData;
+        const resolve = vi.fn(async () => null);
+        const assets = mockAssets({});
+        const world = new World();
+        const original = world.spawn();
+
+        await expect(expandScenePrefabs(scene, resolve)).rejects.toThrow(/duplicate-id: entity id 1/);
+        expect(resolve).not.toHaveBeenCalled();
+        await expect(loadSceneWithAssets(world, scene, { assets })).rejects.toThrow(/duplicate-id: entity id 1/);
+        expect(assets.acquireTyped).not.toHaveBeenCalled();
+        expect(assets.preloadSceneAssets).not.toHaveBeenCalled();
+        expect(world.getAllEntities()).toEqual([original]);
+    });
+
     it('shares source reads across instances and keeps a failed dependency local to this scene read', async () => {
         const prefab = turretPrefab();
         const variant = { ...prefab, entities: [], basePrefab: 'assets/Base.esprefab' };

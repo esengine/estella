@@ -14,6 +14,7 @@ import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
+import { duplicateDocumentIdMessage, type DocumentDiagnostic } from '../document/diagnostics';
 import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
 import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef, type AssetFieldMeta } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
@@ -382,7 +383,15 @@ export async function expandScenePrefabSources(
     // file, so they never collide with non-prefab entities or instance roots
     // (which keep their stable scene id across save/load).
     let nextId = 0;
-    for (const e of entries) nextId = Math.max(nextId, e.id);
+    const ids = new Set<number>();
+    const duplicates: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
+    for (const e of entries) {
+        if (ids.has(e.id)) duplicates.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
+        ids.add(e.id);
+        nextId = Math.max(nextId, e.id);
+    }
+    // Expansion can skip a missing or deferred source, so check the authored IDs before reading any sources.
+    if (duplicates.length) throw sceneLoadError(scene.name, duplicates);
     const allocateId = () => ++nextId;
 
     const out: SceneEntityData[] = [];
@@ -600,6 +609,13 @@ export function migrateOwnedSceneData(data: SceneData, fromVersion = checkSceneF
  */
 const UNLOADABLE_SCENE: ReadonlySet<string> = new Set(['duplicate-id', 'parent-cycle']);
 
+function sceneLoadError(name: string, fatal: readonly Pick<DocumentDiagnostic, 'code' | 'message'>[]): Error {
+    return new Error(
+        `Scene "${name}" cannot be loaded as written:\n`
+        + fatal.map((d) => `  ${d.code}: ${d.message}`).join('\n'),
+    );
+}
+
 /** Refuse a scene the loader cannot honour; report the rest and carry on. */
 function checkLoadable(sceneData: SceneData): void {
     const diags = validateScene(sceneData);
@@ -608,12 +624,7 @@ function checkLoadable(sceneData: SceneData): void {
     for (const d of diags) {
         if (!fatal.includes(d)) log.warn('scene', `${d.code}: ${d.message}`);
     }
-    if (fatal.length > 0) {
-        throw new Error(
-            `Scene "${sceneData.name}" cannot be loaded as written:\n`
-            + fatal.map((d) => `  ${d.code}: ${d.message}`).join('\n'),
-        );
-    }
+    if (fatal.length > 0) throw sceneLoadError(sceneData.name, fatal);
 }
 
 /** What a staged spawn made: the entities by document id, and the roots it switched off until {@link revealStagedEntities}. */

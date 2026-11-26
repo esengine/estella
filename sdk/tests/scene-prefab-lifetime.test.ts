@@ -63,6 +63,24 @@ function harness(missingChild = false) {
 }
 
 describe('scene prefab source ownership', () => {
+    it('rejects duplicate scene ids before the packaged loader reads a prefab', async () => {
+        const { assets: reader, scene } = harness(true);
+        const fetchText = vi.spyOn(reader.backend, 'fetchText');
+        const app = App.new();
+        try {
+            const original = app.world.spawn();
+            const entry = scene.entities[0]!;
+            await expect(loadRuntimeScene({
+                app,
+                module: null,
+                source: { backend: reader.backend, decodePixels: async () => { throw new Error('unexpected image'); } },
+                sceneData: { ...scene, entities: [entry, { ...entry }] },
+            })).rejects.toThrow(/duplicate-id: entity id 1/);
+            expect(fetchText).not.toHaveBeenCalled();
+            expect(app.world.getAllEntities()).toEqual([original]);
+        } finally { app.quit(); reader.releaseAll(); }
+    });
+
     it('releases the packaged scene’s nested source documents after expansion, including on failure', async () => {
         const { assets: reader, scene } = harness();
         const app = App.new(), options = { app, module: null, source: { backend: reader.backend,
