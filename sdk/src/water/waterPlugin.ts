@@ -674,7 +674,7 @@ let bakePool: JobPool | null | undefined;
 function* bakeField(grid: ZoneGrid, bodies: readonly ZoneBody[], ground: ZoneGround | undefined, surfLength = 0,
     exclusions: readonly ZoneExclusion[] = [], surfSpread = 0): WorkJob<WaterField> {
     const grounds = yield* WaterField.groundsUnder(grid, ground);
-    if (bakePool === undefined) bakePool = createJobPool(ZONE_BAKE_WORKER_SOURCE, 1);
+    if (bakePool === undefined) bakePool = createJobPool(ZONE_BAKE_WORKER_SOURCE, 1, { name: 'water-zone' });
     const pool = bakePool;
     const job = pool ? zoneBakeJob(grid, bodies, exclusions, grounds, surfLength, surfSpread) : null;
     if (!pool || !job) return yield* WaterField.bakingOver(grid, bodies, grounds, surfLength, exclusions, surfSpread);

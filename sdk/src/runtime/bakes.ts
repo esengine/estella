@@ -26,6 +26,7 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
+import { setMainThreadGate, type MainThreadGate } from './jobs';
 
 /** One piece of work in hand: what it is and how far along, 0 to 1. */
 export interface BakeProgress {
@@ -54,7 +55,7 @@ interface Running {
 const SHARED = {};
 
 /** The jobs an App is running. Read {@link Bakes.active} for what to show. */
-export class Bakes {
+export class Bakes implements MainThreadGate {
     /** How long, in milliseconds, all the work spread over frames may take of one frame between it. */
     budgetMs = 8;
     /** How much more a frame gives while work that would be seen missing is still to do (see `urge`). */
@@ -83,6 +84,8 @@ export class Bakes {
     private gateCost_ = 0;
     private lastGate_: { at: number; frame: number } | null = null;
     private frame_ = 0;
+    /** When the frames were last stepped, on the clock they were stepped by. */
+    private steppedAt_ = -Infinity;
 
     /**
      * Waits for a turn inside a frame's budget. For work that is not a job but runs whenever something it waited on answers
@@ -103,6 +106,14 @@ export class Bakes {
         }
         if (this.urgent_.has(owner)) return Promise.resolve();
         return new Promise<void>((open) => { this.gates_.push({ owner, open }); });
+    }
+
+    /**
+     * Whether frames are being stepped: one was in the last quarter second. A game paused at its menu, a hidden editor or an App that
+     * has quit steps none, and a turn asked for there would not come.
+     */
+    stepping(): boolean {
+        return this.clock_() - this.steppedAt_ < 250;
     }
 
     /** Lets every turn `owner` is waiting for through, now. */
@@ -267,6 +278,7 @@ export class Bakes {
     step(now: () => number = () => performance.now()): void {
         this.clock_ = now;
         this.frame_++;
+        this.steppedAt_ = now();
         this.starvedBefore_ = this.starved_;
         this.starved_ = false;
         const start = now();
@@ -315,6 +327,8 @@ export function bakesOf(app: App): Bakes {
     if (!app.hasResource(BakesRes)) {
         const bakes = new Bakes();
         app.insertResource(BakesRes, bakes);
+        // Jobs done on the main thread (no workers on this host, or they failed) wait their turn in this App's budget.
+        setMainThreadGate(bakes);
         // Through a pause only while something holds the game for its work: a game paused at its menu bakes nothing, as before.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             if (app.isPaused() && !bakes.holding) return;

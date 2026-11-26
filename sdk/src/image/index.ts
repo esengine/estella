@@ -21,9 +21,9 @@ import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
 import { isTextureRecipePath, setTextureRecipeDrawer, type TextureRecipeDrawer } from '../asset/textureRecipe';
 import { getPlatform, platformCreateCanvas } from '../platform/base';
-import { createJobPool, type JobPool } from '../runtime/jobs';
+import { createJobs, type Jobs } from '../runtime/jobs';
 
-let pool: JobPool | null | undefined;
+let jobs: Jobs<RecipeJob, DrawnRecipe> | undefined;
 let next = 0;
 
 /** The game's own thread as a place to draw: the platform's canvas, and its way of making a font file a family. */
@@ -51,8 +51,9 @@ async function decoded(path: string, bytes: ArrayBuffer): Promise<DrawnRecipe> {
     return { width: image.width, height: image.height, pixels: image.pixels };
 }
 
-// Drawn on a worker where the host has workers, so a game goes on drawing frames while its pictures are made; in place where it has
-// none, once the workers have failed, or for text where a worker has no canvas (a recipe is still a texture then, a slower one to load).
+// Drawn on a worker where the host has workers, so a game goes on drawing frames while its pictures are made; here, a picture per turn
+// of the frame's budget, where it has none, once the workers have failed, or for text where a worker has no canvas (a recipe is still a
+// texture then, a slower one to load).
 const DRAWER: TextureRecipeDrawer = {
     revision: IMAGE_RASTER_REVISION,
     needs: recipeNeeds,
@@ -62,18 +63,12 @@ const DRAWER: TextureRecipeDrawer = {
             if (isTextureRecipePath(path) || isFontFile(path)) job.files[path] = bytes;
             else job.pictures[path] = await decoded(path, bytes);
         }
-        if (pool === undefined) pool = createJobPool(RECIPE_WORKER_SOURCE);
-        if (pool) {
-            try {
-                return await pool.run<DrawnRecipe>(next++, { ...job });
-            } catch (err) {
-                const why = err instanceof Error ? err.message : String(err);
-                // What the source itself is refused for is the answer; only a worker that cannot do the job sends it back here.
-                if (/^(a job worker failed|the job workers have stopped|the job pool was disposed)/.test(why)) pool = null;
-                else if (why !== NO_TEXT_CANVAS) throw err;
-            }
-        }
-        return drawRecipe(job, HERE);
+        jobs ??= createJobs<RecipeJob, DrawnRecipe>({
+            name: 'image', script: RECIPE_WORKER_SOURCE, here: (j) => drawRecipe(j, HERE),
+            // Text is drawn on a canvas, and a worker may have none: that picture is drawn here.
+            doHere: (e) => e.message === NO_TEXT_CANVAS,
+        });
+        return jobs.run(job, { affinity: next++ });
     },
 };
 

@@ -1200,6 +1200,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     setWorldGravity(g ? Math.hypot(g.x, g.y, g.z) : STANDARD_GRAVITY);
 
     applyFixedTimestep(app, config.physicsConfig);
+    // The frame's budget, from the first frame: work done on the main thread where this host has no workers (a mini-game) waits its turn
+    // in it rather than holding a frame for as long as it takes.
+    bakesOf(app);
 
     // First: the asset timeouts and cache budgets are read by the very first load below.
     if (config.runtime) applyBuildRuntimeConfig(app, config.runtime);

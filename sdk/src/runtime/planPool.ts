@@ -11,7 +11,7 @@ let pool: JobPool | null | undefined;
 
 /** The planning pool, or null where this host has no workers (the caller then plans in place). */
 export function planPool(): JobPool | null {
-    if (pool === undefined) pool = createJobPool(PLAN_WORKER_SOURCE);
+    if (pool === undefined) pool = createJobPool(PLAN_WORKER_SOURCE, undefined, { name: 'plan' });
     return pool;
 }
 

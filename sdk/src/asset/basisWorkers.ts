@@ -10,16 +10,12 @@
  * {@link transcodeKtx2Levels}, built from its source text so there is one loop.
  */
 import type { BasisLevelOptions, BasisTranscoder, TranscodeResult } from './compressed';
-import { FORMAT_CODE, RGBA_CODE, transcodeKtx2Levels, transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
+import { FORMAT_CODE, RGBA_CODE, transcodeKtx2Levels, type BasisWasmModule } from './basisTranscoder';
 import type { SideModuleHost, SideModuleSource } from '../sideModules/host';
 import { instantiateWasmModule } from '../wasm/instantiateModule';
 import { log } from '../util/logger';
+import { createJobPool, createJobs } from '../runtime/jobs';
 
-
-interface Pending {
-    resolve(r: TranscodeResult | null): void;
-    reject(e: Error): void;
-}
 
 function workerScript(): string {
     return `'use strict';
@@ -42,10 +38,15 @@ self.onmessage = (e) => {
         ready.catch(() => {});
         return;
     }
+    // A module that would not start can do no job: said as \`lost\`, so the pool stops sending them here.
     ready.then((mod) => {
-        const r = transcodeKtx2Levels(mod, m.bytes, m.code, m.options);
-        self.postMessage({ id: m.id, result: r }, r ? r.levels.map((l) => l.data.buffer) : []);
-    }).catch((err) => self.postMessage({ id: m.id, error: String(err && err.message || err) }));
+        try {
+            const r = transcodeKtx2Levels(mod, m.bytes, m.code, m.options);
+            self.postMessage({ id: m.id, result: r }, r ? r.levels.map((l) => l.data.buffer) : []);
+        } catch (err) {
+            self.postMessage({ id: m.id, error: String(err && err.message || err) });
+        }
+    }, (err) => self.postMessage({ id: m.id, error: String(err && err.message || err), lost: true }));
 };
 `;
 }
@@ -56,67 +57,45 @@ export interface WorkerBasisTranscoder extends BasisTranscoder {
     dispose(): void;
 }
 
+/** The pool's part of a transcoder on workers: its script, and the module each worker is greeted with. */
+function basisPoolOptions(source: SideModuleSource) {
+    return {
+        name: 'basis',
+        script: workerScript(),
+        // Each worker gets its own copy: a transferred buffer would leave the next one empty.
+        greet: () => ({ message: { init: true, glueText: source.glueText, globalName: source.globalName, wasmBytes: source.wasmBytes.slice(0) } }),
+    };
+}
+
+/** A transcode job: the bytes (a copy is sent, not the caller's buffer: the loader still holds them for its RGBA fallback). */
+type TranscodeJob = { bytes: Uint8Array; code: number; options?: BasisLevelOptions };
+
 /**
  * A transcoder whose work runs on `count` workers, or null where this realm has
- * no `Worker` (mini-game hosts, node) — the caller then transcodes in place.
+ * no workers (mini-game hosts, node) — the caller then transcodes in place.
  *
  * The caller owns the workers: each holds its own instance of the module, and a
  * running worker is never collected, so they last until {@link WorkerBasisTranscoder.dispose}.
  */
 export function createWorkerBasisTranscoder(source: SideModuleSource, count: number): WorkerBasisTranscoder | null {
-    if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL?.createObjectURL !== 'function') {
-        return null;
-    }
-    const url = URL.createObjectURL(new Blob([workerScript()], { type: 'text/javascript' }));
-    const pending = new Map<number, Pending>();
-    let nextId = 1;
-    const workers: Worker[] = [];
-    try {
-        for (let i = 0; i < Math.max(1, count); i++) {
-            const w = new Worker(url);
-            w.onmessage = (e: MessageEvent<{ id: number; result?: TranscodeResult | null; error?: string }>) => {
-                const p = pending.get(e.data.id);
-                if (!p) return;
-                pending.delete(e.data.id);
-                if (e.data.error !== undefined) p.reject(new Error(`transcode worker: ${e.data.error}`));
-                else p.resolve(e.data.result ?? null);
-            };
-            // A worker whose script will not even start answers nothing; without this its loads wait for good.
-            w.onerror = (e: ErrorEvent) => {
-                const failed = new Error(`transcode worker: ${e.message || 'the worker stopped'}`);
-                for (const [id, p] of pending) { pending.delete(id); p.reject(failed); }
-            };
-            // Each worker gets its own copy: a transferred buffer would leave the next one empty.
-            w.postMessage({ init: true, glueText: source.glueText, globalName: source.globalName, wasmBytes: source.wasmBytes.slice(0) });
-            workers.push(w);
-        }
-    } finally {
-        URL.revokeObjectURL(url);
-    }
-    // Least-loaded, so one slow 4K texture does not queue the small ones behind it.
-    const inFlight = new Array<number>(workers.length).fill(0);
+    const o = basisPoolOptions(source);
+    const pool = createJobPool(o.script, count, o);
+    if (!pool) return null;
     let disposed = false;
-    const run = (ktx2: Uint8Array, code: number, options?: BasisLevelOptions): Promise<TranscodeResult | null> => {
-        if (disposed) return Promise.resolve(null);
-        const i = inFlight.indexOf(Math.min(...inFlight));
-        const id = nextId++;
-        inFlight[i]++;
-        return new Promise<TranscodeResult | null>((resolve, reject) => {
-            pending.set(id, { resolve, reject });
-            // A copy is sent, not the caller's buffer: the texture loader still
-            // holds these bytes for its RGBA fallback.
-            workers[i].postMessage({ id, bytes: ktx2, code, options });
-        }).finally(() => { inFlight[i]--; });
-    };
+    // Least-loaded (affinity -1), so one slow 4K texture does not queue the small ones behind it.
+    const run = (job: TranscodeJob): Promise<TranscodeResult | null> => disposed ? Promise.resolve(null)
+        : pool.run<TranscodeResult | null>(-1, job).then((r) => r ?? null, (e: unknown) => {
+            if (disposed) return null;
+            throw new Error(`transcode worker: ${e instanceof Error ? e.message : String(e)}`);
+        });
     return {
-        transcode: (ktx2, target, options) => run(ktx2, FORMAT_CODE[target], options),
-        transcodeToRgba: (ktx2, options) => run(ktx2, RGBA_CODE, options),
+        transcode: (ktx2, target, options) => run({ bytes: ktx2, code: FORMAT_CODE[target], options }),
+        transcodeToRgba: (ktx2, options) => run({ bytes: ktx2, code: RGBA_CODE, options }),
         dispose(): void {
             if (disposed) return;
             disposed = true;
-            for (const w of workers) w.terminate();
             // Whoever is still waiting is being torn down with the realm: no result, and no error to report.
-            for (const [id, p] of pending) { pending.delete(id); p.resolve(null); }
+            pool.dispose();
         },
     };
 }
@@ -128,10 +107,11 @@ function workerCount(): number {
 }
 
 /**
- * The realm's KTX2 transcoder: its basis module on the main thread, and workers
- * in front of it where the host can hand over the module's source and the realm
- * has `Worker`. A worker that fails once (a CSP refusing blob workers, a module
- * that will not start) sends that load and every later one to the main thread.
+ * The realm's KTX2 transcoder: on workers where the host can hand over the
+ * module's source and has workers, and on the main thread, a texture per turn of
+ * the frame's budget, where it has not (a mini-game) or they failed. Workers
+ * that fail once (a CSP refusing blob workers, a module that will not start)
+ * send that load and every later one to the main thread.
  *
  * The workers are the host's: they stop when it is disposed, which is what an App
  * does on quit. A realm that starts a game over and over would otherwise keep
@@ -153,24 +133,22 @@ const perHost = new WeakMap<SideModuleHost, Promise<BasisTranscoder | null>>();
 async function makeTranscoder(host: SideModuleHost): Promise<BasisTranscoder | null> {
     const mod = await host.acquire('basis');
     if (!mod) return null;
-    const main = transcoderFromModule(mod as unknown as BasisWasmModule);
+    const basis = mod as unknown as BasisWasmModule;
+    basis._es_basis_init();
     const source = host.source ? await host.source('basis').catch(() => null) : null;
-    const workers = source ? createWorkerBasisTranscoder(source, workerCount()) : null;
-    if (!workers) return main;
-    host.onDispose?.(() => workers.dispose());
-    let broken = false;
-    const either = <R>(off: () => R | Promise<R>, on: () => R | Promise<R>): Promise<R> => {
-        if (broken) return Promise.resolve(on());
-        return Promise.resolve(off()).catch((e: unknown) => {
-            broken = true;
-            // Not coming back, so they do not keep their memory either.
-            workers.dispose();
-            log.warn('asset', 'KTX2 transcoding moved back to the main thread: the transcode workers failed', e);
-            return on();
-        });
-    };
+    const jobs = createJobs<TranscodeJob, TranscodeResult | null>({
+        ...(source ? basisPoolOptions(source) : { name: 'basis' }),
+        size: workerCount(),
+        here: (job) => transcodeKtx2Levels(basis, job.bytes, job.code, job.options),
+        onLost: (e) => log.warn('asset', 'KTX2 transcoding moved back to the main thread: the transcode workers failed', e),
+    });
+    let disposed = false;
+    host.onDispose?.(() => { disposed = true; jobs.dispose(); });
+    const run = (job: TranscodeJob): Promise<TranscodeResult | null> => disposed ? Promise.resolve(null)
+        // Torn down mid-load: no result and no error, and no fall back to a module that is going away too.
+        : jobs.run(job).then((r) => r ?? null, (e: unknown) => { if (disposed) return null; throw e; });
     return {
-        transcode: (ktx2, target, options) => either(() => workers.transcode(ktx2, target, options), () => main.transcode(ktx2, target, options)),
-        transcodeToRgba: (ktx2, options) => either(() => workers.transcodeToRgba(ktx2, options), () => main.transcodeToRgba(ktx2, options)),
+        transcode: (ktx2, target, options) => run({ bytes: ktx2, code: FORMAT_CODE[target], options }),
+        transcodeToRgba: (ktx2, options) => run({ bytes: ktx2, code: RGBA_CODE, options }),
     };
 }

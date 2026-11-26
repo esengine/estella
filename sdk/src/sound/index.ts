@@ -10,7 +10,7 @@
 import { makeSound, soundNeeds, type SoundJob } from './soundWorker';
 import { SOUND_WORKER_SOURCE } from './soundWorkerBundle.generated';
 import { setAudioRecipeMaker, type AudioRecipeMaker } from '../asset/audioRecipe';
-import { createJobPool, type JobPool } from '../runtime/jobs';
+import { createJobs, type Jobs } from '../runtime/jobs';
 
 export * from './soundSource';
 export * from './soundRender';
@@ -25,7 +25,7 @@ export { makeSound, soundNeeds, type SoundJob } from './soundWorker';
  */
 export const SOUND_RENDER_REVISION = '4';
 
-let pool: JobPool | null | undefined;
+let jobs: Jobs<SoundJob, ArrayBuffer> | undefined;
 /** A piece of music is seconds of work and a sound a fraction of one: each has a worker, so a step is never made behind a theme. */
 const MUSIC_WORKER = 0, SOUND_WORKER = 1;
 const SAMPLE_DECODE_RATE = 44100;
@@ -62,26 +62,16 @@ async function asWav(bytes: ArrayBuffer): Promise<ArrayBuffer> {
     return out.buffer;
 }
 
-// Made on a worker where the host has workers, so a game goes on drawing frames while its music is played out; in place where it has
-// none or once they have failed (a recipe is still a clip then, a slower one to load).
+// Made on a worker where the host has workers, so a game goes on drawing frames while its music is played out; here, a clip per turn of
+// the frame's budget, where it has none or once they have failed (a recipe is still a clip then, a slower one to load).
 const MAKER: AudioRecipeMaker = {
     revision: SOUND_RENDER_REVISION,
     needs: soundNeeds,
     async make(source, files, path): Promise<ArrayBuffer> {
         const job: SoundJob = { source, path, files: {} };
         for (const [file, bytes] of files) job.files[file] = await asWav(bytes);
-        if (pool === undefined) pool = createJobPool(SOUND_WORKER_SOURCE, 2);
-        if (pool) {
-            try {
-                return await pool.run<ArrayBuffer>(/\.esmusic(\?|$)/i.test(path) ? MUSIC_WORKER : SOUND_WORKER, { ...job });
-            } catch (err) {
-                const why = err instanceof Error ? err.message : String(err);
-                // What the source itself is refused for is the answer; only a worker that cannot do the job sends it back here.
-                if (/^(a job worker failed|the job workers have stopped|the job pool was disposed)/.test(why)) pool = null;
-                else throw err;
-            }
-        }
-        return makeSound(job);
+        jobs ??= createJobs<SoundJob, ArrayBuffer>({ name: 'sound', script: SOUND_WORKER_SOURCE, size: 2, here: makeSound });
+        return jobs.run(job, { affinity: /\.esmusic(\?|$)/i.test(path) ? MUSIC_WORKER : SOUND_WORKER });
     },
 };
 
