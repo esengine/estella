@@ -220,11 +220,15 @@ export class TiledGroundEdit {
     }
 
     /**
-     * The whole area as one heightmap image, the size {@link importImage} takes: from every tile (`all`, each read in turn), or from
-     * the tiles in memory (`loaded`), the rest from the overview. Null when `loaded` finds no tile in memory.
+     * The whole area as one heightmap image, the size {@link importImage} takes. `all` requires every tile in the grid and reads
+     * each in turn. `loaded` uses the overview for the rest and returns null when no tile is in memory.
      */
     async exportImage(mode: 'all' | 'loaded'): Promise<{ width: number; height: number; pixels: Uint8Array } | null> {
         const s = this.source, n = s.doc.tileSamples - 1, t = n + 1;
+        const expected = s.doc.tilesX * s.doc.tilesZ;
+        if (mode === 'all' && s.doc.tiles.length !== expected) {
+            throw new Error(`Terrain document lists ${s.doc.tiles.length} of ${expected} tiles. Full export requires every tile.`);
+        }
         const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
         if (chosen.length === 0) return null;
         const x0 = 0, z0 = 0;

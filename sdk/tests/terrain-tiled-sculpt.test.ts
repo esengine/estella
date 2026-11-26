@@ -24,12 +24,16 @@ function image(width: number, at: (i: number, j: number) => number): TerrainImag
     return { width, height: width, pixels };
 }
 
-function tiled(budget?: number) {
+function tiled(budget?: number, missing?: 'entry' | 'image') {
     const files = new Map<string, TerrainImage>();
     const doc: TerrainTilesDocument = { version: 1, tileSamples: T, tilesX: TILES, tilesZ: TILES, format: HeightmapFormat.RedGreen16, overview: 'o.png', tiles: [] };
     for (let tz = 0; tz < TILES; tz++) for (let tx = 0; tx < TILES; tx++) {
-        files.set(`t${tx}_${tz}.png`, image(T, (i, j) => ground(tx * (T - 1) + i, tz * (T - 1) + j)));
-        doc.tiles.push({ x: tx, z: tz, height: `t${tx}_${tz}.png` });
+        const last = tx === TILES - 1 && tz === TILES - 1;
+        const height = `t${tx}_${tz}.png`;
+        if (last && missing === 'entry') continue;
+        doc.tiles.push({ x: tx, z: tz, height });
+        if (last && missing === 'image') continue;
+        files.set(height, image(T, (i, j) => ground(tx * (T - 1) + i, tz * (T - 1) + j)));
     }
     const overview: Heightfield = { width: 9, height: 9, data: Float32Array.from({ length: 81 }, (_, k) => ground((k % 9) * 6, Math.floor(k / 9) * 6)) };
     const reads: string[] = [];
@@ -259,6 +263,20 @@ describe('a heightmap in and out of ground kept as tiles', () => {
         expect([out.width, out.height]).toEqual([N, N]);
         const got = heightsOf(out);
         for (let k = 0; k < N * N; k++) expect(got[k]).toBeCloseTo(ground(k % N, Math.floor(k / N)), 4);
+    });
+
+    it('rejects a full export with an unlisted tile and still allows exporting loaded tiles', async () => {
+        const t = tiled(undefined, 'entry');
+        await expect(t.edit.exportImage('all')).rejects.toThrow('8 of 9 tiles');
+        expect(t.reads).toEqual([]);
+        await t.source.readTile(0, 0);
+        expect(await t.edit.exportImage('loaded')).toMatchObject({ width: N, height: N });
+        expect(t.reads).toEqual(['t0_0.png']);
+    });
+
+    it('rejects a full export when a listed height image cannot be read', async () => {
+        const t = tiled(undefined, 'image');
+        await expect(t.edit.exportImage('all')).rejects.toThrow('t2_2.png');
     });
 
     it('exports what is loaded at the whole size, the rest from the overview, reading nothing', async () => {
