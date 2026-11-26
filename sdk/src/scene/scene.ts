@@ -6,7 +6,7 @@
  */
 
 import { patchComponentFields, World } from '../ecs/world';
-import { initializeSceneComponents, installWorldHook, type WorldHooks } from './worldHooks';
+import { initializeSceneComponents, installWorldHook, shouldExportComponent, type WorldHooks } from './worldHooks';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
@@ -280,14 +280,7 @@ export function registerWorldSceneComponentCodec(world: World, type: string, cod
     return installWorldHook(worldComponentCodecs, world, type, codec);
 }
 
-export type SceneExportFilter = (entity: Entity, component: string, data: Record<string, unknown>) => void;
-
-const worldExportFilters: WorldHooks<SceneExportFilter, SceneExportFilter> = new WeakMap();
-
-/** @internal */
-export function registerWorldSceneExportFilter(world: World, filter: SceneExportFilter): () => void {
-    return installWorldHook(worldExportFilters, world, filter, filter);
-}
+export { registerWorldSceneExportFilter, type SceneExportFilter } from './worldHooks';
 
 function sceneComponentCodec(world: World, type: string): SceneComponentCodec | undefined {
     return worldComponentCodecs.get(world)?.get(type)?.value ?? sceneComponentCodecs.get(type);
@@ -922,6 +915,12 @@ export function importComponentData(
         return false;
     }
 
+    if (mode === 'replace' && comp.transientFields?.some(field => field in compData.data)) {
+        const data = { ...compData.data };
+        for (const field of comp.transientFields) delete data[field];
+        compData = { ...compData, data };
+    }
+
     // Strip out-of-band fields (e.g. TilemapLayer's tile-chunk blob) before
     // validation/insert so the component insert doesn't choke on them; the
     // registered codec replays them once the component is in.
@@ -1017,11 +1016,11 @@ export function visitSerializedComponents(
         // stored object for script components — clone the latter so the snapshot
         // doesn't alias running-world state (and exportData below can't mutate it).
         const payload = (comp._builtin ? data : deepClone(data)) as Record<string, unknown>;
+        if (comp.transientFields) for (const field of comp.transientFields) delete payload[field];
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
-        for (const filter of worldExportFilters.get(world)?.keys() ?? []) filter(entity, typeName, payload);
-        visit({ type: typeName, data: payload }, comp);
+        if (shouldExportComponent(world, entity, typeName, payload)) visit({ type: typeName, data: payload }, comp);
     };
     const scriptNames = new Map<symbol, string>();
     for (const name of registeredTypes) {

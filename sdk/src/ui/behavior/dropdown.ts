@@ -15,6 +15,8 @@
  * theme colors and tagged with ThemeStyle roles for live re-theming.
  */
 import { defineSystem, type SystemDef } from '../../ecs/system';
+import { RuntimeOnly } from '../../ecs/component';
+import { registerWorldSceneExportFilter } from '../../scene/worldHooks';
 import { Res } from '../../ecs/resource';
 import { Input, type InputState } from '../../input/input';
 import type { World } from '../../ecs/world';
@@ -112,6 +114,8 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
         },
         background: { color: t.control },
     });
+    world.insert(view.entity, RuntimeOnly);
+    world.insert(view.content, RuntimeOnly);
     world.insert(view.content, UINode, { ...world.get(view.content, UINode), width: percent(100) });
     markThemed(world, view.entity, { visual: 'control' });
 
@@ -130,6 +134,7 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
             },
             visual: { color: t.surfaceElevated },
         });
+        world.insert(row, RuntimeOnly);
         // Rows are pointer-only: the popup is transient, so they stay out of
         // the Tab ring. 'selected' is NOT driver-owned — the keyboard highlight
         // holds it, and the pointer driver leaves such pages alone.
@@ -158,6 +163,7 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
             node: { fill: true, insetLeft: px(8), insetRight: px(24) },
             text: { content: options[i]!, color: t.text, align: TextAlign.Left, overflow: TextOverflow.Ellipsis },
         });
+        world.insert(rowLabel, RuntimeOnly);
         markThemed(world, rowLabel, { text: 'text' });
 
         const index = i;
@@ -177,9 +183,19 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
     const check = spawnUIEntity({ world, parent: rows[0], node: {
         position: UIPositionType.Absolute, insetTop: px(0), insetBottom: px(0), insetRight: px(4), width: px(16),
     }, text: { content: '✓', color: t.text } });
+    world.insert(check, RuntimeOnly);
     markThemed(world, check, { text: 'text' });
     const popup = { owner: e, view, bounds: createPopupBoundsReader(world), rows, check, unsubs, options, optionHeight };
     openList.set(world, popup);
+    // The scene reopens with a closed menu, including hosts that haven't run a UI frame yet.
+    unsubs.push(registerWorldSceneExportFilter(world, (entity, type, payload) => {
+        if (entity !== e || type !== UIController._name) return;
+        const state = (payload.controllers as UIControllerData['controllers']).find(c => c.name === DROPDOWN_CONTROLLER);
+        if (state?.current === 'open' && state.pages.includes('closed')) state.current = 'closed';
+    }));
+    unsubs.push(world.onDespawn(entity => {
+        if (entity === e) closeDropdown(world, e);
+    }));
     setExpanded(world, e, true);
     highlightRow(world, popup, clampDropdownIndex(d.selectedIndex, options.length));
 }
@@ -248,6 +264,7 @@ function placePopup(world: World, owner: Entity, p: PopupState, selected: number
     const { view } = p;
     if (p.canvas === undefined) {
         p.canvas = createPopupCanvas(world, owner, UIPointerEvents.Auto);
+        world.insert(p.canvas, RuntimeOnly);
         world.setParent(view.entity, p.canvas);
     }
     const scrollHost = height < fullHeight ? host ?? undefined : undefined;
@@ -304,11 +321,6 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
     events.on(UIEventType.Blur, ev => {
         if (ev.target === ev.currentTarget && isDropdownOpen(world, ev.target)) closeDropdown(world, ev.target);
     });
-    world.onDespawn((e) => {
-        // A screen popup lives outside the owner's clipping tree.
-        if (isDropdownOpen(world, e)) closeDropdown(world, e);
-    });
-
     return defineSystem([Res(Input), Res(ScreenLayout), Res(ScreenOverlay), Res(UICameraInfo), Res(UICollections), Res(UIControlPointers), Res(FocusManager)],
     (input: InputState, layout: ScreenLayoutData, overlay: ScreenOverlayData, camera: UICameraData,
         host: CollectionHost | null, pointers: UIControlPointersData, focus: FocusManagerState) => {
@@ -373,6 +385,8 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                     previous.index = d.selectedIndex; previous.label = d.label; previous.content = content;
                 } else {
                     shown.set(e, { index: d.selectedIndex, label: d.label, content });
+                    // A live snapshot may remember an open arrow. Popups are rebuilt only on demand.
+                    setExpanded(world, e, isDropdownOpen(world, e));
                 }
                 if (world.valid(d.label) && world.has(d.label, Text)) {
                     const txt = world.get(d.label, Text) as TextData;

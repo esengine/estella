@@ -2157,6 +2157,7 @@ renderableField: string | null
 replicatedFields: readonly string[]
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
+transientFields: readonly string[] | undefined
 ```
 
 ## BuiltinMeshTemplate — interface @experimental
@@ -3318,6 +3319,7 @@ renderableField: string | null
 replicatedFields: readonly string[]
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean
+transientFields: readonly string[] | undefined
 ```
 
 ## ComponentHeap — interface @experimental
@@ -3340,6 +3342,7 @@ renderableField: string | undefined
 replicatedFields: string[] | undefined
 skeletalFields: SkeletalFieldMeta | undefined
 transient: boolean | undefined
+transientFields: string[] | undefined
 worldUnitFields: string[] | undefined
 ```
 

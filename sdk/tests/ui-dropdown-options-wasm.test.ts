@@ -4,7 +4,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Schedule } from '../src/ecs/system';
-import { Canvas, Disabled, Parent, registerComponent } from '../src/ecs/component';
+import { resetWorldTo, serializeScene } from '../src/scene/scene';
+import { Canvas, Disabled, Parent, Transform, registerComponent } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { Interactable } from '../src/ui/input/interactable';
 import { Focusable } from '../src/ui/input/focusable';
@@ -18,9 +19,11 @@ import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiHitAtScreen } from '../src/ui/util/ui-pick';
 import { Text, TextAlign, TextOverflow } from '../src/ui/core/text';
 import { UIEventQueue } from '../src/ui/core/events';
-import { UIDropdown, createDropdownSystem } from '../src/ui/behavior/dropdown';
+import { UIDropdown, createDropdownSystem, DROPDOWN_CONTROLLER, isDropdownOpen, openDropdown } from '../src/ui/behavior/dropdown';
+import { createScrollbarSystem } from '../src/ui/behavior/scrollbar';
 import { createDropdown } from '../src/ui/widgets/dropdown';
-import { UIController } from '../src/ui/controller/ui-controller';
+import { getControllerPage, setControllerPage, UIController } from '../src/ui/controller/ui-controller';
+import { createGearApplySystem } from '../src/ui/controller/gear-apply';
 import { UIGear } from '../src/ui/controller/ui-gear';
 import { ThemeStyle } from '../src/ui/theme/theme-style';
 import { LIGHT_TOKENS, DARK_TOKENS, setTheme } from '../src/ui/theme/tokens';
@@ -28,7 +31,7 @@ import { switchTheme } from '../src/ui/behavior/theme-apply';
 import { BUILTIN_UI_PREFABS } from '../src/ui/widgets/prefabs/generated';
 import { instantiatePrefab } from '../src/prefab';
 import { UICollections } from '../src/ui/collection/collection-host';
-import { ScrollContainer } from '../src/ui/collection/scroll-container';
+import { ScrollContainer, ScrollContainerRegistry } from '../src/ui/collection/scroll-container';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -56,6 +59,79 @@ describe.skipIf(!HAS_WASM)('dropdown live options on real WASM', () => {
         const hit = (x: number, top: number) => uiHitAtScreen(app.world, UICameraInfo._default, overlay, x, 180 - top);
         return { canvas, solve, hit };
     };
+
+    it('round-trips an open dropdown with its selected value, closed arrow and authored children', async () => {
+        const { world } = app;
+        for (const component of [ThemeStyle, Text, UIDropdown, UIGear, UIController, Focusable]) registerComponent(component._name, component);
+        app.addSystemToSchedule(Schedule.Update, createGearApplySystem(world));
+        const dd = createDropdown({ world, events, options: ['Old', 'New'], selectedIndex: 1 });
+        expect(serializeScene(world).entities).toHaveLength(4);
+        const caption = spawnUIEntity({ world, parent: dd.entity, text: { content: 'New' } });
+        const strokes = world.getEntitiesWithComponents([UIGear]).filter(e => e !== dd.entity);
+        expect(strokes).toHaveLength(2);
+        const closed = strokes.map(e => world.get(e, Transform).rotation.z);
+        const savedIds = world.getAllEntities();
+        await app.tick(1 / 60); dd.open();
+        await app.tick(1 / 60);
+        expect(strokes.map(e => world.get(e, Transform).rotation.z)).toEqual(closed.map(z => -z));
+        expect(getControllerPage(world, dd.entity, DROPDOWN_CONTROLLER)).toBe('open');
+        const snapshot = serializeScene(world);
+        expect(getControllerPage(world, dd.entity, DROPDOWN_CONTROLLER)).toBe('open');
+        expect(snapshot.entities.map(e => e.id)).toEqual(savedIds);
+        expect(snapshot.entities.find(e => e.id === dd.entity)!.children).toContain(caption);
+        const restored = resetWorldTo(world, snapshot);
+        const owner = restored.get(dd.entity)!;
+        expect(getControllerPage(world, owner, DROPDOWN_CONTROLLER)).toBe('closed');
+        // Legacy snapshots could persist this runtime page without its popup.
+        setControllerPage(world, owner, DROPDOWN_CONTROLLER, 'open');
+        await app.tick(1 / 60);
+        expect(isDropdownOpen(world, dd.entity)).toBe(false);
+        expect(isDropdownOpen(world, owner)).toBe(false);
+        expect(getControllerPage(world, owner, DROPDOWN_CONTROLLER)).toBe('closed');
+        expect(strokes.map(e => world.get(restored.get(e)!, Transform).rotation.z)).toEqual(closed);
+        expect(world.get(owner, UIDropdown)).toMatchObject({ selectedIndex: 1, label: restored.get(dd.labelEntity) });
+        expect(world.get(restored.get(caption)!, Text).content).toBe('New');
+        openDropdown(world, events, owner);
+        const row = world.getEntitiesWithComponents([UIController]).find(e => e !== owner)!;
+        events.emit(row, 'click');
+        await app.tick(1 / 60);
+        expect(world.get(owner, UIDropdown).selectedIndex).toBe(0);
+        expect(world.get(restored.get(dd.labelEntity)!, Text).content).toBe('Old');
+        expect(serializeScene(world).entities).toHaveLength(savedIds.length);
+    });
+
+    it('retires a directly opened popup on scene reset even before a dropdown system is installed', () => {
+        const other = App.new(), core = new engine.Registry();
+        other.connectCpp(core, engine);
+        try {
+            const world = other.world, queue = new UIEventQueue();
+            const dd = createDropdown({ world, events: queue, options: ['one'] });
+            dd.open();
+            resetWorldTo(world, { name: 'Empty', version: 4, entities: [] });
+            expect(dd.isOpen()).toBe(false);
+        } finally {
+            other.quit({ keepRenderer: true }); core.delete();
+        }
+    });
+
+    it('leaves the popup canvas and scrolled thumb out of a screen dropdown snapshot', async () => {
+        const { world } = app, { canvas, solve } = smallScreen(), scrolls = new ScrollContainerRegistry();
+        app.insertResource(UICollections, { registerListView() {}, unregisterListView() {},
+            attachScrollContainer: (e, c) => scrolls.attach(e, c), detachScrollContainer: e => scrolls.detach(e) });
+        app.addSystemToSchedule(Schedule.PostUpdate, createScrollbarSystem(world, scrolls));
+        const dd = createDropdown({ world, events, parent: canvas, node: { position: 1, width: px(100), height: px(24) },
+            optionHeight: 32, options: Array.from({ length: 16 }, (_, i) => String(i)) });
+        const savedIds = world.getAllEntities();
+        solve(); dd.open(); await app.tick(1 / 60); solve();
+        const beforeScroll = world.entityCount();
+        const [[, scroll]] = [...scrolls.entries()];
+        scroll.setOffset({ x: 0, y: 48 }); await app.tick(1 / 60);
+        expect(world.entityCount()).toBe(beforeScroll + 1);
+        expect(serializeScene(world).entities.map(e => e.id)).toEqual(savedIds);
+        expect(dd.isOpen()).toBe(true);
+        dd.close();
+        expect(world.getAllEntities()).toEqual(savedIds);
+    });
     it('resolves a spawned dropdown against the current world even when roles precede their components', async () => {
         const { world } = app;
         for (const component of [ThemeStyle, Text, UIDropdown, UIGear, UIController, Focusable, Interactable]) {

@@ -25,6 +25,7 @@ import { describe, it, expect, afterEach, beforeAll, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
 import { clearUserComponents, defineComponent, Name, Transform, Sprite } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
+import { serializeEntityComponents } from '../src/scene/scene';
 import {
     replicationPlugin, Net, Replicated, registerReplicationArchetype, radiusInterest,
 } from '../src/net/replication';
@@ -62,7 +63,7 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
             world.insert(entity, Sprite, { layer: ARCHETYPE_LAYER });
         });
         PartlyShared = defineComponent('PartlyShared', { shown: 0, hidden: 0 },
-            { replicatedFields: ['shown'] });
+            { replicatedFields: ['shown'], transientFields: ['shown'] });
     });
     afterEach(() => { for (const app of opened.splice(0)) app.world.disconnectCpp(); });
 
@@ -142,6 +143,8 @@ describe.skipIf(!HAS_WASM)('a spawn carries three contracts, not one', () => {
             { shown: number; hidden: number } | null;
         expect(p?.shown).toBe(5);
         expect(p?.hidden, 'undeclared field arrived from the authority').toBe(0);
+        const saved = serializeEntityComponents(h.serverApp.world, h.pawn).find(c => c.type === 'PartlyShared');
+        expect(saved?.data).toEqual({ hidden: 9 });
     });
 
     it('refuses a spawn whose construction key it cannot resolve', async () => {

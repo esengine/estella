@@ -222,6 +222,8 @@ export interface ComponentMetadata {
      * single-source rule as fieldMeta.
      */
     transient?: boolean;
+    /** Session fields omitted from scene snapshots and ignored when loading older snapshots. */
+    transientFields?: string[];
     /**
      * The name of the bool field that gates this component's part in an entity's
      * visibility — set it and {@link setEntityVisible}, the editor's eye and scene
@@ -288,6 +290,7 @@ export interface ComponentDef<T> {
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
     readonly transient: boolean;
+    readonly transientFields?: readonly string[];
     /** Bool field gating this component's visibility, or null if it draws nothing.
      *  See {@link ComponentMetadata.renderableField}. */
     readonly renderableField: string | null;
@@ -439,6 +442,7 @@ function createComponentDef<T extends object>(
         fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets ?? namedFieldDiscovery(metadata?.assetFields),
         transient: metadata?.transient ?? false,
+        transientFields: metadata?.transientFields,
         renderableField: renderableField ?? null,
         create(data?: Partial<T>): T {
             const now = currentDefaults();
@@ -620,6 +624,7 @@ export interface BuiltinComponentDef<T> {
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. Authored `ES_COMPONENT(transient)`. */
     readonly transient: boolean;
+    readonly transientFields?: readonly string[];
     /** Bool field gating this component's visibility, or null if it draws nothing.
      *  Authored `ES_COMPONENT(renderable=<field>)`. */
     readonly renderableField: string | null;
@@ -847,6 +852,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
         discoverAssets: metadata?.discoverAssets ?? namedFieldDiscovery(metadata?.assetFields ?? meta?.assetFields),
         transient: metadata?.transient ?? meta?.transient ?? false,
+        transientFields: metadata?.transientFields,
         renderableField: metadata?.renderableField ?? meta?.renderableField ?? null,
     };
     builtinRegistry.set(name, def);

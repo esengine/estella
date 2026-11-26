@@ -19,6 +19,24 @@ export function installWorldHook<K, V>(worlds: WorldHooks<K, V>, world: World, k
     };
 }
 
+/** A filter may update the detached payload, or return false to omit a generated component. */
+export type SceneExportFilter = (entity: Entity, component: string, data: Record<string, unknown>) => void | false;
+
+const exportFilters: WorldHooks<SceneExportFilter, SceneExportFilter> = new WeakMap();
+
+/** @internal */
+export function registerWorldSceneExportFilter(world: World, filter: SceneExportFilter): () => void {
+    return installWorldHook(exportFilters, world, filter, filter);
+}
+
+export function shouldExportComponent(world: World, entity: Entity, component: string, data: Record<string, unknown>): boolean {
+    const filters = exportFilters.get(world);
+    if (filters) for (const filter of filters.keys()) {
+        if (filter(entity, component, data) === false) return false;
+    }
+    return true;
+}
+
 type ComponentInitializer = (world: World, entity: Entity) => void;
 const initializers: WorldHooks<AnyComponentDef, ComponentInitializer> = new WeakMap();
 

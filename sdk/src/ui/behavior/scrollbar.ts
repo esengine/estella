@@ -14,6 +14,7 @@ import { defineSystem, type SystemDef } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import type { World } from '../../ecs/world';
 import type { Entity, Vec2 } from '../../types';
+import { RuntimeOnly } from '../../ecs/component';
 import { px, DimensionUnit } from '../core/dimension';
 import { spawnUIEntity } from '../core/compose';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
@@ -60,6 +61,7 @@ function spawnThumb(world: World, viewport: Entity, axis: 'v' | 'h'): Entity {
               },
         visual: { color: { ...themeColors(world).text, a: 0 } },
     });
+    if (world.has(viewport, RuntimeOnly)) world.insert(thumb, RuntimeOnly);
     markThemed(world, thumb, { visual: 'text' });
     return thumb;
 }

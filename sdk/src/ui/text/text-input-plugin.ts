@@ -4,7 +4,7 @@ import type { App, Plugin } from '../../app/app';
 import { EditorHiddenEntities } from '../../camera/EditorView';
 import type { Color, Entity } from '../../types';
 import { defineSystem, Schedule } from '../../ecs/system';
-import { registerComponent } from '../../ecs/component';
+import { registerComponent, RuntimeOnly } from '../../ecs/component';
 import { TextInput, applyTextInputFilter, type TextInputData } from './text-input';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
@@ -42,6 +42,7 @@ import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/con
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { log } from '../../util/logger';
 import { Localization } from '../../i18n/Localization';
+import { registerWorldSceneExportFilter } from '../../scene/worldHooks';
 
 /** Masking bullet for password fields. */
 const PASSWORD_CHAR = '●';
@@ -108,6 +109,7 @@ export class TextInputPlugin implements Plugin {
         // Only opt in to tracking a component when a field actually creates one.
         let fillChanged: ((entity: Entity, since: number) => boolean) | undefined;
         let maskChanged: ((entity: Entity, since: number) => boolean) | undefined;
+        let releaseExportFilter: (() => void) | undefined;
         // The render system's horizontal scroll per field, read by click-to-caret
         // (Update) to map a pointer x back to a character index under the scroll.
         const scrollXOf = new Map<Entity, number>();
@@ -706,6 +708,7 @@ export class TextInputPlugin implements Plugin {
             if (!childrenOf.size || fieldLifetime === world.entityLifetime) return;
             // A replacement registry can reuse both parent and child handles for new authored entities.
             childrenOf.clear();
+            releaseExportFilter?.();
             scrollXOf.clear();
             alignOffsetOf.clear();
             if (editingEntity !== null) {
@@ -717,13 +720,29 @@ export class TextInputPlugin implements Plugin {
             nativeEvents = [];
         }
 
+        function ownsVisual(entity: Entity, ch: FieldChildren): boolean {
+            return ch.fillWrite !== undefined && !fillChanged!(entity, ch.fillWrite);
+        }
+
+        function ownsMask(entity: Entity, ch: FieldChildren): boolean {
+            return ch.maskWrite !== undefined && !maskChanged!(entity, ch.maskWrite);
+        }
+
+        function exportFieldComponent(entity: Entity, component: string): false | void {
+            if (component !== UIVisual._name && component !== UIMask._name) return;
+            const ch = childrenOf.get(entity);
+            if (!ch || fieldLifetime !== world.entityLifetime) return;
+            if (component === UIVisual._name ? ownsVisual(entity, ch) : ownsMask(entity, ch)) return false;
+        }
+
         function releaseField(entity: Entity, ch: FieldChildren): void {
             despawnChildren(ch);
             if (world.valid(entity)) {
-                if (ch.fillWrite !== undefined && !fillChanged!(entity, ch.fillWrite) && world.has(entity, UIVisual)) world.remove(entity, UIVisual);
-                if (ch.maskWrite !== undefined && !maskChanged!(entity, ch.maskWrite) && world.has(entity, UIMask)) world.remove(entity, UIMask);
+                if (ownsVisual(entity, ch) && world.has(entity, UIVisual)) world.remove(entity, UIVisual);
+                if (ownsMask(entity, ch) && world.has(entity, UIMask)) world.remove(entity, UIMask);
             }
             childrenOf.delete(entity);
+            if (!childrenOf.size) releaseExportFilter?.();
             scrollXOf.delete(entity);
             alignOffsetOf.delete(entity);
         }
@@ -774,7 +793,13 @@ export class TextInputPlugin implements Plugin {
                 });
             }
             const ch = { sel, text, caret: decoration(entity, ti, box, 2, ti.color), world: box.world };
-            if (!childrenOf.size) fieldLifetime = world.entityLifetime;
+            world.insert(ch.text, RuntimeOnly);
+            if (ch.sel !== null) world.insert(ch.sel, RuntimeOnly);
+            if (ch.caret !== null) world.insert(ch.caret, RuntimeOnly);
+            if (!childrenOf.size) {
+                fieldLifetime = world.entityLifetime;
+                releaseExportFilter = registerWorldSceneExportFilter(world, exportFieldComponent);
+            }
             childrenOf.set(entity, ch);
             return ch;
         }

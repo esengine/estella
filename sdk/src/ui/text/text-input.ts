@@ -51,6 +51,7 @@ export interface TextInputData {
     multiline: boolean;
     password: boolean;
     readOnly: boolean;
+    /** True while this field owns the platform's editing surface. */
     focused: boolean;
     cursorPos: number;
     /** Where the value sits in the field: Left, Center or Right. A single line
@@ -84,6 +85,8 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
     renderMode: TextRenderMode.Auto,
 }, {
     assetFields: [{ field: 'font', type: 'font' }],
+    readonlyFields: ['focused'],
+    transientFields: ['focused'],
     fields: {
         placeholderI18nKey: { label: 'Placeholder I18n Key', enumSource: 'localeKeys', tooltip: 'Translate the empty-field hint through the Localization resource. Leave empty for a literal placeholder.' },
         font: { label: 'Font', tooltip: 'A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has.' },
