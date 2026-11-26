@@ -41,6 +41,10 @@ describe('an effect from a description', () => {
     expect(flames.gravity).toEqual({ x: 0, y: 80, z: 0 });
     expect(flames.colorGradient.stops[1]).toEqual({ t: 0.15, color: expect.objectContaining({ r: 1, a: expect.closeTo(0.933, 2) }) });
     expect(flames.blendMode).toBe(1);
+    // `angle` is the half-angle; the engine's shapeAngle is the whole opening.
+    expect(flames.shapeAngle).toBe(24);
+    // `angle` is the half-angle; the engine's shapeAngle is the whole opening.
+    expect(flames.shapeAngle).toBe(24);
     expect(flames.looping).toBe(true);
     // Room for every particle it can have alive at once.
     expect(flames.maxParticles).toBeGreaterThanOrEqual(60 * 0.9);
@@ -81,6 +85,12 @@ describe('an effect from a description', () => {
     }
   });
 
+  it('takes one number for a size that does not change', () => {
+    expect(checkVfx({ layers: [{ name: 'x', rate: 1, life: 1, size: 0.5, color: '#ffffff', texture: 'glow' }] })).toEqual([]);
+    const d = buildVfx({ layers: [{ name: 'x', rate: 1, life: 1, size: 0.5, color: '#ffffff', texture: 'glow' }] }).children[0]!.components[1]!.data as Record<string, number>;
+    expect([d.startSizeMin, d.startSizeMax, d.endSizeMin, d.endSizeMax]).toEqual([0.5, 0.5, 0.5, 0.5]);
+  });
+
   it('plays a built-in sheet as it was drawn: a flame round and round, a puff once over its life', () => {
     const b = buildVfx({ layers: [
       { name: 'f', rate: 10, life: 1, size: [1, 1], color: '#ffffff', texture: 'flame-sheet' },
@@ -93,5 +103,23 @@ describe('an effect from a description', () => {
 
   it('draws its own textures from recipes the image tools accept', () => {
     for (const name of VFX_TEXTURES) expect(() => validateImageSource(vfxTextureSource(name)), name).not.toThrow();
+  });
+});
+
+describe('the built-in textures', () => {
+  it('are fully clear at every edge, cell by cell for a sheet: a faint veil adds up to a square in an additive layer', async () => {
+    const { renderImage } = await import('../src/image/imageRaster');
+    for (const name of VFX_TEXTURES) {
+      const src = validateImageSource(vfxTextureSource(name));
+      const img = renderImage(src);
+      const sheet = name.endsWith('-sheet'), cell = sheet ? img.width / 4 : img.width;
+      let worst = 0;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
+        const cx = x % cell, cy = y % cell;
+        if (cx > 1 && cy > 1 && cx < cell - 2 && cy < cell - 2) continue;
+        worst = Math.max(worst, img.rgba[(y * img.width + x) * 4 + 3]!);
+      }
+      expect(worst, `${name}: alpha at its edge`).toBe(0);
+    }
   });
 });

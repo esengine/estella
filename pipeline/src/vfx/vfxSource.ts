@@ -44,7 +44,7 @@ export interface VfxLayer {
   radius?: number;
   /** Box: metres. */
   box?: [number, number, number];
-  /** Cone: half-angle, degrees. */
+  /** Cone: half-angle, degrees, from its axis to its side (the engine's shapeAngle is twice this). */
   angle?: number;
   /** Particles a second while it emits. */
   rate?: number;
@@ -66,8 +66,8 @@ export interface VfxLayer {
   /** How fast it slows, per second. */
   drag?: number;
   noise?: { strength: number; frequency?: number; scroll?: number; octaves?: number };
-  /** Metres across when born and when it dies: [start, end], each a number or [low, high]. */
-  size: [Range, Range];
+  /** Metres across when born and when it dies: [start, end], each a number or [low, high]; one number keeps it that size. */
+  size: number | [Range, Range];
   sizeEase?: keyof typeof EASINGS;
   /** One colour, or [[t, "#rrggbbaa"], ...] over its life, t 0 to 1. Alpha 00 at both ends fades it in and out. */
   color: Hex | [number, Hex][];
@@ -179,7 +179,7 @@ export function checkVfx(spec: VfxSpec): string[] {
     if (l.speed !== undefined && !isRange(l.speed)) out.push(`${at}: \`speed\` is metres a second, a number or [low, high]`);
     if (l.gravity !== undefined && !isNum(l.gravity) && !isVec(l.gravity)) out.push(`${at}: \`gravity\` is metres a second squared, a number (up) or [x, y, z]`);
     if (l.noise !== undefined && !(l.noise && isNum(l.noise.strength))) out.push(`${at}: \`noise\` is { strength, frequency?, scroll?, octaves? }`);
-    if (!Array.isArray(l.size) || l.size.length !== 2 || !l.size.every(isRange)) out.push(`${at}: \`size\` is [start, end] metres across, each a number or [low, high]`);
+    if (!isNum(l.size) && (!Array.isArray(l.size) || l.size.length !== 2 || !l.size.every(isRange))) out.push(`${at}: \`size\` is metres across: one number, or [start, end] with each a number or [low, high]`);
     if (l.sizeEase !== undefined && !(l.sizeEase in EASINGS)) out.push(`${at}: \`sizeEase\` is ${Object.keys(EASINGS).join(', ')}`);
     if (typeof l.color === 'string') { if (!HEX.test(l.color)) out.push(`${at}: \`color\` "${l.color}" is not "#rrggbb" or "#rrggbbaa"`); }
     else if (!Array.isArray(l.color) || l.color.length === 0) out.push(`${at}: \`color\` is "#rrggbbaa" or [[t, "#rrggbbaa"], ...] over its life`);
@@ -206,6 +206,13 @@ export function checkVfx(spec: VfxSpec): string[] {
   }
   return out;
 }
+
+/** The description with every shorthand written out: a single size is the same at both ends of life. */
+export function normalizeVfx(spec: VfxSpec): VfxSpec {
+  if (!spec?.layers?.some((l) => isNum(l?.size))) return spec;
+  return { ...spec, layers: spec.layers.map((l) => (isNum(l.size) ? { ...l, size: [l.size, l.size] as [Range, Range] } : l)) };
+}
+const sizes = (l: VfxLayer): [Range, Range] => (isNum(l.size) ? [l.size, l.size] : l.size);
 
 /** Degrees about x, then y, then z, as a quaternion: the order the Details panel applies them in. */
 function quat(turn: [number, number, number] | undefined): { w: number; x: number; y: number; z: number } {
@@ -236,7 +243,7 @@ function layerReach(l: VfxLayer): number {
   // Travel under drag: v (1 - e^-dt) / d, no further than v t.
   const travel = drag > 0 ? (speed * (1 - Math.exp(-drag * life))) / drag : speed * life;
   const fall = 0.5 * g * life * life;
-  const size = Math.max(hi(l.size[0]), hi(l.size[1])) / 2;
+  const size = Math.max(hi(sizes(l)[0]), hi(sizes(l)[1])) / 2;
   const from = l.shape === 'box' && l.box ? Math.hypot(...l.box) / 2 : l.radius ?? 0;
   const at = l.at ? Math.hypot(...l.at) : 0;
   return at + from + travel + Math.min(fall, travel + fall) + size + (l.noise?.strength ?? 0) * 0.01;
@@ -251,7 +258,7 @@ function layerBody(l: VfxLayer): { up: number; out: number } {
   const drag = l.drag ?? 0, travel = (drag > 0 ? (speed * (1 - Math.exp(-drag * life))) / drag : speed * life) * 0.6;
   const g = l.gravity === undefined ? [0, 0, 0] : isNum(l.gravity) ? [0, l.gravity, 0] : l.gravity;
   const rise = 0.25 * g[1]! * life * life;
-  const size = Math.max(hi(l.size[0]), hi(l.size[1])) / 2, from = l.shape === 'box' && l.box ? Math.hypot(...l.box) / 2 : l.radius ?? 0;
+  const size = Math.max(hi(sizes(l)[0]), hi(sizes(l)[1])) / 2, from = l.shape === 'box' && l.box ? Math.hypot(...l.box) / 2 : l.radius ?? 0;
   const at = l.at ?? [0, 0, 0];
   const opens = l.shape === undefined || l.shape === 'cone' || l.shape === 'hemisphere';
   return { up: Math.max(0, at[1] + (opens ? travel : 0) + rise + size), out: Math.hypot(at[0], at[2]) + from + (opens ? travel * 0.4 : travel) + size };
@@ -304,10 +311,11 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
       rate, duration: l.duration ?? (loop ? 5 : Math.max(0.05, ...(l.bursts ?? [[0, 0]]).map((b) => b[0] + 0.05))), looping: loop,
       startDelay: l.delay ?? 0, playOnStart: true, maxParticles: max, gpuSimulation: l.gpu ?? false,
       lifetimeMin: lo(l.life), lifetimeMax: hi(l.life),
-      shape: SHAPES[l.shape ?? 'cone'], shapeRadius: (l.radius ?? 0) * k, shapeAngle: l.angle ?? 15,
+      // The engine's shapeAngle is the cone's whole opening; the description's `angle` is half of it, from the axis to the side.
+      shape: SHAPES[l.shape ?? 'cone'], shapeRadius: (l.radius ?? 0) * k, shapeAngle: (l.angle ?? 15) * 2,
       ...(l.box ? { shapeSize: vec(l.box) } : {}),
       speedMin: lo(l.speed ?? 0) * k, speedMax: hi(l.speed ?? 0) * k,
-      startSizeMin: lo(l.size[0]) * k, startSizeMax: hi(l.size[0]) * k, endSizeMin: lo(l.size[1]) * k, endSizeMax: hi(l.size[1]) * k,
+      startSizeMin: lo(sizes(l)[0]) * k, startSizeMax: hi(sizes(l)[0]) * k, endSizeMin: lo(sizes(l)[1]) * k, endSizeMax: hi(sizes(l)[1]) * k,
       sizeEasing: EASINGS[l.sizeEase ?? 'linear'],
       startColor: first, endColor: last,
       rotationMin: lo(l.rotation ?? 0), rotationMax: hi(l.rotation ?? 0), angularVelocityMin: lo(l.spin ?? 0), angularVelocityMax: hi(l.spin ?? 0),
@@ -415,7 +423,7 @@ export function describeVfx(entities: readonly StoredEntity[], unit = 1, texture
         shape: (SHAPE_NAMES[d.shape ?? 3] ?? 'cone') as VfxLayer['shape'],
         ...([1, 3, 4, 5].includes(d.shape ?? 3) ? { radius: r2((d.shapeRadius ?? 0) / k) } : {}),
         ...(d.shape === 2 ? { box: vecOf(d.shapeSize) } : {}),
-        ...((d.shape ?? 3) === 3 ? { angle: d.shapeAngle ?? 25 } : {}),
+        ...((d.shape ?? 3) === 3 ? { angle: r2((d.shapeAngle ?? 25) / 2) } : {}),
         rate: d.rate ?? 0,
         ...(Array.isArray(d.bursts) && d.bursts.length ? { bursts: d.bursts.map((b: { time: number; count: number }) => [b.time, b.count]) } : {}),
         duration: d.duration ?? 5, loop: d.looping ?? true,
