@@ -1695,6 +1695,10 @@ export const SHIPPED = {
     { notCertifiable: "Foot slide is a look over time, not a state a game act ends on. pipeline/tests/root-motion-extract.test.ts covers taking travel out of the top joint, and sdk/tests/animatorRootMotion.test.ts the root track scaled with its entity and the controller following it." },
   "A character moved by its controller can fit its strides to the speed it is going.":
     { notCertifiable: "Stride length is a pose, not a game act. sdk/tests/animatorStrideWarp.test.ts covers the speed ratio, the minStride/maxStride clamp and the foot kept at its height." },
+  "An agent can close the open project, or close it and open it again from disk, with `close_project` and `reopen_project`.":
+    { notCertifiable: "Closing and reopening a project is an editor action, not a game act. desktop/tests/project-close.test.ts covers the discard refusal and the one close door, and the editor check project-close closes, reopens and refuses a dirty project through the MCP doors." },
+  "Prefabs show what they contain in the Content Browser and the Details panel.":
+    { notCertifiable: "A thumbnail is an editor picture, not a game act. The editor check prefab-preview draws a UI, a sprite and a model prefab, checks each covers its picture, the model is lit with no near-black pixels, an empty prefab keeps its icon and the edited world is pixel-identical before and after." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

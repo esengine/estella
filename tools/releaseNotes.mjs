@@ -6638,4 +6638,202 @@ export const NOTED = {
     { note: "The scene view's marks no longer show through the tab in front of it." },
   "fix(pipeline): preserve whole textures sampled by mesh UVs":
     { note: "Meshes keep their original texture coordinates when automatic atlas packing is enabled." },
+  "fix(editor): fit the Add Component dropdown to its panel window":
+    { note: "The Add Component dropdown fits narrow and short inspector windows." },
+  "fix(editor): ship the responsive Add Component picker":
+    { note: "The Add Component dropdown fits narrow and short inspector windows." },
+  "fix(assets): resolve named playback assets through their owners":
+    { note: "Additive scenes keep their own texture sampling during playback." },
+  "fix(animator): use the shared dropdown for rig joints":
+    { note: "The Animator joint picker shows which bone you are choosing." },
+  "fix(editor): ship the animator joint dropdown":
+    { note: "The Animator joint picker shows which bone you are choosing." },
+  "fix(editor): choose Animator clips by project asset and preserve registered motions":
+    { note: "Animator clip menus show matching files and their folders for states and blend motions." },
+  "fix(assets): resolve indexed animation and graph references across targets":
+    { note: "Animator clip menus show matching files and their folders for states and blend motions." },
+  "fix(pipeline): preserve Aseprite tag clips across reimport":
+    { note: "Reordering Aseprite tags keeps placed animations on the right action." },
+  "fix(editor): refresh animations detached during source import":
+    { note: "Reordering Aseprite tags keeps placed animations on the right action." },
+  "fix(editor): import external Tiled tilesets as JSON sources":
+    { note: "Tiled maps and 3D materials keep their intended textures when exported." },
+  "fix(assets): resolve document dependencies from their authored location":
+    { note: "Tiled maps and 3D materials keep their intended textures when exported." },
+  "fix(editor): unify tileset and onion skin dropdowns":
+    { note: "The Tile Palette and Flipbook Editor use the same dropdowns as the viewport toolbar." },
+  "fix(editor): ship the updated tile palette and flipbook menus":
+    { note: "The Tile Palette and Flipbook Editor use the same dropdowns as the viewport toolbar." },
+  "fix(editor): reuse the visible asset registry during revalidation":
+    { note: "Opening another scene can use the asset list already on screen while the editor checks it in the background." },
+  "fix(editor): wait for document and workspace saves before closing":
+    { note: "Closing the editor now waits for Save All to finish." },
+  "fix(project): ship confirmed saves for scene and asset editors":
+    { note: "Closing the editor now waits for Save All to finish." },
+  "fix(postprocess): contact shadows count only what stands above a surface toward the sun":
+    { note: "Contact Shadows no longer stripe a rounded thing lit from behind, or speckle the far ground at a low sun." },
+  "feat(postprocess): contact shadows grade their edge over the sun's disc":
+    { note: "Contact Shadows have a soft edge." },
+  "fix(postprocess): contact shadows take away the sun's light, not the sky's":
+    { note: "Contact Shadows no longer paint dark stains where the sky still lights a surface." },
+  "fix(editor): keep the Content Browser's column header above the rows it scrolls over":
+    { note: "The Content Browser's Columns view keeps its header readable while scrolling." },
+  "fix(editor): Delete on a component's row removes the component, not its entity":
+    { note: "Delete on a selected component removes that component, not the whole entity." },
+  "fix(editor): record asset assignments before loading their previews":
+    { note: "Asset slots keep your latest choice when previews load slowly." },
+  "fix(editor): keep asset drops and undo in the order they were made":
+    { note: "Asset slots keep your latest choice when previews load slowly." },
+  "fix(editor): unify authoring dropdowns and nested keyboard navigation":
+    { note: "Terrain, script graph, sound event and world rule dropdowns follow the editor theme." },
+  "fix(project): ship consistent authoring dropdowns":
+    { note: "Terrain, script graph, sound event and world rule dropdowns follow the editor theme." },
+  "fix(editor): align dropdown styling and keep long choices readable":
+    { note: "Editor dropdowns keep long choices readable in narrow panels." },
+  "fix(project): apply the editor dropdown theme to mixer controls":
+    { note: "Editor dropdowns keep long choices readable in narrow panels." },
+  "fix(i18n): load and order editor locale tables like the runtime":
+    { note: "The editor's language preview now resolves overlapping translations in the same order as the exported game." },
+  "fix(editor): match locale table overrides to exported games":
+    { note: "The editor's language preview now resolves overlapping translations in the same order as the exported game." },
+  "fix(editor): keep the module status dropdown readable in short windows":
+    { note: "The status bar’s Modules dropdown keeps the full report within reach." },
+  "fix(editor): ship the status bar module report":
+    { note: "The status bar’s Modules dropdown keeps the full report within reach." },
+  "fix(editor): recover project documents and rebuild their runtime assets":
+    { note: "Crash recovery now restores the assets a project actually uses." },
+  "fix(project): ship project-scoped document recovery":
+    { note: "Crash recovery now restores the assets a project actually uses." },
+  "fix(editor): preserve and compare recovery copies across sessions":
+    { note: "The editor keeps separate recovery copies when you reopen a project and continue editing the same file." },
+  "fix(project): ship versioned editor recovery copies":
+    { note: "The editor keeps separate recovery copies when you reopen a project and continue editing the same file." },
+  "fix(editor): reload texture import edits with their dependent materials":
+    { note: "Texture import edits now update the open scene as soon as the replacement is ready." },
+  "fix(editor): keep texture import previews consistent with exported scenes":
+    { note: "Texture import edits now update the open scene as soon as the replacement is ready." },
+  "fix(editor): refuse a value between the steps of an effect's switch":
+    { note: "A post effect's switch takes only the values it has." },
+  "fix(foliage): cells standing when a field changes its material draw with a live instance":
+    { note: "Grass and plants keep their material when a Foliage field's material is changed." },
+  "fix(editor): unify hierarchy sorting and column menus":
+    { note: "The scene hierarchy’s sort and column menus show their choices consistently." },
+  "fix(editor): ship consistent hierarchy dropdowns":
+    { note: "The scene hierarchy’s sort and column menus show their choices consistently." },
+  "perf(assets): index live sampler variants by source":
+    { note: "Batch hot updates find each animation or tilemap's sampler variants by source file." },
+  "fix(editor): show the assigned asset in pickers across reference formats":
+    { note: "Asset pickers show the assigned file in scenes saved with a path or UUID." },
+  "fix(assets): resolve indexed references consistently in streamed world builds":
+    { note: "Asset pickers show the assigned file in scenes saved with a path or UUID." },
+  "fix(editor): distinguish asset choices and filter animation fields by runtime":
+    { note: "The inspector shows which asset you are choosing, even when files share a name." },
+  "fix(assets): share scene handle and reference rules with the editor":
+    { note: "The inspector shows which asset you are choosing, even when files share a name." },
+  "fix(editor): align inspector dropdowns and focus filtered choices":
+    { note: "Inspector dropdowns align with the other property fields in wide and narrow docks." },
+  "fix(project): ship aligned inspector dropdown fields":
+    { note: "Inspector dropdowns align with the other property fields in wide and narrow docks." },
+  "fix(assets): resolve live texture assignments with their owning scene":
+    { note: "Runtime texture assignments use the entity's scene settings." },
+  "feat(editor): close and reopen a project from MCP through the menu's own door":
+    { note: "An agent can close the open project, or close it and open it again from disk, with `close_project` and `reopen_project`." },
+  "fix(editor): follow active mesh lighting bakes on reimport":
+    { note: "A model’s Dynamic GI import setting now applies to the edit viewport, Play and exported games." },
+  "fix(gi): withdraw inactive mesh bakes across imports and runtimes":
+    { note: "A model’s Dynamic GI import setting now applies to the edit viewport, Play and exported games." },
+  "fix(pipeline): preserve Photoshop layer identities on reimport":
+    { note: "Scene edits stay on their Photoshop layers when a PSD or PSB is reimported." },
+  "fix(prefab): retain the targets picked on nested and added instance members":
+    { note: "Prefab instances remember which entity you picked after saving, reopening and running a scene." },
+  "fix(editor): keep prefab instances linked through scene edits":
+    { note: "Duplicated and restored prefab instances keep their link to the source asset." },
+  "fix(prefab): preserve instance identity across editor operations":
+    { note: "Duplicated and restored prefab instances keep their link to the source asset." },
+  "feat(editor): show prefabs as their contents in the Content Browser and Details":
+    { note: "Prefabs show what they contain in the Content Browser and the Details panel." },
+  "feat(render): draw a whole world into the preview target, screen UI included":
+    { note: "Prefabs show what they contain in the Content Browser and the Details panel." },
+  "fix(prefab): preserve references to scene instance roots":
+    { note: "Scene references keep their prefab root when a scene reopens." },
+  "fix(editor): distinguish same-named entity targets in dropdowns":
+    { note: "Scene references keep their prefab root when a scene reopens." },
+  "fix(editor): light a prefab that brings no light with the studio rig":
+    { note: "A model prefab no longer shows black in Prefab Mode or in its thumbnail." },
+  "fix(render): a preview picture is lit as its caller says, not as the viewport is":
+    { note: "A model prefab no longer shows black in Prefab Mode or in its thumbnail." },
+  "fix(editor): publish prefab edits without replacing the scene instance":
+    { note: "Applying a prefab or creating a variant preserves the scene instance and its bindings." },
+  "fix(prefab): keep scene bindings when publishing instance edits":
+    { note: "Applying a prefab or creating a variant preserves the scene instance and its bindings." },
+  "fix(recording): follow the render surface of the recording app":
+    { note: "Web recordings capture the game canvas that belongs to the running app." },
+  "fix(editor): author registered animation and graph names in asset slots":
+    { note: "Animation and graph pickers accept names registered by game code." },
+  "fix(assets): preserve registered names across scene and motion loading":
+    { note: "Animation and graph pickers accept names registered by game code." },
+  "fix(input): bind browser controls to the render canvas":
+    { note: "Mouse, touch and wheel input follow the game canvas on pages with multiple previews." },
+  "fix(i18n): publish prepared scene translations with their owning scene":
+    { note: "Preloading a localized 2D or 3D scene keeps the current scene’s captions and language intact." },
+  "fix(project): keep startup and export scenes bound across asset moves":
+    { note: "Moving a scene or prefab keeps the editor saving to its new location." },
+  "fix(editor): keep open documents and recovery bound across asset moves":
+    { note: "Moving a scene or prefab keeps the editor saving to its new location." },
+  "fix(scene): prepare destination content before retiring the active scene":
+    { note: "A failed scene switch or reload keeps the current game running when the destination content cannot be prepared." },
+  "fix(assets): isolate texture sampling for prepared scenes":
+    { note: "Preloading a scene preserves the current scene's texture sampling." },
+  "fix(logic): spawn graph prefabs with the agent's scene and asset ownership":
+    { note: "Visual scripts can share a prefab across additive scenes with different texture settings." },
+  "fix(editor): keep long action menus inside the viewport":
+    { note: "Long editor action menus fit inside short windows." },
+  "feat(pipeline): share source asset imports with the editor":
+    { note: "The editor and command line use the same settings to import source assets." },
+  "fix(editor): refresh imported products from source metadata":
+    { note: "The editor and command line use the same settings to import source assets." },
+  "fix(postprocess): the sky atmosphere absorbs light in its ozone layer":
+    { note: "A low sun's sky lights the scene blue, not olive." },
+  "fix(editor): show live next-draw chances for sound events":
+    { note: "Sound events recognize alternate references to the same clip when avoiding repeats." },
+  "fix(audio): group sound event variants by resolved clip identity":
+    { note: "Sound events recognize alternate references to the same clip when avoiding repeats." },
+  "fix(editor): keep generated assets current across import and export":
+    { note: "Play and export now wait for source imports to finish." },
+  "fix(editor): finish source reimports before play and export":
+    { note: "Play and export now wait for source imports to finish." },
+  "fix(postprocess): screen-space reflections find what the picture shows, however far":
+    { note: "Puddles and mirrors reflect the street, not only the sky." },
+  "fix(editor): keep toolbar and inspector dropdowns anchored":
+    { note: "The editor keeps dropdowns within reach while you filter options or change your target screen." },
+  "fix(editor): ship consistent toolbar and inspector dropdowns":
+    { note: "The editor keeps dropdowns within reach while you filter options or change your target screen." },
+  "fix(timeline): keep prefab spawn tracks with their player across additive scenes":
+    { note: "Timeline spawn tracks give their prefab instances to the player's scene." },
+  "fix(timeline): prepare spawn clips with their scene's texture settings":
+    { note: "Timeline spawn clips use their scene's texture settings from the first frame." },
+  "fix(editor): keep scene shortcuts out of title bar menus":
+    { note: "Browsing a title bar menu keeps Delete, Duplicate and Undo from changing the scene underneath." },
+  "fix(editor): ship shared title bar command menus":
+    { note: "Browsing a title bar menu keeps Delete, Duplicate and Undo from changing the scene underneath." },
+  "fix(editor): preserve unavailable prefab instances when editing scenes":
+    { note: "Saving a scene keeps its prefab instances when a source or a nested dependency is unavailable." },
+  "fix(prefab): share prefab source resolution across editing and play":
+    { note: "Saving a scene keeps its prefab instances when a source or a nested dependency is unavailable." },
+  "fix(editor): keep viewport dropdowns visible and keyboard accessible":
+    { note: "Scene and Game view dropdowns keep every choice within reach in small windows." },
+  "fix(project): update the scene and game view dropdowns":
+    { note: "Scene and Game view dropdowns keep every choice within reach in small windows." },
+  "fix(editor): keep tile layer and tileset actions within the window":
+    { note: "Scene and Game view dropdowns keep every choice within reach in small windows." },
+  "fix(project): update the tile layer and tileset menus":
+    { note: "Scene and Game view dropdowns keep every choice within reach in small windows." },
+  "fix(sdk): mark the planet module's definitions pure so a blank package drops it":
+    { internal: "A blank mini-game package carried the planet code for a few unreleased commits, when the render origin's chunk moved in with it; the planet module's top-level definitions are marked pure and it is dropped again. Nothing released carried it." },
+  "fix(editor): give IconButton its own aria-controls prop for the animator joint picker":
+    { internal: "A blank mini-game package carried the planet code for a few unreleased commits, when the render origin's chunk moved in with it; the planet module's top-level definitions are marked pure and it is dropped again. Nothing released carried it." },
+  "fix(sequencer): honor authored wrap modes and fit timeline settings to the dock":
+    { note: "The Sequencer previews clips in their authored Once, Loop or Ping-pong mode." },
+  "fix(editor): align timeline preview and settings with the authored clip":
+    { note: "The Sequencer previews clips in their authored Once, Loop or Ping-pong mode." },
 };
