@@ -151,12 +151,13 @@ a slower clock from time dilation is visible only in Play.
 **Render** in the Sequencer header renders the timeline to images. The dialog sets the frame rate (24, 30 or 60), the
 format (**MP4**, **WebM** or **PNG frames**) and the range (**From**, **To**).
 
-The render plays the game, not the preview: the preview root's `TimelinePlayer` plays in Play mode with every game
-system running, and the game is paused and stepped exactly one render frame at a time, each frame read back from the
-game canvas. The output is therefore identical on every run, independent of machine speed. Frames are written to
-`renders/<timeline>-<time>/frame_00000.png` in the project and the video to `renders/<timeline>-<time>.mp4`, encoded
-with the ffmpeg bundled with the editor. Play mode is restored afterwards; **Cancel** stops between frames. The render
-requires a `TimelinePlayer` on the preview root that plays the timeline.
+**Render** captures the open clip, including unsaved keys. The preview root must have a `TimelinePlayer` bound to
+that clip. A separate game instance renders its canvas at **From**, then advances one frame at the chosen rate
+for each subsequent PNG. You can render while your Play session is running or paused.
+
+Each render creates its own folder under `renders/`, with files starting at `frame_00000.png`. For video formats the
+bundled ffmpeg writes an MP4 or WebM beside that folder. **Cancel** keeps the frames already written.
+
 ## Editing through an agent
 
 An agent driving the editor over [MCP](/docs/agents/mcp/) edits timelines with the Sequencer's own commands in the

@@ -23,6 +23,8 @@ import { defineComponent } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { SceneData } from '../src/scene/scene';
 import { decodeMesh, type MeshData } from '../src/asset/meshFormat';
+import { setPlatform } from '../src/platform/base';
+import { webAdapter } from '../src/platform/web';
 
 // A project's own component, which is the case only Play can catch: a cook loads
 // the engine's registry and never sees this one, so the cross-cell reference it
@@ -134,16 +136,33 @@ describe('what Play hands the shipping runtime', () => {
         initRuntime.mockClear();
         vi.stubGlobal('fetch', refuseFetch);
         await initPlayRealmRuntime({
-            ...extra,
             app: { enableStats: vi.fn(), run: vi.fn(), signal: new AbortController().signal } as never,
             module: {} as never,
             canvas: { width: 800, height: 600 } as never,
             sceneData: data,
             entrySceneName: 'main',
             assetManifest: {},
+            ...extra,
         });
         return initRuntime.mock.calls[0][0] as RuntimeInitConfig;
     }
+
+    it('loads the captured text through path and UUID refs in its own game instance', async () => {
+        const path = 'assets/motion/shot.estimeline';
+        const url = 'estella://project/' + path;
+        const contents = '{"name":"镜头"}\n';
+        const options = { assetBaseUrl: 'estella://project', assetManifest: { abc: url } };
+        const { source } = await boot(scene(), { ...options, assetDocuments: [{ path, contents }] });
+        expect(await source.backend.fetchText(path)).toBe(contents);
+        expect(await source.backend.fetchBinary(source.resolveRef!('@uuid:abc'))).toEqual(new TextEncoder().encode(contents).buffer);
+        const standalone = await boot(scene(), options);
+        setPlatform(webAdapter);
+        const fetchFile = vi.fn(() => Promise.resolve(new Response('saved')));
+        vi.stubGlobal('fetch', fetchFile);
+        expect(await standalone.source.backend.fetchText(url)).toBe('saved');
+        expect(await source.backend.fetchText('estella://project/other.json')).toBe('saved');
+        expect(fetchFile).toHaveBeenCalledTimes(2);
+    });
 
     it('checks declared achievements in Play using its local provider', async () => {
         const settings = { achievements: ['FIRST_MAP'], steamAppId: 42 };

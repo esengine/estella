@@ -50,6 +50,8 @@ export interface PlayRealmRuntimeConfig extends RuntimeProjectSettings {
     entrySceneName?: string;
     /** Lowercased uuid → fetchable URL (e.g. `estella://project/<path>`). */
     assetManifest: Record<string, string>;
+    /** Authored text files captured with the scene. Load them at their normal paths, including by UUID. */
+    assetDocuments?: readonly { path: string; contents: string }[];
     /**
      * Logical (source) path → fetchable staged path, for cooked builds whose
      * content-addressed staging renamed the physical files. Path-style refs
@@ -169,8 +171,7 @@ export function playRealmTextureSettings(
     };
 }
 
-/** An http backend that answers some paths from memory: what Play made itself, like a world's far proxy meshes. */
-/** What Play makes itself and serves under package paths: bytes already made, and bytes made the first time they are asked for. */
+/** Game-local files served under their normal asset paths, including captured documents and generated far proxies. */
 export interface PlayMade {
     bytes: Map<string, Uint8Array>;
     later: Map<string, () => Promise<Uint8Array | null>>;
@@ -210,7 +211,7 @@ function createPlayRealmSource(
     addressable?: AddressableManifest | null,
     compressedTexture?: RuntimeAssetSource['compressedTexture'],
     made: PlayMade = { bytes: new Map(), later: new Map() },
-): RuntimeAssetSource {
+) {
     const backend = new OverlayBackend(made);
     const base = assetBaseUrl?.replace(/\/$/, '');
     return {
@@ -230,7 +231,7 @@ function createPlayRealmSource(
         // manifest — the same fields a cooked build reads, so Play and ship
         // cannot disagree about what an author promised.
         ...(addressable ? withUrlSettings(manifestBackedSettings(addressable), manifest, assetBaseUrl) : {}),
-    };
+    } satisfies RuntimeAssetSource;
 }
 
 function withUrlSettings(settings: Partial<RuntimeAssetSource>, manifest: Record<string, string>, assetBaseUrl?: string): Partial<RuntimeAssetSource> {
@@ -323,7 +324,12 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     const made: PlayMade = { bytes: new Map(), later: new Map() };
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
                                          config.compressedTexture, made);
-    const resolveRef = (ref: string) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap);
+    const resolveRef = source.resolveRef;
+    for (const { path, contents } of config.assetDocuments ?? []) {
+        const bytes = new TextEncoder().encode(contents);
+        made.bytes.set(path, bytes);
+        made.bytes.set(resolveRef(path), bytes);
+    }
     applyAssetRefResolvers(app, resolveRef);
     const entryName = config.entrySceneName ?? '__play';
     await initRuntime({
