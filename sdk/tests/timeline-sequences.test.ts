@@ -51,6 +51,22 @@ describe('camera shots', () => {
         expect(backward).toEqual(forward);
     });
 
+    it('chooses the last two live shots by start time and keeps author order for equal starts', () => {
+        const picture = (camera: string, start: number, duration: number, curve?: number): CameraClip =>
+            ({ camera, start, duration, curve });
+        const clips = [
+            picture('Second', 2, 3),
+            picture('Older', 0, 8),
+            picture('Third', 2, 1, 0),
+            picture('', 2.5, 2),
+            picture('Ended', 2.25, 0.125),
+            picture('Instant', 3, 0, 2),
+        ];
+        expect(resolveShot(clips, 2.5)).toEqual({ from: 'Second', to: 'Third', weight: 1 / 6, curve: 0 });
+        expect(resolveShot(clips, 3)).toEqual({ from: 'Second', to: 'Instant', weight: 0, curve: 2 });
+        expect(resolveShot(clips, 3.5)).toEqual({ from: 'Older', to: 'Second', weight: 0.25, curve: 3 });
+    });
+
     it('the outermost timeline with an answer wins', () => {
         const child = host(2, camTrack({ start: 0, duration: 2, camera: 'Inner' }));
         const lookup = (ref: string) => (ref === 'child' ? child : undefined);

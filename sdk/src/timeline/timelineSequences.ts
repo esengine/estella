@@ -98,12 +98,20 @@ export interface ShotState {
  * No clip over `time` is no answer (null): the scene's own camera takes over.
  */
 export function resolveShot(clips: readonly CameraClip[], time: number): ShotState | null {
-    const live = clips
-        .filter((c) => c.camera && time >= c.start && (time < c.start + c.duration || (c.duration === 0 && time === c.start)))
-        .sort((a, b) => a.start - b.start);
-    if (live.length === 0) return null;
-    const to = live[live.length - 1]!;
-    const from = live.length > 1 ? live[live.length - 2]! : null;
+    let to: CameraClip | undefined;
+    let from: CameraClip | undefined;
+    for (const clip of clips) {
+        if (!clip?.camera || !(time >= clip.start && (time < clip.start + clip.duration
+            || (clip.duration === 0 && time === clip.start)))) continue;
+        // Later entries win when clips have the same start.
+        if (!to || clip.start >= to.start) {
+            from = to;
+            to = clip;
+        } else if (!from || clip.start >= from.start) {
+            from = clip;
+        }
+    }
+    if (!to) return null;
     if (!from) return { from: null, to: to.camera, weight: 1, curve: to.curve ?? 3 };
     const overlap = from.start + from.duration - to.start;
     const weight = overlap > 0 ? Math.min(1, Math.max(0, (time - to.start) / overlap)) : 1;
