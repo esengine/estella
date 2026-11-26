@@ -20,9 +20,12 @@ inline f32 hashUnit(u32 v) {
 }
 
 /// Smooth noise in [0, 1] along @p x: a value per whole step, eased between.
-inline f32 valueNoise(f32 x, u32 seed) {
-    const f32 cell = std::floor(x);
-    const f32 f = x - cell;
+inline f32 valueNoise(f64 x, u32 seed) {
+    // The hash addresses a 32-bit lattice. Bound the cell before narrowing.
+    constexpr f64 period = 4294967296.0;
+    if (std::abs(x) >= period) x = std::fmod(x, period);
+    const f64 cell = std::floor(x);
+    const f32 f = static_cast<f32>(x - cell);
     const f32 ease = f * f * (3.0f - 2.0f * f);
     const u32 i = static_cast<u32>(static_cast<i64>(cell));
     const f32 a = hashUnit(i ^ (seed * 2654435761u));
@@ -39,17 +42,21 @@ inline f32 valueNoise(f32 x, u32 seed) {
  */
 inline f32 lightPulseFactor(const ecs::Light& light, f32 seconds, u32 seed) {
     const auto kind = static_cast<ecs::LightPulse>(light.pulse);
+    if (kind == ecs::LightPulse::None) return 1.0f;
     const f32 rate = std::isfinite(light.pulseRate) ? std::max(light.pulseRate, 0.0f) : 0.0f;
     const f32 depth = std::isfinite(light.pulseDepth) ? std::clamp(light.pulseDepth, 0.0f, 1.0f) : 0.0f;
-    if (kind == ecs::LightPulse::None || rate <= 0.0f || depth <= 0.0f || !std::isfinite(seconds)) return 1.0f;
+    if (rate <= 0.0f || depth <= 0.0f || !std::isfinite(seconds)) return 1.0f;
+    const f64 cycles = static_cast<f64>(seconds) * static_cast<f64>(rate);
     f32 dip = 0.0f;  // 0 at full brightness, 1 at the bottom
     if (kind == ecs::LightPulse::Sine) {
-        const f32 phase = light_pulse_detail::hashUnit(seed) * 6.28318530718f;
-        dip = 0.5f - 0.5f * std::cos(6.28318530718f * rate * seconds + phase);
+        constexpr f32 turn = 6.28318530718f;
+        const f32 cycle = static_cast<f32>(cycles - std::floor(cycles));
+        const f32 phase = (cycle + light_pulse_detail::hashUnit(seed)) * turn;
+        dip = 0.5f - 0.5f * std::cos(phase);
     } else {
         // Two octaves: the slow wander a flame has, and the quicker jitter on top of it.
-        const f32 x = seconds * rate;
-        dip = 0.65f * light_pulse_detail::valueNoise(x, seed) + 0.35f * light_pulse_detail::valueNoise(x * 2.7f + 17.0f, seed + 1u);
+        dip = 0.65f * light_pulse_detail::valueNoise(cycles, seed)
+            + 0.35f * light_pulse_detail::valueNoise(cycles * 2.7 + 17.0, seed + 1u);
     }
     return 1.0f - depth * std::clamp(dip, 0.0f, 1.0f);
 }

@@ -10,6 +10,7 @@
 #include <esengine/renderer/LightPulse.hpp>
 
 #include <algorithm>
+#include <limits>
 
 using namespace esengine;
 
@@ -51,6 +52,27 @@ TEST_CASE("a sine pulse repeats at its rate") {
     for (f32 t : {0.1f, 0.37f, 1.9f}) CHECK(std::abs(lightPulseFactor(l, t, 3u) - lightPulseFactor(l, t + 0.5f, 3u)) < 1e-3f);
 }
 
+TEST_CASE("finite clocks and rates always produce a finite pulse in range") {
+    const f32 large = std::numeric_limits<f32>::max();
+    for (const auto kind : {ecs::LightPulse::Sine, ecs::LightPulse::Flicker}) {
+        for (const f32 t : {-large, -1.0e20f, 1.0e20f, large}) {
+            for (const f32 rate : {2.0f, large}) {
+                const f32 factor = lightPulseFactor(pulsing(kind, rate, 0.6f), t, 5u);
+                CHECK(std::isfinite(factor));
+                CHECK(factor >= 0.4f - 1e-6f);
+                CHECK(factor <= 1.0f);
+            }
+        }
+    }
+}
+
+TEST_CASE("a long-running sine pulse keeps the same phase as its fractional cycle") {
+    const ecs::Light l = pulsing(ecs::LightPulse::Sine, 2.5f, 1.0f);
+    const f32 referenceTime = 0.25f;
+    for (const f32 t : {1'000'000.25f, -999'999.75f}) {
+        CHECK(lightPulseFactor(l, t, 3u) == doctest::Approx(lightPulseFactor(l, referenceTime, 3u)).epsilon(1e-4));
+    }
+}
 TEST_CASE("a flicker moves without jumps") {
     const ecs::Light l = pulsing(ecs::LightPulse::Flicker, 4.0f, 1.0f);
     f32 widest = 0.0f;
