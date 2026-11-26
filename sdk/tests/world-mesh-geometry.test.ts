@@ -21,6 +21,32 @@ function scene(size: number): SceneData {
 }
 
 describe('inline mesh geometry', () => {
+    it.skipIf(!HAS_WASM)('does not save an earlier mesh after removing and adding the component again', async () => {
+        const engine = await loadWasmModule();
+        const app = App.new();
+        try {
+            const registry = new engine.Registry();
+            app.connectCpp(registry, engine, { ownedRegistry: true });
+            app.addPlugin(meshRendererPlugin);
+            const entity = app.world.spawn('Replace mesh'), api = app.getResource(MeshRenderers);
+            app.world.insert(entity, MeshRenderer);
+            api.setGeometry(entity, triangle(3));
+            app.world.update(entity, MeshRenderer, mesh => { mesh.enabled = false; });
+            expect(api.getGeometry(entity)).toEqual(triangle(3));
+
+            app.world.remove(entity, MeshRenderer);
+            expect(api.hasGeometry(entity)).toBe(false);
+            app.world.insert(entity, MeshRenderer);
+            expect(engine.meshRenderer_localBounds!(registry, entity)).toBeNull();
+            const saved = serializeScene(app.world);
+            expect(saved.entities[0].components.find(c => c.type === 'MeshRenderer')!.data.geometry).toBeUndefined();
+            const reloaded = loadSceneData(app.world, saved).get(entity)!;
+            expect(engine.meshRenderer_localBounds!(registry, reloaded)).toBeNull();
+            api.setGeometry(entity, triangle(7));
+            expect(api.getGeometry(entity)).toEqual(triangle(7));
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
     it.skipIf(!HAS_WASM)('keeps the last accepted geometry when the core rejects an upload', async () => {
         const engine = await loadWasmModule();
         const app = App.new();

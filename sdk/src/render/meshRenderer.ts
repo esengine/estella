@@ -12,7 +12,7 @@ import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
-import type { MeshRendererGeometry } from '../ecs/component';
+import { MeshRenderer, type MeshRendererGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
 import { registerWorldSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
@@ -102,6 +102,11 @@ export class MeshRendererAPI {
     clearGeometry(entity: Entity): void {
         const upload = this.module_.meshRenderer_trySetGeometry ?? this.module_.meshRenderer_setGeometry;
         upload?.(this.registry_, entity, 0, 0, 0, 0, 0);
+        this.forgetGeometry(entity);
+    }
+
+    /** @internal Release the retained copy of inline geometry. */
+    forgetGeometry(entity: Entity): void {
         this.authored_.delete(entity);
     }
 
@@ -140,6 +145,7 @@ export class MeshRendererPlugin implements Plugin {
         cleanups.push(app.world.onDespawn((entity: Entity) => {
             if (api.hasGeometry(entity)) api.clearGeometry(entity);
         }));
+        cleanups.push(app.world.onComponentRemoval(MeshRenderer, entity => api.forgetGeometry(entity)));
 
         // The geometry payload is authored in the component data but isn't a C++
         // field — carry it out-of-band and upload it through the validated entry

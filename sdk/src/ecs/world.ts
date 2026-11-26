@@ -247,6 +247,7 @@ export class World {
     private nextEntityIndex_ = 0;  // pure-JS fallback: monotonic index counter
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
+    private componentRemovalObservers_?: Map<symbol, Array<(entity: Entity) => void>>;
     private assetFieldResolver_: AssetFieldResolver | null = null;
     private assetFieldObservers_?: Set<(entity: Entity, component: AnyComponentDef) => void>;
     private pendingAssetFields_?: PendingAssetFields;
@@ -710,6 +711,20 @@ export class World {
         return () => {
             const idx = this.despawnCallbacks_.indexOf(callback);
             if (idx !== -1) this.despawnCallbacks_ = this.despawnCallbacks_.filter((_, i) => i !== idx);
+        };
+    }
+
+    /** @internal Release component-owned data on explicit removal through the World. */
+    onComponentRemoval(component: AnyComponentDef, callback: (entity: Entity) => void): () => void {
+        this.componentRemovalObservers_ ??= new Map();
+        const observers = this.componentRemovalObservers_;
+        const key = component._id;
+        observers.set(key, [...(observers.get(key) ?? []), callback]);
+        return () => {
+            const current = observers.get(key);
+            const next = current?.filter(observer => observer !== callback);
+            if (next?.length) observers.set(key, next);
+            else observers.delete(key);
         };
     }
 
@@ -1384,10 +1399,7 @@ export class World {
         if (isBuiltinComponent(component)) {
             this.builtin_.remove(entity, component);
             this.pendingAssetFields_?.supersede(entity, component);
-            this.changes_.recordRemoved(component, entity);
-            this.queries_.markComponentDirty(component._id);
-            this.queries_.markStructuralChange();
-            if (this.notifyAssetFields_(entity, component)) notifyBridge(this, 'onComponentRemoved', entity, component._name);
+            this.finishComponentRemoval_(entity, component);
         } else {
             this.removeScript_(entity, component as ComponentDef<any>);
         }
@@ -1434,9 +1446,22 @@ export class World {
         }
         this.scripts_.remove(entity, component);
         if (component._id === Disabled._id) this.builtin_.getCppRegistry()?.setEntityEnabled?.(entity, true);
+        this.finishComponentRemoval_(entity, component);
+    }
+
+    private finishComponentRemoval_(entity: Entity, component: AnyComponentDef): void {
         this.changes_.recordRemoved(component, entity);
         this.queries_.markComponentDirty(component._id);
         this.queries_.markStructuralChange();
+        const observers = this.componentRemovalObservers_?.get(component._id);
+        if (observers) {
+            const lifetime = this.entityLifetime;
+            for (const observer of observers) {
+                try { observer(entity); }
+                catch (error) { log.warn('world', `Component removal observer failed for ${component._name}`, error); }
+                if (this.entityLifetime !== lifetime) return;
+            }
+        }
         if (this.notifyAssetFields_(entity, component)) notifyBridge(this, 'onComponentRemoved', entity, component._name);
     }
 
