@@ -916,6 +916,17 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
     importComponentData(world, entity, compData, 'replace', entityName);
 }
 
+/** @internal The authored view of a component, with its live-only fields omitted. */
+export function withoutTransientComponentFields(
+    component: AnyComponentDef, data: Record<string, unknown>,
+): Record<string, unknown> {
+    const fields = component.transientFields;
+    if (!fields?.some(field => field in data)) return data;
+    const authored = { ...data };
+    for (const field of fields) delete authored[field];
+    return authored;
+}
+
 /** Authored scenes contain whole components. Replication baselines supply partial
  *  records to the same validation and codec pipeline. */
 export function importComponentData(
@@ -931,10 +942,9 @@ export function importComponentData(
         return false;
     }
 
-    if (mode === 'replace' && comp.transientFields?.some(field => field in compData.data)) {
-        const data = { ...compData.data };
-        for (const field of comp.transientFields) delete data[field];
-        compData = { ...compData, data };
+    if (mode === 'replace') {
+        const data = withoutTransientComponentFields(comp, compData.data);
+        if (data !== compData.data) compData = { ...compData, data };
     }
 
     // Strip out-of-band fields (e.g. TilemapLayer's tile-chunk blob) before
@@ -1031,8 +1041,8 @@ export function visitSerializedComponents(
         // tryGet returns a fresh object for builtins (convertFromWasm) but the LIVE
         // stored object for script components — clone the latter so the snapshot
         // doesn't alias running-world state (and exportData below can't mutate it).
-        const payload = (comp._builtin ? data : deepClone(data)) as Record<string, unknown>;
-        if (comp.transientFields) for (const field of comp.transientFields) delete payload[field];
+        const authored = withoutTransientComponentFields(comp, data as Record<string, unknown>);
+        const payload = comp._builtin ? authored : deepClone(authored);
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);

@@ -5,6 +5,7 @@ import { entityIndex } from '../src/types';
 import { World } from '../src/ecs/world';
 import { Sprite, MeshRenderer, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
+import { TextInput } from '../src/ui/text/text-input';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
 import { hasVisibility, isEntityVisible, setEntityVisible } from '../src/ecs/entityUtils';
 import { serializeScene } from '../src/scene/scene';
@@ -13,6 +14,25 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () => {
     let module: ESEngineModule;
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+
+    it('inspects authored text without carrying live input focus into scene edits', () => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        try {
+            const field = world.spawn('Search');
+            world.insert(field, TextInput, { value: 'Estella', focused: true });
+
+            const details = worldSnapshot(app, field, false).selected?.components.find(c => c.type === 'TextInput');
+            const full = worldSnapshot(app, field, true).selected?.components.find(c => c.type === 'TextInput');
+            const saved = serializeScene(world).entities[0].components.find(c => c.type === 'TextInput');
+            expect(details).toEqual(saved);
+            expect(full).toEqual(saved);
+            expect(details?.data).toMatchObject({ value: 'Estella' });
+            expect(details?.data).not.toHaveProperty('focused');
+            expect(world.get(field, TextInput).focused).toBe(true);
+        } finally { world.disconnectCpp(); registry.delete(); }
+    });
 
     it.each(['Sprite', 'MeshRenderer'] as const)('includes a native-added %s in selected component data', (type) => {
         const registry = new module.Registry(), world = new World();
