@@ -4,7 +4,7 @@
  * @file  An eye of a headset put where the game's camera stands: the rig's position and heading, then the eye's own pose.
  */
 import { describe, expect, it } from 'vitest';
-import { headingOf, placeEye } from '../src/xr/xrPresentation';
+import { headingOf, placeEye, sharedEyeView } from '../src/xr/xrPresentation';
 import { perspective } from '../src/math/mat4';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
@@ -84,5 +84,49 @@ describe('placeEye', () => {
         const [wx, wy] = ndc(far.viewProjection, [10000, 0, -10]);
         expect(nx).toBeCloseTo(wx, 5);
         expect(ny).toBeCloseTo(wy, 5);
+    });
+});
+
+/** An eye's asymmetric projection, as a headset gives it: wider on its outer side. */
+function eyeProjection(left: number, right: number, bottom: number, top: number, near: number, far: number): Float32Array {
+    const l = left * near, r = right * near, b = bottom * near, t = top * near;
+    const p = new Float32Array(16);
+    p[0] = (2 * near) / (r - l); p[5] = (2 * near) / (t - b); p[8] = (r + l) / (r - l); p[9] = (t + b) / (t - b);
+    p[10] = -(far + near) / (far - near); p[11] = -1; p[14] = (-2 * far * near) / (far - near);
+    return p;
+}
+
+/** Whether a world point is inside a view-projection's clip volume. */
+function inside(vp: Float32Array, p: [number, number, number]): boolean {
+    const c = [0, 1, 2, 3].map((r) => vp[r]! * p[0] + vp[4 + r]! * p[1] + vp[8 + r]! * p[2] + vp[12 + r]!);
+    const w = c[3]!;
+    return w > 0 && Math.abs(c[0]!) <= w * 1.0001 && Math.abs(c[1]!) <= w * 1.0001 && Math.abs(c[2]!) <= w * 1.0001;
+}
+
+describe('sharedEyeView', () => {
+    const rig = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const identity = { x: 0, y: 0, z: 0, w: 1 };
+    // Each eye sees further out than in (1.2 vs 0.8), as a headset's lenses do.
+    const leftEye = { position: { x: -0.032, y: 0, z: 0 }, orientation: identity, projection: eyeProjection(-1.2, 0.8, -1, 1, 0.1, 100) };
+    const rightEye = { position: { x: 0.032, y: 0, z: 0 }, orientation: identity, projection: eyeProjection(-0.8, 1.2, -1, 1, 0.1, 100) };
+
+    it('sees what either eye sees at its outer edge, from the middle of the head', () => {
+        const shared = sharedEyeView(rig, [leftEye, rightEye], 1)!;
+        // The far left of the left eye's field and the far right of the right eye's, ten metres out.
+        expect(inside(shared, [-0.032 - 1.19 * 10, 0, -10])).toBe(true);
+        expect(inside(shared, [0.032 + 1.19 * 10, 0, -10])).toBe(true);
+        // And not what neither does.
+        expect(inside(shared, [-1.4 * 10, 0, -10])).toBe(false);
+        expect(inside(shared, [0, 0, 10])).toBe(false);
+    });
+
+    it("keeps the eyes' clip planes, and is one view for one pair of eyes", () => {
+        const shared = sharedEyeView(rig, [leftEye, rightEye], 1)!;
+        expect(inside(shared, [0, 0, -0.11])).toBe(true);
+        expect(inside(shared, [0, 0, -0.09])).toBe(false);
+        expect(inside(shared, [0, 0, -99])).toBe(true);
+        expect(inside(shared, [0, 0, -110])).toBe(false);
+        expect(Array.from(sharedEyeView(rig, [leftEye, rightEye], 1)!)).toEqual(Array.from(shared));
+        expect(sharedEyeView(rig, [], 1)).toBeNull();
     });
 });

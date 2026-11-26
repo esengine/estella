@@ -304,10 +304,12 @@ export interface NativeEngineApi {
     renderer_setScreenTarget?(nativeName: number): number;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
+    renderer_setShadowView?(matrixPtr: number): void;
     renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
     renderer_setSkyEnvironment?(environmentHandle: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTargetPoolIdleBudget?(megabytes: number): void;
+    renderer_setTemporalView?(view: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setTreeSortLayers?(mask: number): void;
     renderer_setViewId?(view: number): void;
@@ -766,10 +768,12 @@ export function createNativeEngineApi(
     bind('renderer_setScreenTarget', 'es_renderer_setScreenTarget', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
+    bind('renderer_setShadowView', 'es_renderer_setShadowView', false);
     bind('renderer_setSkinCache', 'es_renderer_setSkinCache', false);
     bind('renderer_setSkyEnvironment', 'es_renderer_setSkyEnvironment', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTargetPoolIdleBudget', 'es_renderer_setTargetPoolIdleBudget', false);
+    bind('renderer_setTemporalView', 'es_renderer_setTemporalView', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
     bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);

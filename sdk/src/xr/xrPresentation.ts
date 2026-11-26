@@ -152,3 +152,44 @@ export function placeEye(rig: XRRig, eye: Pick<XREyeView, 'position' | 'orientat
             invertViewQuat(position.x - origin.x, position.y - origin.y, position.z - origin.z, o.x, o.y, o.z, o.w)));
     return { position, orientation, viewProjection, renderViewProjection };
 }
+
+/**
+ * One view that sees everything the eyes see: from the middle of the head, with the union of the eyes' asymmetric fields,
+ * measured from `origin` as the renderer is begun. Shadows are planned for it so both eyes read one atlas: per eye, each
+ * eye's cascades were the other's stale ones and the atlas was drawn twice a frame and never kept.
+ *
+ * The eyes are taken to look the same way, as every headset's do; their fields are unioned in the first eye's orientation.
+ */
+export function sharedEyeView(rig: XRRig, eyes: readonly Pick<XREyeView, 'position' | 'orientation' | 'projection'>[], unitsPerMeter: number,
+    origin: Vec3Like = { x: 0, y: 0, z: 0 }): Float32Array | null {
+    if (eyes.length === 0) return null;
+    let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity, near = Infinity, far = 0;
+    const centre = { x: 0, y: 0, z: 0 };
+    for (const eye of eyes) {
+        const p = eye.projection;
+        // A GL projection's frustum, as tangents of its four sides (x / -z and y / -z at the near plane) and its clip planes.
+        left = Math.min(left, (p[8]! - 1) / p[0]!);
+        right = Math.max(right, (p[8]! + 1) / p[0]!);
+        bottom = Math.min(bottom, (p[9]! - 1) / p[5]!);
+        top = Math.max(top, (p[9]! + 1) / p[5]!);
+        near = Math.min(near, p[14]! / (p[10]! - 1));
+        far = Math.max(far, p[14]! / (p[10]! + 1));
+        centre.x += eye.position.x / eyes.length;
+        centre.y += eye.position.y / eyes.length;
+        centre.z += eye.position.z / eyes.length;
+    }
+    if (!(near > 0) || !(far > near)) return null;
+    const projection = new Float32Array(16);
+    const l = left * near, r = right * near, b = bottom * near, t = top * near;
+    projection[0] = (2 * near) / (r - l);
+    projection[5] = (2 * near) / (t - b);
+    projection[8] = (r + l) / (r - l);
+    projection[9] = (t + b) / (t - b);
+    projection[10] = -(far + near) / (far - near);
+    projection[11] = -1;
+    projection[14] = (-2 * far * near) / (far - near);
+    const placed = placePose(rig, { position: centre, orientation: eyes[0]!.orientation }, unitsPerMeter);
+    const o = placed.orientation, at = placed.position;
+    return Float32Array.from(multiply(projection,
+        invertViewQuat(at.x - origin.x, at.y - origin.y, at.z - origin.z, o.x, o.y, o.z, o.w)));
+}

@@ -1618,6 +1618,22 @@ std::string renderer_getPlanarReflectionStatus(u32 view, u32 entity) {
     return g_renderFrame ? g_renderFrame->planarStatus(view, entity) : "{\"state\":\"unavailable\"}";
 }
 
+void renderer_setShadowView(uintptr_t matrixPtr) {
+    if (!g_renderFrame) return;
+    if (!matrixPtr) {
+        g_renderFrame->setShadowView(nullptr);
+        return;
+    }
+    const f32* data = boundarySpan<f32>(matrixPtr, 16, "renderer_setShadowView.matrix");
+    if (!data) return;
+    const glm::mat4 viewProjection = glm::make_mat4(data);
+    g_renderFrame->setShadowView(&viewProjection);
+}
+
+void renderer_setTemporalView(u32 view) {
+    if (g_renderFrame) g_renderFrame->setTemporalView(view);
+}
+
 void renderer_setShadowDistance(f32 distance) {
     if (g_renderFrame) g_renderFrame->setShadowDistance(distance);
 }

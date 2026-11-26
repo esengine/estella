@@ -67,6 +67,13 @@ gamepad query or binding reaches them. Actions can be bound to them with `XrButt
 and a rebind listens to them too.
 `xrPresentation(app)` reports each controller's poses and what the browser says it is, and the head's pose.
 
+## What two eyes cost
+
+Each eye is drawn on its own: the scene is collected and drawn twice a frame, which is the main cost of VR. Shadows are
+not. They are planned once per frame for a view that covers both eyes, so both eyes read one shadow atlas, and a still
+scene keeps it from frame to frame. Temporal effects (anti-aliasing, motion blur) and the per-camera GI caches keep a
+history for each eye, so one eye's picture is never blended into the other's; the GI caches take twice the memory for it.
+
 ## What a headset does not show
 
 A headset has no screen of its own, so these are not drawn in it: other cameras that draw to the screen, the

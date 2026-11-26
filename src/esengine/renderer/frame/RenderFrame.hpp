@@ -130,6 +130,18 @@ public:
     void resize(u32 width, u32 height);
     void setShadowBudget(u32 atlasSize, u32 cellSize, u32 cascades);
     void setShadowDistance(f32 distance);
+    /**
+     * The view this frame's shadows are planned for, when it is not each camera's own: the view both eyes of a headset share,
+     * so the second eye finds the atlas the first drew (and a still head finds last frame's). Null goes back to each camera's
+     * own view. Cleared by beginFrame.
+     */
+    void setShadowView(const glm::mat4* viewProjection);
+    /**
+     * Which view of the target the next cameras are, for what they remember between frames (a temporal pass's history, last
+     * frame's camera, the motion of each object): a headset's two eyes draw into one target and must not blend into one
+     * history. 0, the default, is the target's only view. Stays until set again.
+     */
+    void setTemporalView(u32 view) { temporal_view_ = view; }
     /// How many samples across a light source a soft 2D shadow is drawn with: the quality level's say on the penumbra's smoothness and cost.
     void setShadow2DSoftSamples(u32 samples);
     bool setQualityValue(const std::string& name, f32 value);
@@ -782,6 +794,16 @@ private:
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
+    /** See setShadowView: the view shadows are planned for while it is set, and its frustum (the receivers a sun's map is cut to). */
+    /** See setTemporalView. */
+    u32 temporal_view_ = 0;
+    /** What names this camera's history: its target, and which view of it (setTemporalView). The target alone while that is 0. */
+    u64 temporalKey() const { return static_cast<u64>(current_target_) | (static_cast<u64>(temporal_view_) << 32); }
+    bool shadow_view_set_ = false;
+    glm::mat4 shadow_view_projection_{1.0f};
+    Frustum shadow_frustum_;
+    const glm::mat4& shadowViewProjection() const { return shadow_view_set_ ? shadow_view_projection_ : view_projection_; }
+    const Frustum& shadowFrustum() const { return shadow_view_set_ ? shadow_frustum_ : frustum_; }
     /// The other half of this camera's cull, rebuilt from the scene each collect.
     OcclusionView occlusion_;
     RenderTargetManager::Handle current_target_ = 0;
@@ -895,6 +917,9 @@ private:
     std::vector<std::unique_ptr<RenderTypePlugin>> plugins_;
 
     RenderFrameContext makeContext();
+    /** makeContext for the shadow passes: the view and the eye they are planned for (setShadowView), which a shared view makes one
+     *  for every camera of the frame, so what the casters are keyed and chosen by does not move from eye to eye. */
+    RenderFrameContext makeShadowContext();
     void buildClipState();
     /// Resolves every SpriteMask into the stencil refs the draw path reads.
     void buildSpriteMasks(ecs::Registry& registry);

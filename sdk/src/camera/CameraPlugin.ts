@@ -46,7 +46,7 @@ import { renderTargetSize } from '../render/renderTexture';
 import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
 import type { RenderPipeline } from '../render/renderPipeline';
-import { xrPresentation, placeEye, headingOf, type XRPresentationState } from '../xr/xrPresentation';
+import { xrPresentation, placeEye, headingOf, sharedEyeView, type XRPresentationState } from '../xr/xrPresentation';
 import { XRController, XRHead, syncXRPoses } from '../xr/xrComponents';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { followRenderOrigin, pushRenderOrigin, renderOrigin } from '../render/renderOrigin';
@@ -865,7 +865,14 @@ function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, r
     const heading = t ? headingOf(t.worldRotation) : 0;
     const unitsPerMeter = worldUnitsPerMeter();
     const origin = renderOrigin();
-    for (const eye of xr.views) {
+    // One shadow plan for both eyes: the view that sees what either sees. Per eye, the second's cascades are the first's stale
+    // ones and the atlas is drawn twice a frame and kept by neither.
+    const shared = sharedEyeView({ position, heading }, xr.views, unitsPerMeter, origin);
+    if (shared) Renderer.setShadowView(shared);
+    for (let i = 0; i < xr.views.length; i++) {
+        const eye = xr.views[i]!;
+        // Each eye its own history: one shared, a temporal pass blends the left eye's picture into the right's.
+        Renderer.setTemporalView(i + 1);
         const placed = placeEye({ position, heading }, eye, unitsPerMeter, origin);
         pipeline.renderCamera({
             registry: { _cpp: registry },
@@ -880,6 +887,9 @@ function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, r
             renderTarget: 0,
         });
     }
+    // The cameras after the eyes (into textures) plan for their own views, and are their targets' only view.
+    Renderer.setTemporalView(0);
+    if (shared) Renderer.setShadowView(null);
 }
 
 /**

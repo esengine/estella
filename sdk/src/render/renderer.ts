@@ -109,6 +109,10 @@ export interface RendererBackend {
      * a host that predates it), and nothing changed.
      */
     setScreenTarget?(nativeName: number): boolean;
+    /** The view this frame's shadows are planned for (shared by a headset's eyes); null for each camera's own. */
+    setShadowView?(viewProjection: Float32Array | null): void;
+    /** Which view of its target the next cameras are, for their history (a headset's eyes share one target); 0 is the only one. */
+    setTemporalView?(view: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
     clusterInspect?(entity: number): ClusterDraw | null;
     framePending?(): boolean;
@@ -346,6 +350,14 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setTreeSortLayers: (mask) => m.renderer_setTreeSortLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
+        setTemporalView: (view) => m.renderer_setTemporalView?.(view >>> 0),
+        setShadowView: (viewProjection) => {
+            if (!m.renderer_setShadowView) return;
+            if (!viewProjection) { m.renderer_setShadowView(0); return; }
+            if (!viewProjectionPtr) return;
+            m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
+            m.renderer_setShadowView(viewProjectionPtr);
+        },
         setScreenTarget: (nativeName) => (m.renderer_setScreenTarget ? m.renderer_setScreenTarget(nativeName >>> 0) !== 0 : nativeName === 0),
         lodInspect: (view, entity) => readLodDecision(m, lodInspectPtr,
             ptr => m.renderer_lodInspect?.(view >>> 0, entity >>> 0, ptr)),
@@ -918,6 +930,23 @@ export const Renderer = {
      */
     setViewId(view: number): void {
         backend?.setViewId(view);
+    },
+
+    /**
+     * Plans this frame's shadows for `viewProjection` rather than for each camera's own view, until null or the next frame: the
+     * view a headset's two eyes share, so the second eye reuses the atlas the first drew instead of drawing its own.
+     */
+    setShadowView(viewProjection: Float32Array | null): void {
+        backend?.setShadowView?.(viewProjection);
+    },
+
+    /**
+     * Which view of its target the next cameras are, for what they remember between frames (a temporal pass's history, the
+     * previous camera, each object's motion): a headset's two eyes draw into one target and each keeps its own. 0, the default,
+     * is a target's only view; set it back after.
+     */
+    setTemporalView(view: number): void {
+        backend?.setTemporalView?.(view);
     },
 
     /** Draws the screen's frames into a framebuffer the platform owns (an XR layer's), or back into the default one with 0. */

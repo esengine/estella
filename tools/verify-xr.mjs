@@ -12,6 +12,8 @@
  *  - the session's framebuffer has the scene in both halves (each eye drew into its own viewport);
  *  - the cube in front of the camera sits further right in the left eye than in the right (the eyes see in stereo, and the
  *    right way round);
+ *  - the shadows are planned once for both eyes: the atlas is kept from eye to eye and frame to frame, never redrawn or
+ *    recollected per eye (planned per eye, each eye's cascades were the other's stale ones);
  *  - every frame was drawn inside its session callback (none late), and the page's own canvas drew nothing meanwhile;
  *  - a right controller's grip pose places the entity with XRController (right, grip) where the rig puts it, and its trigger,
  *    held for ten frames, reaches a game system as one press, ten frames down and one release;
@@ -37,14 +39,14 @@ const e = (id, name, components) => ({ id, name, parent: null, children: [], vis
 const SCENE = { version: 4, name: 'main', entities: [
     // One cube on black, a metre in front of the camera and a little below its eye: both eyes see it near their middle, and
     // nothing else in the picture is as bright, so where it sits in each eye is read without telling it from a floor.
-    e(2, 'Cube', [tf(0, 130, 400, { scale: { x: 0.6, y: 0.6, z: 0.6 } }), { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: true, opaque: true } }]),
+    e(2, 'Cube', [tf(0, 130, 400, { scale: { x: 0.6, y: 0.6, z: 0.6 } }), { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: true, opaque: true, castShadows: true } }]),
     // Looking down a little: the rig takes its heading only, so the eyes look level (the cube stays in view).
     e(3, 'Camera', [tf(0, 150, 500, { rotation: { x: -0.17, y: 0, z: 0, w: 0.985 } }),
         { type: 'Camera', data: { isActive: true, projectionType: 0, fov: 60, nearPlane: 1, farPlane: 10000 } }]),
     // Follows the right controller's grip: a small cube the player holds.
     e(5, 'RightHand', [tf(0, 0, 0, { scale: { x: 0.1, y: 0.1, z: 0.1 } }), { type: 'XRController', data: { hand: 1, pose: 0 } },
         { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: true, opaque: true } }]),
-    e(4, 'Sun', [tf(0, 0, 0, { rotation: { x: -0.38, y: 0.2, z: 0, w: 0.9 } }), { type: 'Light', data: { type: 1, intensity: 3 } }]),
+    e(4, 'Sun', [tf(0, 0, 0, { rotation: { x: -0.38, y: 0.2, z: 0, w: 0.9 } }), { type: 'Light', data: { type: 1, intensity: 3, meshShadows: true } }]),
 ] };
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-xr-'));
@@ -83,7 +85,7 @@ if (built.status !== 0) {
 /** The headset the page is given, before any of its scripts run. */
 function fakeHeadset() {
     const W = 1024, H = 512;
-    const state = { frames: 0, depthNear: 0.1, depthFar: 1000, active: false, ended: false, pageFramesDuring: 0 };
+    const state = { counters: [], frames: 0, depthNear: 0.1, depthFar: 1000, active: false, ended: false, pageFramesDuring: 0 };
     window.__xr = state;
     // The page's own frames, counted while the headset presents: the App should ask the session's, not these.
     const pageRaf = window.requestAnimationFrame.bind(window);
@@ -124,6 +126,9 @@ function fakeHeadset() {
         requestAnimationFrame(cb) {
             return pageRaf((t) => {
                 if (state.ended) return;
+                // What the engine did for the frame before this one: one shadow plan for both eyes, kept frame to frame.
+                const probe = globalThis.__estellaCooked;
+                if (probe && state.frames >= 15 && state.frames < 30) state.counters.push(probe.counters());
                 state.frames++;
                 const held = state.frames >= 10 && state.frames < 20;
                 rightPad.buttons[0] = { value: held ? 1 : 0, pressed: held, touched: held };
@@ -163,7 +168,11 @@ try {
     page.on('pageerror', (err) => logs.push(`pageerror: ${err.message}`));
     await page.addInitScript(fakeHeadset);
     if (SAVE) await page.addInitScript(() => { window.__xrSave = true; });
-    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    // ?headless: the build's probe hook (counters) is installed, and WebGL2 is pinned, which is what a headset takes anyway.
+    await page.goto(`http://127.0.0.1:${server.address().port}/?headless`);
+    // Profiling on before the headset is: turning it on mid-session costs the frame it happens in.
+    await page.waitForFunction(() => !!globalThis.__estellaCooked, null, { timeout: 60_000, polling: 100 });
+    await page.evaluate(() => globalThis.__estellaCooked.counters());
     const button = page.getByRole('button', { name: 'Enter VR' });
     await button.waitFor({ state: 'visible', timeout: 60_000 });
     check(true, 'the page offers Enter VR where the browser can present');
@@ -229,6 +238,12 @@ try {
     check(probe?.pressed === 1 && probe?.released === 1 && probe?.down === 10,
         'the trigger held ten frames reaches a game system as one press, ten frames down, one release',
         JSON.stringify({ pressed: probe?.pressed, down: probe?.down, released: probe?.released }));
+    const counters = await page.evaluate(() => window.__xr.counters);
+    const planned = counters.filter((c) => (c['render.shadow.collects'] ?? 0) > 0 || c['render.shadow.reused'] === 1).length;
+    const kept = counters.filter((c) => c['render.shadow.reused'] === 1 && c['render.shadow.collectSkipped'] === 1 && !c['render.shadow.tiles']).length;
+    check(counters.length > 0 && planned === counters.length && kept === counters.length,
+        'both eyes read one shadow atlas, kept from frame to frame (no eye redraws or recollects it)',
+        `${kept} of ${counters.length} frames kept it` + (counters[0] ? `; last: reused ${counters.at(-1)['render.shadow.reused']}, skipped ${counters.at(-1)['render.shadow.collectSkipped']}, tiles ${counters.at(-1)['render.shadow.tiles']}` : ''));
     check(read.pageFramesDuring === 0, 'the page\'s own frames stopped while the headset presented', `${read.pageFramesDuring} page frame(s)`);
 
     await page.getByRole('button', { name: 'Exit VR' }).click();

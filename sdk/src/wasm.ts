@@ -832,6 +832,8 @@ export interface ESEngineModule extends TilemapBindings {
     renderer_setCullingMask?(mask: number): void;
     renderer_setViewId?(view: number): void;
     renderer_setScreenTarget?(nativeName: number): number;
+    renderer_setShadowView?(matrixPtr: number): void;
+    renderer_setTemporalView?(view: number): void;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_lodInspectInWorld?(registry: CppRegistry, view: number, entity: number, outPtr: number): number;
     renderer_clusterInspect?(entity: number, outPtr: number): number;

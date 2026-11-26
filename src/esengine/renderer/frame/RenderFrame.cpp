@@ -344,9 +344,9 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
         // temporal view a second time.
         jitter = scene_jitter_;
     } else if (post_process_ && post_process_->isEngaged() && post_process_->temporalActive()) {
-        jitter = post_process_->beginTemporalView(view_projection_, current_target_);
+        jitter = post_process_->beginTemporalView(view_projection_, temporalKey());
     } else if (post_process_ && post_process_->isEngaged() && post_process_->cameraMotionWanted()) {
-        post_process_->trackView(view_projection_, current_target_);
+        post_process_->trackView(view_projection_, temporalKey());
     }
 #endif
     scene_jitter_ = jitter;
@@ -423,7 +423,16 @@ void RenderFrame::releaseFrameTargets() {
     shadow_texture_id_ = 0;
 }
 
+void RenderFrame::setShadowView(const glm::mat4* viewProjection) {
+    shadow_view_set_ = viewProjection != nullptr;
+    if (!viewProjection) return;
+    shadow_view_projection_ = *viewProjection;
+    shadow_frustum_.extractFromMatrix(*viewProjection);
+}
+
 void RenderFrame::beginFrame() {
+    // A view shared by the cameras of one frame (a headset's eyes) is that frame's alone.
+    shadow_view_set_ = false;
     if (ui_data_) setUIRenderData(nullptr);
     ++planar_frame_;
     if (skin_cache_) skin_cache_->beginFrame(planar_frame_);
@@ -1783,6 +1792,16 @@ RenderFrameContext RenderFrame::makeContext() {
     return ctx;
 }
 
+RenderFrameContext RenderFrame::makeShadowContext() {
+    RenderFrameContext ctx = makeContext();
+    if (!shadow_view_set_) return ctx;
+    ctx.view_projection = shadow_view_projection_;
+    const glm::vec4 eye = cameraFromViewProjection(shadow_view_projection_);
+    ctx.has_view_eye = eye.w > 0.5f;
+    if (ctx.has_view_eye) ctx.view_eye = glm::vec3(eye);
+    return ctx;
+}
+
 /// Where a light aims: the entity's forward, its rotation applied to -Z. A light
 /// without a Transform aims the way an unrotated one does, which is into the screen —
 /// where a 2D scene's light comes from.
@@ -2486,7 +2505,8 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
 #endif
     if (shadow_casters_.empty() && cloudExtent <= 0.0f) return;
 
-    const glm::mat4 invVP = glm::inverse(view_projection_);
+    // The cascades are cut from the view shadows are planned for: the camera's, or the one a headset's eyes share.
+    const glm::mat4 invVP = glm::inverse(shadowViewProjection());
     // Clip's z axis back in world: w != 0 is an eye point, w == 0 says the projection
     // is orthographic and there is none. Cascades only pay off under perspective —
     // an orthographic view already spends its texels evenly over what it can see.
@@ -2658,7 +2678,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
                 if (!perspective || caster.extent > 0.0f) {
                     // What the map covers: the 3D geometry, unless the light asked for a
                     // fixed reach. A radius, so coverage does not change as the light turns.
-                    const CameraView view = computeCameraView(view_projection_);
+                    const CameraView view = computeCameraView(shadowViewProjection());
                     const f32 fitted = haveBounds
                         ? 0.5f * glm::length(boundsMax - boundsMin)
                         : 0.5f * glm::length(glm::vec2(view.right - view.left,
@@ -3130,7 +3150,7 @@ bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key, u64& heldKey, 
     };
     bool vouched = true;
     heldVouched = true;
-    auto ctx = makeContext();
+    auto ctx = makeShadowContext();
     ctx.purpose = RenderPurpose::ShadowDepth;
     for (auto& plugin : plugins_) {
         if (!plugin->castsShadows()) continue;
@@ -3153,7 +3173,7 @@ bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key, u64& heldKey, 
         words(&view.floorY, sizeof(view.floorY));
         words(&view.reachCap, sizeof(view.reachCap));
     }
-    words(&view_projection_, sizeof(glm::mat4));
+    words(&shadowViewProjection(), sizeof(glm::mat4));
     mix(shadow_receiver_cull_ ? 1u : 0u);
     mix(view_id_);
     key = h;
@@ -3174,14 +3194,14 @@ void RenderFrame::collectShadowLists(ecs::Registry& registry, CasterSplit split,
         list.clear();
         Frustum viewFrustum;
         viewFrustum.extractFromMatrix(view.view_projection);
-        auto ctx = makeContext();
+        auto ctx = makeShadowContext();
         ctx.view_projection = view.view_projection;
         ctx.purpose = RenderPurpose::ShadowDepth;
         RenderCollectContext collectCtx{registry, viewFrustum, clip_state_, pool,
                                         list, ctx,
                                         computeCameraView(view.view_projection)};
         if (view.sun && shadow_receiver_cull_) {
-            collectCtx.shadowReceivers = &frustum_;
+            collectCtx.shadowReceivers = &shadowFrustum();
             collectCtx.shadowRay = view.ray;
             collectCtx.shadowFloor = view.floorY;
             collectCtx.shadowReachCap = view.reachCap;
@@ -3583,7 +3603,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     const bool followMotion = sceneGBuffer && post_process_ && post_process_->isEngaged()
                            && post_process_->velocityWanted();
     ctx.track_motion = followMotion;
-    ctx.motion_key = static_cast<u64>(current_target_);
+    ctx.motion_key = temporalKey();
     ctx.motion_frame = planar_frame_;
 #else
     (void)sceneGBuffer;
@@ -3647,7 +3667,7 @@ void RenderFrame::collectSelection(ecs::Registry& registry) {
     auto ctx = makeContext();
     // The motion program with no movement: "last frame" is this frame's camera, so it writes depth and coverage only.
     ctx.purpose = RenderPurpose::Motion;
-    ctx.motion_key = static_cast<u64>(current_target_);
+    ctx.motion_key = temporalKey();
     ctx.motion_frame = planar_frame_;
     ctx.motion_prev_view_projection = ctx.view_projection;
     ctx.motion_prev_jitter = glm::vec2(0.0f);
@@ -3719,7 +3739,7 @@ void RenderFrame::executeSelectionPass() {
 void RenderFrame::collectMotion(ecs::Registry& registry) {
     ES_PROFILE_SCOPE("render.collect.motion");
 #ifdef ES_ENABLE_POSTPROCESS
-    const auto view = post_process_->peekTemporalView(view_projection_, static_cast<u64>(current_target_));
+    const auto view = post_process_->peekTemporalView(view_projection_, temporalKey());
     // The shift is only there when something resolves it; a chain that follows motion without a history draws still.
     const bool shifted = post_process_->temporalActive();
     velocity_jitter_ = shifted ? view.jitter : glm::vec2(0.0f);
@@ -3729,7 +3749,7 @@ void RenderFrame::collectMotion(ecs::Registry& registry) {
     auto ctx = makeContext();
     ctx.purpose = RenderPurpose::Motion;
     ctx.track_motion = true;
-    ctx.motion_key = static_cast<u64>(current_target_);
+    ctx.motion_key = temporalKey();
     ctx.motion_frame = planar_frame_;
     ctx.motion_prev_view_projection = view.previous;
     ctx.motion_prev_jitter = shifted ? view.previousJitter : glm::vec2(0.0f);

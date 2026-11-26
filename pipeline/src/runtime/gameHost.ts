@@ -197,7 +197,8 @@ async function boot(startup: GameStartup): Promise<void> {
       + '(Project Settings → Web → "Run without WebAssembly", packaging.platforms.web.engineJs).');
   }
   // A headset takes a WebGL layer from the page's own context: VR keeps drawing on this thread, with WebGL2.
-  const vr = cfg.vr === true && !headless && !engineAsJs;
+  // Headless too: it pins WebGL2, which is what a headset takes, and is how VR is checked and measured without one.
+  const vr = cfg.vr === true && !engineAsJs;
   if (vr && cfg.threadedRendering === true) console.info('[estella] VR: drawing on the page thread (a headset cannot take a threaded renderer).');
   const threaded = cfg.threadedRendering === true && !vr && !engineAsJs && !headless
     && globalThis.crossOriginIsolated === true
@@ -965,6 +966,12 @@ async function boot(startup: GameStartup): Promise<void> {
         };
       },
       updateStatus: () => app.getResource(Assets).updateStatus(),
+      /** The engine's counters as the last frame left them (render.shadow.*, render.draws...): profiling on, as {@link costs} turns it. */
+      counters(): Record<string, number> {
+        const m = app.wasmModule as { engine_setCpuProfiling?: (on: boolean) => void; engine_getCounters?: () => string } | null;
+        if (!statsOn) { app.enableStats(); m?.engine_setCpuProfiling?.(true); statsOn = true; }
+        try { return JSON.parse(m?.engine_getCounters?.() ?? '{}') as Record<string, number>; } catch { return {}; }
+      },
       /** What the engine is still baking in the background (the world laying itself out, plants growing): empty once it has caught up. */
       bakes(): readonly { label: string; progress: number }[] {
         return app.hasResource(BakesRes) ? app.getResource(BakesRes).active : [];

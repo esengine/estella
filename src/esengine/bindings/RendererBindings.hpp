@@ -26,6 +26,12 @@ void renderer_init(u32 width, u32 height);
 void renderer_resize(u32 width, u32 height);
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit);
 void renderer_setShadowDistance(f32 distance);
+/** The view this frame's shadows are planned for, shared by the cameras that follow (a headset's two eyes); 0 for each camera's
+ *  own again. Cleared when the next frame begins. */
+void renderer_setShadowView(uintptr_t matrixPtr);
+/** Which view of its target the next cameras are, for the history they keep between frames (a headset's eyes share a target);
+ *  0 is the only view. */
+void renderer_setTemporalView(u32 view);
 void renderer_setShadow2DSoftSamples(u32 samples);
 bool renderer_setQualityValue(const std::string& name, f32 value);
 void renderer_setDepthPrepass(bool on);
