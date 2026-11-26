@@ -70,11 +70,13 @@ export function inspectableTypes(world: World, entity: number, includeTransient 
 }
 
 function filterInspectableTypes(types: string[], includeTransient = false): string[] {
-    return types.filter((t) => {
-        if (STRUCTURAL.has(t)) return false;
-        const def = getComponent(t);
-        return !!def && (includeTransient || !def.transient);
-    });
+    return types.filter(type => inspectableDefinition(type, includeTransient) !== undefined);
+}
+
+function inspectableDefinition(type: string, includeTransient = false): AnyComponentDef | undefined {
+    if (STRUCTURAL.has(type)) return undefined;
+    const def = getComponent(type);
+    return def && (includeTransient || !def.transient) ? def : undefined;
 }
 
 /**
@@ -164,7 +166,7 @@ export function worldSnapshot(
         (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
     const priorities = rendererPriorityIndex();
     const visibilityReaders = new Map<AnyComponentDef, (entity: number) => unknown>();
-    const visibilityOf = (e: number, types: string[]): Pick<SnapshotEntity, 'hideable' | 'hidden'> => {
+    const visibilityOf = (e: number, types: string[], components?: readonly SnapshotComponent[]): Pick<SnapshotEntity, 'hideable' | 'hidden'> => {
         let source: AnyComponentDef | undefined;
         let rank = Infinity;
         for (const type of types) {
@@ -179,6 +181,10 @@ export function worldSnapshot(
             }
         }
         if (!source) return {};
+        const field = source === UINode ? 'display' : source.renderableField!;
+        const sourceName = source._name;
+        const sampled = components?.find(component => component.type === sourceName)?.data[field];
+        if (sampled !== undefined) return { hideable: true, hidden: source === UINode ? sampled === UIDisplay.None : sampled === false };
         let read = visibilityReaders.get(source);
         if (!read) {
             const getter = world.resolveGetter(source);
@@ -186,7 +192,6 @@ export function worldSnapshot(
             visibilityReaders.set(source, read);
         }
         // Only the flag escapes: direct getters borrow their component value.
-        const field = source === UINode ? 'display' : source.renderableField!;
         const value = read(e) as Record<string, unknown> | null;
         const data = value && value[field] !== undefined ? value : world.get(e as never, source) as Record<string, unknown>;
         const hidden = source === UINode ? data.display === UIDisplay.None : data[field] === false;
@@ -199,43 +204,45 @@ export function worldSnapshot(
         if ((owner?.scene ?? '') !== opts.entryScene) return undefined;
         return sceneOriginOf(app, e as never);
     };
-    const shape = (id: number, components: SnapshotComponent[], types: string[]): SnapshotEntity => {
+    const shape = (id: number, components: SnapshotComponent[], visibility: Pick<SnapshotEntity, 'hideable' | 'hidden'>): SnapshotEntity => {
         const src = srcOf(id);
         return {
             id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [],
-            components, ...visibilityOf(id, types), ...(src === undefined ? {} : { src }),
+            components, ...visibility, ...(src === undefined ? {} : { src }),
         };
     };
 
-    let selectedTypes: string[] | null = null;
+    let selectedIndex = -1;
     const tree = withTree
         ? {
             version: '1.0' as const, name: 'live' as const,
             entities: all.map((e, index) => {
                 const id = e as never as number;
                 const types = treeTypes![index];
-                if (id === selectedId) selectedTypes = types;
-                return shape(id, filterInspectableTypes(types).map((type) => ({ type, data: {} })), types);
+                if (id === selectedId) selectedIndex = index;
+                return shape(id, filterInspectableTypes(types).map((type) => ({ type, data: {} })), visibilityOf(id, types));
             }),
         }
         : null;
 
     let selected: SnapshotEntity | null = null;
     if (selectedId != null) {
-        const types = selectedTypes ?? detailTypes ?? world.getComponentTypes(selectedId as never);
-        const raw = filterInspectableTypes(types)
-            .map((type) => {
-                const def = getComponent(type);
-                const data = def ? world.tryGet(selectedId as never, def) : null;
-                return data ? { type, data: data as Record<string, unknown> } : null;
-            })
-            .filter((c): c is SnapshotComponent => !!c);
+        const types = treeTypes?.[selectedIndex] ?? detailTypes ?? world.getComponentTypes(selectedId as never);
+        const raw: SnapshotComponent[] = [];
+        for (const type of types) {
+            const def = inspectableDefinition(type);
+            if (!def) continue;
+            // The current registry already confirmed membership. Read without the SDK's cached membership check.
+            const data = world.get(selectedId as never, def) as Record<string, unknown> | undefined;
+            if (data) raw.push({ type, data });
+        }
         const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
-        const components = translateAssetHandles(raw, (kind, handle) => {
-            const p = assets?.pathForHandle(kind, handle) ?? null;
+        const components = assets ? translateAssetHandles(raw, (kind, handle) => {
+            const p = assets.pathForHandle(kind, handle);
             return p === null ? null : (opts.assetPath ? opts.assetPath(p) : p);
-        });
-        selected = shape(selectedId, components, types);
+        }) : raw;
+        const treeRow = tree?.entities[selectedIndex];
+        selected = treeRow ? { ...treeRow, components } : shape(selectedId, components, visibilityOf(selectedId, types, raw));
     }
     return { tree, selected };
 }

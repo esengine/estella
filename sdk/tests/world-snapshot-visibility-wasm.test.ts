@@ -3,7 +3,7 @@ import type { App } from '../src/app/app';
 import type { ESEngineModule } from '../src/wasm';
 import { entityIndex } from '../src/types';
 import { World } from '../src/ecs/world';
-import { Sprite, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { Sprite, MeshRenderer, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
 import { serializeScene } from '../src/scene/scene';
@@ -12,6 +12,34 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () => {
     let module: ESEngineModule;
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+
+    it.each(['Sprite', 'MeshRenderer'] as const)('includes a native-added %s in selected component data', (type) => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        try {
+            const seed = world.spawn('Seed'), entity = world.spawn('Selection');
+            if (type === 'Sprite') {
+                world.insert(seed, Sprite, { enabled: false });
+                registry.addSprite(entity, registry.getSprite(seed));
+            } else {
+                world.insert(seed, MeshRenderer, { enabled: false });
+                registry.addMeshRenderer(entity, registry.getMeshRenderer(seed));
+            }
+            expect(world.getComponentTypes(entity)).toContain(type);
+            const detail = worldSnapshot(app, entity, false).selected;
+            expect(detail).toMatchObject({ id: entity, hidden: true });
+            expect(detail?.components).toContainEqual({ type, data: expect.objectContaining({ enabled: false }) });
+            const full = worldSnapshot(app, entity, true);
+            expect(full.selected).toEqual(detail);
+            expect(full.tree?.entities.find(row => row.id === entity)?.components).toContainEqual({ type, data: {} });
+            if (type === 'Sprite') registry.removeSprite(entity);
+            else registry.removeMeshRenderer(entity);
+            expect(worldSnapshot(app, entity, false).selected?.components).toEqual([]);
+            expect(detail?.components).toContainEqual({ type, data: expect.objectContaining({ enabled: false }) });
+        } finally { world.disconnectCpp(); registry.delete(); }
+    });
+
     it('reports a surviving child as a root after native destruction of its parent', () => {
         const registry = new module.Registry(), world = new World();
         world.connectCpp(registry, module);
