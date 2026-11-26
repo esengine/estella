@@ -19,13 +19,17 @@ The play-mode menu beside Play selects:
 
 | Option | Values |
 |---|---|
-| Host | **Play In Viewport** (over the scene view) or **Play In New Window** (a dedicated Game tab) |
-| Maximize Viewport on Play | Gives the whole workspace to the game; the layout is restored on Stop |
+| Host | **Play In Viewport** opens over the scene view. **Play In New Window** opens a Game tab. **Standalone Game** opens a separate process and window. |
+| Maximize Viewport on Play | Expands the embedded game to fill the workspace. Stop restores the layout. |
 | Players | **Single Player**, or **2 / 3 / 4 Players (Listen Server)**: the first realm runs as listen server, each further player as a client realm connected by in-editor replication |
 
 ![The play-mode menu: Play In Viewport / New Window, Maximize Viewport on Play, Single Player or 2–4 players with a listen server](@/assets/guides/en/play-mode-menu.png)
 
 A running game is indicated by an accent ring around the scene view (amber, with the frame dimmed, while paused).
+
+The embedded game takes keyboard focus when it is ready, unless you have moved to another control while it loads.
+If you edit a field during Play, a script reload lets you keep typing. In multiplayer, a reload also preserves which
+player had the keyboard. Stopping from the game returns focus to the last editor control if it is still available.
 
 ## The running world in the Outliner
 
