@@ -32,7 +32,15 @@ export type ChildResolver = (root: Entity, childPath: string) => Entity | null;
 
 /** The time a nested timeline is at when its parent is at `parentTime`, or null outside the clip. */
 export function sequenceLocalTime(clip: SequenceClip, parentTime: number, childDuration: number): number | null {
-    if (parentTime < clip.start || parentTime >= clip.start + clip.duration) return null;
+    if (outsideSequenceClip(clip, parentTime)) return null;
+    return timeWithinSequenceClip(clip, parentTime, childDuration);
+}
+
+function outsideSequenceClip(clip: SequenceClip, time: number): boolean {
+    return time < clip.start || time >= clip.start + clip.duration;
+}
+
+function timeWithinSequenceClip(clip: SequenceClip, parentTime: number, childDuration: number): number {
     const raw = (parentTime - clip.start) * clip.speed;
     if (childDuration <= 0) return 0;
     if (clip.loop) return raw % childDuration;
@@ -52,11 +60,10 @@ export function collectSequenceLayers(
     asset.tracks.forEach((track, ti) => {
         if (track.type !== TrackType.Sequence) return;
         track.clips.forEach((clip, ci) => {
-            if (!clip.timeline || chain.includes(clip.timeline)) return;
+            if (!clip.timeline || outsideSequenceClip(clip, time) || chain.includes(clip.timeline)) return;
             const child = lookup(clip.timeline);
             if (!child) return;
-            const local = sequenceLocalTime(clip, time, child.duration);
-            if (local === null) return;
+            const local = timeWithinSequenceClip(clip, time, child.duration);
             const childRoot = clip.root ? resolveChild(root, clip.root) : root;
             if (childRoot == null) return;
             const key = `${keyPrefix}${ti}.${ci}/`;

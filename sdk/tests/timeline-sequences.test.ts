@@ -101,6 +101,26 @@ describe('sequence layers', () => {
         expect(collectSequenceLayers(parent, 3.5, 1 as Entity, resolveChild, lookup)).toHaveLength(0);
     });
 
+    it('looks up only active clips while keeping their author order and keys', () => {
+        const parent = host(8, seqTrack(
+            seq('later', 4, 2),
+            seq('ended', 0, 2),
+            seq('starts', 2, 4, { speed: 2 }),
+            seq('overlap', 1, 4, { loop: true, speed: 3 }),
+            seq('empty', 2, 0),
+        ));
+        const refs: string[] = [];
+        const layers = collectSequenceLayers(parent, 2, 1 as Entity, resolveChild, (ref) => {
+            refs.push(ref);
+            return child;
+        });
+        expect(layers.map(({ key, ref, time, phase }) => ({ key, ref, time, phase }))).toEqual([
+            { key: '0.2/', ref: 'starts', time: 0, phase: 0 },
+            { key: '0.3/', ref: 'overlap', time: 1, phase: 3 },
+        ]);
+        expect(refs).toEqual(['starts', 'overlap']);
+    });
+
     it('skips a root it cannot find', () => {
         const parent = host(4, seqTrack(seq('child', 0, 2, { root: 'Gone' })));
         expect(collectSequenceLayers(parent, 1, 1 as Entity, () => null, lookup)).toHaveLength(0);
