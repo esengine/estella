@@ -110,7 +110,8 @@ public:
 struct Context {
     JPH::PhysicsSystem* system = nullptr;
     JPH::TempAllocatorImpl* temp = nullptr;
-    JPH::JobSystemSingleThreaded* jobs = nullptr;
+    /// The step's job system: a thread pool on a device, the calling thread alone on the web (a wasm side module has no threads).
+    JPH::JobSystem* jobs = nullptr;
     JPH::Factory* factory = nullptr;
 
     BroadPhaseLayerInterfaceImpl broadPhaseLayers;

@@ -313,7 +313,8 @@ let landingMass = null;
 for (let i = 0; i < 180 && !landing; i++) {
     step(1);
     const enters = contactEnters();
-    const at = enters.findIndex((e) => e[1] === DROP || e[0] === DROP);
+    // The sphere lands on the pad and on the ground beside it in one step: the pad's contact is the one between the two.
+    const at = enters.findIndex((e) => (e[1] === DROP && e[0] === PAD) || (e[0] === DROP && e[1] === PAD));
     landing = at >= 0 ? enters[at] : null;
     if (landing) landingSpeed = pairs('_physics3d_contactEnterSpeeds', '_physics3d_contactEnterSpeedsBytes', 1)[at]?.[0] ?? null;
     if (landing) landingMass = pairs('_physics3d_contactEnterMasses', '_physics3d_contactEnterMassesBytes', 1)[at]?.[0] ?? null;

@@ -38,8 +38,17 @@
 
 #include <cstddef>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdlib>
+#include <mutex>
+#include <numeric>
+#include <thread>
 #include <vector>
+
+#ifndef __EMSCRIPTEN__
+#include <Jolt/Core/JobSystemThreadPool.h>
+#endif
 
 using namespace JPH;
 using esengine::physics3d::Context;
@@ -103,11 +112,17 @@ uint32_t entityOfBody(const BodyID& id) {
 /**
  * Records what touched what. Jolt calls this with every body locked, so it reads
  * only its own tables and the geometry it is handed — never the world.
+ *
+ * On a device the step runs on several threads and Jolt calls this from any of
+ * them at once: what it writes is written under a lock, and in no particular
+ * order, which {@link sortContactEvents} puts right after the step. What it reads
+ * (who owns a body, which bodies are sensors) changes only between steps.
  */
 class ContactRecorder final : public ContactListener {
 public:
     void OnContactAdded(const Body& body1, const Body& body2, const ContactManifold& manifold,
                         ContactSettings&) override {
+        std::lock_guard<std::mutex> hold(lock_);
         const uint32_t a = body1.GetID().GetIndexAndSequenceNumber();
         const uint32_t b = body2.GetID().GetIndexAndSequenceNumber();
         const uint32_t entityA = entityOfBody(body1.GetID());
@@ -142,6 +157,7 @@ public:
     }
 
     void OnContactRemoved(const SubShapeIDPair& pair) override {
+        std::lock_guard<std::mutex> hold(lock_);
         const uint32_t a = pair.GetBody1ID().GetIndexAndSequenceNumber();
         const uint32_t b = pair.GetBody2ID().GetIndexAndSequenceNumber();
         const uint32_t entityA = entityOfBody(pair.GetBody1ID());
@@ -160,7 +176,68 @@ public:
             out.push_back(static_cast<float>(entityB));
         }
     }
+
+private:
+    std::mutex lock_;
 };
+
+/// Sorts a buffer of `Width`-float records, lexicographically, carrying `followers` (one float per record) along.
+template <size_t Width>
+void sortRecords(std::vector<float>& records, std::vector<float>* follower1 = nullptr, std::vector<float>* follower2 = nullptr) {
+    const size_t count = records.size() / Width;
+    if (count < 2) return;
+    std::vector<size_t> order(count);
+    std::iota(order.begin(), order.end(), size_t{0});
+    const auto key = [&](size_t i) {
+        std::array<float, Width + 2> k{};
+        for (size_t j = 0; j < Width; ++j) k[j] = records[i * Width + j];
+        k[Width] = follower1 ? (*follower1)[i] : 0.0f;
+        k[Width + 1] = follower2 ? (*follower2)[i] : 0.0f;
+        return k;
+    };
+    std::stable_sort(order.begin(), order.end(), [&](size_t x, size_t y) { return key(x) < key(y); });
+    std::vector<float> sorted(records.size());
+    for (size_t r = 0; r < count; ++r) std::copy_n(records.begin() + static_cast<std::ptrdiff_t>(order[r] * Width), Width, sorted.begin() + static_cast<std::ptrdiff_t>(r * Width));
+    records.swap(sorted);
+    for (std::vector<float>* f : {follower1, follower2}) {
+        if (!f) continue;
+        std::vector<float> moved(count);
+        for (size_t r = 0; r < count; ++r) moved[r] = (*f)[order[r]];
+        f->swap(moved);
+    }
+}
+
+/**
+ * Puts a step's contact events in one order: by the entities met, then by where.
+ * The threads of a step report them in whatever order they finish, so without
+ * this two runs of the same world told a game of the same meetings in a different
+ * order. The web, on one thread, is sorted the same way, so the order is one rule
+ * everywhere.
+ */
+void sortContactEvents() {
+    sortRecords<8>(g().contactEnterBuffer, &g().contactEnterSpeedBuffer, &g().contactEnterMassBuffer);
+    sortRecords<2>(g().contactExitBuffer);
+    sortRecords<2>(g().sensorEnterBuffer);
+    sortRecords<2>(g().sensorExitBuffer);
+}
+
+/**
+ * The job system a step runs on. On a device: a pool of the cores beside the
+ * game's and the render's, at most four, as the 2D world's (PhysicsTaskPool.cpp);
+ * with fewer than two to give, the calling thread alone. Jolt's step answers the
+ * same whatever the number of threads; only the order its listener hears in
+ * changes, and that is sorted. `ESTELLA_PHYSICS3D_WORKERS` sets the count, for
+ * measuring and for checking that the answer does not move with it.
+ */
+JobSystem* makeJobSystem() {
+#ifndef __EMSCRIPTEN__
+    int workers = std::clamp(static_cast<int>(std::thread::hardware_concurrency()) - 2, 0, 4);
+    if (const char* forced = std::getenv("ESTELLA_PHYSICS3D_WORKERS")) workers = std::max(0, std::atoi(forced));
+    // The calling thread works too, while it waits for the step: the pool is the others.
+    if (workers >= 2) return new JobSystemThreadPool(cMaxPhysicsJobs, cMaxPhysicsBarriers, workers - 1);
+#endif
+    return new JobSystemSingleThreaded(cMaxPhysicsJobs);
+}
 
 ContactRecorder& recorder() {
     static ContactRecorder instance;
@@ -231,7 +308,7 @@ void physics3d_init(float gx, float gy, float gz, uint32_t maxBodies) {
     }
     g().factory = Factory::sInstance;
     g().temp = new TempAllocatorImpl(TEMP_ARENA_BYTES);
-    g().jobs = new JobSystemSingleThreaded(cMaxPhysicsJobs);
+    g().jobs = makeJobSystem();
     g().system = new PhysicsSystem();
     const uint32_t bodies = maxBodies > 0 ? maxBodies : 1024;
     g().system->Init(bodies, 0, bodies * 2, bodies * 2, g().broadPhaseLayers,
@@ -312,9 +389,14 @@ void physics3d_step(float dt, int collisionSteps) {
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
     g().system->Update(dt, collisionSteps > 0 ? collisionSteps : 1, g().temp, g().jobs);
+    sortContactEvents();
 
     BodyIDVector active;
     g().system->GetActiveBodies(EBodyType::RigidBody, active);
+    // In the order of their ids, not of activation: the threads of a step wake bodies in whatever order they get to them, and
+    // the same world on four threads listed its bodies in a different order every run.
+    std::sort(active.begin(), active.end(),
+              [](const BodyID& a, const BodyID& b) { return a.GetIndexAndSequenceNumber() < b.GetIndexAndSequenceNumber(); });
     const BodyInterface& bodies = g().system->GetBodyInterfaceNoLock();
     std::vector<float>& out = g().transformBuffer;
     out.clear();
