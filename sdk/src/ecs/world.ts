@@ -1173,6 +1173,14 @@ export class World {
     /** @internal Whether authored asset fields already have a resolver on this world. */
     get hasAssetFieldResolver(): boolean { return this.assetFieldResolver_ !== null; }
 
+    /** @internal Include pending authored paths in a detached component record. */
+    restorePendingAssetPaths(
+        entity: Entity, component: AnyComponentDef, data: Record<string, unknown>,
+        mapPath?: (path: string) => string | null,
+    ): void {
+        this.pendingAssetFields_?.restorePaths(entity, component, data, mapPath);
+    }
+
     /** @internal Observe stored asset fields after a component write or removal. */
     onAssetFieldsChanged(observer: (entity: Entity, component: AnyComponentDef) => void): () => void {
         (this.assetFieldObservers_ ??= new Set()).add(observer);

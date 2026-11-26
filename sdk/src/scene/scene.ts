@@ -922,10 +922,12 @@ function stripTransientComponentFields(fields: readonly string[] | undefined, da
 
 /** @internal Capture a component's authored fields from a world read. */
 export function captureAuthoredComponentData(
-    component: AnyComponentDef, data: Record<string, unknown>,
+    world: World, entity: Entity, component: AnyComponentDef, data: Record<string, unknown>,
+    assetPath?: (path: string) => string | null,
 ): Record<string, unknown> {
     // Builtin reads return records. Script reads hold the stored row or object.
     const captured = component._builtin ? data : deepClone(data, new WeakMap());
+    world.restorePendingAssetPaths(entity, component, captured, assetPath);
     stripTransientComponentFields(component.transientFields, captured);
     return captured;
 }
@@ -1042,7 +1044,7 @@ export function visitSerializedComponents(
         if (comp.transient || STRUCTURAL_COMPONENTS.has(typeName) || STRUCTURAL_COMPONENTS.has(comp._name)) return;
         const data = world.tryGet(entity, comp);
         if (data === null) return;
-        const payload = captureAuthoredComponentData(comp, data as Record<string, unknown>);
+        const payload = captureAuthoredComponentData(world, entity, comp, data as Record<string, unknown>);
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);

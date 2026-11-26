@@ -12,6 +12,7 @@ export type AssetFieldResolver = (
 interface PendingWrite {
     component: AnyComponentDef;
     fields: Set<string>;
+    authored: Record<string, unknown>;
 }
 
 // A kept query row can be written twice. Track its individual fields only once it encounters a path.
@@ -63,6 +64,25 @@ export class PendingAssetFields {
         return false;
     }
 
+    restorePaths(
+        entity: Entity, component: AnyComponentDef, data: Record<string, unknown>,
+        mapPath?: (path: string) => string | null,
+    ): void {
+        const writes = this.byEntity.get(entity);
+        if (!writes) return;
+        let defaults: Record<string, unknown> | undefined;
+        for (const write of writes) {
+            if (write.component !== component) continue;
+            defaults ??= component._default as Record<string, unknown>;
+            for (const field of write.fields) {
+                const path = write.authored[field];
+                if (typeof path === 'string' && data[field] === (defaults[field] ?? 0)) {
+                    data[field] = mapPath?.(path) ?? path;
+                }
+            }
+        }
+    }
+
     supersede(
         entity: Entity, component: AnyComponentDef, data?: Record<string, unknown>,
         keepPlaceholders = false, edited?: ReadonlySet<string>,
@@ -89,7 +109,7 @@ export class PendingAssetFields {
         for (const { field } of component.assetFields) {
             if (typeof authored[field] === 'string' && authored[field]) fields.add(field);
         }
-        const write = { component, fields };
+        const write = { component, fields, authored };
         const writes = this.byEntity.get(entity) ?? new Set<PendingWrite>();
         this.byEntity.set(entity, writes);
         writes.add(write);

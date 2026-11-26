@@ -13,6 +13,8 @@ import { bindAssetReferenceTracking } from '../src/asset/assetReferenceTracking'
 import { World } from '../src/ecs/world';
 import { Sprite } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
+import type { App } from '../src/app/app';
+import { worldSnapshot } from '../src/runtime/worldSnapshot';
 
 // One resource manager, answered by both doors as a real core answers them: the
 // path resolver loads only on a core that has one (see assetReferenceTracking).
@@ -82,13 +84,18 @@ describe('asset paths in engine-backed components', () => {
         bindAssetReferenceTracking(world, assets, () => assets);
 
         const e = world.spawn();
+        const app = { world, hasResource: () => true, getResource: () => assets } as unknown as App;
+        const inspect = () => worldSnapshot(app, e, false, { assetPath: path => `view/${path}` })
+            .selected?.components.find(component => component.type === Sprite._name)?.data.texture;
         world.insert(e, Sprite, { texture: 'sprites/hero.png' as never, size: { x: 3, y: 4 } });
         // Not a string in a handle field: a placeholder, until the load lands.
         expect(world.get(e, Sprite).texture).toBe(0);
         expect(world.get(e, Sprite).size).toEqual({ x: 3, y: 4 });
+        expect(inspect()).toBe('view/sprites/hero.png');
 
         await vi.waitFor(() => expect(world.get(e, Sprite).texture).toBe(42));
         expect(world.get(e, Sprite).size).toEqual({ x: 3, y: 4 });
+        expect(inspect()).toBe('view/sprites/hero.png');
     });
 
     it('a handle written during the load wins over the late one', async () => {

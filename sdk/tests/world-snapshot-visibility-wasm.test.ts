@@ -15,6 +15,41 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
     let module: ESEngineModule;
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
 
+    it.each([['Sprite', Sprite, 'texture', 'png'], ['MeshRenderer', MeshRenderer, 'mesh', 'esmesh']] as const)(
+        'preserves the current pending %s asset in inspection and scene saves', async (type, component, field, extension) => {
+            const registry = new module.Registry(), world = new World();
+            world.connectCpp(registry, module);
+            const app = { world, hasResource: () => false } as unknown as App;
+            const completions: Array<() => void> = [];
+            world.setAssetFieldResolver(() => new Promise<void>(resolve => { completions.push(resolve); }));
+            try {
+                const entity = world.spawn('Asset');
+                const read = () => world.get(entity, component) as Record<string, unknown>;
+                const inspect = () => worldSnapshot(app, entity, false).selected?.components.find(c => c.type === type)?.data[field];
+                const save = () => serializeScene(world).entities[0].components.find(c => c.type === type)?.data[field];
+                const before = `assets/old.${extension}`, after = `assets/new.${extension}`;
+                world.insert(entity, component, { [field]: before } as never);
+                expect(read()[field]).toBe(0);
+                expect(inspect()).toBe(before);
+                expect(save()).toBe(before);
+                world.update(entity, component, data => { data.enabled = false; });
+                expect(inspect()).toBe(before);
+
+                world.set(entity, component, { ...read(), [field]: after } as never);
+                completions[0]();
+                await Promise.resolve();
+                expect(inspect()).toBe(after);
+                expect(save()).toBe(after);
+                world.update(entity, component, data => { (data as Record<string, unknown>)[field] = 0; });
+                expect(inspect()).toBe(0);
+                expect(save()).toBe(0);
+                completions[1]();
+                await Promise.resolve();
+                expect(inspect()).toBe(0);
+            } finally { world.disconnectCpp(); registry.delete(); }
+        },
+    );
+
     it('captures detached script records and pooled values in both snapshot modes', () => {
         const registry = new module.Registry(), world = new World();
         world.connectCpp(registry, module);

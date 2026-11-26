@@ -207,7 +207,7 @@ export function worldSnapshot(
             if (!def) continue;
             // The current registry already confirmed membership. Read without the SDK's cached membership check.
             const data = world.get(selectedId as never, def) as Record<string, unknown> | undefined;
-            if (data) raw.push({ type, data: captureAuthoredComponentData(def, data) });
+            if (data) raw.push({ type, data: captureAuthoredComponentData(world, selectedId as never, def, data, opts.assetPath) });
         }
         const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
         const components = assets ? translateAssetHandles(raw, (kind, handle) => {
