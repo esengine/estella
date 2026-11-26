@@ -65,9 +65,8 @@ export interface SceneAssetRefs {
     /** Skeleton/atlas pairs posed by DragonBones. */
     dragonBones: SkeletalAssetRef[];
     /**
-     * Refs seen during discovery that could not be resolved to a path
-     * (e.g. unknown UUID). Callers surface this to the user so missing
-     * assets don't silently turn into texture handle 0.
+     * Distinct refs that could not be resolved to a path, in first-seen order.
+     * Callers surface these so missing assets don't silently turn into texture handle 0.
      */
     unresolved: string[];
     /** Resolved paths of the textures a MeshRenderer draws directly (its texture and normal map): what texture streaming may start small. */
@@ -135,10 +134,15 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
         spines: [], dragonBones: [], unresolved: [], meshTextures: new Set(), meshMaterials: new Set(),
     };
     const skeletalKeys = new Set<string>();
+    let unresolved: Set<string> | undefined;
     const resolve = (raw: string): string | null => {
         const path = refResolver ? refResolver(raw) : raw;
         if (path) return path;
-        refs.unresolved.push(raw);
+        unresolved ??= new Set();
+        if (!unresolved.has(raw)) {
+            unresolved.add(raw);
+            refs.unresolved.push(raw);
+        }
         return null;
     };
     const bucket = (map: Map<string, Set<string>>, type: string, value: string): void => {

@@ -11,10 +11,12 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
+import { Assets } from '../src/asset/Assets';
 import { discoverSceneAssets } from '../src/asset/discoverAssets';
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import type { SceneData } from '../src/scene/scene';
 import { MissingAssetsError } from '../src/scene/scene';
+import { log } from '../src/util/logger';
 
 const SPRITE_NAME = 'MissingTest_Sprite';
 
@@ -70,7 +72,7 @@ describe('discoverSceneAssets → unresolved → missing plumbing', () => {
         expect(refs.unresolved).toEqual([]);
     });
 
-    it('reports each unresolved ref in the order encountered', () => {
+    it('reports distinct unresolved refs in the order first encountered', async () => {
         const reg = new AssetRegistry();
 
         const sceneData: SceneData = {
@@ -92,6 +94,7 @@ describe('discoverSceneAssets → unresolved → missing plumbing', () => {
                 },
             ],
         };
+        sceneData.entities.push({ ...sceneData.entities[0]!, id: 3, name: 'another sprite' });
 
         const refs = discoverSceneAssets(sceneData, (r) => reg.resolveRef(r));
         // Both UUIDs are unknown because the registry is empty.
@@ -99,6 +102,20 @@ describe('discoverSceneAssets → unresolved → missing plumbing', () => {
             makeUuidRef(UUID_MISSING),
             makeUuidRef(UUID_KNOWN),
         ]);
+        const assets = Assets.create({
+            backend: { resolveUrl: (path: string) => path } as never,
+            module: null,
+        });
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        try {
+            assets.setAssetRefResolver(ref => reg.resolveRef(ref));
+            const result = await assets.preloadSceneAssets(sceneData);
+            expect(result.missing).toEqual(refs.unresolved.map(ref => ({ ref, reason: 'unresolved' })));
+            expect(warn).toHaveBeenCalledWith('asset', '2 unresolved asset ref(s)', refs.unresolved);
+        } finally {
+            warn.mockRestore();
+            assets.releaseAll();
+        }
     });
 });
 
@@ -120,8 +137,6 @@ describe('a load that failed says so', () => {
     // the editor's caller ignores — leaving a scene with no textures and no
     // complaint, indistinguishable from a scene that has none.
     it('warns when an asset fails to load, not only when a ref is unresolved', async () => {
-        const { Assets } = await import('../src/asset/Assets');
-        const { log } = await import('../src/util/logger');
         const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
         try {
             const assets = Assets.create({
