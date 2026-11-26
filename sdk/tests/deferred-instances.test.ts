@@ -9,6 +9,8 @@ import { cutToRoot, isDeferredInstance, rootOnly } from '../src/prefab/deferred'
 import { expandScenePrefabs, loadSceneWithAssets, type SceneData } from '../src/scene/scene';
 import { deferredEntities, deferredRecord } from '../src/scene/deferredInstances';
 import { UIPages } from '../src/ui/pages/ui-pages';
+import { UIWorldAnchor } from '../src/ui/core/world-anchor';
+import { UITabView } from '../src/ui/behavior/tab-view';
 import type { Assets } from '../src/asset/Assets';
 import type { Entity } from '../src/types';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -151,6 +153,74 @@ describe.skipIf(!HAS_WASM)('virtual prefab instances: in a world', () => {
         expect(handle.root).toBe(shop);
         expect(under(w, shop)).toEqual(['shop', 'x', 'y', 'z']);
         expect(w.getAllEntities()).toHaveLength(1 + 3 + 4);
+    });
+
+    it('opens and reopens a nested page with its outer, local and scene targets intact', async () => {
+        const page = prefab('shop', ['button']);
+        page.entities[0].components.push({ type: 'UIWorldAnchor', data: { target: 'e-button' } });
+        page.entities[1].components.push({ type: 'UIWorldAnchor', data: { target: 'root', camera: 'root' } },
+            { type: 'UITabView', data: { tabs: [], pages: [] } });
+        const outer = prefab('outer', []);
+        outer.entities[0].children.push('slot');
+        outer.entities.push({ ...ent('slot', 'slot', 'root', [], { deferred: true }), nestedPrefab: { prefabPath: 'page', overrides: [] } });
+        const patch = (componentType: string, propertyName: string, value: unknown): PrefabOverride =>
+            ({ prefabEntityId: 'slot/e-button', type: 'property', componentType, propertyName, value });
+        const w = world(), assets = assetsFor({ outer, page });
+        await loadSceneWithAssets(w, sceneOf(entry(12, 'outer', [
+            patch('UIWorldAnchor', 'target', 'root'), patch('UITabView', 'pages', ['slot/e-button', 1, 'slot/root', 1]),
+        ])), { assets });
+        const mount = find(w, 'shop'), host = find(w, 'outer'), canvas = find(w, 'canvas');
+        expect(under(w, mount)).toEqual(['shop']);
+        const pages = new UIPages(w, assets);
+        pages.registerDeferredAll(undefined, 'destroy');
+        for (let i = 0; i < 2; i++) {
+            const handle = await pages.open('shop'), button = handle.find('button')!;
+            expect(handle.root).toBe(mount);
+            expect(w.get(button, UIWorldAnchor).target).toBe(host);
+            expect(w.get(button, UIWorldAnchor).camera).toBe(mount);
+            expect(w.get(mount, UIWorldAnchor).target).toBe(button);
+            expect(w.get(button, UITabView).pages).toEqual([button, canvas, mount, canvas]);
+            pages.close('shop');
+            expect(w.valid(button)).toBe(false);
+            expect(w.get(mount, UIWorldAnchor).target).toBe(0);
+        }
+    });
+
+    it('keeps deferred source ids distinct from numeric prefab addresses in each world', async () => {
+        const page = prefab('page', ['button']);
+        page.entities[0].children.push('1');
+        page.entities.push(ent('1', 'local', 'root', []));
+        page.entities[1].components.push({ type: 'UITabView', data: {} });
+        const scene = sceneOf(entry(9, 'page', [mark(), { prefabEntityId: 'e-button', type: 'property',
+            componentType: 'UITabView', propertyName: 'pages', value: [1, '1', 5, 1] }]));
+        const expanded = await expandScenePrefabs(scene, loader({ page }));
+        expect(expanded.deferredInstances?.[0].externalIds).toEqual([1, 5]);
+        const assets = assetsFor({ page }), first = world(), second = world();
+        second.spawn();
+        await loadSceneWithAssets(first, expanded, { assets });
+        await loadSceneWithAssets(second, expanded, { assets });
+        expect(find(first, 'canvas')).not.toBe(find(second, 'canvas'));
+        for (const w of [first, second]) {
+            const pages = new UIPages(w, assets);
+            pages.registerDeferredAll();
+            const handle = await pages.open('page'), canvas = find(w, 'canvas');
+            expect(w.get(handle.find('button')!, UITabView).pages).toEqual([canvas, handle.find('local'), 0, canvas]);
+        }
+    });
+
+    it('registers nested virtual pages against the new mount after their parent is rebuilt', async () => {
+        const outer = prefab('outer', []);
+        outer.entities[0].children.push('slot');
+        outer.entities.push({ ...ent('slot', 'slot', 'root', [], { deferred: true }), nestedPrefab: { prefabPath: 'inner', overrides: [] } });
+        const w = world(), pages = new UIPages(w, assetsFor({ outer, inner: prefab('inner', ['item']) }));
+        pages.register('outer', { prefab: 'outer', parent: w.spawn(), onClose: 'destroy' });
+        for (let i = 0; i < 2; i++) {
+            const parent = await pages.open('outer'), child = await pages.open('inner');
+            expect(child.root).toBe(parent.find('inner'));
+            expect(w.valid(child.find('item')!)).toBe(true);
+            pages.close('outer');
+            expect(w.valid(child.root)).toBe(false);
+        }
     });
 
     it('keeps a virtual instance where it was in the draw order', async () => {

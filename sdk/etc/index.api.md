@@ -3859,6 +3859,7 @@ width: number
 
 ## DeferredRecord — interface @experimental
 ```
+externalIds: number[] | undefined
 id: number
 overrides: PrefabOverride[]
 prefab: string

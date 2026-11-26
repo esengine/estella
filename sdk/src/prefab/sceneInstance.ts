@@ -26,7 +26,8 @@
  * Pure data (no World / wasm) — unit-testable as the data-loss safety net.
  */
 
-import { flattenPrefab } from './flatten';
+import { flattenPrefab, preparePrefabBindings } from './flatten';
+import { instanceRef, mapComponentRefs } from './entityRef';
 import { diffEntities } from './diff';
 import type { DeferredRecord } from './deferred';
 import type { DiffBaselineEntity } from './diff';
@@ -34,7 +35,6 @@ import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../ecs/component';
 import { INVALID_ENTITY } from '../types';
-import { mapEntityRefField } from '../ecs/entityRefField';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,
@@ -101,7 +101,9 @@ export function expandInstance(
 }
 
 function expandWithContext(prefab: PrefabData, delta: PrefabInstanceDelta, ctx: FlattenContext): FlattenResult {
-    const { entities, rootId, unresolved } = flattenPrefab(prefab, delta.overrides, ctx);
+    const idByPrefabId = new Map<PrefabEntityId, number>();
+    const plan = preparePrefabBindings(prefab, delta.overrides, ctx, idByPrefabId);
+    const { entities, rootId, unresolved } = plan;
 
     // Structural re-parent overrides move a prefab-origin entity BEFORE the
     // removed-closure runs, so an entity re-parented OUT of a doomed subtree
@@ -116,10 +118,12 @@ function expandWithContext(prefab: PrefabData, delta: PrefabInstanceDelta, ctx: 
     const removed = removedClosure(entities, delta.removed);
     const kept = entities.filter((e) => !removed.has(e.prefabEntityId));
 
-    // prefabEntityId → runtime id, for both kept prefab entities and added ones.
-    const idByPrefabId = new Map<PrefabEntityId, number>();
-    for (const e of kept) idByPrefabId.set(e.prefabEntityId, e.id);
-
+    const removedIds = new Set<number>();
+    if (removed.size) {
+        for (const entity of entities) {
+            if (removed.has(entity.prefabEntityId)) removedIds.add(entity.id);
+        }
+    }
     // Allocate added ids first so parent refs resolve regardless of order.
     const added: ProcessedEntity[] = delta.added.map((a) => {
         const id = ctx.allocateId();
@@ -135,10 +139,20 @@ function expandWithContext(prefab: PrefabData, delta: PrefabInstanceDelta, ctx: 
         };
     });
     delta.added.forEach((a, i) => {
-        added[i].parent = a.parentId != null ? (idByPrefabId.get(a.parentId) ?? rootId) : rootId;
+        const parent = a.parentId == null ? undefined : idByPrefabId.get(a.parentId);
+        added[i].parent = parent === undefined || removedIds.has(parent) ? rootId : parent;
+        for (const component of added[i].components) mapComponentRefs(component, ref => instanceRef(ref, idByPrefabId));
     });
 
     const all = [...kept, ...added];
+    plan.applyEdits(kept);
+    if (removedIds.size) {
+        for (const entity of all) {
+            for (const component of entity.components) {
+                mapComponentRefs(component, ref => typeof ref === 'number' && removedIds.has(ref) ? INVALID_ENTITY : ref);
+            }
+        }
+    }
     // Second pass over the full id space (kept + added), so a re-parent onto an
     // added entity resolves and any still-unresolved target falls back to root.
     applyParentOverrides(all, delta.overrides, rootId, true);
@@ -233,13 +247,13 @@ export function collapseInstance(
 ): PrefabInstanceDelta {
     const { entities: baseline, parentOf } = collapseBaseline(prefab, loadPrefab);
     const { overrides, untracked, orphanedSourceIds } = diffEntities(baseline, expanded);
-    const byId = new Map(expanded.map((e) => [e.id, e]));
+    const byId = new Map(expanded.map(e => [e.id, e.prefabEntityId]));
     const added: AddedEntity[] = untracked.map((u) => ({
         prefabEntityId: u.prefabEntityId,
         name: u.name,
-        components: u.components,
+        components: captureEntityRefs(cloneComponents(u.components), byId, true),
         visible: u.visible,
-        parentId: u.parent != null ? (byId.get(u.parent)?.prefabEntityId ?? null) : null,
+        parentId: u.parent != null ? (byId.get(u.parent) ?? null) : null,
     }));
     // Record only the ROOTS of removed subtrees (a deleted entity whose baseline
     // parent is still present); expand recomputes the descendant closure.
@@ -531,19 +545,14 @@ export interface ExtractEntity {
 function captureEntityRefs(
     components: ComponentData[],
     idMap: Map<number, string>,
+    keepExternal = false,
 ): ComponentData[] {
     const one = (value: unknown): unknown => {
         if (typeof value !== 'number') return value;
         if (idMap.has(value)) return idMap.get(value)!;      // in-subtree → stable prefab-local id
-        return value !== INVALID_ENTITY ? INVALID_ENTITY : value; // external → cleared (never dangle)
+        return keepExternal ? value : INVALID_ENTITY;
     };
-    for (const comp of components) {
-        const def = getComponent(comp.type);
-        if (!def || def.entityFields.length === 0) continue;
-        for (const field of def.entityFields) {
-            comp.data[field] = mapEntityRefField(comp.data[field], one);
-        }
-    }
+    for (const comp of components) mapComponentRefs(comp, one);
     return components;
 }
 

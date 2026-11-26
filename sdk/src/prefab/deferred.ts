@@ -13,6 +13,7 @@
  * virtual), on a nested slot (that mounting is), or as an override on one instance in a scene (that instance is).
  */
 import type { PrefabData, PrefabOverride, ProcessedEntity } from './types';
+import { mapOverrideRefs } from './entityRef';
 
 /** The metadata key that makes an instance virtual. */
 export const DEFERRED_KEY = 'deferred';
@@ -27,6 +28,20 @@ export interface DeferredRecord {
     prefab: string;
     /** The overrides the instance carries, in the prefab's own address space. */
     overrides: PrefabOverride[];
+    /** Scene source ids needed by the page when it is built later. */
+    externalIds?: number[];
+}
+
+/** Store local links as prefab addresses. Capture only the scene ids actually referenced by overrides. */
+export function deferredBindings(overrides: readonly PrefabOverride[],
+    project: (patch: PrefabOverride, value: unknown) => unknown = (_patch, value) => value): Pick<DeferredRecord, 'overrides' | 'externalIds'> {
+    const external = new Set<number>();
+    const mapped = overrides.map(patch => mapOverrideRefs({ ...patch }, value => {
+        const ref = project(patch, value);
+        if (typeof ref === 'number' && ref > 0 && ref !== 0xffffffff) external.add(ref);
+        return ref;
+    }));
+    return { overrides: mapped, ...(external.size ? { externalIds: [...external] } : {}) };
 }
 
 /** Whether the instance of `prefab` with `overrides` is virtual: the root's mark as the prefab has it and the overrides leave it. */

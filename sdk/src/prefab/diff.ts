@@ -9,6 +9,7 @@ import type {
 } from './types';
 import { getComponent } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
+import { mapComponentRefs } from './entityRef';
 import { INVALID_ENTITY } from '../types';
 import { hasOwn } from '../util/ownProperties';
 
@@ -261,10 +262,12 @@ function diffComponents(
     for (const [type, instComp] of instByType) {
         const baseComp = baseByType.get(type);
         if (!baseComp) {
+            const componentData = { type, data: deepClone(instComp.data) };
+            mapComponentRefs(componentData, ref => typeof ref === 'number' ? instRefMap.get(ref) ?? ref : ref);
             out.push({
                 prefabEntityId: entityId,
                 type: 'component_added',
-                componentData: { type, data: deepClone(instComp.data) },
+                componentData,
             });
             continue;
         }

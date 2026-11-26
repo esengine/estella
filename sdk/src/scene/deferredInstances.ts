@@ -10,9 +10,15 @@
  */
 import type { DeferredRecord } from '../prefab/deferred';
 import type { World } from '../ecs/world';
-import type { Entity } from '../types';
+import { INVALID_ENTITY, type Entity } from '../types';
 
 const records = new WeakMap<World, Map<Entity, DeferredRecord>>();
+const bindings = new WeakMap<DeferredRecord, ReadonlyMap<number, Entity>>();
+
+/** Resolved in the owning world when its scene loads, before page-local source ids can collide. */
+export function deferredExternalEntities(record: DeferredRecord): ReadonlyMap<number, Entity> | undefined {
+    return bindings.get(record);
+}
 
 /**
  * Whether the page was asked to make virtual instances whole (`?expand-virtual` in its address): a switch for looking at a game as
@@ -28,14 +34,21 @@ export function expandVirtualRequested(): boolean {
 }
 
 /** Remember the virtual instances a scene was loaded with: `entities` is the scene's id -> entity map the load answered. */
-export function registerDeferredInstances(world: World, list: readonly DeferredRecord[] | undefined, entities: ReadonlyMap<number, Entity>): void {
+export function registerDeferredInstances(world: World, list: readonly DeferredRecord[] | undefined,
+    entities: ReadonlyMap<number, Entity>, external?: ReadonlyMap<number, Entity>): void {
     if (!list || list.length === 0) return;
     let own = records.get(world);
     if (!own) records.set(world, own = new Map());
     for (const record of list) {
         const entity = entities.get(record.id);
         if (entity === undefined) continue;
-        own.set(entity, record);
+        if (!record.externalIds?.length) {
+            own.set(entity, record);
+            continue;
+        }
+        const local = { ...record };
+        bindings.set(local, new Map(record.externalIds.map(id => [id, entities.get(id) ?? external?.get(id) ?? INVALID_ENTITY])));
+        own.set(entity, local);
     }
 }
 

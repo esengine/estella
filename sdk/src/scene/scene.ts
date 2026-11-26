@@ -9,7 +9,7 @@ import { patchComponentFields, World } from '../ecs/world';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
-import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
+import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
@@ -426,10 +426,10 @@ export async function expandScenePrefabSources(
         const stub = virtual ? rootOnly(prefab) : null;
         const { entities: expanded, unresolved: unresolvedAll } = expandEntry(
             stub ?? prefab, stub ? { ...entry, overrides: rootOverrides(prefab, entry.overrides) } : entry, allocateId,
-            (ref) => dependencies.get(ref) ?? null, expandVirtual ? undefined : deferred);
+            (ref) => dependencies.get(ref) ?? null, expandVirtual || virtual ? undefined : deferred);
         const entities = virtual && !stub ? cutToRoot(expanded, entry.id) : expanded;
         const unresolved = virtual ? [] : unresolvedAll;
-        if (virtual) deferred.push({ id: entry.id, prefab: entry.prefab, overrides: entry.overrides.map((o) => ({ ...o })) });
+        if (virtual) deferred.push({ id: entry.id, prefab: entry.prefab, ...deferredBindings(entry.overrides) });
         if (unresolved.length > 0) {
             const targets = [...new Set(unresolved.map((o) => o.prefabEntityId))].join(', ');
             log.warn('scene', `Prefab instance "${entry.prefab}" (entity ${entry.id}) overrides `
@@ -882,7 +882,7 @@ async function loadSceneAssetsAndSpawn(
             assertCurrent();
             ownership?.attach(world, entities);
             assets?.trackSceneAssetReferences(data, entities, world);
-            registerDeferredInstances(world, deferred, entities);
+            registerDeferredInstances(world, deferred, entities, options?.externalEntities);
             const result = attempt.assets;
             if (result && collector) {
                 for (const handle of result.materialHandles.values()) if (handle) collector.materialHandles.add(handle);

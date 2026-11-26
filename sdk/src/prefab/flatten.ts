@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { DEFERRED_KEY, canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides } from './deferred';
+import { DEFERRED_KEY, canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides } from './deferred';
 import type {
     PrefabData,
     PrefabEntityData,
@@ -12,9 +12,10 @@ import type {
 } from './types';
 import { PREFAB_ADDRESS_SEP } from './types';
 import { cloneComponents, cloneMetadata } from './clone';
-import { remapComponentEntityRefs } from './entityRef';
+import { mapOverrideRefs, prefabRef, remapComponentEntityRefs } from './entityRef';
 import { applyOverrides, bucketOverridesByEntity } from './override';
 import { createChildLookup, checkParentCycle } from '../document/diagnostics';
+import { INVALID_ENTITY } from '../types';
 
 const MAX_PREFAB_NESTING_DEPTH = 10;
 
@@ -28,6 +29,75 @@ export function flattenPrefab(
     overrides: PrefabOverride[],
     ctx: FlattenContext,
 ): FlattenResult {
+    const plan = preparePrefabBindings(prefab, overrides, ctx);
+    plan.applyEdits(plan.entities);
+    return { entities: plan.entities, rootId: plan.rootId, unresolved: plan.unresolved };
+}
+
+interface ReferenceScope {
+    ids: ReadonlyMap<PrefabEntityId, number>;
+    prefix: string;
+    /** A scene delta stores external references as numbers. */
+    scene?: boolean;
+}
+
+interface PendingEdits {
+    id: number;
+    patches: PrefabOverride[];
+    local: ReferenceScope;
+    origins: ReadonlyMap<PrefabOverride, ReferenceScope>;
+}
+
+interface AssemblyContext extends FlattenContext {
+    pending: PendingEdits[];
+    origins: ReadonlyMap<PrefabOverride, ReferenceScope>;
+    prefix: string;
+    finishDeferred: Array<() => void>;
+}
+
+interface AssembledPrefab extends FlattenResult {
+    addresses: Map<PrefabEntityId, number>;
+}
+
+/** Scene deltas finish this same assembly after reserving ids for their added members. */
+export function preparePrefabBindings(prefab: PrefabData, overrides: PrefabOverride[], ctx: FlattenContext,
+    sceneIds?: Map<PrefabEntityId, number>) {
+    const pending: PendingEdits[] = [];
+    const finishDeferred: Array<() => void> = [];
+    const origins = new Map<PrefabOverride, ReferenceScope>();
+    if (sceneIds) {
+        const scene = { ids: sceneIds, prefix: '', scene: true };
+        for (const patch of overrides) origins.set(patch, scene);
+    }
+    const result = assemblePrefab(prefab, overrides, { ...ctx, prefix: '', pending, origins, finishDeferred });
+    if (sceneIds) {
+        for (const [address, id] of result.addresses) sceneIds.set(address, id);
+    }
+    function applyEdits(entities: readonly ProcessedEntity[]): void {
+        for (const finish of finishDeferred) finish();
+        if (pending.length === 0) return;
+        const byId = new Map(entities.map(e => [e.id, e]));
+        for (const edits of pending) {
+            const target = byId.get(edits.id);
+            if (!target) continue;
+            const patches = edits.patches.map(patch => {
+                const owner = edits.origins.get(patch) ?? edits.local;
+                const mapped = mapOverrideRefs(patch, value => {
+                    if (typeof value === 'string') {
+                        // Older hand-authored nested edits can name a child in its local scope.
+                        return owner.ids.get(value) ?? edits.local.ids.get(value) ?? INVALID_ENTITY;
+                    }
+                    return owner.scene ? value : prefabRef(value, owner.ids);
+                });
+                return { ...mapped, prefabEntityId: target.prefabEntityId };
+            });
+            applyOverrides(target, patches);
+        }
+    }
+    return { ...result, applyEdits };
+}
+
+function assemblePrefab(prefab: PrefabData, overrides: PrefabOverride[], ctx: AssemblyContext): AssembledPrefab {
     const depth = ctx.depth ?? 0;
     if (depth > MAX_PREFAB_NESTING_DEPTH) {
         throw new Error(
@@ -45,6 +115,7 @@ export function flattenPrefab(
     const visited = ctx.visited ?? new Set<string>();
     // Stable identity → runtime entity id allocated by ctx.
     const idMapping = new Map<PrefabEntityId, number>();
+    const local: ReferenceScope = { ids: idMapping, prefix: ctx.prefix };
 
     for (const pe of prefab.entities) {
         if (!pe.nestedPrefab) {
@@ -83,10 +154,16 @@ export function flattenPrefab(
             // slot's authored overrides. This is what makes an instance override
             // on a nested entity survive the collapse→expand round trip.
             const slotPrefix = pe.prefabEntityId + PREFAB_ADDRESS_SEP;
+            const prefix = ctx.prefix + slotPrefix;
             slotPrefixes.push(slotPrefix);
-            const routed = overrides
-                .filter(o => o.prefabEntityId.startsWith(slotPrefix))
-                .map(o => ({ ...o, prefabEntityId: o.prefabEntityId.slice(slotPrefix.length) }));
+            const origins = new Map<PrefabOverride, ReferenceScope>();
+            const routed: PrefabOverride[] = [];
+            for (const patch of overrides) {
+                if (!patch.prefabEntityId.startsWith(slotPrefix)) continue;
+                const childPatch = { ...patch, prefabEntityId: patch.prefabEntityId.slice(slotPrefix.length) };
+                origins.set(childPatch, ctx.origins.get(patch) ?? local);
+                routed.push(childPatch);
+            }
             const nestedOverrides = routed.length
                 ? [...pe.nestedPrefab.overrides, ...routed]
                 : pe.nestedPrefab.overrides;
@@ -102,20 +179,24 @@ export function flattenPrefab(
             const virtual = ctx.deferred !== undefined && canDefer(nestedOverrides, nestedPrefab)
                 && (pe.metadata?.[DEFERRED_KEY] === true || isDeferredInstance(nestedPrefab, nestedOverrides));
             const stub = virtual ? rootOnly(nestedPrefab) : null;
-            const nested = flattenPrefab(
+            const nested = assemblePrefab(
                 stub ?? nestedPrefab,
                 stub ? rootOverrides(nestedPrefab, nestedOverrides) : nestedOverrides,
                 {
-                    ...ctx, visited, depth: depth + 1,
+                    ...ctx, origins, prefix, visited, depth: depth + 1,
                     rootId: pe.prefabEntityId === prefab.rootEntityId ? ctx.rootId : undefined,
                     deferred: virtual ? undefined : ctx.deferred,
                 },
             );
             visited.delete(nestedPath);
-            if (virtual) {
+            if (virtual && ctx.deferred) {
                 if (!stub) nested.entities = cutToRoot(nested.entities, nested.rootId);
                 nested.unresolved = [];
-                ctx.deferred!.push({ id: nested.rootId, prefab: nestedPath, overrides: nestedOverrides.map((o) => ({ ...o })) });
+                const records = ctx.deferred;
+                const rootAddress = nested.entities.find(e => e.id === nested.rootId)!.prefabEntityId;
+                // The enclosing scene may still be allocating a sibling or an added member.
+                ctx.finishDeferred.push(() => records.push({ id: nested.rootId, prefab: nestedPath,
+                    ...slotBindings(nestedOverrides, origins, prefix, rootAddress, nestedPrefab, nested.addresses) }));
             }
 
             // Namespace the nested subtree's stable ids by this slot so two
@@ -125,7 +206,9 @@ export function flattenPrefab(
             // string used for diff/override/tag addressing is composed.
             for (const ne of nested.entities) {
                 ne.prefabEntityId = joinAddress(pe.prefabEntityId, ne.prefabEntityId);
-                idMapping.set(ne.prefabEntityId, ne.id);
+            }
+            for (const [address, id] of nested.addresses) {
+                if (!virtual || id === nested.rootId) idMapping.set(joinAddress(pe.prefabEntityId, address), id);
             }
             for (const o of nested.unresolved) {
                 unresolved.push({ ...o, prefabEntityId: joinAddress(pe.prefabEntityId, o.prefabEntityId) });
@@ -151,7 +234,8 @@ export function flattenPrefab(
             ...(pe.metadata ? { metadata: cloneMetadata(pe.metadata) } : {}),
         };
 
-        applyOverrides(entity, overrideBuckets.get(pe.prefabEntityId));
+        const patches = overrideBuckets.get(pe.prefabEntityId);
+        if (patches) ctx.pending.push({ id, patches, local, origins: ctx.origins });
         result.push(entity);
     }
 
@@ -193,7 +277,29 @@ export function flattenPrefab(
         }
     }
 
-    return { entities: result, rootId, unresolved };
+    return { entities: result, rootId, unresolved, addresses: idMapping };
+}
+
+/** A virtual slot reopens as its own prefab. Keep its local addresses and capture any enclosing targets by source id. */
+function slotBindings(overrides: PrefabOverride[], origins: ReadonlyMap<PrefabOverride, ReferenceScope>, prefix: string,
+    root: PrefabEntityId, prefab: PrefabData, addresses: ReadonlyMap<PrefabEntityId, number>) {
+    let authoredIds: Set<PrefabEntityId> | undefined;
+    return deferredBindings(overrides, (patch, value) => {
+        const owner = origins.get(patch);
+        if (!owner) {
+            // Legacy asset overrides can name numeric locals, including descendants absent from a root-only stub.
+            if (typeof value !== 'number' || value <= 0) return value;
+            const key = String(value);
+            authoredIds ??= new Set(prefab.entities.map(e => e.prefabEntityId));
+            return addresses.has(key) || authoredIds.has(key) ? key : value;
+        }
+        const ref = typeof value === 'number' && value > 0 && !owner.scene && owner.ids.has(String(value)) ? String(value) : value;
+        if (typeof ref !== 'string') return ref;
+        const address = owner.prefix + ref;
+        if (address + PREFAB_ADDRESS_SEP === prefix) return root;
+        if (address.startsWith(prefix)) return address.slice(prefix.length);
+        return owner.ids.get(ref) ?? ref;
+    });
 }
 
 /**
@@ -207,9 +313,9 @@ export function flattenPrefab(
 function flattenVariant(
     variant: PrefabData,
     instanceOverrides: PrefabOverride[],
-    ctx: FlattenContext,
+    ctx: AssemblyContext,
     depth: number,
-): FlattenResult {
+): AssembledPrefab {
     const basePath = variant.basePrefab!;
     const visited = ctx.visited ?? new Set<string>();
 
@@ -236,10 +342,10 @@ function flattenVariant(
 
     const merged = mergeVariantEntities(resolvedBase, variant);
 
-    const variantOverrides = variant.overrides ?? [];
+    const variantOverrides = merged.overrides ?? [];
     const combinedOverrides = [...variantOverrides, ...instanceOverrides];
 
-    const result = flattenPrefab(
+    const result = assemblePrefab(
         merged,
         combinedOverrides,
         { ...ctx, visited, depth: depth + 1 },
@@ -373,6 +479,7 @@ function mergeVariantEntities(base: PrefabData, variant: PrefabData): PrefabData
         name: variant.name,
         rootEntityId: base.rootEntityId,
         entities: merged,
+        overrides: [...(base.overrides ?? []), ...(variant.overrides ?? [])],
         // basePrefab intentionally dropped; the merged result is no longer a
         // variant for downstream flatten purposes.
     };

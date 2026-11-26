@@ -19,14 +19,16 @@
  * order (a UI's overlays are above its screens because they come after them, and a page built later must not end up on top of
  * an overlay). The mount carries what the prefab's root would have carried; only the root's children are taken.
  */
-import { Children, Name, Parent } from '../../ecs/component';
+import { Children, getComponent, Name, Parent } from '../../ecs/component';
+import { mapEntityRefField } from '../../ecs/entityRefField';
 import type { ChildrenData, NameData, ParentData } from '../../ecs/component';
 import { isEntityActive, setEntityActive } from '../../ecs/entityUtils';
-import { instantiatePrefab } from '../../prefab';
+import { instantiatePrefabWithBindings } from '../../prefab';
 import type { PrefabData, PrefabOverride } from '../../prefab';
+import type { DeferredRecord } from '../../prefab/deferred';
 import { deferredEntities, deferredRecord } from '../../scene/deferredInstances';
 import type { World } from '../../ecs/world';
-import type { Entity } from '../../types';
+import { INVALID_ENTITY, type Entity } from '../../types';
 
 import type { Assets } from '../../asset/Assets';
 
@@ -60,6 +62,7 @@ export interface PageHandle {
 
 interface PageState {
     def: PageDef;
+    deferred?: DeferredRecord;
     handle: PageHandle | null;
     building: Promise<PageHandle> | null;
     open: boolean;
@@ -93,7 +96,13 @@ export class UIPages {
         if (record === undefined || this.mounts_.has(entity)) return null;
         const name = this.world_.has(entity, Name) ? (this.world_.get(entity, Name) as NameData).value : '';
         if (name === '') throw new Error(`UIPages: a virtual instance needs a name to be a page (entity ${entity})`);
+        const previous = this.pages_.get(name)?.def.mount;
+        if (typeof previous === 'number' && this.mounts_.has(previous) && !this.world_.valid(previous)) {
+            this.pages_.delete(name);
+            this.mounts_.delete(previous);
+        }
         this.register(name, { prefab: record.prefab, mount: entity, overrides: record.overrides, onClose });
+        this.state_(name).deferred = record;
         this.mounts_.add(entity);
         return name;
     }
@@ -170,14 +179,14 @@ export class UIPages {
         const { def } = state;
         const prefab = await this.prefab_(def.prefab);
         const world = this.world_;
-        const made = await instantiatePrefab(world, prefab, {
+        const mount = def.mount === undefined ? undefined : resolve(def.mount);
+        const made = await instantiatePrefabWithBindings(world, prefab, {
             assets: this.assets_,
             overrides: def.overrides,
             parent: def.mount === undefined ? resolve(def.parent!) : undefined,
-        });
+        }, mount, state.deferred);
         let root = made.root;
-        if (def.mount !== undefined) {
-            const mount = resolve(def.mount);
+        if (mount !== undefined) {
             // The prefab came up as a root of its own. Its children move under the mount, in order, and the empty root goes.
             const children = world.has(root, Children) ? [...(world.get(root, Children) as ChildrenData).entities] : [];
             for (const child of children) world.setParent(child, mount);
@@ -226,11 +235,35 @@ export class UIPages {
         const world = this.world_;
         if (state.def.mount !== undefined) {
             // The mount belongs to the scene and stays, switched off like any closed page; what was built under it goes.
+            const clearLinks = state.deferred && this.captureMountLinks_(handle.root);
             if (world.has(handle.root, Children)) for (const child of [...(world.get(handle.root, Children) as ChildrenData).entities]) world.despawn(child);
+            clearLinks?.();
             setEntityActive(world, handle.root, false);
         } else if (world.valid(handle.root)) {
             world.despawn(handle.root);
         }
         state.handle = null;
+    }
+
+    /** Clear links on the surviving mount only when their live target was lost during teardown. */
+    private captureMountLinks_(mount: Entity): () => void {
+        const world = this.world_;
+        const cleanup: Array<() => void> = [];
+        for (const type of world.getComponentTypes(mount)) {
+            const def = getComponent(type);
+            if (!def?.entityFields.length || def === Children || def === Parent) continue;
+            const data = world.get(mount, def) as Record<string, unknown>;
+            for (const field of def.entityFields) {
+                const value = data[field];
+                const live: Entity[] = (Array.isArray(value) ? value : [value]).filter(ref => world.valid(ref));
+                if (live.length) cleanup.push(() => {
+                    const lost = new Set(live.filter(ref => !world.valid(ref)));
+                    if (lost.size && world.has(mount, def)) world.update(mount, def, (draft: Record<string, unknown>) => {
+                        draft[field] = mapEntityRefField(draft[field], ref => lost.has(ref as Entity) ? INVALID_ENTITY : ref);
+                    });
+                });
+            }
+        }
+        return () => { for (const clear of cleanup) clear(); };
     }
 }
