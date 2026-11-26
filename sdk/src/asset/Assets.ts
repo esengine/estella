@@ -395,6 +395,8 @@ export interface SceneAssetResult {
     acquisitions?: readonly SceneAssetAcquisition[];
     /** @internal The names used by this preload, including across an intervening manifest update. */
     resolveRef?: AssetRefResolver;
+    /** @internal Atlas coordinates captured at the start of each texture acquisition. */
+    atlasFrameFor?: (ref: string, path: string) => AtlasFrameInfo | null;
     missing: MissingAsset[];
     /** Per asset type: how many loaded, the sum of their load times and the
      *  slowest one, in ms. Loads overlap, so the sums exceed the wall time. */
@@ -1936,6 +1938,8 @@ export class Assets {
         const handleMaps = Object.fromEntries(SCENE_HANDLE_TYPES.map(type => [
             `${type}Handles`, new Map<string, number>(),
         ])) as Pick<SceneAssetResult, `${SceneHandleType}Handles`>;
+        const initialCatalog = this.catalog;
+        let textureCatalogs: Map<string, Catalog> | undefined;
         const releaseCallbacks: ReleaseCallback[] = [];
         const acquisitions: SceneAssetAcquisition[] = [];
         const recordAcquisition = (type: string, path: string, lease: AssetLease): void => {
@@ -2011,7 +2015,10 @@ export class Assets {
         for (const type of SCENE_HANDLE_TYPES) {
             pushAcquire(type, handleMaps[`${type}Handles`], path => {
                 const ref = discovered.rawFor.get(path) ?? path;
-                return type === 'texture' ? reader.acquireTexture(ref) : this.acquireTypedLease_(type, ref, recorder?.owner, 'direct', inputs);
+                if (type !== 'texture') return this.acquireTypedLease_(type, ref, recorder?.owner, 'direct', inputs);
+                const catalog = this.catalog;
+                if (catalog !== initialCatalog) (textureCatalogs ??= new Map()).set(path, catalog);
+                return reader.acquireTexture(ref);
             });
         }
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
@@ -2058,6 +2065,7 @@ export class Assets {
             warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
 
             return { ...handleMaps, releaseCallbacks, scope, acquisitions, resolveRef: resolve, missing, timings, wallMs,
+                atlasFrameFor: (ref, path) => this.atlasFrameIn_(textureCatalogs?.get(path) ?? initialCatalog, ref, path),
                 publishTextureImports: () => {
                     this.assertLoading_(epoch);
                     declared?.publish();
@@ -2105,10 +2113,11 @@ export class Assets {
                     if (!isSceneHandleType(type)) continue;
                     const handle = result[`${type}Handles`].get(path) ?? 0;
                     comp.data[field] = handle;
+                    if (!handle) continue;
                     if (!this.handlePaths_.get(type)?.has(handle)) this.recordHandlePath_(type, handle, path);
 
                     if (type !== 'texture') continue;
-                    const atlasInfo = this.atlasFrameIn_(this.catalog, ref, path);
+                    const atlasInfo = result.atlasFrameFor ? result.atlasFrameFor(ref, path) : this.atlasFrameIn_(this.catalog, ref, path);
                     if (atlasInfo) {
                         Object.assign(comp.data, atlasFrameUv(atlasInfo, comp.data));
                         if (atlasInfo.trim) {

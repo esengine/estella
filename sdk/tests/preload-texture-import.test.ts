@@ -16,8 +16,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
+import { ownedAssetLease } from '../src/asset/AssetLease';
 import type { SceneData } from '../src/scene/scene';
 import { defineComponent } from '../src/ecs/component';
+import { reservePromise } from '../src/util/reservePromise';
 
 const setTextureMetadata = vi.fn();
 vi.mock('../src/wasm/resourceManager', () => ({
@@ -130,5 +132,52 @@ describe('preloadSceneAssets — texture import settings', () => {
         await assets.preloadSceneAssets(scene, undefined, { skipSpine: true });
 
         expect(setTextureMetadata).not.toHaveBeenCalled();
+    });
+
+    const atlasCatalog = (page: string, offset: number) => Catalog.fromJson({ version: 1, entries: Object.fromEntries(
+        ['first.png', 'second.png'].map(path => [path, { type: 'texture', atlas: page,
+            frame: { x: offset * 64, y: 0, w: 16, h: 32 }, uv: { offset: [offset, 0], scale: [0.25, 0.5] },
+            trim: { sourceW: 24, sourceH: 40, offsetX: 4, offsetY: 2 },
+        }]),
+    ) });
+
+    it('uses frame coordinates from the catalog active when each texture acquisition began', async () => {
+        const assets = Assets.create({ backend: backend(), module: mockModule, catalog: atlasCatalog('old.png', 0.25),
+            activateManifest: () => atlasCatalog('new.png', 0.5) });
+        const started = reservePromise<void>(), release = reservePromise<void>();
+        vi.spyOn(assets, 'acquireTexture').mockImplementation(async ref => {
+            if (ref === 'first.png') { started.resolve(); await release.promise; }
+            return ownedAssetLease(ref, 1, { handle: ref === 'first.png' ? 7 : 8, width: 64, height: 64 } as never, () => {}, 'texture');
+        });
+        const doc: SceneData = { ...scene, entities: [{ ...scene.entities[0], components: [
+            { type: 'Sprite', data: { texture: 'first.png' } },
+            { type: 'UIVisual', data: { texture: 'second.png' } },
+        ] }] };
+        const loading = assets.preloadSceneAssets(doc, undefined, { maxConcurrent: 1 });
+        await started.promise;
+        assets.setManifest(null);
+        release.resolve();
+        const result = await loading;
+        try {
+            assets.resolveSceneAssetPaths(doc, result);
+            expect(doc.entities[0].components.map(c => c.data)).toMatchObject([
+                { texture: 7, uvOffset: { x: 0.25, y: 0 } }, { texture: 8, uvOffset: { x: 0.5, y: 0 } },
+            ]);
+        } finally { result.scope.releaseAll(); }
+    });
+
+    it('preserves authored UVs when an atlas texture fails to load', async () => {
+        const assets = Assets.create({ backend: backend(), module: mockModule, catalog: atlasCatalog('page.png', 0.25) });
+        vi.spyOn(assets, 'acquireTexture').mockRejectedValueOnce(new Error('atlas page unavailable'));
+        const uv = { uvOffset: { x: 0.125, y: 0.25 }, uvScale: { x: 0.5, y: 0.5 } };
+        const doc: SceneData = { ...scene, entities: [{ ...scene.entities[0], components: [
+            { type: 'Sprite', data: { texture: 'first.png', ...uv } },
+        ] }] };
+        const result = await assets.preloadSceneAssets(doc);
+        try {
+            expect(result.missing).toEqual([expect.objectContaining({ reason: 'load-failed', ref: 'first.png' })]);
+            assets.resolveSceneAssetPaths(doc, result);
+            expect(doc.entities[0].components[0].data).toEqual({ texture: 0, ...uv });
+        } finally { result.scope.releaseAll(); }
     });
 });
