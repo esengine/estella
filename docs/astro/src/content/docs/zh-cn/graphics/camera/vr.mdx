@@ -7,11 +7,17 @@ Web 包可以在 VR 头显里玩：用头显自带的浏览器，或者用接了
 
 ## 打开 VR
 
-在 `project.esproject` 里把 `features.rendering.vr` 设为 `true`，再导出 Web 包。只要浏览器能进入 VR，页面就会显示 **Enter VR** 按钮；玩家点它进入头显，点 **Exit VR** 退出。
+打开**项目设置 > 渲染 > VR 头显（WebXR）**（它会把 `features.rendering.vr` 写进 `project.esproject`），再导出 Web 包。只要浏览器能进入 VR，页面就会显示 **Enter VR** 按钮；玩家点它进入头显，点 **Exit VR** 退出。
 
 ```json
 { "features": { "rendering": { "vr": true } } }
 ```
+
+开发时这样试用：
+
+- **浏览器预览**会在本机的浏览器里打开游戏，这个浏览器能使用接在本机上的头显（通过 Link 连接的 Quest，或任何装了 OpenXR 运行时的头显）。
+- **播放**时，如果编辑器本身能进入 VR，游戏面板里也会显示同样的按钮，否则不显示。
+- 头显自带的浏览器只能通过 HTTPS 或 `localhost`（用 `adb reverse` 转发端口）打开预览。`http://192.168.1.20` 这样的局域网地址不算安全上下文，那里不会提供 WebXR。
 
 游戏也可以从自己的界面进入。`enterVR` 必须在点击或按键事件里调用，这是浏览器的要求。
 

@@ -96,8 +96,7 @@ const DECLARED_GAPS = {
       + 'equal by the pixel gates (`verify-render --backend webgpu`) rather than by Play',
   },
   vr: {
-    editor: 'the editor never presents in a headset: its canvas is the editing view, and a headset is entered from a page',
-    play: 'Enter VR is offered by an exported web page; embedded Play and the device preview show no such button yet',
+    editor: 'the editor never presents in a headset: its canvas is the editing view, and a headset is entered from Play or a page',
   },
   threadedRendering: {
     editor: 'the editing canvas and its inspection tools share the editor thread',
@@ -173,7 +172,7 @@ const AUTHORING = {
   quality: { ui: 'project.rendering.quality' },
   renderBackend: { ui: 'project.rendering.backend' },
   threadedRendering: { ui: 'project.rendering.threadedRendering' },
-  vr: { owed: 'set in project.esproject by hand (features.rendering.vr); Project Settings has no VR switch yet' },
+  vr: { ui: 'project.rendering.vr' },
   asyncCompute: { ui: 'project.rendering.asyncCompute' },
   screenFit: { ui: 'project.display.cameraFit' },
 };

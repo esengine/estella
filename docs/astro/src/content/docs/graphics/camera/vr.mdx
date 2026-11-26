@@ -8,13 +8,21 @@ connected. Both eyes are drawn with the headset's own lenses and head tracking, 
 
 ## Turning it on
 
-Set `features.rendering.vr` to `true` in `project.esproject` and export for the web. The page shows an **Enter VR**
-button wherever the browser can present; the player clicks it to put the game in the headset, and **Exit VR** to take
-it out.
+Turn on **Project Settings > Rendering > VR headsets (WebXR)**, which writes `features.rendering.vr` to
+`project.esproject`, and export for the web. The page shows an **Enter VR** button wherever the browser can present; the
+player clicks it to put the game in the headset, and **Exit VR** to take it out.
 
 ```json
 { "features": { "rendering": { "vr": true } } }
 ```
+
+To try it while building the game:
+
+- **Browser preview** opens the game in the browser on this computer, which presents to a headset connected to it (a Quest
+  through Link, or any headset with an OpenXR runtime).
+- **Play** shows the same button in the Game panel when the editor itself can present one. It is hidden otherwise.
+- A headset's own browser can reach a preview only over HTTPS or as `localhost` (forward the port with `adb reverse`).
+  A LAN address such as `http://192.168.1.20` is not a secure context, so WebXR is not offered there.
 
 A game can do the same from its own UI. `enterVR` must be called from a click or a key press, as the browser asks.
 
