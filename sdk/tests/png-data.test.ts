@@ -65,6 +65,18 @@ describe('a PNG read as data', () => {
         } finally { vi.unstubAllGlobals(); }
     });
 
+    it('keeps all portable height samples across rows with and without repeated values', async () => {
+        const side = 65;
+        const values = Uint16Array.from({ length: side * side }, (_, i) =>
+            Math.floor(i / side) % 2 ? Math.imul(i, 2654435761) & 0xffff : 0xa512);
+        const rows = Array.from({ length: side }, (_, row) =>
+            Array.from(values.subarray(row * side, (row + 1) * side)).flatMap(sample => [sample >>> 8, sample & 255]));
+        vi.stubGlobal('DecompressionStream', undefined);
+        try {
+            expect((await decodePngData(png(side, side, 0, rows, 1, 16)))?.wide).toEqual(values);
+        } finally { vi.unstubAllGlobals(); }
+    });
+
     it('keeps red, green and blue where alpha is zero, which a canvas premultiplies away', async () => {
         // A splatmap texel with no rock (alpha 0) and all grass: the grass weight must survive.
         const out = await decodePngData(png(2, 1, 6, [[255, 0, 0, 0, 10, 200, 30, 0]]));

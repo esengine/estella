@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { deflateRawSync } from 'node:zlib';
+import { constants, createDeflateRaw, deflateRawSync } from 'node:zlib';
 import { agxEffects } from '../src/postprocess/sources/agx';
 import { getEffectDef } from '../src/postprocess/effects';
 import { inflateRaw } from '../src/util/inflate';
@@ -78,5 +78,20 @@ describe('the deflate decoder the tables are unpacked with', () => {
     it('refuses a stream that ends early rather than returning half', () => {
         const packed = new Uint8Array(deflateRawSync(new TextEncoder().encode('x'.repeat(4000) + 'abcdefg'.repeat(500))));
         expect(() => inflateRaw(packed.subarray(0, 6), 7500)).toThrow();
+    });
+
+    it('reads a stored block between compressed blocks without dropping buffered bytes', async () => {
+        const compressor = createDeflateRaw();
+        const chunks: Buffer[] = [];
+        compressor.on('data', (chunk: Buffer) => chunks.push(chunk));
+        const closed = new Promise<void>((resolve, reject) => compressor.once('end', resolve).once('error', reject));
+        const first = Buffer.from('hills and valleys '.repeat(1000));
+        const last = Buffer.from('roads and rivers '.repeat(600));
+        compressor.write(first);
+        await new Promise<void>(resolve => compressor.flush(constants.Z_SYNC_FLUSH, resolve));
+        compressor.end(last);
+        await closed;
+        const decoded = inflateRaw(Buffer.concat(chunks), first.length + last.length);
+        expect(Buffer.from(decoded)).toEqual(Buffer.concat([first, last]));
     });
 });

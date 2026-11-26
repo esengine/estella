@@ -4,8 +4,7 @@
  * @file    inflate.ts
  * @brief   A synchronous deflate decoder for hosts without streaming decompression.
  *
- * @details Canonical Huffman codes are read bit by bit as in zlib's `puff.c`.
- *          Both PNG rows and the AgX tables provide their exact output size.
+ * @details A prefix table handles short canonical Huffman codes. Longer codes use the bit-by-bit walk from zlib's `puff.c`.
  */
 
 const LENGTH_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
@@ -14,8 +13,11 @@ const DISTANCE_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193
 const DISTANCE_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
 const CODE_LENGTH_ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 
-/** A canonical Huffman code: how many codes there are of each length, and the symbols in code order. */
-interface Huffman { count: Uint16Array; symbol: Uint16Array }
+const PREFIX_BITS = 9;
+const PREFIX_SIZE = 1 << PREFIX_BITS;
+
+/** A canonical Huffman code with a lookup table for the short codes. */
+interface Huffman { count: Uint16Array; symbol: Uint16Array; prefix: Uint16Array }
 
 function huffman(lengths: ArrayLike<number>, n: number): Huffman {
     const count = new Uint16Array(16), symbol = new Uint16Array(n), offsets = new Uint16Array(16);
@@ -27,7 +29,18 @@ function huffman(lengths: ArrayLike<number>, n: number): Huffman {
     }
     for (let len = 1; len < 15; len++) offsets[len + 1] = offsets[len]! + count[len]!;
     for (let i = 0; i < n; i++) if (lengths[i]) symbol[offsets[lengths[i]!]!++] = i;
-    return { count, symbol };
+    const prefix = new Uint16Array(PREFIX_SIZE);
+    let first = 0, index = 0;
+    for (let len = 1; len <= PREFIX_BITS; len++) {
+        for (let code = first; code < first + count[len]!; code++) {
+            let reversed = 0;
+            for (let i = 0; i < len; i++) reversed = (reversed << 1) | ((code >>> i) & 1);
+            const value = (symbol[index++]! << 4) | len;
+            for (let slot = reversed; slot < PREFIX_SIZE; slot += 1 << len) prefix[slot] = value;
+        }
+        first = (first + count[len]!) << 1;
+    }
+    return { count, symbol, prefix };
 }
 
 let fixedLiteral: Huffman | undefined, fixedDistance: Huffman | undefined;
@@ -51,6 +64,19 @@ export function inflateRaw(input: Uint8Array, size: number): Uint8Array {
         return value & ((1 << need) - 1);
     };
     const decode = (h: Huffman): number => {
+        while (bitCount < PREFIX_BITS && inPos < input.length) {
+            bitBuf |= input[inPos++]! << bitCount;
+            bitCount += 8;
+        }
+        if (bitCount >= PREFIX_BITS) {
+            const match = h.prefix[bitBuf & (PREFIX_SIZE - 1)]!;
+            if (match) {
+                const len = match & 15;
+                bitBuf >>>= len;
+                bitCount -= len;
+                return match >>> 4;
+            }
+        }
         let code = 0, first = 0, index = 0;
         for (let len = 1; len <= 15; len++) {
             code |= bits(1);
@@ -66,7 +92,10 @@ export function inflateRaw(input: Uint8Array, size: number): Uint8Array {
         last = bits(1);
         const type = bits(2);
         if (type === 0) {
-            bitBuf = 0; bitCount = 0; // stored: skip to the byte boundary
+            // Align to the next byte, retaining whole bytes read ahead by the prefix table.
+            inPos -= bitCount >>> 3;
+            bitBuf = 0;
+            bitCount = 0;
             if (inPos + 4 > input.length) throw new Error('inflate: the data ends early');
             const len = input[inPos]! | (input[inPos + 1]! << 8);
             const complement = input[inPos + 2]! | (input[inPos + 3]! << 8);
@@ -144,9 +173,15 @@ export function inflateZlib(input: Uint8Array, size: number): Uint8Array {
     const end = input.length - 4;
     const out = inflateRaw(input.subarray(2, end), size);
     let a = 1, b = 0;
-    for (const byte of out) {
-        a = (a + byte) % 65521;
-        b = (b + a) % 65521;
+    // Reduce in blocks so large images only pay for the checksum moduli once per block.
+    for (let at = 0; at < out.length;) {
+        const stop = Math.min(at + 4096, out.length);
+        for (; at < stop; at++) {
+            a += out[at]!;
+            b += a;
+        }
+        a %= 65521;
+        b %= 65521;
     }
     if (((b << 16) | a) >>> 0 !== new DataView(input.buffer, input.byteOffset, input.byteLength).getUint32(end)) {
         throw new Error('inflate: incorrect zlib checksum');
