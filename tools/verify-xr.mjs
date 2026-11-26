@@ -14,7 +14,9 @@
  *    right way round);
  *  - the shadows are planned once for both eyes: the atlas is kept from eye to eye and frame to frame, never redrawn or
  *    recollected per eye (planned per eye, each eye's cascades were the other's stale ones);
- *  - every frame was drawn inside its session callback (none late), and the page's own canvas drew nothing meanwhile;
+ *  - the scene is culled and collected once, for a view covering both eyes, and the second eye draws that list again;
+ *  - every frame was drawn inside its session callback, and every callback got one (the page's GPU wait and frame cap do
+ *    not pass on a headset's frames); (none late), and the page's own canvas drew nothing meanwhile;
  *  - a right controller's grip pose places the entity with XRController (right, grip) where the rig puts it, and its trigger,
  *    held for ten frames, reaches a game system as one press, ten frames down and one release;
  *  - Exit VR gives the frames back to the page.
@@ -144,7 +146,7 @@ function fakeHeadset() {
             if (s.depthFar !== undefined) state.depthFar = s.depthFar;
         },
         async requestReferenceSpace() { return {}; },
-        async end() { state.ended = true; state.active = false; for (const l of listeners) l(); },
+        async end() { state.callbacksAtEnd = state.frames; state.ended = true; state.active = false; for (const l of listeners) l(); },
         addEventListener(type, cb) { if (type === 'end') listeners.push(cb); },
     };
     Object.defineProperty(navigator, 'xr', { value: {
@@ -244,6 +246,10 @@ try {
     check(counters.length > 0 && planned === counters.length && kept === counters.length,
         'both eyes read one shadow atlas, kept from frame to frame (no eye redraws or recollects it)',
         `${kept} of ${counters.length} frames kept it` + (counters[0] ? `; last: reused ${counters.at(-1)['render.shadow.reused']}, skipped ${counters.at(-1)['render.shadow.collectSkipped']}, tiles ${counters.at(-1)['render.shadow.tiles']}` : ''));
+    const replayed = counters.filter((c) => c['render.collect.replayed'] === 1).length;
+    check(counters.length > 0 && replayed === counters.length,
+        'the second eye draws the scene the first collected, instead of culling and collecting it again',
+        `${replayed} of ${counters.length} frames`);
     check(read.pageFramesDuring === 0, 'the page\'s own frames stopped while the headset presented', `${read.pageFramesDuring} page frame(s)`);
 
     await page.getByRole('button', { name: 'Exit VR' }).click();
@@ -257,6 +263,10 @@ try {
     const late = Number(/(\d+) drawn too late/.exec(summary)?.[1] ?? NaN);
     const shown = Number(/left VR: (\d+) frame/.exec(summary)?.[1] ?? NaN);
     check(shown >= 30 && late === 0, 'every frame was drawn inside its session callback', summary || 'no summary logged');
+    // Every callback the headset made is a frame it shows; one the game passed on (waiting for the GPU, a frame cap) is a frame
+    // with nothing new in it. The last may be the one the session ended in.
+    const callbacks = await page.evaluate(() => window.__xr.callbacksAtEnd);
+    check(shown >= callbacks - 1, 'the game drew a frame for every frame the headset asked for', `${shown} drawn for ${callbacks} asked`);
     // The page's frames again: the App asks requestAnimationFrame once more.
     const resumed = await page.evaluate(async () => {
         const before = performance.now();

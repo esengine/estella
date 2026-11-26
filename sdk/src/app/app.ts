@@ -1509,9 +1509,10 @@ export class App {
         const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
 
         // One frame in flight: while the GPU is still on the last frame, starting another only queues it behind, and the
-        // picture shows input that much later (a camera let go of goes on moving for every frame queued). So the game stays
-        // a frame ahead of the GPU at most. The time is not taken, so the frame that runs covers the wait.
-        if (Renderer.framePending()) {
+        // picture shows input that much later. So the game stays a frame ahead of the GPU at most; the frame that runs covers the wait.
+        const paced = this.frameSource_ !== null;
+        // Not under a frame source (a headset): it paces its own frames, and one passed on is a frame it shows nothing new in.
+        if (!paced && Renderer.framePending()) {
             this.gpuWaitSince_ ??= currentTime;
             if (currentTime - this.gpuWaitSince_ < GPU_WAIT_MAX_MS) {
                 this.queueLoopFrame_();
@@ -1523,7 +1524,7 @@ export class App {
 
         // A cadence, not a minimum gap: a cap of two vsyncs measured frame to frame
         // loses to jitter half the time and waits a third (30 fps on 60 Hz ran at 24).
-        if (this.targetFrameInterval_ > 0) {
+        if (this.targetFrameInterval_ > 0 && !paced) {
             if (currentTime < this.nextCapFrameAt_ - CAP_JITTER_MS) {
                 this.queueLoopFrame_();
                 return;

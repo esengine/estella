@@ -113,6 +113,14 @@ export interface RendererBackend {
     setShadowView?(viewProjection: Float32Array | null): void;
     /** Which view of its target the next cameras are, for their history (a headset's eyes share one target); 0 is the only one. */
     setTemporalView?(view: number): void;
+    /** The view the next cameras' scene is collected for (every eye of a headset); null for each camera's own. */
+    setCollectView?(viewProjection: Float32Array | null): void;
+    /** begin() drawing the scene the previous camera collected, from this view; false when there is none to draw again. */
+    beginReplay?(viewProjection: Float32Array, target: number, clearFlags: number,
+          r: number, g: number, b: number, a: number,
+          clearX: number, clearY: number, clearW: number, clearH: number): boolean;
+    /** submitAll() for a pass beginReplay opened: the per-view steps only. */
+    submitReplay?(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
     clusterInspect?(entity: number): ClusterDraw | null;
     framePending?(): boolean;
@@ -351,6 +359,30 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
         setTemporalView: (view) => m.renderer_setTemporalView?.(view >>> 0),
+        setCollectView: (viewProjection) => {
+            if (!m.renderer_setCollectView) return;
+            if (!viewProjection) { m.renderer_setCollectView(0); return; }
+            if (!viewProjectionPtr) return;
+            m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
+            m.renderer_setCollectView(viewProjectionPtr);
+        },
+        beginReplay: (viewProjection, target, clearFlags, r, g, b, a, clearX, clearY, clearW, clearH) => {
+            if (!m.renderer_beginReplay || !viewProjectionPtr) return false;
+            try {
+                m.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
+                return m.renderer_beginReplay(viewProjectionPtr, target, clearFlags, r, g, b, a, clearX, clearY, clearW, clearH) !== 0;
+            } catch (e) {
+                handleWasmError(e, 'Renderer.beginReplay');
+                return false;
+            }
+        },
+        submitReplay: (registry, vpX, vpY, vpW, vpH) => {
+            try {
+                m.renderer_submitReplay?.(registry, vpX, vpY, vpW, vpH);
+            } catch (e) {
+                handleWasmError(e, 'Renderer.submitReplay');
+            }
+        },
         setShadowView: (viewProjection) => {
             if (!m.renderer_setShadowView) return;
             if (!viewProjection) { m.renderer_setShadowView(0); return; }
@@ -731,6 +763,32 @@ export const Renderer = {
         backend?.begin(viewProjection, target ?? 0, clearFlags,
             clearColor?.x ?? 0, clearColor?.y ?? 0, clearColor?.z ?? 0, clearColor?.w ?? 1,
             clearRect?.x ?? 0, clearRect?.y ?? 0, clearRect?.w ?? 0, clearRect?.h ?? 0);
+    },
+
+    /**
+     * begin() for a camera that sees the scene the previous camera collected (for a view covering both: setCollectView):
+     * the list is drawn again from this view instead of collected again. False, with nothing opened, when there is none; the
+     * caller then begins as usual. A headset's second eye.
+     */
+    beginReplay(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags = 0,
+          clearColor?: { x: number; y: number; z: number; w: number },
+          clearRect?: { x: number; y: number; w: number; h: number }): boolean {
+        return backend?.beginReplay?.(viewProjection, target ?? 0, clearFlags,
+            clearColor?.x ?? 0, clearColor?.y ?? 0, clearColor?.z ?? 0, clearColor?.w ?? 1,
+            clearRect?.x ?? 0, clearRect?.y ?? 0, clearRect?.w ?? 0, clearRect?.h ?? 0) ?? false;
+    },
+
+    /** submitAll() for a pass beginReplay opened: the steps that depend on this camera's view, and not the collect. */
+    submitReplay(registry: { _cpp: CppRegistry }, vpX: number, vpY: number, vpW: number, vpH: number): void {
+        backend?.submitReplay?.(registry._cpp, vpX, vpY, vpW, vpH);
+    },
+
+    /**
+     * The view the next cameras' scene is culled and collected for, until null or the next frame: one covering both eyes of a
+     * headset, so the first eye's collect is the second's (beginReplay).
+     */
+    setCollectView(viewProjection: Float32Array | null): void {
+        backend?.setCollectView?.(viewProjection);
     },
 
     flush(): void {

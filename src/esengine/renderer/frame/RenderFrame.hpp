@@ -239,6 +239,18 @@ public:
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target = 0);
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                const PassClear& clear);
+    /**
+     * Opens a pass that draws the list the previous camera collected for a shared view (setCollectView), from another view:
+     * the list, its staging and its clip rects are kept, and only what depends on the view is done again. A headset's
+     * second eye. False, with nothing opened, when there is no such list; the caller then begins as usual.
+     */
+    bool beginReplay(const glm::mat4& view_projection, RenderTargetManager::Handle target, const PassClear& clear);
+    /**
+     * The view the next cameras' scene is culled and collected for, when it is not each one's own: one covering every eye of
+     * a headset, so the first eye's collect is the second's too (beginReplay). Null goes back to each camera's own. Cleared
+     * by beginFrame.
+     */
+    void setCollectView(const glm::mat4* viewProjection);
     void flush();
     void end();
 
@@ -726,7 +738,8 @@ public:
     /** @brief The same readiness, from a prepared cell's own description — no
      *         entity of it need exist. */
     RenderPrewarmResult prewarmDocument(const MeshDocumentRecord* rows, u32 count);
-    void collectAll(ecs::Registry& registry, bool sceneGBuffer = true);
+    /// @p replay: the pass began with beginReplay, so the scene is already in the list; only the per-view steps run.
+    void collectAll(ecs::Registry& registry, bool sceneGBuffer = true, bool replay = false);
     /** @brief Whether begin() opened a frame; false when it refused one for a lost device. */
     bool inFrame() const { return in_frame_; }
     /** @brief The vertex bytes staged for @p layout since the last begin(). */
@@ -797,6 +810,16 @@ private:
     /** See setShadowView: the view shadows are planned for while it is set, and its frustum (the receivers a sun's map is cut to). */
     /** See setTemporalView. */
     u32 temporal_view_ = 0;
+    /** See setCollectView: the view the scene is collected for while it is set, and its frustum. */
+    bool collect_view_set_ = false;
+    glm::mat4 collect_view_projection_{1.0f};
+    Frustum collect_frustum_;
+    /** Whether the list in hand was collected for the shared view and can be drawn again from another (beginReplay). */
+    bool replay_ready_ = false;
+    /** The pass in hand began with beginReplay. */
+    bool replaying_ = false;
+    /** Everything begin() does once the list and pool are what this pass draws: the view, the device frame, the target. */
+    void openView(const glm::mat4& view_projection, RenderTargetManager::Handle target, const PassClear& clear);
     /** What names this camera's history: its target, and which view of it (setTemporalView). The target alone while that is 0. */
     u64 temporalKey() const { return static_cast<u64>(current_target_) | (static_cast<u64>(temporal_view_) << 32); }
     bool shadow_view_set_ = false;

@@ -869,6 +869,8 @@ function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, r
     // ones and the atlas is drawn twice a frame and kept by neither.
     const shared = sharedEyeView({ position, heading }, xr.views, unitsPerMeter, origin);
     if (shared) Renderer.setShadowView(shared);
+    // And one collect: the first eye culls and collects for the view both share, the others draw that list from their own.
+    if (shared) Renderer.setCollectView(shared);
     for (let i = 0; i < xr.views.length; i++) {
         const eye = xr.views[i]!;
         // Each eye its own history: one shared, a temporal pass blends the left eye's picture into the right's.
@@ -885,11 +887,12 @@ function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, r
             clearColor: cameraClearColor(rig.entity as Entity, clearColor),
             cullingMask: rig.cullingMask,
             renderTarget: 0,
+            replay: i > 0 && shared !== null,
         });
     }
     // The cameras after the eyes (into textures) plan for their own views, and are their targets' only view.
     Renderer.setTemporalView(0);
-    if (shared) Renderer.setShadowView(null);
+    if (shared) { Renderer.setShadowView(null); Renderer.setCollectView(null); }
 }
 
 /**

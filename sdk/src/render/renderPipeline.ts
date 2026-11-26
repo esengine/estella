@@ -96,6 +96,11 @@ export interface CameraRenderParams {
     worldHeight?: number;
     /** How the render resolution is chosen; omitted = render straight to the surface. */
     renderPolicy?: RenderResolution;
+    /**
+     * Draw the scene the previous camera collected, from this view, rather than collecting it again: a headset's second eye,
+     * after a first collected for a view covering both (Renderer.setCollectView). Collects as usual when there is none.
+     */
+    replay?: boolean;
 }
 
 export class RenderPipeline {
@@ -306,14 +311,20 @@ export class RenderPipeline {
         viewProjection: Float32Array,
         viewport: Viewport,
         _elapsed: number,
+        replay = false,
     ): void {
         // Underlays (editor grid / world-space guides) draw first so the scene's
         // sprites, flushed below, occlude them.
         this.executePreSceneDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp);
 
         Renderer.updateTransforms(registry);
-        Renderer.submitAll(registry, viewport.x, viewport.y, viewport.w, viewport.h);
-        this.runPreFlushCallbacks(registry, viewProjection);
+        if (replay) {
+            // The list is the previous camera's, glyphs and all: what the pre-flush callbacks add is in it already.
+            Renderer.submitReplay(registry, viewport.x, viewport.y, viewport.w, viewport.h);
+        } else {
+            Renderer.submitAll(registry, viewport.x, viewport.y, viewport.w, viewport.h);
+            this.runPreFlushCallbacks(registry, viewProjection);
+        }
         Renderer.flush();
 
         this.executeDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp);
@@ -402,13 +413,16 @@ export class RenderPipeline {
         Renderer.setViewport(scene.x, scene.y, scene.w, scene.h);
         // The camera's clear rides begin as a region-scoped load-op — no scissor
         // dance, no sticky clear state at the boundary.
-        Renderer.begin(params.renderViewProjection ?? viewProjection, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
+        const beginView = params.renderViewProjection ?? viewProjection;
+        const replayed = params.replay === true
+            && Renderer.beginReplay(beginView, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
+        if (!replayed) Renderer.begin(beginView, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
         // Set after begin (which clears the draw list) and before the collect it gates.
         Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
         // The camera IS the view: a level picked from how big something looks is
         // this camera's answer, and the next camera must be free to disagree.
         Renderer.setViewId(cameraEntity ?? 0);
-        this.submitScene(registry, viewProjection, scene, elapsed);
+        this.submitScene(registry, viewProjection, scene, elapsed, replayed);
         Renderer.end();
         if (!params.renderTarget && overScreenCallbacks.entries.size > 0) {
             this.overScreenView_ = {

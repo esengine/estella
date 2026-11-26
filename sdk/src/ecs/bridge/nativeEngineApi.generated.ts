@@ -184,6 +184,7 @@ export interface NativeEngineApi {
     renderThread_flush?(): void;
     renderer_begin?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_beginFrame?(elapsedSec: number): void;
+    renderer_beginReplay?(matrixPtr: number, targetHandle: number, clearFlags: number, r: number, g: number, b: number, a: number, clearX: number, clearY: number, clearW: number, clearH: number): number;
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
@@ -275,6 +276,7 @@ export interface NativeEngineApi {
     renderer_setAsyncComputeEnabled?(enabled: boolean): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
+    renderer_setCollectView?(matrixPtr: number): void;
     renderer_setColorSpace?(linear: number): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
@@ -323,6 +325,7 @@ export interface NativeEngineApi {
     renderer_shadowStatus?(entity: number, outPtr: number): number;
     renderer_snapshotMatchesCapture?(): boolean;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
+    renderer_submitReplay?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitScreenOverlay?(registry: unknown): void;
     renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
     renderer_submitSkeletalBatchByEntityEx?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number, premultipliedColor: boolean): void;
@@ -648,6 +651,7 @@ export function createNativeEngineApi(
     bind('renderThread_flush', 'es_renderThread_flush', false);
     bind('renderer_begin', 'es_renderer_begin', false);
     bind('renderer_beginFrame', 'es_renderer_beginFrame', false);
+    bind('renderer_beginReplay', 'es_renderer_beginReplay', false);
     bind('renderer_beginScreenOverlay', 'es_renderer_beginScreenOverlay', false);
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
@@ -739,6 +743,7 @@ export function createNativeEngineApi(
     bind('renderer_setAsyncComputeEnabled', 'es_renderer_setAsyncComputeEnabled', false);
     bind('renderer_setAsyncShaderCompile', 'es_renderer_setAsyncShaderCompile', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
+    bind('renderer_setCollectView', 'es_renderer_setCollectView', false);
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
     bind('renderer_setCullingMask', 'es_renderer_setCullingMask', false);
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
@@ -787,6 +792,7 @@ export function createNativeEngineApi(
     bind('renderer_shadowStatus', 'es_renderer_shadowStatus', false);
     bind('renderer_snapshotMatchesCapture', 'es_renderer_snapshotMatchesCapture', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);
+    bind('renderer_submitReplay', 'es_renderer_submitReplay', true);
     bind('renderer_submitScreenOverlay', 'es_renderer_submitScreenOverlay', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);
     bind('renderer_submitSkeletalBatchByEntityEx', 'es_renderer_submitSkeletalBatchByEntityEx', true);

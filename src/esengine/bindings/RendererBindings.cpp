@@ -1630,6 +1630,39 @@ void renderer_setShadowView(uintptr_t matrixPtr) {
     g_renderFrame->setShadowView(&viewProjection);
 }
 
+void renderer_setCollectView(uintptr_t matrixPtr) {
+    if (!g_renderFrame) return;
+    if (!matrixPtr) {
+        g_renderFrame->setCollectView(nullptr);
+        return;
+    }
+    const f32* data = boundarySpan<f32>(matrixPtr, 16, "renderer_setCollectView.matrix");
+    if (!data) return;
+    const glm::mat4 viewProjection = glm::make_mat4(data);
+    g_renderFrame->setCollectView(&viewProjection);
+}
+
+i32 renderer_beginReplay(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags, f32 r, f32 g, f32 b, f32 a,
+                         i32 clearX, i32 clearY, u32 clearW, u32 clearH) {
+    if (!g_renderFrame) return 0;
+    const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "renderer_beginReplay.matrix");
+    if (!matrixData) return 0;
+    const glm::mat4 viewProjection = glm::make_mat4(matrixData);
+    return g_renderFrame->beginReplay(viewProjection, targetHandle,
+                                      RenderFrame::PassClear{(clearFlags & 1) != 0, (clearFlags & 2) != 0,
+                                                             glm::vec4(r, g, b, a),
+                                                             clearX, clearY, clearW, clearH, (clearFlags & 4) != 0}) ? 1 : 0;
+}
+
+void renderer_submitReplay(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
+    if (!g_renderFrame || !g_renderFrame->inFrame()) return;
+    ensureTransformsUpdated(registry);
+    bindUILayout(registry);
+    // Screen-space masks are cut for this camera's rect, so they are this camera's.
+    g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
+    g_renderFrame->collectAll(registry, true, true);
+}
+
 void renderer_setTemporalView(u32 view) {
     if (g_renderFrame) g_renderFrame->setTemporalView(view);
 }

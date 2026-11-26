@@ -13,8 +13,11 @@
  *   1. Nothing reachable from collectAll() submits to the GPU. Work QUEUED for
  *      the graph is fine — a pass callback runs when the graph runs it — so
  *      lambda bodies are excluded from the walk.
- *   2. openPass() has exactly one caller: begin(), which binds the frame's
- *      target eagerly. A second caller is a pass restoring state behind itself.
+ *   2. openPass() has exactly one caller: openView(), the opening of a camera's
+ *      frame, which binds its target eagerly; and openView() is called only by
+ *      the two ways a camera opens one (begin(), and beginReplay() for a second
+ *      eye drawing the first's list). Another caller is a pass restoring state
+ *      behind itself.
  *   3. The scene declares the atlas, so the graph orders the two rather than
  *      the order the passes happen to be added in.
  *   4. The shadow pass draws from its own pool and list and looks through its
@@ -80,7 +83,7 @@ function withoutLambdaBodies(body) {
 
 const bodies = methodBodies(src);
 for (const required of ['collectAll', 'buildShadowPlan', 'declareShadowPass',
-                        'executeShadowPass', 'openPass', 'begin', 'end']) {
+                        'executeShadowPass', 'openPass', 'openView', 'begin', 'beginReplay', 'end']) {
   if (!bodies.has(required)) {
     console.error(`Shadow-pass guard is stale: RenderFrame::${required} is gone. `
       + 'If the pass was restructured, restate the invariant here rather than deleting it.');
@@ -129,15 +132,24 @@ const walk = (name) => {
 walk('collectAll');
 
 // --- 2. one caller binds the frame's target; nothing restores it -------------
-const openPassCallers = [];
-for (const [name, body] of bodies) {
-  if (name === 'openPass') continue;
-  if (callRe('openPass').test(withoutLambdaBodies(body))) openPassCallers.push(name);
-}
-if (openPassCallers.join(',') !== 'begin') {
+const callersOf = (callee) => {
+  const out = [];
+  for (const [name, body] of bodies) {
+    if (name === callee) continue;
+    if (callRe(callee).test(withoutLambdaBodies(body))) out.push(name);
+  }
+  return out.sort();
+};
+const openPassCallers = callersOf('openPass');
+if (openPassCallers.join(',') !== 'openView') {
   problems.push(`openPass() is called by [${openPassCallers.join(', ') || 'nobody'}] — `
-    + 'it may only be called by begin(), which binds the frame\'s target eagerly. '
+    + "it may only be called by openView(), which opens a camera's frame and binds its target eagerly. "
     + 'A second caller is a pass putting state back behind itself.');
+}
+const openViewCallers = callersOf('openView');
+if (openViewCallers.join(',') !== 'begin,beginReplay') {
+  problems.push(`openView() is called by [${openViewCallers.join(', ') || 'nobody'}] — `
+    + "only begin() and beginReplay() open a camera's frame; anything else calling it reopens the target behind a pass.");
 }
 
 // --- 3. the graph is told, not trusted to guess ------------------------------

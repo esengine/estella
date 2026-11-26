@@ -431,8 +431,10 @@ void RenderFrame::setShadowView(const glm::mat4* viewProjection) {
 }
 
 void RenderFrame::beginFrame() {
-    // A view shared by the cameras of one frame (a headset's eyes) is that frame's alone.
+    // A view shared by the cameras of one frame (a headset's eyes) is that frame's alone, and so is its collect.
     shadow_view_set_ = false;
+    collect_view_set_ = false;
+    replay_ready_ = false;
     if (ui_data_) setUIRenderData(nullptr);
     ++planar_frame_;
     if (skin_cache_) skin_cache_->beginFrame(planar_frame_);
@@ -521,6 +523,40 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (gpu_particles_) gpu_particles_->beginPass();
 #endif
+    // Emptied before the device is asked, so a refused frame starts empty too: the host still submits text and skinned batches into
+    // it, and while a lost device waits for its content no end() ever ran to empty them, so the staging grew every frame until an
+    // allocation of gigabytes failed.
+    pool_.beginFrame();
+    projected_bake_resources_.clear();
+    draw_list_.clear();
+    for (auto& plugin : plugins_) plugin->beginPass();
+    clip_state_.clear();
+    // A list collected now is this camera's; whether another may draw it again is decided when it is collected.
+    replay_ready_ = false;
+    replaying_ = false;
+    openView(view_projection, target, camera_clear);
+}
+
+bool RenderFrame::beginReplay(const glm::mat4& view_projection, RenderTargetManager::Handle target, const PassClear& camera_clear) {
+    if (!replay_ready_) return false;
+    // The list, its staging and its clip rects stand; the passes this camera declares are declared again.
+    projected_bake_resources_.clear();
+    replaying_ = true;
+    openView(view_projection, target, camera_clear);
+    // Finalized and uploaded already: end() draws it as it is.
+    if (in_frame_) flushed_ = true;
+    return true;
+}
+
+void RenderFrame::setCollectView(const glm::mat4* viewProjection) {
+    collect_view_set_ = viewProjection != nullptr;
+    if (!viewProjection) return;
+    collect_view_projection_ = *viewProjection;
+    collect_frustum_.extractFromMatrix(*viewProjection);
+}
+
+void RenderFrame::openView(const glm::mat4& view_projection, RenderTargetManager::Handle target,
+                           const PassClear& camera_clear) {
     // A chain that is engaged draws the scene into a capture exactly as big as the camera's rect, and only its present lands at
     // the rect's offset (setOutputViewport). So the camera's rect starts at the capture's origin: left at the camera's own x/y
     // it names pixels outside the capture, and a camera that does not start at the window's corner (the right half of a split,
@@ -534,14 +570,6 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
         clear.y = 0;
     }
 #endif
-    // Emptied before the device is asked, so a refused frame starts empty too: the host still submits text and skinned batches into
-    // it, and while a lost device waits for its content no end() ever ran to empty them, so the staging grew every frame until an
-    // allocation of gigabytes failed.
-    pool_.beginFrame();
-    projected_bake_resources_.clear();
-    draw_list_.clear();
-    for (auto& plugin : plugins_) plugin->beginPass();
-    clip_state_.clear();
 
     // A lost device makes the whole frame meaningless, so it is refused here
     // rather than discovered by each pass and readback failing separately.
@@ -1864,7 +1892,8 @@ void RenderFrame::collectProbes(ecs::Registry& registry) {
  *          bounding box — that would claim the corners the wall does not fill.
  */
 void RenderFrame::collectOccluders(ecs::Registry& registry) {
-    occlusion_.begin(view_projection_);
+    // What hides what is judged from where the scene is collected for: a box hiding something from one eye may not from the other.
+    occlusion_.begin(collect_view_set_ ? collect_view_projection_ : view_projection_);
     auto view = registry.activeView<ecs::Occluder>();
     for (auto entity : view) {
         const auto& occluder = view.get(entity);
@@ -3552,18 +3581,22 @@ void RenderFrame::declareSkinCache(ecs::Registry& registry) {
     graph_.addPass(std::move(pass));
 }
 
-void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
+void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer, bool replay) {
     ES_PROFILE_SCOPE("render.collect");
+    // A replay draws the list the previous camera collected; what it needs again is what depends on its own view.
+    replay = replay && replaying_;
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (gpu_particles_) gpu_particles_->collect(registry.entitySetId());
 #endif
     // Split because "collect is expensive" names no mechanism: planning shadows,
     // gathering lights and walking one render type's population are different
     // work that a single total cannot be told apart by.
-    { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
-    { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); buildTreeSequence(registry); }
-    // After the groups, because a mask's reach is stated in the order a group may own.
-    { ES_PROFILE_SCOPE("render.collect.spriteMasks"); buildSpriteMasks(registry); }
+    if (!replay) {
+        { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
+        { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); buildTreeSequence(registry); }
+        // After the groups, because a mask's reach is stated in the order a group may own.
+        { ES_PROFILE_SCOPE("render.collect.spriteMasks"); buildSpriteMasks(registry); }
+    }
     { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }
     // Beside the lights and for the same reason: this answers what reaches a point
     // that no light can be asked about, and the mesh collect below reads both.
@@ -3594,6 +3627,13 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     { ES_PROFILE_SCOPE("render.collect.probeCapture"); declareProbeCapture(registry); }
 
     auto ctx = makeContext();
+    // Collected for the view every eye shares, so the list is each eye's: what one eye alone sees is not culled by the other.
+    if (collect_view_set_) {
+        ctx.view_projection = collect_view_projection_;
+        const glm::vec4 eye = cameraFromViewProjection(collect_view_projection_);
+        ctx.has_view_eye = eye.w > 0.5f;
+        if (ctx.has_view_eye) ctx.view_eye = glm::vec3(eye);
+    }
 #ifdef ES_ENABLE_POSTPROCESS
     // Asked at the collect, because it decides which program each material draw is compiled as; the
     // scene pass that executes them is the one the answer is about.
@@ -3609,7 +3649,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     (void)sceneGBuffer;
 #endif
 
-    RenderCollectContext collectCtx{registry, frustum_, clip_state_, pool_, draw_list_, ctx,
+    RenderCollectContext collectCtx{registry, collect_view_set_ ? collect_frustum_ : frustum_, clip_state_, pool_, draw_list_, ctx,
                                     computeCameraView(ctx.view_projection)};
     // What this collect must NOT draw. A camera's job is the world; the screen's
     // entities are laid out in pixels centred on the origin, and drawing them
@@ -3623,24 +3663,31 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // leaves this null: what a player cannot see still casts, and a caster dropped
     // because the camera cannot see IT takes its shadow off the ground with it.
     collectCtx.occlusion = &occlusion_;
-    { ES_PROFILE_SCOPE("render.collect.sky"); collectSky(collectCtx); }
-    for (auto& plugin : plugins_) {
-        ES_PROFILE_SCOPE(plugin->collectScope());
-        plugin->collect(collectCtx);
-    }
-    // After every plugin, so a label draws over what shares its layer: the world's labels, culled in world space (the view is rebased).
-    if (retainedTextCollected(registry)) {
-        ES_PROFILE_SCOPE("render.collect.text");
-        const glm::mat4 world = view_projection_ * glm::translate(glm::mat4(1.0f), -glm::vec3(renderOrigin()));
-        submitRetainedText(registry, false, glm::value_ptr(world));
-    }
+    if (!replay) {
+        { ES_PROFILE_SCOPE("render.collect.sky"); collectSky(collectCtx); }
+        for (auto& plugin : plugins_) {
+            ES_PROFILE_SCOPE(plugin->collectScope());
+            plugin->collect(collectCtx);
+        }
+        // After every plugin, so a label draws over what shares its layer: the world's labels, culled in world space (the view is rebased).
+        if (retainedTextCollected(registry)) {
+            ES_PROFILE_SCOPE("render.collect.text");
+            const glm::mat4 world = ctx.view_projection * glm::translate(glm::mat4(1.0f), -glm::vec3(renderOrigin()));
+            submitRetainedText(registry, false, glm::value_ptr(world));
+        }
 
-    // The other half of what the frame cost: what it did NOT draw. Accumulated
-    // like the per-type counts beside it, so a frame composited from several
-    // cameras reports every cull each of them made.
-    stats_.culled += collectCtx.culled;
-    stats_.occluded += collectCtx.occluded;
-    stats_.lightsSpared += collectCtx.lightsSpared;
+        // The other half of what the frame cost: what it did NOT draw. Accumulated
+        // like the per-type counts beside it, so a frame composited from several
+        // cameras reports every cull each of them made.
+        stats_.culled += collectCtx.culled;
+        stats_.occluded += collectCtx.occluded;
+        stats_.lightsSpared += collectCtx.lightsSpared;
+    } else {
+        // Drawn again, so counted again: what the frame drew is both eyes' draws.
+        accumulateStats(draw_list_);
+        tallyPass(draw_list_);
+    }
+    ES_PROFILE_COUNTER("render.collect.replayed", replay ? 1u : 0u);
 
     velocity_list_.clear();
     selection_list_.clear();
@@ -3656,6 +3703,8 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // mid-frame: the capture is scratch each camera composites out of, and the
     // editor's grid draws into it between begin() and this collect.
     frame_collected_ = true;
+    // A list collected for the shared view can be drawn again from another eye's.
+    if (!replay) replay_ready_ = collect_view_set_;
     frame_depth_seen_ = frame_depth_seen_ || draw_list_.needsDepth();
     frame_scene_picture_seen_ = frame_scene_picture_seen_ || draw_list_.anyNeedsScenePicture(context_.materials());
 }

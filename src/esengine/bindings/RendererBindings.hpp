@@ -32,6 +32,14 @@ void renderer_setShadowView(uintptr_t matrixPtr);
 /** Which view of its target the next cameras are, for the history they keep between frames (a headset's eyes share a target);
  *  0 is the only view. */
 void renderer_setTemporalView(u32 view);
+/** The view the next cameras' scene is culled and collected for (every eye of a headset); 0 for each camera's own again. */
+void renderer_setCollectView(uintptr_t matrixPtr);
+/** begin() for a camera that draws the scene the previous one collected (renderer_setCollectView), from its own view: the
+ *  same arguments. 1 when it opened such a pass; 0 when there was nothing to replay and nothing was opened. */
+i32 renderer_beginReplay(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags, f32 r, f32 g, f32 b, f32 a,
+                         i32 clearX, i32 clearY, u32 clearW, u32 clearH);
+/** submitAll() for a pass renderer_beginReplay opened: the per-view steps only. */
+void renderer_submitReplay(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH);
 void renderer_setShadow2DSoftSamples(u32 samples);
 bool renderer_setQualityValue(const std::string& name, f32 value);
 void renderer_setDepthPrepass(bool on);
