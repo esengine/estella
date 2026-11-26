@@ -133,7 +133,8 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
         byType: new Map(), rawByType: new Map(), rawFor: new Map(),
         spines: [], dragonBones: [], unresolved: [], meshTextures: new Set(), meshMaterials: new Set(),
     };
-    const skeletalKeys = new Set<string>();
+    const spineKeys = new Set<string>();
+    const dragonBonesKeys = new Set<string>();
     let unresolved: Set<string> | undefined;
     const resolve = (raw: string): string | null => {
         const path = refResolver ? refResolver(raw) : raw;
@@ -171,8 +172,9 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
             if (skeleton === null || atlas === null) return;
             const key = spinePairKey(skeleton, atlas);
             if (!dragonBones) owners?.add('spine', key, entity, true);
-            if (skeletalKeys.has(key)) return;
-            skeletalKeys.add(key);
+            const keys = dragonBones ? dragonBonesKeys : spineKeys;
+            if (keys.has(key)) return;
+            keys.add(key);
             (dragonBones ? refs.dragonBones : refs.spines).push({ skeleton, atlas });
         },
     };

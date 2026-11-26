@@ -148,6 +148,27 @@ describe('discoverSceneAssets', () => {
         expect(refs.spines).toHaveLength(1);
     });
 
+    it.each([false, true])('deduplicates resolved pairs within each skeletal runtime (DragonBones first: %s)', dragonBonesFirst => {
+        const dragonBones = defineComponent('DiscoverTest_DragonBones', { skeleton: '', atlas: '' }, {
+            skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas', runtime: 'dragonbones' },
+        });
+        const types = dragonBonesFirst ? [dragonBones._name, SPINE_NAME] : [SPINE_NAME, dragonBones._name];
+        const pair = { skeleton: 'actors/hero.json', atlas: 'actors/atlas.json' };
+        const aliases = { skeleton: '@uuid:skeleton', atlas: '@uuid:atlas' };
+        const components = types.flatMap(type => [
+            { type, data: pair },
+            { type, data: aliases },
+        ]);
+        const scene = makeScene(components.map((component, i) => ({
+            id: i + 1, name: 'Rig', parent: null, children: [], components: [component],
+        })));
+        const resolve = (ref: string) => ref === aliases.skeleton ? pair.skeleton : ref === aliases.atlas ? pair.atlas : ref;
+
+        const refs = discoverSceneAssets(scene, resolve);
+        expect(refs.spines).toEqual([pair]);
+        expect(refs.dragonBones).toEqual([pair]);
+    });
+
     it('discovers custom discoverAssets callback', () => {
         const scene = makeScene([{
             id: 1, name: 'e1', parent: null, children: [],

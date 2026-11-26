@@ -470,7 +470,7 @@ describe('scene asset progress', () => {
         });
         const sceneData = { ...scene, entities: [
             ...scene.entities, skeletal(2, 'SpineAnimation', 'one'), skeletal(3, 'SpineAnimation', 'one'),
-            skeletal(4, 'SpineAnimation', 'two'), skeletal(5, 'DragonBonesAnimation', 'dragon'),
+            skeletal(4, 'SpineAnimation', 'two'), skeletal(5, 'DragonBonesAnimation', 'one'),
         ] };
         const progress = vi.fn();
         try {
