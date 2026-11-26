@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "./TransientBufferPool.hpp"
+#include "./ParticleInstanceData.hpp"
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
 
@@ -366,20 +367,20 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         VertexLayoutDesc desc;
         desc.attributeCount = 8;
         desc.strides[0] = 16;
-        desc.strides[1] = PARTICLE_INSTANCE_STRIDE;
+        desc.strides[1] = sizeof(ParticleInstanceData);
         desc.instanceStep[1] = true;
         desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
         desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
         // The instance position carries all three axes: a particle simulated in
         // depth and uploaded as a pair is drawn on the plane it left.
-        desc.attributes[2] = {2, 3, GfxDataType::Float, false, 0, 1};
-        desc.attributes[3] = {3, 2, GfxDataType::Float, false, 12, 1};
+        desc.attributes[2] = {2, 3, GfxDataType::Float, false, offsetof(ParticleInstanceData, px), 1};
+        desc.attributes[3] = {3, 2, GfxDataType::Float, false, offsetof(ParticleInstanceData, sx), 1};
         // The turn in its plane and how the plane is oriented (particle::renderAlignment), one vec2: no slot a mesh's own
         // channels may claim is spent on it.
-        desc.attributes[4] = {4, 2, GfxDataType::Float, false, 20, 1};
-        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 28, 1};
-        desc.attributes[6] = {6, 4, GfxDataType::Float, false, 32, 1};
-        desc.attributes[7] = {7, 4, GfxDataType::Float, false, 48, 1};
+        desc.attributes[4] = {4, 2, GfxDataType::Float, false, offsetof(ParticleInstanceData, rotation), 1};
+        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, offsetof(ParticleInstanceData, color), 1};
+        desc.attributes[6] = {6, 4, GfxDataType::Float, false, offsetof(ParticleInstanceData, uvOffsetX), 1};
+        desc.attributes[7] = {7, 4, GfxDataType::Float, false, offsetof(ParticleInstanceData, age), 1};
         s.vertex_stride = desc.strides[1];
         s.layout = device_.createVertexLayout(desc);
         return;

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "./GpuParticles.hpp"
 #include "../rhi/GfxDevice.hpp"
+#include "../rhi/ParticleInstanceData.hpp"
 #include "../../core/Log.hpp"
 #include "../../ecs/components/ParticleEmitter.hpp"
 #include "../../ecs/components/Transform.hpp"
@@ -17,7 +18,7 @@ namespace esengine {
 
 namespace {
 
-constexpr u32 kInstanceBytes = PARTICLE_INSTANCE_STRIDE;
+constexpr u32 kInstanceBytes = sizeof(ParticleInstanceData);
 // Position + age, velocity + lifetime, then start size, end size, rotation, angular velocity.
 constexpr u32 kStateBytes = 48;
 

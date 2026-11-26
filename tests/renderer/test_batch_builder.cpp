@@ -7,6 +7,7 @@
 // texture-slot rules, instanced command assembly, sort/merge behavior, clip stamping,
 // and execute() dispatch — the invariants the per-plugin hand-rolled paths used to own.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <algorithm>
 #include <cmath>
 #include <doctest.h>
 
@@ -16,6 +17,7 @@
 #include "esengine/renderer/draw/DrawList.hpp"
 #include "esengine/renderer/store/MaterialStore.hpp"
 #include "esengine/renderer/rhi/TransientBufferPool.hpp"
+#include "esengine/renderer/rhi/ParticleInstanceData.hpp"
 #include "esengine/renderer/frame/RenderFrame.hpp"
 #include "esengine/renderer/frame/RenderContext.hpp"
 #include "esengine/resource/ResourceManager.hpp"
@@ -130,25 +132,28 @@ struct TestShapeVertex {
 };
 static_assert(sizeof(TestShapeVertex) == 48, "shape record must match the Shape stream stride");
 
-struct TestParticleInstance {
-    f32 px, py, pz;
-    f32 sx, sy;
-    f32 rotation;
-    u32 color;
-    f32 uvOffsetX, uvOffsetY;
-    f32 uvScaleX, uvScaleY;
-    f32 age, random, intensity, lifetime;
-};
-static_assert(sizeof(TestParticleInstance) == PARTICLE_INSTANCE_STRIDE,
-              "instance record must match the ParticleInstance stream stride");
-
 }  // namespace
 
 TEST_CASE("pool reports each stream's vertex stride (single source for baseVertex math)") {
     Harness h;
     CHECK(h.pool.vertexStride(LayoutId::Batch) == sizeof(BatchVertex));
     CHECK(h.pool.vertexStride(LayoutId::Shape) == sizeof(TestShapeVertex));
-    CHECK(h.pool.vertexStride(LayoutId::ParticleInstance) == sizeof(TestParticleInstance));
+    CHECK(h.pool.vertexStride(LayoutId::ParticleInstance) == sizeof(ParticleInstanceData));
+}
+
+TEST_CASE("particle input layout matches the shared instance record") {
+    Harness h;
+    const auto* layout = h.device.vertexLayoutDesc(h.pool.layoutHandle(LayoutId::ParticleInstance));
+    REQUIRE(layout != nullptr);
+    REQUIRE(layout->attributeCount == 8);
+    CHECK(layout->strides[1] == sizeof(ParticleInstanceData));
+    CHECK(layout->instanceStep[1]);
+    CHECK(layout->attributes[4].offset == offsetof(ParticleInstanceData, rotation));
+    CHECK(layout->attributes[4].components == 2);
+    CHECK(layout->attributes[5].offset == offsetof(ParticleInstanceData, color));
+    CHECK(layout->attributes[5].type == GfxDataType::UnsignedByte);
+    CHECK(layout->attributes[5].normalized);
+    CHECK(layout->attributes[7].offset == offsetof(ParticleInstanceData, age));
 }
 
 TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk culling") {
@@ -604,7 +609,7 @@ TEST_CASE("appendIndexedDraw: non-Batch stream uses its own stride for baseVerte
 
 TEST_CASE("pushBatchDraw: instanced key assembles an instanced command over static indices") {
     Harness h;
-    u32 instOffset = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * 40);
+    u32 instOffset = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * sizeof(ParticleInstanceData));
     BatchDrawKey key = quadKey(42);  // type tag irrelevant here (stats/capture only)
     key.layoutId = LayoutId::ParticleInstance;
     key.instanceCount = 3;
@@ -623,21 +628,20 @@ TEST_CASE("pushBatchDraw: instanced key assembles an instanced command over stat
 
 TEST_CASE("contentHashOfRecords: the records a list reads, wherever in the pool they lie") {
     Harness h;
-    const auto fill = [&](u32 offset, f32 value) {
-        auto* p = reinterpret_cast<f32*>(h.pool.vertexData(LayoutId::ParticleInstance) + offset);
-        for (u32 i = 0; i < 3 * 10; ++i) p[i] = value + static_cast<f32>(i);
+    constexpr u32 stride = sizeof(ParticleInstanceData);
+    const auto append = [&](u32 count, u8 value) {
+        const u32 offset = h.pool.allocVertices(LayoutId::ParticleInstance, count * stride);
+        std::fill_n(h.pool.vertexData(LayoutId::ParticleInstance) + offset, count * stride, value);
+        return offset;
     };
     // Another list's records first, so the two copies below lie at different offsets.
-    const u32 other = h.pool.allocVertices(LayoutId::ParticleInstance, 2 * 40);
-    fill(other, 100.0f);
-    const u32 first = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * 40);
-    const u32 second = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * 40);
-    fill(first, 1.0f);
-    fill(second, 1.0f);
+    append(2, 100);
+    const u32 first = append(3, 1);
+    const u32 second = append(3, 1);
     BatchDrawKey key = quadKey(42);
     key.layoutId = LayoutId::ParticleInstance;
     key.instanceCount = 3;
-    key.instanceStride = 40;
+    key.instanceStride = stride;
     DrawList a, b;
     pushBatchDraw(a, h.clips, first, 0, 0, 6, key);
     pushBatchDraw(b, h.clips, second, 0, 0, 6, key);
@@ -650,7 +654,7 @@ TEST_CASE("contentHashOfRecords: the records a list reads, wherever in the pool 
     CHECK(trustB);
     CHECK(a.contentHash(7) != b.contentHash(7));  // the plain hash says where they lie
 
-    fill(second, 2.0f);  // the same draw reading other records
+    h.pool.vertexData(LayoutId::ParticleInstance)[second + 3 * stride - 1] = 2;
     bool trust = true;
     CHECK(ha != b.contentHashOfRecords(7, h.pool, trust));
 

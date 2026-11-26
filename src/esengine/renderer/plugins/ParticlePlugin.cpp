@@ -8,6 +8,7 @@
 #include "../frame/GpuParticles.hpp"
 #endif
 #include "../rhi/Shader.hpp"
+#include "../rhi/ParticleInstanceData.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../rhi/Texture.hpp"
 #include "../draw/BatchVertex.hpp"   // packColor
@@ -23,20 +24,6 @@
 #include <cmath>
 
 namespace esengine {
-
-namespace {
-struct ParticleInstanceData {
-    f32 px, py, pz;
-    f32 sx, sy;
-    f32 rotation;
-    f32 align;  ///< particle::renderAlignment; read with rotation as one vec2
-    u32 color;
-    f32 uvOffsetX, uvOffsetY;
-    f32 uvScaleX, uvScaleY;
-    f32 age, random, intensity, lifetime;
-};
-static_assert(sizeof(ParticleInstanceData) == PARTICLE_INSTANCE_STRIDE, "instance stride must match the VAO layout");
-}  // namespace
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
     // Whether emitters that ask to simulate on the GPU can: the device says, and the CPU sim falls back where it cannot.
