@@ -20,7 +20,7 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import {
     Children, defineComponent, getComponent, MeshRenderer, Parent, RuntimeOnly, Transform,
-    type AnyComponentDef, type ChildrenData, type ComponentDef, type MeshRendererData, type ParentData, type TransformData,
+    type AnyComponentDef, type ChildrenData, type ComponentDef, type MeshRendererData,
 } from '../ecs/component';
 import { BodyType } from '../wasm/wasm.generated';
 import { playModeOnly } from '../ecs/env';
@@ -162,8 +162,8 @@ export const CompositeBatchingRes = defineResource<CompositeBatching>(new Compos
 /** Whether `entity` sits under a `CompositeBatch` root (itself excluded): such a part is the composite's, not a static batch's. */
 export function underComposite(world: App['world'], entity: Entity): boolean {
     let at = entity;
-    for (let depth = 0; depth < 256 && world.has(at, Parent); depth++) {
-        at = (world.get(at, Parent) as ParentData).entity;
+    for (let parent = world.tryGet(at, Parent); parent; parent = world.tryGet(at, Parent)) {
+        at = parent.entity;
         if (!world.valid(at)) return false;
         if (world.has(at, CompositeBatch)) return true;
     }
@@ -245,16 +245,17 @@ export class CompositeBatchPlugin implements Plugin {
         return out;
     }
 
-    /** The local transforms from just under the root down to `entity`. */
-    private chain(app: App, root: Entity, entity: Entity): TRS[] {
+    /** The local transforms from just under the root, through any grouping entities. */
+    private chain(app: App, root: Entity, entity: Entity): TRS[] | null {
         const world = app.world;
         const out: TRS[] = [];
         let at = entity;
-        for (let depth = 0; depth < 256 && at !== root; depth++) {
-            const t = world.get(at, Transform) as TransformData;
-            out.push({ position: t.position, rotation: t.rotation, scale: t.scale });
-            if (!world.has(at, Parent)) break;
-            at = (world.get(at, Parent) as ParentData).entity;
+        while (at !== root) {
+            const parent = world.tryGet(at, Parent);
+            if (!parent) return null;
+            const t = world.tryGet(at, Transform);
+            if (t) out.push({ position: t.position, rotation: t.rotation, scale: t.scale });
+            at = parent.entity;
         }
         return out.reverse();
     }
@@ -312,7 +313,9 @@ export class CompositeBatchPlugin implements Plugin {
             const layout = layoutRefusal(mesh);
             if (layout) { c.refused.set(e, layout); continue; }
 
-            const local = rootLocalMatrix(this.chain(app, c.root, e));
+            const chain = this.chain(app, c.root, e);
+            if (!chain) continue;
+            const local = rootLocalMatrix(chain);
             const known = c.parts.get(e);
             const key = known && known.mesh === mr.mesh && sameDrawState(known.mr, mr) ? known.key : staticBatchKey({
                 material: mr.material, texture: mr.texture, normalMap: mr.normalMap, color: mr.color, layer: mr.layer,

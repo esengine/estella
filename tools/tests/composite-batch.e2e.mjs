@@ -40,8 +40,12 @@ const extra = structuredClone(ship.find(entity => entity.name === 'Barrel'));
 extra.id = 2000; extra.name = 'Extra barrel'; extra.parent = null;
 extra.components.find(c => c.type === 'Transform').data.position.z = 0.4;
 extra.components.find(c => c.type === 'MeshRenderer').data.enabled = false;
-const scene = { ...base, entities: [...furniture, ...ship, extra] };
+const groups = Array.from({ length: 260 }, (_, i) => ({
+    id: 2001 + i, name: `Parts group ${i}`, parent: i === 0 ? 1000 : 2000 + i, children: [], visible: true, components: [],
+}));
+const scene = { ...base, entities: [...furniture, ...ship, extra, ...groups] };
 const partIds = ship.filter(entity => entity.id !== 1000).map(entity => entity.id);
+const groupedParts = ['Plank 0.0', 'Barrel'].map(name => ship.find(entity => entity.name === name).id);
 const nonCasters = [...ship.filter(entity => (/^(Plank|Post)/.test(entity.name) && entity.id % 2 === 0)
     || ['Barrel', 'Funnel'].includes(entity.name)).map(entity => entity.id), 2000];
 const server = await serveHost(host);
@@ -169,6 +173,22 @@ try {
         await page.evaluate(ids => {
             for (const id of ids) window.__estellaHeadless.api.setField(id, 'MeshRenderer', 'castShadows', '', false);
         }, nonCasters);
+
+        await page.evaluate(({ first, last, parts }) => {
+            const { api } = window.__estellaHeadless;
+            api.setComponent(first, 'Transform', { position: { x: 1.1, y: 0.8, z: 0 } });
+            api.setComponent(last, 'Transform', null);
+            for (const id of parts) api.setParent(id, last);
+        }, { first: groups[0].id, last: groups.at(-1).id, parts: groupedParts });
+        const groupedPlain = await capture('grouped-plain');
+        assert.ok(!groupedPlain.image.data.equals(mixedPlain.image.data), 'The group transform must move the grouped meshes');
+        const grouped = await toggle(true, 109);
+        assert.equal(grouped.component.instanced, 104);
+        compare('deep-composite-hierarchy', groupedPlain, await capture('grouped-batched'));
+        await toggle(false);
+        await page.evaluate(ids => {
+            for (const id of ids) window.__estellaHeadless.api.setParent(id, 1000);
+        }, groupedParts);
 
         await page.evaluate(ids => { for (const id of ids) window.__estellaHeadless.api.setComponent(id, 'StaticBatch', {}); }, [...partIds, 2000]);
         const staticBatch = await page.evaluate(async () => {
