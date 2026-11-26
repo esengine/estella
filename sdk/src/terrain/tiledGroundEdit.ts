@@ -34,7 +34,18 @@ interface Kept {
 }
 
 /** An image a save writes, with where it goes. @experimental */
-export interface TiledGroundImage { path: string; width: number; height: number; pixels: Uint8Array }
+export interface TiledGroundImage {
+    path: string;
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+    /** The destination's heightmap format. Height pixels are packed as RedGreen16 here, and splatmaps have no format. */
+    heightFormat?: number;
+}
+
+function heightImage(path: string, field: Heightfield, heightFormat: number): TiledGroundImage {
+    return { path, width: field.width, height: field.height, pixels: encodeHeightmap(field), heightFormat };
+}
 
 const kept = (): Kept => ({ heights: null, splat: null, splat2: null, h: null, s: null, s2: null });
 
@@ -193,7 +204,7 @@ export class TiledGroundEdit {
         let named = false;
         const beside = (path: string, suffix: string): string => path.replace(/(\.[^./]+)?$/, `${suffix}.png`);
         for (const { tile, entry } of this.source.residentDirtyTiles()) {
-            images.push({ path: entry.height, width: tile.field.width, height: tile.field.height, pixels: encodeHeightmap(tile.field) });
+            images.push(heightImage(entry.height, tile.field, doc.format));
             if (tile.splat) {
                 if (!entry.splat) { entry.splat = beside(entry.height, '_splat'); named = true; }
                 images.push({ path: entry.splat, ...tile.splat });
@@ -204,7 +215,7 @@ export class TiledGroundEdit {
             }
         }
         if (this.source.overviewDirty) {
-            images.push({ path: doc.overview, width: this.source.overview.width, height: this.source.overview.height, pixels: encodeHeightmap(this.source.overview) });
+            images.push(heightImage(doc.overview, this.source.overview, doc.format));
             const { a, b } = this.source.overviewSplats(false, false);
             if (a) {
                 if (!doc.overviewSplat) { doc.overviewSplat = beside(doc.overview, '_splat'); named = true; }
@@ -270,7 +281,7 @@ export class TiledGroundEdit {
             for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) heights.data[j * t + i] = at(e.x * n + i, e.z * n + j);
             const tile = s.tileAt(e.x, e.z);
             if (tile) tile.field.data.set(heights.data);
-            images.push({ path: e.height, width: t, height: t, pixels: encodeHeightmap(heights) });
+            images.push(heightImage(e.height, heights, s.doc.format));
         }
         const ov = s.overview;
         for (let oj = 0; oj < ov.height; oj++) for (let oi = 0; oi < ov.width; oi++) {
@@ -278,7 +289,7 @@ export class TiledGroundEdit {
             const tx = Math.min(Math.floor(gi / n), s.doc.tilesX - 1), tz = Math.min(Math.floor(gj / n), s.doc.tilesZ - 1);
             if (chosen.some((e) => e.x === tx && e.z === tz)) ov.data[oj * ov.width + oi] = at(gi, gj);
         }
-        images.push({ path: s.doc.overview, width: ov.width, height: ov.height, pixels: encodeHeightmap(ov) });
+        images.push(heightImage(s.doc.overview, ov, s.doc.format));
         this.host.remake(this.world([-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2]));
         return images;
     }
