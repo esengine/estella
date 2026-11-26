@@ -54,9 +54,9 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 ## Plurals
 
 An entry can carry plural forms from the CLDR set `zero`, `one`, `two`, `few`, `many`, `other`. `t` selects a form from
-the `count` parameter; a `zero` form is always used when `count === 0`. The default selector implements English rules
+the `count` parameter. An explicit `zero` form takes precedence when `count === 0`. The default selector implements English rules
 (`one` / `other`). For other languages register a selector with `setPluralSelector(locale, (count) => category)` that
-returns one of the six categories.
+returns one of the six categories. When the fallback language supplies a translation, its plural rule selects the form.
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
@@ -109,6 +109,7 @@ The cook always ships `.eslocale` files, because they are addressed by key and n
 When two tables define the same key for the same locale, the later table wins. Scene discovery orders tables by logical project path. Tables listed in `LocalizationPlugin({ tables })` follow in the order you specify. Switching scenes reuses each table, including when a path and a UUID name the same asset.
 
 A successful hot update replaces the table. Removing a key reveals the value from an earlier table or the fallback locale. If the updated file fails to load, labels keep their previous translations.
+The editor preview keeps the same last valid translations. The String Table lists unreadable files and identifies any omitted from a partial export. Repairing a file makes it available for editing and import again.
 
 ### Inspector
 

@@ -57,7 +57,10 @@ export function selectPluralForm(forms: PluralForms, count: number, selector: Pl
  * as the {@link Localization} resource; read it as `app.getResource(Localization)`.
  */
 export class LocalizationAPI {
-    private readonly catalogs = new LocaleCatalogs(() => this.plainCache_.clear());
+    private readonly catalogs = new LocaleCatalogs((locale, previous) => {
+        if (locale === undefined || locale === this.locale_ || locale === this.fallback_
+            || previous === this.locale_ || previous === this.fallback_) this.plainCache_.clear();
+    });
     private readonly selectors = new Map<string, PluralSelector>();
     private locale_: string;
     private fallback_: string;
@@ -94,12 +97,13 @@ export class LocalizationAPI {
 
     /** Locales that have a catalog, in insertion order. */
     availableLocales(): string[] {
-        return [...this.catalogs.read().keys()];
+        return this.catalogs.locales();
     }
 
     /** True if the key resolves in the active locale or the fallback. */
     has(key: string): boolean {
-        return this.lookup_(key) !== undefined;
+        return this.catalogs.get(this.locale_, key) !== undefined
+            || (this.locale_ !== this.fallback_ && this.catalogs.get(this.fallback_, key) !== undefined);
     }
 
     /**
@@ -112,7 +116,12 @@ export class LocalizationAPI {
             const cached = this.plainCache_.get(key);
             if (cached !== undefined) return cached;
         }
-        const entry = this.lookup_(key);
+        let language = this.locale_;
+        let entry = this.catalogs.get(language, key);
+        if (entry === undefined && language !== this.fallback_) {
+            language = this.fallback_;
+            entry = this.catalogs.get(language, key);
+        }
         if (entry === undefined) return key;
         if (typeof entry === 'string') {
             const translated = this.translate_(entry, params);
@@ -124,17 +133,12 @@ export class LocalizationAPI {
             return translated;
         }
         const count = typeof params?.count === 'number' ? params.count : 0;
-        const selector = this.selectors.get(this.locale_) ?? defaultPluralSelector;
+        const selector = this.selectors.get(language) ?? defaultPluralSelector;
         return this.translate_(selectPluralForm(entry, count, selector), params);
     }
 
     private translate_(template: string, params?: TParams): string {
         return interpolate(this.pseudo_ ? pseudoLocalize(template, this.pseudo_) : template, params);
-    }
-
-    private lookup_(key: string): LocaleEntry | undefined {
-        const catalogs = this.catalogs.read();
-        return catalogs.get(this.locale_)?.get(key) ?? catalogs.get(this.fallback_)?.get(key);
     }
 }
 

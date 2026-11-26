@@ -51,7 +51,7 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 
 ## 复数
 
-条目可以携带 CLDR 集合中的复数形式：`zero`、`one`、`two`、`few`、`many`、`other`。`t` 根据 `count` 参数选择形式；`count === 0` 时总是使用 `zero` 形式。默认选择器实现英语规则（`one` / `other`）。其他语言用 `setPluralSelector(locale, (count) => category)` 注册选择器，返回这六种类别之一。
+条目可使用 `zero`、`one`、`two`、`few`、`many`、`other` 六种 CLDR 复数形式。`t` 根据 `count` 选择形式。如果条目提供了 `zero`，数量为零时优先使用它。默认选择器采用英语规则（`one` / `other`）。其他语言可用 `setPluralSelector(locale, (count) => category)` 注册选择器，返回六种类别之一。如果译文取自回退语言，复数形式也按该语言的规则选择。
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });
@@ -102,6 +102,7 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 同一语言的多张表定义同一个键时，靠后的表生效。场景自动发现的表按项目逻辑路径排序。在 `LocalizationPlugin({ tables })` 中显式列出的表优先级更高，按你列出的顺序覆盖。切换场景会复用已加载的表，通过路径和 UUID 引用同一张表也只占一份。
 
 热更新成功后，新表替换旧表。删除一个键会露出前一张表或回退语言中的译文。若更新的表加载失败，界面继续显示上一次成功加载的译文。
+编辑器预览也会保留上次有效的译文。字符串表会列出无法读取的文件，并在部分导出前说明将略过哪些文件。修复文件后即可恢复编辑和导入。
 
 ### 检视器
 

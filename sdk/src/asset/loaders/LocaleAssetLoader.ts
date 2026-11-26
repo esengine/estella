@@ -11,6 +11,7 @@
 
 import type { AssetLoader, LocaleResult, RegistryAssetLoader } from '../AssetLoader';
 import { localeCatalogsFor, parseLocaleTable } from '../../i18n/Localization';
+import { localeTableKeyCount } from '../../i18n/localeCatalogs';
 
 export class LocaleAssetLoader implements AssetLoader<LocaleResult> {
     readonly type = 'locale';
@@ -23,7 +24,7 @@ export class LocaleAssetLoader implements AssetLoader<LocaleResult> {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const table = parseLocaleTable(text, path);
             return {
-                published: table, value: { locale: table.locale, keyCount: Object.keys(table.entries).length },
+                published: table, value: { locale: table.locale, keyCount: localeTableKeyCount(table) },
                 didPublish: previous => {
                     const service = ctx.getLocalization();
                     if (service) localeCatalogsFor(service).refreshPublished(this.owner, slot?.key ?? path, previous, table);

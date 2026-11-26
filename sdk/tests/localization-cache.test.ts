@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, expect, it, vi } from 'vitest';
-import { LocalizationAPI } from '../src/i18n/Localization';
+import { LocalizationAPI, localeCatalogsFor, type LocaleCatalog } from '../src/i18n/Localization';
+import { localeTableKeyCount } from '../src/i18n/localeCatalogs';
 import * as preview from '../src/i18n/pseudo-localization';
 
 afterEach(() => vi.restoreAllMocks());
@@ -59,4 +60,68 @@ it('evicts old cached translations while keeping results correct', () => {
     expect(loc.t('key299')).toBe(preview.pseudoLocalize('Label 299', { expansion: 0 }));
     expansion.mockClear(); loc.t('key299'); expect(expansion).not.toHaveBeenCalled();
     loc.t('key0'); expect(expansion).toHaveBeenCalledTimes(1);
+});
+
+it('lists languages and refreshes individual labels without traversing unrelated translations', () => {
+    const service = new LocalizationAPI('en', 'fr');
+    const index = localeCatalogsFor(service);
+    const owner = {};
+    const traversed = vi.fn((entries: LocaleCatalog) => Reflect.ownKeys(entries));
+    const file = (locale: string, entries: LocaleCatalog) => ({ version: 1, locale,
+        entries: new Proxy(entries, { ownKeys: traversed }),
+    });
+    index.setProject(owner, ['base', 'overlay', 'french']);
+    const labels = Object.fromEntries(Array.from({ length: 48 }, (_, i) => [`label${i}`, `Label ${i}`]));
+    const base = file('en', { ...labels, title: 'Home', subtitle: 'Hello' });
+    const overlay = file('en', { title: 'Welcome' });
+    const french = file('fr', { message: 'Bonjour' });
+    const updated = file('fr', { message: 'Salut' });
+    const replacement = file('de', { title: 'Hallo' });
+    // The registry counts decoded entries once, before publishing the tables.
+    for (const table of [base, overlay, french, updated, replacement]) localeTableKeyCount(table);
+    traversed.mockClear();
+    index.usePublished(owner, 'base', base);
+    index.usePublished(owner, 'overlay', overlay);
+    index.usePublished(owner, 'french', french);
+    expect(service.availableLocales()).toEqual(['en', 'fr']);
+    expect(traversed).not.toHaveBeenCalled();
+    expect(service.t('title')).toBe('Welcome');
+    expect(service.t('message')).toBe('Bonjour');
+    index.refreshPublished(owner, 'french', french, updated);
+    expect(service.t('message')).toBe('Salut');
+    index.refreshPublished(owner, 'overlay', overlay, replacement);
+    expect(service.availableLocales()).toEqual(['en', 'de', 'fr']);
+    expect(service.t('title')).toBe('Home');
+    expect(traversed).not.toHaveBeenCalled();
+});
+
+it('keeps bulk lookup in split languages bounded and honors file and code precedence after refresh', () => {
+    const service = new LocalizationAPI();
+    const index = localeCatalogsFor(service);
+    const owner = {};
+    const paths = Array.from({ length: 24 }, (_, i) => `${i}.eslocale`);
+    const probes = vi.fn(Reflect.getOwnPropertyDescriptor);
+    const tables = paths.map((path, i) => ({ version: 1, locale: 'en',
+        entries: new Proxy({ shared: path, [`key${i}`]: path }, { getOwnPropertyDescriptor: probes }),
+    }));
+    service.addCatalog('en', { shared: 'inline before project' });
+    index.setProject(owner, paths);
+    paths.forEach((path, i) => index.usePublished(owner, path, tables[i]));
+    for (let round = 0; round < 3; round++) paths.forEach((path, i) => expect(service.t(`key${i}`, {})).toBe(path));
+    probes.mockClear();
+    paths.forEach((path, i) => expect(service.t(`key${i}`, {})).toBe(path));
+    expect(probes.mock.calls.length).toBeLessThanOrEqual(paths.length);
+    expect(service.t('shared')).toBe(paths[23]);
+    service.addCatalog('en', { shared: 'inline after project' });
+    paths.forEach((path, i) => expect(service.t(`key${i}`, {})).toBe(path));
+    expect(service.t('shared', {})).toBe('inline after project');
+    const replacement = { version: 1, locale: 'es', entries: { key23: 'Español' } };
+    index.refreshPublished(owner, paths[23], tables[23], replacement);
+    expect(service.t('shared')).toBe('inline after project');
+    expect(service.has('key23')).toBe(false);
+    service.setLocale('es');
+    expect(service.t('key23')).toBe('Español');
+    index.setProject(owner, paths.slice(0, -1).reverse());
+    expect(service.availableLocales()).toEqual(['en']);
+    expect(service.t('key23')).toBe('key23');
 });

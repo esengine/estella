@@ -119,6 +119,30 @@ function tableAssets(text: string, i18n: LocalizationAPI | null): Assets {
 }
 
 describe('LocaleAssetLoader', () => {
+    it.each(['direct', 'project'])('uses the language of the selected plural entry after a %s load', async load => {
+        const i18n = new LocalizationAPI('de', 'ru');
+        i18n.addCatalog('de', { caption: '', local: { one: 'einzeln', other: 'mehrere' } });
+        const assets = tableAssets(JSON.stringify({
+            locale: 'ru',
+            entries: { caption: 'название', apples: { zero: 'нет яблок', few: '{count} яблока', other: '{count} яблок' } },
+        }), i18n);
+        const path = 'i18n/ru.eslocale';
+        try {
+            if (load === 'direct') await assets.loadLocaleTable(path);
+            else await assets.installProjectLocaleTables([], [path]);
+            i18n.setPluralSelector('ru', count => count === 2 ? 'few' : 'other');
+            expect(i18n.t('apples', { count: 2 })).toBe('2 яблока');
+            expect(i18n.t('apples')).toBe('нет яблок');
+            expect(i18n.t('local', { count: 1 })).toBe('einzeln');
+            expect(i18n.has('caption')).toBe(true);
+            expect(i18n.t('caption')).toBe('');
+            expect(i18n.has('missing')).toBe(false);
+            expect(i18n.t('missing')).toBe('missing');
+            i18n.setPluralSelector('ru', () => 'other');
+            expect(i18n.t('apples', { count: 2 })).toBe('2 яблок');
+        } finally { assets.releaseAll(); }
+    });
+
     it('merges the table into the app catalogs and reports locale + key count', async () => {
         const i18n = new LocalizationAPI('en', 'en');
         const assets = tableAssets(JSON.stringify({
