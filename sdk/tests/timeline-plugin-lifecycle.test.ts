@@ -76,6 +76,38 @@ it.each(['stop', 'unpublish', 'remove', 'cleanup'] as const)('gives back the cam
     }
 });
 
+it('updates the view when the paused player seeks into and out of a nested shot', async () => {
+    const { app, player, timeline, director, camera } = playerIn(new TimelinePlugin());
+    const close = app.world.spawn();
+    const flags = app.world.get(player, TimelinePlayer);
+    app.world.insert(player, TimelinePlayer, { ...flags, bindingNames: ['View', 'Close'], bindings: [camera, close] });
+    timeline.registerAsset('intro', { ...asset, tracks: [{
+        type: TrackType.Camera, name: '', childPath: '', clips: [{ start: 0, duration: 1, camera: '@View' }],
+    }, {
+        type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 1, duration: 2, timeline: 'close', root: '', speed: 1, loop: false },
+        ],
+    }] });
+    timeline.registerAsset('close', { ...asset, duration: 2, tracks: [{
+        type: TrackType.Camera, name: '', childPath: '', clips: [{ start: 0, duration: 2, camera: '@Close' }],
+    }] });
+    await app.tick(0.5);
+    expect(director.timelineShot?.to).toBe(camera);
+    timeline.pause(player);
+    timeline.setTime(player, 2);
+    await app.tick(0.5);
+    expect(director.timelineShot?.to).toBe(close);
+    expect(timeline.getCurrentTime(player)).toBe(2);
+    timeline.setTime(player, 3.5);
+    await app.tick(0.5);
+    expect(director.timelineShot).toBeNull();
+    expect(timeline.isPlaying(player)).toBe(false);
+    timeline.setTime(player, 2);
+    timeline.stop(player);
+    await app.tick(0.5);
+    expect(director.timelineShot).toBeNull();
+});
+
 it('does not restore a shot or player removed by its own timeline marker', async () => {
     const { app, player, timeline, director } = playerIn(new TimelinePlugin());
     timeline.registerAsset('intro', { ...asset, duration: 1, tracks: [asset.tracks[0]!, {

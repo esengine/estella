@@ -30,6 +30,8 @@ export interface TimelineState {
     phase?: number;
     /** Whether the entry instant has already been dispatched. */
     started?: boolean;
+    /** A playhead seek that has yet to be sampled. */
+    seekPending?: boolean;
     playing: boolean;
     speed: number;
     wrapMode: WrapMode;
@@ -240,8 +242,15 @@ export function latchPlayerFinish(
 export function advanceTimelineTS(
     asset: TimelineAsset, root: Entity, state: TimelineState, dt: number, ctx: AdvanceContext,
 ): boolean {
+    const seeking = state.seekPending;
+    if (seeking) state.seekPending = false;
     if (!state.playing) {
         ctx.syncSpawns?.(!state.started && state.time === 0 ? null : state.time);
+        if (seeking && state.started) {
+            sampleLayer(asset, state.time, root, ctx);
+            if (ctx.lookup) advanceNested(asset, root, state, ctx, ctx.lookup, 'seek');
+            ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES));
+        }
         return false;
     }
 
@@ -266,10 +275,7 @@ export function advanceTimelineTS(
     }
 
     ctx.syncSpawns?.(state.time);
-    sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
-    // Skeletal clips on their rigs, blended over what the rig's Animator posed this frame.
-    if (ctx.lookup) sampleAnimationTracks(asset, state.time, root, ctx.deps, ctx.lookup);
-    ctx.onPropertyApplied?.(root, asset);
+    sampleLayer(asset, state.time, root, ctx);
 
     // The stretches the playhead covered, in the timeline's own time.
     const segments = from === 0 ? playheadRuns(phase, advanced, span, state.wrapMode, !state.started)
@@ -295,30 +301,40 @@ export function advanceTimelineTS(
 
 const NO_TIMELINES: SequenceLookup = () => undefined;
 
+function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: AdvanceContext): void {
+    sampleTimeline(asset, time, root, ctx.deps, ctx.sampleOpts);
+    if (ctx.lookup) sampleAnimationTracks(asset, time, root, ctx.deps, ctx.lookup);
+    ctx.onPropertyApplied?.(root, asset);
+}
+
 /**
  * Play the timelines nested in `asset`: each runs on its own clock, samples its property tracks onto
  * its own root and fires its own events. A clip entered this step has no past (-1), so a trigger at its
  * start fires; one that has ended is forgotten, so entering it again starts it over.
  */
-function advanceNested(asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup): void {
+function advanceNested(
+    asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
+    mode: 'play' | 'seek' = 'play',
+): void {
     const live = new Set<string>();
     for (const layer of collectSequenceLayers(asset, state.time, root, ctx.deps.resolveChild, lookup)) {
         live.add(layer.key);
-        sampleTimeline(layer.asset, layer.time, layer.root, ctx.deps, ctx.sampleOpts);
-        sampleAnimationTracks(layer.asset, layer.time, layer.root, ctx.deps, lookup);
-        ctx.onPropertyApplied?.(layer.root, layer.asset);
+        sampleLayer(layer.asset, layer.time, layer.root, ctx);
         const before = state.nested[layer.key];
-        const prev = before ? before.time : -1;
-        const child = createTimelineState(WrapMode.Once, 1);
-        child.time = layer.time;
-        child.prevTime = prev;
-        child.spineClipIndices = before ? before.spineClipIndices : {};
-        const segments: ReadonlyArray<readonly [number, number]> = layer.time < prev
-            ? [[prev, layer.asset.duration], [0, layer.time]] : [[prev, layer.time]];
-        for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
-            applyEvent(ctx, e);
+        const spineClipIndices = before?.spineClipIndices ?? {};
+        if (mode === 'play') {
+            const prev = before?.time ?? -1;
+            const child = createTimelineState(WrapMode.Once, 1);
+            child.time = layer.time;
+            child.prevTime = prev;
+            child.spineClipIndices = spineClipIndices;
+            const segments: ReadonlyArray<readonly [number, number]> = layer.time < prev
+                ? [[prev, layer.asset.duration], [0, layer.time]] : [[prev, layer.time]];
+            for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
+                applyEvent(ctx, e);
+            }
         }
-        state.nested[layer.key] = { time: layer.time, spineClipIndices: child.spineClipIndices };
+        state.nested[layer.key] = { time: layer.time, spineClipIndices };
     }
     for (const key of Object.keys(state.nested)) if (!live.has(key)) delete state.nested[key];
 }

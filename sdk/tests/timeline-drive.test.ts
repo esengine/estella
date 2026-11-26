@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     detectTimelineEvents,
     advanceTimelineTS,
@@ -173,6 +173,40 @@ describe('advanceTimelineTS (clock + property apply + stop)', () => {
         s.playing = false;
         advanceTimelineTS(asset, ROOT, s, 1, { deps: mockDeps(store, defs) });
         expect(store.get('Transform').position.x).toBe(7); // untouched
+    });
+
+    it('samples a paused seek through nested clips without replaying the skipped cues', () => {
+        const child: TimelineAsset = { ...asset, tracks: [...asset.tracks, {
+            type: TrackType.CameraShake, childPath: '', name: '', shakes: [{ time: 0.75, force: 1 }, { time: 1.4, force: 2 }],
+        }] };
+        const host: TimelineAsset = { ...asset, tracks: [{
+            type: TrackType.Sequence, childPath: '', name: '', clips: [
+                { start: 0, duration: 2, timeline: 'child', root: '', speed: 1, loop: false },
+            ],
+        }, { type: TrackType.Marker, childPath: '', name: '', markers: [{ time: 0.75, name: 'skip' }] }] };
+        const defs = { Transform: { __name: 'Transform' } };
+        const store = new Map<string, any>([['Transform', { position: { x: 0, y: 0, z: 0 } }]]);
+        const api = new TimelineAPI();
+        const state = api.ensureState(ROOT, WrapMode.Once, 1);
+        const onShake = vi.fn(), onSignals = vi.fn();
+        const ctx = { deps: mockDeps(store, defs), lookup: () => child, onShake, onSignals };
+        api.play(ROOT);
+        advanceTimelineTS(host, ROOT, state, 0.25, ctx);
+        api.pause(ROOT);
+        api.setTime(ROOT, 1.25);
+        advanceTimelineTS(host, ROOT, state, 0.5, ctx);
+        expect(state.time).toBe(1.25);
+        expect(store.get('Transform').position.x).toBeCloseTo(62.5);
+        expect(onShake).not.toHaveBeenCalled();
+        expect(onSignals).not.toHaveBeenCalled();
+
+        store.get('Transform').position.x = 42;
+        advanceTimelineTS(host, ROOT, state, 0.5, ctx);
+        expect(store.get('Transform').position.x).toBe(42);
+        api.play(ROOT);
+        advanceTimelineTS(host, ROOT, state, 0.25, ctx);
+        expect(onShake.mock.calls).toEqual([[ROOT, 2]]);
+        expect(onSignals).not.toHaveBeenCalled();
     });
 });
 

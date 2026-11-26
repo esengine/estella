@@ -122,12 +122,14 @@ export class TimelineAPI {
             s.prevTime = 0;
             s.phase = 0;
             s.started = false;
+            s.seekPending = false;
             s.spineClipIndices = {};
             s.nested = {};
         }
         this.flags_?.reset(entity);
     }
 
+    /** Move the playhead. While paused, the next update samples the destination once. */
     setTime(entity: Entity, time: number): void {
         const s = this.states_.get(entity);
         if (s) {
@@ -135,6 +137,7 @@ export class TimelineAPI {
             s.time = time;
             s.phase = time;
             s.started = true;
+            s.seekPending = true;
         }
     }
 
