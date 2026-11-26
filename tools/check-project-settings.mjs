@@ -46,7 +46,6 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { ROOT, read } from './lib/repo.mjs';
-import { ts } from './lib/sdkProgram.mjs';
 
 const RUNTIME_CONFIG = 'pipeline/src/project/runtimeConfig.ts';
 const FORMAT = 'pipeline/src/project/format.ts';
@@ -179,33 +178,38 @@ const AUTHORING = {
   screenFit: { ui: 'project.display.cameraFit' },
 };
 
-function sourceFile(file) {
-  return ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest, true);
+/** Field names of the RuntimeProjectConfig interface, in declaration order. */
+function runtimeConfigFields(src) {
+  const body = src.slice(src.indexOf('export interface RuntimeProjectConfig {'));
+  const end = body.indexOf('\n}');
+  return [...body.slice(0, end).matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1]);
 }
 
-function bodyOf(declarations, name) {
-  const declaration = declarations.find(node => node.name?.getText() === name && node.body);
-  if (!declaration) throw new Error(`check-project-settings: missing implementation of ${name}`);
-  return declaration.body.getText();
-}
-
-const runtimeFile = sourceFile(RUNTIME_CONFIG);
+const runtimeSrc = read(RUNTIME_CONFIG);
 const formatSrc = read(FORMAT);
-const storeFile = sourceFile(STORE);
+const storeSrc = read(STORE);
 const settingsSrc = SETTINGS_FILES.map(read).join(String.fromCharCode(10));
-const config = runtimeFile.statements.find(node => ts.isInterfaceDeclaration(node) && node.name.text === 'RuntimeProjectConfig');
-const fields = config?.members.filter(ts.isPropertySignature).map(member => member.name.getText()) ?? [];
+const fields = runtimeConfigFields(runtimeSrc);
 
 if (fields.length === 0) {
   console.error('check-project-settings: could not read RuntimeProjectConfig — has it moved?');
   process.exit(1);
 }
 
-// Inspect the implementations without executing the editor. Parameters, return types and method order may change.
-const store = storeFile.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'ProjectStoreImpl');
-const editorApply = bodyOf(store?.members ?? [], 'applyEditorRuntimeConfig');
-const playPayload = bodyOf(store?.members ?? [], 'playPayload');
-const packagedFields = bodyOf(runtimeFile.statements, 'packagedRuntimeFields');
+// The consumers, each as "does this text carry the field". Deliberately textual:
+// the alternative is importing the editor's module graph into a lint script.
+const editorApplyAt = storeSrc.indexOf('private applyEditorRuntimeConfig');
+const editorApply = storeSrc.slice(editorApplyAt, storeSrc.indexOf('\n  }\n', editorApplyAt));
+// Found by its name and not its parameter list, which grew (a pinned asset) and left the search finding nothing: every
+// setting then read as never reaching Play. A payload that cannot be found is said, not read as an empty one.
+const playPayloadAt = storeSrc.indexOf('async playPayload(');
+const playPayloadEnd = storeSrc.indexOf('audioFeature()', playPayloadAt);
+if (playPayloadAt < 0 || playPayloadEnd < 0) {
+  console.error(`check-project-settings: could not find ProjectStore.playPayload in ${STORE} — has it moved or been renamed?`);
+  process.exit(1);
+}
+const playPayload = storeSrc.slice(playPayloadAt, playPayloadEnd);
+const packagedFields = runtimeSrc.slice(runtimeSrc.indexOf('export function packagedRuntimeFields'));
 
 const inPackagedSlice = (f) => packagedFields.includes(`rc.${f}`);
 const CONSUMERS = {
