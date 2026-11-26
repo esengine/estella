@@ -276,7 +276,11 @@ export class TiledGroundEdit {
             gi / (s.samplesX - 1) * (field.width - 1), gj / (s.samplesZ - 1) * (field.height - 1));
         const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
         const images: TiledGroundImage[] = [];
+        const columnsByRow = new Map<number, Set<number>>();
         for (const e of chosen) {
+            let columns = columnsByRow.get(e.z);
+            if (!columns) columnsByRow.set(e.z, columns = new Set());
+            columns.add(e.x);
             const heights: Heightfield = { width: t, height: t, data: new Float32Array(t * t) };
             for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) heights.data[j * t + i] = at(e.x * n + i, e.z * n + j);
             const tile = s.tileAt(e.x, e.z);
@@ -284,10 +288,15 @@ export class TiledGroundEdit {
             images.push(heightImage(e.height, heights, s.doc.format));
         }
         const ov = s.overview;
-        for (let oj = 0; oj < ov.height; oj++) for (let oi = 0; oi < ov.width; oi++) {
-            const gi = oi / (ov.width - 1) * (s.samplesX - 1), gj = oj / (ov.height - 1) * (s.samplesZ - 1);
-            const tx = Math.min(Math.floor(gi / n), s.doc.tilesX - 1), tz = Math.min(Math.floor(gj / n), s.doc.tilesZ - 1);
-            if (chosen.some((e) => e.x === tx && e.z === tz)) ov.data[oj * ov.width + oi] = at(gi, gj);
+        for (let oj = 0; oj < ov.height; oj++) {
+            const gj = oj / (ov.height - 1) * (s.samplesZ - 1);
+            const columns = columnsByRow.get(Math.min(Math.floor(gj / n), s.doc.tilesZ - 1));
+            if (!columns) continue;
+            for (let oi = 0; oi < ov.width; oi++) {
+                const gi = oi / (ov.width - 1) * (s.samplesX - 1);
+                const tx = Math.min(Math.floor(gi / n), s.doc.tilesX - 1);
+                if (columns.has(tx)) ov.data[oj * ov.width + oi] = at(gi, gj);
+            }
         }
         images.push(heightImage(s.doc.overview, ov, s.doc.format));
         this.host.remake(this.world([-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2]));

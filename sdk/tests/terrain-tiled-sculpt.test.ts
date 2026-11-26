@@ -311,6 +311,23 @@ describe('a heightmap in and out of ground kept as tiles', () => {
         expect(some.source.overview.data[80]).not.toBeCloseTo(0.25, 3);
     });
 
+    it.each(['sparse', 'loaded'] as const)('updates exactly the overview samples owned by the %s import', async (scope) => {
+        const t = tiled(undefined, 'entry');
+        const loaded = [[0, 1], [2, 0]] as const;
+        for (const [x, z] of loaded) await t.source.readTile(x, z);
+        const ov = t.source.overview, before = ov.data.slice();
+        const flat: Heightfield = { width: 2, height: 2, data: new Float32Array(4).fill(0.25) };
+        const written = t.edit.importImage(flat, scope === 'sparse' ? 'all' : 'loaded');
+        const owns = (x: number, z: number): boolean => scope === 'sparse'
+            ? x !== 2 || z !== 2 : loaded.some(([tx, tz]) => x === tx && z === tz);
+        const owners = [0, 0, 0, 1, 1, 1, 2, 2, 2];
+        const expected = before.map((height, i) => owns(owners[i % 9]!, owners[Math.floor(i / 9)]!) ? 0.25 : height);
+        expect(ov.data).toEqual(expected);
+        const map = written.at(-1)!;
+        expect(map.path).toBe('o.png');
+        expect(map.pixels).toEqual(image(9, (x, z) => expected[z * 9 + x]!).pixels);
+    });
+
     it('refuses to import over changes not saved', async () => {
         const t = tiled();
         await loadAll(t.source);
