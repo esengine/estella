@@ -1014,6 +1014,8 @@ TEST_CASE("GPU steps and same-frame restarts belong to their registry") {
     a->commitGpuStep(x, step);
     CHECK_EQ(a->aliveCount(x), 3u);
     CHECK_EQ(b->aliveCount(y), 0u);
+    REQUIRE(b->peekGpuStep(y, step));
+    b->commitGpuStep(y, step);
     a->reset(x);
     a->play(x);
     a->update(first, 0.01f);
@@ -1022,7 +1024,40 @@ TEST_CASE("GPU steps and same-frame restarts belong to their registry") {
     CHECK_EQ(step.spawnCount, 3u);
     REQUIRE(b->peekGpuStep(y, step));
     CHECK_FALSE(step.reset);
-    CHECK_EQ(step.spawnCount, 7u);
+    CHECK_EQ(step.spawnCount, 0u);
+    CHECK_EQ(step.firstIndex, 7u);
+}
+
+TEST_CASE("replacing a GPU emitter starts a fresh ring and drops buffered collisions") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    system.setGpuAvailable(true);
+    const auto entity = makeGpuEmitter(registry, [](auto& emitter) {
+        emitter.burstCount = 3;
+        emitter.collisionEnabled = true;
+    });
+    system.update(registry, 0.01f);
+    GpuStep step;
+    REQUIRE(system.peekGpuStep(entity, step));
+    system.commitGpuStep(entity, step);
+    REQUIRE(system.aliveCount(entity) == 3);
+    CollisionEvent hit{};
+    system.addGpuCollisions(entity, 1, &hit, 1);
+
+    registry.remove<ecs::ParticleEmitter>(entity);
+    system.forgetEmitter(entity);
+    CHECK_FALSE(system.peekGpuStep(entity, step));
+    auto& replacement = registry.emplace<ecs::ParticleEmitter>(entity);
+    replacement.gpuSimulation = true;
+    replacement.rate = 0;
+    replacement.burstCount = 5;
+    replacement.collisionEnabled = true;
+    system.update(registry, 0.01f);
+    REQUIRE(system.peekGpuStep(entity, step));
+    CHECK(step.reset);
+    CHECK_EQ(step.firstIndex, 0u);
+    CHECK_EQ(step.spawnCount, 5u);
+    CHECK(system.collisionEvents().empty());
 }
 
 TEST_CASE("a GPU completion and buffered collision from the old population cannot enter its replacement") {

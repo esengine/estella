@@ -846,6 +846,12 @@ void GpuParticles::pollReadbacks() {
     if (!system) return;
     for (auto& [id, slot] : slots_) {
         if (slot.readback == ReadbackHandle::Invalid) continue;
+        particle::GpuStep step;
+        if (!system->peekGpuStep(Entity::fromRaw(id), step) || step.reset) {
+            device_.discardReadback(slot.readback);
+            slot.readback = ReadbackHandle::Invalid;
+            continue;
+        }
         const GfxReadbackStatus status = device_.pollReadback(slot.readback);
         if (status == GfxReadbackStatus::Pending) continue;
         const ReadbackHandle handle = slot.readback;

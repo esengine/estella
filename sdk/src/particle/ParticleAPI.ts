@@ -77,6 +77,19 @@ export class ParticleAPI {
         this.module_.particle_reset?.(this.registry_, entity as number);
     }
 
+    /** @internal Release the simulation state of a removed component. */
+    forgetEmitter(entity: Entity): void {
+        if (this.module_.particle_forgetEmitter) {
+            this.module_.particle_forgetEmitter(this.registry_, entity);
+        } else {
+            this.reset(entity);
+            this.setColorLut(entity, null);
+            this.setSizeLut(entity, null);
+            this.setSpeedLut(entity, null);
+            this.setBursts(entity, null);
+        }
+    }
+
     /**
      * Spawn `count` of `entity`'s particles at a world point, now — an impact's sparks, a muzzle's flash — without moving
      * the emitter or replaying it. The emitter's own settings make them; its shape's +Y (a

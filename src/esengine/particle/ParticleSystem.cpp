@@ -22,12 +22,17 @@ void ParticleSystem::reseedFrom(const esengine::RandomSource& source) {
 }
 
 void ParticleSystem::onEntityDestroyed(Entity entity) {
+    forgetEmitter(entity);
+}
+
+void ParticleSystem::forgetEmitter(Entity entity) {
     states_.erase(entity);
     pending_play_.erase(entity);
     colorLuts_.erase(entity);
     sizeLuts_.erase(entity);
     speedLuts_.erase(entity);
     burstSchedules_.erase(entity);
+    std::erase_if(gpu_collisions_, [entity](const auto& events) { return events.entity == entity; });
 }
 
 void ParticleSystem::clearCollisionFrame() {
@@ -189,6 +194,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
             it = insertIt;
             it->second.gpu = useGpu;
             it->second.gpuCapacity = useGpu ? capacity : 0;
+            it->second.gpuReset = useGpu;
             if (emitter.playOnStart) {
                 it->second.playing = true;
             }

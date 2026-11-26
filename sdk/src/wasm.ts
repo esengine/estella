@@ -737,6 +737,7 @@ export interface ESEngineModule extends TilemapBindings {
                      nx: number, ny: number, nz: number, vx: number, vy: number, vz: number): number;
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
+    particle_forgetEmitter?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;
     particle_getAliveCountInWorld?(registry: CppRegistry, entity: number): number;
     /** Upload (count = LUT size) or clear (count = 0) an entity's baked color-over-life LUT. */

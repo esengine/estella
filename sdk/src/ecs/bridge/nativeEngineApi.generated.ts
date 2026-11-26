@@ -108,6 +108,7 @@ export interface NativeEngineApi {
     particle_collisionStatsCountInWorld?(registry: unknown): number;
     particle_collisionStatsInWorld?(registry: unknown): number;
     particle_emitAt?(registry: unknown, entity: number, count: number, px: number, py: number, pz: number, nx: number, ny: number, nz: number, vx: number, vy: number, vz: number): number;
+    particle_forgetEmitter?(registry: unknown, entity: number): void;
     particle_getAliveCount?(entity: number): number;
     particle_getAliveCountInWorld?(registry: unknown, entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
@@ -576,6 +577,7 @@ export function createNativeEngineApi(
     bind('particle_collisionStatsCountInWorld', 'es_particle_collisionStatsCountInWorld', true);
     bind('particle_collisionStatsInWorld', 'es_particle_collisionStatsInWorld', true);
     bind('particle_emitAt', 'es_particle_emitAt', true);
+    bind('particle_forgetEmitter', 'es_particle_forgetEmitter', true);
     bind('particle_getAliveCount', 'es_particle_getAliveCount', false);
     bind('particle_getAliveCountInWorld', 'es_particle_getAliveCountInWorld', true);
     bind('particle_play', 'es_particle_play', true);

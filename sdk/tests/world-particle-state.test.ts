@@ -58,6 +58,22 @@ describe.skipIf(!HAS_WASM)('particle worlds sharing one engine', () => {
         expect(saved()).toMatchObject(authored(3).fields);
     });
 
+    it('drops live particles and baked settings when an emitter is replaced on the same entity', async () => {
+        const { app, particles } = createApp();
+        const entity = loadSceneData(app.world, authored(3).scene).get(1)!;
+        for (let frame = 0; frame < 12; frame++) await app.stepFrames(1, 1 / 60);
+        expect(particles.getAliveCount(entity)).toBe(3);
+        app.world.remove(entity, ParticleEmitter);
+        expect(particles.getAliveCount(entity)).toBe(0);
+        app.world.insert(entity, ParticleEmitter, { rate: 0, burstCount: 2, playOnStart: true, lifetimeMin: 10, lifetimeMax: 10 });
+        const saved = serializeScene(app.world).entities[0].components.find(c => c.type === 'ParticleEmitter')!.data;
+        expect(saved).not.toHaveProperty('colorGradient');
+        expect(saved).not.toHaveProperty('sizeCurve');
+        expect(saved).not.toHaveProperty('bursts');
+        for (let frame = 0; frame < 12; frame++) await app.stepFrames(1, 1 / 60);
+        expect(particles.getAliveCount(entity)).toBe(2);
+    });
+
     it.each([0, 1])('round-trips each emitter and keeps its peer running when world %i closes', async closed => {
         const worlds = [createApp(), createApp()];
         const emitters = worlds.map((world, index) => {

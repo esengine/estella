@@ -902,6 +902,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("particle_play", ES_RENDER_BIND(particle_play));
     emscripten::function("particle_stop", ES_RENDER_BIND(particle_stop));
     emscripten::function("particle_reset", ES_RENDER_BIND(particle_reset));
+    emscripten::function("particle_forgetEmitter", ES_RENDER_BIND(particle_forgetEmitter));
     emscripten::function("particle_emitAt", ES_RENDER_BIND(particle_emitAt));
     emscripten::function("particle_getAliveCount", ES_RENDER_BIND(particle_getAliveCount));
     emscripten::function("particle_set_color_lut", ES_RENDER_BIND(particle_set_color_lut));

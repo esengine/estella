@@ -1062,6 +1062,10 @@ void particle_reset(ecs::Registry& registry, u32 entity) {
     if (auto system = particlesIn(registry)) system->reset(Entity::fromRaw(entity));
 }
 
+void particle_forgetEmitter(ecs::Registry& registry, u32 entity) {
+    if (auto system = particlesIn(registry)) system->forgetEmitter(Entity::fromRaw(entity));
+}
+
 u32 particle_emitAt(ecs::Registry& registry, u32 entity, u32 count, f32 px, f32 py, f32 pz,
                     f32 nx, f32 ny, f32 nz, f32 vx, f32 vy, f32 vz) {
     auto system = particlesIn(registry);

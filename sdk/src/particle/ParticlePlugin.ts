@@ -6,6 +6,7 @@ import { disposeAll } from '../util/disposeAll';
 import { deepClone } from '../util/deepClone';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
+import { ParticleEmitter } from '../ecs/component';
 import { Time, type TimeData } from '../ecs/resource';
 import { fxPreviewOrPlayMode, playModeOnly } from '../ecs/env';
 import type { CppRegistry } from '../wasm';
@@ -61,6 +62,12 @@ export class ParticlePlugin implements Plugin {
             if (gradients.delete(entity)) api.setColorLut(entity, null);
             if (sizeCurves.delete(entity)) api.setSizeLut(entity, null);
             if (bursts.delete(entity)) api.setBursts(entity, null);
+        }));
+        cleanups.push(app.world.onComponentRemoval(ParticleEmitter, entity => {
+            gradients.delete(entity);
+            sizeCurves.delete(entity);
+            bursts.delete(entity);
+            api.forgetEmitter(entity);
         }));
 
         declareSceneOutOfBandFields('ParticleEmitter', authoredFields);

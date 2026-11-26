@@ -183,6 +183,7 @@ public:
     void play(Entity entity);
     void stop(Entity entity);
     void reset(Entity entity);
+    void forgetEmitter(Entity entity);
 
     u32 aliveCount(Entity entity) const;
 
