@@ -16,7 +16,7 @@ import type { Entity } from '../types';
 import { CHUNK_SIZE, recodeCell } from './chunkCodec';
 import { buildTerrainIndices, resolveAutotileMatch, TERRAIN_NEIGHBORS } from './autotile';
 import { tileIdOf, TILE_FLIP_D, TILE_FLIP_H, TILE_FLIP_V, TILE_ID_MASK } from './tileBits';
-import { tileCellCenter, tileWorldFrame, TilemapOrientation, type TileGridParams } from './tileGeometry';
+import { tileCellCenter, tileWorldFrame, tileWorldToLocal, TilemapOrientation, type TileGridParams } from './tileGeometry';
 import { tileCollisionTable } from './tileQuery';
 import { Tilemaps, type TilemapToolkit } from './tilemapAPI';
 import { TilemapRuntimeState } from './tilemapPlugin';
@@ -142,8 +142,8 @@ export class DestructibleTilemap {
 
     /** The cell under a world position, through the layer's origin, rotation and grid. */
     worldToTile(worldX: number, worldY: number): { x: number; y: number } {
-        const local = this.toLocal_(worldX, worldY);
-        const t = this.tiles_.worldToTile(this.layer, local.x, local.y, 0, 0);
+        const frame = this.frame_();
+        const t = this.tiles_.worldToTile(this.layer, worldX, worldY, frame.x, frame.y, frame.rotation);
         return { x: Math.floor(t.x), y: Math.floor(t.y) };
     }
 
@@ -185,7 +185,8 @@ export class DestructibleTilemap {
     explode(worldX: number, worldY: number, radius: number, power: number, opts: TileExplosionOptions = {}): TileHit[] {
         if (!(radius > 0) || !(power > 0)) return [];
         const falloff = Math.min(1, Math.max(0, opts.falloff ?? 1));
-        const centre = this.toLocal_(worldX, worldY), grid = this.grid_();
+        const frame = this.frame_();
+        const centre = tileWorldToLocal(worldX, worldY, frame.x, frame.y, frame.rotation), grid = this.grid_();
         const corner = (dx: number, dy: number) => this.tiles_.worldToTile(this.layer, centre.x + dx, centre.y + dy, 0, 0);
         const corners = [corner(-radius, -radius), corner(radius, -radius), corner(radius, radius), corner(-radius, radius)];
         const x0 = Math.floor(Math.min(...corners.map(c => c.x))) - 1, x1 = Math.ceil(Math.max(...corners.map(c => c.x))) + 1;
@@ -472,13 +473,6 @@ export class DestructibleTilemap {
         this.app.world.ensureTransformsComposed();
         const transform = this.app.world.get(this.layer, Transform);
         return tileWorldFrame(transform.worldPosition, transform.worldRotation, data.originOffset);
-    }
-
-    private toLocal_(worldX: number, worldY: number): { x: number; y: number } {
-        const frame = this.frame_();
-        const dx = worldX - frame.x, dy = worldY - frame.y;
-        const c = Math.cos(frame.rotation), s = Math.sin(frame.rotation);
-        return { x: dx * c + dy * s, y: -dx * s + dy * c };
     }
 }
 

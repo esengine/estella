@@ -159,10 +159,11 @@ describe.skipIf(!HAS_WASM)('destructible tilemap', () => {
         });
 
         it('converts to grid-local coordinates before float rounding at a distant origin', () => {
-            const { world, layer, open } = bare();
+            const { world, tiles, layer, open } = bare();
             const farX = 2 ** 28;
             world.update(layer, Transform, t => { t.position.x = farX; });
             expect(open().worldToTile(farX + 24, -8)).toEqual({ x: 1, y: 0 });
+            expect(tiles.worldToTile(layer, farX + 24, -8, farX, 0)).toEqual({ x: 1, y: 0 });
         });
     });
 

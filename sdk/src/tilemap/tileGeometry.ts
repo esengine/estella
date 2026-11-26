@@ -50,6 +50,14 @@ export function tileWorldFrame(position: Vec3, q: Quat, offset?: Vec2Like): Vec3
     return { x: position.x + cos * x - sin * y, y: position.y + sin * x + cos * y, z: position.z, rotation };
 }
 
+/** Convert world coordinates to the grid's local frame before passing them to the float grid. */
+export function tileWorldToLocal(x: number, y: number, originX: number, originY: number, rotation: number): Vec2Like {
+    const dx = x - originX, dy = y - originY;
+    if (rotation === 0) return { x: dx, y: dy };
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+}
+
 /** Layout without cell dimensions, for consumers that already receive tile width/height. */
 export type TileGridLayout = Omit<TileGridParams, 'tileWidth' | 'tileHeight'>;
 

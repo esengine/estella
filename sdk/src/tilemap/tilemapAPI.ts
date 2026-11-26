@@ -6,6 +6,7 @@ import { worldEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import type { World } from '../ecs/world';
 import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollisionChunks';
 import { defineResource } from '../ecs/resource';
+import { tileWorldToLocal } from './tileGeometry';
 
 // The binding declarations supply the signatures on both hosts. Some older tilemap
 // cores only expose the original layer API and use a full chunk export for collision.
@@ -267,25 +268,26 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     /** Grid anchor in world pixels; rotation is the layer's world Z angle in radians. */
     tileToWorld(entity: number, tx: number, ty: number,
                 originX: number, originY: number, rotation = 0): { x: number; y: number } {
-        if (!moduleOf()) return { x: 0, y: 0 };
-        const m0 = moduleOf()!;
-        const ptr = m0.tilemap_tileToWorld(entity, tx, ty, rotation === 0 ? originX : 0, rotation === 0 ? originY : 0);
-        const floats = new Float32Array(m0.HEAPU8.buffer, ptr, 2);
-        if (rotation === 0) return { x: floats[0], y: floats[1] };
+        const module = moduleOf();
+        if (!module) return { x: 0, y: 0 };
+        const ptr = module.tilemap_tileToWorld(entity, tx, ty, 0, 0);
+        const floats = new Float32Array(module.HEAPU8.buffer, ptr, 2);
+        const x = floats[0], y = floats[1];
+        // The core returns a zero anchor for an absent layer as well as for a valid origin cell.
+        if (x === 0 && y === 0 && !module.tilemap_hasLayer(entity)) return { x: 0, y: 0 };
+        if (rotation === 0) return { x: originX + x, y: originY + y };
         const c = Math.cos(rotation), s = Math.sin(rotation);
-        return { x: originX + c * floats[0] - s * floats[1], y: originY + s * floats[0] + c * floats[1] };
+        return { x: originX + (c * x - s * y), y: originY + (s * x + c * y) };
     },
 
     /** Invert the layer origin and world Z rotation before reading its grid. */
     worldToTile(entity: number, wx: number, wy: number,
                 originX: number, originY: number, rotation = 0): { x: number; y: number } {
-        if (!moduleOf()) return { x: 0, y: 0 };
-        const m0 = moduleOf()!;
-        const dx = wx - originX, dy = wy - originY, c = Math.cos(rotation), s = Math.sin(rotation);
-        const ptr = rotation === 0
-            ? m0.tilemap_worldToTile(entity, wx, wy, originX, originY)
-            : m0.tilemap_worldToTile(entity, dx * c + dy * s, -dx * s + dy * c, 0, 0);
-        const floats = new Float32Array(m0.HEAPU8.buffer, ptr, 2);
+        const module = moduleOf();
+        if (!module) return { x: 0, y: 0 };
+        const local = tileWorldToLocal(wx, wy, originX, originY, rotation);
+        const ptr = module.tilemap_worldToTile(entity, local.x, local.y, 0, 0);
+        const floats = new Float32Array(module.HEAPU8.buffer, ptr, 2);
         return { x: floats[0], y: floats[1] };
     },
 
