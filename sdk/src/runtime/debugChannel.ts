@@ -100,8 +100,19 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     let app: App | null = null;
     let nextFrame: NextFrame | null = null;
     // An editor may ask while the engine is still booting; the answer waits for the game.
-    let started: () => void = () => {};
-    const gameStarted = new Promise<void>((resolve) => { started = resolve; });
+    const bootWaiters = new Set<() => void>();
+    const waitForGame = (): Promise<void> => new Promise((resolve, reject) => {
+        const done = () => {
+            clearTimeout(deadline);
+            bootWaiters.delete(done);
+            resolve();
+        };
+        const deadline = setTimeout(() => {
+            bootWaiters.delete(done);
+            reject(new Error(`the game did not start within ${START_WAIT_MS / 1000}s`));
+        }, START_WAIT_MS);
+        bootWaiters.add(done);
+    });
     let socket: PlatformSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let statsOn = false;
@@ -121,8 +132,10 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     const backlog: Array<{ level: ConsoleLevel; line: string }> = [];
     let dropped = 0;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const send = (m: DebugChannelMessage): void => {
-        if (socket?.readyState === 'open') socket.send(JSON.stringify(m));
+    const isOpen = (peer: PlatformSocket | null): peer is PlatformSocket =>
+        peer !== null && peer === socket && peer.readyState === 'open';
+    const send = (m: DebugChannelMessage, peer = socket): void => {
+        if (isOpen(peer)) peer.send(JSON.stringify(m));
     };
     const flushBacklog = (): void => {
         flushTimer = null;
@@ -146,28 +159,26 @@ export function startDebugChannel(config: DebugChannelConfig): void {
         });
     };
 
-    const answer = async (q: DebugChannelQuery): Promise<void> => {
-        const reply = (m: DebugChannelMessage): void => send(m);
+    const answer = async (q: DebugChannelQuery, peer: PlatformSocket): Promise<void> => {
+        const reply = (m: DebugChannelMessage): void => send(m, peer);
         // A mini-game's socket moved a full-screen image at ~180KB/s (55 s), and
         // drops a frame that size outright: scaled to what the editor will show,
         // then sent in chunks behind the reply.
         const replyImage = (reqId: number, full: FrameReplayImage, maxSide?: number): void => {
+            if (!isOpen(peer)) return;
             const { pixels, ...rest } = timed(() => fitWithin(full, maxSide));
             const chunks = Math.max(1, Math.ceil(pixels.byteLength / PIXEL_CHUNK));
             reply({ t: 'reply', reqId, data: rest, pixels: chunks });
-            for (let i = 0; i < chunks; i++) {
+            for (let i = 0; i < chunks && isOpen(peer); i++) {
                 const part = pixels.subarray(i * PIXEL_CHUNK, Math.min(pixels.byteLength, (i + 1) * PIXEL_CHUNK));
-                socket?.send(part.slice().buffer as ArrayBuffer);
+                peer.send(part.slice().buffer as ArrayBuffer);
             }
         };
         try {
-            if (!app) {
-                const late = new Promise<never>((_, reject) => setTimeout(
-                    () => reject(new Error(`the game did not start within ${START_WAIT_MS / 1000}s`)), START_WAIT_MS));
-                await Promise.race([gameStarted, late]);
-            }
-            const game = app!;
-            const frame = nextFrame!;
+            if (!app) await waitForGame();
+            if (!isOpen(peer) || !app || !nextFrame) return;
+            const game = app;
+            const frame = nextFrame;
             // A background tab gets no frames, so it would sit on this until the editor gave up.
             const drawsFrames = !game.hasResource(Lifecycle) || game.getResource(Lifecycle).visible;
             if ((q.kind === 'frameCapture' || q.kind === 'frameReplay' || q.kind === 'screen') && !drawsFrames) {
@@ -257,17 +268,20 @@ export function startDebugChannel(config: DebugChannelConfig): void {
         const s = platform.createSocket!({ url: config.url });
         socket = s;
         s.on('open', () => {
+            if (!isOpen(s)) return;
             hello();
             flushBacklog();
         });
         s.on('message', (data) => {
-            if (typeof data !== 'string') return;
+            if (!isOpen(s) || typeof data !== 'string') return;
             let q: DebugChannelQuery;
             try { q = JSON.parse(data) as DebugChannelQuery; } catch { return; }
-            if (q.t === 'query') void answer(q);
+            if (q.t === 'query') void answer(q, s);
         });
         s.on('close', () => {
-            if (socket === s) socket = null;
+            if (socket !== s) return;
+            socket = null;
+            for (const done of bootWaiters) done();
             if (retry === null) retry = setTimeout(dial, RECONNECT_MS);
         });
         s.on('error', () => { /* a close follows, and it redials */ });
@@ -281,7 +295,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             nextFrame = appFrame(game);
             hello();
             flushBacklog();
-            started();
+            for (const done of bootWaiters) done();
         },
     };
 }

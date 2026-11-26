@@ -25,12 +25,77 @@ function fakeSocket() {
     const emit = <K extends keyof PlatformSocketEvents>(event: K, ...args: PlatformSocketEvents[K]): void => {
         for (const fn of handlers[event] ?? []) (fn as (...a: PlatformSocketEvents[K]) => void)(...args);
     };
-    return { socket, sent, open: () => { socket.readyState = 'open'; emit('open'); }, receive: (m: unknown) => emit('message', JSON.stringify(m)) };
+    return {
+        socket, sent,
+        open: () => { socket.readyState = 'open'; emit('open'); },
+        disconnect: () => { socket.readyState = 'closed'; emit('close', 1000, ''); },
+        receive: (m: unknown) => emit('message', JSON.stringify(m)),
+    };
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('the debug channel', () => {
+    it('keeps a late async reply on the connection that requested it', async () => {
+        vi.resetModules();
+        const base = await import('../src/platform/base');
+        const channel = await import('../src/runtime/debugChannel');
+        const old = fakeSocket(), next = fakeSocket();
+        const openSocket = vi.fn().mockReturnValueOnce(old.socket).mockReturnValue(next.socket);
+        base.setPlatform({ name: 'web', now: () => performance.now(), createSocket: openSocket } as unknown as PlatformAdapter);
+        vi.useFakeTimers();
+        try {
+            channel.startDebugChannel({ url: 'ws://editor:1/?token=t' });
+            let finish!: () => void;
+            const stepFrames = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+            channel.attachDebugChannel({
+                hasResource: () => false, onFrameEnd: () => () => {}, isPaused: () => false,
+                getTargetFrameRate: () => 60, stepFrames,
+            } as unknown as App);
+            old.open();
+            old.receive({ t: 'query', reqId: 1, kind: 'control', step: 1 });
+            expect(stepFrames).toHaveBeenCalledTimes(1);
+            old.disconnect();
+            await vi.advanceTimersByTimeAsync(3000);
+            next.open();
+            next.receive({ t: 'query', reqId: 1, kind: 'control' });
+            finish();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(next.sent.filter(message => (message as { t: string }).t === 'reply'))
+                .toEqual([{ t: 'reply', reqId: 1, data: { paused: false, fps: 60 } }]);
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('releases a boot wait when the requesting connection closes', async () => {
+        vi.resetModules();
+        const base = await import('../src/platform/base');
+        const channel = await import('../src/runtime/debugChannel');
+        const old = fakeSocket(), next = fakeSocket();
+        const openSocket = vi.fn().mockReturnValueOnce(old.socket).mockReturnValue(next.socket);
+        base.setPlatform({ name: 'web', now: () => performance.now(), createSocket: openSocket } as unknown as PlatformAdapter);
+        vi.useFakeTimers();
+        try {
+            channel.startDebugChannel({ url: 'ws://editor:1/?token=t' });
+            old.open();
+            old.receive({ t: 'query', reqId: 1, kind: 'control', paused: true });
+            old.disconnect();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(vi.getTimerCount()).toBe(1);
+            await vi.advanceTimersByTimeAsync(3000);
+            next.open();
+            const setPaused = vi.fn();
+            channel.attachDebugChannel({
+                hasResource: () => false, onFrameEnd: () => () => {}, setPaused, isPaused: () => false,
+                getTargetFrameRate: () => 60,
+            } as unknown as App);
+            next.receive({ t: 'query', reqId: 1, kind: 'control' });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(setPaused).not.toHaveBeenCalled();
+            expect(next.sent.filter(message => (message as { t: string }).t === 'reply')).toHaveLength(1);
+            expect(vi.getTimerCount()).toBe(0);
+        } finally { vi.useRealTimers(); }
+    });
+
     it('forwards what was printed before the editor listened, then answers a question asked before the game started', async () => {
         const s = fakeSocket();
         setPlatform({
