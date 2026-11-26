@@ -29,6 +29,14 @@ export const SECTIONS = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', '
 /** The bolded sentence a note leads with. */
 export const headlineOf = (text) => /^\*\*(.+?)\*\*/s.exec(text)?.[1].replace(/\s+/g, ' ').trim() ?? null;
 
+function commitSubject(item) {
+  const subject = item.trim();
+  if (subject.startsWith('"') && subject.endsWith('"')) {
+    try { return JSON.parse(subject); } catch { /* Keep literal text for the history check. */ }
+  }
+  return subject;
+}
+
 /**
  * One fragment's text as what it says, or why it cannot be read.
  * @returns {{ section?: string, note?: string, internal?: string, commits: string[], text: string, headline: string | null, problems: string[] }}
@@ -44,7 +52,7 @@ export function parseFragment(source) {
   for (const line of lines.slice(1, end)) {
     if (!line.trim()) continue;
     const item = /^\s+-\s+(.+)$/.exec(line);
-    if (inCommits && item) { out.commits.push(item[1].trim()); continue; }
+    if (inCommits && item) { out.commits.push(commitSubject(item[1])); continue; }
     const field = /^([a-z]+):\s*(.*)$/.exec(line);
     if (!field) { problems.push(`a header line is neither \`key: value\` nor a commit: "${line}"`); continue; }
     inCommits = field[1] === 'commits';

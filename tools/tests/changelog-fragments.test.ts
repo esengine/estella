@@ -21,6 +21,15 @@ as codes, and is encoded now.
 `;
 
 describe('a changelog fragment', () => {
+    it('matches a quoted commit subject to its Git spelling, including interior quotes', () => {
+        const subject = 'fix(editor): show the "Play" command';
+        const source = NOTE.replace('fix(editor): the same, in the editor', JSON.stringify(subject));
+        const fragment = parseFragment(source);
+        expect(fragment.problems).toEqual([]);
+        expect(fragment.commits[1]).toBe(subject);
+        expect(notedByFragments([{ file: 'play.md', ...fragment }])).toHaveProperty([subject]);
+    });
+
     it('is a section, its commits as written, and a note that leads with its headline', () => {
         const fragment = parseFragment(NOTE);
         expect(fragment.problems).toEqual([]);

@@ -21,6 +21,7 @@ commits:
 `section` is one of Added, Changed, Deprecated, Removed, Fixed, Security. The note leads with its headline in bold. Under
 `commits:` goes the subject of every `feat`, `fix`, `refactor` or `perf` commit the note covers, in this repository or the
 editor's, each on a line of its own.
+The subject may also be a double-quoted JSON string.
 
 ## A commit that belongs to a note already written
 
