@@ -26,6 +26,13 @@ export interface RigBoneMotion {
   move?: RigKey[];
   /** [t, s] or [t, sx, sy], 1 being the rig's size. */
   scale?: RigKey[];
+  /**
+   * [t, x, y]: where this bone's TIP is to be, in character pixels (y up, the feet at 0, 0). This bone and its parent are turned to
+   * reach it, as a leg reaches the ground; neither may have `turn` keys of its own. A foot on the floor is a shin reaching for it.
+   */
+  reach?: RigKey[];
+  /** Which way the joint between the two bends: -1 (default) the lower bone turns clockwise from the upper, a knee of a character facing right; 1 an elbow. */
+  bend?: number;
   /** How this bone's keys run into the next where a key does not say. */
   ease?: RigEase;
 }
@@ -54,6 +61,7 @@ const CHANNELS = {
   turn: { width: 1 },
   move: { width: 2 },
   scale: { width: 2 },
+  reach: { width: 2 },
 } as const;
 
 /** Every way a clip cannot be written for this rig, as sentences. */
@@ -67,7 +75,18 @@ export function checkRigClip(clip: RigClipSpec, rig: RigSource): string[] {
   for (const [bone, motion] of Object.entries(clip.bones)) {
     if (!names.has(bone)) { out.push(`"${bone}" is not a bone of this rig (${[...names].join(', ')})`); continue; }
     if (motion.ease !== undefined && !(motion.ease in EASES)) out.push(`"${bone}": \`ease\` is "smooth", "linear" or "step"`);
-    for (const kind of Object.keys(motion)) if (kind !== 'ease' && !(kind in CHANNELS)) out.push(`"${bone}": "${kind}" is not a motion; there are turn, move and scale`);
+    for (const kind of Object.keys(motion)) if (kind !== 'ease' && kind !== 'bend' && !(kind in CHANNELS)) out.push(`"${bone}": "${kind}" is not a motion; there are turn, move, scale and reach`);
+    if (motion.bend !== undefined && motion.bend !== 1 && motion.bend !== -1) out.push(`"${bone}": \`bend\` is 1 or -1`);
+    if (motion.reach) {
+      const b = rig.bones.find((x) => x.name === bone)!, parent = rig.bones[b.parent];
+      if (!parent) out.push(`"${bone}" has no parent bone, so it cannot reach: reach is a two-bone chain, this bone and the one above it`);
+      else {
+        if (motion.turn) out.push(`"${bone}" has both turn and reach: reach decides its turn`);
+        const up = clip.bones[parent.name];
+        if (up?.turn || up?.reach) out.push(`"${parent.name}" has its own ${up.turn ? 'turn' : 'reach'}, but "${bone}" reaching turns it too`);
+        if (!(b.length > 0)) out.push(`"${bone}" has no length, so it has no tip to reach with`);
+      }
+    }
     for (const kind of Object.keys(CHANNELS) as (keyof typeof CHANNELS)[]) {
       const keys = motion[kind];
       if (keys === undefined) continue;
@@ -78,7 +97,7 @@ export function checkRigClip(clip: RigClipSpec, rig: RigSource): string[] {
         const ease = Array.isArray(k) ? k.find((v) => typeof v === 'string') : undefined;
         const want = kind === 'scale' ? [2, 3] : [CHANNELS[kind].width + 1];
         if (!Array.isArray(k) || !want.includes(values.length) || !values.every(Number.isFinite)) {
-          out.push(`"${bone}".${kind} key ${i} must be [t, ${kind === 'turn' ? 'degrees' : kind === 'move' ? 'dx, dy' : 's'}]${kind === 'scale' ? ' or [t, sx, sy]' : ''}, and may end with an ease`);
+          out.push(`"${bone}".${kind} key ${i} must be [t, ${kind === 'turn' ? 'degrees' : kind === 'move' ? 'dx, dy' : kind === 'reach' ? 'x, y' : 's'}]${kind === 'scale' ? ' or [t, sx, sy]' : ''}, and may end with an ease`);
           return;
         }
         if (ease !== undefined && !((ease as string) in EASES)) out.push(`"${bone}".${kind} key ${i}: "${ease}" is not an ease (smooth, linear, step)`);
@@ -104,10 +123,58 @@ function smoothTangents(times: number[], values: number[], duration: number, loo
   return out;
 }
 
+/**
+ * Turns `reach` into the turns that do it. Each key is solved on the pose the rest of the clip gives at its time (the hips where
+ * they have moved to), with the two bones' lengths as rigged; a target past their reach is reached for as far as they go, and said.
+ */
+function solveReaches(clip: RigClipSpec, rig: RigSource, notes: string[]): RigClipSpec {
+  const reaching = Object.entries(clip.bones).filter(([, m]) => m.reach);
+  if (!reaching.length) return clip;
+  const rest: RigClipSpec = { ...clip, bones: {} };
+  for (const [name, m] of Object.entries(clip.bones)) if (!m.reach) rest.bones[name] = m;
+  const base = buildRigClip(rest, rig).timeline;
+  const out: RigClipSpec = { ...rest, bones: { ...rest.bones } };
+  const upp = rig.unitsPerPixel;
+  for (const [name, motion] of reaching) {
+    const i = rig.bones.findIndex((b) => b.name === name), bone = rig.bones[i]!, p = bone.parent, parent = rig.bones[p]!;
+    const bend = motion.bend ?? -1;
+    const upper = Math.hypot(bone.x, bone.y), lower = bone.length, offset = Math.atan2(bone.y, bone.x);
+    const turnsUp: RigKey[] = [], turnsLow: RigKey[] = [];
+    let far = 0;
+    for (const key of motion.reach!) {
+      const t = key[0] as number, ease = key.find((v) => typeof v === 'string');
+      const tx = (key[1] as number) * upp, ty = (key[2] as number) * upp;
+      const worlds = poseWorlds(rig, sampleRigPose(rig, base, t));
+      // The parent's joint, and the turn of what it hangs from.
+      const g: Affine = parent.parent >= 0 ? worlds[parent.parent]! : [1, 0, 0, 1, 0, 0];
+      const px = g[0] * parent.x + g[2] * parent.y + g[4], py = g[1] * parent.x + g[3] * parent.y + g[5];
+      const above = Math.atan2(g[1], g[0]);
+      const toward = Math.atan2(ty - py, tx - px), wanted = Math.hypot(tx - px, ty - py);
+      const d = Math.min(Math.max(wanted, Math.abs(upper - lower) + 1e-6), upper + lower - 1e-6);
+      if (wanted - d > 0.5 * upp) far = Math.max(far, (wanted - d) / upp);
+      const inner = Math.acos(Math.min(1, Math.max(-1, (upper * upper + d * d - lower * lower) / (2 * upper * d))));
+      const jointDir = toward - bend * inner;
+      const jx = px + Math.cos(jointDir) * upper, jy = py + Math.sin(jointDir) * upper;
+      const upTurn = jointDir - offset, lowTurn = Math.atan2(ty - jy, tx - jx);
+      const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+      const upDeg = wrap(upTurn - above - parent.rotation) / DEG, lowDeg = wrap(lowTurn - upTurn - bone.rotation) / DEG;
+      turnsUp.push([t, Math.round(upDeg * 100) / 100, ...(ease ? [ease] : [])]);
+      turnsLow.push([t, Math.round(lowDeg * 100) / 100, ...(ease ? [ease] : [])]);
+    }
+    if (far > 0) notes.push(`${name}.reach: some targets are out of reach, up to ${Math.round(far * 10) / 10} px past what "${parent.name}" and "${name}" stretch to; it reaches as far as it can`);
+    out.bones[parent.name] = { ...(out.bones[parent.name] ?? {}), turn: turnsUp, ...(motion.ease ? { ease: motion.ease } : {}) };
+    const { reach: _r, bend: _b, ...own } = motion;
+    out.bones[name] = { ...own, turn: turnsLow };
+  }
+  return out;
+}
+
 /** The `.estimeline` a clip is, for this rig. Throws on one {@link checkRigClip} refuses. */
-export function buildRigClip(clip: RigClipSpec, rig: RigSource): { timeline: RigTimeline; notes: string[] } {
-  const problems = checkRigClip(clip, rig);
+export function buildRigClip(spec: RigClipSpec, rig: RigSource): { timeline: RigTimeline; notes: string[] } {
+  const problems = checkRigClip(spec, rig);
   if (problems.length) throw new Error(problems.join('; '));
+  const reachNotes: string[] = [];
+  const clip = solveReaches(spec, rig, reachNotes);
   const loop = clip.loop ?? true, upp = rig.unitsPerPixel, notes: string[] = [];
   const paths = rigBonePaths(rig.bones);
   const tracks: TimelineTrack[] = [];
@@ -143,7 +210,7 @@ export function buildRigClip(clip: RigClipSpec, rig: RigSource): { timeline: Rig
     if (channels.length) tracks.push({ type: 'property', name: boneName, childPath: paths[i]!, component: 'Transform', channels });
   }
   // One note per bone and motion is enough: move writes two channels.
-  return { timeline: { version: TIMELINE_VERSION, type: 'timeline', duration: clip.duration, wrapMode: loop ? 'loop' : 'once', tracks }, notes: [...new Set(notes)] };
+  return { timeline: { version: TIMELINE_VERSION, type: 'timeline', duration: clip.duration, wrapMode: loop ? 'loop' : 'once', tracks }, notes: [...new Set([...reachNotes, ...notes])] };
 }
 
 const round = (v: number, places = 2): number => {

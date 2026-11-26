@@ -164,12 +164,12 @@ const title = (f: Frame, text: string): RigLabel => ({ x: f.px + 6, y: f.py + 13
  * alternating down each chain, then the other way: where a joint that opens, a weight that pulls the wrong part along or a part on the
  * wrong bone shows.
  */
-export function rigSheet(rig: RigSource, tex: RigBitmap, size = 300): RigSheet {
-  const poses = [posed(rig, bindPose(rig)), posed(rig, bentPose(rig, 30)), posed(rig, bentPose(rig, -30))];
+export function rigSheet(rig: RigSource, tex: RigBitmap, size = 300, bend = 30): RigSheet {
+  const poses = [posed(rig, bindPose(rig)), posed(rig, bentPose(rig, bend)), posed(rig, bentPose(rig, -bend))];
   const bounds = boundsOf(rig, poses);
   const panels = 4, out = canvas(size * panels, size + 22 + 16 * Math.ceil(rig.bones.length / 6)), labels: RigLabel[] = [];
   const frames = Array.from({ length: panels }, (_, k) => fit(bounds, k * size, 0, size, size));
-  const names = ['pose and bones', 'who each part follows', 'every joint bent 30°', 'bent the other way'];
+  const names = ['pose and bones', 'who each part follows', `every joint bent ${bend}°`, 'bent the other way'];
   frames.forEach((f, k) => {
     const p = k === 0 || k === 1 ? poses[0]! : poses[k - 1]!;
     drawGround(out, f);
@@ -193,8 +193,13 @@ export interface RigClipFrame { time: number; low: number; tips: Record<string, 
 /** What a clip's frames measure, in character pixels: the lowest point drawn and where each traced bone's tip is. */
 export interface RigClipMeasure {
   frames: RigClipFrame[];
-  /** By traced bone: how far its tip slides sideways while it is down on its lowest (a planted foot should not). */
-  slide: Record<string, number>;
+  /**
+   * By traced bone, while its tip is down on its lowest (within 1.5 px), measured over the longest such stretch: `speed`, px per second
+   * sideways (negative is backward), `wobble`, px it strays from moving at that one speed, and `share`, the part of the clip it is down.
+   * A foot planted in an idle has speed 0; in a walk played in place it moves back at the speed the game moves the character, steadily,
+   * so wobble near 0 is what a planted foot looks like either way.
+   */
+  planted: Record<string, { speed: number; wobble: number; share: number }>;
   /** The most any bone's turn differs between the first frame and the clip's end, in degrees: a loop that does not close pops. */
   loopGap: number;
 }
@@ -218,18 +223,36 @@ export function measureClip(rig: RigSource, timeline: RigTimeline, times: readon
     for (const b of traced) { const [x, y] = boneTip(rig, p.worlds, b); tips[rig.bones[b]!.name] = [r1(x / upp), r1(y / upp)]; }
     return { time: Math.round(time * 1000) / 1000, low: r1(low / upp), tips };
   });
-  const slide: Record<string, number> = {};
-  for (const b of traced) {
-    const name = rig.bones[b]!.name, ys = frames.map((f) => f.tips[name]![1]), floor = Math.min(...ys);
-    let sum = 0;
-    for (let k = 1; k < frames.length; k++) {
-      if (ys[k]! - floor <= 2 && ys[k - 1]! - floor <= 2) sum += Math.abs(frames[k]!.tips[name]![0] - frames[k - 1]!.tips[name]![0]);
+  // Measured on a fine step of its own, not on the frames shown: eight frames are too few to tell a slide from a step.
+  const loop = timeline.wrapMode === 'loop', n = 60;
+  const fine = Array.from({ length: n }, (_, k) => {
+    const time = loop ? (timeline.duration * k) / n : (timeline.duration * k) / (n - 1);
+    const worlds = poseWorlds(rig, sampleRigPose(rig, timeline, time));
+    return { time, tips: traced.map((b) => boneTip(rig, worlds, b).map((v) => v / upp)) };
+  });
+  const planted: RigClipMeasure['planted'] = {};
+  traced.forEach((b, j) => {
+    const ys = fine.map((f) => f.tips[j]![1]), floor = Math.min(...ys), down = ys.map((y) => y - floor <= 1.5);
+    // The longest run of samples down, round the end of a loop and back to its start.
+    let best: number[] = [];
+    for (let start = 0; start < n; start++) {
+      if (!down[start] || (loop ? down[(start - 1 + n) % n] && down.some((d) => !d) : start > 0 && down[start - 1])) continue;
+      const run: number[] = [];
+      for (let k = start; run.length < n && down[k % n] && (loop || k < n); k++) run.push(k);
+      if (run.length > best.length) best = run;
     }
-    slide[name] = r1(sum);
-  }
+    if (best.length < 3) return;
+    const ts = best.map((k) => (k < n ? fine[k]!.time : fine[k % n]!.time + timeline.duration)), xs = best.map((k) => fine[k % n]!.tips[j]![0]);
+    const mt = ts.reduce((a, v) => a + v, 0) / ts.length, mx = xs.reduce((a, v) => a + v, 0) / xs.length;
+    let num = 0, den = 0;
+    ts.forEach((t, k) => { num += (t - mt) * (xs[k]! - mx); den += (t - mt) ** 2; });
+    const speed = den > 0 ? num / den : 0;
+    const wobble = Math.max(...ts.map((t, k) => Math.abs(xs[k]! - (mx + speed * (t - mt)))));
+    planted[rig.bones[b]!.name] = { speed: r1(speed), wobble: r1(wobble), share: Math.round((best.length / n) * 100) / 100 };
+  });
   const first = sampleRigPose(rig, timeline, 0), end = sampleRigPose(rig, timeline, timeline.duration);
   const loopGap = Math.max(0, ...first.rotation.map((v, i) => Math.abs(v - end.rotation[i]!) * 180 / Math.PI));
-  return { frames, slide, loopGap: r1(loopGap) };
+  return { frames, planted, loopGap: r1(loopGap) };
 }
 
 const r1 = (v: number): number => Math.round(v * 10) / 10;
@@ -241,7 +264,8 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
 export function clipSheet(rig: RigSource, tex: RigBitmap, timeline: RigTimeline, times: readonly number[], traced: readonly number[], cell = 170): RigSheet {
   const poses = times.map((t) => posed(rig, sampleRigPose(rig, timeline, t)));
   const bounds = boundsOf(rig, poses);
-  const perRow = Math.min(6, times.length), rows = Math.ceil(times.length / perRow);
+  // Wider frames wrap sooner, so a sheet stays readable at any size.
+  const perRow = Math.min(times.length, Math.max(2, Math.floor(1100 / cell))), rows = Math.ceil(times.length / perRow);
   const onionH = Math.round(cell * 2.2), width = cell * perRow;
   const out = canvas(width, cell * rows + onionH), labels: RigLabel[] = [];
   poses.forEach((p, k) => {

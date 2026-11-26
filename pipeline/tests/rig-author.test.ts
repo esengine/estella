@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { bakeRig, rigImageFromRGBA, rigBonePaths } from 'esengine/rig2d';
 import { buildRig, checkRigSpec, describeRig, type RigSpec } from '../src/rig/rigAuthor';
-import { buildRigClip, describeRigClip, poseWorlds, sampleRigPose, skinRig, bindPose } from '../src/rig/rigClip';
+import { boneTip, buildRigClip, describeRigClip, poseWorlds, sampleRigPose, skinRig, bindPose } from '../src/rig/rigClip';
 import { clipSheet, clipTimes, leafBones, measureClip, rigSheet } from '../src/rig/rigPicture';
 
 /** A sheet with three boxes drawn on it apart: a body, an upper arm and a forearm, each a flat colour. */
@@ -108,6 +108,30 @@ describe('a clip for a rig', () => {
     expect(measureClip(rig, timeline, [0, 0.5], [2]).loopGap).toBeCloseTo(40);
   });
 
+  it('reaches a tip for a point by turning it and its parent', () => {
+    const { timeline, notes } = buildRigClip({ duration: 1, loop: false, bones: { lower: { reach: [[0, 40, 20], [1, 10, 80]], bend: 1 } } }, rig);
+    expect(notes).toEqual([]);
+    for (const [t, x, y] of [[0, 40, 20], [1, 10, 80]] as const) {
+      const worlds = poseWorlds(rig, sampleRigPose(rig, timeline, t));
+      const [tx, ty] = boneTip(rig, worlds, 2);
+      expect(tx).toBeCloseTo(x, 1);
+      expect(ty).toBeCloseTo(y, 1);
+    }
+    const far = buildRigClip({ duration: 1, loop: false, bones: { lower: { reach: [[0, 300, 52]] } } }, rig).notes.join(' ');
+    expect(far).toContain('out of reach');
+    expect(() => buildRigClip({ duration: 1, bones: { lower: { reach: [[0, 1, 1]] }, upper: { turn: [[0, 1]] } } }, rig)).toThrow(/turns it too/);
+    expect(() => buildRigClip({ duration: 1, bones: { body: { reach: [[0, 1, 1]] } } }, rig)).toThrow(/no parent/);
+  });
+
+  it('measures how a tip on the ground moves while it is down', () => {
+    // The whole figure carried back 60 px over the clip: every tip is down all the time, moving at -60 px/s and nowhere else.
+    const { timeline } = buildRigClip({ duration: 1, loop: false, ease: 'linear', bones: { body: { move: [[0, 0, 0], [1, -60, 0]] } } }, rig);
+    const m = measureClip(rig, timeline, [0, 0.5], [2]);
+    expect(m.planted.lower!.speed).toBeCloseTo(-60, 0);
+    expect(m.planted.lower!.wobble).toBeLessThan(0.2);
+    expect(m.planted.lower!.share).toBe(1);
+  });
+
   it('refuses a bone it does not have and keys out of order', () => {
     expect(() => buildRigClip({ duration: 1, bones: { tail: { turn: [[0, 1]] } } }, rig)).toThrow(/not a bone/);
     expect(() => buildRigClip({ duration: 1, bones: { upper: { turn: [[0.5, 1], [0.2, 0]] } } }, rig)).toThrow(/forward in time/);
@@ -124,7 +148,7 @@ describe('a clip for a rig', () => {
     expect(times).toHaveLength(8);
     expect(times[7]).toBeCloseTo(0.875);
     const c = clipSheet(rig, tex, timeline, times, leafBones(rig), 120);
-    expect(c.width).toBe(720);
+    expect(c.width).toBe(960);
     expect(coloured(c)).toBeGreaterThan(200);
   });
 });
