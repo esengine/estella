@@ -9,7 +9,7 @@ import { World } from '../src/ecs/world';
 import { Transform, Name } from '../src/ecs/component';
 import { TimelinePlayer } from '../src/timeline/TimelinePlayerComponent';
 import { resolveTimelinePath, splitBoundPath } from '../src/timeline/timelineBindings';
-import { resolveActiveShot } from '../src/timeline/timelineSequences';
+import { collectSequenceLayers, resolveActiveShot } from '../src/timeline/timelineSequences';
 import { TrackType, WrapMode, type TimelineAsset } from '../src/timeline/TimelineTypes';
 import { loadSceneData, type SceneData } from '../src/scene/scene';
 import type { Entity } from '../src/types';
@@ -64,6 +64,19 @@ describe('timeline bindings', () => {
         const resolve = (root: Entity, path: string) => resolveTimelinePath(world, stage, root, path);
         expect(resolveActiveShot(asset, 0.5, stage, resolve, () => undefined)?.to).toBe(child);
         expect(resolveActiveShot(asset, 1, stage, resolve, () => undefined)?.to).toBe(arm);
+    });
+
+    it('uses an external binding path as the root of a nested timeline', () => {
+        const nested: TimelineAsset = { version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Once, tracks: [] };
+        const host: TimelineAsset = { ...nested, tracks: [{
+            type: TrackType.Sequence, name: '', childPath: '', clips: [{
+                start: 0, duration: 2, timeline: 'child', root: '@Hero/Arm', speed: 1, loop: false,
+            }],
+        }] };
+        const resolve = (root: Entity, path: string) => resolveTimelinePath(world, stage, root, path);
+        expect(collectSequenceLayers(host, 0.5, stage, resolve, () => nested)).toEqual([
+            expect.objectContaining({ root: arm, time: 0.5 }),
+        ]);
     });
 
     it('carries a scene’s binding to the entity it loads as', async () => {
