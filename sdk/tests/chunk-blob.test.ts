@@ -96,6 +96,31 @@ describe('a map saved before this engine', () => {
             .toEqual(new Map([['0,0', 1], ['2,0', 5 | TILE_FLIP_H]]));
     });
 
+    it('keeps chunk order, merges repeated coordinates, and skips empty records', () => {
+        const map = blob(RUNNING, [
+            { x: 4, y: 2, cells: [] },
+            { x: -2, y: -1, cells: [[0, 0, 3], [CHUNK_SIZE - 1, CHUNK_SIZE - 1, 8 | TILE_FLIP_V]] },
+            { x: 5, y: 1, cells: [[0, 0, 9]] },
+            { x: -2, y: -1, cells: [[0, 0, 4 | TILE_FLIP_D]] },
+        ]);
+        const chunks = decodeTilemapChunks(map);
+        expect(chunks.map(({ x, y }) => [x, y])).toEqual([[-2, -1], [5, 1]]);
+        expect(chunks[0]!.tiles[0]).toBe(4 | TILE_FLIP_D);
+        expect(chunks[0]!.tiles.at(-1)).toBe(8 | TILE_FLIP_V);
+        expect(chunks[1]!.tiles[0]).toBe(9);
+        expect(decodeTilemapChunks(map.slice(0, -16))[0]!.tiles[0]).toBe(3);
+    });
+
+    it('accepts padded base64 and unpadded base64url with line breaks', () => {
+        const fullWord = TILE_ID_MASK | TILE_FLIP_H | TILE_FLIP_V | TILE_FLIP_D;
+        const map = blob(RUNNING, [{ x: 0, y: 0, cells: [[0, 0, fullWord], [1, 0, fullWord]] }]);
+        const wrapped = map.replace(/-/g, '+').replace(/_/g, '/').replace(/(.{19})/g, '$1\r\n');
+        const unpadded = map.replace(/=+$/, '').replace(/(.{19})/g, '$1\r\n');
+        const expected = new Map([['0,0', fullWord], ['1,0', fullWord]]);
+        expect(world(decodeTilemapChunks(wrapped))).toEqual(expected);
+        expect(world(decodeTilemapChunks(unpadded))).toEqual(expected);
+    });
+
     /**
      * The change that would otherwise be silent, and the one the promise is
      * about: the flags sat in other bits, so every byte parses and every cell

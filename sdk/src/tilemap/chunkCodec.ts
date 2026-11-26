@@ -10,10 +10,10 @@
  *          Empty chunks are omitted by the exporter.
  *
  *          A saved map outlives the binary that wrote it, and the ABI hash only
- *          pairs a binary with a bundle. So the blob says which encoding it was
- *          written under and a reader whose own differs REFUSES: the same bytes
- *          would parse and mean other tiles. 'ESTM' is the older magic, which
- *          carries no header and means exactly the frozen `TILEMAP_V1_*` values.
+ *          pairs a binary with a bundle. The blob records its encoding so the
+ *          reader can remap coordinates and flags and reject unrepresentable
+ *          IDs. 'ESTM' is the older magic, which carries no header and means
+ *          exactly the frozen `TILEMAP_V1_*` values.
  */
 
 import {
@@ -76,20 +76,17 @@ const B64_LOOKUP = (() => {
 })();
 
 function base64UrlToBytes(s: string): Uint8Array {
-  const vals: number[] = [];
+  const out = new Uint8Array(Math.floor(s.length * 3 / 4));
+  let bits = 0, acc = 0, o = 0;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
     const v = c < 128 ? B64_LOOKUP[c] : -1;
-    if (v >= 0) vals.push(v);
-  }
-  const out = new Uint8Array((vals.length * 6) >> 3);
-  let bits = 0, acc = 0, o = 0;
-  for (const v of vals) {
+    if (v < 0) continue;
     acc = (acc << 6) | v;
     bits += 6;
     if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 0xff; }
   }
-  return out;
+  return out.subarray(0, o);
 }
 
 /** Decode a `tilemap_exportChunks` blob into its non-empty chunks (empty/invalid → []). */
@@ -120,31 +117,38 @@ export function decodeTilemapChunks(blob: string): DecodedChunk[] {
   if (side <= 0) return [];
   const count = dv.getUint32(off - 4, true);
 
-  // By WORLD coordinate, which means the same under any chunk size — one path
-  // whether the map was written under this encoding or an older one, so the
-  // case that runs every day is the one the migration is tested on.
+  const aligned = side === CHUNK_SIZE;
+  const sameEncoding = wrote[1] === TILE_ID_MASK && wrote[2] === TILE_FLIP_H && wrote[3] === TILE_FLIP_V && wrote[4] === TILE_FLIP_D;
+  const knownBits = TILE_ID_MASK | TILE_FLIP_H | TILE_FLIP_V | TILE_FLIP_D;
   const chunks = new Map<string, DecodedChunk>();
+  const chunkAt = (x: number, y: number): DecodedChunk => {
+    const key = `${x},${y}`;
+    let chunk = chunks.get(key);
+    if (!chunk) {
+      chunk = { x, y, tiles: new Uint16Array(CHUNK_TILES) };
+      chunks.set(key, chunk);
+    }
+    return chunk;
+  };
   const perChunk = 8 + side * side * 2;
   for (let c = 0; c < count; c++) {
     if (off + perChunk > bytes.byteLength) break;   // truncated → stop
     const cx = dv.getInt32(off, true);
     const cy = dv.getInt32(off + 4, true);
+    let alignedChunk: DecodedChunk | undefined;
     let at = off + 8;
     for (let i = 0; i < side * side; i++, at += 2) {
       const word = dv.getUint16(at, true);
       if (word === 0) continue;
-      const cell = recodeCell(word, wrote);
+      const cell = sameEncoding ? word & knownBits : recodeCell(word, wrote);
       if (cell < 0) return [];   // a narrowed mask cannot carry this tile
+      if (aligned) {
+        (alignedChunk ??= chunkAt(cx, cy)).tiles[i] = cell;
+        continue;
+      }
       const x = cx * side + (i % side);
       const y = cy * side + Math.floor(i / side);
-      const kx = floorDiv(x, CHUNK_SIZE);
-      const ky = floorDiv(y, CHUNK_SIZE);
-      const key = `${kx},${ky}`;
-      let chunk = chunks.get(key);
-      if (!chunk) {
-        chunk = { x: kx, y: ky, tiles: new Uint16Array(CHUNK_TILES) };
-        chunks.set(key, chunk);
-      }
+      const chunk = chunkAt(floorDiv(x, CHUNK_SIZE), floorDiv(y, CHUNK_SIZE));
       chunk.tiles[floorMod(y, CHUNK_SIZE) * CHUNK_SIZE + floorMod(x, CHUNK_SIZE)] = cell;
     }
     off += perChunk;
