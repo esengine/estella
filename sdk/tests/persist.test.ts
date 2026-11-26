@@ -10,7 +10,7 @@
  * newer one, and world entities marked Persistent come back after a restart
  * (a second App over the same store standing in for the restarted process).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -22,6 +22,8 @@ import {
 } from '../src/persist';
 import { replicationPlugin, Replicated } from '../src/net/replication';
 import type { Entity } from '../src/types';
+import { reservePromise } from '../src/util/reservePromise';
+import { registerWorldSceneComponentCodec } from '../src/scene/scene';
 
 let dir: string;
 let Bag: ReturnType<typeof defineComponent<{ gold: number; items: string[] }>>;
@@ -206,6 +208,23 @@ describe('PlayerPersistence', () => {
 });
 
 describe('entity snapshots', () => {
+    it('runs component export only for types included in the snapshot', () => {
+        const app = App.new(), world = app.world;
+        const entity = world.spawn('level');
+        world.insert(entity, Bag, { gold: 5, items: [] });
+        world.insert(entity, Spot, { x: 1, y: 2 });
+        const exportBag = vi.fn(), exportSpot = vi.fn();
+        registerWorldSceneComponentCodec(world, 'Bag', { exportData: exportBag });
+        registerWorldSceneComponentCodec(world, 'Spot', { exportData: exportSpot });
+        try {
+            expect(snapshotEntity(world, entity, { include: ['Spot'], exclude: ['Bag'] }).components).toEqual([
+                { type: 'Spot', data: { x: 1, y: 2 } },
+            ]);
+            expect(exportSpot).toHaveBeenCalledOnce();
+            expect(exportBag).not.toHaveBeenCalled();
+        } finally { app.quit(); }
+    });
+
     it('keeps process-local identity out of saves and restores through component aliases', () => {
         const world = App.new().world, entity = world.spawn();
         for (const def of [Replicated, Persistent]) unregisterComponent(def._name);
@@ -283,6 +302,46 @@ describe('WorldPersistence', () => {
     const named = (app: App, name: string): Entity | undefined =>
         app.world.getEntitiesWithComponents([Persistent])
             .find((e) => (app.world.tryGet(e, Name) as { value: string } | null)?.value === name);
+
+    it('reports a partial write once and lets a queued flush retry the unwritten entity', async () => {
+        const store = new MemoryStore(), app = App.new();
+        const keeper = new WorldPersistence({ store, schema: 1 });
+        for (const key of ['first', 'retry']) {
+            const entity = app.world.spawn(key);
+            app.world.insert(entity, Bag, { gold: 1, items: [] });
+            app.world.insert(entity, Persistent, { key });
+        }
+        const entered = reservePromise<void>(), release = reservePromise<void>();
+        const original = store.put.bind(store);
+        const failure = new Error('store unavailable');
+        let inject = true;
+        const put = vi.spyOn(store, 'put').mockImplementation(async (key, value, options) => {
+            if (key === 'entity:retry' && inject) {
+                inject = false;
+                entered.resolve();
+                await release.promise;
+                throw failure;
+            }
+            return original(key, value, options);
+        });
+        const failed = expect(keeper.flush(app.world)).rejects.toBe(failure);
+        try {
+            await entered.promise;
+            app.world.update(named(app, 'retry')!, Bag, bag => { bag.gold = 2; });
+            const queued = keeper.flush(app.world);
+            release.resolve();
+            await failed;
+            expect(await queued).toEqual({ written: 1, deleted: 0 });
+            expect(put.mock.calls.map(([key]) => key)).toEqual(['entity:first', 'entity:retry', 'entity:retry']);
+            expect(await keeper.flush(app.world)).toEqual({ written: 0, deleted: 0 });
+            const fresh = App.new();
+            try {
+                const restorer = new WorldPersistence({ store, schema: 1 });
+                expect(await restorer.restore(fresh.world)).toBe(2);
+                expect(fresh.world.get(named(fresh, 'retry')!, Bag).gold).toBe(2);
+            } finally { fresh.quit(); }
+        } finally { release.resolve(); app.quit(); }
+    });
 
     it('brings persistent entities back after a restart, and writes only what changed', async () => {
         const store = new FileStore(dir);

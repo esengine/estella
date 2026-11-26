@@ -47,8 +47,6 @@ export function snapshotEntity(world: World, entity: Entity, options: EntitySnap
     const exclude = new Set(options.exclude ?? []);
     const components: SceneComponentData[] = [];
     visitSerializedComponents(world, entity, (comp, definition) => {
-        if (PROCESS_STATE.has(definition._name) || exclude.has(comp.type)) return;
-        if (include && !include.has(comp.type)) return;
         if (definition._name === 'Replicated') {
             components.push(replicaSnapshot(comp));
             return;
@@ -57,7 +55,7 @@ export function snapshotEntity(world: World, entity: Entity, options: EntitySnap
             if (field in comp.data) comp.data[field] = mapEntityRefField(comp.data[field], ref => typeof ref === 'number' ? 0 : ref);
         }
         components.push(comp);
-    });
+    }, undefined, (type, definition) => !PROCESS_STATE.has(definition._name) && !exclude.has(type) && (!include || include.has(type)));
     const name = (world.tryGet(entity, Name) as { value?: string } | null)?.value;
     return name ? { name, components } : { components };
 }

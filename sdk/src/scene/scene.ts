@@ -1063,10 +1063,12 @@ export function serializeEntityComponents(world: World, entity: Entity, register
 export function visitSerializedComponents(
     world: World, entity: Entity, visit: (record: SceneComponentData, definition: AnyComponentDef) => void,
     registeredTypes: readonly string[] = world.getComponentTypes(entity),
+    include?: (typeName: string, definition: AnyComponentDef) => boolean,
 ): void {
     const entityNum = entity as unknown as number;
     const capture = (typeName: string, comp: AnyComponentDef): void => {
         if (comp.transient || STRUCTURAL_COMPONENTS.has(typeName) || STRUCTURAL_COMPONENTS.has(comp._name)) return;
+        if (include && !include(typeName, comp)) return;
         const data = world.tryGet(entity, comp);
         if (data === null) return;
         const payload = captureAuthoredComponentData(world, entity, comp, data as Record<string, unknown>);

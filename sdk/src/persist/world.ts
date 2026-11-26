@@ -98,10 +98,11 @@ export class WorldPersistence {
      * a flush called while one is running waits for it and then runs.
      */
     flush(world: World): Promise<WorldFlushResult> {
-        const run = async (): Promise<WorldFlushResult> => this.flushNow_(world);
-        const next: Promise<WorldFlushResult> = (this.flushing_ ?? Promise.resolve({ written: 0, deleted: 0 })).then(run, run);
+        const run = () => this.flushNow_(world);
+        const next: Promise<WorldFlushResult> = (this.flushing_ ?? Promise.resolve()).then(run, run).finally(() => {
+            if (this.flushing_ === next) this.flushing_ = null;
+        });
         this.flushing_ = next;
-        void next.finally(() => { if (this.flushing_ === next) this.flushing_ = null; });
         return next;
     }
 
