@@ -229,9 +229,11 @@ class TimelinePlaybackSystem {
                             if (director) shakeCamera(director, { amplitude: TIMELINE_VIEW_SHAKE.amplitude * force, rotation: TIMELINE_VIEW_SHAKE.rotation * force, frequency: TIMELINE_VIEW_SHAKE.frequency, duration: TIMELINE_VIEW_SHAKE.duration });
                         },
                         // What the playhead crossed, for the game: each about the entity its track names.
-                        onSignals: (signals) => {
+                        onSignals: (signals, signalRoot) => {
                             for (const s of signals) {
-                                const target = resolveTimelinePath(world, entity, entity, s.childPath) ?? entity;
+                                if (!this.active_ || !state.started || tl.getState(entity) !== state) break;
+                                const target = resolveTimelinePath(world, entity, signalRoot, s.childPath) ?? signalRoot;
+                                if (!world.valid(target)) continue;
                                 events.send({ kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, target });
                                 const type = timelineSignalType(s.name);
                                 if (!s.name || !entityEvents.hasListenersFor(type)) continue;

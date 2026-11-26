@@ -167,8 +167,8 @@ export interface AdvanceContext {
     lookup?: SequenceLookup;
     /** The view this step asks for (null: none), for the camera director. */
     onShot?: (shot: ActiveShot | null) => void;
-    /** The events and markers this step's playhead crossed, for the game (TimelinePlugin sends them as TimelineEvent). */
-    onSignals?: (signals: TimelineSignal[]) => void;
+    /** Events and markers this step crossed, with the root their target paths are relative to. */
+    onSignals?: (signals: TimelineSignal[], root: Entity) => void;
     /** A camera shake the playhead crossed: from `entity`, at `force` (TimelinePlugin fires it). */
     onShake?: (entity: Entity, force: number) => void;
 }
@@ -177,6 +177,13 @@ export interface AdvanceContext {
 function applyEvent(ctx: AdvanceContext, e: FiredEvent): void {
     if (e.kind === TimelineEventType.CameraShake) { ctx.onShake?.(e.entity, e.floatParam); return; }
     applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
+}
+
+function dispatchSignals(ctx: AdvanceContext, asset: TimelineAsset, root: Entity, runs: readonly PlayheadRun[]): void {
+    if (!ctx.onSignals) return;
+    const signals: TimelineSignal[] = [];
+    collectSignals(asset, runs, signals);
+    if (signals.length) ctx.onSignals(signals, root);
 }
 
 // ---------------------------------------------------------------------------
@@ -285,11 +292,7 @@ export function advanceTimelineTS(
     for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
         applyEvent(ctx, e);
     }
-    if (ctx.onSignals) {
-        const signals: TimelineSignal[] = [];
-        collectSignals(asset, segments, signals);
-        if (signals.length) ctx.onSignals(signals);
-    }
+    dispatchSignals(ctx, asset, root, segments);
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
     if (ctx.lookup) advanceNested(asset, root, state, ctx, ctx.lookup);
@@ -337,6 +340,7 @@ function advanceNested(
             for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
                 applyEvent(ctx, e);
             }
+            dispatchSignals(ctx, layer.asset, layer.root, segments);
         }
         state.nested[layer.key] = { time: layer.time, spineClipIndices };
     }

@@ -245,7 +245,7 @@ export interface TimelineSignal {
     name: string;
     payload: Record<string, unknown>;
     time: number;
-    /** The track's name path below the timeline's root ('' = the root itself). */
+    /** The track's path relative to the timeline's root, or through a player binding. */
     childPath: string;
 }
 

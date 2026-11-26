@@ -9,6 +9,7 @@ import { Prefabs, type PrefabServer } from '../src/prefab/prefabServer';
 import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlayer, TimelinePlugin, timelineSignalType } from '../src/timeline/TimelinePlugin';
 import { TrackType, WrapMode, type TimelineAsset } from '../src/timeline/TimelineTypes';
+import { connectFakeCpp } from './helpers/fakeEngine';
 
 const apps: App[] = [];
 const asset: TimelineAsset = {
@@ -26,9 +27,10 @@ const asset: TimelineAsset = {
     ],
 };
 
-function playerIn(plugin: TimelinePlugin) {
+function playerIn(plugin: TimelinePlugin, withHierarchy = false) {
     const app = App.new();
     apps.push(app);
+    if (withHierarchy) connectFakeCpp(app.world);
     app.addPlugin(plugin);
     const voice = { stop: vi.fn(), setVolume: vi.fn() };
     const playClip = vi.fn(() => voice);
@@ -106,6 +108,44 @@ it('updates the view when the paused player seeks into and out of a nested shot'
     timeline.stop(player);
     await app.tick(0.5);
     expect(director.timelineShot).toBeNull();
+});
+
+it('dispatches nested markers and events from the nested root while retaining the original player', async () => {
+    const { app, player, timeline, camera } = playerIn(new TimelinePlugin(), true);
+    const panel = app.world.spawn('Panel');
+    app.world.setParent(panel, camera);
+    timeline.registerAsset('intro', { ...asset, tracks: [{
+        type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 0.5, duration: 3, timeline: 'scene', root: '@View', speed: 1, loop: true },
+        ],
+    }] });
+    timeline.registerAsset('scene', { ...asset, duration: 1, tracks: [
+        { type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0, name: 'enter' }] },
+        { type: TrackType.CustomEvent, name: '', childPath: 'Panel', events: [{ time: 0.25, name: 'show', payload: { layer: 2 } }] },
+    ] });
+    const events = app.getResource(EntityEvents);
+    const entered = vi.fn(), shown = vi.fn(), bubbled = vi.fn();
+    events.on(camera, timelineSignalType('enter'), entered);
+    events.on(panel, timelineSignalType('show'), shown);
+    events.on(player, timelineSignalType('show'), bubbled);
+
+    await app.tick(0.5);
+    expect(entered.mock.calls).toEqual([[expect.objectContaining({
+        target: camera, data: expect.objectContaining({ kind: 'marker', player, time: 0 }),
+    })]]);
+    timeline.pause(player);
+    timeline.setTime(player, 1.5);
+    await app.tick(0.1);
+    expect(entered).toHaveBeenCalledOnce();
+    expect(shown).not.toHaveBeenCalled();
+
+    timeline.play(player);
+    await app.tick(0.25);
+    expect(entered).toHaveBeenCalledOnce();
+    expect(shown.mock.calls).toEqual([[expect.objectContaining({
+        target: panel, data: expect.objectContaining({ kind: 'event', player, time: 0.25, payload: { layer: 2 } }),
+    })]]);
+    expect(bubbled).toHaveBeenCalledOnce();
 });
 
 it('does not restore a shot or player removed by its own timeline marker', async () => {
