@@ -6,6 +6,7 @@ import { World } from '../src/ecs/world';
 import { Sprite, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
+import { serializeScene } from '../src/scene/scene';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () => {
@@ -29,6 +30,9 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             expect(before.selected!.parent).toBe(group);
             expect(before.tree!.entities.find(e => e.id === child)!.parent).toBe(group);
             expect(before.tree!.entities.find(e => e.id === group)!.children).toEqual([child]);
+            const saved = serializeScene(world);
+            expect(saved.entities.find(e => e.id === child)).toMatchObject({ name: 'Child', parent: group });
+            expect(saved.entities.find(e => e.id === group)!.children).toEqual([child]);
             expect(worldSnapshot(app, child, false).selected!.parent).toBe(group);
             expect(worldSnapshot(app, group, false).selected!.children).toEqual([child]);
             world.setParent(child, warm);
@@ -37,6 +41,9 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             expect(after.selected!.parent).toBeNull();
             expect(after.tree!.entities.find(e => e.id === child)!.parent).toBeNull();
             expect(after.tree!.entities.find(e => e.id === warm)!.children).toEqual([]);
+            const updated = serializeScene(world);
+            expect(updated.entities.find(e => e.id === child)!.parent).toBeNull();
+            expect(updated.entities.find(e => e.id === warm)!.children).toEqual([]);
             expect(worldSnapshot(app, child, false).selected!.parent).toBeNull();
             expect(before.selected!.parent).toBe(group);
         } finally { world.disconnectCpp(); registry.delete(); }

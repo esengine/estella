@@ -9,8 +9,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/ecs/world';
-import { Transform, RuntimeOnly, Name, Parent } from '../src/ecs/component';
-import { serializeScene } from '../src/scene/scene';
+import { Transform, RuntimeOnly, Name, Parent, Sprite, MeshRenderer } from '../src/ecs/component';
+import { serializeScene, resetWorldTo } from '../src/scene/scene';
 import { createMockModule } from './mocks/wasm';
 
 // Builtin components are C++-memory-backed; the mock module gives them a home
@@ -57,6 +57,29 @@ describe('serializeScene × RuntimeOnly', () => {
         const c = scene.entities.find((e) => e.name === 'C')!;
         expect(p.children).toContain(c.id);
         expect(c.parent).toBe(p.id);
+    });
+
+    it('keeps authored renderers and their children when a runtime-only parent is omitted', () => {
+        const world = makeWorld();
+        const runtime = world.spawn('Preview group');
+        const sprite = world.spawn('Sprite');
+        const mesh = world.spawn('Mesh');
+        world.insert(runtime, RuntimeOnly, {});
+        world.insert(sprite, Sprite, {});
+        world.insert(mesh, MeshRenderer, {});
+        world.insert(sprite, Parent, { entity: runtime });
+        world.insert(mesh, Parent, { entity: sprite });
+
+        const saved = serializeScene(world);
+        expect(saved.entities.map(e => [e.name, e.parent, e.children])).toEqual([
+            ['Sprite', null, [mesh]],
+            ['Mesh', sprite, []],
+        ]);
+        resetWorldTo(world, saved);
+        expect(serializeScene(world).entities.map(e => [e.name, e.components.map(c => c.type)])).toEqual([
+            ['Sprite', ['Sprite']],
+            ['Mesh', ['MeshRenderer']],
+        ]);
     });
 
     it('RuntimeOnly itself never round-trips as a component', () => {

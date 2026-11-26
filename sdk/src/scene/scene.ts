@@ -1022,13 +1022,13 @@ export function visitSerializedComponents(
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
         if (shouldExportComponent(world, entity, typeName, payload)) visit({ type: typeName, data: payload }, comp);
     };
-    const scriptNames = new Map<symbol, string>();
+    let scriptNames: Map<symbol, string> | undefined;
     for (const name of registeredTypes) {
         const registered = getComponent(name);
         if (registered?._builtin) capture(name, registered);
-        else if (registered) scriptNames.set(registered._id, name);
+        else if (registered) (scriptNames ??= new Map()).set(registered._id, name);
     }
-    for (const stored of world.getStoredScriptComponents(entity)) capture(scriptNames.get(stored._id) ?? stored._name, stored);
+    for (const stored of world.getStoredScriptComponents(entity)) capture(scriptNames?.get(stored._id) ?? stored._name, stored);
 }
 
 /**
@@ -1046,47 +1046,42 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
     // RuntimeOnly entities are world-only projections their systems re-derive
     // (Tilemap source layers, tile colliders); excluding them up front also
     // keeps them out of every parent/children list below.
-    const allEntities = world.getAllEntities().filter((e) => !world.has(e, RuntimeOnly));
+    const omitted = new Set<Entity>();
+    const allEntities = world.getAllEntities().filter(entity => {
+        if (!world.has(entity, RuntimeOnly)) return true;
+        omitted.add(entity);
+        return false;
+    });
 
-    const parentOf = new Map<number, number>();
-    if (parentDef) {
-        for (const e of allEntities) {
-            const parentComp = world.tryGet(e, parentDef) as { entity: number } | null;
-            if (parentComp && parentComp.entity !== undefined) {
-                parentOf.set(e as unknown as number, parentComp.entity);
-            }
-        }
-    }
-
-    // Derived from the parent map already built above: one pass, no second read per entity.
-    const childrenOf = new Map<number, number[]>();
-    for (const [child, parent] of parentOf) {
-        let arr = childrenOf.get(parent);
-        if (!arr) {
-            arr = [];
-            childrenOf.set(parent, arr);
-        }
-        arr.push(child);
-    }
-
-    const entities: SceneEntityData[] = [];
     const registeredTypes = world.getComponentTypesBatch(allEntities);
-    for (const [i, entity] of allEntities.entries()) {
-        const entityNum = entity as unknown as number;
-
-        const nameComp = world.tryGet(entity, Name) as { value: string } | null;
-        const name = nameComp?.value ?? `Entity_${entityNum}`;
-
-        const components = serializeEntityComponents(world, entity, registeredTypes[i]);
-
-        entities.push({
-            id: entityNum,
-            name,
-            parent: parentOf.get(entityNum) ?? null,
-            children: childrenOf.get(entityNum) ?? [],
-            components,
-        });
+    const parents: (Entity | null)[] = new Array(allEntities.length).fill(null);
+    const children = new Map<Entity, Entity[]>();
+    if (parentDef) {
+        const readParent = world.resolveGetter(parentDef);
+        for (const [i, entity] of allEntities.entries()) {
+            if (!registeredTypes[i]!.includes(parentDef._name)) continue;
+            const relation = (readParent ? readParent(entity) : world.get(entity, parentDef)) as { entity: Entity } | null;
+            const parent = relation?.entity;
+            // A persistent child of a runtime-only entity becomes a scene root.
+            if (parent === undefined || omitted.has(parent)) continue;
+            parents[i] = parent;
+            const siblings = children.get(parent);
+            if (siblings) siblings.push(entity);
+            else children.set(parent, [entity]);
+        }
     }
+
+    const entities: SceneEntityData[] = allEntities.map((entity, i) => {
+        const types = registeredTypes[i]!;
+        const name = types.includes(Name._name) ? world.tryGet(entity, Name)?.value : undefined;
+        return {
+            id: entity,
+            name: name ?? `Entity_${entity}`,
+            parent: parents[i]!,
+            children: children.get(entity) ?? [],
+            components: serializeEntityComponents(world, entity, types),
+        };
+    });
 
     return {
         version: SCENE_FORMAT_VERSION,
