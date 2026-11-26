@@ -11,7 +11,6 @@ const SRC = 'desktop/src';
 const MAIN_WINDOW_ONLY = new Map([
   ['desktop/src/App.tsx', 'the shell flushes the session when the main window unloads'],
   ['desktop/src/engine/backgroundThrottle.ts', 'the throttle follows the main window\'s focus'],
-  ['desktop/src/layout/SubsystemIndicator.tsx', 'the status bar is main-window chrome and never sits in a dock panel'],
   ['desktop/src/playHost.ts', 'the play realm is its own document, not a dock panel'],
   ['desktop/src/project/ToolsStore.ts', 'a store has no DOM and follows the main window\'s focus'],
   ['desktop/src/store/userPrefs.ts', 'preferences are written when the main window goes, which ends the editor; a panel closing must not'],
