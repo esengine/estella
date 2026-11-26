@@ -46,22 +46,16 @@ struct UITree {
     void rebuild(Registry& reg) {
         entity_set_ = reg.entitySetId();
         nodes_.clear();
+        structure_sig_ = hash::kFnv64Offset;
         for (Entity entity : canvasRoots(reg, true)) {
             buildDFS(reg, entity, INVALID_ENTITY, 0);
         }
-
-        u64 h = hash::kFnv64Offset;
-        for (const auto& n : nodes_) {
-            h = hash::fnv1aWord(h, n.entity.id());
-            h = hash::fnv1aWord(h, n.parent.id());
-        }
-        structure_sig_ = h;
     }
 
 private:
     u64 entity_set_{0};
     struct Frame {
-        Entity entity;
+        const Children* children;
         Entity layoutParent;
         u32 depth;
         i32 nodeIndex;
@@ -86,17 +80,19 @@ private:
             if (reg.has<UINode>(current)) {
                 nodeIndex = static_cast<i32>(nodes_.size());
                 nodes_.push_back({current, parent, currentDepth, 1});
+                structure_sig_ = hash::fnv1aWord(hash::fnv1aWord(structure_sig_, current.id()), parent.id());
                 parent = current;
                 ++currentDepth;
             }
-            pending_.push_back({current, parent, currentDepth, nodeIndex, 0});
+            // The registry is read-only during the walk, so the component stays
+            // valid while this frame visits each of its children.
+            pending_.push_back({reg.tryGet<Children>(current), parent, currentDepth, nodeIndex, 0});
         };
         enter(entity, layoutParent, depth);
         while (!pending_.empty()) {
             auto& frame = pending_.back();
-            auto* children = reg.tryGet<Children>(frame.entity);
-            if (children && frame.nextChild < children->entities.size()) {
-                Entity child = children->entities[frame.nextChild++];
+            if (frame.children && frame.nextChild < frame.children->entities.size()) {
+                Entity child = frame.children->entities[frame.nextChild++];
                 if (reg.valid(child)) enter(child, frame.layoutParent, frame.depth);
                 continue;
             }

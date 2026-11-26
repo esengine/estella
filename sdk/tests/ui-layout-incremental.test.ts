@@ -234,6 +234,16 @@ describe.skipIf(!HAS_WASM)('incremental layout equals a fresh solve', () => {
 
     // A subtree root positions itself against the camera box, so a resize moves
     // every node even though Yoga may report no new layout for any of them.
+    it('re-places siblings when their order changes without any layout property writes', async () => {
+        const [inc, fresh] = await differential(
+            (app) => build(app, 3),
+            (app, ids) => app.world.applyEntityOrder([ids.root, ids.row, ids.leaves[1], ids.leaves[2], ids.leaves[0]]),
+        );
+        expect(inc).toEqual(fresh);
+        expect(inc.leaf1.x).toBeLessThan(inc.leaf2.x);
+        expect(inc.leaf2.x).toBeLessThan(inc.leaf0.x);
+    });
+
     it('resizing the camera re-places the whole tree', async () => {
         const [inc, fresh] = await differential(
             (app) => build(app, 5),
