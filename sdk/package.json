@@ -253,7 +253,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm clean && node scripts/build-worker.mjs && rolldown -c && rollup -c",
+    "build": "pnpm clean && node scripts/build-worker.mjs && rolldown -c && node --max-old-space-size=4096 node_modules/rollup/dist/bin/rollup -c",
     "watch": "rolldown -c -w",
     "clean": "rimraf dist",
     "api:check": "node ../tools/api-surface.mjs --check",
