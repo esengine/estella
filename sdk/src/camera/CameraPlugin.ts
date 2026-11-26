@@ -47,6 +47,7 @@ import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
 import type { RenderPipeline } from '../render/renderPipeline';
 import { xrPresentation, placeEye, headingOf, type XRPresentationState } from '../xr/xrPresentation';
+import { XRController, XRHead, syncXRPoses } from '../xr/xrComponents';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { followRenderOrigin, pushRenderOrigin, renderOrigin } from '../render/renderOrigin';
 import { platformDevicePixelRatio } from '../platform';
@@ -852,6 +853,8 @@ function publishScreenOverlay(
  */
 function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, rig: CameraInfo, registry: CppRegistry,
     elapsed: number, clearColor: { x: number; y: number; z: number; w: number } | undefined): void {
+    // Named for the controllers and the head, which are placed through the same rig next frame.
+    xr.rigEntity = rig.entity;
     const t = app.world.tryGet(rig.entity as Entity, Transform) as CameraTransformFields | null;
     const camera = app.world.tryGet(rig.entity as Entity, Camera) as CameraFields | null;
     if (camera) {
@@ -1154,6 +1157,15 @@ export function cameraPlugin(
                 },
                 { name: 'CameraRigSystem' },
             ), { runIf: playModeOnly, activeWhen: [FollowTarget, CameraDolly, PositionComposer, LookAtTarget, CameraTargetGroup, GroupFraming, CameraDeoccluder, CameraBounds, CameraBrain, CameraImpulseSource, StateDrivenCamera] });
+
+            // Hands and head where the headset says, after Update has moved the rig: a hand placed before it trails a walking player.
+            app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => {
+                if (!xrPresentation(app)) return;
+                const cpp = app.world.getCppRegistry();
+                // The rig's world pose as Update left it, not as last frame drew it.
+                if (cpp) Renderer.updateTransforms({ _cpp: cpp });
+                syncXRPoses(app);
+            }, { name: 'XRPoseSystem' }), { activeWhen: [XRController, XRHead] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);

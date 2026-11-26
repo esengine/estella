@@ -1,0 +1,58 @@
+---
+title: VR 头显
+description: 通过 WebXR 在 VR 头显里玩 Web 包：如何打开、玩家站在哪里、手柄和头部作为实体与输入，以及头显里不显示的内容。
+---
+
+Web 包可以在 VR 头显里玩：用头显自带的浏览器，或者用接了头显的桌面浏览器。两只眼睛按头显自己的镜片参数和头部追踪分别绘制，帧率跟随头显。
+
+## 打开 VR
+
+在 `project.esproject` 里把 `features.rendering.vr` 设为 `true`，再导出 Web 包。只要浏览器能进入 VR，页面就会显示 **Enter VR** 按钮；玩家点它进入头显，点 **Exit VR** 退出。
+
+```json
+{ "features": { "rendering": { "vr": true } } }
+```
+
+游戏也可以从自己的界面进入。`enterVR` 必须在点击或按键事件里调用，这是浏览器的要求。
+
+```typescript
+import { enterVR, exitVR, inVR, vrSupported } from 'esengine';
+
+if (await vrSupported()) showButton(() => (inVR(app) ? exitVR(app) : enterVR(app)));
+```
+
+VR 使用页面自身线程上的 WebGL2 绘制，因为头显从这个上下文取画面。项目设成 WebGPU 或多线程渲染时，打开 VR 后这两项都不会启用。
+
+## 玩家站在哪里
+
+第一台画到屏幕上的相机就是玩家站的位置。进入 VR 时，玩家的眼睛就在这台相机所在的地方，朝向它的朝向。转头会转动视野；移动相机（行走、载具、传送）会带着玩家一起移动。只取相机的偏航角：俯视目标的第三人称相机不会让玩家的地平线倾斜。
+
+头显以米为单位，按项目的"世界单位/米"换算，所以按 100 单位一米做的游戏，两只眼睛相距 6.4 个单位。
+
+## 手柄与头部
+
+带 `XRController` 的实体每帧都会被摆到手柄所在的位置。给它加一个网格就能画出手或手柄，也可以把玩家拿着的东西挂在它下面。`pose` 选择跟随手柄的哪个位姿：**Grip** 是手握住的位置，**Aim** 是它指向的方向（前方是 -Z），用来发射指向射线。带 `XRHead` 的实体跟随玩家的头部。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `hand` | Left / Right | Right | 实体跟随哪只手的手柄。 |
+| `pose` | Grip / Aim | Grip | 手握手柄的位置，或手柄指向的位置。 |
+
+不在头显里、或者手柄没有被追踪时，实体停在原来的位置。所以在相机旁边摆一只手的场景，在编辑器和普通屏幕上看起来也是对的。
+
+手柄的按键和摇杆按左右手区分，用法和普通手柄一样，按键布局是所有头显浏览器都遵循的那一套：
+
+```typescript
+import { Input, XRButton, XRAxis } from 'esengine';
+
+if (input.isXRButtonPressed(XRButton.Trigger, 'right')) fire();
+const forward = -input.getXRAxis(XRAxis.ThumbstickY, 'left');
+```
+
+`XRButton` 包括 `Trigger`（扳机）、`Squeeze`（握把）、`Touchpad`（触摸板）、`Thumbstick`（摇杆按下）、`Primary`（A 或 X）和 `Secondary`（B 或 Y）。动作可以用 `XrButton(button, hand)` 和 `XrStick(hand)` 绑定到它们上面，监听改键时也能识别这些按键。`xrPresentation(app)` 报告每只手柄的位姿、浏览器给出的设备型号，以及头部的位姿。
+
+## 头显里不显示的内容
+
+头显没有自己的屏幕，所以这些内容不会画进头显：其他画到屏幕上的相机、屏幕空间的 HUD（世界空间的 UI 会画）以及编辑器的叠加层。渲染到纹理的相机照常绘制。
+
+只有在头显等待的那段时间里画完的帧才会显示。如果某个系统在等待很慢的东西（比如网络请求），那一帧就会迟到，头显会继续显示上一帧；退出 VR 时日志会报告迟到了多少帧。

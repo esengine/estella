@@ -320,6 +320,9 @@ export {
     inputEventCallbacks,
     GamepadButton,
     GamepadAxis,
+    XRButton,
+    XRAxis,
+    type XRHandedness,
     type TouchPoint,
 } from './input/input';
 
@@ -349,6 +352,8 @@ export {
     Keys1D,
     Keys2D,
     Stick,
+    XrButton,
+    XrStick,
     Virtual,
     Button,
     Axis1D,

@@ -12977,6 +12977,42 @@
         "falloff",
         "priority"
       ]
+    },
+    {
+      "name": "XRController",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "hand",
+          "type": "enum",
+          "default": "Right",
+          "doc": "The hand whose controller this entity follows.",
+          "values": [
+            "Left",
+            "Right"
+          ]
+        },
+        {
+          "key": "pose",
+          "type": "enum",
+          "default": "Grip",
+          "doc": "Grip: where the hand holds the controller, for a model or a held object. Aim: where it points (forward is -Z), for a ray.",
+          "values": [
+            "Grip",
+            "Aim"
+          ]
+        }
+      ],
+      "animatable": [
+        "hand",
+        "pose"
+      ]
+    },
+    {
+      "name": "XRHead",
+      "source": "ts",
+      "fields": [],
+      "tag": true
     }
   ]
 }

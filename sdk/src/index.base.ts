@@ -20,5 +20,6 @@ export { ABI_LAYOUT_HASH } from './ecs/component.generated';
 // Immersive VR on the web (WebXR): a headset browser, or a desktop one with a headset. Web only: a mini-game or a device has
 // no WebXR, so it is here and not in the shared core.
 export { vrSupported, enterVR, exitVR, inVR, mountVRButton, type EnterVROptions } from './xr/immersive';
-export { xrPresentation, type XRPresentationState, type XREyeView } from './xr/xrPresentation';
+export { xrPresentation, type XRPresentationState, type XREyeView, type XRControllerState, type XRPoseLike, type XRHand } from './xr/xrPresentation';
+export { XRController, XRHead, XRControllerPose, type XRControllerData } from './xr/xrComponents';
 export type { FrameSource } from './app/app';

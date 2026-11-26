@@ -13,6 +13,8 @@
  *  - the cube in front of the camera sits further right in the left eye than in the right (the eyes see in stereo, and the
  *    right way round);
  *  - every frame was drawn inside its session callback (none late), and the page's own canvas drew nothing meanwhile;
+ *  - a right controller's grip pose places the entity with XRController (right, grip) where the rig puts it, and its trigger,
+ *    held for ten frames, reaches a game system as one press, ten frames down and one release;
  *  - Exit VR gives the frames back to the page.
  *
  *   node tools/verify-xr.mjs            (uses build/wasm/web; build it with `node build-tools/cli.js build -t web`)
@@ -39,6 +41,9 @@ const SCENE = { version: 4, name: 'main', entities: [
     // Looking down a little: the rig takes its heading only, so the eyes look level (the cube stays in view).
     e(3, 'Camera', [tf(0, 150, 500, { rotation: { x: -0.17, y: 0, z: 0, w: 0.985 } }),
         { type: 'Camera', data: { isActive: true, projectionType: 0, fov: 60, nearPlane: 1, farPlane: 10000 } }]),
+    // Follows the right controller's grip: a small cube the player holds.
+    e(5, 'RightHand', [tf(0, 0, 0, { scale: { x: 0.1, y: 0.1, z: 0.1 } }), { type: 'XRController', data: { hand: 1, pose: 0 } },
+        { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: true, opaque: true } }]),
     e(4, 'Sun', [tf(0, 0, 0, { rotation: { x: -0.38, y: 0.2, z: 0, w: 0.9 } }), { type: 'Light', data: { type: 1, intensity: 3 } }]),
 ] };
 
@@ -53,7 +58,19 @@ writeFileSync(path.join(project, 'project.esproject'), JSON.stringify({
 writeFileSync(path.join(project, 'assets/scenes/main.esscene'), JSON.stringify(SCENE));
 writeFileSync(path.join(project, 'assets/scenes/main.esscene.meta'),
     JSON.stringify({ uuid: '3d1f0c2a-9b8e-4c7d-a6f5-e4d3c2b1a0f9', version: '2.0', type: 'scene', importer: {} }));
-writeFileSync(path.join(project, 'src/main.ts'), 'export {};\n');
+// What a game reads of the controller, written where this script can see it.
+writeFileSync(path.join(project, 'src/main.ts'), [
+    "import { addSystemToSchedule, Schedule, defineSystem, Query, Res, Input, Transform, XRController, XRButton } from 'esengine';",
+    'const seen = { pressed: 0, released: 0, down: 0, hand: null as null | { x: number; y: number; z: number } };',
+    '(globalThis as { __xrProbe?: typeof seen }).__xrProbe = seen;',
+    'addSystemToSchedule(Schedule.Update, defineSystem([Res(Input), Query(Transform, XRController)], (input, hands) => {',
+    "    if (input.isXRButtonPressed(XRButton.Trigger, 'right')) seen.pressed++;",
+    "    if (input.isXRButtonReleased(XRButton.Trigger, 'right')) seen.released++;",
+    "    if (input.isXRButtonDown(XRButton.Trigger, 'right')) seen.down++;",
+    '    for (const [, t] of hands) seen.hand = { ...t.worldPosition };',
+    "}, { name: 'XRProbe' }));",
+    '',
+].join('\n'));
 
 const out = path.join(work, 'web');
 const built = spawnSync(process.execPath, [path.join(ROOT, 'pipeline/bin/estella.mjs'), 'export', project, '--platform', 'web', '--out', out],
@@ -96,14 +113,23 @@ function fakeHeadset() {
     // A browser with a headset makes the context compatible (or already has); this one, with no XR device, would refuse.
     WebGL2RenderingContext.prototype.makeXRCompatible = async function () {};
     const listeners = [];
+    // A right controller held a little right, below and ahead of the head; its trigger held from frame 10 to frame 19.
+    const pose = (x, y, z) => ({ transform: { position: { x, y, z }, orientation: { x: 0, y: 0, z: 0, w: 1 } } });
+    const button = () => ({ value: 0, pressed: false, touched: false });
+    const rightPad = { buttons: [button(), button(), button(), button(), button(), button()], axes: [0, 0, 0, 0] };
+    const grip = { space: 'grip' }, aim = { space: 'aim' };
+    const right = { handedness: 'right', gripSpace: grip, targetRaySpace: aim, gamepad: rightPad, profiles: ['generic-trigger-squeeze-thumbstick'] };
     const session = {
+        inputSources: [right],
         requestAnimationFrame(cb) {
             return pageRaf((t) => {
                 if (state.ended) return;
                 state.frames++;
+                const held = state.frames >= 10 && state.frames < 20;
+                rightPad.buttons[0] = { value: held ? 1 : 0, pressed: held, touched: held };
                 const view = (eye, x) => ({ eye, projectionMatrix: projection(state.depthNear, state.depthFar),
                     transform: { position: { x, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 } } });
-                cb(t, { getViewerPose: () => ({ transform: { position: { x: 0, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 } },
+                cb(t, { getPose: (space) => (space === grip || space === aim ? pose(0.15, -0.15, -0.4) : null), getViewerPose: () => ({ transform: { position: { x: 0, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 } },
                     views: [view('left', -0.032), view('right', 0.032)] }) });
             });
         },
@@ -195,6 +221,14 @@ try {
         `left eye x ${read.left.brightX?.toFixed(3)}, right eye x ${read.right.brightX?.toFixed(3)}`);
     check(read.depthNear === 1 && read.depthFar === 10000, 'the session builds its projections for the camera\'s clip planes',
         `near ${read.depthNear}, far ${read.depthFar}`);
+    const probe = await page.evaluate(() => globalThis.__xrProbe);
+    const hand = probe?.hand;
+    check(!!hand && Math.abs(hand.x - 15) < 0.5 && Math.abs(hand.y - 135) < 0.5 && Math.abs(hand.z - 460) < 0.5,
+        "the right hand entity sits at the controller's grip, through the rig",
+        hand ? `at (${hand.x.toFixed(2)}, ${hand.y.toFixed(2)}, ${hand.z.toFixed(2)}), want (15, 135, 460)` : 'never placed');
+    check(probe?.pressed === 1 && probe?.released === 1 && probe?.down === 10,
+        'the trigger held ten frames reaches a game system as one press, ten frames down, one release',
+        JSON.stringify({ pressed: probe?.pressed, down: probe?.down, released: probe?.released }));
     check(read.pageFramesDuring === 0, 'the page\'s own frames stopped while the headset presented', `${read.pageFramesDuring} page frame(s)`);
 
     await page.getByRole('button', { name: 'Exit VR' }).click();

@@ -32,6 +32,29 @@ export interface XREyeView {
     viewport: { x: number; y: number; w: number; h: number };
 }
 
+/** A pose the session reports, relative to its origin: metres, and a rotation. */
+export interface XRPoseLike {
+    position: Vec3Like;
+    orientation: QuatLike;
+}
+
+/** Which hand a controller is in. */
+export type XRHand = 'left' | 'right' | 'none';
+
+/** One controller (or tracked hand) this frame, as the session reports it. */
+export interface XRControllerState {
+    hand: XRHand;
+    /** Where the hand holds it (to draw a controller or a hand at), and where it points (to aim a ray from); null while not tracked. */
+    grip: XRPoseLike | null;
+    aim: XRPoseLike | null;
+    /** The `xr-standard` gamepad: button values 0..1 (trigger, squeeze, touchpad, thumbstick, A/X, B/Y) and axes -1..1. */
+    buttons: number[];
+    touched: boolean[];
+    axes: number[];
+    /** What the browser says it is, most specific first (`oculus-touch-v3`, `generic-trigger-squeeze-thumbstick`). */
+    profiles: readonly string[];
+}
+
 /** An immersive session's state, while one is presenting. */
 export interface XRPresentationState {
     /** The eyes of the frame being drawn; empty when the headset reported no pose (tracking lost). */
@@ -46,6 +69,10 @@ export interface XRPresentationState {
     depthFar: number;
     wantNear: number;
     wantFar: number;
+    /** The controllers the session tracks this frame. */
+    controllers: XRControllerState[];
+    /** The camera entity the eyes were last drawn from (the rig), 0 before the first frame. */
+    rigEntity: number;
     /** True from the session's frame callback until the task after it: a frame drawn outside that window is not shown. */
     frameActive: boolean;
     /** Frames drawn to the headset, and frames drawn after their window closed (a system that awaited past it). */
@@ -99,20 +126,23 @@ export interface PlacedEye {
     renderViewProjection: Float32Array;
 }
 
+/** Puts a pose the session reports (metres, relative to its origin) in the world at `rig`. */
+export function placePose(rig: XRRig, pose: XRPoseLike, unitsPerMeter: number): { position: Vec3Like; orientation: QuatLike } {
+    const s = Math.sin(rig.heading / 2), c = Math.cos(rig.heading / 2);
+    const turn: QuatLike = { x: 0, y: s, z: 0, w: c };
+    // The offset turned by the heading (a rotation about Y): x and z swing, y stays.
+    const cos = Math.cos(rig.heading), sin = Math.sin(rig.heading);
+    const ex = pose.position.x * unitsPerMeter, ey = pose.position.y * unitsPerMeter, ez = pose.position.z * unitsPerMeter;
+    return {
+        position: { x: rig.position.x + cos * ex + sin * ez, y: rig.position.y + ey, z: rig.position.z - sin * ex + cos * ez },
+        orientation: multiplyQuat(turn, pose.orientation),
+    };
+}
+
 /** Puts `eye` in the world at `rig`, scaling its metres by `unitsPerMeter`. */
 export function placeEye(rig: XRRig, eye: Pick<XREyeView, 'position' | 'orientation' | 'projection'>, unitsPerMeter: number,
     origin: Vec3Like = { x: 0, y: 0, z: 0 }): PlacedEye {
-    const s = Math.sin(rig.heading / 2), c = Math.cos(rig.heading / 2);
-    const turn: QuatLike = { x: 0, y: s, z: 0, w: c };
-    // The eye's offset turned by the heading (a rotation about Y): x and z swing, y stays.
-    const cos = Math.cos(rig.heading), sin = Math.sin(rig.heading);
-    const ex = eye.position.x * unitsPerMeter, ey = eye.position.y * unitsPerMeter, ez = eye.position.z * unitsPerMeter;
-    const position = {
-        x: rig.position.x + cos * ex + sin * ez,
-        y: rig.position.y + ey,
-        z: rig.position.z - sin * ex + cos * ez,
-    };
-    const orientation = multiplyQuat(turn, eye.orientation);
+    const { position, orientation } = placePose(rig, eye, unitsPerMeter);
     const o = orientation;
     // Copied at once: `multiply` and `invertViewQuat` answer in buffers they reuse.
     const viewProjection = Float32Array.from(multiply(eye.projection, invertViewQuat(position.x, position.y, position.z, o.x, o.y, o.z, o.w)));

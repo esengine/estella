@@ -14,7 +14,7 @@
 import { Schedule, defineSystem, addSystemToSchedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { SystemLabel } from '../ecs/systemLabels';
-import { Input, InputState, GamepadAxis, GamepadButton } from './input';
+import { Input, InputState, GamepadAxis, GamepadButton, XRAxis, XRButton, type XRHandedness } from './input';
 import { Storage } from '../util/storage';
 import type { Vec2 } from '../types';
 import { actionEdges, type ActionEdge } from './actionEdges';
@@ -38,6 +38,10 @@ export type Binding =
     | { kind: 'keys1d'; neg: string; pos: string }
     | { kind: 'keys2d'; up: string; down: string; left: string; right: string }
     | { kind: 'stick'; stick: 'left' | 'right'; pad?: number }
+    /** A VR controller's button, in the hand named (`xr-standard` layout, see {@link XRButton}). */
+    | { kind: 'xrButton'; button: number; hand: XRHandedness }
+    /** A VR controller's thumbstick, in the hand named: pushed away from the player is +y, as {@link Keys2D}'s up. */
+    | { kind: 'xrStick'; hand: XRHandedness }
     | { kind: 'virtual'; id: string };
 
 /**
@@ -106,6 +110,12 @@ export const Keys2D = (up: string, down: string, left: string, right: string): B
 /** A gamepad stick → a 2D axis (up = +y; the raw Y axis is inverted to match Keys2D).
  *  @public */
 export const Stick = (stick: 'left' | 'right', pad?: number): Binding => ({ kind: 'stick', stick, pad });
+
+/** A VR controller's button in `hand`: `XrButton(XRButton.Trigger, 'right')`. @experimental */
+export const XrButton = (button: XRButton, hand: XRHandedness): Binding => ({ kind: 'xrButton', button, hand });
+
+/** A VR controller's thumbstick in `hand`, as an axis2d source. @experimental */
+export const XrStick = (hand: XRHandedness): Binding => ({ kind: 'xrStick', hand });
 /**
  * A named value the game writes itself (`Input.setVirtual`) — an on-screen
  * stick or button, which is the only input a touch device has. Works as a
@@ -201,6 +211,7 @@ function evalScalar(b: Binding, input: InputState): number {
         case 'gpButton': return input.getGamepadButtonValue(b.button, b.pad ?? 0);
         case 'keys1d': return (input.isKeyDown(b.pos) ? 1 : 0) - (input.isKeyDown(b.neg) ? 1 : 0);
         case 'gpAxis': return input.getGamepadAxis(b.axis, b.pad ?? 0) * (b.scale ?? 1);
+        case 'xrButton': return input.getXRButtonValue(b.button, b.hand);
         case 'virtual': return input.getVirtual(b.id).x;
         default: return 0; // keys2d / stick are 2D sources — no scalar contribution
     }
@@ -219,6 +230,9 @@ function evalVec(b: Binding, input: InputState): Vec2 {
             // Gamepad Y is +down; invert so up = +y (matches Keys2D).
             return { x: input.getGamepadAxis(xAxis, pad), y: -input.getGamepadAxis(yAxis, pad) };
         }
+        case 'xrStick':
+            // Its Y is +toward the player, a gamepad's; inverted so pushed away is +y.
+            return { x: input.getXRAxis(XRAxis.ThumbstickX, b.hand), y: -input.getXRAxis(XRAxis.ThumbstickY, b.hand) };
         case 'virtual': {
             const v = input.getVirtual(b.id);
             return { x: v.x, y: v.y };
@@ -243,6 +257,8 @@ export interface ListenOptions {
     keyboard?: boolean;
     mouse?: boolean;
     gamepad?: boolean;
+    /** VR controller buttons (default on): what a player presses in a headset is what they bind. */
+    xr?: boolean;
 }
 
 interface PendingListen {
@@ -458,6 +474,13 @@ export class InputMap {
             for (const pad of input.getGamepads()) {
                 for (let b = 0; b <= GamepadButton.Guide; b++) {
                     if (input.isGamepadButtonPressed(b, pad)) return GpButton(b, pad);
+                }
+            }
+        }
+        if (opts.xr !== false) {
+            for (const hand of ['left', 'right'] as const) {
+                for (let b = XRButton.Trigger; b <= XRButton.Secondary; b++) {
+                    if (input.isXRButtonPressed(b, hand)) return XrButton(b, hand);
                 }
             }
         }

@@ -62,6 +62,34 @@ export enum GamepadAxis {
     RightY = 3,
 }
 
+/**
+ * The buttons of a VR controller, in the WebXR `xr-standard` layout every headset browser reports: index finger, middle
+ * finger, a touchpad (older controllers), the thumbstick's click, and the two face buttons (A and B on the right hand, X and
+ * Y on the left). A controller without one reads it as never pressed.
+ * @experimental
+ */
+export enum XRButton {
+    Trigger = 0,
+    Squeeze = 1,
+    Touchpad = 2,
+    Thumbstick = 3,
+    /** A on the right hand, X on the left. */
+    Primary = 4,
+    /** B on the right hand, Y on the left. */
+    Secondary = 5,
+}
+
+/** The axes of a VR controller (`xr-standard`), signed [-1, 1]; +Y is toward the player, as a gamepad's is. @experimental */
+export enum XRAxis {
+    TouchpadX = 0,
+    TouchpadY = 1,
+    ThumbstickX = 2,
+    ThumbstickY = 3,
+}
+
+/** Which hand holds a VR controller. @experimental */
+export type XRHandedness = 'left' | 'right';
+
 /** @internal Per-gamepad runtime state — current + previous frame, for edges. */
 interface PadState {
     connected: boolean;
@@ -351,6 +379,76 @@ export class InputState {
     gamepadButtonThreshold = 0.5;
     /** Axis magnitudes below this read as 0 (rest-position stick jitter). */
     gamepadDeadzone = 0.15;
+
+    // — VR controllers (set each headset frame by the session; edges as a gamepad's) —
+    /** Each hand's controller, while a headset presents. Not in {@link gamepads}: their layout is not the standard one. */
+    xrControllers = new Map<XRHandedness, PadState>();
+
+    /** Whether the controller in `hand` is tracked now. @experimental */
+    isXRControllerConnected(hand: XRHandedness): boolean {
+        return this.xrControllers.get(hand)?.connected ?? false;
+    }
+
+    /** Whether `button` on the controller in `hand` is held down (an analog one at or past {@link gamepadButtonThreshold}). @experimental */
+    isXRButtonDown(button: XRButton, hand: XRHandedness): boolean {
+        const p = this.connectedXR_(hand);
+        return !!p && (p.buttons[button] ?? 0) >= this.gamepadButtonThreshold;
+    }
+
+    /** Whether `button` went down this frame. @experimental */
+    isXRButtonPressed(button: XRButton, hand: XRHandedness): boolean {
+        const p = this.connectedXR_(hand);
+        if (!p) return false;
+        const t = this.gamepadButtonThreshold;
+        return (p.buttons[button] ?? 0) >= t && (p.prevButtons[button] ?? 0) < t;
+    }
+
+    /** Whether `button` came up this frame. @experimental */
+    isXRButtonReleased(button: XRButton, hand: XRHandedness): boolean {
+        const p = this.connectedXR_(hand);
+        if (!p) return false;
+        const t = this.gamepadButtonThreshold;
+        return (p.buttons[button] ?? 0) < t && (p.prevButtons[button] ?? 0) >= t;
+    }
+
+    /** How far `button` is pressed, 0..1 (a trigger is analog; a face button is 0 or 1). @experimental */
+    getXRButtonValue(button: XRButton, hand: XRHandedness): number {
+        return this.connectedXR_(hand)?.buttons[button] ?? 0;
+    }
+
+    /** An axis of the controller in `hand`, with the gamepad dead zone applied. @experimental */
+    getXRAxis(axis: XRAxis, hand: XRHandedness): number {
+        const v = this.connectedXR_(hand)?.axes[axis] ?? 0;
+        return Math.abs(v) < this.gamepadDeadzone ? 0 : v;
+    }
+
+    /**
+     * This headset frame's controllers: the previous values become the ones edges are measured from, and a hand not in
+     * `controllers` reads as disconnected. The XR session calls it once a frame; an empty list when it ends. @experimental
+     */
+    updateXRControllers(controllers: ReadonlyArray<{ hand: string; buttons: number[]; axes: number[] }>): void {
+        const seen = new Set<XRHandedness>();
+        for (const c of controllers) {
+            if (c.hand !== 'left' && c.hand !== 'right') continue;
+            let p = this.xrControllers.get(c.hand);
+            if (!p) {
+                p = { connected: false, buttons: [], prevButtons: [], axes: [] };
+                this.xrControllers.set(c.hand, p);
+            }
+            // A controller found again starts from nothing pressed, so a button held through the gap is a press.
+            p.prevButtons = p.connected ? p.buttons : [];
+            p.buttons = c.buttons;
+            p.axes = c.axes;
+            p.connected = true;
+            seen.add(c.hand);
+        }
+        for (const [hand, p] of this.xrControllers) if (!seen.has(hand)) p.connected = false;
+    }
+
+    private connectedXR_(hand: XRHandedness): PadState | undefined {
+        const p = this.xrControllers.get(hand);
+        return p?.connected ? p : undefined;
+    }
 
     /** Indices of currently-connected gamepads. */
     getGamepads(): number[] {

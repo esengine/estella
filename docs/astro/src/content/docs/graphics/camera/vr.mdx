@@ -1,0 +1,74 @@
+---
+title: VR headsets
+description: Playing a web build in a VR headset through WebXR — turning it on, where the player stands, the controllers and the head as entities and as input, and what a headset does not show.
+---
+
+A web build can be played in a VR headset: in the headset's own browser, or in a desktop browser with a headset
+connected. Both eyes are drawn with the headset's own lenses and head tracking, at the headset's frame rate.
+
+## Turning it on
+
+Set `features.rendering.vr` to `true` in `project.esproject` and export for the web. The page shows an **Enter VR**
+button wherever the browser can present; the player clicks it to put the game in the headset, and **Exit VR** to take
+it out.
+
+```json
+{ "features": { "rendering": { "vr": true } } }
+```
+
+A game can do the same from its own UI. `enterVR` must be called from a click or a key press, as the browser asks.
+
+```typescript
+import { enterVR, exitVR, inVR, vrSupported } from 'esengine';
+
+if (await vrSupported()) showButton(() => (inVR(app) ? exitVR(app) : enterVR(app)));
+```
+
+VR draws with WebGL2 on the page's own thread, because a headset takes its picture from that context. A project set
+to WebGPU or to threaded rendering is drawn without either while VR is on.
+
+## Where the player stands
+
+The first camera that draws to the screen is where the player stands. When the game enters VR, the player's eyes are
+where that camera is, facing where it faces. Turning the head turns the view; moving the camera (walking, a vehicle,
+a teleport) moves the player. Only the camera's heading counts: a third-person camera pitched down at its target does
+not tilt the player's horizon.
+
+The headset measures in metres. They are converted with the project's world units per metre, so a game built at 100
+units a metre puts the eyes 6.4 units apart.
+
+## Controllers and the head
+
+An entity with `XRController` is placed where a controller is, every frame. Give it a mesh to draw a hand or a
+controller, or make it the parent of whatever the player holds. `pose` chooses which of the controller's two poses it
+follows: **Grip**, where the hand holds it, or **Aim**, where it points (forward is -Z), for a pointing ray. An entity
+with `XRHead` follows the player's head.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `hand` | Left / Right | Right | The hand whose controller the entity follows. |
+| `pose` | Grip / Aim | Grip | Where the hand holds the controller, or where it points. |
+
+Outside a headset, and while a controller is not tracked, the entity stays where it was left, so a scene authored with
+a hand beside the camera looks right in the editor and on a flat screen.
+
+The buttons and sticks are input like a gamepad's, per hand, in the layout every headset browser reports:
+
+```typescript
+import { Input, XRButton, XRAxis } from 'esengine';
+
+if (input.isXRButtonPressed(XRButton.Trigger, 'right')) fire();
+const forward = -input.getXRAxis(XRAxis.ThumbstickY, 'left');
+```
+
+`XRButton` names `Trigger`, `Squeeze`, `Touchpad`, `Thumbstick` (its click), `Primary` (A or X) and `Secondary` (B or
+Y). Actions can be bound to them with `XrButton(button, hand)` and `XrStick(hand)`, and a rebind listens to them too.
+`xrPresentation(app)` reports each controller's poses and what the browser says it is, and the head's pose.
+
+## What a headset does not show
+
+A headset has no screen of its own, so these are not drawn in it: other cameras that draw to the screen, the
+screen-space HUD (a world-space UI is), and the editor's overlays. Cameras that draw into textures still do.
+
+A frame is shown only if it is drawn while the headset waits for it. A system that waits on something slow (a network
+request) makes its frame late, and the headset keeps the last one; leaving VR logs how many were.

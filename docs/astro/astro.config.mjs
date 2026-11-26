@@ -309,6 +309,7 @@ export default defineConfig({
                 { label: 'Noise, Shake & Impulses', translations: { 'zh-CN': '噪声、震屏与冲击' }, slug: 'graphics/camera/shake' },
                 { label: 'Blending & Switching', translations: { 'zh-CN': '混合与切换' }, slug: 'graphics/camera/blending' },
                 { label: 'Multiple Cameras & Large Worlds', translations: { 'zh-CN': '多相机与大世界' }, slug: 'graphics/camera/multiple-cameras' },
+                { label: 'VR Headsets', translations: { 'zh-CN': 'VR 头显' }, slug: 'graphics/camera/vr' },
               ],
             },
             {

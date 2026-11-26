@@ -21,7 +21,8 @@
 import type { App } from '../app/app';
 import { Renderer } from '../render/renderer';
 import { log } from '../util/logger';
-import { setXRPresentation, xrPresentation, type XREyeView, type XRPresentationState } from './xrPresentation';
+import { Input } from '../input/input';
+import { setXRPresentation, xrPresentation, type XRControllerState, type XREyeView, type XRPoseLike, type XRPresentationState } from './xrPresentation';
 
 // The slice of WebXR used here: the DOM library TypeScript ships does not declare it.
 interface XRRigidTransformLike {
@@ -30,7 +31,17 @@ interface XRRigidTransformLike {
 }
 interface XRViewLike { eye: 'left' | 'right' | 'none'; projectionMatrix: Float32Array; transform: XRRigidTransformLike }
 interface XRViewerPoseLike { transform: XRRigidTransformLike; views: readonly XRViewLike[] }
-interface XRFrameLike { getViewerPose(space: unknown): XRViewerPoseLike | null }
+interface XRFrameLike {
+    getViewerPose(space: unknown): XRViewerPoseLike | null;
+    getPose?(space: unknown, base: unknown): { transform: XRRigidTransformLike } | null;
+}
+interface XRInputSourceLike {
+    handedness: 'left' | 'right' | 'none';
+    targetRaySpace: unknown;
+    gripSpace?: unknown;
+    gamepad?: { buttons: ReadonlyArray<{ value: number; pressed: boolean; touched: boolean }>; axes: ReadonlyArray<number> } | null;
+    profiles?: readonly string[];
+}
 interface XRWebGLLayerLike {
     framebuffer: WebGLFramebuffer | null;
     framebufferWidth: number;
@@ -44,6 +55,8 @@ interface XRSessionLike {
     requestReferenceSpace(type: string): Promise<unknown>;
     end(): Promise<void>;
     addEventListener(type: 'end', cb: () => void): void;
+    /** The controllers and tracked hands; absent on a browser that tracks none. */
+    inputSources?: Iterable<XRInputSourceLike>;
 }
 interface XRSystemLike {
     isSessionSupported(mode: string): Promise<boolean>;
@@ -116,7 +129,7 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
         if (!Layer) throw new Error('This browser has WebXR but no XRWebGLLayer.');
         const layer = new Layer(session, gl, { antialias: true, depth: true, stencil: true, alpha: false });
         session.updateRenderState({ baseLayer: layer });
-        const space = await session.requestReferenceSpace(options.referenceSpace ?? 'local');
+        const refSpace = await session.requestReferenceSpace(options.referenceSpace ?? 'local');
         if (!layer.framebuffer) throw new Error('The headset\'s layer has no framebuffer to draw into.');
         fbId = glTable.getNewId(glTable.framebuffers);
         glTable.framebuffers[fbId] = layer.framebuffer;
@@ -126,7 +139,14 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
             views: [], framebufferWidth: layer.framebufferWidth, framebufferHeight: layer.framebufferHeight,
             headPosition: { x: 0, y: 0, z: 0 }, headOrientation: { x: 0, y: 0, z: 0, w: 1 },
             depthNear: 0.1, depthFar: 1000, wantNear: 0.1, wantFar: 1000,
+            controllers: [], rigEntity: 0,
             frameActive: false, drawnFrames: 0, missedFrames: 0,
+        };
+        const input = app.hasResource(Input) ? app.getResource(Input) : null;
+        const poseOf = (frame: XRFrameLike, space: unknown): XRPoseLike | null => {
+            if (!space || !frame.getPose) return null;
+            const p = frame.getPose(space, refSpace);
+            return p ? { position: { ...p.transform.position }, orientation: { ...p.transform.orientation } } : null;
         };
         const onFrame = (frame: XRFrameLike): void => {
             state.frameActive = true;
@@ -140,7 +160,7 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
             }
             state.framebufferWidth = layer.framebufferWidth;
             state.framebufferHeight = layer.framebufferHeight;
-            const pose = frame.getViewerPose(space);
+            const pose = frame.getViewerPose(refSpace);
             if (!pose) { state.views = []; return; }
             state.headPosition = { ...pose.transform.position };
             state.headOrientation = { ...pose.transform.orientation };
@@ -157,6 +177,22 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
                 });
             }
             state.views = views;
+            // The controllers, with the frame's poses: read now, while the frame is the one they are of.
+            const controllers: XRControllerState[] = [];
+            for (const source of session.inputSources ?? []) {
+                const pad = source.gamepad;
+                controllers.push({
+                    hand: source.handedness,
+                    grip: poseOf(frame, source.gripSpace),
+                    aim: poseOf(frame, source.targetRaySpace),
+                    buttons: pad ? pad.buttons.map((b) => b.value) : [],
+                    touched: pad ? pad.buttons.map((b) => b.touched) : [],
+                    axes: pad ? [...pad.axes] : [],
+                    profiles: source.profiles ? [...source.profiles] : [],
+                });
+            }
+            state.controllers = controllers;
+            input?.updateXRControllers(controllers);
         };
 
         let ended = false;
@@ -165,6 +201,7 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
             ended = true;
             running.delete(app);
             setXRPresentation(app, null);
+            input?.updateXRControllers([]);
             app.setFrameSource(null);
             Renderer.setScreenTarget(0);
             delete glTable.framebuffers![fbId];
