@@ -421,6 +421,22 @@ target_include_directories(test_particle_speed_limit PRIVATE
 )
 add_test(NAME test_particle_speed_limit COMMAND test_particle_speed_limit)
 
+# Orbital and radial velocity, and which way a quad is oriented. Header-only.
+add_executable(test_particle_orbit particle/test_particle_orbit.cpp)
+target_include_directories(test_particle_orbit PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_particle_orbit COMMAND test_particle_orbit)
+
+# A light's pulse: the range it moves in, its period, that a flicker has no jumps. Header-only.
+add_executable(test_light_pulse renderer/test_light_pulse.cpp)
+target_include_directories(test_light_pulse PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_light_pulse COMMAND test_light_pulse)
+
 # Particle burst schedule: each burst fires once per pass of the clock, and a looping emitter passes every duration. Header-only.
 add_executable(test_particle_bursts particle/test_particle_bursts.cpp)
 target_include_directories(test_particle_bursts PRIVATE

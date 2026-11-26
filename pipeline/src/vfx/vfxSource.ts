@@ -46,6 +46,15 @@ export interface VfxLayer {
   box?: [number, number, number];
   /** Cone: half-angle, degrees, from its axis to its side (the engine's shapeAngle is twice this). */
   angle?: number;
+  /** Circle, cone, sphere, hemisphere: degrees of the way round its axis it is born over, from its +x; 360 by default. */
+  arc?: number;
+  /** Circle, cone, sphere, hemisphere: how deep in from the rim it is born, 0 to 1: 1 fills it, 0 is the rim alone (a ring, a shell). */
+  thickness?: number;
+  /** Degrees a second it swirls round the layer's centre: a number is about the shape's own axis (a circle's normal, a cone's or
+   *  sphere's +y); [x, y, z] about each of the layer's axes. Moves the particles, not their velocity, so the orbit stays round. */
+  orbit?: number | [number, number, number];
+  /** Metres a second straight away from the layer's centre, or toward it when negative: a ring that keeps widening, a vortex drawing in. */
+  radial?: number;
   /** Particles a second while it emits. */
   rate?: number;
   /** [[seconds, count], ...] from when it starts: a burst is how a one-shot emits. */
@@ -79,8 +88,9 @@ export interface VfxLayer {
   /** A sheet of frames on the texture, played over each particle. */
   flipbook?: { columns: number; rows: number; fps?: number; loop?: boolean };
   blend?: keyof typeof BLENDS;
-  /** Billboard faces the camera; stretched lays it along its motion (sparks, rain). */
-  render?: 'billboard' | 'stretched';
+  /** Billboard faces the camera; stretched lays it along its motion (sparks, rain); horizontal lies flat on the ground facing up
+   *  (shockwave rings, scorch, a glow on the floor); vertical stands upright and only turns about the up axis (flames, pillars). */
+  render?: 'billboard' | 'stretched' | 'horizontal' | 'vertical';
   /** Stretched: metres of length per metre a second of speed, and the quad's own length as a multiple of its size. */
   stretch?: { speed?: number; length?: number };
   /** Multiplies its colour, past 1 to bloom. */
@@ -99,8 +109,10 @@ export interface VfxLight {
   intensity: number;
   /** Metres it reaches. */
   radius: number;
-  /** Flickers round its intensity: `amount` 0..1 of it, `speed` changes a second. */
+  /** Flickers like a flame below its intensity: `amount` 0..1 of it, `speed` changes a second. The engine runs it, in the editor too. */
   flicker?: { amount: number; speed?: number; seed?: number };
+  /** Swells and dims smoothly below its intensity: `depth` 0..1 of it, `rate` swells a second. The engine runs it, in the editor too. */
+  pulse?: { depth: number; rate?: number };
   /** One-shot: falls from its intensity to 0 over this many seconds after `delay`. */
   fade?: number;
   delay?: number;
@@ -133,6 +145,27 @@ export interface VfxBuild {
   /** How far from the effect's origin anything reaches, metres. */
   reach: number;
   notes: string[];
+}
+
+/** How a layer's quads are oriented: the engine's ParticleRenderMode. */
+export const RENDERS = { billboard: 0, stretched: 1, horizontal: 2, vertical: 3 } as const;
+
+/** Orbital velocity as the engine takes it, degrees a second about the layer's own x, y and z. A bare number is about the shape's
+ *  own axis: a circle lies in its x-y plane, so its axis is z; a cone, sphere or hemisphere opens along y. */
+function orbitOf(l: VfxLayer): { x: number; y: number; z: number } {
+  if (l.orbit === undefined) return { x: 0, y: 0, z: 0 };
+  if (Array.isArray(l.orbit)) return { x: l.orbit[0], y: l.orbit[1], z: l.orbit[2] };
+  return l.shape === 'circle' ? { x: 0, y: 0, z: l.orbit } : { x: 0, y: l.orbit, z: 0 };
+}
+
+/** The other way: a number when it turns about the shape's own axis alone. */
+function orbitRead(d: Record<string, any>): VfxLayer['orbit'] {
+  const o = d.orbitalVelocity as { x?: number; y?: number; z?: number } | undefined;
+  const x = o?.x ?? 0, y = o?.y ?? 0, z = o?.z ?? 0;
+  if (!x && !y && !z) return undefined;
+  const circle = d.shape === 1;
+  if (!x && (circle ? !y : !z)) return r2(circle ? z : y);
+  return [r2(x), r2(y), r2(z)];
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -168,6 +201,11 @@ export function checkVfx(spec: VfxSpec): string[] {
     if (l.radius !== undefined && !(isNum(l.radius) && l.radius >= 0)) out.push(`${at}: \`radius\` is metres, 0 or more`);
     if (l.box !== undefined && !isVec(l.box)) out.push(`${at}: \`box\` is [x, y, z] metres`);
     if (l.angle !== undefined && !(isNum(l.angle) && l.angle >= 0 && l.angle <= 90)) out.push(`${at}: \`angle\` is the cone's half-angle, 0 to 90 degrees`);
+    if (l.arc !== undefined && !(isNum(l.arc) && l.arc > 0 && l.arc <= 360)) out.push(`${at}: \`arc\` is degrees round the shape's axis, above 0 and up to 360`);
+    if (l.thickness !== undefined && !(isNum(l.thickness) && l.thickness >= 0 && l.thickness <= 1)) out.push(`${at}: \`thickness\` is 0 (the rim alone) to 1 (filled)`);
+    if ((l.arc !== undefined || l.thickness !== undefined) && (l.shape === 'box' || l.shape === 'point')) out.push(`${at}: \`arc\` and \`thickness\` shape a circle, cone, sphere or hemisphere, not a ${l.shape}`);
+    if (l.orbit !== undefined && !isNum(l.orbit) && !isVec(l.orbit)) out.push(`${at}: \`orbit\` is degrees a second, a number (about the shape's axis) or [x, y, z]`);
+    if (l.radial !== undefined && !isNum(l.radial)) out.push(`${at}: \`radial\` is metres a second away from the centre (negative draws in)`);
     if (l.rate !== undefined && !(isNum(l.rate) && l.rate >= 0)) out.push(`${at}: \`rate\` is particles a second, 0 or more`);
     if (l.bursts !== undefined && !(Array.isArray(l.bursts) && l.bursts.every((b) => Array.isArray(b) && b.length === 2 && b.every(isNum) && b[0] >= 0 && b[1] >= 1))) {
       out.push(`${at}: \`bursts\` is [[seconds, count], ...], a count of 1 or more`);
@@ -191,7 +229,7 @@ export function checkVfx(spec: VfxSpec): string[] {
     if (l.texture !== undefined && (typeof l.texture !== 'string' || !l.texture)) out.push(`${at}: \`texture\` is ${VFX_TEXTURES.join(', ')} or a picture's project path`);
     if (l.flipbook !== undefined && !(l.flipbook && Number.isInteger(l.flipbook.columns) && Number.isInteger(l.flipbook.rows) && l.flipbook.columns >= 1 && l.flipbook.rows >= 1)) out.push(`${at}: \`flipbook\` is { columns, rows, fps?, loop? }`);
     if (l.blend !== undefined && !(l.blend in BLENDS)) out.push(`${at}: \`blend\` is add (fire, sparks, glows), alpha (smoke, dust) or multiply`);
-    if (l.render !== undefined && l.render !== 'billboard' && l.render !== 'stretched') out.push(`${at}: \`render\` is billboard or stretched`);
+    if (l.render !== undefined && !(l.render in RENDERS)) out.push(`${at}: \`render\` is ${Object.keys(RENDERS).join(', ')}`);
     if (l.space !== undefined && l.space !== 'world' && l.space !== 'local') out.push(`${at}: \`space\` is world or local`);
   });
   const L = spec.light;
@@ -202,7 +240,8 @@ export function checkVfx(spec: VfxSpec): string[] {
     if (L?.at !== undefined && !isVec(L.at)) out.push('`light.at` is [x, y, z] metres');
     if (L?.flicker !== undefined && !(isNum(L.flicker?.amount) && L.flicker.amount >= 0 && L.flicker.amount <= 1)) out.push('`light.flicker` is { amount 0..1, speed?, seed? }');
     if (L?.fade !== undefined && !(isNum(L.fade) && L.fade > 0)) out.push('`light.fade` is seconds, above 0');
-    if (L?.flicker && L?.fade) out.push('a light either flickers (a loop) or fades (a one-shot), not both');
+    if (L?.pulse !== undefined && !(isNum(L.pulse?.depth) && L.pulse.depth >= 0 && L.pulse.depth <= 1 && (L.pulse.rate === undefined || (isNum(L.pulse.rate) && L.pulse.rate > 0)))) out.push('`light.pulse` is { depth 0..1, rate? swells a second }');
+    if ([L?.flicker, L?.pulse, L?.fade].filter((x) => x !== undefined).length > 1) out.push('a light flickers, pulses (both loops) or fades (a one-shot): only one of them');
   }
   return out;
 }
@@ -246,7 +285,7 @@ function layerReach(l: VfxLayer): number {
   const size = Math.max(hi(sizes(l)[0]), hi(sizes(l)[1])) / 2;
   const from = l.shape === 'box' && l.box ? Math.hypot(...l.box) / 2 : l.radius ?? 0;
   const at = l.at ? Math.hypot(...l.at) : 0;
-  return at + from + travel + Math.min(fall, travel + fall) + size + (l.noise?.strength ?? 0) * 0.01;
+  return at + from + Math.max(0, l.radial ?? 0) * life + travel + Math.min(fall, travel + fall) + size + (l.noise?.strength ?? 0) * 0.01;
 }
 
 /**
@@ -261,7 +300,8 @@ function layerBody(l: VfxLayer): { up: number; out: number } {
   const size = Math.max(hi(sizes(l)[0]), hi(sizes(l)[1])) / 2, from = l.shape === 'box' && l.box ? Math.hypot(...l.box) / 2 : l.radius ?? 0;
   const at = l.at ?? [0, 0, 0];
   const opens = l.shape === undefined || l.shape === 'cone' || l.shape === 'hemisphere';
-  return { up: Math.max(0, at[1] + (opens ? travel : 0) + rise + size), out: Math.hypot(at[0], at[2]) + from + (opens ? travel * 0.4 : travel) + size };
+  const widens = Math.max(0, l.radial ?? 0) * life;
+  return { up: Math.max(0, at[1] + (opens ? travel : 0) + rise + size), out: Math.hypot(at[0], at[2]) + from + widens + (opens ? travel * 0.4 : travel) + size };
 }
 
 /** The box a view should hold: how high and how wide most of the effect is, metres. */
@@ -270,21 +310,10 @@ export function vfxFrame(spec: VfxSpec): { height: number; width: number } {
   return { height: Math.max(0.3, ...bodies.map((b) => b.up)), width: Math.max(0.3, ...bodies.map((b) => b.out * 2)) };
 }
 
-/** A looping light clip of `amount` flicker round 1, closing on itself; or a fall from 1 to 0. Multiplied by the light's intensity. */
-function lightKeys(L: VfxLight): { keys: [number, number][]; duration: number; loop: boolean } {
-  if (L.fade) {
-    const d = L.delay ?? 0;
-    return { keys: [[0, d > 0 ? 0 : 1], ...(d > 0 ? [[d, 1] as [number, number]] : []), [d + L.fade * 0.15, 0.55], [d + L.fade, 0]], duration: d + L.fade, loop: false };
-  }
-  const f = L.flicker!, speed = Math.max(1, Math.min(30, f.speed ?? 8)), duration = 2;
-  const n = Math.max(4, Math.round(speed * duration));
-  // A seeded hash, so the same light flickers the same way every time it is written.
-  let s = (f.seed ?? 7) * 9301 + 49297;
-  const rand = (): number => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-  const keys: [number, number][] = [];
-  for (let i = 0; i < n; i++) keys.push([Math.round((i / n) * duration * 1000) / 1000, Math.round((1 - f.amount + rand() * f.amount * 2) * 1000) / 1000]);
-  keys.push([duration, keys[0]![1]]);
-  return { keys, duration, loop: true };
+/** A one-shot light's fall from 1 to 0, multiplied by its intensity. A flicker or a pulse is the Light's own, run by the engine. */
+function fadeKeys(L: VfxLight & { fade: number }): { keys: [number, number][]; duration: number } {
+  const d = L.delay ?? 0;
+  return { keys: [[0, d > 0 ? 0 : 1], ...(d > 0 ? [[d, 1] as [number, number]] : []), [d + L.fade * 0.15, 0.55], [d + L.fade, 0]], duration: d + L.fade };
 }
 
 /** The prefab a description makes, in world units, with what else has to be written beside it. Throws on one {@link checkVfx} refuses. */
@@ -323,7 +352,9 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
       noiseStrength: (l.noise?.strength ?? 0) * k, noiseFrequency: (l.noise?.frequency ?? 1) / k, noiseScrollSpeed: l.noise?.scroll ?? 0, noiseOctaves: l.noise?.octaves ?? 1,
       spriteColumns: book?.columns ?? 1, spriteRows: book?.rows ?? 1, spriteFPS: book?.fps ?? 10, spriteLoop: book?.loop ?? true,
       blendMode: BLENDS[l.blend ?? 'add'], simulationSpace: l.space === 'local' ? 1 : 0,
-      renderMode: l.render === 'stretched' ? 1 : 0,
+      renderMode: RENDERS[l.render ?? 'billboard'],
+      shapeArc: l.arc ?? 360, shapeThickness: l.thickness ?? 1,
+      orbitalVelocity: orbitOf(l), radialVelocity: (l.radial ?? 0) * k,
       velocityScale: l.render === 'stretched' ? (l.stretch?.speed ?? 0.05) : 0, lengthScale: l.stretch?.length ?? 1,
       intensity: l.intensity ?? 1,
       ...(l.collide ? {
@@ -353,13 +384,17 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
       name: 'Light',
       components: [
         { type: 'Transform', data: { position: vec(L.at ?? [0, 0, 0]) } },
-        { type: 'Light', data: { type: 0, color: hexColor(L.color), intensity: L.fade && (L.delay ?? 0) > 0 ? 0 : L.intensity, radius: L.radius * k, falloff: 1 } },
+        { type: 'Light', data: {
+          type: 0, color: hexColor(L.color), intensity: L.fade && (L.delay ?? 0) > 0 ? 0 : L.intensity, radius: L.radius * k, falloff: 1,
+          ...(L.flicker ? { pulse: 2, pulseRate: Math.max(0.5, Math.min(30, L.flicker.speed ?? 8)), pulseDepth: L.flicker.amount } : {}),
+          ...(L.pulse ? { pulse: 1, pulseRate: L.pulse.rate ?? 1, pulseDepth: L.pulse.depth } : {}),
+        } },
       ],
     });
-    if (L.flicker || L.fade) {
-      const { keys, duration, loop } = lightKeys(L);
+    if (L.fade) {
+      const { keys, duration } = fadeKeys(L as VfxLight & { fade: number });
       lightClip = {
-        version: '1.3', type: 'timeline', duration, wrapMode: loop ? 'loop' : 'once',
+        version: '1.3', type: 'timeline', duration, wrapMode: 'once',
         tracks: [{
           type: 'property', name: 'Light', childPath: 'Light', component: 'Light',
           channels: [{ property: 'intensity', keyframes: keys.map(([time, v]) => ({ time, value: Math.round(v * L.intensity * 1000) / 1000, inTangent: 0, outTangent: 0, interpolation: 'linear' })) }],
@@ -368,7 +403,7 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
     }
   }
 
-  const loops = spec.layers.some((l) => l.loop ?? !(l.bursts?.length && !l.rate)) || !!L?.flicker;
+  const loops = spec.layers.some((l) => l.loop ?? !(l.bursts?.length && !l.rate)) || !!L?.flicker || !!L?.pulse;
   const lasts = loops ? null : Math.max(
     ...spec.layers.map((l) => (l.delay ?? 0) + Math.max(l.duration ?? 0, ...(l.bursts ?? []).map((b) => b[0])) + hi(l.life)),
     L?.fade ? (L.delay ?? 0) + L.fade : 0,
@@ -424,6 +459,10 @@ export function describeVfx(entities: readonly StoredEntity[], unit = 1, texture
         ...([1, 3, 4, 5].includes(d.shape ?? 3) ? { radius: r2((d.shapeRadius ?? 0) / k) } : {}),
         ...(d.shape === 2 ? { box: vecOf(d.shapeSize) } : {}),
         ...((d.shape ?? 3) === 3 ? { angle: r2((d.shapeAngle ?? 25) / 2) } : {}),
+        ...([1, 3, 4, 5].includes(d.shape ?? 3) && (d.shapeArc ?? 360) !== 360 ? { arc: d.shapeArc } : {}),
+        ...([1, 3, 4, 5].includes(d.shape ?? 3) && (d.shapeThickness ?? 1) !== 1 ? { thickness: d.shapeThickness } : {}),
+        ...(orbitRead(d) !== undefined ? { orbit: orbitRead(d) } : {}),
+        ...(d.radialVelocity ? { radial: r2(d.radialVelocity / k) } : {}),
         rate: d.rate ?? 0,
         ...(Array.isArray(d.bursts) && d.bursts.length ? { bursts: d.bursts.map((b: { time: number; count: number }) => [b.time, b.count]) } : {}),
         duration: d.duration ?? 5, loop: d.looping ?? true,
@@ -443,6 +482,7 @@ export function describeVfx(entities: readonly StoredEntity[], unit = 1, texture
         ...((d.spriteColumns ?? 1) > 1 || (d.spriteRows ?? 1) > 1 ? { flipbook: { columns: d.spriteColumns, rows: d.spriteRows, fps: d.spriteFPS ?? 10, loop: d.spriteLoop ?? true } } : {}),
         blend: (BLEND_NAMES[d.blendMode ?? 1] ?? 'add') as VfxLayer['blend'],
         ...(d.renderMode === 1 ? { render: 'stretched' as const, stretch: { speed: d.velocityScale ?? 0, length: d.lengthScale ?? 1 } } : {}),
+        ...(d.renderMode === 2 ? { render: 'horizontal' as const } : d.renderMode === 3 ? { render: 'vertical' as const } : {}),
         ...((d.intensity ?? 1) !== 1 ? { intensity: d.intensity } : {}),
         ...(d.simulationSpace === 1 ? { space: 'local' as const } : {}),
         ...(d.collisionEnabled ? { collide: { floor: r2((d.collisionFloor ?? 0) / k), bounce: d.collisionBounce ?? 0.3, friction: d.collisionFriction ?? 0.3, loss: d.collisionLifetimeLoss ?? 0 } } : {}),
@@ -455,7 +495,11 @@ export function describeVfx(entities: readonly StoredEntity[], unit = 1, texture
       layers.push(layer);
     } else if (li) {
       const d = li as Record<string, any>;
-      light = { ...(atOrNone ? { at: atOrNone } : {}), color: toHex(d.color ?? { r: 1, g: 1, b: 1, a: 1 }).slice(0, 7), intensity: d.intensity ?? 1, radius: r2((d.radius ?? 200) / k) };
+      light = {
+        ...(atOrNone ? { at: atOrNone } : {}), color: toHex(d.color ?? { r: 1, g: 1, b: 1, a: 1 }).slice(0, 7), intensity: d.intensity ?? 1, radius: r2((d.radius ?? 200) / k),
+        ...(d.pulse === 2 && d.pulseDepth ? { flicker: { amount: d.pulseDepth, speed: d.pulseRate ?? 2 } } : {}),
+        ...(d.pulse === 1 && d.pulseDepth ? { pulse: { depth: d.pulseDepth, rate: d.pulseRate ?? 2 } } : {}),
+      };
     }
   }
   return { spec: { ...(unit !== 1 ? { unit } : {}), layers, ...(light ? { light } : {}) }, other };

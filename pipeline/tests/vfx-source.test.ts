@@ -30,7 +30,9 @@ describe('an effect from a description', () => {
     expect(bad).toContain('"#zzz"');
     expect(bad).toContain('`blend` is add');
     expect(checkVfx({ layers: [{ name: 'x', rate: 1, life: 1, size: [1, 1], color: [[2, '#ffffff']] }] }).join(' ')).toContain('colour stop 0');
-    expect(checkVfx({ ...fire(), light: { color: '#fff000', intensity: 1, radius: 1, flicker: { amount: 0.2 }, fade: 1 } }).join(' ')).toContain('not both');
+    expect(checkVfx({ ...fire(), light: { color: '#fff000', intensity: 1, radius: 1, flicker: { amount: 0.2 }, fade: 1 } }).join(' ')).toContain('only one of them');
+    expect(checkVfx({ layers: [{ name: 'x', rate: 1, life: 1, size: 1, color: '#ffffff', shape: 'box', arc: 90 }] }).join(' ')).toContain('not a box');
+    expect(checkVfx({ layers: [{ name: 'x', rate: 1, life: 1, size: 1, color: '#ffffff', render: 'flat' as never }] }).join(' ')).toContain('horizontal');
   });
 
   it('writes emitters in world units, with the gradient in the shape the engine reads', () => {
@@ -43,18 +45,37 @@ describe('an effect from a description', () => {
     expect(flames.blendMode).toBe(1);
     // `angle` is the half-angle; the engine's shapeAngle is the whole opening.
     expect(flames.shapeAngle).toBe(24);
-    // `angle` is the half-angle; the engine's shapeAngle is the whole opening.
-    expect(flames.shapeAngle).toBe(24);
     expect(flames.looping).toBe(true);
     // Room for every particle it can have alive at once.
     expect(flames.maxParticles).toBeGreaterThanOrEqual(60 * 0.9);
     expect(b.textures.sort()).toEqual(['flame', 'smoke']);
     expect(b.lasts).toBeNull();
-    // A flicker is a looping clip on the light that closes on itself.
-    const keys = (b.lightClip as any).tracks[0].channels[0].keyframes;
-    expect((b.lightClip as any).wrapMode).toBe('loop');
-    expect(keys[0].value).toBe(keys[keys.length - 1].value);
-    expect(Math.min(...keys.map((k: any) => k.value))).toBeGreaterThanOrEqual(8 * 0.7 - 1e-9);
+    // A flicker is the light's own, run by the engine (in the editor too), not a clip that only plays in a running game.
+    expect(b.lightClip).toBeNull();
+    const light = b.children.find((c) => c.name === 'Light')!.components.find((c) => c.type === 'Light')!.data as Record<string, number>;
+    expect([light.pulse, light.pulseRate, light.pulseDepth, light.intensity]).toEqual([2, 8, 0.3, 8]);
+  });
+
+  it('writes a sine pulse on the light, and a loop that only pulses its light is still a loop', () => {
+    const b = buildVfx({ layers: [{ name: 'rune', bursts: [[0, 1]], life: 1, size: 1, color: '#ffffff', texture: 'glow' }], light: { color: '#80a0ff', intensity: 3, radius: 2, pulse: { depth: 0.6, rate: 1.5 } } });
+    const light = b.children.find((c) => c.name === 'Light')!.components[1]!.data as Record<string, number>;
+    expect([light.pulse, light.pulseRate, light.pulseDepth]).toEqual([1, 1.5, 0.6]);
+    expect(b.lasts).toBeNull();
+  });
+
+  it('writes the ground ring, the swirl and the arc as the engine takes them', () => {
+    const b = buildVfx({ unit: 100, layers: [
+      { name: 'ring', shape: 'circle', radius: 0.5, thickness: 0, arc: 180, orbit: 90, radial: 2, render: 'horizontal', bursts: [[0, 40]], life: 1, size: 0.2, color: '#ffffff', texture: 'glow' },
+      { name: 'vortex', shape: 'sphere', radius: 1, orbit: [0, 45, 10], radial: -0.5, render: 'vertical', rate: 10, life: 1, size: 0.2, color: '#ffffff', texture: 'glow' },
+    ] });
+    const [ring, vortex] = b.children.map((c) => c.components[1]!.data as Record<string, any>);
+    expect([ring!.shapeArc, ring!.shapeThickness, ring!.renderMode, ring!.radialVelocity]).toEqual([180, 0, 2, 200]);
+    // A bare number turns a circle about its normal (z) and anything else about its axis (y).
+    expect(ring!.orbitalVelocity).toEqual({ x: 0, y: 0, z: 90 });
+    expect(vortex!.orbitalVelocity).toEqual({ x: 0, y: 45, z: 10 });
+    expect([vortex!.renderMode, vortex!.radialVelocity, vortex!.shapeArc, vortex!.shapeThickness]).toEqual([3, -50, 360, 1]);
+    // A ring that keeps widening is framed wider than its birth radius.
+    expect(b.reach).toBeGreaterThan(2);
   });
 
   it('makes a one-shot of bursts, says how long it lasts, and fades its light', () => {
@@ -75,12 +96,18 @@ describe('an effect from a description', () => {
   });
 
   it('reads back as the description that builds it', () => {
-    for (const spec of [fire(), boom()]) {
+    const swirl: VfxSpec = { unit: 100, layers: [
+      { name: 'ring', shape: 'circle', radius: 0.5, thickness: 0.2, arc: 270, orbit: 90, radial: 2, render: 'horizontal', bursts: [[0, 40]], life: 1, size: 0.2, color: '#ffffff', texture: 'glow' },
+      { name: 'motes', shape: 'sphere', radius: 1, orbit: [10, 45, 0], render: 'vertical', rate: 10, life: 1, size: 0.2, color: '#ffffff', texture: 'glow' },
+    ], light: { color: '#80a0ff', intensity: 3, radius: 2, pulse: { depth: 0.6, rate: 1.5 } } };
+    for (const spec of [fire(), boom(), swirl]) {
       const b = buildVfx(spec);
       const stored: StoredEntity[] = b.children.map((c) => ({ name: c.name, parent: 'root', components: c.components.map((x) => ({ ...x, data: { ...x.data, ...(c.texture ? { texture: `@uuid:${c.texture}` } : {}) } })) }));
       const { spec: back } = describeVfx(stored, spec.unit ?? 1, (ref) => ref.slice(6));
       const again = buildVfx({ ...back, light: back.light ? describeLightClip(back.light, b.lightClip as never) : undefined });
       again.children.forEach((c, i) => expect(c.components).toEqual(b.children[i]!.components));
+      expect(back.light?.flicker).toEqual(spec.light?.flicker && { amount: spec.light.flicker.amount, speed: spec.light.flicker.speed });
+      expect(back.light?.pulse).toEqual(spec.light?.pulse);
       expect(back.layers.map((l) => l.texture)).toEqual(spec.layers.map((l) => l.texture));
     }
   });

@@ -119,7 +119,7 @@ static constexpr u32 MESH_INSTANCE_TEXEL_LIGHTMAP = 7;
 /// Bytes one record occupies. RGBA32F: a world-space translation is what this
 /// carries, and half precision loses whole units of it a thousand away.
 static constexpr u32 MESH_INSTANCE_STRIDE = MESH_INSTANCE_TEXELS * 16;
-static constexpr u32 PARTICLE_INSTANCE_STRIDE = 60;
+static constexpr u32 PARTICLE_INSTANCE_STRIDE = 64;
 /// Texels per row of the instance texture. A multiple of the record, so no
 /// record straddles a row; 2048 is the smallest MAX_TEXTURE_SIZE WebGL2 grants.
 static constexpr u32 MESH_INSTANCE_TEXTURE_WIDTH = 2048;

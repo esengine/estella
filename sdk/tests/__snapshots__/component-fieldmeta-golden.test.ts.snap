@@ -493,6 +493,56 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "unit": "°",
     },
+    "pulse": {
+      "enum": [
+        {
+          "label": "None",
+          "value": 0,
+        },
+        {
+          "label": "Sine",
+          "value": 1,
+        },
+        {
+          "label": "Flicker",
+          "value": 2,
+        },
+      ],
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "tooltip": "Moves the brightness on its own: Sine swells and dims smoothly, Flicker wanders like a flame. The intensity you set is the brightest it gets.",
+    },
+    "pulseDepth": {
+      "max": 1,
+      "min": 0,
+      "shownWhen": {
+        "field": "pulse",
+        "values": [
+          1,
+          2,
+        ],
+      },
+      "slider": true,
+      "tooltip": "How far it dims below the intensity: 0 does not move, 1 goes fully dark at the bottom of each pulse.",
+    },
+    "pulseRate": {
+      "min": 0,
+      "shownWhen": {
+        "field": "pulse",
+        "values": [
+          1,
+          2,
+        ],
+      },
+      "tooltip": "Sine: full swells a second. Flicker: how many times a second it changes direction, roughly.",
+      "unit": "Hz",
+    },
     "radius": {
       "min": 0,
       "shownWhen": {
@@ -1123,8 +1173,17 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "category": "Noise",
       "min": 0,
     },
+    "orbitalVelocity": {
+      "category": "Velocity",
+      "tooltip": "Turns every particle about the emitter's centre, in degrees a second about each of its local X, Y and Z axes. Z swirls a Circle in its own plane; Y swirls a Cone or Sphere about its axis. Moves the particle, not its velocity, so gravity and damping do not bend the orbit.",
+      "unit": "°/s",
+    },
     "playOnStart": {
       "category": "Emission",
+    },
+    "radialVelocity": {
+      "category": "Velocity",
+      "tooltip": "Moves every particle straight away from the emitter's centre at this speed, or toward it when negative — a ring that keeps growing, a vortex drawing in.",
     },
     "rate": {
       "category": "Emission",
@@ -1140,6 +1199,14 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
         {
           "label": "Stretched",
           "value": 1,
+        },
+        {
+          "label": "Horizontal",
+          "value": 2,
+        },
+        {
+          "label": "Vertical",
+          "value": 3,
         },
       ],
       "tooltip": "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.",
@@ -1191,6 +1258,22 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "unit": "°",
     },
+    "shapeArc": {
+      "category": "Shape",
+      "max": 360,
+      "min": 0,
+      "shownWhen": {
+        "field": "shape",
+        "values": [
+          1,
+          3,
+          4,
+          5,
+        ],
+      },
+      "tooltip": "How much of the way round the shape's axis particles are born, from its local +X: 360 is the whole circle, 90 a quarter. A Circle turns in its own plane; a Cone, Sphere or Hemisphere turns about its +Y axis.",
+      "unit": "°",
+    },
     "shapeRadius": {
       "category": "Shape",
       "min": 0,
@@ -1212,6 +1295,21 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           2,
         ],
       },
+    },
+    "shapeThickness": {
+      "category": "Shape",
+      "max": 1,
+      "min": 0,
+      "shownWhen": {
+        "field": "shape",
+        "values": [
+          1,
+          3,
+          4,
+          5,
+        ],
+      },
+      "tooltip": "How deep into the shape particles are born, measured in from its rim: 1 fills it, 0 is the rim alone — a ring from a Circle, a shell from a Sphere.",
     },
     "simulationSpace": {
       "category": "Rendering",

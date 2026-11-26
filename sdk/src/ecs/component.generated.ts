@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleColliderShape, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SkinCacheMode, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightPulse, LightType, MaskMode, Padding, ParticleColliderShape, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SkinCacheMode, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '21759a2e9e105f51';
+export const ABI_LAYOUT_HASH = '29b5ecc6deced320';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -545,6 +545,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             type: 0,
             color: { r: 1, g: 1, b: 1, a: 1 },
             intensity: 1,
+            pulse: 0,
+            pulseRate: 2,
+            pulseDepth: 0.5,
             radius: 200,
             innerRadius: 0,
             falloff: 1,
@@ -586,6 +589,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
+            pulse: { enum: [{ label: 'None', value: 0 }, { label: 'Sine', value: 1 }, { label: 'Flicker', value: 2 }], tooltip: "Moves the brightness on its own: Sine swells and dims smoothly, Flicker wanders like a flame. The intensity you set is the brightest it gets.", shownWhen: { field: "type", values: [0, 1, 3] } },
+            pulseRate: { min: 0, unit: "Hz", tooltip: "Sine: full swells a second. Flicker: how many times a second it changes direction, roughly.", shownWhen: { field: "pulse", values: [1, 2] } },
+            pulseDepth: { min: 0, max: 1, slider: true, tooltip: "How far it dims below the intensity: 0 does not move, 1 goes fully dark at the bottom of each pulse.", shownWhen: { field: "pulse", values: [1, 2] } },
             radius: { min: 0, tooltip: "Falloff reach in world units (Point / Spot).", shownWhen: { field: "type", values: [0, 3] } },
             innerRadius: { min: 0, tooltip: "Radius held at full strength before the falloff starts.", shownWhen: { field: "type", values: [0, 3] } },
             falloff: { min: 0, max: 8, tooltip: "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.", shownWhen: { field: "type", values: [0, 3] } },
@@ -817,6 +823,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shapeRadius: 100,
             shapeSize: { x: 100, y: 100, z: 0 },
             shapeAngle: 25,
+            shapeArc: 360,
+            shapeThickness: 1,
             speedMin: 500,
             speedMax: 500,
             angleSpreadMin: 0,
@@ -839,6 +847,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             addedVelocityMax: { x: 0, y: 0, z: 0 },
             speedLimit: 0,
             limitDampen: 1,
+            orbitalVelocity: { x: 0, y: 0, z: 0 },
+            radialVelocity: 0,
             noiseStrength: 0,
             noiseFrequency: 0.01,
             noiseScrollSpeed: 0,
@@ -901,6 +911,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shapeRadius: { min: 0, category: "Shape", shownWhen: { field: "shape", values: [1, 3, 4, 5] } },
             shapeSize: { category: "Shape", shownWhen: { field: "shape", values: [2] } },
             shapeAngle: { unit: "°", category: "Shape", shownWhen: { field: "shape", values: [3] } },
+            shapeArc: { min: 0, max: 360, unit: "°", tooltip: "How much of the way round the shape's axis particles are born, from its local +X: 360 is the whole circle, 90 a quarter. A Circle turns in its own plane; a Cone, Sphere or Hemisphere turns about its +Y axis.", category: "Shape", shownWhen: { field: "shape", values: [1, 3, 4, 5] } },
+            shapeThickness: { min: 0, max: 1, tooltip: "How deep into the shape particles are born, measured in from its rim: 1 fills it, 0 is the rim alone — a ring from a Circle, a shell from a Sphere.", category: "Shape", shownWhen: { field: "shape", values: [1, 3, 4, 5] } },
             speedMin: { category: "Velocity" },
             speedMax: { category: "Velocity" },
             angleSpreadMin: { unit: "°", category: "Velocity", shownWhen: { field: "shape", values: [0, 2] } },
@@ -923,6 +935,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             addedVelocityMax: { category: "Velocity" },
             speedLimit: { min: 0, tooltip: "The fastest a particle may move under its own velocity; 0 is no limit. A faster particle is pulled back toward the limit. Run by the CPU simulation.", category: "Velocity" },
             limitDampen: { min: 0, max: 1, tooltip: "How much of the excess over the limit is removed per 1/60 s: 1 clamps at once, a small value brakes gently.", category: "Velocity" },
+            orbitalVelocity: { unit: "°/s", tooltip: "Turns every particle about the emitter's centre, in degrees a second about each of its local X, Y and Z axes. Z swirls a Circle in its own plane; Y swirls a Cone or Sphere about its axis. Moves the particle, not its velocity, so gravity and damping do not bend the orbit.", category: "Velocity" },
+            radialVelocity: { tooltip: "Moves every particle straight away from the emitter's centre at this speed, or toward it when negative — a ring that keeps growing, a vortex drawing in.", category: "Velocity" },
             noiseStrength: { min: 0, category: "Noise" },
             noiseFrequency: { min: 0, category: "Noise" },
             noiseScrollSpeed: { category: "Noise" },
@@ -936,7 +950,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, category: "Rendering", enumSource: "sortingLayers" },
             material: { category: "Rendering" },
             simulationSpace: { enum: [{ label: 'World', value: 0 }, { label: 'Local', value: 1 }], category: "Rendering" },
-            renderMode: { enum: [{ label: 'Billboard', value: 0 }, { label: 'Stretched', value: 1 }], tooltip: "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.", category: "Rendering" },
+            renderMode: { enum: [{ label: 'Billboard', value: 0 }, { label: 'Stretched', value: 1 }, { label: 'Horizontal', value: 2 }, { label: 'Vertical', value: 3 }], tooltip: "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.", category: "Rendering" },
             velocityScale: { min: 0, tooltip: "Stretched: how much of the particle's speed is added to the quad's length, in world units per unit of speed.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
             lengthScale: { min: 0, tooltip: "Stretched: the quad's own length is its size times this.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
             intensity: { min: 0, tooltip: "Multiplies the particle's colour (not its alpha) as it is drawn, past 1 where the picture is HDR: what makes a spark bright enough to bloom. A material's fragment receives the colour already multiplied. The CPU simulation's per-particle trail is drawn without it.", category: "Rendering" },
@@ -1784,6 +1798,9 @@ export interface LightData {
     type: LightType;
     color: Color;
     intensity: number;
+    pulse?: LightPulse;
+    pulseRate?: number;
+    pulseDepth?: number;
     radius: number;
     innerRadius: number;
     falloff: number;
@@ -1932,6 +1949,8 @@ export interface ParticleEmitterData {
     shapeRadius: number;
     shapeSize: Vec3;
     shapeAngle: number;
+    shapeArc: number;
+    shapeThickness: number;
     speedMin: number;
     speedMax: number;
     angleSpreadMin: number;
@@ -1954,6 +1973,8 @@ export interface ParticleEmitterData {
     addedVelocityMax: Vec3;
     speedLimit: number;
     limitDampen: number;
+    orbitalVelocity: Vec3;
+    radialVelocity: number;
     noiseStrength: number;
     noiseFrequency: number;
     noiseScrollSpeed: number;

@@ -19,10 +19,22 @@ A particle's motion is its initial velocity, integrated each frame with the emit
 | `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | A velocity each particle carries on top of its own, chosen between the two ends at birth. Gravity, damping, noise and the speed limit do not act on it. CPU simulation only. |
 | `speedLimit` | number | `0` | Maximum speed under the particle's own velocity; `0` is no limit. A faster particle is pulled back toward the limit. CPU simulation only. |
 | `limitDampen` | number | `1` | Share of the excess over `speedLimit` removed per 1/60 s: `1` clamps at once, a small value brakes gradually. |
+| `orbitalVelocity` | Vec3 | `{0, 0, 0}` | Degrees a second every particle turns about the emitter's centre, about each of its local X, Y and Z axes. |
+| `radialVelocity` | number | `0` | Speed straight away from the emitter's centre, in world units a second; negative draws particles in. |
 
 The shape decides the initial direction ([Emitter shapes](/docs/world/particles/overview/#emitter-shapes)). A
 speed-over-life multiplier can be uploaded with `Particle.setSpeedLut`
 ([Playback control](/docs/world/particles/overview/#playback-control)).
+
+### Orbital and radial velocity
+
+`orbitalVelocity` and `radialVelocity` move each particle's position about the emitter's centre as the emitter stands
+now, after its own velocity has moved it. They do not change its velocity, so gravity and damping act only on what the
+particle was launched with and an orbit stays round. The axes are the emitter's: `{0, 0, 90}` swirls a `Circle` a quarter
+turn a second in its own plane, and `{0, 90, 0}` swirls a `Cone` or `Sphere` about its +Y. Turn the emitter to lay a
+swirl on the ground. A negative `radialVelocity` draws particles toward the centre and stops them there, never through
+it: a charge-up gathering into a hand is a `Sphere` with `shapeThickness: 0`, an orbit and a negative radial speed. In
+`Local` space the centre is the emitter's origin in its own frame. Both run on the CPU and GPU simulations.
 
 ## Rotation
 

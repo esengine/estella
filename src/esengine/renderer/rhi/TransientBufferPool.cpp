@@ -374,10 +374,12 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         // depth and uploaded as a pair is drawn on the plane it left.
         desc.attributes[2] = {2, 3, GfxDataType::Float, false, 0, 1};
         desc.attributes[3] = {3, 2, GfxDataType::Float, false, 12, 1};
-        desc.attributes[4] = {4, 1, GfxDataType::Float, false, 20, 1};
-        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 24, 1};
-        desc.attributes[6] = {6, 4, GfxDataType::Float, false, 28, 1};
-        desc.attributes[7] = {7, 4, GfxDataType::Float, false, 44, 1};
+        // The turn in its plane and how the plane is oriented (particle::renderAlignment), one vec2: no slot a mesh's own
+        // channels may claim is spent on it.
+        desc.attributes[4] = {4, 2, GfxDataType::Float, false, 20, 1};
+        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 28, 1};
+        desc.attributes[6] = {6, 4, GfxDataType::Float, false, 32, 1};
+        desc.attributes[7] = {7, 4, GfxDataType::Float, false, 48, 1};
         s.vertex_stride = desc.strides[1];
         s.layout = device_.createVertexLayout(desc);
         return;

@@ -4414,6 +4414,31 @@
           "range": "≥ 0"
         },
         {
+          "key": "pulse",
+          "type": "enum",
+          "default": "None",
+          "doc": "Moves the brightness on its own: Sine swells and dims smoothly, Flicker wanders like a flame. The intensity you set is the brightest it gets.",
+          "values": [
+            "None",
+            "Sine",
+            "Flicker"
+          ]
+        },
+        {
+          "key": "pulseRate",
+          "type": "number",
+          "default": "2",
+          "doc": "Sine: full swells a second. Flicker: how many times a second it changes direction, roughly.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "pulseDepth",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How far it dims below the intensity: 0 does not move, 1 goes fully dark at the bottom of each pulse.",
+          "range": "0–1"
+        },
+        {
           "key": "radius",
           "type": "number",
           "default": "200",
@@ -5627,6 +5652,20 @@
           "default": "25"
         },
         {
+          "key": "shapeArc",
+          "type": "number",
+          "default": "360",
+          "doc": "How much of the way round the shape's axis particles are born, from its local +X: 360 is the whole circle, 90 a quarter. A Circle turns in its own plane; a Cone, Sphere or Hemisphere turns about its +Y axis.",
+          "range": "0–360"
+        },
+        {
+          "key": "shapeThickness",
+          "type": "number",
+          "default": "1",
+          "doc": "How deep into the shape particles are born, measured in from its rim: 1 fills it, 0 is the rim alone — a ring from a Circle, a shell from a Sphere.",
+          "range": "0–1"
+        },
+        {
           "key": "speedMin",
           "type": "number",
           "default": "500"
@@ -5759,6 +5798,18 @@
           "range": "0–1"
         },
         {
+          "key": "orbitalVelocity",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Turns every particle about the emitter's centre, in degrees a second about each of its local X, Y and Z axes. Z swirls a Circle in its own plane; Y swirls a Cone or Sphere about its axis. Moves the particle, not its velocity, so gravity and damping do not bend the orbit."
+        },
+        {
+          "key": "radialVelocity",
+          "type": "number",
+          "default": "0",
+          "doc": "Moves every particle straight away from the emitter's centre at this speed, or toward it when negative — a ring that keeps growing, a vortex drawing in."
+        },
+        {
           "key": "noiseStrength",
           "type": "number",
           "default": "0",
@@ -5853,7 +5904,9 @@
           "doc": "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.",
           "values": [
             "Billboard",
-            "Stretched"
+            "Stretched",
+            "Horizontal",
+            "Vertical"
           ]
         },
         {
@@ -9884,7 +9937,8 @@
         {
           "key": "focused",
           "type": "boolean",
-          "default": "false"
+          "default": "false",
+          "readonly": true
         },
         {
           "key": "cursorPos",

@@ -225,6 +225,8 @@ public:
      */
     void beginFrame();
     void setPlanarTime(f32 seconds) { planar_elapsed_ = seconds; }
+    /// The frame clock, in seconds: what a light's pulse is read at (LightPulse.hpp).
+    void setElapsed(f32 seconds) { elapsed_ = seconds; }
 
     /**
      * @brief Closes the FRAME, once, after every camera and every overlay.
@@ -1038,6 +1040,7 @@ private:
     DrawList planar_list_;
     u64 planar_frame_ = 0;
     f32 planar_elapsed_ = 0;
+    f32 elapsed_ = 0;
     f32 planar_scale_ = 0.5f;
     bool planar_float_refused_ = false;
     u32 planar_max_size_ = 1024;

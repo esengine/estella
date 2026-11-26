@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <glm/gtc/quaternion.hpp>
 #include <cmath>
+#include <vector>
 
 using namespace esengine;
 using namespace esengine::particle;
@@ -191,4 +192,103 @@ TEST_CASE("scale sizes the shape and leaves the aim alone") {
     }
     CHECK(maxExtent > 140.0f);   // 50 * 3 = 150, so a scaled box is really bigger
     CHECK(maxExtent <= 150.1f);
+}
+
+// ============================================================================
+// Arc and thickness — a part of the way round, a part of the way in
+// ============================================================================
+
+TEST_CASE("the whole arc and full thickness ask for the draws the shapes always asked for") {
+    // A seeded effect must play the same after the fields exist. The expression shapes are unchanged, so asking for
+    // the same ranges, as many of them, is what keeps every draw the same. (The order two operands of `*` are drawn in
+    // is the compiler's, which is why this compares the ranges as a set rather than a sequence.)
+    struct Range { f32 lo, hi; bool operator<(const Range& o) const { return lo != o.lo ? lo < o.lo : hi < o.hi; } };
+    for (const auto shape : {ecs::EmitterShape::Circle, ecs::EmitterShape::Cone, ecs::EmitterShape::Sphere,
+                             ecs::EmitterShape::Hemisphere}) {
+        auto e = emitterWith(shape);
+        std::vector<Range> asked;
+        std::function<f32(f32, f32)> rand = [&](f32 lo, f32 hi) { asked.push_back({lo, hi}); return (lo + hi) * 0.5f; };
+        (void)sampleShape(e, rand);
+        std::vector<Range> want;
+        const f32 r = e.shapeRadius;
+        if (shape == ecs::EmitterShape::Circle) {
+            want = {{0.0f, math::TWO_PI}, {0.0f, r}};
+        } else {
+            const f32 half = shape == ecs::EmitterShape::Cone ? e.shapeAngle * 0.5f * math::DEG_TO_RAD
+                           : shape == ecs::EmitterShape::Sphere ? math::PI : math::HALF_PI;
+            want = {{std::cos(half), 1.0f}, {0.0f, math::TWO_PI}, {std::cos(half), 1.0f}, {0.0f, math::TWO_PI},
+                    shape == ecs::EmitterShape::Cone ? Range{0.0f, r} : Range{0.0f, 1.0f}};
+        }
+        std::sort(asked.begin(), asked.end());
+        std::sort(want.begin(), want.end());
+        REQUIRE(asked.size() == want.size());
+        for (size_t i = 0; i < want.size(); ++i) {
+            CHECK(asked[i].lo == doctest::Approx(want[i].lo));
+            CHECK(asked[i].hi == doctest::Approx(want[i].hi));
+        }
+    }
+}
+
+TEST_CASE("a quarter arc keeps a circle in its first quadrant") {
+    Lcg rng;
+    std::function<f32(f32, f32)> rand = [&](f32 a, f32 b) { return rng(a, b); };
+    auto e = emitterWith(ecs::EmitterShape::Circle);
+    e.shapeArc = 90.0f;
+    u32 outside = 0;
+    f32 widest = 0.0f;
+    for (u32 i = 0; i < kSamples; ++i) {
+        const glm::vec3 p = sampleShape(e, rand).position;
+        if (p.x < -1e-3f || p.y < -1e-3f) ++outside;
+        widest = std::max(widest, std::atan2(p.y, p.x));
+    }
+    CHECK(outside == 0u);
+    CHECK(widest > 1.5f);  // and it reaches across the whole quarter, not part of it
+}
+
+TEST_CASE("an arc turns a sphere about its axis") {
+    Lcg rng;
+    std::function<f32(f32, f32)> rand = [&](f32 a, f32 b) { return rng(a, b); };
+    auto e = emitterWith(ecs::EmitterShape::Sphere);
+    e.shapeArc = 180.0f;   // phi in [0, pi): z = sin(phi) is never negative
+    u32 behind = 0;
+    for (u32 i = 0; i < kSamples; ++i) {
+        const SpawnSample s = sampleShape(e, rand);
+        if (s.position.z < -1e-3f || s.direction.z < -1e-3f) ++behind;
+    }
+    CHECK(behind == 0u);
+}
+
+TEST_CASE("no thickness is the rim alone: a ring from a circle, a shell from a sphere") {
+    Lcg rng;
+    std::function<f32(f32, f32)> rand = [&](f32 a, f32 b) { return rng(a, b); };
+    for (const auto shape : {ecs::EmitterShape::Circle, ecs::EmitterShape::Sphere, ecs::EmitterShape::Hemisphere}) {
+        auto e = emitterWith(shape);
+        e.shapeThickness = 0.0f;
+        f32 nearest = 1e9f, farthest = 0.0f;
+        for (u32 i = 0; i < 5000; ++i) {
+            const f32 r = glm::length(sampleShape(e, rand).position);
+            nearest = std::min(nearest, r);
+            farthest = std::max(farthest, r);
+        }
+        CHECK(nearest > 99.9f);
+        CHECK(farthest < 100.1f);
+    }
+}
+
+TEST_CASE("half the thickness is the outer half of the radius, and a shell stays uniform through its volume") {
+    Lcg rng;
+    std::function<f32(f32, f32)> rand = [&](f32 a, f32 b) { return rng(a, b); };
+    auto e = emitterWith(ecs::EmitterShape::Sphere);
+    e.shapeThickness = 0.5f;
+    // Uniform in volume between r = 50 and 100: the share inside r is (r^3 - 50^3) / (100^3 - 50^3).
+    u32 inner = 0;
+    f32 nearest = 1e9f;
+    for (u32 i = 0; i < kSamples; ++i) {
+        const f32 r = glm::length(sampleShape(e, rand).position);
+        nearest = std::min(nearest, r);
+        if (r < 75.0f) ++inner;
+    }
+    const f32 expected = (75.0f * 75.0f * 75.0f - 50.0f * 50.0f * 50.0f) / (100.0f * 100.0f * 100.0f - 50.0f * 50.0f * 50.0f);
+    CHECK(nearest > 49.9f);
+    CHECK(std::abs(static_cast<f32>(inner) / kSamples - expected) < 0.01f);
 }

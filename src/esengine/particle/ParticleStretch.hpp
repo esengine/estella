@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "../ecs/components/ParticleEmitter.hpp"
 
 #include <glm/glm.hpp>
 
@@ -36,6 +37,19 @@ inline StretchedQuad stretchedQuad(glm::vec2 velocity, f32 rotation, f32 size, f
     if (speed <= 1e-4f) return {rotation, size};
     constexpr f32 kHalfPi = 1.57079632679f;
     return {std::atan2(velocity.y, velocity.x) - kHalfPi, size * lengthScale + speed * velocityScale};
+}
+
+/**
+ * @brief How the particle vertex stage orients an emitter's quads: 0 faces the view (Billboard, and Stretched, whose
+ *        turn is worked out before the draw), 1 lies in the ground plane facing up (Horizontal), 2 stands upright and
+ *        turns about the world's up axis (Vertical). Carried on each instance beside its rotation, as `a_inst_turn.y`.
+ */
+inline u32 renderAlignment(const ecs::ParticleEmitter& emitter) {
+    switch (static_cast<ecs::ParticleRenderMode>(emitter.renderMode)) {
+        case ecs::ParticleRenderMode::Horizontal: return 1u;
+        case ecs::ParticleRenderMode::Vertical: return 2u;
+        default: return 0u;
+    }
 }
 
 }  // namespace esengine::particle

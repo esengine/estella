@@ -10,6 +10,7 @@
 #include "../core/RandomSource.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "ParticleSpeedLimit.hpp"
+#include "ParticleOrbit.hpp"
 
 namespace esengine::particle {
 
@@ -711,6 +712,7 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     f32 trailMinDistSq = emitter.trailMinDistance * emitter.trailMinDistance;
 
     bool collisionOn = emitter.collisionEnabled;
+    const bool orbitOn = emitter.orbitalVelocity != glm::vec3(0.0f) || emitter.radialVelocity != 0.0f;
 
     dead_particle_indices_.clear();
     state.collisionOrdinal = 0;
@@ -747,6 +749,12 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         // velocity exactly as before.
         const glm::vec3 collisionFrom = p.position;
         p.position += (p.velocity * (speedLut ? sampleSizeLut(*speedLut, t) : 1.0f) + p.added_velocity) * dt;
+        // About the emitter as it stands now: a particle in local space is already relative to it.
+        if (orbitOn) {
+            p.position = orbitStep(p.position, isWorldSpace ? frame.position : glm::vec3(0.0f),
+                                   isWorldSpace ? frame.rotation : glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                                   emitter.orbitalVelocity, emitter.radialVelocity, dt);
+        }
 
         if (noiseOn) {
             // The curl field is a 2D flow, sampled on the plane the particle is

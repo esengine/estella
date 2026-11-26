@@ -32,12 +32,14 @@ enum class ParticleEasing : i32 {
     EaseInOut = 3,
 };
 
-/// How a particle's quad is turned. Billboard faces the view and spins by its own rotation; Stretched lays the quad's
-/// long axis along the particle's velocity and lengthens it with speed — sparks, rain, streaks.
+/// How a particle's quad is turned. Billboard faces the view; Stretched lies along the velocity (sparks, rain); Horizontal
+/// lies flat on the ground facing up (shockwave rings, scorch); Vertical stands upright, turning only about up (flames).
 ES_ENUM(stability=beta)
 enum class ParticleRenderMode : i32 {
     Billboard = 0,
     Stretched = 1,
+    Horizontal = 2,
+    Vertical = 3,
 };
 
 ES_ENUM(stability=beta)
@@ -128,6 +130,12 @@ struct ParticleEmitter {
     ES_PROPERTY(unit="°", category=Shape, shown_when=shape:Cone)
     f32 shapeAngle{25.0f};
 
+    ES_PROPERTY(min=0, max=360, unit="°", category=Shape, shown_when=shape:Circle|Cone|Sphere|Hemisphere, tooltip="How much of the way round the shape's axis particles are born, from its local +X: 360 is the whole circle, 90 a quarter. A Circle turns in its own plane; a Cone, Sphere or Hemisphere turns about its +Y axis.")
+    f32 shapeArc{360.0f};
+
+    ES_PROPERTY(min=0, max=1, category=Shape, shown_when=shape:Circle|Cone|Sphere|Hemisphere, tooltip="How deep into the shape particles are born, measured in from its rim: 1 fills it, 0 is the rim alone — a ring from a Circle, a shell from a Sphere.")
+    f32 shapeThickness{1.0f};
+
     // Velocity
     ES_PROPERTY(category=Velocity)
     f32 speedMin{500.0f};
@@ -202,6 +210,12 @@ struct ParticleEmitter {
 
     ES_PROPERTY(min=0, max=1, category=Velocity, tooltip="How much of the excess over the limit is removed per 1/60 s: 1 clamps at once, a small value brakes gently.")
     f32 limitDampen{1.0f};
+
+    ES_PROPERTY(unit="°/s", category=Velocity, tooltip="Turns every particle about the emitter's centre, in degrees a second about each of its local X, Y and Z axes. Z swirls a Circle in its own plane; Y swirls a Cone or Sphere about its axis. Moves the particle, not its velocity, so gravity and damping do not bend the orbit.")
+    glm::vec3 orbitalVelocity{0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY(category=Velocity, tooltip="Moves every particle straight away from the emitter's centre at this speed, or toward it when negative — a ring that keeps growing, a vortex drawing in.")
+    f32 radialVelocity{0.0f};
 
     // Noise / Turbulence — a divergence-free curl-noise flow field advects each
     // particle, layered on top of velocity/gravity. Strength 0 disables it (no

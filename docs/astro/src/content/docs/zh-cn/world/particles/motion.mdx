@@ -18,9 +18,15 @@ description: 粒子如何运动——初速度大小与方向、重力、阻尼�
 | `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | 每个粒子在自身速度之外额外携带的速度，出生时在两端之间选取。重力、阻尼、噪声和速度上限不作用于它。仅 CPU 模拟。 |
 | `speedLimit` | number | `0` | 粒子自身速度的上限；`0` 为不限。超过上限的粒子被拉回上限附近。仅 CPU 模拟。 |
 | `limitDampen` | number | `1` | 每 1/60 秒去除超出 `speedLimit` 部分的比例：`1` 立即钳制，较小的值逐渐制动。 |
+| `orbitalVelocity` | Vec3 | `{0, 0, 0}` | 每个粒子绕发射器中心转动的角速度（°/秒），分别绕其局部 X、Y、Z 轴。 |
+| `radialVelocity` | number | `0` | 沿离开发射器中心方向的速度，世界单位/秒；负值把粒子向内吸。 |
 
 初始方向由形状决定（[发射器形状](/docs/zh-cn/world/particles/overview/#发射器形状)）。随生命的速度倍率可通过
 `Particle.setSpeedLut` 上传（[播放控制](/docs/zh-cn/world/particles/overview/#播放控制)）。
+
+### 环绕速度与径向速度
+
+`orbitalVelocity` 和 `radialVelocity` 在粒子按自身速度移动之后，绕发射器当前所在的中心移动它的位置。它们不改变粒子的速度，所以重力和阻尼只作用于发射时给的速度，环绕轨道保持是圆的。轴是发射器自己的：`{0, 0, 90}` 让 `Circle` 在自身平面内每秒转四分之一圈，`{0, 90, 0}` 让 `Cone` 或 `Sphere` 绕 +Y 转。把发射器转过去就能把旋涡放到地面上。负的 `radialVelocity` 把粒子吸向中心并停在那里，不会穿过去：聚气到手上的效果就是 `shapeThickness: 0` 的 `Sphere`，加上环绕和负的径向速度。`Local` 空间下中心是发射器自身坐标系的原点。两者在 CPU 和 GPU 模拟里都生效。
 
 ## 旋转
 

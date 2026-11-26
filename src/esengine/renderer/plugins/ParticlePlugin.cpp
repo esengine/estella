@@ -29,6 +29,7 @@ struct ParticleInstanceData {
     f32 px, py, pz;
     f32 sx, sy;
     f32 rotation;
+    f32 align;  ///< particle::renderAlignment; read with rotation as one vec2
     u32 color;
     f32 uvOffsetX, uvOffsetY;
     f32 uvScaleX, uvScaleY;
@@ -163,6 +164,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         const f32 lengthScale = emitter.lengthScale;
         const f32 velocityScale = emitter.velocityScale;
         const f32 intensity = std::max(emitter.intensity, 0.0f);
+        const f32 align = static_cast<f32>(particle::renderAlignment(emitter));
 
         u32 i = 0;
         if (!state->gpu) state->pool.forEachAlive([&](const particle::Particle& p) {
@@ -217,6 +219,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             d.random = particle::unitHash(p.generation);
             d.intensity = intensity;
             d.lifetime = p.lifetime;
+            d.align = align;
         });
 
         // A material owns shading fully: its program is this one compiled for the

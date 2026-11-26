@@ -114,7 +114,9 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `shape` | `EmitterShape` | `Cone` | `Point`、`Circle`、`Box`、`Cone`、`Sphere` 或 `Hemisphere`。 |
 | `shapeRadius` | number | `100` | `Circle`、`Cone`、`Sphere` 和 `Hemisphere` 的半径。 |
 | `shapeSize` | Vec3 | `{100, 100, 0}` | `Box` 的盒子范围。`z` 为 `0` 时是平面矩形，供 2D 发射器使用。 |
-| `shapeAngle` | number | `25` | `Cone` 的锥半角（°）。 |
+| `shapeAngle` | number | `25` | `Cone` 的整个张角（°）：`25` 即轴线两侧各 12.5°。 |
+| `shapeArc` | number | `360` | 粒子在形状轴周围出生的角度范围（°），从局部 +X 起算。`Circle` 在自身平面内转；`Cone`、`Sphere` 和 `Hemisphere` 绕 +Y 转。 |
+| `shapeThickness` | number | `1` | 从边缘向内多深的范围出生，`0`–`1`：`1` 填满形状，`0` 只在边缘。 |
 
 | 形状 | 使用字段 | 生成区域与方向 |
 |---|---|---|
@@ -128,6 +130,8 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 有方向的形状沿发射器局部 +Y 指向：未旋转的发射器向上发射，旋转实体即可改变朝向，2D 和 3D 均如此。`Point` 和 `Box`
 自身没有方向，由发射器局部 XY 平面内的 `angleSpreadMin…Max` 弧（[速度与力](/docs/zh-cn/world/particles/motion/#速度与力)）
 决定发射方向，因此只向上发射的 `Point` 使用 `0…180`。`Circle`、`Cone`、`Sphere` 和 `Hemisphere` 忽略该弧。
+
+`shapeArc` 和 `shapeThickness` 用来收窄圆形类形状。`shapeThickness: 0` 的 `Circle` 是一个环：每个粒子都在边缘出生，冲击波和法阵就是这样起手的。`shapeArc: 180` 把出生范围限制在半个环，对 `Sphere` 则是 +Z 一侧的半球。`shapeThickness: 0` 的 `Sphere` 是一层球壳，`0.5` 则在体积上均匀填满外侧的一半。两者在 CPU 和 GPU 模拟里都生效；取 `360` 和 `1` 时，发射器画出的内容与这两个字段出现之前完全一样。
 
 ![视口中的发射器形状 gizmo——锥形、圆形、矩形](@/assets/guides/zh/particle-view.png)
 

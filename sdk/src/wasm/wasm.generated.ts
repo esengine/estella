@@ -176,6 +176,12 @@ export enum JustifyContent {
     SpaceEvenly = 5,
 }
 
+export enum LightPulse {
+    None = 0,
+    Sine = 1,
+    Flicker = 2,
+}
+
 export enum LightType {
     Point = 0,
     Directional = 1,
@@ -253,6 +259,8 @@ export enum ParticleEasing {
 export enum ParticleRenderMode {
     Billboard = 0,
     Stretched = 1,
+    Horizontal = 2,
+    Vertical = 3,
 }
 
 /**
@@ -703,6 +711,9 @@ export interface Light {
     type: number;
     color: Vec4;
     intensity: number;
+    pulse: number;
+    pulseRate: number;
+    pulseDepth: number;
     radius: number;
     innerRadius: number;
     falloff: number;
@@ -827,6 +838,8 @@ export interface ParticleEmitter {
     shapeRadius: number;
     shapeSize: Vec3;
     shapeAngle: number;
+    shapeArc: number;
+    shapeThickness: number;
     speedMin: number;
     speedMax: number;
     angleSpreadMin: number;
@@ -849,6 +862,8 @@ export interface ParticleEmitter {
     addedVelocityMax: Vec3;
     speedLimit: number;
     limitDampen: number;
+    orbitalVelocity: Vec3;
+    radialVelocity: number;
     noiseStrength: number;
     noiseFrequency: number;
     noiseScrollSpeed: number;

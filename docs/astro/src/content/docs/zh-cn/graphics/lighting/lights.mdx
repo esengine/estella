@@ -70,6 +70,9 @@ Point 与 Spot 光从 `Transform` 读取世界位置，没有 `Transform` 时被
 | `color` | `{1,1,1,1}` | 全部 | 光颜色，RGBA 0–1。alpha 不使用；强度由 `intensity` 决定。 |
 | `intensity` | `1` | 全部 | 亮度倍数，可大于 1（HDR，见[色彩空间与画质](/docs/zh-cn/graphics/lighting/color-and-quality/)）。 |
 | `enabled` | `true` | 全部 | 不移除组件即可关闭光源。 |
+| `pulse` | `None` | Point、Directional、Spot | `LightPulse`：`None`、`Sine`（平滑地亮暗起伏）或 `Flicker`（像火焰一样无规律地跳动）。见[脉冲与闪烁](#脉冲与闪烁)。 |
+| `pulseRate` | `2` | 有脉冲时 | `Sine`：每秒完整起伏的次数。`Flicker`：大约每秒变换方向的次数。 |
+| `pulseDepth` | `0.5` | 有脉冲时 | 最暗时比 `intensity` 低多少，`0`–`1`：`0` 不动，`1` 在谷底完全变暗。 |
 
 ### 范围与形状
 
@@ -206,6 +209,10 @@ entity.insert(Light, {
 - 每帧最多 **四盏** 带形状的光源。超出的光源不带形状绘制。
 
 cookie 被绘制到屏幕空间遮罩中，每盏带形状的光源占一个通道，机制与 2D 阴影相同；每个 cookie 的开销是一个四边形，而不是一个纹理槽位。
+## 脉冲与闪烁
+
+带 `pulse` 的光源在绘制每帧时自己改变亮度，编辑器里和运行中的游戏里一样：`Sine` 用于跳动的符文、信标或正在蓄力的法术；`Flicker` 用于火把、篝火或接触不良的灯。`intensity` 是最亮时的亮度，`pulseDepth` 是最暗时比它低多少。组件的 `intensity` 不会被改写，所以时间线或脚本仍然可以驱动它，脉冲乘在它当前的值上。每个光源从自己的实体取相位，一排火把不会同步闪烁。常用数值：篝火 `Flicker`，rate `8`，depth `0.25`；符文 `Sine`，rate `1.5`，depth `0.5`。
+
 ## 强度单位
 
 `intensity` 不含 π 因子：强度为 `1` 的 Directional 光正对表面时给出完整颜色。three.js（r155 及以后）将漫反射光除以 π，因此取自 three.js 场景的强度约亮三倍，应除以 π。three.js 的 `HemisphereLight` 对应开启 `hemisphere` 的 `Ambient` 光。

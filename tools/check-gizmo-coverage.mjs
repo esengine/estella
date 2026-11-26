@@ -123,6 +123,7 @@ const DISPOSITION = {
   'CameraDeoccluder.minimumDistance': ['no-place', 'the closest the camera is drawn to its target, a limit on a pull-in and not a region'],
   'CameraTargetGroup.radius': ['no-place', 'how big each member counts for the framing, read round each member and not a region of the group entity'],
   'GroupFraming.framingSize': ['not-world', 'a share of the screen'],
+  'Light.pulseDepth': ['not-world', 'a share of the intensity the light dims by, seen in the light itself'],
   'GroupFraming.minOrthoSize': ['no-place', 'a limit on how far an orthographic view zooms in, not a region'],
   'GroupFraming.maxOrthoSize': ['no-place', 'a limit on how far an orthographic view zooms out, not a region'],
   'GroupFraming.minDistance': ['no-place', 'how near the group centre a dolly may bring the camera, a limit and not a region'],

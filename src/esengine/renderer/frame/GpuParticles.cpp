@@ -7,6 +7,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../RenderOrigin.hpp"
 #include "../../particle/ParticleSystem.hpp"
+#include "../../particle/ParticleStretch.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -39,6 +40,7 @@ enum Flags : u32 {
     kEmitHit = 1u << 11,
     kFed = 1u << 12,
     kTrail = 1u << 13,
+    kOrbit = 1u << 14,
 };
 
 // An event a kernel appends and another reads: where and which kind, how fast, and the surface it hit with the slot that hit it.
@@ -83,8 +85,10 @@ struct ParamsBlock {
     f32 camera[4];  // the eye (w 1) or the way to the viewer (w 0), as the draw's vertex stage has it
     f32 depthClip[4][4], depthWorld[4][4];  // the view the depth was left by, and its inverse
     f32 depthOrigin[4];                     // the render origin it was seen from
+    f32 p16[4];     // orbitalVelocity.xyz (radians a second about the emitter's axes), radialVelocity
+    f32 p17[4];     // shapeArc (radians), shape inner radius (fraction), render alignment, unused
 };
-static_assert(sizeof(ParamsBlock) == 107 * 16, "the kernel's Params is 107 vec4s");
+static_assert(sizeof(ParamsBlock) == 109 * 16, "the kernel's Params is 109 vec4s");
 constexpr u32 kJobStride = 2048;  // a uniform binding starts on a multiple of 256
 static_assert(sizeof(ParamsBlock) <= kJobStride && kJobStride % 256 == 0);
 constexpr u32 kMaxJobs = 64;
@@ -92,7 +96,7 @@ constexpr u32 kMaxJobs = 64;
 // In pieces: MSVC refuses one string literal past 16 KB, and takes adjacent ones to 64.
 const char* const kKernel = R"WGSL(
 struct State { pa: vec4<f32>, vl: vec4<f32>, ms: vec4<f32> };
-struct Inst { px: f32, py: f32, pz: f32, sx: f32, sy: f32, rot: f32, color: u32, u0: f32, v0: f32, us: f32, vs: f32, age: f32, random: f32, intensity: f32, life: f32 };
+struct Inst { px: f32, py: f32, pz: f32, sx: f32, sy: f32, rot: f32, align: f32, color: u32, u0: f32, v0: f32, us: f32, vs: f32, age: f32, random: f32, intensity: f32, life: f32 };
 struct Params {
     p0: vec4<u32>, p1: vec4<u32>,
     p2: vec4<f32>, p3: vec4<f32>, p4: vec4<f32>, p5: vec4<f32>, p6: vec4<f32>, p7: vec4<f32>,
@@ -111,6 +115,7 @@ struct Params {
     camera: vec4<f32>,
     depthClip: mat4x4<f32>, depthWorld: mat4x4<f32>,
     depthOrigin: vec4<f32>,
+    p16: vec4<f32>, p17: vec4<f32>,
 };
 struct EventRec { at: vec4<f32>, vel: vec4<f32>, normal: vec4<f32> };
 struct Events { count: atomic<u32>, head: u32, capacity: u32, pad: u32, rec: array<EventRec> };
@@ -148,7 +153,7 @@ fn rr(a: f32, b: f32) -> f32 {
 fn coneDir(halfAngle: f32) -> vec3<f32> {
     let cosT = rr(cos(halfAngle), 1.0);
     let sinT = sqrt(max(0.0, 1.0 - cosT * cosT));
-    let phi = rr(0.0, 6.283185307179586);
+    let phi = rr(0.0, P.p17.x);
     return vec3<f32>(sinT * cos(phi), cosT, sinT * sin(phi));
 }
 fn planarAim() -> vec3<f32> {
@@ -269,11 +274,11 @@ fn applyField(k: u32, pos: vec3<f32>, vel: vec3<f32>, dt: f32) -> vec3<f32> {
 }
 
 fn hide(i: u32) {
-    insts[i] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+    insts[i] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
     if ((P.p1.y & 8192u) != 0u) {
         let n = P.p14.x - 1u;
         for (var j = 0u; j < n; j = j + 1u) {
-            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
         }
     }
 }
@@ -401,7 +406,7 @@ fn segmentBetween(a: vec3<f32>, b: vec3<f32>, width: f32, color: vec4<f32>, extr
     let d = b - a;
     let x = dot(d, right);
     let y = dot(d, up);
-    return Inst(mid.x, mid.y, mid.z, sqrt(x * x + y * y), width, atan2(y, x), pack4x8unorm(color), 0.0, 0.0, 1.0, 1.0, extra.x, extra.y, extra.z, extra.w);
+    return Inst(mid.x, mid.y, mid.z, sqrt(x * x + y * y), width, atan2(y, x), 0.0, pack4x8unorm(color), 0.0, 0.0, 1.0, 1.0, extra.x, extra.y, extra.z, extra.w);
 }
 fn stepTrail(i: u32, head: vec3<f32>, born: bool, color: vec4<f32>, extra: vec4<f32>) {
     let points = P.p14.x;
@@ -422,7 +427,7 @@ fn stepTrail(i: u32, head: vec3<f32>, born: bool, color: vec4<f32>, extra: vec4<
     var prev = head;
     for (var j = 0u; j < n; j = j + 1u) {
         if (j >= count) {
-            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
             continue;
         }
         let next = trail[base + j].xyz;
@@ -445,8 +450,8 @@ fn bornState(origin: vec3<f32>, inherit: vec3<f32>, world: bool) -> State {
     var dir = vec3<f32>(0.0, 1.0, 0.0);
     let shape = P.p1.z;
     if (shape == 1u) {
-        let angle = rr(0.0, 6.283185307179586);
-        let radius = rr(0.0, P.p7.z);
+        let angle = rr(0.0, P.p17.x);
+        let radius = rr(P.p17.y * P.p7.z, P.p7.z);
         pos = vec3<f32>(cos(angle) * radius, sin(angle) * radius, 0.0);
         if (radius > 0.001) { dir = pos / radius; } else { dir = planarAim(); }
     } else if (shape == 2u) {
@@ -459,12 +464,12 @@ fn bornState(origin: vec3<f32>, inherit: vec3<f32>, world: bool) -> State {
         dir = planarAim();
     } else if (shape == 3u) {
         dir = coneDir(P.p7.w);
-        pos = coneDir(P.p7.w) * rr(0.0, P.p7.z);
+        pos = coneDir(P.p7.w) * rr(P.p17.y * P.p7.z, P.p7.z);
     } else if (shape == 4u || shape == 5u) {
         var cap2 = 3.141592653589793;
         if (shape == 5u) { cap2 = 1.5707963267948966; }
         dir = coneDir(cap2);
-        pos = coneDir(cap2) * (P.p7.z * pow(rr(0.0, 1.0), 1.0 / 3.0));
+        pos = coneDir(cap2) * (P.p7.z * pow(rr(P.p17.y * P.p17.y * P.p17.y, 1.0), 1.0 / 3.0));
     } else {
         dir = planarAim();
     }
@@ -567,6 +572,23 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var speedMul = 1.0;
     if ((flags & 32u) != 0u) { speedMul = lutF(1u, t); }
     pos = pos + vel * speedMul * stepDt;
+    // Orbital and radial velocity (ParticleOrbit.hpp): the position turns about the emitter and moves along the line from it.
+    if ((flags & 16384u) != 0u) {
+        var centre = P.origin.xyz;
+        var turnAxes = R;
+        if (local) { centre = vec3<f32>(0.0); turnAxes = mat3x3<f32>(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(0.0, 0.0, 1.0)); }
+        var rel = pos - centre;
+        let turn = P.p16.xyz * stepDt;
+        let angle = length(turn);
+        if (angle > 1e-7) {
+            let k = turnAxes * (turn / angle);
+            let c = cos(angle);
+            rel = rel * c + cross(k, rel) * sin(angle) + k * dot(k, rel) * (1.0 - c);
+        }
+        let distance = length(rel);
+        if (P.p16.w != 0.0 && distance > 1e-5) { rel = rel * (max(distance + P.p16.w * stepDt, 0.0) / distance); }
+        pos = centre + rel;
+    }
 
     if ((flags & 4u) != 0u) {
         let flow = curl(pos.xy * P.p6.w + P.p7.xy, P.p1.w);
@@ -652,7 +674,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let extra = vec4<f32>(clamp(age / life, 0.0, 1.0), f32(pcg(i) >> 8u) / 16777216.0, P.p15.z, life);
     if ((flags & 8192u) != 0u) { stepTrail(i, worldPos, born, color, extra); }
     worldPos = worldPos - P.shift.xyz;
-    insts[i] = Inst(worldPos.x, worldPos.y, worldPos.z, worldSize.x, worldSize.y, rotation, pack4x8unorm(color), u0, v0, us, vs, extra.x, extra.y, extra.z, extra.w);
+    insts[i] = Inst(worldPos.x, worldPos.y, worldPos.z, worldSize.x, worldSize.y, rotation, P.p17.z, pack4x8unorm(color), u0, v0, us, vs, extra.x, extra.y, extra.z, extra.w);
 }
 )WGSL";
 
@@ -953,6 +975,9 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     if (emitsHit) flags |= kEmitHit;
     if (step.fed) flags |= kFed;
     if (trailOn) flags |= kTrail;
+    const glm::vec3 orbital = glm::vec3(finite(emitter.orbitalVelocity.x), finite(emitter.orbitalVelocity.y), finite(emitter.orbitalVelocity.z));
+    const f32 radial = finite(emitter.radialVelocity);
+    if (orbital != glm::vec3(0.0f) || radial != 0.0f) flags |= kOrbit;
 
     const auto* colorLut = system->colorLut(entity);
     const auto* sizeLut = system->sizeLut(entity);
@@ -1018,6 +1043,8 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
          std::max(finite(emitter.collisionThickness), 0.0f), 0.0f);
     set4(b.p14, points, emitter.collisionMask & 0xffffu, depthW_, depthH_);
     set4(b.p15, finite(emitter.trailWidth), std::max(finite(emitter.trailMinDistance), 0.0f), std::max(finite(emitter.intensity), 0.0f), 0.0f);
+    set4(b.p16, orbital.x * math::DEG_TO_RAD, orbital.y * math::DEG_TO_RAD, orbital.z * math::DEG_TO_RAD, radial);
+    set4(b.p17, particle::shapeArcRadians(emitter), particle::shapeInner(emitter), static_cast<f32>(particle::renderAlignment(emitter)), 0.0f);
     set4(b.camera, eye.x, eye.y, eye.z, eye.w);
     job.subEmitter = emitter.subEmitter;
     job.inheritVelocity = std::clamp(finite(emitter.subEmitterInheritVelocity), 0.0f, 1.0f);

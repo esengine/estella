@@ -41,6 +41,17 @@ enum class LightType : i32 {
 };
 
 /**
+ * @brief How a light's brightness moves on its own while the scene runs. Sine swells and dims smoothly — a pulsing
+ *        rune, a beacon. Flicker wanders at random around its level — a torch, a fire, a failing lamp.
+ */
+ES_ENUM()
+enum class LightPulse : i32 {
+    None = 0,
+    Sine = 1,
+    Flicker = 2,
+};
+
+/**
  * @brief A 2D light contributing to Lit-shaded materials.
  *
  * @code
@@ -65,6 +76,21 @@ struct Light {
     /** @brief Light strength multiplier. */
     ES_PROPERTY(animatable, min=0, tooltip="Brightness multiplier of the light.")
     f32 intensity{1.0f};
+
+    /** @brief How the brightness moves on its own (see LightPulse). Drawn from `intensity`, which it never writes. */
+    ES_PROPERTY(enum=LightPulse, optional, shown_when=type:Point|Directional|Spot,
+                tooltip="Moves the brightness on its own: Sine swells and dims smoothly, Flicker wanders like a flame. The intensity you set is the brightest it gets.")
+    i32 pulse{0};
+
+    /** @brief Sine: swells per second. Flicker: how quickly it wanders. */
+    ES_PROPERTY(min=0, unit="Hz", optional, shown_when=pulse:Sine|Flicker,
+                tooltip="Sine: full swells a second. Flicker: how many times a second it changes direction, roughly.")
+    f32 pulseRate{2.0f};
+
+    /** @brief How far below `intensity` the brightness reaches: 0 does not move, 1 goes dark. */
+    ES_PROPERTY(min=0, max=1, slider, optional, shown_when=pulse:Sine|Flicker,
+                tooltip="How far it dims below the intensity: 0 does not move, 1 goes fully dark at the bottom of each pulse.")
+    f32 pulseDepth{0.5f};
 
     /** @brief Point/Spot falloff radius in world units (ignored by Directional/Ambient). */
     ES_PROPERTY(animatable, min=0, shown_when=type:Point|Spot,

@@ -1,0 +1,406 @@
+{
+  "version": 4,
+  "name": "particle-align-top",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 700,
+              "z": 0
+            },
+            "rotation": {
+              "x": -0.7071068,
+              "y": 0,
+              "z": 0,
+              "w": 0.7071068
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Billboard",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -200,
+              "y": 110,
+              "z": -110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 0,
+            "gpuSimulation": false,
+            "startColor": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "endColor": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Horizontal",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 110,
+              "z": -110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 2,
+            "gpuSimulation": false,
+            "startColor": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "endColor": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Vertical",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 110,
+              "z": -110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 3,
+            "gpuSimulation": false,
+            "startColor": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            },
+            "endColor": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Billboard",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -200,
+              "y": -110,
+              "z": 110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 0,
+            "gpuSimulation": true,
+            "startColor": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "endColor": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Horizontal",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -110,
+              "z": 110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 2,
+            "gpuSimulation": true,
+            "startColor": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "endColor": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Vertical",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": -110,
+              "z": 110
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "rate": 0,
+            "burstCount": 1,
+            "burstInterval": 1000,
+            "maxParticles": 1,
+            "lifetimeMin": 10,
+            "lifetimeMax": 10,
+            "shape": 0,
+            "speedMin": 0,
+            "speedMax": 0,
+            "startSizeMin": 120,
+            "startSizeMax": 120,
+            "endSizeMin": 120,
+            "endSizeMax": 120,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0,
+            "simulationSpace": 0,
+            "looping": false,
+            "playOnStart": true,
+            "blendMode": 0,
+            "renderMode": 3,
+            "gpuSimulation": true,
+            "startColor": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            },
+            "endColor": {
+              "r": 0,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

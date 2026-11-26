@@ -75,6 +75,9 @@ rotation that aims that axis along a direction.
 | `color` | `{1,1,1,1}` | all | Light colour, RGBA 0–1. Alpha is unused; strength is `intensity`. |
 | `intensity` | `1` | all | Brightness multiplier. May exceed 1 (HDR, see [Color Space & Quality](/docs/graphics/lighting/color-and-quality/)). |
 | `enabled` | `true` | all | Disables the light without removing it. |
+| `pulse` | `None` | Point, Directional, Spot | `LightPulse`: `None`, `Sine` (swells and dims smoothly) or `Flicker` (wanders like a flame). See [Pulse and flicker](#pulse-and-flicker). |
+| `pulseRate` | `2` | with a pulse | `Sine`: full swells a second. `Flicker`: roughly how many times a second it changes direction. |
+| `pulseDepth` | `0.5` | with a pulse | How far below `intensity` it dims, `0`–`1`: `0` does not move, `1` goes dark at the bottom. |
 
 ### Reach and shape
 
@@ -234,6 +237,15 @@ entity.insert(Light, {
 
 Cookies are drawn into a screen-space mask with one channel per shaped light, using the same mechanism as 2D shadows;
 each costs one quad rather than a texture slot.
+## Pulse and flicker
+
+A light with a `pulse` moves its own brightness while frames are drawn, in the editor as in a running game: `Sine` for
+a pulsing rune, a beacon or a spell charging; `Flicker` for a torch, a campfire or a failing lamp. `intensity` is the
+brightest it gets and `pulseDepth` how far below that it dims. The component's `intensity` is never written, so a
+timeline or a script can still animate it, and the pulse multiplies whatever it is. Each light takes its own phase from
+its entity, so a row of torches does not flicker in step. Typical values: a fire `Flicker` at rate `8`, depth `0.25`; a
+rune `Sine` at rate `1.5`, depth `0.5`.
+
 ## Intensity units
 
 `intensity` contains no factor of π: a Directional light of `1` facing a surface gives it its full colour. three.js

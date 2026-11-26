@@ -933,7 +933,7 @@ static prototype: App
 
 ## AppContext — class @experimental
 ```
-componentRegistry: Map<string, any>
+componentRegistry: ComponentRegistry
 drainPendingPlugins: () => unknown[]
 drainPendingSystems: () => PendingSystemEntry[]
 editorBridge: EditorBridge | null
@@ -6555,6 +6555,9 @@ layerMax: number | undefined
 layerMin: number | undefined
 meshShadows: boolean
 outerAngle: number
+pulse: LightPulse | undefined
+pulseDepth: number | undefined
+pulseRate: number | undefined
 radius: number
 reflectionSaturation: number
 reflectionScale: number
@@ -7921,15 +7924,19 @@ noiseFrequency: number
 noiseOctaves: number
 noiseScrollSpeed: number
 noiseStrength: number
+orbitalVelocity: Vec3
 playOnStart: boolean
+radialVelocity: number
 rate: number
 renderMode: ParticleRenderMode
 rotationMax: number
 rotationMin: number
 shape: EmitterShape
 shapeAngle: number
+shapeArc: number
 shapeRadius: number
 shapeSize: Vec3
+shapeThickness: number
 simulationSpace: SimulationSpace
 simulationSpeed: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
@@ -7989,7 +7996,9 @@ static prototype: ParticlePlugin
 ## ParticleRenderMode — enum @beta
 ```
 Billboard = 0
+Horizontal = 2
 Stretched = 1
+Vertical = 3
 ```
 
 ## PartitionOptions — interface @experimental

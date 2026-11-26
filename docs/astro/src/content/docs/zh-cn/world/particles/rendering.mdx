@@ -76,7 +76,7 @@ const recolor = defineSystem([Res(Particle)], (particles) => {
 | `layer` | number | `0` | 决定绘制顺序的排序层。在 `Canvas` 下为 `0` 时按树中位置绘制（[UI 中的粒子](#ui-中的粒子)）。 |
 | `material` | asset | 无 | 自定义材质（[粒子材质](#粒子材质)）。 |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`（[模拟空间](/docs/zh-cn/world/particles/overview/#模拟空间)）。 |
-| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图；`Stretched` 让四边形沿粒子速度方向铺开（[拉伸粒子](#拉伸粒子)）。 |
+| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图；`Stretched` 让四边形沿粒子速度方向铺开（[拉伸粒子](#拉伸粒子)）；`Horizontal` 平铺在地面上，`Vertical` 竖直立起（[贴地与竖直粒子](#贴地与竖直粒子)）。 |
 | `velocityScale` | number | `0` | 仅 `Stretched`：每单位速度增加的长度，世界单位。 |
 | `lengthScale` | number | `1` | 仅 `Stretched`：四边形自身长度为尺寸乘以该值。 |
 | `intensity` | number | `1` | 绘制时乘到粒子颜色（不含 alpha）上的倍数。线性色彩空间下画面是 HDR，大于 1 的值能让粒子亮到触发泛光。可由时间线驱动。CPU 模拟的逐粒子拖尾不受它影响。 |
@@ -100,6 +100,10 @@ const recolor = defineSystem([Res(Particle)], (particles) => {
 宽度为粒子尺寸。贴图应画成朝上的形状：火花、雨滴、拖光。静止的粒子保持生成时的旋转。
 
 拉伸在 CPU 模拟的绘制阶段完成。GPU 模拟的发射器按 `Billboard` 绘制。
+
+## 贴地与竖直粒子
+
+`renderMode: Horizontal` 让每个四边形平铺在世界的地面平面里、朝上，不论相机在哪：冲击波环、焦痕、法阵、火堆下的光晕。公告板的环会朝相机倾斜，看起来像悬在空中的圆盘；水平的环始终贴在地上。`renderMode: Vertical` 让每个四边形竖直立起，只绕世界的上方向轴转向相机：火焰、光柱、草这类从上往下看时不能向后倒的东西。从正上方看，竖直的四边形是侧边朝向相机。两种模式下粒子的 `rotation` 都在它自己的平面内旋转。这两种是 3D 模式：2D 相机沿着地面平面看，水平四边形对它来说是侧边。它们在 CPU 和 GPU 模拟里都生效，[粒子材质](#粒子材质)也按同样方式摆放。
 
 ## 粒子材质
 

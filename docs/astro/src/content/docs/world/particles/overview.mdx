@@ -122,7 +122,9 @@ the default PPU); angles are in degrees. The fields are documented by group:
 | `shape` | `EmitterShape` | `Cone` | `Point`, `Circle`, `Box`, `Cone`, `Sphere` or `Hemisphere`. |
 | `shapeRadius` | number | `100` | Radius for `Circle`, `Cone`, `Sphere` and `Hemisphere`. |
 | `shapeSize` | Vec3 | `{100, 100, 0}` | Box extents for `Box`. A `z` of `0` is a flat rectangle, as used by 2D emitters. |
-| `shapeAngle` | number | `25` | Cone half-angle (°) for `Cone`. |
+| `shapeAngle` | number | `25` | The cone's whole opening (°) for `Cone`: `25` spreads 12.5° either side of its axis. |
+| `shapeArc` | number | `360` | How much of the way round the shape's axis particles are born (°), from its local +X. `Circle` turns in its own plane; `Cone`, `Sphere` and `Hemisphere` turn about +Y. |
+| `shapeThickness` | number | `1` | How deep in from the rim particles are born, `0`–`1`: `1` fills the shape, `0` is the rim alone. |
 
 | Shape | Uses | Spawn region and direction |
 |---|---|---|
@@ -137,6 +139,12 @@ Directed shapes point along the emitter's local +Y: an unrotated emitter emits u
 in 2D and 3D. `Point` and `Box` have no direction of their own; the `angleSpreadMin…Max` arc in the emitter's local XY
 plane ([Velocity and forces](/docs/world/particles/motion/#velocity-and-forces)) sets their launch direction, so a
 `Point` that emits only upward uses `0…180`. `Circle`, `Cone`, `Sphere` and `Hemisphere` ignore the arc.
+
+`shapeArc` and `shapeThickness` narrow the round shapes. A `Circle` with `shapeThickness: 0` is a ring: every particle
+is born on its rim, which is how a shockwave or a magic circle starts. `shapeArc: 180` keeps the births to a half ring,
+or for a `Sphere` to the half on its +Z side. A `Sphere` with `shapeThickness: 0` is a shell, and `0.5` fills its outer
+half evenly through the volume. Both run on the CPU and GPU simulations alike, and at `360` and `1` an emitter draws
+exactly what it drew before the fields existed.
 
 ![Emitter shape gizmos in the viewport — a cone, a circle, and a rectangle](@/assets/guides/en/particle-view.png)
 

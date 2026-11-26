@@ -5,7 +5,7 @@ Symbols: 115 public · 175 beta · 2464 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"21759a2e9e105f51"
+"29b5ecc6deced320"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -938,7 +938,7 @@ static prototype: App
 
 ## AppContext — class @experimental
 ```
-componentRegistry: Map<string, any>
+componentRegistry: ComponentRegistry
 drainPendingPlugins: () => unknown[]
 drainPendingSystems: () => PendingSystemEntry[]
 editorBridge: EditorBridge | null
@@ -6568,6 +6568,9 @@ layerMax: number | undefined
 layerMin: number | undefined
 meshShadows: boolean
 outerAngle: number
+pulse: LightPulse | undefined
+pulseDepth: number | undefined
+pulseRate: number | undefined
 radius: number
 reflectionSaturation: number
 reflectionScale: number
@@ -8143,15 +8146,19 @@ noiseFrequency: number
 noiseOctaves: number
 noiseScrollSpeed: number
 noiseStrength: number
+orbitalVelocity: Vec3
 playOnStart: boolean
+radialVelocity: number
 rate: number
 renderMode: ParticleRenderMode
 rotationMax: number
 rotationMin: number
 shape: EmitterShape
 shapeAngle: number
+shapeArc: number
 shapeRadius: number
 shapeSize: Vec3
+shapeThickness: number
 simulationSpace: SimulationSpace
 simulationSpeed: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
@@ -8211,7 +8218,9 @@ static prototype: ParticlePlugin
 ## ParticleRenderMode — enum @beta
 ```
 Billboard = 0
+Horizontal = 2
 Stretched = 1
+Vertical = 3
 ```
 
 ## PartitionOptions — interface @experimental

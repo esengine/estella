@@ -5,6 +5,7 @@
  * @brief   Assemble and submit shared scene views, lighting and shadow passes.
  */
 #include "./RenderFrame.hpp"
+#include "../LightPulse.hpp"
 #include "../../ui/UIRenderData.hpp"
 #ifdef ES_ENABLE_GPU_PARTICLES
 #include "./GpuParticles.hpp"
@@ -2089,7 +2090,9 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         caster.slopeFloor = std::isfinite(light.shadowSlopeFloor) ? std::clamp(light.shadowSlopeFloor, 0.01f, 1.0f) : 0.15f;
         // The sun is the environment's, so the ambient light's colour and intensity
         // scale it as they scale the rest of the panorama; this light's own scale on top.
-        gpu.color = glm::vec4(followsSun ? sky->sunColor * skyScale * rgb : rgb, light.intensity);
+        // A pulse dims from the authored intensity as the frame clock runs; the component keeps what was set.
+        const f32 intensity = light.intensity * lightPulseFactor(light, elapsed_, static_cast<u32>(entity));
+        gpu.color = glm::vec4(followsSun ? sky->sunColor * skyScale * rgb : rgb, intensity);
         // shadow.x = penumbra softness (all types); shadow.y = directional march distance (only the
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
         gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
