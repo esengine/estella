@@ -85,4 +85,22 @@ describe('runtime snapshot visibility', () => {
             expect(worldSnapshot(app, entity, true).selected?.hideable).toBeUndefined();
         } finally { unregisterComponent(renderer._name); }
     });
+
+    it('uses renderer registration priority even when entity components arrived in another order', () => {
+        const { world, app } = fixture();
+        const first = defineComponent('SnapshotFirstRenderer', { enabled: false }, { renderableField: 'enabled' });
+        const second = defineComponent('SnapshotSecondRenderer', { enabled: true }, { renderableField: 'enabled' });
+        try {
+            const entity = world.spawn('Mixed renderers');
+            world.insert(entity, second);
+            world.insert(entity, first);
+            expect(worldSnapshot(app, entity, true).tree!.entities[0]).toMatchObject({ hidden: true });
+            expect(worldSnapshot(app, entity, false).selected).toMatchObject({ hidden: true });
+            unregisterComponent(first._name);
+            expect(worldSnapshot(app, entity, true).selected).toMatchObject({ hidden: false });
+        } finally {
+            unregisterComponent(first._name);
+            unregisterComponent(second._name);
+        }
+    });
 });

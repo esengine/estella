@@ -9,7 +9,7 @@
 import type { App } from '../app/app';
 import type { World } from '../ecs/world';
 import { isLiveEntity, liveEntities } from '../ecs/liveEntityHandles';
-import { getComponent, renderableComponents, type AnyComponentDef } from '../ecs/component';
+import { getComponent, renderableComponents, type AnyComponentDef, type RenderableComponentDef } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { Assets } from '../asset/AssetPlugin';
 import { UINode, UIDisplay } from '../ui/core/ui-node';
@@ -17,6 +17,19 @@ import { sceneOriginOf } from '../scene/sceneOrigins';
 
 /** Kept as the tree's own shape (name, parent, children) rather than as rows. */
 const STRUCTURAL = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
+
+type RendererPriority = { definition: RenderableComponentDef; rank: number };
+const rendererPriorities = new WeakMap<readonly RenderableComponentDef[], ReadonlyMap<string, RendererPriority>>();
+
+function rendererPriorityIndex(): ReadonlyMap<string, RendererPriority> {
+    const renderers = renderableComponents();
+    let index = rendererPriorities.get(renderers);
+    if (!index) {
+        index = new Map(renderers.map((definition, rank) => [definition._name, { definition, rank }]));
+        rendererPriorities.set(renderers, index);
+    }
+    return index;
+}
 
 export interface SnapshotComponent {
     type: string;
@@ -149,10 +162,22 @@ export function worldSnapshot(
 
     const nameOf = (e: number): string =>
         (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
-    const renderers = renderableComponents();
+    const priorities = rendererPriorityIndex();
     const visibilityReaders = new Map<AnyComponentDef, (entity: number) => unknown>();
     const visibilityOf = (e: number, types: string[]): Pick<SnapshotEntity, 'hideable' | 'hidden'> => {
-        const source = types.includes(UINode._name) ? UINode : renderers.find((comp) => types.includes(comp._name));
+        let source: AnyComponentDef | undefined;
+        let rank = Infinity;
+        for (const type of types) {
+            if (type === UINode._name) {
+                source = UINode;
+                break;
+            }
+            const candidate = priorities.get(type);
+            if (candidate && candidate.rank < rank) {
+                source = candidate.definition;
+                rank = candidate.rank;
+            }
+        }
         if (!source) return {};
         let read = visibilityReaders.get(source);
         if (!read) {
