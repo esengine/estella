@@ -653,6 +653,13 @@ export async function cookAssets(
     for (const dep of index.deps[uuid] ?? []) seed(dep, { reason: 'dependency', via: from });
   }
 
+  // The tile grid and its weights address individual source samples.
+  const terrainImages = new Set<string>();
+  for (const uuid of reachable) {
+    if (byUuid.get(uuid)?.type !== 'terrain-tiles') continue;
+    for (const dep of index.deps[uuid] ?? []) terrainImages.add(dep);
+  }
+
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(root, opts.outDir);
   await mkdir(absOut, { recursive: true });
 
@@ -675,6 +682,7 @@ export async function cookAssets(
     .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture' && !recipeProducts.has(e.path));
   const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
   const artBytes = textureSources.reduce((n, e) => {
+    if (terrainImages.has(e.uuid)) return n;
     try { return n + statSync(path.join(root, e.path)).size; } catch { return n; }
   }, 0);
   const decoderBytes = opts.textureDecoderBytes;
@@ -731,7 +739,7 @@ export async function cookAssets(
     for (const uuid of reachable) {
       const entry = byUuid.get(uuid);
       // Mesh UVs, material samplers and baked lightmaps address the whole texture.
-      if (!entry || entry.type === 'scene' || roles.has(uuid)) continue;
+      if (!entry || entry.type === 'scene' || roles.has(uuid) || terrainImages.has(uuid)) continue;
       if (path.extname(entry.path).toLowerCase() !== '.png') continue;
       const dir = resolveAtlas(entry.path, groupsConfig)?.name ?? null;
       if (!dir) continue;
@@ -861,9 +869,10 @@ export async function cookAssets(
       let tail: StreamTail | null = null;
       let compressedFormats: string[] | undefined;
       let cook: TextureCookDecision | undefined;
+      const preserveSamples = terrainImages.has(entry.uuid);
       // An authored single-level UASTC KTX2 gets the chain a compressed texture
       // cannot generate on the device, under its own untouched level 0.
-      const layout = textureEnc && entry.type === 'texture' && ext.toLowerCase() === '.ktx2' ? readKtx2Layout(data) : null;
+      const layout = textureEnc && !preserveSamples && entry.type === 'texture' && ext.toLowerCase() === '.ktx2' ? readKtx2Layout(data) : null;
       if (textureEnc && wantsMipChain(layout)) {
         const enc = textureEnc;
         const source = data;
@@ -892,14 +901,14 @@ export async function cookAssets(
           root, path: entry.path, data, ext, importer: entry.importer, platform,
           encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
           compressTextures, atlasTextures, drawnIn3D: roles.has(entry.uuid),
-          resizeTextures: opts.resizeTextures,
+          resizeTextures: opts.resizeTextures, preserveSamples,
         });
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
         warnings.push(...t.warnings);
         if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
       }
       // Mesh previews use the shipped texture, whether imported as KTX2 or encoded by this cook.
-      if (!fromRecipe && streamTails && roles.get(entry.uuid)?.has('surface')) {
+      if (!fromRecipe && !preserveSamples && streamTails && roles.get(entry.uuid)?.has('surface')) {
         try {
           tail = await makeStreamTail(data, ext, readTextureCookSettings(entry.importer, platform).srgb);
         } catch (err) {

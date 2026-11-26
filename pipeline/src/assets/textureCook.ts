@@ -209,6 +209,8 @@ export interface TextureCookInput {
   compressTextures: boolean;
   /** Apply authored Max Size while shipping raw PNGs, without a KTX2 encoder. */
   resizeTextures?: boolean;
+  /** A document addresses individual samples and requires the original file and dimensions. */
+  preserveSamples?: boolean;
   atlasTextures: boolean;
   /** A mesh draws this texture (texturesDrawnIn3D) — what Auto compression resolves by. */
   drawnIn3D: boolean;
@@ -247,11 +249,12 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const textureEnc = input.encoder?.module ?? null;
   // Numbers, not a picture: a texture whose Use is Data, and any PNG of 16 bits a sample whatever it is marked (the paths below all
   // decode to 8 bits first). It is never encoded or filled; it is shrunk only where a Data texture's Max Size says so, at its own depth.
-  if (needsLosslessTextureCook(tex.use, raster ? data : undefined)) {
+  if (input.preserveSamples || needsLosslessTextureCook(tex.use, raster ? data : undefined)) {
     const cook = decideTextureCook({
       compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
       compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: raster ? safePngDimensions(data) : null,
     });
+    if (input.preserveSamples) return { data, ext, cook, warnings, defeatedByFormat: false };
     const size = raster ? safePngDimensions(data) : null;
     const capped = tex.use === 'data' && (textureEnc || input.resizeTextures) && size && tex.maxSize > 0 && tex.maxSize < Math.max(size.width, size.height);
     if (tex.use !== 'data') {
