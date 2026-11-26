@@ -633,6 +633,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_retainedTextStale", ES_RENDER_BIND(renderer_retainedTextStale));
     emscripten::function("renderer_retainedTextSubmit", ES_RENDER_BIND(renderer_retainedTextSubmit));
     emscripten::function("meshRenderer_setGeometry", ES_RENDER_BIND(meshRenderer_setGeometry));
+    emscripten::function("meshRenderer_trySetGeometry", ES_RENDER_BIND(meshRenderer_trySetGeometry));
     emscripten::function("meshInstances_set", ES_RENDER_BIND(meshInstances_set));
     emscripten::function("mesh_createFromChannels", ES_RENDER_BIND(mesh_createFromChannels));
     emscripten::function("mesh_rematerializeFromChannels", ES_RENDER_BIND(mesh_rematerializeFromChannels));

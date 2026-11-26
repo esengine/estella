@@ -177,6 +177,13 @@ void meshRenderer_setGeometry(
     uintptr_t colorsPtr,
     uintptr_t indicesPtr, u32 indexCount
 );
+/** @brief Upload inline geometry and report whether the core accepted it. */
+bool meshRenderer_trySetGeometry(
+    ecs::Registry& registry, u32 entity,
+    uintptr_t posUvPtr, u32 vertexCount,
+    uintptr_t colorsPtr,
+    uintptr_t indicesPtr, u32 indexCount
+);
 /** @brief The placements of a MeshInstances: sixteen f32 an instance (see the component). Empty clears the set. */
 void meshInstances_set(ecs::Registry& registry, u32 entity, uintptr_t dataPtr, u32 count);
 /** @brief Geometry from an .esmesh channel table; returns its handle, 0 on failure. */

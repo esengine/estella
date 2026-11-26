@@ -86,6 +86,7 @@ export interface NativeEngineApi {
     meshRenderer_setGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): void;
     meshRenderer_setMaterialAll?(registry: unknown, materialId: number): number;
     meshRenderer_setMeshAll?(registry: unknown, meshHandle: number): number;
+    meshRenderer_trySetGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): boolean;
     mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
     mesh_release?(meshHandle: number): void;
     mesh_rematerializeFromChannels?(targetHandle: number, channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
@@ -553,6 +554,7 @@ export function createNativeEngineApi(
     bind('meshRenderer_setGeometry', 'es_meshRenderer_setGeometry', true);
     bind('meshRenderer_setMaterialAll', 'es_meshRenderer_setMaterialAll', true);
     bind('meshRenderer_setMeshAll', 'es_meshRenderer_setMeshAll', true);
+    bind('meshRenderer_trySetGeometry', 'es_meshRenderer_trySetGeometry', true);
     bind('mesh_createFromChannels', 'es_mesh_createFromChannels', false);
     bind('mesh_release', 'es_mesh_release', false);
     bind('mesh_rematerializeFromChannels', 'es_mesh_rematerializeFromChannels', false);

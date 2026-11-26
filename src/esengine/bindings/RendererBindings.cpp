@@ -358,7 +358,7 @@ void renderer_setRetainedTextCollectedInWorld(ecs::Registry& registry, bool coll
 // colors (null = all white), u32 triangle-list indices. Validated here — the single
 // upload entry — so the render path can trust the payload: out-of-range indices or a
 // non-triangle count reject the whole upload instead of feeding the GPU garbage.
-void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
+bool meshRenderer_trySetGeometry(ecs::Registry& registry, u32 entity,
                         uintptr_t posUvPtr, u32 vertexCount,
                         uintptr_t colorsPtr,
                         uintptr_t indicesPtr, u32 indexCount) {
@@ -366,7 +366,7 @@ void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
     auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
     if (!mesh) {
         ES_LOG_WARN("meshRenderer_setGeometry: entity {} has no MeshRenderer component", entity);
-        return;
+        return false;
     }
 
     // Empty upload = clear the geometry (a valid state: the mesh renders nothing).
@@ -374,23 +374,23 @@ void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
         mesh->vertices.clear();
         mesh->indices.clear();
         mesh->localMin = mesh->localMax = glm::vec2(0.0f);
-        return;
+        return true;
     }
     if (indexCount % 3 != 0) {
         ES_LOG_WARN("meshRenderer_setGeometry: indexCount {} is not a triangle list; rejected", indexCount);
-        return;
+        return false;
     }
 
     const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 4, "meshRenderer_setGeometry.posUv");
     const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "meshRenderer_setGeometry.colors") : nullptr;
     const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "meshRenderer_setGeometry.indices");
-    if (!posUv || !indices || (colorsPtr && !colors)) return;
+    if (!posUv || !indices || (colorsPtr && !colors)) return false;
 
     for (u32 i = 0; i < indexCount; ++i) {
         if (indices[i] >= vertexCount) {
             ES_LOG_WARN("meshRenderer_setGeometry: index {} out of range (vertexCount {}); rejected",
                         indices[i], vertexCount);
-            return;
+            return false;
         }
     }
 
@@ -408,6 +408,13 @@ void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
     mesh->indices.assign(indices, indices + indexCount);
     mesh->localMin = mn;
     mesh->localMax = mx;
+    return true;
+}
+
+void meshRenderer_setGeometry(ecs::Registry& registry, u32 entity,
+                              uintptr_t posUvPtr, u32 vertexCount,
+                              uintptr_t colorsPtr, uintptr_t indicesPtr, u32 indexCount) {
+    meshRenderer_trySetGeometry(registry, entity, posUvPtr, vertexCount, colorsPtr, indicesPtr, indexCount);
 }
 
 // The placements of a MeshInstances, copied in and measured: the corners of where the instances stand and the

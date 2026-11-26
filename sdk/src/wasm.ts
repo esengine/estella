@@ -519,6 +519,13 @@ export interface ESEngineModule extends TilemapBindings {
         colorsPtr: number,
         indicesPtr: number, indexCount: number
     ): void;
+    /** The same upload, with an acknowledgement from the core. */
+    meshRenderer_trySetGeometry?(
+        registry: CppRegistry, entity: number,
+        posUvPtr: number, vertexCount: number,
+        colorsPtr: number,
+        indicesPtr: number, indexCount: number
+    ): boolean;
 
     /**
      * The placements of a MeshInstances component: sixteen f32 an instance (the model's three rows, then a tint). Empty clears the set.

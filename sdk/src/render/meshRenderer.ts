@@ -53,7 +53,7 @@ export class MeshRendererAPI {
      */
     setGeometry(entity: Entity, geometry: MeshRendererGeometry): void {
         const m = this.module_;
-        const upload = m.meshRenderer_setGeometry;
+        const upload = m.meshRenderer_trySetGeometry ?? m.meshRenderer_setGeometry;
         // A core that compiles no mesh renderer, or marshals no buffers, uploads nothing.
         // The heap is wasm linear memory on the web and the host's arena on a
         // device — the writes below are identical either way.
@@ -67,7 +67,7 @@ export class MeshRendererAPI {
         }
 
         const captured = copyGeometry(geometry);
-        withScratch(allocator, alloc => {
+        const accepted = withScratch<boolean | void>(allocator, alloc => {
             const colors = captured.colors;
             const hasColors = !!colors?.length;
             const posUvPtr = alloc(vertexCount * 4 * 4);
@@ -92,15 +92,16 @@ export class MeshRendererAPI {
 
             new Uint32Array(buffer, indicesPtr, indexCount).set(captured.indices);
 
-            upload(this.registry_, entity, posUvPtr, vertexCount,
+            return upload(this.registry_, entity, posUvPtr, vertexCount,
                    colorsPtr, indicesPtr, indexCount);
         });
-        this.authored_.set(entity, captured);
+        if (accepted !== false) this.authored_.set(entity, captured);
     }
 
     /** Clear an entity's mesh geometry (a valid state: the mesh renders nothing). */
     clearGeometry(entity: Entity): void {
-        this.module_.meshRenderer_setGeometry?.(this.registry_, entity, 0, 0, 0, 0, 0);
+        const upload = this.module_.meshRenderer_trySetGeometry ?? this.module_.meshRenderer_setGeometry;
+        upload?.(this.registry_, entity, 0, 0, 0, 0, 0);
         this.authored_.delete(entity);
     }
 

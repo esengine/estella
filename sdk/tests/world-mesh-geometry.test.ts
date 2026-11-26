@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { MeshRenderers, MeshRendererAPI, meshRendererPlugin } from '../src/render/meshRenderer';
 import { MeshRenderer } from '../src/ecs/component';
+import { createNativeEngineApi } from '../src/ecs/bridge/nativeEngineApi.generated';
 import { loadSceneData, registerWorldSceneComponentCodec, registerWorldSceneExportFilter, serializeScene, type SceneData, type SceneExportFilter } from '../src/scene/scene';
 import type { CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
@@ -20,6 +21,33 @@ function scene(size: number): SceneData {
 }
 
 describe('inline mesh geometry', () => {
+    it.skipIf(!HAS_WASM)('keeps the last accepted geometry when the core rejects an upload', async () => {
+        const engine = await loadWasmModule();
+        const app = App.new();
+        try {
+            const registry = new engine.Registry();
+            app.connectCpp(registry, engine, { ownedRegistry: true });
+            app.addPlugin(meshRendererPlugin);
+            const entity = app.world.spawn('Geometry'), api = app.getResource(MeshRenderers);
+            app.world.insert(entity, MeshRenderer);
+            api.setGeometry(entity, triangle(3));
+            for (const indices of [[0, 1], [0, 1, 3]]) {
+                api.setGeometry(entity, { ...triangle(7), indices });
+                const data = serializeScene(app.world).entities[0].components.find(c => c.type === 'MeshRenderer')!.data;
+                expect(data.geometry).toEqual(triangle(3));
+                expect(engine.meshRenderer_localBounds!(registry, entity)).toMatchObject({ maxX: 3, maxY: 3 });
+            }
+            const other = app.world.spawn('No mesh');
+            api.setGeometry(other, triangle(7));
+            expect(api.getGeometry(other)).toBeUndefined();
+            api.setGeometry(entity, triangle(4));
+            expect(api.getGeometry(entity)).toEqual(triangle(4));
+            api.clearGeometry(entity);
+            expect(api.getGeometry(entity)).toBeUndefined();
+            expect(engine.meshRenderer_localBounds!(registry, entity)).toBeNull();
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
     it.skipIf(!HAS_WASM)('keeps uploaded geometry independent from caller and scene records', async () => {
         const engine = await loadWasmModule();
         const app = App.new();
@@ -135,4 +163,23 @@ describe('inline mesh geometry', () => {
         expect(upload).toHaveBeenCalledTimes(2);
     });
 
+    it('uses the native host acknowledgement to decide whether to retain an upload', () => {
+        const checked = vi.fn((_entity: number) => true).mockReturnValueOnce(true).mockReturnValueOnce(false);
+        const legacy = vi.fn();
+        const bindings = createNativeEngineApi({
+            es_meshRenderer_trySetGeometry: checked, es_meshRenderer_setGeometry: legacy,
+        });
+        let offset = 16;
+        const api = new MeshRendererAPI({
+            ...bindings, HEAPU8: new Uint8Array(256),
+            _malloc: (bytes: number) => { const ptr = offset; offset += bytes; return ptr; }, _free: vi.fn(),
+        }, {} as CppRegistry);
+        const entity = 1 as Entity;
+        api.setGeometry(entity, triangle(3));
+        api.setGeometry(entity, triangle(7));
+        expect(api.getGeometry(entity)).toEqual(triangle(3));
+        expect(checked).toHaveBeenCalledTimes(2);
+        expect(checked.mock.calls[0][0]).toBe(entity);
+        expect(legacy).not.toHaveBeenCalled();
+    });
 });
