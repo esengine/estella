@@ -105,8 +105,17 @@ function scopeOf(node) {
     return n;
 }
 
-function within(node, scope) {
-    for (let n = node; n; n = n.parent) if (n === scope) return true;
+function bindsName(binding, name) {
+    if (ts.isIdentifier(binding)) return binding.text === name;
+    return binding.elements.some(element => ts.isBindingElement(element) && bindsName(element.name, name));
+}
+
+/** A callback can capture a read handle, or declare a new parameter with the same name. */
+function visibleIn(node, scope, name) {
+    for (let n = node; n; n = n.parent) {
+        if (n === scope) return true;
+        if (ts.isFunctionLike(n) && n.parameters.some(p => bindsName(p.name, name))) return false;
+    }
     return false;
 }
 
@@ -147,7 +156,7 @@ function scanFile(rel, text) {
         if (!r) return null;
         if (worldReadKind(r)) return { origin: worldReadKind(r), direct: true };
         if (!ts.isIdentifier(r)) return null;
-        const hit = tracked.find((t) => t.name === r.text && within(node, t.scope));
+        const hit = tracked.find((t) => t.name === r.text && visibleIn(node, t.scope, r.text));
         return hit ? { origin: hit.origin, direct: false } : null;
     };
 
@@ -165,7 +174,7 @@ function scanFile(rel, text) {
                     // a write-back through the parent be recognised as one.
                     const parent = accessRoot(init);
                     const via = ts.isIdentifier(parent)
-                        ? tracked.find((t) => t.name === parent.text && within(node, t.scope))
+                        ? tracked.find((t) => t.name === parent.text && visibleIn(node, t.scope, parent.text))
                         : null;
                     tracked.push({
                         name: node.name.text, scope: scopeOf(node), origin: kind,
@@ -241,7 +250,7 @@ function scanFile(rel, text) {
     const isRow = (node) => {
         const r = accessRoot(node);
         if (!r || !ts.isIdentifier(r)) return false;
-        return rowBindings.some((b) => b.name === r.text && within(node, b.scope));
+        return rowBindings.some((b) => b.name === r.text && visibleIn(node, b.scope, r.text));
     };
 
     const written = new Set();
@@ -254,8 +263,8 @@ function scanFile(rel, text) {
     const storesBack = (node) => {
         const r = accessRoot(node);
         if (!r || !ts.isIdentifier(r)) return false;
-        const hit = tracked.find((t) => t.name === r.text && within(node, t.scope))
-            ?? rowBindings.find((b) => b.name === r.text && within(node, b.scope));
+        const hit = tracked.find((t) => t.name === r.text && visibleIn(node, t.scope, r.text))
+            ?? rowBindings.find((b) => b.name === r.text && visibleIn(node, b.scope, r.text));
         if (!hit) return false;
         const names = new Set([r.text, hit.root].filter(Boolean));
         let found = false;
@@ -266,12 +275,12 @@ function scanFile(rel, text) {
                 if (m === 'set' || m === 'insert') {
                     if (n.arguments.some((a) => {
                         const u = unwrap(a);
-                        return ts.isIdentifier(u) && names.has(u.text);
+                        return ts.isIdentifier(u) && names.has(u.text) && visibleIn(u, hit.scope, u.text);
                     })) found = true;
                 } else if (m === 'markChanged') found = true;
             } else if (ts.isCallExpression(n)) {
                 const value = projectedValue(n);
-                if (value && ts.isIdentifier(value) && names.has(value.text)) found = true;
+                if (value && ts.isIdentifier(value) && names.has(value.text) && visibleIn(value, hit.scope, value.text)) found = true;
             }
             ts.forEachChild(n, look);
         };
@@ -334,7 +343,7 @@ function scanFile(rel, text) {
                 if (!ts.isIdentifier(a) || a === projectedValue(node)) continue;
                 const callee = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : '';
                 if (callee === 'set' || callee === 'insert') continue;
-                const hit = tracked.find((t) => t.name === a.text && within(node, t.scope));
+                const hit = tracked.find((t) => t.name === a.text && visibleIn(node, t.scope, a.text));
                 if (hit && !ts.isPropertyAccessExpression(node.expression)) {
                     record(node, 'escapes', hit.origin);
                 } else if (hit && ts.isPropertyAccessExpression(node.expression)
@@ -379,13 +388,17 @@ const CALIBRATION = `
     function wrongSlot(world, e, C) { const h = world.get(e, C); h.v = 1; project(world, h, C, {}); }
     function otherImport(world, e, C) { const h = world.get(e, C); h.v = 1; other(world, e, C, h); }
     function shadow(world, e, C, shadowed) { const h = world.get(e, C); h.v = 1; shadowed(world, e, C, h); }
+    function drafts(world, e, C) { const h = world.get(e, C); world.update(e, C, h => { h.v = 1; }); }
+    function destructured(world, e, C) { const h = world.get(e, C); rows.forEach(({item: h}) => { h.v = 1; }); }
+    function captured(world, e, C) { const h = world.get(e, C); world.update(e, C, draft => { h.v = draft.v; }); }
+    function unrelatedStore(world, e, C) { const h = world.get(e, C); h.v = 1; rows.forEach(h => world.set(e, C, h)); }
 `;
 
 if (SELF_TEST) {
     const got = scanFile('sdk/tests/calibration.ts', CALIBRATION);
     const count = (c) => got.filter((f) => f.category === c).length;
     const expected = {
-        'direct-write': 2, 'alias-write': 9, 'method-write': 1,
+        'direct-write': 2, 'alias-write': 11, 'method-write': 1,
         'assign-write': 1, 'escapes': 4, 'row-write': 2,
     };
     let bad = 0;
@@ -401,7 +414,7 @@ if (SELF_TEST) {
         .findIndex((l) => l.includes(`function ${name}(`)) + 1 === f.line);
     for (const [fn, want] of [
         ['stored', true], ['silent', false], ['viaChild', true], ['projected', true],
-        ['wrongSlot', false], ['otherImport', false], ['shadow', false],
+        ['wrongSlot', false], ['otherImport', false], ['shadow', false], ['captured', false], ['unrelatedStore', false],
     ]) {
         const hits = inFn(fn).filter((f) => f.category === 'alias-write');
         const ok = hits.length === 1 && hits[0].storedBack === want;
