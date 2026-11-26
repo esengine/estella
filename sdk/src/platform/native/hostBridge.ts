@@ -184,14 +184,14 @@ export function createHostBridge(
         if (!listener) return;
         if (type === TOUCH_START) listener.onTouchStart(id, x, y);
         else if (type === TOUCH_MOVE) listener.onTouchMove(id, x, y);
-        else if (type === TOUCH_END) listener.onTouchEnd(id);
+        else if (type === TOUCH_END) listener.onTouchEnd(id, x, y);
         else listener.onTouchCancel(id);
     };
     scope.es_onNativePointer = (type: number, button: number, x: number, y: number, dx?: number, dy?: number): void => {
         if (!listener) return;
         if (type === POINTER_DOWN) listener.onPointerDown(button, x, y);
         else if (type === POINTER_MOVE) listener.onPointerMove(x, y, dx, dy);
-        else listener.onPointerUp(button);
+        else listener.onPointerUp(button, x, y);
     };
     scope.es_onNativeWheel = (deltaX: number, deltaY: number): void => {
         listener?.onWheel(deltaX, deltaY);

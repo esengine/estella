@@ -5,8 +5,7 @@
  *
  * A frame reads a release after the host has returned from it, and some calls are
  * refused outside it: WeChat shares a recording only from within `touchend`. A
- * control registered here is clicked during that event, from where its pointer
- * pressed and last hovered.
+ * control registered here is clicked during that event, using the release position.
  */
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
@@ -40,6 +39,10 @@ export function onGestureClick(world: World, entity: Entity, onClick: () => void
     return () => {
         if (r.handlers.get(entity) === onClick) r.handlers.delete(entity);
     };
+}
+
+export function hasGestureClick(world: World, entity: Entity): boolean {
+    return registries.get(world)?.handlers.has(entity) ?? false;
 }
 
 /** @internal Click @p entity now, if it asked for its clicks here. */

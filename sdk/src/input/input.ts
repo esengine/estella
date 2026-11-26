@@ -265,7 +265,7 @@ export class InputState {
     /** Retire a touch after a normal release, retaining its position and press edge. */
     endTouch(id: number): void {
         const point = this.touches.get(id) ?? { id, x: 0, y: 0 };
-        recordTouchEnd(point, this.touchesStarted.has(id));
+        recordTouchEnd(point, this.touchesStarted.get(id));
         this.touches.delete(id);
         const earlier = this.touchesEnded.get(id);
         if (earlier) this.touchesEndedBefore.push(earlier);
@@ -562,6 +562,7 @@ export class InputState {
     }
 
     clearFrameState(): void {
+        mousePresses.delete(this);
         clearActionEdges(this);
         this.keysPressed.clear();
         clearTabModifiers(this);
@@ -607,6 +608,10 @@ export class InputState {
 export const Input = defineResource<InputState>(new InputState(), 'Input');
 
 const executionOwners = new WeakMap<InputState, Set<object>>();
+const mousePresses = new WeakMap<InputState, Vec2>();
+
+/** The primary mouse press before a move or release superseded its position. */
+export function mousePressPoint(state: InputState): Vec2 | undefined { return mousePresses.get(state); }
 /** Internal, per-owner execution gate for the platform event funnel. */
 export function setInputExecutionHeld(state: InputState, owner: object, held: boolean): void {
     let owners = executionOwners.get(state);
@@ -672,10 +677,15 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             state.mouseX = x;
             state.mouseY = y;
             if (inputRouter.dispatchPointerDown(button, x, y)) return;
+            if (button === 0 && !state.mouseButtons.has(0)) mousePresses.set(state, { x, y });
             state.noteMouseDown(button);
         },
-        onPointerUp(button) {
+        onPointerUp(button, x, y) {
             if (executionOwners.has(state)) return;
+            if (x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y)) {
+                state.mouseX = x;
+                state.mouseY = y;
+            }
             if (inputRouter.dispatchPointerUp(button)) {
                 state.mouseButtons.delete(button);
                 discardActionEdges(state, 'mouse', button);
@@ -696,7 +706,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             if (inputRouter.dispatchTouchStart(id, x, y)) return;
             const point = { id, x, y };
             state.touches.set(id, point);
-            state.touchesStarted.set(id, point);
+            state.touchesStarted.set(id, { ...point });
         },
         onTouchMove(id, x, y) {
             if (executionOwners.has(state)) return;
@@ -708,9 +718,14 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
                 existing.y = y;
             }
         },
-        onTouchEnd(id) {
+        onTouchEnd(id, x, y) {
             if (executionOwners.has(state)) return;
             if (state.touchIgnored(id, true)) return;
+            const touch = state.touches.get(id);
+            if (touch && x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y)) {
+                touch.x = x;
+                touch.y = y;
+            }
             finishTouch(id, inputRouter.dispatchTouchEnd(id));
         },
         onTouchCancel(id, primary) {

@@ -29,11 +29,11 @@ function recorder(): { callbacks: InputEventCallbacks; trace: Trace } {
             onKeyUp: (code) => trace.push(`keyUp ${code}`),
             onPointerMove: (x, y, dx, dy) => trace.push(`pointerMove ${x},${y}${dx === undefined ? '' : ` delta ${dx},${dy}`}`),
             onPointerDown: (b, x, y) => trace.push(`pointerDown ${b} ${x},${y}`),
-            onPointerUp: (b) => trace.push(`pointerUp ${b}`),
+            onPointerUp: (b, x, y) => trace.push(`pointerUp ${b}${x === undefined ? '' : ` at ${x},${y}`}`),
             onWheel: (dx, dy) => trace.push(`wheel ${dx},${dy}`),
             onTouchStart: (id, x, y) => trace.push(`touchStart ${id} ${x},${y}`),
             onTouchMove: (id, x, y) => trace.push(`touchMove ${id} ${x},${y}`),
-            onTouchEnd: (id) => trace.push(`touchEnd ${id}`),
+            onTouchEnd: (id, x, y) => trace.push(`touchEnd ${id}${x === undefined ? '' : ` at ${x},${y}`}`),
             onTouchCancel: (id) => trace.push(`touchCancel ${id}`),
         },
     };
@@ -68,12 +68,13 @@ describe('input adapter parity (web vs native)', () => {
     function driveWeb(): Trace {
         const { callbacks, trace } = recorder();
         const web = webAdapter;
+        element.getBoundingClientRect = () => new DOMRect(10, 15, 800, 600);
         web.bindInputEvents(callbacks, element);
 
         // offsetX/offsetY are what the web adapter reads and what a layout would
         // normally compute; there is no layout here, so they are set directly.
         const mouse = (type: string, button: number, x: number, y: number, dx = 0, dy = 0) => {
-            const e = new MouseEvent(type, { button, bubbles: true });
+            const e = new MouseEvent(type, { button, bubbles: true, clientX: x + 10, clientY: y + 15 });
             Object.defineProperty(e, 'offsetX', { value: x });
             Object.defineProperty(e, 'offsetY', { value: y });
             Object.defineProperty(e, 'movementX', { value: dx });
@@ -84,7 +85,7 @@ describe('input adapter parity (web vs native)', () => {
         element.dispatchEvent(mouse('mousemove', 0, 11, 21, 4, -3));
         // mouseup and the keys are bound to the DOCUMENT — a button released off
         // the canvas still ends the drag — so that is where they are dispatched.
-        document.dispatchEvent(mouse('mouseup', 2, 0, 0));
+        document.dispatchEvent(mouse('mouseup', 2, 42, 24));
         element.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 48, deltaMode: 0 }));
         document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
         document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
@@ -103,7 +104,7 @@ describe('input adapter parity (web vs native)', () => {
         type Pointer = (t: number, b: number, x: number, y: number, dx?: number, dy?: number) => void;
         (scope.es_onNativePointer as Pointer)(0, 2, 10, 20);
         (scope.es_onNativePointer as Pointer)(1, 0, 11, 21, 4, -3);
-        (scope.es_onNativePointer as Pointer)(2, 2, 0, 0);
+        (scope.es_onNativePointer as Pointer)(2, 2, 42, 24);
         (scope.es_onNativeWheel as (dx: number, dy: number) => void)(0, 48);
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(true, 'KeyW');
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(false, 'KeyW');
@@ -117,7 +118,7 @@ describe('input adapter parity (web vs native)', () => {
         expect(web).toEqual([
             'pointerDown 2 10,20',
             'pointerMove 11,21 delta 4,-3',
-            'pointerUp 2',
+            'pointerUp 2 at 42,24',
             'wheel 0,48',
             'keyDown KeyW',
             'keyUp KeyW',
@@ -163,14 +164,14 @@ describe('input adapter parity (web vs native)', () => {
         type Touch = (t: number, id: number, x: number, y: number) => void;
         (scope.es_onNativeTouch as Touch)(0, 7, 30, 40);
         (scope.es_onNativeTouch as Touch)(1, 7, 31, 41);
-        (scope.es_onNativeTouch as Touch)(2, 7, 0, 0);
+        (scope.es_onNativeTouch as Touch)(2, 7, 36, 45);
         expect(trace).toEqual([
             'touchStart 7 30,40',
             'pointerDown 0 30,40',
             'touchMove 7 31,41',
             'pointerMove 31,41',
-            'touchEnd 7',
-            'pointerUp 0',
+            'touchEnd 7 at 36,45',
+            'pointerUp 0 at 36,45',
         ]);
     });
 

@@ -18,13 +18,45 @@ import { inputRouter } from '../src/input/inputRouter';
 import { onGestureClick, takeGestureFired } from '../src/ui/input/gestureClick';
 import { getComponent } from '../src/ecs/component';
 import { inspectableTypes } from '../src/runtime/worldSnapshot';
-const hit = vi.hoisted(() => ({ entity: null as number | null }));
+const hit = vi.hoisted(() => ({ entity: null as number | null, rightOf: null as number | null }));
 vi.mock('../src/ui/util/ui-pick', () => ({
   screenToUiWorld: () => ({ x: 0, y: 0 }), screenToUiLayout: () => ({ x: 0, y: 0 }),
-  uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity, uiHitAtScreen: () => hit.entity,
+  uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity,
+  uiHitAtScreen: (_world: unknown, _camera: unknown, _overlay: unknown, x: number) => hit.rightOf !== null && x > 10 ? hit.rightOf : hit.entity,
 }));
 
 describe('quick pointer focus through real interaction projection', () => {
+  it.each([['mouse', false], ['mouse', true], ['touch', false], ['touch', true]] as const)(
+    'releases the pressed control at the host position (%s; held across frames: %s)', async (device, held) => {
+    const { app } = bootMockApp(); const input = new InputState();
+    app.insertResource(Input, input); app.insertResource(UICameraInfo, { valid: false } as any);
+    app.insertResource(ScreenOverlay, { active: true, surfaceH: 600 } as any);
+    app.addPlugin(uiLayoutPlugin); app.addPlugin(new UIInteractionPlugin()); flushPendingRegistrations(app);
+    const left = app.world.spawn(), right = app.world.spawn();
+    for (const entity of [left, right]) app.world.insert(entity, Interactable);
+    hit.entity = left; hit.rightOf = right;
+    const gesture = vi.fn(); onGestureClick(app.world, left, gesture);
+    const events: string[] = [];
+    for (const [entity, label] of [[left, 'left'], [right, 'right']] as const) {
+      for (const kind of ['press', 'release', 'click']) app.getResource(UIEvents).on(entity, kind, () => events.push(`${label} ${kind}`));
+    }
+    try {
+      const callbacks = inputEventCallbacks(input);
+      if (device === 'mouse') callbacks.onPointerDown(0, 1, 4);
+      else callbacks.onTouchStart!(0, 1, 4);
+      if (held) { await app.tick(1 / 60); input.clearFrameState(); }
+      if (device === 'mouse') {
+        callbacks.onPointerUp(0, 50, 4);
+        expect(input.getMousePosition()).toEqual({ x: 50, y: 4 });
+      } else {
+        callbacks.onTouchEnd!(0, 50, 4);
+        expect(input.getTouchesEnded()).toEqual([{ id: 0, x: 50, y: 4 }]);
+      }
+      expect(gesture).not.toHaveBeenCalled();
+      await app.tick(1 / 60);
+      expect(events).toEqual(['left press', 'left release']);
+    } finally { hit.rightOf = null; app.quit(); }
+  });
   it.each(['quick', 'held', 'cleared'])('a consumed release cancels UI capture without clicking through: %s', async phase => {
     const { app } = bootMockApp(); const input = new InputState();
     app.insertResource(Input, input); app.insertResource(UICameraInfo, { valid: false } as any);

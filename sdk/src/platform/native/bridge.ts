@@ -45,7 +45,7 @@ export interface NativeFetchResult {
 export interface NativeInputListener {
     onTouchStart(id: number, x: number, y: number): void;
     onTouchMove(id: number, x: number, y: number): void;
-    onTouchEnd(id: number): void;
+    onTouchEnd(id: number, x?: number, y?: number): void;
     onTouchCancel(id: number): void;
     /** A mouse or pen — separate from touch because it is separate on the web:
      *  a touch synthesizes the primary pointer, a mouse IS one and has a button
@@ -53,7 +53,7 @@ export interface NativeInputListener {
     onPointerDown(button: number, x: number, y: number): void;
     /** Relative motion when the host supplies it, in the same pixel units as position. */
     onPointerMove(x: number, y: number, dx?: number, dy?: number): void;
-    onPointerUp(button: number): void;
+    onPointerUp(button: number, x?: number, y?: number): void;
     /** Wheel delta in PIXELS, positive-down (the DOM `deltaMode: 0` contract). */
     onWheel(deltaX: number, deltaY: number): void;
     /** The DOM `KeyboardEvent.code` — the physical key, which is what the SDK's

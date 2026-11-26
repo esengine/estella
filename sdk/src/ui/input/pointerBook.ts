@@ -14,10 +14,10 @@
  *          nothing means, when a release is a click, and when an entity stops
  *          being pressed while another finger still holds it.
  */
-import type { Entity } from '../../types';
-import type { InputState } from '../../input/input';
+import type { Entity, Vec2 } from '../../types';
+import { mousePressPoint, type InputState } from '../../input/input';
 import { takePrimaryPointerCancellation } from '../../input/pointerCancellation';
-import { touchEndPressed } from '../../input/touchEdges';
+import { touchEndPress } from '../../input/touchEdges';
 
 /** One pointer this frame. `hovers` is false for a finger that is not down: a
  *  finger is over a control only while it touches the glass. */
@@ -30,6 +30,7 @@ export interface UiPointerSample {
     released: boolean;
     hovers: boolean;
     cancelled?: boolean;
+    pressAt?: Vec2;
 }
 
 /** Per-pointer raycast results, retained only while the input frame carries the pointer. */
@@ -48,6 +49,7 @@ export interface UiPointerEvent {
     entity: Entity;
     /** The pointer it happened under — a click carries which finger made it. */
     pointer: number;
+    pressAt?: Vec2;
 }
 
 /** The pointer id the mouse (and the touch host's synthesized button) uses. No
@@ -64,9 +66,10 @@ export function uiPointersOf(input: InputState): UiPointerSample[] {
     const pointers: UiPointerSample[] = [];
     if (input.touches.size > 0 || input.touchesEnded.size > 0 || input.touchesEndedBefore.length > 0) {
         const pushEnded = (t: { id: number; x: number; y: number }): void => {
+            const pressAt = touchEndPress(t, input.touchesStarted.get(t.id));
             pointers.push({
                 id: t.id, x: t.x, y: t.y, down: false,
-                pressed: touchEndPressed(t, input.touchesStarted.has(t.id)), released: true, hovers: false,
+                pressed: pressAt !== undefined, released: true, hovers: false, pressAt,
             });
         };
         // Taps that a later gesture of the same id followed within this frame, in
@@ -79,7 +82,7 @@ export function uiPointersOf(input: InputState): UiPointerSample[] {
             if (ended) pushEnded(ended);
             pointers.push({
                 id: t.id, x: t.x, y: t.y, down: true,
-                pressed: input.touchesStarted.has(t.id), released: false, hovers: true,
+                pressed: input.touchesStarted.has(t.id), released: false, hovers: true, pressAt: input.touchesStarted.get(t.id),
             });
         }
         for (const t of input.touchesEnded.values()) {
@@ -92,7 +95,7 @@ export function uiPointersOf(input: InputState): UiPointerSample[] {
         down: input.isMouseButtonDown(0),
         pressed: input.isMouseButtonPressed(0),
         released: input.isMouseButtonReleased(0),
-        hovers: true,
+        hovers: true, pressAt: mousePressPoint(input),
     };
     if (takePrimaryPointerCancellation(input)) mouse.cancelled = true;
     pointers.push(mouse);
@@ -155,7 +158,7 @@ export class UiPointerBook {
      */
     step(
         pointers: readonly UiPointerSample[],
-        hit: (pointer: UiPointerSample) => Entity | null,
+        hit: (pointer: UiPointerSample, pressOnly?: boolean) => Entity | null,
         alive: (entity: Entity) => boolean,
     ): UiPointerEvent[] {
         const out: UiPointerEvent[] = [];
@@ -181,9 +184,14 @@ export class UiPointerBook {
                 else this.hoveredBy_.set(p.id, now);
             }
 
-            if (p.pressed && !p.cancelled && under !== null) {
-                this.pressedBy_.set(p.id, under);
-                out.push({ kind: 'press', entity: under, pointer: p.id });
+            if (p.pressed && !p.cancelled) {
+                const pressAt = p.pressAt && (p.pressAt.x !== p.x || p.pressAt.y !== p.y) ? p.pressAt : undefined;
+                const pressed = pressAt ? hit({ ...p, x: pressAt.x, y: pressAt.y }, true) : under;
+                if (pressed !== null) {
+                    this.pressedBy_.set(p.id, pressed);
+                    out.push(pressAt ? { kind: 'press', entity: pressed, pointer: p.id, pressAt }
+                        : { kind: 'press', entity: pressed, pointer: p.id });
+                }
             }
 
             // A pointer that is no longer down releases what it took, whether or

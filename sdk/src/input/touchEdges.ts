@@ -4,10 +4,11 @@ import type { TouchPoint } from './input';
 
 // A host can reuse an id before sampling. Keep the old gesture's press edge
 // on its point rather than looking it up under the replacement gesture's id.
-const endedPresses = new WeakMap<TouchPoint, boolean>();
-export function recordTouchEnd(point: TouchPoint, pressed: boolean): void {
-    endedPresses.set(point, pressed);
+const endedPresses = new WeakMap<TouchPoint, TouchPoint | null>();
+export function recordTouchEnd(point: TouchPoint, press: TouchPoint | undefined): void {
+    endedPresses.set(point, press ?? null);
 }
-export function touchEndPressed(point: TouchPoint, fallback: boolean): boolean {
-    return endedPresses.get(point) ?? fallback;
+export function touchEndPress(point: TouchPoint, fallback: TouchPoint | undefined): TouchPoint | undefined {
+    const press = endedPresses.get(point);
+    return press === undefined ? fallback : press ?? undefined;
 }

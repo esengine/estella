@@ -202,14 +202,14 @@ export class NativePlatformAdapter implements PlatformAdapter {
         const listener: NativeInputListener = {
             onTouchStart: (id, x, y) => { heldTouches.add(id); pointer.start(id, x, y); },
             onTouchMove: (id, x, y) => { if (heldTouches.has(id)) pointer.move(id, x, y); },
-            onTouchEnd: (id) => { if (heldTouches.delete(id)) pointer.end(id); },
+            onTouchEnd: (id, x, y) => { if (heldTouches.delete(id)) pointer.end(id, x, y); },
             onTouchCancel: (id) => { if (heldTouches.delete(id)) pointer.cancel(id); },
             // Straight through, NOT via createPrimaryPointer: a mouse already is
             // the pointer and carries a button, and routing it through the touch
             // synthesizer would drop every button but the first.
             onPointerDown: (button, x, y) => { heldButtons.add(button); callbacks.onPointerDown(button, x, y); },
             onPointerMove: (x, y, dx, dy) => callbacks.onPointerMove(x, y, dx, dy),
-            onPointerUp: (button) => { if (heldButtons.delete(button)) callbacks.onPointerUp(button); },
+            onPointerUp: (button, x, y) => { if (heldButtons.delete(button)) callbacks.onPointerUp(button, x, y); },
             onWheel: (dx, dy) => callbacks.onWheel(dx, dy),
             onKeyDown: (code) => { heldKeys.add(code); callbacks.onKeyDown(code); },
             onKeyUp: (code) => { if (heldKeys.delete(code)) callbacks.onKeyUp(code); },

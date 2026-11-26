@@ -15,7 +15,7 @@ import type { InputEventCallbacks } from './types';
 export interface PrimaryPointer {
     start(id: number, x: number, y: number): void;
     move(id: number, x: number, y: number): void;
-    end(id: number): void;
+    end(id: number, x?: number, y?: number): void;
     cancel(id: number): void;
 }
 
@@ -33,11 +33,14 @@ export function createPrimaryPointer(callbacks: InputEventCallbacks): PrimaryPoi
             callbacks.onTouchMove?.(id, x, y);
             if (id === primary) callbacks.onPointerMove(x, y);
         },
-        end(id) {
-            callbacks.onTouchEnd?.(id);
+        end(id, x, y) {
+            const positioned = x !== undefined && y !== undefined;
+            if (positioned) callbacks.onTouchEnd?.(id, x, y);
+            else callbacks.onTouchEnd?.(id);
             if (id === primary) {
                 primary = null;
-                callbacks.onPointerUp(0);
+                if (positioned) callbacks.onPointerUp(0, x, y);
+                else callbacks.onPointerUp(0);
             }
         },
         cancel(id) {

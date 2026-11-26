@@ -55,11 +55,11 @@ export interface InputEventCallbacks {
     /** `dx` and `dy` are how far the pointer moved since the last event, where the host says (a locked pointer has no position to move, only this). */
     onPointerMove(x: number, y: number, dx?: number, dy?: number): void;
     onPointerDown(button: number, x: number, y: number): void;
-    onPointerUp(button: number): void;
+    onPointerUp(button: number, x?: number, y?: number): void;
     onWheel(deltaX: number, deltaY: number): void;
     onTouchStart?(id: number, x: number, y: number): void;
     onTouchMove?(id: number, x: number, y: number): void;
-    onTouchEnd?(id: number): void;
+    onTouchEnd?(id: number, x?: number, y?: number): void;
     /** Primary identifies the synthesized mouse without cancelling another finger. */
     onTouchCancel?(id: number, primary?: boolean): void;
     /** Cancel held input and pending edges when the host loses focus or unbinds. */

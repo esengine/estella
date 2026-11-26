@@ -543,7 +543,9 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
             }
         };
         const onTouchEnd = (res: MiniGameTouchEvent) => {
-            for (const touch of res.changedTouches) if (heldTouches.delete(touch.identifier)) pointer.end(touch.identifier);
+            for (const touch of res.changedTouches) {
+                if (heldTouches.delete(touch.identifier)) pointer.end(touch.identifier, touch.clientX * toLogical, touch.clientY * toLogical);
+            }
         };
         const onTouchCancel = (res: MiniGameTouchEvent) => {
             for (const touch of res.changedTouches) if (heldTouches.delete(touch.identifier)) pointer.cancel(touch.identifier);

@@ -268,8 +268,13 @@ class WebPlatformAdapter implements PlatformAdapter {
             callbacks.onPointerDown(me.button, me.offsetX, me.offsetY);
         };
         const onMouseUp = (e: Event) => {
-            const button = (e as MouseEvent).button;
-            if (heldButtons.delete(button)) callbacks.onPointerUp(button);
+            const mouse = e as MouseEvent;
+            if (!heldButtons.delete(mouse.button)) return;
+            // Release is listened for on the document, so offsetX/Y may belong to another element.
+            if (typeof el.getBoundingClientRect === 'function' && doc.pointerLockElement !== el) {
+                const rect = el.getBoundingClientRect();
+                callbacks.onPointerUp(mouse.button, mouse.clientX - rect.left, mouse.clientY - rect.top);
+            } else callbacks.onPointerUp(mouse.button);
         };
         const pointer = createPrimaryPointer(callbacks);
 
@@ -295,9 +300,10 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onTouchEnd = (e: Event) => {
             e.preventDefault();
             const te = e as TouchEvent;
+            const rect = el.getBoundingClientRect();
             for (let i = 0; i < te.changedTouches.length; i++) {
-                const id = te.changedTouches[i].identifier;
-                if (heldTouches.delete(id)) pointer.end(id);
+                const touch = te.changedTouches[i];
+                if (heldTouches.delete(touch.identifier)) pointer.end(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
             }
         };
         const onTouchCancel = (e: Event) => {

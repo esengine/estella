@@ -71,7 +71,7 @@ describe('createHostBridge', () => {
         dispatch(2, 1, 11, 21);
         expect(sink.onTouchStart).toHaveBeenCalledWith(1, 10, 20);
         expect(sink.onTouchMove).toHaveBeenCalledWith(1, 11, 21);
-        expect(sink.onTouchEnd).toHaveBeenCalledWith(1);
+        expect(sink.onTouchEnd).toHaveBeenCalledWith(1, 11, 21);
 
         // Unsubscribing must actually detach: a host keeps dispatching regardless.
         const stopNext = bridge.registerInput(sink);

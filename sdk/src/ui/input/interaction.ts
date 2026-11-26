@@ -25,7 +25,7 @@ import { ensureComponent, walkParentChain } from '../util/helpers';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
 import { UiPointerBook, UiPointerHitCache, uiPointersOf, MOUSE_POINTER, type UiPointerSample } from './pointerBook';
-import { fireGestureClick, expireGestureFired } from './gestureClick';
+import { fireGestureClick, hasGestureClick, expireGestureFired } from './gestureClick';
 import { inputRouter } from '../../input/inputRouter';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
@@ -115,14 +115,23 @@ export class UIInteractionPlugin implements Plugin {
         const eligible = (entity: Entity): boolean => world.isEntityActive(entity)
             && (!world.has(entity, Interactable) || world.get(entity, Interactable).enabled);
 
-        // During the host's release event, from what the last frame saw: the
-        // control this pointer pressed, if it is still the one under it.
+        // Resolve the host's release before the browser's user gesture expires.
         const releaseInGesture = (pointer: number): void => {
-            if (app.isExecutionHeld()) return;
-            const held = book.releasing(pointer, lastHit.get(pointer)?.entity ?? null);
-            if (held === null || !eligible(held)) return;
-            if (world.has(held, Interactable) && !(world.get(held, Interactable) as InteractableData).enabled) return;
-            fireGestureClick(world, held);
+            const held = book.heldBy(pointer);
+            if (app.isExecutionHeld() || held === null || !eligible(held) || !hasGestureClick(world, held)) return;
+            const input = app.getResource(Input);
+            const position = pointer === MOUSE_POINTER ? input.getMousePosition() : input.touches.get(pointer);
+            let under = lastHit.get(pointer)?.entity ?? null;
+            if (position) {
+                const camera = app.getResource(UICameraInfo), overlay = app.getResource(ScreenOverlay);
+                if (!camera.valid && !overlay.active) return;
+                const screen = pointerToScreen(position.x, position.y, platformDevicePixelRatio(), overlay.active ? overlay.surfaceH : camera.screenH);
+                const previous = controlPointers.get(pointer);
+                if (!previous || previous.screenX !== screen.x || previous.screenY !== screen.y) {
+                    under = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
+                }
+            }
+            if (book.releasing(pointer, under) === held) fireGestureClick(world, held);
         };
         const unregister = inputRouter.setUIHandler({
             onTouchEnd: (id) => { releaseInGesture(id); },
@@ -206,9 +215,13 @@ export class UIInteractionPlugin implements Plugin {
                 const hasHeldPointer = pointers.some(pointer => pointer.down);
                 let overUI = false;
 
-                const hit = (pointer: UiPointerSample): Entity | null => {
+                const hit = (pointer: UiPointerSample, pressOnly?: boolean): Entity | null => {
                     if (!camera.valid && !overlay.active) return null;
                     const { x: glX, y: glY } = pointerToScreen(pointer.x, pointer.y, dpr, surfaceH);
+                    if (pressOnly) {
+                        const entity = uiHitAtScreen(world, camera, overlay, glX, glY);
+                        return entity !== null && eligible(entity) ? entity : null;
+                    }
                     // The pointer, once per domain. Neither is derived from the
                     // other: each is the inverse of the projection that domain is
                     // drawn with, which is what keeps a click where the pixel is.
@@ -270,7 +283,15 @@ export class UIInteractionPlugin implements Plugin {
                             // A complete click may arrive between frames. Preserve its
                             // edge even when the final held-state is already false.
                             world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justPressed: true });
-                            emitWithBubbling(world, events, event.entity, UIEventType.Press, dataFor(event.pointer));
+                            let data = dataFor(event.pointer);
+                            if (event.pressAt) {
+                                const screen = pointerToScreen(event.pressAt.x, event.pressAt.y, dpr, surfaceH);
+                                const worldPoint = camera.valid ? screenToUiWorld(camera, screen.x, screen.y) : { x: 0, y: 0 };
+                                const layoutPoint = overlay.active ? screenToUiLayout(overlay, screen.x, screen.y) : worldPoint;
+                                data = { pointer: event.pointer, worldX: worldPoint.x, worldY: worldPoint.y,
+                                    layoutX: layoutPoint.x, layoutY: layoutPoint.y, screenX: screen.x, screenY: screen.y };
+                            }
+                            emitWithBubbling(world, events, event.entity, UIEventType.Press, data);
                             break;
                         }
                         case 'release':
