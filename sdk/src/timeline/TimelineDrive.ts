@@ -309,8 +309,8 @@ function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: Adva
 
 /**
  * Play the timelines nested in `asset`: each runs on its own clock, samples its property tracks onto
- * its own root and fires its own events. A clip entered this step has no past (-1), so a trigger at its
- * start fires; one that has ended is forgotten, so entering it again starts it over.
+ * its own root and fires its own events. Entering a layer or starting a new lap includes time zero.
+ * Continuing a sampled layer excludes its previous sample, including after a seek.
  */
 function advanceNested(
     asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
@@ -323,13 +323,17 @@ function advanceNested(
         const before = state.nested[layer.key];
         const spineClipIndices = before?.spineClipIndices ?? {};
         if (mode === 'play') {
-            const prev = before?.time ?? -1;
+            const prev = before?.time ?? 0;
             const child = createTimelineState(WrapMode.Once, 1);
             child.time = layer.time;
             child.prevTime = prev;
             child.spineClipIndices = spineClipIndices;
-            const segments: ReadonlyArray<readonly [number, number]> = layer.time < prev
-                ? [[prev, layer.asset.duration], [0, layer.time]] : [[prev, layer.time]];
+            const segments: PlayheadRun[] = layer.time < prev
+                ? [
+                    { from: prev, to: layer.asset.duration, inclusiveStart: false },
+                    { from: 0, to: layer.time, inclusiveStart: true },
+                ]
+                : [{ from: prev, to: layer.time, inclusiveStart: !before }];
             for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
                 applyEvent(ctx, e);
             }

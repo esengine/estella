@@ -357,6 +357,47 @@ describe('nested sequences', () => {
         advanceTimelineTS(parent, ROOT, s, 1.5, { deps });
         expect(Object.keys(s.nested)).toHaveLength(0);
     });
+
+    it('fires nested entry and exact loop crossings once, on the update that reaches them', () => {
+        const loop: TimelineAsset = { ...parent, tracks: [{
+            type: TrackType.Sequence, name: '', childPath: '', clips: [
+                { start: 1, duration: 4, timeline: 'child', root: '', speed: 1, loop: true },
+            ],
+        }] };
+        const punches: TimelineAsset = { ...child, tracks: [{
+            type: TrackType.CameraShake, name: '', childPath: '',
+            shakes: [{ time: 0, force: 1 }, { time: 1.75, force: 2 }],
+        }] };
+        const s = createTimelineState(WrapMode.Once);
+        s.playing = true;
+        const onShake = vi.fn();
+        const step = (dt: number) => advanceTimelineTS(loop, ROOT, s, dt, { deps, lookup: () => punches, onShake });
+        step(1);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1]]);
+        step(0.25);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1]]);
+        step(1.75);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2], [ROOT, 1]]);
+        step(0.25);
+        expect(onShake.mock.calls).toEqual([[ROOT, 1], [ROOT, 2], [ROOT, 1]]);
+    });
+
+    it('does not replay a nested cue from the exact start landed on by a paused seek', () => {
+        const punches: TimelineAsset = { ...child, tracks: [{
+            type: TrackType.CameraShake, name: '', childPath: '',
+            shakes: [{ time: 0, force: 1 }, { time: 0.25, force: 2 }],
+        }] };
+        const api = new TimelineAPI();
+        const s = api.ensureState(ROOT, WrapMode.Once, 1);
+        const onShake = vi.fn();
+        const step = (dt: number) => advanceTimelineTS(parent, ROOT, s, dt, { deps, lookup: () => punches, onShake });
+        api.setTime(ROOT, 1);
+        step(0.5);
+        expect(onShake).not.toHaveBeenCalled();
+        api.play(ROOT);
+        step(0.25);
+        expect(onShake.mock.calls).toEqual([[ROOT, 2]]);
+    });
 });
 
 describe('native particle event tracks', () => {
