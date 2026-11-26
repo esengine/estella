@@ -484,8 +484,7 @@ inline bool setParent(Registry& registry, Entity child, Entity newParent) {
         return false;
     }
     const Entity oldParent = rel.target(child);
-    // The components can disagree with the relation only where the parent was destroyed under the child: the relation made
-    // the child a root, while its Parent still names the dead entity. Detaching such a child is still an edit, of the component.
+    // An explicit detach may repair a raw Parent component written without a link.
     const bool stale = !newParent.isValid() && !oldParent.isValid() && registry.has<Parent>(child);
     if (oldParent == newParent && !stale) return true;
 
@@ -572,17 +571,8 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
     }
     for (Entity e : postorder) {
         if (!registry.valid(e)) continue;
-        const Entity parent = rel.target(e);
         registry.destroy(e);
         if (registry.entitySetId() != reservations.entitySet) return;
-        if (parent.isValid() && registry.valid(parent) && registry.has<Children>(parent)) {
-            auto& children = registry.get<Children>(parent).entities;
-            const auto it = std::find(children.begin(), children.end(), e);
-            if (it != children.end()) {
-                children.erase(it);
-                registry.markChanged<Children>(parent);
-            }
-        }
     }
 }
 

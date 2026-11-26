@@ -12,6 +12,21 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () => {
     let module: ESEngineModule;
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    it('reports a surviving child as a root after native destruction of its parent', () => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        try {
+            const parent = world.spawn('Parent');
+            const child = world.spawn('Child');
+            world.setParent(child, parent);
+            registry.destroy(parent);
+            expect(registry.hasParent(child)).toBe(false);
+            expect(worldSnapshot(app, child, false).selected).toMatchObject({ parent: null, name: 'Child' });
+            expect(serializeScene(world).entities.find(e => e.id === child)?.parent).toBeNull();
+        } finally { world.disconnectCpp(); registry.delete(); }
+    });
+
     it.each([[true, true], [false, true], [true, false]])('reflects native parent edits with bulk inspection %s and reader %s', (bulk, reader) => {
         const registry = new module.Registry(), world = new World();
         if (!bulk) registry.getBuiltinComponentNames = undefined;

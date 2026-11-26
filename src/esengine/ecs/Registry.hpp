@@ -466,8 +466,24 @@ public:
         if (entitySetId() != set) return;
         // After the callbacks, which may still ask where the entity stood; before the slot can be handed to anyone else. Children
         // it leaves behind are roots now, composed under no parent: their world transforms are stale.
-        if (child_of_.hasSources(entity)) invalidateTransformComposition();
+        if (child_of_.hasSources(entity)) {
+            invalidateTransformComposition();
+            child_of_.eachSource(entity, [this](Entity child) {
+                if (valid(child)) remove<Parent>(child);
+            });
+        }
+        const Entity parent = child_of_.target(entity);
         child_of_.onDestroy(entity);
+        if (valid(parent)) {
+            if (auto* component = tryGet<Children>(parent)) {
+                auto& children = component->entities;
+                const auto child = std::find(children.begin(), children.end(), entity);
+                if (child != children.end()) {
+                    children.erase(child);
+                    markChanged<Children>(parent);
+                }
+            }
+        }
 
         component_masks_[idx].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {

@@ -68,6 +68,7 @@ TEST_CASE("removing a sibling keeps the others in order") {
     r.destroy(b);
     CHECK(r.childOf().first(root) == c);
     CHECK(r.childOf().count(root) == 1);
+    CHECK(r.get<Children>(root).entities == std::vector<Entity>{c});
 }
 
 TEST_CASE("hierarchy writes repair the children mirror and stamp actual changes") {
@@ -95,12 +96,30 @@ TEST_CASE("a destroyed parent leaves its children roots") {
     REQUIRE(setParent(r, leaf, child));
     r.destroy(root);
     CHECK_FALSE(r.childOf().hasTarget(child));
+    CHECK_FALSE(r.has<Parent>(child));
+    CHECK(r.get<Parent>(leaf).entity == child);
     CHECK(r.childOf().depth(child) == 0);
     CHECK(r.childOf().depth(leaf) == 1);
     // The slot is reused by a new entity, which owns none of the old one's links.
     const auto fresh = r.create();
     CHECK_FALSE(r.childOf().hasSources(fresh));
     CHECK(setParent(r, child, INVALID_ENTITY));
+    CHECK_FALSE(r.has<Parent>(child));
+}
+
+TEST_CASE("a native destroy observer can still see the subtree before links are removed") {
+    Registry r;
+    const auto root = r.create(), child = r.create();
+    REQUIRE(setParent(r, child, root));
+    bool observed = false;
+    auto subscription = r.onDestroy([&](Entity entity) {
+        if (entity != root) return;
+        observed = true;
+        CHECK(r.get<Parent>(child).entity == root);
+        CHECK(r.childOf().target(child) == root);
+    });
+    r.destroy(root);
+    CHECK(observed);
     CHECK_FALSE(r.has<Parent>(child));
 }
 
