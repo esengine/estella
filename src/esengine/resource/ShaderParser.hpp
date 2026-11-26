@@ -347,6 +347,13 @@ public:
      */
     static std::vector<std::string> splitFeatures(const std::string& csv);
 
+    /**
+     * @brief An assembled fragment stage whose colour output comes out premultiplied by its alpha: the author's entry point is
+     *        renamed and a new one calls it and multiplies. What a material's own shader is drawn with under Multiply or
+     *        Screen, which take the colour as it is. Empty when the stage's entry or colour output cannot be found.
+     */
+    static std::string premultiplyOutput(const std::string& fragment, ShaderTargetLanguage target);
+
     static std::vector<std::string> featuresRead(const ParsedShader& parsed,
                                                  const std::vector<std::string>& features,
                                                  ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);

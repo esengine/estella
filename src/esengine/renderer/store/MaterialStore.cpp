@@ -290,14 +290,44 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
                                   const char* what) const {
     const MaterialRecord* rec = find(materialId);
     if (!rec || !rec->shaderRef.isValid()) return 0;
-    auto& variants = mesh_programs_[rec->shaderRef.id()];
+    return variantForShader(rec->shaderRef.id(), resources, shape, std::move(extraFeatures), what, false);
+}
+
+u32 MaterialStore::premultipliedMaterialProgram(u32 programId) const {
+    if (programId == 0 || !resources_) return programId;
+    if (const auto hit = premultiplied_programs_.find(programId); hit != premultiplied_programs_.end()) return hit->second;
+    // Which material shader it is: a variant this store made, or a shader's own program.
+    ProgramOrigin origin{ 0, 0, {} };
+    if (const auto known = program_origins_.find(programId); known != program_origins_.end()) {
+        origin = known->second;
+    } else {
+        for (const auto& [id, source] : sources_) {
+            const Shader* shader = resources_->getShader(resource::ShaderHandle(id));
+            if (shader && shader->getProgramId() == programId) { origin.shaderId = id; break; }
+        }
+    }
+    u32 out = programId;
+    if (origin.shaderId != 0) {
+        const u32 twin = variantForShader(origin.shaderId, *resources_, origin.shape | (1ull << 45), origin.extra, "premultiplied", true);
+        if (twin != 0) out = twin;
+    }
+    premultiplied_programs_[programId] = out;
+    return out;
+}
+
+u32 MaterialStore::variantForShader(u32 shaderId, resource::ResourceManager& resources, u64 shape,
+                                    std::vector<std::string> extraFeatures, const char* what, bool premultiply) const {
+    const std::vector<std::string> extraAsked = extraFeatures;
+    auto& variants = mesh_programs_[shaderId];
     auto cached = variants.find(shape);
     if (cached != variants.end()) {
         const Shader* shader = resources.getShader(cached->second);
-        return shader ? shader->getProgramId() : 0;
+        const u32 program = shader ? shader->getProgramId() : 0;
+        if (program != 0 && !premultiply) program_origins_.try_emplace(program, ProgramOrigin{ shaderId, shape, extraAsked });
+        return program;
     }
 
-    auto src = sources_.find(rec->shaderRef.id());
+    auto src = sources_.find(shaderId);
     if (src == sources_.end()) {
         variants[shape] = {};
         return 0;
@@ -321,14 +351,23 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     features = resource::ShaderParser::featuresRead(parsed, features, target);
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);
-    const std::string frag = resource::ShaderParser::assembleStage(
+    std::string frag = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Fragment, "", features, target);
+    if (premultiply && !frag.empty()) {
+        frag = resource::ShaderParser::premultiplyOutput(frag, target);
+        if (frag.empty()) {
+            ES_LOG_WARN("MaterialStore: shader {} has no fragment entry and colour output to premultiply; drawn under Multiply or Screen "
+                        "it must put out rgb * a itself", shaderId);
+            variants[shape] = {};
+            return 0;
+        }
+    }
     // Only a shader whose vertex stage is the ENGINE's can be retargeted: one that
     // writes its own decides how a vertex reaches clip space, and adding MESH to it
-    // would compile a program that still ignores the per-object transform.
-    if (!parsed.vertexIsCanonical) {
-        ES_LOG_WARN("MaterialStore: material {} writes its own vertex stage, so it cannot draw "
-                    "{} (only a shader on the engine's vertex stage can)", materialId, what);
+    // would compile a program that still ignores the per-object transform. A premultiplied twin retargets nothing.
+    if (!parsed.vertexIsCanonical && !(premultiply && extraAsked.empty())) {
+        ES_LOG_WARN("MaterialStore: shader {} writes its own vertex stage, so it cannot draw "
+                    "{} (only a shader on the engine's vertex stage can)", shaderId, what);
         variants[shape] = {};
         return 0;
     }
@@ -337,21 +376,21 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     // not have, and the device rejects the pipeline.
     const auto fullVertex = parsed.wgslStageFull.find(resource::ShaderStage::Vertex);
     if (target == resource::ShaderTargetLanguage::WGSL
-        && fullVertex != parsed.wgslStageFull.end() && fullVertex->second) {
-        ES_LOG_WARN("MaterialStore: material {} carries a generated WGSL vertex stage, so it "
-                    "cannot draw {} — regenerate its twin", materialId, what);
+        && fullVertex != parsed.wgslStageFull.end() && fullVertex->second && !(premultiply && extraAsked.empty())) {
+        ES_LOG_WARN("MaterialStore: shader {} carries a generated WGSL vertex stage, so it "
+                    "cannot draw {} — regenerate its twin", shaderId, what);
         variants[shape] = {};
         return 0;
     }
     if (!parsed.valid || vert.empty() || frag.empty()) {
-        ES_LOG_WARN("MaterialStore: no {} variant for material {} ({})",
-                    what, materialId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);
+        ES_LOG_WARN("MaterialStore: no {} variant for shader {} ({})",
+                    what, shaderId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);
         variants[shape] = {};
         return 0;
     }
 
     const u64 text = sourceDigest(vert, frag);
-    auto& same = variant_sources_[rec->shaderRef.id()];
+    auto& same = variant_sources_[shaderId];
     if (const auto twin = same.find(text); twin != same.end()) {
         if (const Shader* shader = resources.getShader(twin->second)) {
             variants[shape] = twin->second;
@@ -370,6 +409,7 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     const u32 program = shader->getProgramId();
     variants[shape] = handle;
     same[text] = handle;
+    if (!premultiply) program_origins_[program] = ProgramOrigin{ shaderId, shape, extraAsked };
     return program;
 }
 

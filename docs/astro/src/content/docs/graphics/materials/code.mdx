@@ -83,9 +83,12 @@ Texture values are passed as `Material.tex(textureId)`.
 | `BlendMode.PremultipliedAlpha` | One, OneMinusSrcAlpha | Premultiplied-alpha sources. |
 
 `Multiply` and `Screen` use the source colour as it arrives, so they need it premultiplied by its alpha (`rgb * a`). The
-engine's own sprite, particle and trail shaders do this for you under these two modes. A material's own shader drawn with
-`Multiply` or `Screen` has to output `vec4(color.rgb * color.a, color.a)` itself. If it does not, a half-transparent white
-texel, such as the soft falloff of a glow, brightens whatever is behind it instead of leaving it alone.
+engine does this for you under these two modes, for its own sprite, particle and trail shaders and for a material's own
+shader alike: it draws the material with a copy of the shader whose fragment entry is wrapped to multiply the colour it puts
+out by its alpha. Write the shader as you would for `Normal`, putting out a straight colour; one that already multiplies by
+alpha itself is multiplied twice and comes out too dark. If the engine cannot find the fragment entry or its colour output,
+it logs a warning and draws the shader as it is, and then a half-transparent white texel, such as the soft falloff of a
+glow, brightens whatever is behind it instead of leaving it alone.
 
 ### `CullMode`
 

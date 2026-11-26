@@ -1251,6 +1251,171 @@ std::string ShaderParser::variantKey(const std::vector<std::string>& features) {
     return key;
 }
 
+namespace {
+
+bool isIdent(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
+
+/// The name of a GLSL fragment stage's colour output: the `out vec4` at location 0, else the first `out vec4` with no location.
+/// Only statement-level declarations count, not a function's `out` parameters.
+std::string glslColourOutput(const std::string& src) {
+    std::string unplaced;
+    usize start = 0;
+    while (start < src.size()) {
+        usize end = src.find('\n', start);
+        if (end == std::string::npos) end = src.size();
+        std::string line = src.substr(start, end - start);
+        start = end + 1;
+        const usize first = line.find_first_not_of(" \t");
+        if (first == std::string::npos) continue;
+        line = line.substr(first);
+        const bool placed = line.rfind("layout", 0) == 0;
+        const usize outAt = placed ? line.find(") out ") : 0;
+        if (!(placed ? outAt != std::string::npos : line.rfind("out ", 0) == 0)) continue;
+        const usize semi = line.find(';');
+        if (semi == std::string::npos || line.find('(', placed ? outAt : 0) < semi && !placed) continue;
+        const std::string decl = line.substr(placed ? outAt + 2 : 0, semi - (placed ? outAt + 2 : 0));
+        if (decl.find("vec4") == std::string::npos) continue;
+        usize nameEnd = decl.find_last_not_of(" \t");
+        if (nameEnd == std::string::npos) continue;
+        usize nameStart = nameEnd;
+        while (nameStart > 0 && isIdent(decl[nameStart - 1])) --nameStart;
+        const std::string name = decl.substr(nameStart, nameEnd - nameStart + 1);
+        if (placed) {
+            const usize loc = line.find("location");
+            const usize eq = loc == std::string::npos ? std::string::npos : line.find('=', loc);
+            if (eq != std::string::npos && std::atoi(line.c_str() + eq + 1) == 0) return name;
+        } else if (unplaced.empty()) {
+            unplaced = name;
+        }
+    }
+    return unplaced;
+}
+
+/// Where `name(` is called as a whole word.
+usize findWord(const std::string& text, const std::string& word, usize from = 0) {
+    for (usize at = text.find(word, from); at != std::string::npos; at = text.find(word, at + 1)) {
+        const bool before = at > 0 && isIdent(text[at - 1]);
+        const usize end = at + word.size();
+        const bool after = end < text.size() && isIdent(text[end]);
+        if (!before && !after) return at;
+    }
+    return std::string::npos;
+}
+
+std::string trimmed(std::string s) {
+    const usize a = s.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return "";
+    const usize b = s.find_last_not_of(" \t\r\n");
+    return s.substr(a, b - a + 1);
+}
+
+/// @p text without its WGSL attributes (`@location(0)`, `@builtin(position)`, `@interpolate(flat)`): what a function that is
+/// not an entry point may not carry on its parameters or its return type.
+std::string withoutAttributes(const std::string& text) {
+    std::string out;
+    for (usize i = 0; i < text.size();) {
+        if (text[i] != '@') { out += text[i++]; continue; }
+        ++i;
+        while (i < text.size() && isIdent(text[i])) ++i;
+        usize j = i;
+        while (j < text.size() && (text[j] == ' ' || text[j] == '\t')) ++j;
+        if (j < text.size() && text[j] == '(') {
+            usize depth = 0;
+            for (; j < text.size(); ++j) {
+                if (text[j] == '(') ++depth;
+                else if (text[j] == ')' && --depth == 0) { ++j; break; }
+            }
+            i = j;
+        }
+    }
+    return out;
+}
+
+}  // namespace
+
+std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderTargetLanguage target) {
+    static const char* kAuthor = "es_author_fragment";
+    if (target != ShaderTargetLanguage::WGSL) {
+        const std::string out = glslColourOutput(fragment);
+        usize at = findWord(fragment, "main");
+        // The definition, not a mention: `void main` followed by its parameter list.
+        while (at != std::string::npos) {
+            const usize before = fragment.find_last_not_of(" \t\r\n", at == 0 ? 0 : at - 1);
+            if (before != std::string::npos && before >= 3 && fragment.compare(before - 3, 4, "void") == 0) break;
+            at = findWord(fragment, "main", at + 1);
+        }
+        if (out.empty() || at == std::string::npos) return "";
+        std::string src = fragment;
+        src.replace(at, 4, kAuthor);
+        src += "\nvoid main() {\n    " + std::string(kAuthor) + "();\n    " + out + ".rgb *= " + out + ".a;\n}\n";
+        return src;
+    }
+    // WGSL: `@fragment fn NAME(PARAMS) -> RET {`.
+    const usize attr = fragment.find("@fragment");
+    if (attr == std::string::npos) return "";
+    const usize fn = findWord(fragment, "fn", attr);
+    const usize open = fn == std::string::npos ? std::string::npos : fragment.find('(', fn);
+    if (open == std::string::npos) return "";
+    usize close = open, depth = 0;
+    for (; close < fragment.size(); ++close) {
+        if (fragment[close] == '(') ++depth;
+        else if (fragment[close] == ')' && --depth == 0) break;
+    }
+    const usize arrow = fragment.find("->", close);
+    const usize body = fragment.find('{', close);
+    if (close >= fragment.size() || arrow == std::string::npos || body == std::string::npos || arrow > body) return "";
+    const std::string name = trimmed(fragment.substr(fn + 2, open - fn - 2));
+    const std::string params = fragment.substr(open + 1, close - open - 1);
+    const std::string ret = trimmed(fragment.substr(arrow + 2, body - arrow - 2));
+    // The arguments, by name: each parameter is `[@attrs] name : type`, split at the top level.
+    std::vector<std::string> args;
+    {
+        usize level = 0, from = 0;
+        for (usize i = 0; i <= params.size(); ++i) {
+            const char c = i < params.size() ? params[i] : ',';
+            if (c == '(' || c == '<') ++level;
+            else if (c == ')' || c == '>') --level;
+            else if (c == ',' && level == 0) {
+                const std::string p = params.substr(from, i - from);
+                from = i + 1;
+                const usize colon = p.find(':');
+                if (colon == std::string::npos) continue;
+                std::string head = trimmed(p.substr(0, colon));
+                usize s = head.size();
+                while (s > 0 && isIdent(head[s - 1])) --s;
+                if (s < head.size()) args.push_back(head.substr(s));
+            }
+        }
+    }
+    std::string call = std::string(kAuthor) + "(";
+    for (usize i = 0; i < args.size(); ++i) call += (i ? ", " : "") + args[i];
+    call += ")";
+    // What it returns: a colour at location 0, or a struct with one there.
+    std::string returnType = ret;
+    if (const usize space = ret.rfind(' '); space != std::string::npos && ret[0] == '@') returnType = trimmed(ret.substr(space));
+    std::string tail;
+    if (returnType == "vec4f" || returnType == "vec4<f32>") {
+        tail = "    let c = " + call + ";\n    return vec4f(c.rgb * c.a, c.a);\n";
+    } else {
+        const usize decl = fragment.find("struct " + returnType);
+        const usize open2 = decl == std::string::npos ? std::string::npos : fragment.find('{', decl);
+        const usize close2 = open2 == std::string::npos ? std::string::npos : fragment.find('}', open2);
+        const usize loc = open2 == std::string::npos ? std::string::npos : fragment.find("@location(0)", open2);
+        if (loc == std::string::npos || loc > close2) return "";
+        const usize colon = fragment.find(':', loc);
+        const std::string field = trimmed(fragment.substr(loc + 12, colon - loc - 12));
+        if (field.empty()) return "";
+        tail = "    var o = " + call + ";\n    o." + field + " = vec4f(o." + field + ".rgb * o." + field + ".a, o." + field + ".a);\n    return o;\n";
+    }
+    std::string src = fragment;
+    // The author's entry, renamed and no longer the stage's: an ordinary function, so its parameters and its result lose the
+    // stage attributes only an entry point may carry.
+    src.replace(attr, body - attr, "fn " + std::string(kAuthor) + "(" + withoutAttributes(params) + ") -> " +
+                                       trimmed(withoutAttributes(ret)) + " ");
+    src += "\n@fragment fn " + name + "(" + params + ") -> " + ret + " {\n" + tail + "}\n";
+    return src;
+}
+
 std::vector<std::string> ShaderParser::splitFeatures(const std::string& csv) {
     std::vector<std::string> features;
     for (usize start = 0; start <= csv.size();) {

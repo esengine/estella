@@ -81,7 +81,7 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 | `BlendMode.Screen` | One, OneMinusSrcColor | 提亮。 |
 | `BlendMode.PremultipliedAlpha` | One, OneMinusSrcAlpha | 预乘 alpha 的源。 |
 
-`Multiply` 和 `Screen` 会原样使用源颜色，所以要求颜色已经乘过透明度（`rgb * a`）。在这两种模式下，引擎自带的精灵、粒子和拖尾着色器会自动做这一步。材质自己的着色器如果用 `Multiply` 或 `Screen` 绘制，需要自己输出 `vec4(color.rgb * color.a, color.a)`。否则半透明的白色像素（比如光晕边缘的柔和渐变）会把后面的画面调亮，而不是保持原样。
+`Multiply` 和 `Screen` 会原样使用源颜色，所以要求颜色已经乘过透明度（`rgb * a`）。在这两种模式下引擎会自动做这一步，不论是它自带的精灵、粒子和拖尾着色器，还是材质自己的着色器：它用该着色器的一个副本来画这个材质，副本把片元入口包了一层，把输出颜色乘上它的透明度。着色器照 `Normal` 的写法输出未预乘的颜色即可；如果自己已经乘过透明度，会被乘两次而偏暗。引擎找不到片元入口或颜色输出时会记一条警告，按原样绘制，这时半透明的白色像素（比如光晕边缘的柔和渐变）会把后面的画面调亮，而不是保持原样。
 
 ### `CullMode`
 

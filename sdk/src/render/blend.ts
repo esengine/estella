@@ -14,7 +14,7 @@ export enum BlendMode {
     Normal = 0,
     /** SrcAlpha, One — glow, particles. */
     Additive = 1,
-    /** DstColor, OneMinusSrcAlpha — shadows, multiply. Wants a premultiplied colour: the engine's own shaders premultiply under it, a material's must output rgb * a. */
+    /** DstColor, OneMinusSrcAlpha — shadows, multiply. Wants a premultiplied colour: the engine premultiplies what a shader puts out under it, a material's own shader included. */
     Multiply = 2,
     /** One, OneMinusSrcColor — lighten. Wants a premultiplied colour, as Multiply does. */
     Screen = 3,

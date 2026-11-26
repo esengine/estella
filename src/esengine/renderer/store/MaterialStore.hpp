@@ -297,8 +297,13 @@ public:
     /// its PREMULTIPLY_OUTPUT twin, so a clear texel is nothing there instead of white. @p programId itself when it has none (a
     /// material's own shader). The frame sets who answers; the draw list asks per command.
     u32 premultipliedOutputProgram(u32 programId) const {
-        return premultiplied_output_ ? premultiplied_output_(programId) : programId;
+        const u32 engine = premultiplied_output_ ? premultiplied_output_(programId) : programId;
+        // Not one of the engine's own: a material's, whose author's entry is wrapped to premultiply (see premultipliedMaterialProgram).
+        return engine != programId || !resources_ ? engine : premultipliedMaterialProgram(programId);
     }
+    /// A material program's twin with its output premultiplied: the same source and features, the author's fragment entry wrapped
+    /// (ShaderParser::premultiplyOutput). @p programId itself when it is no material's program or the wrap cannot be made.
+    u32 premultipliedMaterialProgram(u32 programId) const;
     void setPremultipliedOutputResolver(std::function<u32(u32)> resolver) { premultiplied_output_ = std::move(resolver); }
 
     /// The name of the shader @p materialId draws with, or "default" for the path's own batch shader.
@@ -683,6 +688,14 @@ private:
     u32 variantProgram(u32 materialId, resource::ResourceManager& resources,
                        u64 shape, std::vector<std::string> extraFeatures,
                        const char* what) const;
+    /// variantProgram for a shader by its handle id. @p premultiply wraps the fragment to put out a premultiplied colour, and
+    /// then a shader that writes its own vertex stage is accepted: nothing is retargeted, the stage is the one it always had.
+    u32 variantForShader(u32 shaderId, resource::ResourceManager& resources, u64 shape,
+                         std::vector<std::string> extraFeatures, const char* what, bool premultiply) const;
+    /// Where each variant program came from: its shader, its shape and the features added to the shader's own.
+    struct ProgramOrigin { u32 shaderId; u64 shape; std::vector<std::string> extra; };
+    mutable std::unordered_map<u32, ProgramOrigin> program_origins_;
+    mutable std::unordered_map<u32, u32> premultiplied_programs_;
     GfxDevice* device_ = nullptr;
     resource::ResourceManager* resources_ = nullptr;
     TextureHandle defaultWhite_ = TextureHandle::Invalid;
