@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { SceneData, DocumentDiagnostic } from '../src/index';
-import { validateScene, SCENE_FORMAT_VERSION, loadSceneData } from '../src/index';
+import { validateScene, SCENE_FORMAT_VERSION, loadSceneData, resetWorldTo } from '../src/index';
 import { World } from '../src/ecs/world';
 import { defineComponent } from '../src/ecs/component';
 
@@ -104,5 +104,19 @@ describe('loadSceneData refuses what it cannot honour', () => {
         const s = clean();
         s.entities[1].components.push({ type: 'Chaser', data: { target: 77 } });
         expect(loadSceneData(world, s).size).toBe(2);
+    });
+
+    it.each(['duplicate', 'cycle', 'future'] as const)('preserves the current world when a replacement has a %s', (problem) => {
+        const world = new World();
+        const entity = world.spawn();
+        const State = defineComponent('ReplacementTestState', { value: 0 });
+        world.insert(entity, State, { value: 17 });
+        const replacement = clean();
+        if (problem === 'duplicate') replacement.entities.push(replacement.entities[0]!);
+        if (problem === 'cycle') replacement.entities[0]!.parent = 2;
+        if (problem === 'future') replacement.version = SCENE_FORMAT_VERSION + 1;
+        expect(() => resetWorldTo(world, replacement)).toThrow();
+        expect(world.getAllEntities()).toEqual([entity]);
+        expect(world.get(entity, State).value).toBe(17);
     });
 });

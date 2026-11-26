@@ -607,10 +607,18 @@ export interface StagedSpawn {
  * With `staged`, every root is switched off (`Disabled`) the moment it exists, so nothing sees a cell half arrived;
  * {@link revealStagedEntities} switches it on whole. A root the author switched off is left as written.
  */
-export function* spawnAndLoadEntitiesJob(
+export function spawnAndLoadEntitiesJob(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
-    sink?: ScenePhaseSink, staged = false, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
+    sink?: ScenePhaseSink, staged = false, spawn: StagedSpawn | undefined = undefined,
     assertScene?: () => void, attempt = new SceneLoadAttempt(world, sceneData.name),
+): Generator<number, StagedSpawn, void> {
+    return spawnSceneJob(world, sceneData, external, sink, staged, spawn, assertScene, attempt);
+}
+
+function* spawnSceneJob(
+    world: World, sceneData: SceneData, external: ReadonlyMap<number, Entity> | undefined,
+    sink: ScenePhaseSink | undefined, staged: boolean, spawn: StagedSpawn = { entities: new Map(), hidden: [] },
+    assertScene: (() => void) | undefined, attempt: SceneLoadAttempt, replaceWorld = false,
 ): Generator<number, StagedSpawn, void> {
     const assertCurrent = () => { assertScene?.(); attempt.assertCurrent(); };
     // Settle work before yielding and restart the clock after resumption. A phase's observer may itself take time.
@@ -633,6 +641,12 @@ export function* spawnAndLoadEntitiesJob(
     assertCurrent();
     checkLoadable(sceneData);
     if (onPhase) onPhase('spawn.validate', since());
+    if (replaceWorld) {
+        for (const entity of world.getAllEntities()) {
+            if (world.valid(entity)) world.despawn(entity);
+            assertCurrent();
+        }
+    }
     const { entities: entityMap, hidden } = spawn;
     const rows = sceneData.entities.filter((entityData) => entityData.visible !== false && !isPrefabEntry(entityData));
     const total = Math.max(1, rows.length * 3);
@@ -748,7 +762,10 @@ export function spawnAndLoadEntities(
     world: World, sceneData: SceneData, external?: ReadonlyMap<number, Entity>,
     onPhase?: ScenePhaseSink, assertCurrent?: () => void, attempt?: SceneLoadAttempt,
 ): Map<number, Entity> {
-    const job = spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false, undefined, assertCurrent, attempt);
+    return finishSceneJob(spawnAndLoadEntitiesJob(world, sceneData, external, onPhase, false, undefined, assertCurrent, attempt));
+}
+
+function finishSceneJob(job: Generator<number, StagedSpawn, void>): Map<number, Entity> {
     for (;;) {
         const next = job.next();
         if (next.done) return next.value.entities;
@@ -767,22 +784,13 @@ export function loadSceneData(
 }
 
 /**
- * Reset the world to a previously-captured scene: despawn every current entity,
- * then reload `sceneData`. Used for editor play-state isolation (snapshot before
- * Play via {@link serializeScene}, restore on Stop), level restart, etc. Because
- * {@link loadSceneData} no longer mutates its input, the same snapshot can be
- * restored repeatedly. Entity ids change; the returned map is
- * snapshot-id → new entity for callers that need to remap references/selection.
+ * Validate a snapshot, then replace the world's entities. Validation failure leaves the world intact.
+ * The snapshot remains reusable and the returned map binds snapshot IDs to new entities.
  */
 export function resetWorldTo(world: World, sceneData: SceneData): Map<number, Entity> {
     const attempt = new SceneLoadAttempt(world, sceneData.name);
-    // getAllEntities returns a fresh array, so despawning as we go is safe; the
-    // valid() guard tolerates despawn cascading to children.
-    for (const entity of world.getAllEntities()) {
-        if (world.valid(entity)) world.despawn(entity);
-        attempt.assertCurrent();
-    }
-    return loadSceneData(world, sceneData);
+    const { data } = migrateSceneData(sceneData);
+    return finishSceneJob(spawnSceneJob(world, data, undefined, undefined, false, undefined, undefined, attempt, true));
 }
 
 export async function loadSceneWithAssets(
