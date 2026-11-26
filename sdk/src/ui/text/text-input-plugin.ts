@@ -34,7 +34,9 @@ import {
     splitLines, caretLineCol, lineSelections, imeAnchorCss, alignOffset,
     type TextFieldDisplay,
 } from './text-input-view';
-import { uiWorldToScreen, uiLayoutToScreen, uiPointerFor, isScreenEntity } from '../util/ui-pick';
+import { uiLayoutToScreen, uiPointerFor, isScreenEntity } from '../util/ui-pick';
+import { createLocalTransformReader } from '../util/local-transform';
+import { isProjectable, projectCameraPoint } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
 import type { TextEditorEvent } from '../../platform/types';
@@ -96,6 +98,7 @@ export class TextInputPlugin implements Plugin {
         const module = app.wasmModule as ESEngineModule | null;
 
         const world = app.world;
+        const localTransform = createLocalTransformReader(world);
 
         // The editable text renders through the shared SDF glyph
         // atlas — a child Text entity (drawn by textPlugin) + a child UIVisual
@@ -270,6 +273,7 @@ export class TextInputPlugin implements Plugin {
             unsubscribe?.();
             editor?.dispose();
             editor = null;
+            localTransform.dispose();
             forgetRetiredFields();
             for (const [entity, ch] of childrenOf) releaseField(entity, ch);
             const renderer = measureRenderer;
@@ -412,17 +416,24 @@ export class TextInputPlugin implements Plugin {
         function anchorCaret(entity: Entity, caretX: number, caretBottom: number): void {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
-            if (!cam || !overlay || (!cam.valid && !overlay.active)) return;
+            if (!cam || !overlay) return;
             const box = boxOf(entity);
             if (!world.has(entity, Transform) || !box) return;
             const screen = isScreenEntity(world, entity);
-            const frame = boxFrame(entity, box);
-            const worldX = frame.left + caretX * frame.sx;
-            const worldY = frame.top - caretBottom * frame.sy; // world y-up
+            if (screen ? !overlay.active : !cam.valid) return;
+            const point = localTransform.worldPoint(entity, caretX - box.px * box.w, (1 - box.py) * box.h - caretBottom);
+            if (point === null) return;
+            let position = point;
+            if (position === undefined) {
+                const tr = world.get(entity, Transform);
+                const frame = boxFrame(entity, box);
+                position = { x: frame.left + caretX * frame.sx, y: frame.top - caretBottom * frame.sy, z: tr.worldPosition.z };
+            }
             // Forward through whichever projection actually drew the field.
-            const scr = screen
-                ? uiLayoutToScreen(overlay, worldX, worldY)
-                : uiWorldToScreen(cam, worldX, worldY);
+            const projected = screen ? null : projectCameraPoint(cam, position.x, position.y, position.z);
+            if (projected && !isProjectable(projected)) return;
+            const scr = projected ?? uiLayoutToScreen(overlay, position.x, position.y);
+            if (!Number.isFinite(scr.x) || !Number.isFinite(scr.y)) return;
             const surfaceH = screen ? overlay.surfaceH : cam.screenH;
             const css = imeAnchorCss(scr.x, scr.y, surfaceH, platformDevicePixelRatio());
             editor!.setCaretAnchor?.(css.left, css.top);

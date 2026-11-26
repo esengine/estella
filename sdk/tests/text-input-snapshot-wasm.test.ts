@@ -6,8 +6,11 @@ import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { createWebTextEditor } from '../src/platform/webTextEditor';
+import { perspective } from '../src/math/mat4';
 import { resetWorldTo, serializeScene } from '../src/scene/scene';
 import { ContentRect } from '../src/ui/core/content-rect';
+import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
+import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { px } from '../src/ui/core/dimension';
 import { Text } from '../src/ui/core/text';
 import { UIMask } from '../src/ui/core/ui-mask';
@@ -40,6 +43,31 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
         engine.uiLayout_update(registry, -400, -300, 400, 300, true);
         await app.tick(1 / 60);
     };
+
+    it.each([0, Math.PI / 3])('anchors the input surface to a world caret at depth with tilt %s', async tilt => {
+        const { world } = app, field = world.spawn('field');
+        const distance = 120, fov = Math.PI / 3;
+        world.insert(field, Transform, { position: { x: 0, y: 0, z: -distance },
+            rotation: { x: 0, y: Math.sin(tilt / 2), z: 0, w: Math.cos(tilt / 2) } });
+        world.insert(field, ContentRect, { size: { x: 100, y: 40 }, pivot: { x: 0.5, y: 0.5 } });
+        world.insert(field, TextInput, { value: '', fontSize: 20, padding: 6 });
+        world.insert(field, Focusable, { tabIndex: 0 });
+        app.insertResource(ScreenOverlay, defaultScreenOverlay());
+        app.insertResource(UICameraInfo, { ...UICameraInfo._default, valid: true, vpW: 800, vpH: 600,
+            screenW: 800, screenH: 600, viewProjection: perspective(fov, 800 / 600, 0.1, 1000) });
+        engine.transform_update(registry);
+        app.getResource(FocusManager).focus(field);
+        await tick();
+        await tick();
+
+        const input = document.querySelector<HTMLTextAreaElement>('textarea[data-estella-text-editor]')!;
+        const caretX = -44, caretY = -10;
+        const eyeDepth = distance + caretX * Math.sin(tilt);
+        const pixelsPerUnit = 300 / (Math.tan(fov / 2) * eyeDepth);
+        expect(world.get(field, TextInput).focused).toBe(true);
+        expect(input.style.left).toBe(`${Math.round(400 + caretX * Math.cos(tilt) * pixelsPerUnit)}px`);
+        expect(input.style.top).toBe(`${Math.round(300 - caretY * pixelsPerUnit)}px`);
+    });
 
     it('saves the committed value of a focused field and drops the editing session on reload', async () => {
         const world = app.world, field = world.spawn('field');
