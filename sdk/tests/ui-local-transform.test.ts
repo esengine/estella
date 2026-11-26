@@ -32,6 +32,14 @@ describe('rendered local transform reader', () => {
         expect(reader.point(entity, 34, 7)).toEqual({ x: 5, y: 4 });
         expect(api._malloc).toHaveBeenCalledTimes(1); reader.dispose();
     });
+    it('maps a ray onto the local coordinates of a tilted, sheared surface', () => {
+        const { api, matrix } = host(), reader = createLocalTransformReader({ getWasmModule: () => api, getCppRegistry: () => ({}) } as unknown as World);
+        matrix[2] = 1; matrix[6] = 2; matrix[14] = -20;
+        expect(reader.rayPoint(entity, { origin: { x: 24, y: 7, z: 3 }, dir: { x: 0, y: 0, z: -1 } })).toEqual({ x: 5, y: 4 });
+        expect(reader.rayPoint(entity, { origin: { x: 24, y: 7, z: 3 }, dir: { x: 0, y: 0, z: 1 } })).toBeNull();
+        expect(reader.rayPoint(entity, { origin: { x: 24, y: 7, z: 3 }, dir: { x: 2, y: 0, z: 1 } })).toBeNull();
+        reader.dispose();
+    });
     it('releases scratch through its original host when the world changes cores', () => {
         const first = host(), second = host(); let api = first.api;
         const reader = createLocalTransformReader({ getWasmModule: () => api, getCppRegistry: () => ({}) } as unknown as World);

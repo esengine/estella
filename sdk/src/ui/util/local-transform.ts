@@ -3,6 +3,8 @@
 import type { World } from '../../ecs/world';
 import type { Entity, Vec2, Vec3 } from '../../types';
 import { worldEngineApi, type EngineApi } from '../../ecs/bridge/engineApi';
+import { v3 } from '../../math/vec3';
+import type { WorldRay } from './math';
 
 /** Read the flat geometry's rendered basis, including shear. Undefined permits a legacy
  * fallback; null rejects a missing, singular or nonfinite transform. */
@@ -50,10 +52,27 @@ export function createLocalTransformReader(world: World) {
         };
         return Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z) ? point : null;
     };
+    const rayPoint = (entity: Entity, ray: WorldRay): Vec2 | null | undefined => {
+        const at = readMatrix(entity);
+        if (at == null) return at;
+        const m = matrixHeap!;
+        const axisX = { x: m[at], y: m[at + 1], z: m[at + 2] };
+        const axisY = { x: m[at + 4], y: m[at + 5], z: m[at + 6] };
+        const delta = v3.sub(ray.origin, { x: m[at + 12], y: m[at + 13], z: m[at + 14] });
+        const normal = v3.cross(axisX, axisY);
+        const det = v3.dot(normal, ray.dir);
+        if (!Number.isFinite(det) || Math.abs(det) <= 1e-9 * v3.len(normal)) return null;
+        if (-v3.dot(delta, normal) / det < 0) return null;
+        // Solve directly in the field basis to preserve its scale and shear.
+        const x = v3.dot(delta, v3.cross(axisY, ray.dir)) / det;
+        const y = v3.dot(delta, v3.cross(ray.dir, axisX)) / det;
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+    };
     return {
         point: (entity: Entity, x: number, y: number) => inverse(entity, x, y, true),
         vector: (entity: Entity, x: number, y: number) => inverse(entity, x, y, false),
         worldPoint,
+        rayPoint,
         dispose,
     };
 }

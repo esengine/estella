@@ -12,6 +12,7 @@ import type { UIVisualData } from '../core/ui-visual';
 import { UIMask, MaskMode } from '../core/ui-mask';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
+import { UIControlPointers } from '../input/control-pointers';
 import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
 import type { FocusableData } from '../input/focusable';
 import { isFocusEligible } from '../input/focus-inspection';
@@ -34,7 +35,7 @@ import {
     splitLines, caretLineCol, lineSelections, imeAnchorCss, alignOffset,
     type TextFieldDisplay,
 } from './text-input-view';
-import { uiLayoutToScreen, uiPointerFor, isScreenEntity } from '../util/ui-pick';
+import { uiLayoutToScreen, uiPointerFor, isScreenEntity, uiLayoutRay, uiPointerRay } from '../util/ui-pick';
 import { createLocalTransformReader } from '../util/local-transform';
 import { isProjectable, projectCameraPoint } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
@@ -321,26 +322,35 @@ export class TextInputPlugin implements Plugin {
             resetCursorBlink();
         }
 
-        // Map the current pointer to a caret index inside `entity`: pointer
-        // world-x → the field's local text space (undo the box center, padding and
-        // horizontal scroll) → nearest character boundary. Multiline also maps the
-        // pointer world-y to a \n-broken line first. null when it can't be resolved
-        // (no camera / no box).
+        // Intersect the press ray with the field before applying the text's padding, alignment and scroll.
         function caretIndexFromPointer(entity: Entity): number | null {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
-            if (!cam || !overlay || (!cam.valid && !overlay.active)) return null;
+            if (!cam || !overlay) return null;
             const box = boxOf(entity);
-            if (!world.has(entity, Transform) || !box) return null;
-            // The pointer in the FIELD's domain: every subtraction below is a
-            // pointer minus a transform, and the two have to be in one space.
-            const pointer = uiPointerFor(world, entity, cam, overlay);
+            if (!world.has(entity, Transform) || !box || !(box.w > 0)) return null;
+            const screen = isScreenEntity(world, entity);
+            if (screen ? !overlay.active : !cam.valid) return null;
+            let local;
+            for (const press of app.getResource(UIControlPointers).pointers.values()) {
+                if (press.pressedEntity !== entity) continue;
+                const ray = screen ? uiLayoutRay(overlay, press.screenX, press.screenY) : uiPointerRay(cam, press.screenX, press.screenY);
+                local = localTransform.rayPoint(entity, ray);
+                break;
+            }
+            if (local === null) return null;
+            let boxX: number, boxY: number;
+            if (local) {
+                boxX = box.px * box.w + local.x;
+                boxY = (1 - box.py) * box.h - local.y;
+            } else {
+                const pointer = uiPointerFor(world, entity, cam, overlay);
+                const frame = boxFrame(entity, box);
+                boxX = (pointer.x - frame.left) / frame.sx;
+                boxY = (frame.top - pointer.y) / frame.sy;
+            }
             const ti = world.get(entity, TextInput) as TextInputData;
             const width = box.w;
-            if (width <= 0) return null;
-            // Left edge and top edge of the box in the world (y-up), and the scale between the world and the box's own units.
-            const frame = boxFrame(entity, box);
-            const fieldLeft = frame.left;
             const val = editor!.read().value;   // focused ⇒ the surface is the value source
             const atlas = ensureMeasure().atlas;
             // The family the child Text will actually rasterize with. The caret is
@@ -353,12 +363,11 @@ export class TextInputPlugin implements Plugin {
 
             if (ti.multiline) {
                 const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
-                const localY = (frame.top - pointer.y) / frame.sy; // y-down from the box top
                 const lines = splitLines(val);
-                const li = Math.max(0, Math.min(Math.floor(localY / lineH), lines.length - 1));
+                const li = Math.max(0, Math.min(Math.floor(boxY / lineH), lines.length - 1));
                 const line = lines[li];
                 // Each line carries its own alignment offset, so undo THIS line's.
-                const textX = (pointer.x - fieldLeft) / frame.sx - ti.padding
+                const textX = boxX - ti.padding
                     - alignOffset(ti.textAlign, innerW, mw(line.text));
                 const prefixes = measurePrefixWidths(line.text, atlas, family, ti.fontSize, 0);
                 return line.start + nearestCaretIndex(prefixes, textX, line.text);
@@ -369,7 +378,7 @@ export class TextInputPlugin implements Plugin {
             // a focused field's value can differ from what was last drawn, and a
             // guess about the offset lands the caret on the wrong glyph.
             const ao = alignOffsetOf.get(entity) ?? 0;
-            const textX = (pointer.x - fieldLeft) / frame.sx - ti.padding - ao + scrollX;
+            const textX = boxX - ti.padding - ao + scrollX;
             const display = ti.password ? PASSWORD_CHAR.repeat(val.length) : val;
             const prefixes = measurePrefixWidths(display, atlas, family, ti.fontSize, 0);
             return nearestCaretIndex(prefixes, textX, val);

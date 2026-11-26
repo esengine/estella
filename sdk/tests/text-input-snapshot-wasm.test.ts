@@ -17,6 +17,8 @@ import { UIMask } from '../src/ui/core/ui-mask';
 import { UINode } from '../src/ui/core/ui-node';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { Focusable, FocusManager } from '../src/ui/input/focusable';
+import { UIControlPointers } from '../src/ui/input/control-pointers';
+import { MOUSE_POINTER } from '../src/ui/input/pointerBook';
 import { TextInput } from '../src/ui/text/text-input';
 import { UIPlugin } from '../src/ui/ui-plugin';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
@@ -25,6 +27,8 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 vi.mock('../src/platform/base', async original => ({
     ...await original<typeof import('../src/platform/base')>(),
     platformCreateTextEditor: () => createWebTextEditor(),
+    platformHasGlyphRasterizer: () => true,
+    platformRasterizeGlyph: () => ({ pixels: new Uint8Array(), width: 0, height: 0, advance: 24, bearingX: 0, bearingY: 0 }),
 }));
 
 describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
@@ -44,18 +48,23 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
         await app.tick(1 / 60);
     };
 
-    it.each([0, Math.PI / 3])('anchors the input surface to a world caret at depth with tilt %s', async tilt => {
+    const distance = 120, fov = Math.PI / 3;
+    const worldField = (tilt: number, value: string, cursorPos = 0) => {
         const { world } = app, field = world.spawn('field');
-        const distance = 120, fov = Math.PI / 3;
         world.insert(field, Transform, { position: { x: 0, y: 0, z: -distance },
             rotation: { x: 0, y: Math.sin(tilt / 2), z: 0, w: Math.cos(tilt / 2) } });
         world.insert(field, ContentRect, { size: { x: 100, y: 40 }, pivot: { x: 0.5, y: 0.5 } });
-        world.insert(field, TextInput, { value: '', fontSize: 20, padding: 6 });
-        world.insert(field, Focusable, { tabIndex: 0 });
+        world.insert(field, TextInput, { value, cursorPos, fontSize: 20, padding: 6 });
         app.insertResource(ScreenOverlay, defaultScreenOverlay());
         app.insertResource(UICameraInfo, { ...UICameraInfo._default, valid: true, vpW: 800, vpH: 600,
             screenW: 800, screenH: 600, viewProjection: perspective(fov, 800 / 600, 0.1, 1000) });
         engine.transform_update(registry);
+        return field;
+    };
+
+    it.each([0, Math.PI / 3])('anchors the input surface to a world caret at depth with tilt %s', async tilt => {
+        const field = worldField(tilt, '');
+        app.world.insert(field, Focusable, { tabIndex: 0 });
         app.getResource(FocusManager).focus(field);
         await tick();
         await tick();
@@ -64,9 +73,24 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
         const caretX = -44, caretY = -10;
         const eyeDepth = distance + caretX * Math.sin(tilt);
         const pixelsPerUnit = 300 / (Math.tan(fov / 2) * eyeDepth);
-        expect(world.get(field, TextInput).focused).toBe(true);
+        expect(app.world.get(field, TextInput).focused).toBe(true);
         expect(input.style.left).toBe(`${Math.round(400 + caretX * Math.cos(tilt) * pixelsPerUnit)}px`);
         expect(input.style.top).toBe(`${Math.round(300 - caretY * pixelsPerUnit)}px`);
+    });
+
+    it.each([0, Math.PI / 3])('places the caret at the clicked text edge on a world field with tilt %s', async tilt => {
+        const field = worldField(tilt, 'x', 1);
+        await tick();
+        const input = app.getResource(Input);
+        const localX = -46;
+        const eyeDepth = distance + localX * Math.sin(tilt);
+        input.mouseX = 400 + localX * Math.cos(tilt) * 300 / (Math.tan(fov / 2) * eyeDepth);
+        input.mouseY = 300;
+        input.noteMouseDown(0);
+        await tick();
+
+        expect(app.getResource(UIControlPointers).pointers.get(MOUSE_POINTER)?.pressedEntity).toBe(field);
+        expect(app.world.get(field, TextInput)).toMatchObject({ focused: true, cursorPos: 0 });
     });
 
     it('saves the committed value of a focused field and drops the editing session on reload', async () => {
