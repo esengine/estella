@@ -14,6 +14,7 @@ import { createNativeRegistry } from '../src/ecs/bridge/nativeRegistry';
 import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { Sprite } from '../src/ecs/component';
+import { UIVisual } from '../src/ui/core/ui-visual';
 import { World } from '../src/ecs/world';
 import { Pose } from '../src/animation/pose';
 import { mixPoses } from '../src/animation/poseMix';
@@ -173,27 +174,28 @@ describe('createNativeRegistry', () => {
         const reg = createNativeRegistry({ es_registry_setParent: () => accepted });
         expect(reg.setParent(1 as never, 2 as never)).toBe(accepted);
     });
-    it('writes a native SDK sprite to its current storage after the pool moves', () => {
+    it.each([Sprite, UIVisual])('writes native $_name colors to current storage after the pool moves', component => {
         let buffer = new ArrayBuffer(128);
         const scope = mockNativeScope();
-        scope.es_Sprite_buffer = () => buffer;
+        const name = component._cppName;
+        scope[`es_${name}_buffer`] = () => buffer;
         const bridge = new BuiltinBridge();
         bridge.connect(createNativeRegistry(scope), undefined, { memory: new NativeMemoryProvider(scope) });
-        const sprite = { ...Sprite._default, color: { r: .125, g: .25, b: .5, a: .75 } };
+        const row = { ...component._default, color: { r: .125, g: .25, b: .5, a: .75 } };
         try {
-            const write = bridge.getBuiltinMethods('Sprite').addFields!;
-            expect(write(42, sprite)).toBe(true);
+            const write = bridge.getBuiltinMethods(name).addFields!;
+            expect(write(42, row)).toBe(true);
             const first = buffer;
             buffer = new ArrayBuffer(128);
-            expect(write(42, { ...sprite, color: { ...sprite.color, a: .25 } })).toBe(true);
+            expect(write(42, { ...row, color: { ...row.color, a: .25 } })).toBe(true);
             const read = (bytes: ArrayBuffer) => {
-                const row = PTR_ACCESSORS.Sprite.create();
-                PTR_ACCESSORS.Sprite.fill(new Float32Array(bytes), new Uint32Array(bytes), new Uint8Array(bytes), 0, row);
-                return row.color;
+                const value = PTR_ACCESSORS[name].create();
+                PTR_ACCESSORS[name].fill(new Float32Array(bytes), new Uint32Array(bytes), new Uint8Array(bytes), 0, value);
+                return value.color;
             };
-            expect(read(first)).toEqual(sprite.color);
+            expect(read(first)).toEqual(row.color);
             expect(read(buffer)).toEqual({ r: .125, g: .25, b: .5, a: .25 });
-            expect(write(42, { ...sprite, color: {} })).toBe(false);
+            expect(write(42, { ...row, color: {} })).toBe(false);
         } finally { bridge.disconnect(); }
     });
     it('round-trips a component through add / has / get / remove (embind shape)', () => {

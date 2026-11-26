@@ -36,7 +36,7 @@ interface ComponentWriteTarget {
     [componentProjection]?<C extends AnyComponentDef>(entity: Entity, def: C, data: ComponentData<C>): void;
 }
 
-/** @internal Store a complete record from the sampler or composer synchronously. */
+/** @internal Store a complete record from an engine system while preserving pending asset fields. */
 export function writeProjection<C extends AnyComponentDef>(
     world: ComponentWriteTarget, entity: Entity, def: C, data: ComponentData<C>,
 ): void {

@@ -17,6 +17,7 @@ import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
 import { ChangeTracker } from './ChangeTracker';
 import { componentProjection, copyComponentData, readComponentProjection } from './componentProjection';
+import { commitPropertyEdit } from './propertyPath';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
@@ -1076,6 +1077,17 @@ export class World {
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
 
+    /** @internal Commit a reflected field assignment with the same validation as insert.
+     * Other asset fields in the readback can still be placeholders for loads in flight. */
+    [commitPropertyEdit]<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>, field: string): void {
+        if (isBuiltinComponent(component) && this.pendingAssetFields_?.has(entity, component)) {
+            this.speculation_?.record(this, entity, component);
+            this.insertBuiltin_(entity, component, data, new Set([field]));
+        } else {
+            this.insert(entity, component, data);
+        }
+    }
+
     /**
      * Store a whole component value and stamp the change tick a `Changed` filter
      * reads. Insert-or-replace: an entity that lacks the component gets it.
@@ -1363,11 +1375,11 @@ export class World {
     // Component storage and write notifications
     // =========================================================================
 
-    private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): T {
+    private insertBuiltin_<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>, edited?: ReadonlySet<string>): T {
         const raw = data as Record<string, unknown> | undefined;
         const refs = this.takeAssetRefs_(component, raw);
         const { merged, isNew } = this.builtin_.insert(entity, component, (refs?.clean ?? data) as Partial<T>);
-        const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, false);
+        const start = this.assetFieldsWritten_(entity, component, raw, refs?.authored, edited !== undefined, edited);
         this.finishComponentWrite_(entity, component, merged, isNew, start);
         return merged;
     }

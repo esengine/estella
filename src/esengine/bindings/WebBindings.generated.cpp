@@ -2647,6 +2647,66 @@ static bool storeTransformFields(Registry& r, u32 e,
     return true;
 }
 
+static void storeUIVisual(Registry& r, u32 e, const UIVisualJS& js) {
+    auto entity = static_cast<Entity>(e);
+    if (!r.valid(entity)) return;
+    if (auto* existing = r.tryGet<esengine::ecs::UIVisual>(entity)) {
+        uivisualApplyJS(*existing, js);
+        return;
+    }
+    r.emplaceOrReplace<esengine::ecs::UIVisual>(entity, uivisualFromJS(js));
+}
+
+static bool storeUIVisualFields(Registry& r, u32 e,
+    decltype(UIVisualJS{}.visualType) visualType,
+    decltype(UIVisualJS{}.texture) texture,
+    decltype(UIVisualJS{}.color.x) color_x,
+    decltype(UIVisualJS{}.color.y) color_y,
+    decltype(UIVisualJS{}.color.z) color_z,
+    decltype(UIVisualJS{}.color.w) color_w,
+    decltype(UIVisualJS{}.fit) fit,
+    decltype(UIVisualJS{}.uvOffset.x) uvOffset_x,
+    decltype(UIVisualJS{}.uvOffset.y) uvOffset_y,
+    decltype(UIVisualJS{}.uvScale.x) uvScale_x,
+    decltype(UIVisualJS{}.uvScale.y) uvScale_y,
+    decltype(UIVisualJS{}.sliceBorder.x) sliceBorder_x,
+    decltype(UIVisualJS{}.sliceBorder.y) sliceBorder_y,
+    decltype(UIVisualJS{}.sliceBorder.z) sliceBorder_z,
+    decltype(UIVisualJS{}.sliceBorder.w) sliceBorder_w,
+    decltype(UIVisualJS{}.tileSize.x) tileSize_x,
+    decltype(UIVisualJS{}.tileSize.y) tileSize_y,
+    decltype(UIVisualJS{}.fillMethod) fillMethod,
+    decltype(UIVisualJS{}.fillOrigin) fillOrigin,
+    decltype(UIVisualJS{}.fillAmount) fillAmount,
+    decltype(UIVisualJS{}.material) material,
+    decltype(UIVisualJS{}.enabled) enabled) {
+    UIVisualJS value{};
+    value.visualType = visualType;
+    value.texture = texture;
+    value.color.x = color_x;
+    value.color.y = color_y;
+    value.color.z = color_z;
+    value.color.w = color_w;
+    value.fit = fit;
+    value.uvOffset.x = uvOffset_x;
+    value.uvOffset.y = uvOffset_y;
+    value.uvScale.x = uvScale_x;
+    value.uvScale.y = uvScale_y;
+    value.sliceBorder.x = sliceBorder_x;
+    value.sliceBorder.y = sliceBorder_y;
+    value.sliceBorder.z = sliceBorder_z;
+    value.sliceBorder.w = sliceBorder_w;
+    value.tileSize.x = tileSize_x;
+    value.tileSize.y = tileSize_y;
+    value.fillMethod = fillMethod;
+    value.fillOrigin = fillOrigin;
+    value.fillAmount = fillAmount;
+    value.material = material;
+    value.enabled = enabled;
+    storeUIVisual(r, e, value);
+    return true;
+}
+
 // =============================================================================
 // Registry
 // =============================================================================
@@ -4037,15 +4097,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (!r.valid(entity) || !r.has<esengine::ecs::UIVisual>(entity)) return UIVisualJS{};
             return uivisualToJS(r.get<esengine::ecs::UIVisual>(entity));
         }))
-        .function("addUIVisual", optional_override([](Registry& r, u32 e, const UIVisualJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            if (auto* existing = r.tryGet<esengine::ecs::UIVisual>(entity)) {
-                uivisualApplyJS(*existing, js);
-                return;
-            }
-            r.emplaceOrReplace<esengine::ecs::UIVisual>(entity, uivisualFromJS(js));
-        }))
+        .function("addUIVisual", &storeUIVisual)
         .function("removeUIVisual", optional_override([](Registry& r, u32 e) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::UIVisual>(entity)) return;
@@ -4076,6 +4128,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         ;
     emscripten::function("storeSpriteFields", &storeSpriteFields);
     emscripten::function("storeTransformFields", &storeTransformFields);
+    emscripten::function("storeUIVisualFields", &storeUIVisualFields);
 }
 
 EMSCRIPTEN_BINDINGS(esengine_ptr_access) {

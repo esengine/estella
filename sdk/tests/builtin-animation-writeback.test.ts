@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Sprite, Transform, getComponent } from '../src/ecs/component';
+import { UIVisual, UIVisualType, UIVisualFit, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
 import { readProjection, writeProjection } from '../src/ecs/componentProjection';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { Pose } from '../src/animation/pose';
@@ -21,6 +22,36 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 describe.skipIf(!HAS_WASM)('animation component replacement', () => {
     let engine: ESEngineModule;
     beforeAll(async () => { engine = await loadWasmModule(); });
+
+    it.for(['object', 'scalar'])('round-trips a complete UI visual through the %s binding', (path, ctx) => {
+        const methods = engine as ESEngineModule & { storeUIVisualFields?: (...args: unknown[]) => boolean };
+        const original = methods.storeUIVisualFields;
+        if (path === 'scalar' && !original) return ctx.skip();
+        const store = vi.fn(original);
+        methods.storeUIVisualFields = path === 'scalar' ? store : undefined;
+        const world = new World(), registry = new engine.Registry();
+        try {
+            world.connectCpp(registry, engine);
+            const e = world.spawn();
+            world.insert(e, UIVisual, { visualType: UIVisualType.Image });
+            expect(world.get(e, UIVisual)).toEqual({ ...UIVisual._default, visualType: UIVisualType.Image });
+            world.enableChangeSequenceTracking(UIVisual, false);
+            const cursor = world.getChangeSequence();
+            const visual = { ...UIVisual._default, visualType: UIVisualType.Filled, texture: 23, material: 41,
+                color: { r: 0.25, g: 0.5, b: 0.75, a: 0.125 }, fit: UIVisualFit.Cover,
+                uvOffset: { x: 1, y: 2 }, uvScale: { x: 3, y: 4 }, sliceBorder: { x: 5, y: 6, z: 7, w: 8 },
+                tileSize: { x: 9, y: 10 }, fillMethod: FillMethod.Radial90, fillOrigin: FillOrigin.Bottom, fillAmount: 0.625,
+                enabled: false };
+            writeProjection(world, e, UIVisual, visual);
+            expect(world.get(e, UIVisual)).toEqual(visual);
+            expect(world.isChangedAfterSequence(e, UIVisual, cursor)).toBe(true);
+            if (path === 'scalar') expect(store.mock.results.map(call => call.value)).toEqual([true, true]);
+        } finally {
+            methods.storeUIVisualFields = original;
+            world.disconnectCpp();
+            registry.delete();
+        }
+    });
 
     function scene(fields: boolean) {
         const world = new World(), registry = new engine.Registry();

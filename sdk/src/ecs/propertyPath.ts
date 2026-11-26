@@ -15,7 +15,10 @@
  */
 import type { World } from './world';
 import type { Entity } from '../types';
-import { getComponent } from './component';
+import { getComponent, type AnyComponentDef } from './component';
+
+/** @internal Store the edited readback without replacing unrelated asset fields. */
+export const commitPropertyEdit = Symbol('commit property edit');
 
 export function getNestedProperty(obj: Record<string, any>, path: string): unknown {
     const parts = path.split('.');
@@ -29,6 +32,7 @@ export function getNestedProperty(obj: Record<string, any>, path: string): unkno
 
 /** @internal Resolve the object receiving an assignment to an existing field. */
 export function resolvePropertyTarget(obj: Record<string, any>, parts: readonly string[]): Record<string, any> | null {
+    if (obj == null || typeof obj !== 'object') return null;
     let target = obj;
     for (let i = 0; i < parts.length - 1; i++) {
         target = target[parts[i]];
@@ -68,13 +72,22 @@ export function getEntityProperty(world: World, entity: Entity, path: string): u
     return getNestedProperty(data, parsed.fieldPath);
 }
 
+/** @internal Assign an authored value to an existing component field. */
+export function setComponentProperty(world: World, entity: Entity, component: AnyComponentDef, path: string, value: unknown): boolean {
+    const data = world.get(entity, component);
+    const parts = path.split('.');
+    const target = resolvePropertyTarget(data, parts);
+    if (!target) return false;
+    target[parts[parts.length - 1]] = value;
+    if (world[commitPropertyEdit]) world[commitPropertyEdit](entity, component, data, parts[0]);
+    else world.insert(entity, component, data);
+    return true;
+}
+
 export function setEntityProperty(world: World, entity: Entity, path: string, value: unknown): boolean {
     const parsed = parsePropertyPath(path);
     if (!parsed) return false;
     const componentDef = getComponent(parsed.componentName);
     if (!componentDef || !world.has(entity, componentDef)) return false;
-    const data = world.get(entity, componentDef) as Record<string, any>;
-    if (!setNestedProperty(data, parsed.fieldPath, value)) return false;
-    world.insert(entity, componentDef, data);
-    return true;
+    return setComponentProperty(world, entity, componentDef, parsed.fieldPath, value);
 }

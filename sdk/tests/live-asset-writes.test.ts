@@ -9,6 +9,16 @@ import { bindAssetReferenceTracking } from '../src/asset/assetReferenceTracking'
 import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
 import { defineComponent, MeshRenderer, Sprite, unregisterComponent } from '../src/ecs/component';
 import { World } from '../src/ecs/world';
+import { SystemRunner } from '../src/ecs/system';
+import { ResourceStorage, Time } from '../src/ecs/resource';
+import { setEntityProperty } from '../src/ecs/propertyPath';
+import { UIVisual } from '../src/ui/core/ui-visual';
+import { markThemed } from '../src/ui/theme/theme-style';
+import { DARK_TOKENS, LIGHT_TOKENS, setTheme } from '../src/ui/theme/tokens';
+import { switchTheme } from '../src/ui/behavior/theme-apply';
+import { UIController, controllerState } from '../src/ui/controller/ui-controller';
+import { UIGear, gearBinding } from '../src/ui/controller/ui-gear';
+import { createGearApplySystem } from '../src/ui/controller/gear-apply';
 import { Mut, Query, QueryInstance } from '../src/ecs/query';
 import { getDefaultContext } from '../src/ecs/context';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
@@ -50,6 +60,64 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
                 world.disconnectCpp(); registry.delete(); assets.releaseAll();
             } };
     }
+
+    function applyGears(world: World) {
+        const resources = new ResourceStorage();
+        resources.insert(Time, { ...Time._default, delta: 1 / 60 });
+        return new SystemRunner(world, resources).run(createGearApplySystem(world));
+    }
+
+    it.each(['theme', 'gear', 'property action'])('keeps a loading UI texture through a %s color edit', async source => {
+        const { world, entity, assets, settle, released, dispose } = realm();
+        try {
+            world.insert(entity, UIVisual, { texture: 'image.png' as never, color: { r: 1, g: 1, b: 1, a: 0.5 } });
+            const color = { ...LIGHT_TOKENS.colors.primary, a: 0.5 };
+            if (source === 'theme') {
+                markThemed(world, entity, { visual: 'primary' });
+                switchTheme(world, LIGHT_TOKENS);
+            } else if (source === 'gear') {
+                world.insert(entity, UIController, { controllers: [controllerState('view', ['on'])] });
+                world.insert(entity, UIGear, { bindings: [gearBinding('view', 'UIVisual', 'color', { on: color })] });
+                await applyGears(world);
+            } else {
+                expect(setEntityProperty(world, entity, 'UIVisual.color.r', color.r)).toBe(true);
+            }
+            await settle('image.png', 29, 0);
+            const visual = world.get(entity, UIVisual);
+            expect(visual.color.r).toBeCloseTo(color.r);
+            expect(visual.color.a).toBe(0.5);
+            expect(visual.texture).toBe(29);
+            expect(assets.getRefCounter()!.getTextureRefs('image.png', world)).toEqual([entity]);
+            expect(released).not.toHaveBeenCalled();
+        } finally { dispose(); setTheme(DARK_TOKENS); }
+    });
+
+    it.each(['gear', 'property action'])('a %s can clear one loading mesh texture and keep its normal map', async source => {
+        const { world, entity, settle, dispose } = realm();
+        try {
+            world.insert(entity, MeshRenderer, { texture: 'shared.png' as never, normalMap: 'shared.png' as never });
+            if (source === 'gear') {
+                world.insert(entity, UIController, { controllers: [controllerState('view', ['off'])] });
+                world.insert(entity, UIGear, { bindings: [gearBinding('view', 'MeshRenderer', 'texture', { off: 0 })] });
+                await applyGears(world);
+            } else {
+                expect(setEntityProperty(world, entity, 'MeshRenderer.texture', 0)).toBe(true);
+            }
+            await settle('shared.png', 33, 0);
+            expect(world.get(entity, MeshRenderer)).toMatchObject({ texture: 0, normalMap: 33 });
+        } finally { dispose(); }
+    });
+
+    it('validates a reflected assignment before superseding a pending texture', async () => {
+        const { world, entity, settle, dispose } = realm();
+        try {
+            world.insert(entity, UIVisual, { texture: 'image.png' as never });
+            expect(setEntityProperty(world, entity, 'UIVisual.color.missing', 1)).toBe(false);
+            expect(() => setEntityProperty(world, entity, 'UIVisual.color.r', 'red')).toThrow(/color\.r/);
+            await settle('image.png', 29, 0);
+            expect(world.get(entity, UIVisual)).toMatchObject({ texture: 29, color: { r: 1 } });
+        } finally { dispose(); }
+    });
 
     for (const component of [Sprite, MeshRenderer] as const) {
         it(`${component._name} retires a published path on replacement and removal`, async () => {

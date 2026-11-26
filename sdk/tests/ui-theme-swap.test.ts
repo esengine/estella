@@ -42,6 +42,7 @@ function mockWorld() {
         has(e: Entity, c: object) { return comps.get(e as number)?.has(c) ?? false; },
         get(e: Entity, c: object) { return comps.get(e as number)?.get(c); },
         insert(e: Entity, c: object, data: unknown) { comps.get(e as number)?.set(c, data); },
+        set(e: Entity, c: object, data: unknown) { comps.get(e as number)?.set(c, data); },
         getEntitiesWithComponents(cs: object[]): Entity[] {
             const out: Entity[] = [];
             for (const [e, m] of comps) if (cs.every((c) => m.has(c))) out.push(e as Entity);
@@ -136,16 +137,38 @@ describe('live re-theming', () => {
         // Native UIVisual channels are returned as float32. They already display the requested color.
         const { r, g, b } = palette.control;
         w.insert(e, UIVisual, { color: { r: Math.fround(r), g: Math.fround(g), b: Math.fround(b), a: 0.3 } });
-        const write = vi.spyOn(w, 'insert');
+        const insert = vi.spyOn(w, 'insert'), set = vi.spyOn(w, 'set');
         applyThemeToWorld(w);
-        expect(write).not.toHaveBeenCalled();
+        expect(insert).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
 
         const input = w.get(e, TextInput);
         w.insert(e, TextInput, { ...input, color: { r: 1, g: 0, b: 0, a: 0.4 } });
-        write.mockClear();
+        insert.mockClear();
         applyThemeToWorld(w);
-        expect(write.mock.calls.map(call => call[1])).toEqual([TextInput]);
+        expect(insert).not.toHaveBeenCalled();
+        expect(set.mock.calls.map(call => call[1])).toEqual([TextInput]);
         expect(w.get(e, TextInput).color).toEqual({ ...palette.text, a: 0.4 });
         expect(w.get(e, UIVisual).color.a).toBe(0.3);
+    });
+
+    it('retains the original colors of shared component values on unthemed entities', () => {
+        const w = mockWorld(), themed = w.spawn(), literal = w.spawn();
+        const text = { ...Text._default, color: { ...DARK_TOKENS.colors.text } };
+        const input = { ...TextInput._default, color: { ...DARK_TOKENS.colors.text } };
+        const gear = { bindings: [{ controller: '$interaction', component: 'UIVisual', property: 'color',
+            pages: { normal: { ...DARK_TOKENS.colors.control } } }] };
+        for (const entity of [themed, literal]) {
+            w.set(entity, Text, text);
+            w.set(entity, TextInput, input);
+            w.set(entity, UIGear, gear);
+        }
+        markThemed(w, themed, { text: 'text', input: { text: 'text' }, states: { normal: 'control' } });
+        switchTheme(w, LIGHT_TOKENS);
+        for (const [entity, tokens] of [[themed, LIGHT_TOKENS], [literal, DARK_TOKENS]] as const) {
+            expect(w.get(entity, Text).color).toEqual(tokens.colors.text);
+            expect(w.get(entity, TextInput).color).toEqual(tokens.colors.text);
+            expect(colorPages(w, entity).normal).toEqual(tokens.colors.control);
+        }
     });
 });

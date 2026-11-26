@@ -3046,6 +3046,49 @@ export function fillUIVisual(
     out.enabled = u8[ptr + 80] !== 0;
 }
 
+function projectUIVisual(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: UIVisualPtrData, vectorColorAliases: boolean,
+): void {
+    const visualType = u8[ptr];
+    const texture = u32[(ptr + 4) >> 2];
+    const colorR = f32[(ptr + 8) >> 2];
+    const colorG = f32[((ptr + 8) >> 2) + 1];
+    const colorB = f32[((ptr + 8) >> 2) + 2];
+    const colorA = f32[((ptr + 8) >> 2) + 3];
+    const fit = u8[ptr + 24];
+    const uvOffsetX = f32[(ptr + 28) >> 2];
+    const uvOffsetY = f32[((ptr + 28) >> 2) + 1];
+    const uvScaleX = f32[(ptr + 36) >> 2];
+    const uvScaleY = f32[((ptr + 36) >> 2) + 1];
+    const sliceBorderX = f32[(ptr + 44) >> 2];
+    const sliceBorderY = f32[((ptr + 44) >> 2) + 1];
+    const sliceBorderZ = f32[((ptr + 44) >> 2) + 2];
+    const sliceBorderW = f32[((ptr + 44) >> 2) + 3];
+    const tileSizeX = f32[(ptr + 60) >> 2];
+    const tileSizeY = f32[((ptr + 60) >> 2) + 1];
+    const fillMethod = u8[ptr + 68];
+    const fillOrigin = u8[ptr + 69];
+    const fillAmount = f32[(ptr + 72) >> 2];
+    const material = u32[(ptr + 76) >> 2];
+    const enabled = u8[ptr + 80] !== 0;
+    out.visualType = visualType;
+    out.texture = texture;
+    const color_ = Object(out.color ??= {} as Color);
+    if (vectorColorAliases) { color_.x = colorR; color_.y = colorG; color_.z = colorB; color_.w = colorA; }
+    color_.r = colorR; color_.g = colorG; color_.b = colorB; color_.a = colorA;
+    out.fit = fit;
+    const uvOffset_ = Object(out.uvOffset ??= {} as Vec2); uvOffset_.x = uvOffsetX; uvOffset_.y = uvOffsetY;
+    const uvScale_ = Object(out.uvScale ??= {} as Vec2); uvScale_.x = uvScaleX; uvScale_.y = uvScaleY;
+    const sliceBorder_ = Object(out.sliceBorder ??= {} as Vec4); sliceBorder_.x = sliceBorderX; sliceBorder_.y = sliceBorderY; sliceBorder_.z = sliceBorderZ; sliceBorder_.w = sliceBorderW;
+    const tileSize_ = Object(out.tileSize ??= {} as Vec2); tileSize_.x = tileSizeX; tileSize_.y = tileSizeY;
+    out.fillMethod = fillMethod;
+    out.fillOrigin = fillOrigin;
+    out.fillAmount = fillAmount;
+    out.material = material;
+    out.enabled = enabled;
+}
+
 export function writeUIVisual(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: UIVisualPtrData,
@@ -3179,6 +3222,41 @@ function storeTransformFields(write: ScalarWrite, entity: number, data: Transfor
     );
 }
 
+function acceptsUIVisualFields(data: UIVisualPtrData): boolean {
+    if (typeof data.visualType !== 'number') return false;
+    if (typeof data.texture !== 'number') return false;
+    if (typeof data.color?.r !== 'number' || typeof data.color?.g !== 'number' || typeof data.color?.b !== 'number' || typeof data.color?.a !== 'number') return false;
+    if (typeof data.fit !== 'number') return false;
+    if (typeof data.uvOffset?.x !== 'number' || typeof data.uvOffset?.y !== 'number') return false;
+    if (typeof data.uvScale?.x !== 'number' || typeof data.uvScale?.y !== 'number') return false;
+    if (typeof data.sliceBorder?.x !== 'number' || typeof data.sliceBorder?.y !== 'number' || typeof data.sliceBorder?.z !== 'number' || typeof data.sliceBorder?.w !== 'number') return false;
+    if (typeof data.tileSize?.x !== 'number' || typeof data.tileSize?.y !== 'number') return false;
+    if (typeof data.fillMethod !== 'number') return false;
+    if (typeof data.fillOrigin !== 'number') return false;
+    if (typeof data.fillAmount !== 'number') return false;
+    if (typeof data.material !== 'number') return false;
+    if (typeof data.enabled !== 'boolean') return false;
+    return true;
+}
+
+function storeUIVisualFields(write: ScalarWrite, entity: number, data: UIVisualPtrData): boolean {
+    return write(entity,
+        data.visualType,
+        data.texture,
+        data.color.r, data.color.g, data.color.b, data.color.a,
+        data.fit,
+        data.uvOffset.x, data.uvOffset.y,
+        data.uvScale.x, data.uvScale.y,
+        data.sliceBorder.x, data.sliceBorder.y, data.sliceBorder.z, data.sliceBorder.w,
+        data.tileSize.x, data.tileSize.y,
+        data.fillMethod,
+        data.fillOrigin,
+        data.fillAmount,
+        data.material,
+        data.enabled,
+    );
+}
+
 export interface PtrAccessor<T> {
     fill: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, out: T) => void;
     write: (f32: Float32Array, u32: Uint32Array, u8: Uint8Array, ptr: number, data: T) => void;
@@ -3242,6 +3320,6 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },
     UINode: { fill: fillUINode, write: writeUINode, create: createUINodeData },
     UIScroll: { fill: fillUIScroll, write: writeUIScroll, create: createUIScrollData },
-    UIVisual: { fill: fillUIVisual, write: writeUIVisual, create: createUIVisualData },
+    UIVisual: { fill: fillUIVisual, write: writeUIVisual, create: createUIVisualData, projectionBytes: 81, project: projectUIVisual, acceptsFields: acceptsUIVisualFields, storeFields: storeUIVisualFields },
     Velocity: { fill: fillVelocity, write: writeVelocity, create: createVelocityData },
 };

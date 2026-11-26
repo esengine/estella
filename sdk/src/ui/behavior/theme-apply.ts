@@ -12,6 +12,7 @@
  * `theme/` is cross-cutting and may not import up into behaviors.
  */
 import type { World } from '../../ecs/world';
+import { writeProjection } from '../../ecs/componentProjection';
 import { registerSceneComponentInitializer } from '../../scene/worldHooks';
 import type { Color, Entity } from '../../types';
 import { ThemeStyle, type ColorRole } from '../theme/theme-style';
@@ -49,12 +50,12 @@ function applyEntityTheme(world: World, e: Entity, colors = themeColors(world)):
     if (s.visual && world.has(e, UIVisual)) {
         const v = world.get(e, UIVisual) as UIVisualData;
         const color = themedColor(colors, s.visual, v.color, true);
-        if (color !== v.color) world.insert(e, UIVisual, { ...v, color });
+        if (color !== v.color) writeProjection(world, e, UIVisual, { ...v, color });
     }
     if (s.text && world.has(e, Text)) {
         const t = world.get(e, Text) as TextData;
         const color = themedColor(colors, s.text, t.color);
-        if (color !== t.color) world.insert(e, Text, { ...t, color });
+        if (color !== t.color) writeProjection(world, e, Text, { ...t, color });
     }
     if (s.input && world.has(e, TextInput)) {
         const ti = world.get(e, TextInput) as TextInputData;
@@ -62,7 +63,7 @@ function applyEntityTheme(world: World, e: Entity, colors = themeColors(world)):
         const color = themedColor(colors, s.input.text, ti.color);
         const placeholderColor = themedColor(colors, s.input.placeholder, ti.placeholderColor);
         if (backgroundColor !== ti.backgroundColor || color !== ti.color || placeholderColor !== ti.placeholderColor) {
-            world.insert(e, TextInput, { ...ti, backgroundColor, color, placeholderColor });
+            writeProjection(world, e, TextInput, { ...ti, backgroundColor, color, placeholderColor });
         }
     }
     const states = s.states;
@@ -86,7 +87,7 @@ function applyEntityTheme(world: World, e: Entity, colors = themeColors(world)):
                 bindings[index] = { ...binding, pages };
             }
         }
-        if (bindings) world.insert(e, UIGear, { ...gear, bindings });
+        if (bindings) writeProjection(world, e, UIGear, { ...gear, bindings });
     }
 }
 

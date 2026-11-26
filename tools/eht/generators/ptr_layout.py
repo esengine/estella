@@ -5,8 +5,8 @@ from ..type_system import TypeSystem
 from ..field_utils import is_color_field
 
 
-# Generate direct numeric reads and writes for these complete animation rows.
-SCALAR_PROJECTION_COMPONENTS = {'Sprite', 'Transform'}
+# Complete component values sampled by animation and UI systems.
+SCALAR_PROJECTION_COMPONENTS = {'Sprite', 'Transform', 'UIVisual'}
 
 
 def scalar_write_fields(layout):

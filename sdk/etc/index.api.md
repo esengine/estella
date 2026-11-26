@@ -15754,6 +15754,7 @@ Generator<number, T, void>
 
 ## World — class @public
 ```
+@internal [Symbol.commitPropertyEdit]: <C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>, field: string) => void
 @internal [Symbol.componentProjection]: <C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>) => void
 @internal [Symbol.readComponentProjection]: (entity: Entity, component: AnyComponentDef, into: Record<string, unknown>) => void
 @internal addressOfComponent: (component: AnyComponentDef, entity: Entity) => number | undefined

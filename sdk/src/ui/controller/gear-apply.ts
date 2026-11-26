@@ -19,6 +19,7 @@
  */
 import { defineSystem, type SystemDef } from '../../ecs/system';
 import { getComponent, Parent } from '../../ecs/component';
+import { getNestedProperty, resolvePropertyTarget, setComponentProperty } from '../../ecs/propertyPath';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
@@ -32,19 +33,17 @@ import {
     getControllerPage,
     type UIControllerData,
 } from './ui-controller';
-import { UIGear, type GearValue, type UIGearData } from './ui-gear';
+import { UIGear, type UIGearData } from './ui-gear';
 
 // ─── Pure field/value helpers ───────────────────────────────────────────────
 
 /** Read the value at a dot-path (returns undefined if the path doesn't resolve). */
 export function readFieldPath(data: Record<string, unknown>, path: string): unknown {
-    const parts = path.split('.');
-    let cur: any = data;
-    for (const p of parts) {
-        if (cur == null || typeof cur !== 'object') return undefined;
-        cur = cur[p];
-    }
-    return cur;
+    return getNestedProperty(data, path);
+}
+
+function copyGearValue(value: unknown): unknown {
+    return value !== null && typeof value === 'object' ? { ...value } : value;
 }
 
 /**
@@ -54,14 +53,9 @@ export function readFieldPath(data: Record<string, unknown>, path: string): unkn
  */
 export function writeFieldPath(data: Record<string, unknown>, path: string, value: unknown): boolean {
     const parts = path.split('.');
-    let cur: any = data;
-    for (let i = 0; i < parts.length - 1; i++) {
-        cur = cur[parts[i]];
-        if (cur == null || typeof cur !== 'object') return false;
-    }
-    const last = parts[parts.length - 1];
-    if (cur == null || typeof cur !== 'object' || !(last in cur)) return false;
-    cur[last] = (value !== null && typeof value === 'object') ? { ...(value as object) } : value;
+    const target = resolvePropertyTarget(data, parts);
+    if (!target) return false;
+    target[parts[parts.length - 1]] = copyGearValue(value);
     return true;
 }
 
@@ -242,8 +236,8 @@ export function createGearApplySystem(world: World): SystemDef {
 
                 let tx = txs[i];
                 if (!tx || tx.page !== page) {
-                    const cur = readFieldPath(world.get(e, comp) as Record<string, any>, b.property);
-                    tx = { page, elapsed: 0, from: lerpable ? cur : (target as GearValue), done: false };
+                    const from = lerpable ? readFieldPath(world.get(e, comp), b.property) : target;
+                    tx = { page, elapsed: 0, from, done: false };
                     txs[i] = tx;
                 } else if (tx.done) {
                     continue;
@@ -256,10 +250,7 @@ export function createGearApplySystem(world: World): SystemDef {
                     ? lerpGearValue(tx.from, target, applyEasing(b.tween!.easing, t))
                     : target;
 
-                const data = world.get(e, comp) as Record<string, any>;
-                if (writeFieldPath(data, b.property, value)) {
-                    world.insert(e, comp, data);
-                }
+                setComponentProperty(world, e, comp, b.property, copyGearValue(value));
                 if (t >= 1) tx.done = true; else moving = true;
             }
         }
