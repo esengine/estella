@@ -3,6 +3,7 @@
 import type { App, Plugin } from '../app/app';
 import { PluginInstallations } from '../app/pluginInstallations';
 import { disposeAll } from '../util/disposeAll';
+import { deepClone } from '../util/deepClone';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
@@ -66,28 +67,28 @@ export class ParticlePlugin implements Plugin {
         cleanups.push(registerWorldSceneComponentCodec(app.world, 'ParticleEmitter', {
             outOfBandFields: authoredFields,
             importData: (entity, outOfBand) => {
-                const g = outOfBand.colorGradient as Gradient | undefined;
+                const g = deepClone(outOfBand.colorGradient as Gradient | undefined);
                 api.setColorLut(entity, bakeGradient(g));
                 if (g?.stops?.length) gradients.set(entity, g);
                 else gradients.delete(entity);
 
-                const c = outOfBand.sizeCurve as Curve | undefined;
+                const c = deepClone(outOfBand.sizeCurve as Curve | undefined);
                 api.setSizeLut(entity, bakeCurve(c));
                 if (c?.keys?.length) sizeCurves.set(entity, c);
                 else sizeCurves.delete(entity);
 
-                const b = outOfBand.bursts as { time: number; count: number }[] | undefined;
+                const b = deepClone(outOfBand.bursts as { time: number; count: number }[] | undefined);
                 api.setBursts(entity, b ?? null);
                 if (b?.length) bursts.set(entity, b);
                 else bursts.delete(entity);
             },
             exportData: (entity, data) => {
                 const g = gradients.get(entity);
-                if (g) data.colorGradient = g;
+                if (g) data.colorGradient = deepClone(g);
                 const c = sizeCurves.get(entity);
-                if (c) data.sizeCurve = c;
+                if (c) data.sizeCurve = deepClone(c);
                 const b = bursts.get(entity);
-                if (b) data.bursts = b;
+                if (b) data.bursts = deepClone(b);
             },
         }));
 

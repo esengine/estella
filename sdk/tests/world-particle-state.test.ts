@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { ParticleEmitter, Transform } from '../src/ecs/component';
 import { Particle, ParticleAPI, particlePlugin } from '../src/particle';
-import { loadSceneData, serializeScene, type SceneData } from '../src/scene/scene';
+import { loadComponent, loadSceneData, serializeScene, type SceneData } from '../src/scene/scene';
 import type { Entity } from '../src/types';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -39,6 +39,24 @@ describe.skipIf(!HAS_WASM)('particle worlds sharing one engine', () => {
         }] };
         return { scene, fields };
     }
+
+    it('keeps baked emitter settings independent from imported and saved records', () => {
+        const { app } = createApp();
+        const emitter = app.world.spawn();
+        const { fields } = authored(3);
+        loadComponent(app.world, emitter, { type: 'ParticleEmitter', data: { ...fields } });
+        fields.colorGradient.stops[0].color.r = 0.8;
+        fields.sizeCurve.keys[0].value = 8;
+        fields.bursts[0].count = 8;
+
+        const saved = () => serializeScene(app.world).entities[0].components.find(c => c.type === 'ParticleEmitter')!.data as typeof fields;
+        expect(saved()).toMatchObject(authored(3).fields);
+        const capture = saved();
+        capture.colorGradient.stops[0].color.r = 0.9;
+        capture.sizeCurve.keys[0].value = 9;
+        capture.bursts[0].count = 9;
+        expect(saved()).toMatchObject(authored(3).fields);
+    });
 
     it.each([0, 1])('round-trips each emitter and keeps its peer running when world %i closes', async closed => {
         const worlds = [createApp(), createApp()];

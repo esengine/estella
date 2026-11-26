@@ -124,7 +124,7 @@ describe.skipIf(!HAS_WASM)('TerrainBand2D system', () => {
         const api = {
             setGeometry: (e: number) => { uploads.push(e); held.add(e); },
             clearGeometry: (e: number) => { held.delete(e); },
-            getGeometry: (e: number) => (held.has(e) ? {} : undefined),
+            hasGeometry: (e: number) => held.has(e),
         };
         let system: { _fn: () => void } | null = null;
         const app = {

@@ -207,7 +207,7 @@ export function installTerrainBands(app: App): void {
             const held = built.get(entity);
             // The editor re-imports a MeshRenderer from its scene model, which carries no geometry, and that clears what was uploaded: a mesh
             // that has gone missing is built again, not trusted to still be there.
-            if (held && held.key === key && (held.empty || api.getGeometry(entity))) continue;
+            if (held && held.key === key && (held.empty || api.hasGeometry(entity))) continue;
             const result = buildTerrainBand(spline.points, spline.closed, band);
             built.set(entity, { key, empty: !result });
             if (!world.has(entity, MeshRenderer)) world.insert(entity, MeshRenderer, { enabled: true });

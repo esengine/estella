@@ -29,6 +29,13 @@ function packRgba(colors: number[], v: number): number {
 /** The inline vertices are the codec's, not a field's — known before the plugin builds (scene.ts declares them as well). */
 const OUT_OF_BAND = ['geometry'] as const;
 
+function copyGeometry(geometry: MeshRendererGeometry): MeshRendererGeometry {
+    const copy = { ...geometry, positions: geometry.positions.slice(), indices: geometry.indices.slice() };
+    if (geometry.uvs) copy.uvs = geometry.uvs.slice();
+    if (geometry.colors) copy.colors = geometry.colors.slice();
+    return copy;
+}
+
 export class MeshRendererAPI {
     /** Entity → authored geometry, so scene save round-trips what was uploaded. */
     private readonly authored_ = new Map<number, MeshRendererGeometry>();
@@ -59,8 +66,9 @@ export class MeshRendererAPI {
             return;
         }
 
+        const captured = copyGeometry(geometry);
         withScratch(allocator, alloc => {
-            const colors = geometry.colors;
+            const colors = captured.colors;
             const hasColors = !!colors?.length;
             const posUvPtr = alloc(vertexCount * 4 * 4);
             const colorsPtr = hasColors ? alloc(vertexCount * 4) : 0;
@@ -69,10 +77,10 @@ export class MeshRendererAPI {
             // Any allocation can grow linear memory and detach earlier heap views.
             const buffer = m.HEAPU8!.buffer;
             const posUv = new Float32Array(buffer, posUvPtr, vertexCount * 4);
-            const uvs = geometry.uvs;
+            const uvs = captured.uvs;
             for (let v = 0; v < vertexCount; v++) {
-                posUv[v * 4 + 0] = geometry.positions[v * 2 + 0] ?? 0;
-                posUv[v * 4 + 1] = geometry.positions[v * 2 + 1] ?? 0;
+                posUv[v * 4 + 0] = captured.positions[v * 2 + 0] ?? 0;
+                posUv[v * 4 + 1] = captured.positions[v * 2 + 1] ?? 0;
                 posUv[v * 4 + 2] = uvs?.[v * 2 + 0] ?? 0;
                 posUv[v * 4 + 3] = uvs?.[v * 2 + 1] ?? 0;
             }
@@ -82,12 +90,12 @@ export class MeshRendererAPI {
                 for (let v = 0; v < vertexCount; v++) packed[v] = packRgba(colors, v);
             }
 
-            new Uint32Array(buffer, indicesPtr, indexCount).set(geometry.indices);
+            new Uint32Array(buffer, indicesPtr, indexCount).set(captured.indices);
 
             upload(this.registry_, entity, posUvPtr, vertexCount,
                    colorsPtr, indicesPtr, indexCount);
         });
-        this.authored_.set(entity, geometry);
+        this.authored_.set(entity, captured);
     }
 
     /** Clear an entity's mesh geometry (a valid state: the mesh renders nothing). */
@@ -96,9 +104,15 @@ export class MeshRendererAPI {
         this.authored_.delete(entity);
     }
 
-    /** The last geometry uploaded for this entity (scene-export source). */
+    /** @internal Whether the entity carries uploaded inline geometry. */
+    hasGeometry(entity: Entity): boolean {
+        return this.authored_.has(entity);
+    }
+
+    /** A copy of the last inline geometry uploaded for this entity. */
     getGeometry(entity: Entity): MeshRendererGeometry | undefined {
-        return this.authored_.get(entity);
+        const geometry = this.authored_.get(entity);
+        return geometry && copyGeometry(geometry);
     }
 }
 
@@ -123,7 +137,7 @@ export class MeshRendererPlugin implements Plugin {
         cleanups.push(installBlobShadows(app));
 
         cleanups.push(app.world.onDespawn((entity: Entity) => {
-            if (api.getGeometry(entity)) api.clearGeometry(entity);
+            if (api.hasGeometry(entity)) api.clearGeometry(entity);
         }));
 
         // The geometry payload is authored in the component data but isn't a C++

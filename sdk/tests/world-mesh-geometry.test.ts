@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { MeshRenderers, MeshRendererAPI, meshRendererPlugin } from '../src/render/meshRenderer';
+import { MeshRenderer } from '../src/ecs/component';
 import { loadSceneData, registerWorldSceneComponentCodec, registerWorldSceneExportFilter, serializeScene, type SceneData, type SceneExportFilter } from '../src/scene/scene';
 import type { CppRegistry } from '../src/wasm';
 import type { Entity } from '../src/types';
@@ -19,6 +20,26 @@ function scene(size: number): SceneData {
 }
 
 describe('inline mesh geometry', () => {
+    it.skipIf(!HAS_WASM)('keeps uploaded geometry independent from caller and scene records', async () => {
+        const engine = await loadWasmModule();
+        const app = App.new();
+        try {
+            app.connectCpp(new engine.Registry(), engine, { ownedRegistry: true });
+            app.addPlugin(meshRendererPlugin);
+            const id = app.world.spawn('Triangle'), api = app.getResource(MeshRenderers);
+            app.world.insert(id, MeshRenderer);
+            const source = triangle(3);
+            api.setGeometry(id, source);
+            const saved = () => serializeScene(app.world).entities[0].components.find(c => c.type === 'MeshRenderer')!.data.geometry as typeof source;
+            source.positions[2] = 70;
+            expect(saved()).toEqual(triangle(3));
+            api.getGeometry(id)!.positions[2] = 80;
+            saved().positions[2] = 90;
+            expect(saved()).toEqual(triangle(3));
+            expect(engine.meshRenderer_localBounds!(app.world.getCppRegistry()!, id)).toMatchObject({ maxX: 3, maxY: 3 });
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
     it.skipIf(!HAS_WASM)('uploads and saves each world independently when both worlds use the same entity id', async () => {
         const engine = await loadWasmModule();
         const a = App.new(), b = App.new();
