@@ -25,6 +25,7 @@ import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
 import { getComponentSkeletalFieldDescriptor, type SceneData } from '../scene/scene';
 import { discoverSceneAssets } from '../asset/discoverAssets';
+import { assetPairKey } from '../asset/assetPairKey';
 import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
@@ -91,7 +92,7 @@ function atlasImageName(atlasJson: string): string {
 
 /**
  * Phase 1 — fetch each pair's skeleton and atlas and upload the atlas image.
- * Keyed by `skeletonRef:atlasRef` for {@link applyDragonBonesEntities}.
+ * Keyed by the authored pair for {@link applyDragonBonesEntities}.
  */
 export async function loadDragonBonesAssets(
     /** The wasm engine module, or null on a core with no heap — the upload goes
@@ -121,7 +122,7 @@ async function readDragonBonesPairs(
     const binary = (ref: string) => assets?.fetchBinary?.(ref) ?? source.backend.fetchBinary(resolveRef(ref));
 
     for (const pair of pairs) {
-        const cacheKey = `${pair.skeleton}:${pair.atlas}`;
+        const cacheKey = assetPairKey(pair.skeleton, pair.atlas);
         if (assetInfo.has(cacheKey)) continue;
 
         try {
@@ -202,7 +203,7 @@ export function applyDragonBonesEntities(opts: {
                 if (typeof skeletonRef !== 'string' || typeof atlasRef !== 'string') continue;
                 if (!skeletonRef || !atlasRef) continue;
 
-                const assetKey = `${skeletonRef}:${atlasRef}`;
+                const assetKey = assetPairKey(skeletonRef, atlasRef);
                 const info = assetInfo.get(assetKey);
                 if (!info) continue;
 

@@ -333,6 +333,20 @@ describe('standalone atlas ownership', () => {
         expect(textureRefill(105)).toBeUndefined();
     });
 
+    it('keeps DragonBones preparations separate when colons occur inside authored refs', async () => {
+        const source = makeSource({});
+        source.backend.fetchText = async ref => JSON.stringify({ source: ref });
+        const skeleton = 'https://cdn.test/hero_ske.json?skin=one';
+        const pairs = [
+            { skeleton, atlas: 'https://cdn.test/hero_tex.json' },
+            { skeleton: skeleton + ':https', atlas: '//cdn.test/hero_tex.json' },
+        ];
+        const info = await loadDragonBonesAssets(null, source, pairs);
+        expect([...info.values()].map(row => row.skeletonData)).toEqual(
+            pairs.map(pair => JSON.stringify({ source: pair.skeleton })),
+        );
+    });
+
     it('retires a DragonBones refill while its image decode is in flight', async () => {
         const source = makeSource({});
         source.backend.fetchText = async () => '{"imagePath":"page.png"}';

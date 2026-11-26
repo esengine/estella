@@ -20,8 +20,7 @@
  *          the atlas names, where they live, what is read and what is acquired
  *          is decided once, here.
  */
-import { spinePairKey } from '../asset/spinePairKey';
-export { spinePairKey } from '../asset/spinePairKey';
+import { assetPairKey } from '../asset/assetPairKey';
 import type { AssetLease } from '../asset/AssetLease';
 import { parseSpineAtlasPages } from './atlasPages';
 import { log } from '../util/logger';
@@ -115,7 +114,7 @@ export function spineEraOf(
     culling: SpineCullingEnvelope = { kind: 'unknown' },
 ): SpineEraBinding {
     return {
-        id: `${spinePairKey(pair.skeleton, pair.atlas)}#${lease.generation}`,
+        id: `${assetPairKey(pair.skeleton, pair.atlas)}#${lease.generation}`,
         pair,
         value: lease.value,
         retain: () => lease.retain(),

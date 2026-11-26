@@ -148,6 +148,17 @@ describe('discoverSceneAssets', () => {
         expect(refs.spines).toHaveLength(1);
     });
 
+    it('keeps distinct URL pairs whose old concatenated keys match', () => {
+        const pairs = [
+            { skeleton: 'https://cdn.test/hero.skel?skin=one', atlas: 'https://cdn.test/hero.atlas' },
+            { skeleton: 'https://cdn.test/hero.skel?skin=one:https', atlas: '//cdn.test/hero.atlas' },
+        ];
+        const scene = makeScene(pairs.map((data, i) => ({
+            id: i + 1, name: 'Rig', parent: null, children: [], components: [{ type: SPINE_NAME, data }],
+        })));
+        expect(discoverSceneAssets(scene).spines).toEqual(pairs);
+    });
+
     it.each([false, true])('deduplicates resolved pairs within each skeletal runtime (DragonBones first: %s)', dragonBonesFirst => {
         const dragonBones = defineComponent('DiscoverTest_DragonBones', { skeleton: '', atlas: '' }, {
             skeletalFields: { skeletonField: 'skeleton', atlasField: 'atlas', runtime: 'dragonbones' },

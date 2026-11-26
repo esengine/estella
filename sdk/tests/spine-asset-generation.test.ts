@@ -116,6 +116,28 @@ describe('a spine asset is a preparation', () => {
         expect(pool.liveTextures()).toBe(0);
     });
 
+    it('prepares separate spine leases for colliding pairs of URL refs', async () => {
+        const assets = realm({ 'hero.atlas': ATLAS });
+        const read = vi.spyOn(assets.backend, 'fetchText');
+        const skeleton = 'https://cdn.test/hero.skel?skin=one';
+        const [first, second] = await Promise.all([
+            assets.acquireSpine(skeleton, 'https://cdn.test/hero.atlas'),
+            assets.acquireSpine(skeleton + ':https', '//cdn.test/hero.atlas'),
+        ]);
+        try {
+            expect(first.value).not.toBe(second.value);
+            expect(read.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining([
+                expect.stringContaining(skeleton),
+                expect.stringContaining(skeleton + ':https'),
+            ]));
+            expect(read.mock.calls.filter(([url]) => url.endsWith(skeleton))).toHaveLength(1);
+        } finally {
+            first.release();
+            second.release();
+        }
+        expect(assets.sizes()).toMatchObject({ refRows: 0, genericCached: 0 });
+    });
+
     it('keeps a custom spine loader addressable by its own path', async () => {
         const assets = realm({});
         const unload = vi.fn();

@@ -23,7 +23,8 @@ import { discoverSceneAssets } from '../asset/discoverAssets';
 import { getAssetTypeEntry } from '../assetTypes';
 import { log } from '../util/logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
-import { prepareSpine, spineEraOf, spinePairKey,
+import { assetPairKey } from '../asset/assetPairKey';
+import { prepareSpine, spineEraOf,
          type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO,
          type SpinePair } from './prepareSpine';
 import type { RuntimeAssetSource } from '../runtime/runtimeAssets';
@@ -81,7 +82,7 @@ export interface SpineAssetInfo {
 
 /**
  * Phase 1 — fetch + decode each spine pair's skeleton/atlas/textures and detect
- * its runtime version. Keyed by `skeletonRef:atlasRef` for {@link applySpineEntities}.
+ * its runtime version. Keyed by the authored pair for {@link applySpineEntities}.
  */
 /**
  * Who prepares the pairs, and who owns what the preparation takes. With one,
@@ -142,7 +143,7 @@ async function readSpinePairs(
 ): Promise<Map<string, SpineAssetInfo>> {
     const assets = new Map<string, SpineAssetInfo>();
     for (const pair of pairs) {
-        const key = spinePairKey(pair.skeleton, pair.atlas);
+        const key = assetPairKey(pair.skeleton, pair.atlas);
         if (assets.has(key)) continue;
         let preparation: SpineEraClaim | null = null;
         try {
@@ -197,7 +198,7 @@ function hostEra(
         };
     };
     return {
-        era: { id: `${spinePairKey(pair.skeleton, pair.atlas)}#${++preparations}`, pair, value,
+        era: { id: `${assetPairKey(pair.skeleton, pair.atlas)}#${++preparations}`, pair, value,
             culling: { kind: 'unknown' }, retain: () => holders ? claim() : null },
         preparation: claim(),
     };
@@ -249,7 +250,7 @@ export async function applySpineEntities(opts: {
             const atlasRef = comp.data[spineDesc.atlasField] as string;
             if (!skelRef || !atlasRef) continue;
 
-            const info = assetInfo.get(spinePairKey(skelRef, atlasRef));
+            const info = assetInfo.get(assetPairKey(skelRef, atlasRef));
             if (!info || !info.version) continue;
 
             const entity = entityMap.get(sceneEntity.id);

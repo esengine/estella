@@ -46,7 +46,6 @@ import {
     type AssetDependencyOwner, type AssetIdentity, type AssetWithReceipts, type DependencyReceipt, type Preparation, type PreparedLoad,
 } from './dependencies';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
-import { spinePairKey } from './spinePairKey';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MaterialShaderAssetLoader } from './loaders/MaterialShaderAssetLoader';
 import { isBuiltinAssetRef, isFileAssetRef, matchesAssetFieldType } from './documentRef';
@@ -1084,7 +1083,7 @@ export class Assets {
             throw new Error(`Spine skeleton has no atlas dependency: ${skeleton}. `
                 + 'Pass the atlas explicitly or configure Catalog deps.');
         }
-        const pair = spinePairKey(skeleton, atlas);
+        const pair = assetPairKey(skeleton, atlas);
         const key = this.spineBinding_(pair, inputs);
         return this.acquirePrepared_<SpineResult>(
             this.spineLoader_, key, skeletonRef,
@@ -2028,7 +2027,7 @@ export class Assets {
             for (const pair of discovered.spines) {
                 tasks.push(() =>
                     this.acquireSpineLease_(pair.skeleton, pair.atlas, recorder?.owner, inputs).then((lease) => {
-                        recordAcquisition('spine', spinePairKey(pair.skeleton, pair.atlas), lease);
+                        recordAcquisition('spine', assetPairKey(pair.skeleton, pair.atlas), lease);
                     }).catch(e => {
                         log.warn('asset', `Failed to load spine: ${pair.skeleton}`, e);
                         recordFailure(pair.skeleton, 'spine', e);
@@ -2400,7 +2399,7 @@ export class Assets {
     takeTrackedAsset(type: string, ref: string, scope: AssetScope): boolean {
         const path = this.handleLoadKey_(type, ref);
         const atlas = this.loaders_.get(type) === this.spineLoader_ ? this.spineAtlasOf_(path) : undefined;
-        const typedKey = assetPairKey(type, this.claimedSceneBinding_(type, atlas ? this.spineBinding_(spinePairKey(path, atlas)) : path));
+        const typedKey = assetPairKey(type, this.claimedSceneBinding_(type, atlas ? this.spineBinding_(assetPairKey(path, atlas)) : path));
         const genericClaim = this.genericRefs_.hasPathClaim(typedKey);
         const before = scope.size;
         if (type === 'texture') {
@@ -2444,7 +2443,7 @@ export class Assets {
         if (type === 'spine') {
             const atlas = this.spineAtlasOf_(resolved);
             if (atlas) {
-                const pair = this.claimedSceneBinding_(type, this.spineBinding_(spinePairKey(resolved, atlas)));
+                const pair = this.claimedSceneBinding_(type, this.spineBinding_(assetPairKey(resolved, atlas)));
                 const builtin = this.genericRefs_.generations(assetPairKey(type, pair))[0];
                 const custom = this.genericRefs_.generations(assetPairKey(type, resolved))[0];
                 if (builtin && custom) warnAmbiguousRelease_(assetPairKey(type, resolved));
@@ -3443,7 +3442,7 @@ export class Assets {
         const path = this.handleLoadKey_(type, ref);
         if (this.loaders_.get(type) !== this.spineLoader_) return cache.get(path);
         const atlas = this.spineAtlasOf_(path);
-        return atlas ? cache.get(this.spineBinding_(spinePairKey(path, atlas))) : undefined;
+        return atlas ? cache.get(this.spineBinding_(assetPairKey(path, atlas))) : undefined;
     }
 
     /**

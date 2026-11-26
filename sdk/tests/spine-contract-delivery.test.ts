@@ -29,7 +29,7 @@ import type { Entity } from '../src/types';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import { SpineManager } from '../src/spine/SpineManager';
 import { loadSpineAssets } from '../src/spine/loadSpineScene';
-import { spinePairKey } from '../src/spine/prepareSpine';
+import { assetPairKey } from '../src/asset/assetPairKey';
 import { spineManifestContractFrom } from '../src/asset/spineImportSettings';
 import { ManifestModel, type AddressableManifest } from '../src/asset/AddressableManifest';
 import type { RuntimeAssetSource } from '../src/runtime/runtimeAssets';
@@ -163,7 +163,7 @@ async function delivered(atlas = ATLAS_REF, manifest = shippedManifest()) {
         null, shippedSource(manifest), manager, [{ skeleton: SKEL_REF, atlas }],
         undefined, { assets, scope },
     );
-    return { era: info.get(spinePairKey(SKEL_REF, atlas))?.era, scope };
+    return { era: info.get(assetPairKey(SKEL_REF, atlas))?.era, scope };
 }
 
 /** A core that declines everything and records what it was asked to draw. */

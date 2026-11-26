@@ -25,7 +25,7 @@
 import { getComponent, type FieldAssetDiscovery } from '../ecs/component';
 import { probeRefs } from './AddressableManifest';
 import { hasAssetFileExtension } from './documentRef';
-import { spinePairKey } from './spinePairKey';
+import { assetPairKey } from './assetPairKey';
 import type { SceneData, AssetFieldType } from '../scene/scene';
 import type { SurfaceUse } from './surfaceTextureUses';
 
@@ -170,7 +170,7 @@ function assetIndex(refResolver?: RefResolver, owners?: SceneAssetOwners, acquir
         skeletal(entity: number, dragonBones: boolean, skelRef: string, atlasRef: string) {
             const skeleton = resolve(skelRef), atlas = resolve(atlasRef);
             if (skeleton === null || atlas === null) return;
-            const key = spinePairKey(skeleton, atlas);
+            const key = assetPairKey(skeleton, atlas);
             if (!dragonBones) owners?.add('spine', key, entity, true);
             const keys = dragonBones ? dragonBonesKeys : spineKeys;
             if (keys.has(key)) return;
