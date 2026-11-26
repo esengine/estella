@@ -501,15 +501,16 @@ void touch(int type, int id, float x, float y) {
     callJs(h, "es_onNativeTouch", 4, args);
 }
 
-void pointer(int type, int button, float x, float y) {
+void pointer(int type, int button, float x, float y, float dx, float dy) {
     if (!booted()) return;
     HostState& h = host();
     esjs::Enter enter;
-    const esjs::Val args[4] = {
+    const esjs::Val args[6] = {
         esjs::int32(type), esjs::int32(button),
         esjs::number(x), esjs::number(y),
+        esjs::number(dx), esjs::number(dy),
     };
-    callJs(h, "es_onNativePointer", 4, args);
+    callJs(h, "es_onNativePointer", 6, args);
 }
 
 void wheel(float dx, float dy) {

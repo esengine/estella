@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { webAdapter } from '../src/platform/web';
 import { NativePlatformAdapter } from '../src/platform/native';
 import { createHostBridge } from '../src/platform/native/hostBridge';
+import { InputState, inputEventCallbacks } from '../src/input/input';
 import type { InputEventCallbacks } from '../src/platform/types';
 
 /** One line per callback, so a difference reads as a diff rather than a count. */
@@ -26,7 +27,7 @@ function recorder(): { callbacks: InputEventCallbacks; trace: Trace } {
         callbacks: {
             onKeyDown: (code) => { trace.push(`keyDown ${code}`); },
             onKeyUp: (code) => trace.push(`keyUp ${code}`),
-            onPointerMove: (x, y) => trace.push(`pointerMove ${x},${y}`),
+            onPointerMove: (x, y, dx, dy) => trace.push(`pointerMove ${x},${y}${dx === undefined ? '' : ` delta ${dx},${dy}`}`),
             onPointerDown: (b, x, y) => trace.push(`pointerDown ${b} ${x},${y}`),
             onPointerUp: (b) => trace.push(`pointerUp ${b}`),
             onWheel: (dx, dy) => trace.push(`wheel ${dx},${dy}`),
@@ -71,14 +72,16 @@ describe('input adapter parity (web vs native)', () => {
 
         // offsetX/offsetY are what the web adapter reads and what a layout would
         // normally compute; there is no layout here, so they are set directly.
-        const mouse = (type: string, button: number, x: number, y: number) => {
+        const mouse = (type: string, button: number, x: number, y: number, dx = 0, dy = 0) => {
             const e = new MouseEvent(type, { button, bubbles: true });
             Object.defineProperty(e, 'offsetX', { value: x });
             Object.defineProperty(e, 'offsetY', { value: y });
+            Object.defineProperty(e, 'movementX', { value: dx });
+            Object.defineProperty(e, 'movementY', { value: dy });
             return e;
         };
         element.dispatchEvent(mouse('mousedown', 2, 10, 20));
-        element.dispatchEvent(mouse('mousemove', 0, 11, 21));
+        element.dispatchEvent(mouse('mousemove', 0, 11, 21, 4, -3));
         // mouseup and the keys are bound to the DOCUMENT — a button released off
         // the canvas still ends the drag — so that is where they are dispatched.
         document.dispatchEvent(mouse('mouseup', 2, 0, 0));
@@ -97,9 +100,9 @@ describe('input adapter parity (web vs native)', () => {
         const native = new NativePlatformAdapter(bridge);
         native.bindInputEvents(callbacks);
 
-        type Pointer = (t: number, b: number, x: number, y: number) => void;
+        type Pointer = (t: number, b: number, x: number, y: number, dx?: number, dy?: number) => void;
         (scope.es_onNativePointer as Pointer)(0, 2, 10, 20);
-        (scope.es_onNativePointer as Pointer)(1, 0, 11, 21);
+        (scope.es_onNativePointer as Pointer)(1, 0, 11, 21, 4, -3);
         (scope.es_onNativePointer as Pointer)(2, 2, 0, 0);
         (scope.es_onNativeWheel as (dx: number, dy: number) => void)(0, 48);
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(true, 'KeyW');
@@ -113,13 +116,29 @@ describe('input adapter parity (web vs native)', () => {
         const web = driveWeb();
         expect(web).toEqual([
             'pointerDown 2 10,20',
-            'pointerMove 11,21',
+            'pointerMove 11,21 delta 4,-3',
             'pointerUp 2',
             'wheel 0,48',
             'keyDown KeyW',
             'keyUp KeyW',
         ]);
         expect(driveNative()).toEqual(web);
+    });
+
+    it('accumulates native relative motion even when the cursor is stationary', () => {
+        const scope = hostScope();
+        const native = new NativePlatformAdapter(createHostBridge(scope));
+        const input = new InputState();
+        native.bindInputEvents(inputEventCallbacks(input));
+        try {
+            const move = scope.es_onNativePointer as (t: number, b: number, x: number, y: number, dx?: number, dy?: number) => void;
+            move(1, 0, 400, 300, 4, -3);
+            move(1, 0, 400, 300, -1, 2);
+            // An older host still reports the pointer's position with four arguments.
+            move(1, 0, 402, 301);
+            expect(input.getMousePosition()).toEqual({ x: 402, y: 301 });
+            expect(input.getMouseDelta()).toEqual({ x: 3, y: -1 });
+        } finally { native.unbindInputEvents(); }
     });
 
     it('a native mouse does NOT go through the touch pointer synthesizer', () => {

@@ -387,11 +387,12 @@ std::chrono::steady_clock::duration untilFrameDue(bool floor = true);
 void touch(int type, int id, float x, float y);
 
 /** @brief Feeds one mouse/pen event. @p type: 0 down / 1 move / 2 up; @p button
- *         in the DOM order (0 left, 1 middle, 2 right); coordinates as for touch.
+ *         in the DOM order (0 left, 1 middle, 2 right); coordinates and relative
+ *         motion are in surface pixels, with positive Y down.
  *
  *         Distinct from {@link touch} because it is distinct on the web: a touch
  *         synthesizes the primary pointer, a mouse IS one and carries a button. */
-void pointer(int type, int button, float x, float y);
+void pointer(int type, int button, float x, float y, float dx = 0, float dy = 0);
 
 /** @brief Feeds one wheel event, in PIXELS — the DOM `deltaMode: 0` contract, and
  *         positive-down like it, so a game scrolls the same way everywhere. */

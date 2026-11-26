@@ -610,12 +610,15 @@ int main(int argc, char** argv) {
                 eshost::pointer(0, domButton(e.button.button),
                                 e.button.x * pixelScale(), e.button.y * pixelScale());
                 break;
-            case SDL_EVENT_MOUSE_MOTION:
+            case SDL_EVENT_MOUSE_MOTION: {
                 // Unconditionally, as the web does: hover is an event there and a
                 // game that only heard about motion while a button was held could
                 // not implement one.
-                eshost::pointer(1, 0, e.motion.x * pixelScale(), e.motion.y * pixelScale());
+                const float density = pixelScale();
+                eshost::pointer(1, 0, e.motion.x * density, e.motion.y * density,
+                                e.motion.xrel * density, e.motion.yrel * density);
                 break;
+            }
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 eshost::pointer(2, domButton(e.button.button),
                                 e.button.x * pixelScale(), e.button.y * pixelScale());
