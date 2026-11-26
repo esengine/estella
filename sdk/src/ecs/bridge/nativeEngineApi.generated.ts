@@ -301,6 +301,7 @@ export interface NativeEngineApi {
     renderer_setRetainedTextCollected?(collected: boolean): void;
     renderer_setRetainedTextCollectedInWorld?(registry: unknown, collected: boolean): void;
     renderer_setScreenOverlayEffect?(material: number): void;
+    renderer_setScreenTarget?(nativeName: number): number;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
     renderer_setSkinCache?(enabled: number, behavior: number, maxMegabytes: number): void;
@@ -762,6 +763,7 @@ export function createNativeEngineApi(
     bind('renderer_setRetainedTextCollected', 'es_renderer_setRetainedTextCollected', false);
     bind('renderer_setRetainedTextCollectedInWorld', 'es_renderer_setRetainedTextCollectedInWorld', true);
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);
+    bind('renderer_setScreenTarget', 'es_renderer_setScreenTarget', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
     bind('renderer_setSkinCache', 'es_renderer_setSkinCache', false);

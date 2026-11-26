@@ -16,3 +16,9 @@ export * from './runtime/webAppFactory';
 // can compare it against the wasm it loads (desktop EngineGuard). The fatal
 // check is still the runtime bridge handshake's.
 export { ABI_LAYOUT_HASH } from './ecs/component.generated';
+
+// Immersive VR on the web (WebXR): a headset browser, or a desktop one with a headset. Web only: a mini-game or a device has
+// no WebXR, so it is here and not in the shared core.
+export { vrSupported, enterVR, exitVR, inVR, mountVRButton, type EnterVROptions } from './xr/immersive';
+export { xrPresentation, type XRPresentationState, type XREyeView } from './xr/xrPresentation';
+export type { FrameSource } from './app/app';

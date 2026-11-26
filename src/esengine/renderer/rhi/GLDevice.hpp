@@ -89,6 +89,7 @@ public:
     /// What is on the canvas now, read at once: a capture asks for the frame it is looking at and waits for it anyway, and a fence
     /// polled across tasks took a headless CPU rasterizer half as long again per capture as the read it replaced.
     ReadbackHandle captureNextFrame(u32 w, u32 h) override;
+    bool setScreenTarget(u32 nativeName) override;
     GfxReadbackStatus pollReadback(ReadbackHandle handle) override;
     bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
     void discardReadback(ReadbackHandle handle) override;
@@ -164,6 +165,8 @@ protected:
     u32 backendReadbackCount() const override { return static_cast<u32>(readbacks_.size()); }
 
 private:
+    /** The GL name a framebuffer id binds: the screen's (see setScreenTarget) for 0, else the one the device made. */
+    u32 fbName(u32 id) const { return id == 0 ? screen_name_ : nameOf(framebuffer_names_, id); }
     static u32 nameOf(const std::vector<u32>& names, u32 id) {
         return id < names.size() ? names[id] : 0u;
     }
@@ -257,6 +260,8 @@ private:
     /// 0 unknown, 1 the browser reports a program's completion without waiting for it (KHR_parallel_shader_compile), 2 it does not.
     i8 completion_status_ = 0;
     std::vector<u32> framebuffer_names_;
+    /** What framebuffer 0 is drawn into: 0, the default framebuffer, or one the platform owns (an XR layer's), which is never deleted here. */
+    u32 screen_name_ = 0;
     std::vector<u32> query_names_;
     /** Buffer id per uniform binding slot, as the renderer set it. */
     std::vector<u32> uniform_slots_;

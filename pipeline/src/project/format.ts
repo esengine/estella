@@ -205,6 +205,8 @@ export interface ProjectFeatures {
     backend?: 'webgpu';
     /** Run drawing on a dedicated CPU thread on native and isolated web hosts. */
     threadedRendering?: boolean;
+    /** Offer immersive VR in a web build (WebXR): an Enter VR button, and the WebGL2 renderer on the page's thread. */
+    vr?: boolean;
     /** Schedule independent GPU work on a separate compute queue when supported. */
     asyncCompute?: boolean;
     /** How the MAIN camera fits the design resolution, INDEPENDENT of any UI Canvas
@@ -897,6 +899,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
       const r = f.rendering as Record<string, unknown>;
       const rendering: NonNullable<ProjectFeatures['rendering']> = {};
       if (typeof r.threadedRendering === 'boolean') rendering.threadedRendering = r.threadedRendering;
+      if (typeof r.vr === 'boolean') rendering.vr = r.vr;
       if (typeof r.asyncCompute === 'boolean') rendering.asyncCompute = r.asyncCompute;
       if (Array.isArray(r.sortingLayers)) {
         rendering.sortingLayers = r.sortingLayers

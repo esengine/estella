@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    xrPresentation.ts
+ * @brief   What an immersive session shows this frame, as the render system reads it: the eyes, the framebuffer, and the
+ *          arithmetic that puts an eye where the game's camera stands.
+ *
+ * @details A headset gives each eye its own projection (asymmetric: the lenses are not centred on the eyes) and its own pose,
+ *          in metres, relative to where the session began. The game has a camera. The camera is the rig: where the player
+ *          stands and which way the play space faces. Each eye is the rig's position and HEADING (yaw only) followed by the
+ *          eye's own pose, so a third-person camera tilted down at its target does not tilt the player's horizon with it.
+ *          The eye's metres are the world's units through `worldUnitsPerMeter`.
+ *
+ *          The session itself (immersive.ts) fills this in from the browser; nothing here touches WebXR, so the arithmetic
+ *          is tested without a headset.
+ */
+import type { App } from '../app/app';
+import { invertViewQuat, multiply } from '../math/mat4';
+
+export interface Vec3Like { x: number; y: number; z: number }
+export interface QuatLike { x: number; y: number; z: number; w: number }
+
+/** One eye of this frame, as the session hands it over. */
+export interface XREyeView {
+    eye: 'left' | 'right' | 'none';
+    /** Column-major, GL clip convention, built for the session's depthNear / depthFar. */
+    projection: Float32Array;
+    /** Where the eye is relative to the session's origin, in metres, and which way it looks. */
+    position: Vec3Like;
+    orientation: QuatLike;
+    /** Its rectangle of the framebuffer, in pixels, bottom-left origin (the engine's viewport convention). */
+    viewport: { x: number; y: number; w: number; h: number };
+}
+
+/** An immersive session's state, while one is presenting. */
+export interface XRPresentationState {
+    /** The eyes of the frame being drawn; empty when the headset reported no pose (tracking lost). */
+    views: XREyeView[];
+    framebufferWidth: number;
+    framebufferHeight: number;
+    /** The head relative to the session's origin, in metres: what a game reads to know where the player looks. */
+    headPosition: Vec3Like;
+    headOrientation: QuatLike;
+    /** The clip planes the projections were built for, and the ones the rig camera asks for (the session takes them next frame). */
+    depthNear: number;
+    depthFar: number;
+    wantNear: number;
+    wantFar: number;
+    /** True from the session's frame callback until the task after it: a frame drawn outside that window is not shown. */
+    frameActive: boolean;
+    /** Frames drawn to the headset, and frames drawn after their window closed (a system that awaited past it). */
+    drawnFrames: number;
+    missedFrames: number;
+}
+
+const presenting = new WeakMap<App, XRPresentationState>();
+
+/** The app's immersive session state, or null when nothing presents. */
+export function xrPresentation(app: App): XRPresentationState | null {
+    return presenting.get(app) ?? null;
+}
+
+/** Sets (or, with null, clears) what the app presents to a headset. The session's own code calls this. */
+export function setXRPresentation(app: App, state: XRPresentationState | null): void {
+    if (state) presenting.set(app, state);
+    else presenting.delete(app);
+}
+
+/** The heading of a rotation: the angle about +Y that turns -Z (forward) toward where it looks, flattened onto the ground. */
+export function headingOf(q: QuatLike): number {
+    // Forward is the rotation applied to (0, 0, -1).
+    const fx = -2 * (q.x * q.z + q.w * q.y);
+    const fz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+    if (Math.abs(fx) < 1e-9 && Math.abs(fz) < 1e-9) return 0;
+    return Math.atan2(-fx, -fz);
+}
+
+function multiplyQuat(a: QuatLike, b: QuatLike): QuatLike {
+    return {
+        x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    };
+}
+
+/** Where the rig stands: a position in world units and a heading in radians about +Y. */
+export interface XRRig {
+    position: Vec3Like;
+    heading: number;
+}
+
+/** An eye placed in the world: its pose there, and the view-projection the renderer is begun with. */
+export interface PlacedEye {
+    position: Vec3Like;
+    orientation: QuatLike;
+    viewProjection: Float32Array;
+    /** The same view measured from `origin` (the render origin), for a world drawn relative to one. */
+    renderViewProjection: Float32Array;
+}
+
+/** Puts `eye` in the world at `rig`, scaling its metres by `unitsPerMeter`. */
+export function placeEye(rig: XRRig, eye: Pick<XREyeView, 'position' | 'orientation' | 'projection'>, unitsPerMeter: number,
+    origin: Vec3Like = { x: 0, y: 0, z: 0 }): PlacedEye {
+    const s = Math.sin(rig.heading / 2), c = Math.cos(rig.heading / 2);
+    const turn: QuatLike = { x: 0, y: s, z: 0, w: c };
+    // The eye's offset turned by the heading (a rotation about Y): x and z swing, y stays.
+    const cos = Math.cos(rig.heading), sin = Math.sin(rig.heading);
+    const ex = eye.position.x * unitsPerMeter, ey = eye.position.y * unitsPerMeter, ez = eye.position.z * unitsPerMeter;
+    const position = {
+        x: rig.position.x + cos * ex + sin * ez,
+        y: rig.position.y + ey,
+        z: rig.position.z - sin * ex + cos * ez,
+    };
+    const orientation = multiplyQuat(turn, eye.orientation);
+    const o = orientation;
+    // Copied at once: `multiply` and `invertViewQuat` answer in buffers they reuse.
+    const viewProjection = Float32Array.from(multiply(eye.projection, invertViewQuat(position.x, position.y, position.z, o.x, o.y, o.z, o.w)));
+    const renderViewProjection = origin.x === 0 && origin.y === 0 && origin.z === 0
+        ? Float32Array.from(viewProjection)
+        : Float32Array.from(multiply(eye.projection,
+            invertViewQuat(position.x - origin.x, position.y - origin.y, position.z - origin.z, o.x, o.y, o.z, o.w)));
+    return { position, orientation, viewProjection, renderViewProjection };
+}

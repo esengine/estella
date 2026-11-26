@@ -284,6 +284,8 @@ export interface ESEngineModule extends TilemapBindings {
         getNewId(pool: Record<number, unknown>): number;
         /** Emscripten-internal: texture object pool keyed by handle id. */
         textures: Record<number, WebGLTexture>;
+        /** Emscripten-internal: framebuffer object pool keyed by handle id (what glBindFramebuffer's name looks up). */
+        framebuffers?: Record<number, WebGLFramebuffer | null>;
     };
     getResourceManager(): CppResourceManager;
     /**
@@ -829,6 +831,7 @@ export interface ESEngineModule extends TilemapBindings {
     renderer_setViewLighting?(mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setViewId?(view: number): void;
+    renderer_setScreenTarget?(nativeName: number): number;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_lodInspectInWorld?(registry: CppRegistry, view: number, entity: number, outPtr: number): number;
     renderer_clusterInspect?(entity: number, outPtr: number): number;

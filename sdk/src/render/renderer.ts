@@ -103,6 +103,12 @@ export interface RendererBackend {
     setTreeSortLayers(mask: number): void;
     setCullingMask(mask: number): void;
     setViewId(view: number): void;
+    /**
+     * Where the screen's frames are drawn: a framebuffer the platform owns (an immersive XR session's layer), by the
+     * backend's own name for it, or 0 for the default one. False when this core cannot draw there (a swapchain backend,
+     * a host that predates it), and nothing changed.
+     */
+    setScreenTarget?(nativeName: number): boolean;
     lodInspect(view: number, entity: number): LodDecision | null;
     clusterInspect?(entity: number): ClusterDraw | null;
     framePending?(): boolean;
@@ -340,6 +346,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setTreeSortLayers: (mask) => m.renderer_setTreeSortLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
+        setScreenTarget: (nativeName) => (m.renderer_setScreenTarget ? m.renderer_setScreenTarget(nativeName >>> 0) !== 0 : nativeName === 0),
         lodInspect: (view, entity) => readLodDecision(m, lodInspectPtr,
             ptr => m.renderer_lodInspect?.(view >>> 0, entity >>> 0, ptr)),
         framePending: () => (m.renderer_framePending ? m.renderer_framePending() !== 0 : false),
@@ -911,6 +918,11 @@ export const Renderer = {
      */
     setViewId(view: number): void {
         backend?.setViewId(view);
+    },
+
+    /** Draws the screen's frames into a framebuffer the platform owns (an XR layer's), or back into the default one with 0. */
+    setScreenTarget(nativeName: number): boolean {
+        return backend?.setScreenTarget?.(nativeName) ?? nativeName === 0;
     },
 
     /**

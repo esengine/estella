@@ -84,6 +84,9 @@ export interface PackagedGameConfig extends PackagedProjectSettings {
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
     threadedRendering?: boolean;
+    /** Offer immersive VR (WebXR): the page shows an Enter VR button where the browser can present, and draws with the
+     *  WebGL2 renderer on its own thread, which is the one a headset's layer takes. */
+    vr?: boolean;
     /** Project camera fit (design resolution + scale mode) — letterboxes the main
      *  camera without a UI Canvas; absent = no fit. */
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };

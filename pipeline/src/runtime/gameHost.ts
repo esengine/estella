@@ -22,6 +22,7 @@ import {
   worldResidencyReport, worldCellDocumentPath, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
   startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats, TextureStreamingRes,
+  mountVRButton,
 } from 'esengine';
 import { installDevicePreview } from './devicePreviewClient';
 declare const __ESTELLA_LAN_PREVIEW__: boolean;
@@ -195,7 +196,10 @@ async function boot(startup: GameStartup): Promise<void> {
     throw new Error('This browser has no WebAssembly, and this build carries no JavaScript engine '
       + '(Project Settings → Web → "Run without WebAssembly", packaging.platforms.web.engineJs).');
   }
-  const threaded = cfg.threadedRendering === true && !engineAsJs && !headless
+  // A headset takes a WebGL layer from the page's own context: VR keeps drawing on this thread, with WebGL2.
+  const vr = cfg.vr === true && !headless && !engineAsJs;
+  if (vr && cfg.threadedRendering === true) console.info('[estella] VR: drawing on the page thread (a headset cannot take a threaded renderer).');
+  const threaded = cfg.threadedRendering === true && !vr && !engineAsJs && !headless
     && globalThis.crossOriginIsolated === true
     && typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined'
     && typeof canvas.transferControlToOffscreen === 'function';
@@ -209,7 +213,8 @@ async function boot(startup: GameStartup): Promise<void> {
   // contract. `?headless` pins WebGL2: a driver reads the frame back through the
   // GL context, which is what the capture hook below has. The JavaScript engine is
   // built without WebGPU: a host with no wasm has no WebGPU either.
-  const wantsWebGPU = cfg.renderBackend === 'webgpu' && !headless && !engineAsJs;
+  if (vr && cfg.renderBackend === 'webgpu') console.info('[estella] VR: drawing with WebGL2 (a headset cannot take WebGPU in this browser yet).');
+  const wantsWebGPU = cfg.renderBackend === 'webgpu' && !vr && !headless && !engineAsJs;
   const gpu = await acquireWebGPUDevice(wantsWebGPU && !threaded ? 'webgpu' : 'webgl2',
     (m) => console.error(m));
   if (wantsWebGPU && !threaded && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
@@ -1052,6 +1057,7 @@ async function boot(startup: GameStartup): Promise<void> {
     });
   }
   if (typeof __ESTELLA_LAN_PREVIEW__ !== 'undefined' && __ESTELLA_LAN_PREVIEW__) installDevicePreview(app, cfg.scripts);
+  if (vr) mountVRButton(app);
   await app.run();
 }
 

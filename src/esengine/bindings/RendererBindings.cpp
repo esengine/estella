@@ -1688,6 +1688,11 @@ void renderer_setViewId(u32 view) {
     if (auto* frame = g_renderFrame) frame->setViewId(view);
 }
 
+// The frame an immersive session shows is drawn into its layer's framebuffer, which the page does not own.
+i32 renderer_setScreenTarget(u32 nativeName) {
+    return g_device && g_device->setScreenTarget(nativeName) ? 1 : 0;
+}
+
 i32 renderer_framePending() {
     return g_device && g_device->framePending() ? 1 : 0;
 }

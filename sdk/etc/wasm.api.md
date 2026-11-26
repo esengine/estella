@@ -315,7 +315,7 @@ wrapDeviceTexture: ((textureId: number, width: number, height: number) => number
 ```
 EstellaContext: new () => CppEngineContext
 FS: EmscriptenFS
-GL: { registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: { majorVersion: number; minorVersion: number; enableExtensionsByDefault?: boolean; }): number; currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext; }; contexts?: ({ GLctx: WebGLRenderingContext | WebGL2RenderingContext; } | null)[]; getNewId(pool: Record<number, unknown>): number; textures: Record<number, WebGLTexture>; }
+GL: { registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: { majorVersion: number; minorVersion: number; enableExtensionsByDefault?: boolean; }): number; currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext; }; contexts?: ({ GLctx: WebGLRenderingContext | WebGL2RenderingContext; } | null)[]; getNewId(pool: Record<number, unknown>): number; textures: Record<number, WebGLTexture>; framebuffers?: Record<number, WebGLFramebuffer | null>; }
 HEAPF32: Float32Array<ArrayBufferLike>
 HEAPU32: Uint32Array<ArrayBufferLike>
 HEAPU8: Uint8Array<ArrayBufferLike>
@@ -642,6 +642,7 @@ renderer_setQualityValue: ((name: string, value: number) => boolean) | undefined
 renderer_setRetainedTextCollected: ((collected: boolean) => void) | undefined
 renderer_setRetainedTextCollectedInWorld: ((registry: CppRegistry, collected: boolean) => void) | undefined
 renderer_setScreenOverlayEffect: ((material: number) => void) | undefined
+renderer_setScreenTarget: ((nativeName: number) => number) | undefined
 renderer_setShadow2DSoftSamples: ((samples: number) => void) | undefined
 renderer_setShadowDistance: ((distance: number) => void) | undefined
 renderer_setSkinCache: ((enabled: number, behavior: number, maxMegabytes: number) => void) | undefined

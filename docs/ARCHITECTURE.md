@@ -313,6 +313,14 @@ The web host transfers its canvas before acquiring a graphics context. The worke
 
 `Renderer.renderThread.enabled` reports the active mode. `fence()` returns a ticket for previously submitted work, `complete(ticket)` polls it, and `flush()` waits for the render CPU to finish that work. GPU completion and readback use their existing APIs.
 
+### Immersive VR (WebXR)
+
+Set `features.rendering.vr` to `true` in `project.esproject` before exporting for the web. The page shows an Enter VR button where the browser can present (a headset's browser, or a desktop one with a headset), and the build draws with WebGL2 on the page's thread: a headset takes an `XRWebGLLayer` from the page's own context, so a project set to WebGPU or to threaded rendering is drawn without either while VR is on. A game can also call `enterVR(app)` from a click, `exitVR(app)`, and read the head's pose from `xrPresentation(app)`.
+
+While a session presents, three things move to it. The App's frames come from the session (`App.setFrameSource`), at the headset's rate. The screen is the layer's framebuffer (`Renderer.setScreenTarget`; the GL device binds it wherever it would bind the default one, and never deletes it). And the first camera that draws to the screen is the rig: each eye is drawn into its half of the framebuffer from the rig's position and heading (yaw only, so a camera pitched at its target does not tilt the player's horizon) followed by the eye's own pose, with the headset's projection; the session is given the camera's near and far planes. Eye poses are metres and are scaled by the world's units per metre. Cameras drawing into textures still draw; other screen cameras, the screen-space HUD and editor overlays do not, as a headset has no screen for them.
+
+A frame is shown only if it is drawn inside the session's frame callback, which the App does when its systems answer in the same task; frames drawn later are counted, not shown. `node tools/verify-xr.mjs` checks all of this in a headless browser against a stand-in headset.
+
 ## Scene Management (SDK)
 
 `SceneManager` is a resource over the single ECS World. Scenes share one World;

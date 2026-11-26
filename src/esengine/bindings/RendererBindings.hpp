@@ -398,6 +398,9 @@ void renderer_setCullingMask(u32 mask);
 /** Names the view the next collect looks from, which its LOD levels are remembered
  *  under. Set per camera, before renderer_submitAll; 0 = the shared default view. */
 void renderer_setViewId(u32 view);
+/** Where the screen's frames go: a framebuffer the platform owns (an immersive XR session's layer), by the backend's own name
+ *  for it, or 0 for the default one. 1 when this backend draws there; 0 when it cannot (a swapchain), and nothing changed. */
+i32 renderer_setScreenTarget(u32 nativeName);
 
 /**
  * @brief What @p view decided about @p entity's LOD, into six floats at

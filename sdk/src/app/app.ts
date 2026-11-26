@@ -94,6 +94,16 @@ export interface Plugin {
 
 export type { RunCondition };
 
+/**
+ * Where the loop's frames come from when not the page's own animation frames: an immersive XR session's, which a headset
+ * paces (72, 90, 120 Hz) and which are the only frames whose pictures it shows. `request` asks for the next and answers a
+ * handle `cancel` takes back. @experimental
+ */
+export interface FrameSource {
+    request(step: (time: number) => void): number;
+    cancel(handle: number): void;
+}
+
 /** One frame's costs, attributed. The input `buildFrameProfile` folds. */
 export interface FrameCosts {
     systems: SystemCost[];
@@ -210,6 +220,10 @@ export class App {
     private queuedOnTimer_ = false;
     private runInBackground_ = false;
     private onVisibility_: (() => void) | null = null;
+    /** Where frames come from instead of `requestAnimationFrame` (an XR session), or null. */
+    private frameSource_: FrameSource | null = null;
+    /** The source {@link queuedFrame_} was asked of, so it is cancelled where it was queued. */
+    private queuedSource_: FrameSource | null = null;
     private frameInFlight_: Promise<void> | null = null;
     private frameTiming_: FrameTiming | null = null;
     private lastTime_ = 0;
@@ -967,9 +981,8 @@ export class App {
         if (on && !this.onVisibility_) {
             // A rAF queued just before the page hid never fires: move it to the timer.
             this.onVisibility_ = () => {
-                if (this.queuedFrame_ === null || this.queuedOnTimer_ || document.visibilityState !== 'hidden') return;
-                if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.queuedFrame_);
-                this.queuedFrame_ = null;
+                if (this.queuedFrame_ === null || this.queuedOnTimer_ || this.queuedSource_ || document.visibilityState !== 'hidden') return;
+                this.cancelQueuedFrame_();
                 this.queueLoopFrame_();
             };
             document.addEventListener('visibilitychange', this.onVisibility_);
@@ -977,6 +990,31 @@ export class App {
             document.removeEventListener('visibilitychange', this.onVisibility_);
             this.onVisibility_ = null;
         }
+    }
+
+    /**
+     * Takes the loop's frames from `source` (an immersive XR session's) instead of the page's animation frames, or back
+     * from the page with null. The frame queued from the old source is taken back and the next is asked of the new one,
+     * so no frame is drawn twice or lost in between. While a source drives the loop the page's visibility is not asked:
+     * a browser may call the page hidden while the headset shows it. @experimental
+     */
+    setFrameSource(source: FrameSource | null): void {
+        if (this.frameSource_ === source) return;
+        this.cancelQueuedFrame_();
+        this.frameSource_ = source;
+        if (this.running_) this.queueLoopFrame_();
+    }
+
+    /** Takes back the frame the loop has asked for, from whichever of the timer, the page or a source it was asked. */
+    private cancelQueuedFrame_(): void {
+        if (this.queuedFrame_ !== null) {
+            if (this.queuedSource_) this.queuedSource_.cancel(this.queuedFrame_);
+            else if (this.queuedOnTimer_) clearTimeout(this.queuedFrame_);
+            else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.queuedFrame_);
+        }
+        this.queuedFrame_ = null;
+        this.queuedSource_ = null;
+        this.queuedOnTimer_ = false;
     }
 
     getRunInBackground(): boolean {
@@ -1422,17 +1460,25 @@ export class App {
 
     private invalidateLoop_(): void {
         this.loopVersion_++;
-        if (this.queuedFrame_ !== null) {
-            if (this.queuedOnTimer_) clearTimeout(this.queuedFrame_);
-            else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.queuedFrame_);
-        }
-        this.queuedFrame_ = null;
+        this.cancelQueuedFrame_();
     }
 
     private queueLoopFrame_(): void {
         if (this.isExecutionHeld() || this.queuedFrame_ !== null) return;
-        if (typeof requestAnimationFrame !== 'function') return;
         const version = this.loopVersion_;
+        const source = this.frameSource_;
+        if (source) {
+            this.queuedOnTimer_ = false;
+            this.queuedSource_ = source;
+            this.queuedFrame_ = source.request((time) => {
+                if (version !== this.loopVersion_) return;
+                this.queuedFrame_ = null;
+                this.queuedSource_ = null;
+                void this.mainLoop(time, version);
+            });
+            return;
+        }
+        if (typeof requestAnimationFrame !== 'function') return;
         const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
         if (hidden && this.runInBackground_) {
             // No rAF arrives for a hidden document; a timer at the frame cadence does.

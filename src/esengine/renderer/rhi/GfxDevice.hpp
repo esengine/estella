@@ -833,6 +833,16 @@ public:
         return requestReadback(FramebufferHandle::Default, w, h);
     }
 
+    /**
+     * @brief Draws what goes to the screen into a framebuffer the platform owns instead, or back into the default one.
+     * @details An immersive XR session hands the page a framebuffer of its own (an `XRWebGLLayer`'s) that the headset shows; a
+     *          frame drawn to the screen then has to land there. `nativeName` is the backend's own name for it (a GL
+     *          framebuffer name), never one the device made, and the device never deletes it; 0 is the default framebuffer.
+     *          Answers whether this backend can draw there: one with no such framebuffer (a swapchain) answers false for any
+     *          other name.
+     */
+    virtual bool setScreenTarget(u32 nativeName) { return nativeName == 0; }
+
     /** @brief Whether a captured frame's bytes are BGRA rather than RGBA — the
      *         surface's choice on a backend that has one, and never GL's. */
     virtual bool frameCaptureIsBGRA() const { return false; }

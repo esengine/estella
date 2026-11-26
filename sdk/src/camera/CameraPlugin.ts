@@ -45,6 +45,9 @@ import { pendingShaders } from '../render/shaderWarmup';
 import { renderTargetSize } from '../render/renderTexture';
 import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
+import type { RenderPipeline } from '../render/renderPipeline';
+import { xrPresentation, placeEye, headingOf, type XRPresentationState } from '../xr/xrPresentation';
+import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { followRenderOrigin, pushRenderOrigin, renderOrigin } from '../render/renderOrigin';
 import { platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
@@ -843,6 +846,40 @@ function publishScreenOverlay(
 }
 
 /**
+ * Draws `rig` through each eye of a headset: the rig camera's position and heading, then the eye's own pose and the headset's
+ * projection, into the eye's rectangle of the session's framebuffer. The rig's clip planes are handed to the session for the
+ * next frame's projections, so the depth the headset composites with is the scene's.
+ */
+function drawEyes(app: App, pipeline: RenderPipeline, xr: XRPresentationState, rig: CameraInfo, registry: CppRegistry,
+    elapsed: number, clearColor: { x: number; y: number; z: number; w: number } | undefined): void {
+    const t = app.world.tryGet(rig.entity as Entity, Transform) as CameraTransformFields | null;
+    const camera = app.world.tryGet(rig.entity as Entity, Camera) as CameraFields | null;
+    if (camera) {
+        xr.wantNear = camera.nearPlane > 0 ? camera.nearPlane : xr.wantNear;
+        xr.wantFar = camera.farPlane > xr.wantNear ? camera.farPlane : xr.wantFar;
+    }
+    const position = t?.worldPosition ?? { x: rig.cameraX, y: rig.cameraY, z: 0 };
+    const heading = t ? headingOf(t.worldRotation) : 0;
+    const unitsPerMeter = worldUnitsPerMeter();
+    const origin = renderOrigin();
+    for (const eye of xr.views) {
+        const placed = placeEye({ position, heading }, eye, unitsPerMeter, origin);
+        pipeline.renderCamera({
+            registry: { _cpp: registry },
+            viewProjection: placed.viewProjection,
+            renderViewProjection: placed.renderViewProjection,
+            viewportPixels: eye.viewport,
+            clearFlags: rig.clearFlags,
+            elapsed,
+            cameraEntity: rig.entity,
+            clearColor: cameraClearColor(rig.entity as Entity, clearColor),
+            cullingMask: rig.cullingMask,
+            renderTarget: 0,
+        });
+    }
+}
+
+/**
  * Which on-screen cameras compete to be the main view and which are laid over it. A full-frame camera that does not clear colour is drawn over
  * what another one drew (a UI camera over the world's): it is a layer on the main view, not a candidate to be it. With nothing else to lay it
  * over, it is the main view. Sub-viewport cameras are layers too; the layers are in priority order.
@@ -939,10 +976,13 @@ export function cameraPlugin(
                 _params: [],
                 _fn: () => {
                     if (!pipeline.renderingEnabled) return;
-                    const { width, height } = viewport();
+                    // In a headset the screen is the session's framebuffer, both eyes side by side.
+                    const xr = xrPresentation(app);
+                    const { width, height } = xr ? { width: xr.framebufferWidth, height: xr.framebufferHeight } : viewport();
                     if (width === 0 || height === 0) return;
                     // A game that asked for only the frames that can look different leaves the others out: the screen keeps the last picture.
-                    if (pipeline.demand.enabled && !pipeline.demand.shouldRender({
+                    // Not in a headset, which shows nothing at all for a frame not drawn.
+                    if (!xr && pipeline.demand.enabled && !pipeline.demand.shouldRender({
                         width, height,
                         worldVersion: app.world.getWorldVersion(),
                         pendingShaders: pendingShaders(module),
@@ -1027,7 +1067,13 @@ export function cameraPlugin(
                             const renderPolicy = app.hasResource(ScreenScaling)
                                 ? app.getResource(ScreenScaling).renderPolicy
                                 : undefined;
+                            const xrRig = xr ? primaryScreenCamera(cameras) : null;
                             for (const cam of cameras) {
+                                if (xr && cam.renderTarget === 0) {
+                                    // A headset shows one camera, through both eyes; another drawing to the screen has no screen there.
+                                    if (cam === xrRig) drawEyes(app, pipeline, xr, cam, cppRegistry, elapsed, clearColor);
+                                    continue;
+                                }
                                 const vp = cam.viewportRect;
                                 // A camera drawing into a texture is measured against
                                 // THAT surface: its viewport rect is a fraction, and
@@ -1063,12 +1109,17 @@ export function cameraPlugin(
                         // Last, and outside the camera branch: a frame with no
                         // camera still has a screen. After the post stack, since a
                         // HUD is not world content for an effect to grade.
-                        if (app.hasResource(ScreenOverlay)) {
+                        // Not in a headset: a HUD pinned to a screen has no screen to pin to there (a world-space UI does).
+                        if (!xr && app.hasResource(ScreenOverlay)) {
                             pipeline.renderScreenOverlay({ _cpp: cppRegistry },
                                                          app.getResource(ScreenOverlay));
                         }
                         // Over the screen's UI too: what an editor draws to work the scene with.
-                        pipeline.renderOverScreen();
+                        if (!xr) pipeline.renderOverScreen();
+                        if (xr) {
+                            xr.drawnFrames++;
+                            if (!xr.frameActive) xr.missedFrames++;
+                        }
                         // ...and now the frame is over, which is when a borrowed
                         // swapchain image goes back.
                         pipeline.endFrame();

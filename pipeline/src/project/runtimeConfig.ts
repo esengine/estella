@@ -96,6 +96,8 @@ export interface RuntimeProjectConfig {
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
   threadedRendering?: boolean;
+  /** Offer immersive VR on the web (features.rendering.vr). */
+  vr?: boolean;
   asyncCompute?: boolean;
   /** Main-camera fit of the design resolution; `scaleMode < 0` = off. */
   screenFit: RuntimeScreenFit;
@@ -185,6 +187,7 @@ export function runtimeConfigOf(
     quality: { ...quality, mode: quality.mode ?? 'off' },
     qualityModeNamed: quality.mode !== undefined,
     threadedRendering: f?.rendering?.threadedRendering === true,
+    vr: f?.rendering?.vr === true,
     asyncCompute: f?.rendering?.asyncCompute === true,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
@@ -208,7 +211,7 @@ export function withAudioLoadTypes(
 /** The settings a shipped build carries, as `game.config.json` spells them. */
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
-  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'threadedRendering' | 'screenFit'
+  'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'threadedRendering' | 'vr' | 'screenFit'
   | 'msaaSamples' | 'quality' | 'skinCache' | 'asyncCompute'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
@@ -235,6 +238,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig, platform?: Expor
     ...(isDefaultSkinCache(rc.skinCache) ? {} : { skinCache: rc.skinCache }),
     ...(quality ? { quality } : {}),
     ...(rc.threadedRendering ? { threadedRendering: true } : {}),
+    ...(rc.vr && (platform === undefined || platform === 'web') ? { vr: true } : {}),
     ...(rc.asyncCompute ? { asyncCompute: true } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design

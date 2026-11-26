@@ -1745,7 +1745,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
     }
 
     const bool complete = boundFramebufferComplete({desc.color0, desc.color1, desc.color2, desc.depthStencil});
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
     if (!complete) {
         glDeleteFramebuffers(1, &fbo);
         return false;
@@ -1766,7 +1766,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
             attach(depthPoint(desc.resolveDepthStencil), desc.resolveDepthStencil);
         }
         const bool ok = boundFramebufferComplete({desc.resolveColor0, desc.resolveColor1, desc.resolveColor2, desc.resolveDepthStencil});
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
         if (ok) {
             framebuffer_resolve_[id] = {dst, desc.width, desc.height,
                                         desc.resolveDepthStencil != TextureHandle::Invalid,
@@ -1791,7 +1791,7 @@ void GLDevice::resolveFramebuffer(u32 framebufferId) {
     if (it == framebuffer_resolve_.end() || it->second.destFbo == 0) return;
     const auto& r = it->second;
     if (r.width == 0 || r.height == 0) return;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, nameOf(framebuffer_names_, framebufferId));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbName(framebufferId));
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, r.destFbo);
     const GLsizei w = static_cast<GLsizei>(r.width), h = static_cast<GLsizei>(r.height);
     if (r.gbuffer) {
@@ -1832,13 +1832,13 @@ void GLDevice::resolveFramebuffer(u32 framebufferId) {
         attachments[n++] = GL_STENCIL_ATTACHMENT;
         glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, n, attachments);
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, nameOf(framebuffer_names_, current_framebuffer_));
+    glBindFramebuffer(GL_FRAMEBUFFER, fbName(current_framebuffer_));
 }
 
 void GLDevice::discardLeftDepth() {
     if (!pass_discard_depth_ || current_framebuffer_ == 0) return;
     const GLenum depth = GL_DEPTH_ATTACHMENT;
-    glBindFramebuffer(GL_FRAMEBUFFER, nameOf(framebuffer_names_, current_framebuffer_));
+    glBindFramebuffer(GL_FRAMEBUFFER, fbName(current_framebuffer_));
     glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &depth);
 }
 
@@ -1864,6 +1864,8 @@ void GLDevice::endFrame() {
     // The default framebuffer's depth and stencil are never read after the frame, which the page shows by its colour: a tile-based GPU that is told so
     // does not write them out. Only with that framebuffer bound, so nothing is rebound under whoever draws next.
     if (current_framebuffer_ != 0) return;
+    // A framebuffer the platform owns is not the default one: GL_DEPTH names nothing on it, and its depth is the platform's to keep or not.
+    if (screen_name_ != 0) return;
     if (default_depth_bits_ < 0) {
         GLint depth = 0, stencil = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1908,7 +1910,7 @@ void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
     pass_discard_msaa_ = desc.discardMultisampled;
     pass_discard_depth_ = desc.discardDepth;
     current_framebuffer_ = target;
-    glBindFramebuffer(GL_FRAMEBUFFER, nameOf(framebuffer_names_, target));
+    glBindFramebuffer(GL_FRAMEBUFFER, fbName(target));
 
     // A target's own attachment must not stay bound to a sampler while it is drawn
     // into: GL leaves that undefined and some drivers raise a feedback-loop error
@@ -2000,7 +2002,7 @@ void GLDevice::endRenderPass() {
     current_framebuffer_ = 0;
     current_fbo_has_gbuffer_ = false;
     current_fbo_has_albedo_ = false;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
 }
 
 u32 GLDevice::maxSamples() {
@@ -2015,13 +2017,21 @@ u32 GLDevice::maxSamples() {
 // Readback (async seam; GL resolves at request time)
 // =============================================================================
 
+bool GLDevice::setScreenTarget(u32 nativeName) {
+    if (screen_name_ == nativeName) return true;
+    screen_name_ = nativeName;
+    // Bound now when the screen is what is drawn to: the next draw lands where the frame is shown.
+    if (current_framebuffer_ == 0) glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
+    return true;
+}
+
 ReadbackHandle GLDevice::captureNextFrame(u32 w, u32 h) {
     if (!isDeviceUsable()) return ReadbackHandle::Invalid;
     if (w == 0 || h == 0) return ReadbackHandle::Invalid;
     Readback readback;
     readback.size = static_cast<usize>(w) * h * 4;
     readback.pixels.resize(readback.size);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
     auto gl = toGLPixelFormat(GfxPixelFormat::RGBA8);
     glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, readback.pixels.data());
     const u32 id = next_readback_id_++;
@@ -2035,7 +2045,7 @@ ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h)
     Readback readback;
     readback.size = static_cast<usize>(w) * h * 4;
     // Called outside a pass (framebuffer 0 bound); bind the source, read, restore.
-    glBindFramebuffer(GL_FRAMEBUFFER, nameOf(framebuffer_names_, static_cast<u32>(target)));
+    glBindFramebuffer(GL_FRAMEBUFFER, fbName(static_cast<u32>(target)));
     auto gl = toGLPixelFormat(GfxPixelFormat::RGBA8);
 #ifdef __EMSCRIPTEN__
     // Into a buffer, in the GPU's own time: nothing here waits for the frame to be drawn.
@@ -2054,7 +2064,7 @@ ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h)
     glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type,
                  readback.pixels.data());
 #endif
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, screen_name_);
     const u32 id = next_readback_id_++;
     readbacks_[id] = std::move(readback);
     return static_cast<ReadbackHandle>(id);
@@ -2065,7 +2075,7 @@ bool GLDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle dst)
     const TextureDesc* desc = textureDesc(dst);
     const u32 name = nameOf(texture_names_, static_cast<u32>(dst));
     if (!desc || name == 0 || desc->samples > 1 || desc->layered()) return false;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, nameOf(framebuffer_names_, static_cast<u32>(source)));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbName(static_cast<u32>(source)));
     bindTextureForEdit(name);
     glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, static_cast<GLsizei>(desc->width), static_cast<GLsizei>(desc->height));
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
