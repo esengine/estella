@@ -12,7 +12,7 @@ export type AssetFieldResolver = (
 interface PendingWrite {
     component: AnyComponentDef;
     fields: Set<string>;
-    authored: Record<string, unknown>;
+    paths: Map<string, string>;
 }
 
 // A kept query row can be written twice. Track its individual fields only once it encounters a path.
@@ -54,7 +54,7 @@ export function finishAssetDraft(draft: Record<string, unknown>, component: AnyC
     edited?.clear();
 }
 
-/** Only paths still waiting to publish into this World. */
+/** Authored paths without a handle in this World. */
 export class PendingAssetFields {
     private readonly byEntity = new Map<Entity, Set<PendingWrite>>();
 
@@ -75,8 +75,8 @@ export class PendingAssetFields {
             if (write.component !== component) continue;
             defaults ??= component._default as Record<string, unknown>;
             for (const field of write.fields) {
-                const path = write.authored[field];
-                if (typeof path === 'string' && data[field] === (defaults[field] ?? 0)) {
+                const path = write.paths.get(field);
+                if (path !== undefined && data[field] === (defaults[field] ?? 0)) {
                     data[field] = mapPath?.(path) ?? path;
                 }
             }
@@ -96,6 +96,7 @@ export class PendingAssetFields {
                 const value = data?.[field];
                 if (!keepPlaceholders || edited?.has(field) || (value !== undefined && value !== (defaults[field] ?? 0))) {
                     write.fields.delete(field);
+                    write.paths.delete(field);
                 }
             }
             if (!write.fields.size) writes.delete(write);
@@ -105,17 +106,19 @@ export class PendingAssetFields {
 
     /** Reserve before observers can write again, then start the load after notifications. */
     reserve(entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>, resolve: AssetFieldResolver): () => void {
-        const fields = new Set<string>();
+        const paths = new Map<string, string>();
         for (const { field } of component.assetFields) {
-            if (typeof authored[field] === 'string' && authored[field]) fields.add(field);
+            const ref = authored[field];
+            if (typeof ref === 'string' && ref) paths.set(field, ref);
         }
-        const write = { component, fields, authored };
+        const fields = new Set(paths.keys());
+        const write = { component, fields, paths };
         const writes = this.byEntity.get(entity) ?? new Set<PendingWrite>();
         this.byEntity.set(entity, writes);
         writes.add(write);
         const finish = (): void => {
-            writes.delete(write);
-            if (!writes.size && this.byEntity.get(entity) === writes) this.byEntity.delete(entity);
+            // Retire the resolver's token while keeping references it could not publish.
+            if (fields.size) write.fields = new Set(fields);
             fields.clear();
         };
         return () => {

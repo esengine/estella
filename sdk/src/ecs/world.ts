@@ -1188,7 +1188,7 @@ export class World {
     /** @internal Whether authored asset fields already have a resolver on this world. */
     get hasAssetFieldResolver(): boolean { return this.assetFieldResolver_ !== null; }
 
-    /** @internal Include pending authored paths in a detached component record. */
+    /** @internal Include unresolved authored paths in a detached component record. */
     restorePendingAssetPaths(
         entity: Entity, component: AnyComponentDef, data: Record<string, unknown>,
         mapPath?: (path: string) => string | null,

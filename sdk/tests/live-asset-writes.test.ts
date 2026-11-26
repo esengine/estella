@@ -22,6 +22,7 @@ import { UIGear, gearBinding } from '../src/ui/controller/ui-gear';
 import { createGearApplySystem } from '../src/ui/controller/gear-apply';
 import { Mut, Query, QueryInstance } from '../src/ecs/query';
 import { getDefaultContext } from '../src/ecs/context';
+import { serializeScene } from '../src/scene/scene';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -355,14 +356,21 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
         } finally { dispose(); }
     });
 
-    it('returns the preload receipt if conversion to handles throws', async () => {
+    it('returns the receipt and preserves the authored ref for retry if conversion throws', async () => {
         const { world, entity, assets, settle, released, dispose } = realm();
         try {
-            vi.spyOn(assets, 'resolveSceneAssetPaths').mockImplementation(() => { throw Error('catalog changed'); });
+            vi.spyOn(assets, 'resolveSceneAssetPaths').mockImplementationOnce(() => { throw Error('catalog changed'); });
             world.insert(entity, Sprite, { texture: 'old.png' as never });
             await settle('old.png', 11, 0);
             expect(world.get(entity, Sprite).texture).toBe(0);
             expect(released.mock.calls).toEqual([['old.png']]);
+            const snapshotTexture = () => serializeScene(world).entities[0]!.components.find(c => c.type === 'Sprite')!.data.texture;
+            expect(snapshotTexture()).toBe('old.png');
+            world.update(entity, Sprite, draft => { draft.texture = 'old.png' as never; });
+            await vi.waitFor(() => expect(assets.acquireTexture).toHaveBeenCalledTimes(2));
+            await settle('old.png', 22, 1);
+            expect(world.get(entity, Sprite).texture).toBe(22);
+            expect(snapshotTexture()).toBe(22);
         } finally { dispose(); }
     });
 

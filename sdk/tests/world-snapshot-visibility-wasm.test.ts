@@ -16,7 +16,7 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
 
     it.each([['Sprite', Sprite, 'texture', 'png'], ['MeshRenderer', MeshRenderer, 'mesh', 'esmesh']] as const)(
-        'preserves the current pending %s asset in inspection and scene saves', async (type, component, field, extension) => {
+        'preserves the current unresolved %s asset in inspection and scene saves', async (type, component, field, extension) => {
             const registry = new module.Registry(), world = new World();
             world.connectCpp(registry, module);
             const app = { world, hasResource: () => false } as unknown as App;
@@ -40,12 +40,16 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
                 await Promise.resolve();
                 expect(inspect()).toBe(after);
                 expect(save()).toBe(after);
+                completions[1]();
+                await Promise.resolve();
+                expect(read()[field]).toBe(0);
+                world.update(entity, component, data => { data.enabled = true; });
+                expect(inspect()).toBe(after);
+                expect(save()).toBe(after);
+
                 world.update(entity, component, data => { (data as Record<string, unknown>)[field] = 0; });
                 expect(inspect()).toBe(0);
                 expect(save()).toBe(0);
-                completions[1]();
-                await Promise.resolve();
-                expect(inspect()).toBe(0);
             } finally { world.disconnectCpp(); registry.delete(); }
         },
     );
