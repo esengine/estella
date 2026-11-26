@@ -6,6 +6,8 @@
  */
 
 import type { ImageLoadResult, PlatformAdapter } from './types';
+import type { App } from '../app/app';
+import { currentRenderSurface, renderCanvasOf } from '../app/surface';
 import { fitImagePixels } from './imagePixels';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { NullAudioBackend } from '../audio/NullAudioBackend';
@@ -352,11 +354,13 @@ export function platformOnShareRequest(provide: () => import('./types').Platform
     return true;
 }
 
-/** The host's screen recorder, or null where there is none — which a game reads
- *  to hide its record button rather than to show one that fails. */
-export function platformScreenRecorder(): import('./types').PlatformScreenRecorder | null {
+/** Record this App's render surface. Without an App, use the most recent live
+ *  renderer or the host's default screen. Returns null when capture is unavailable. */
+export function platformScreenRecorder(app?: App): import('./types').PlatformScreenRecorder | null {
     if (!isPlatformInitialized()) return null;
-    return getPlatform().screenRecorder?.() ?? null;
+    const surface = app ? { canvas: renderCanvasOf(app), signal: app.signal } : currentRenderSurface();
+    const host = getPlatform();
+    return (surface ? host.screenRecorder?.(surface.canvas ?? null, surface.signal) : host.screenRecorder?.()) ?? null;
 }
 
 /** Whether this platform can sign a player in at all — what a menu reads to

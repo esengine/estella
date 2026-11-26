@@ -27,7 +27,7 @@ import { WebVideoBackend } from '../video/WebVideoBackend';
 import type { PlatformVideoBackend } from '../video/PlatformVideoBackend';
 import { GameSocket } from '../net/GameSocket';
 import { createPrimaryPointer } from './primaryPointer';
-import { createWebRecorder } from './webRecorder';
+import { createWebRecorder, defaultRecordingCanvas } from './webRecorder';
 import { WebDevice } from '../device/web';
 import { InputBinding, type ListenerScope } from './listeners';
 import { cacheEntryName } from './cacheEntryName';
@@ -82,12 +82,16 @@ class WebPlatformAdapter implements PlatformAdapter {
     private padsLive_ = false;
     private stopPadEvents_?: () => void;
     private padPolls_ = 0;
-    private recorder_: PlatformScreenRecorder | null | undefined;
+    private recorders_ = new WeakMap<AbortSignal | PlatformCanvas, PlatformScreenRecorder>();
 
-    /** Resolved on first ask: the canvas exists by the time a game records. */
-    screenRecorder(): PlatformScreenRecorder | null {
-        if (this.recorder_ === undefined) this.recorder_ = createWebRecorder();
-        return this.recorder_;
+    screenRecorder(canvas: PlatformCanvas | null = defaultRecordingCanvas(), lifetime?: AbortSignal): PlatformScreenRecorder | null {
+        if (!canvas || lifetime?.aborted) return null;
+        const owner = lifetime ?? canvas;
+        const existing = this.recorders_.get(owner);
+        if (existing) return existing;
+        const recorder = createWebRecorder(canvas, lifetime);
+        if (recorder) this.recorders_.set(owner, recorder);
+        return recorder;
     }
 
     hasTouch(): boolean {

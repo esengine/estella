@@ -31,7 +31,7 @@ export class MiniGameServicesPlugin implements Plugin {
   build(app: App): void {
     app.insertResource(Share, new ShareAPI());
     app.insertResource(Payment, new PaymentAPI());
-    app.insertResource(Recorder, new RecorderAPI());
+    app.insertResource(Recorder, new RecorderAPI(app));
     // The App is resolved per call, not captured: the wasm module is attached
     // after the plugins have built.
     const board = new LeaderboardAPI(() => app);

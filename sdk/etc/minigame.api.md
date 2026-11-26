@@ -8859,7 +8859,7 @@ removeCacheFile: ((name: string) => Promise<void>) | undefined
 removeStorageItem: (key: string) => void
 requestPayment: ((request: PlatformPaymentRequest) => Promise<void>) | undefined
 safeAreaInsets: (() => { top: number; bottom: number; left: number; right: number; }) | undefined
-screenRecorder: (() => PlatformScreenRecorder | null) | undefined
+screenRecorder: ((canvas?: PlatformCanvas | null, lifetime?: AbortSignal) => PlatformScreenRecorder | null) | undefined
 setCloudKeyValues: ((entries: Readonly<Record<string, string>>) => boolean) | undefined
 setStorageItem: (key: string, value: string) => void
 setWindowSize: ((width: number, height: number) => void) | undefined
@@ -19474,7 +19474,7 @@ PlanetPlugin
 
 ## platformScreenRecorder — function @experimental
 ```
-(): PlatformScreenRecorder | null
+(app?: App): PlatformScreenRecorder | null
 ```
 
 ## platformSetCloudKeyValues — function @experimental

@@ -6,6 +6,7 @@
  *        kept inside the host's limits, and `last` as the default thing shared.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { App } from 'esengine';
 
 const host = {
   recorder: null as null | Record<string, unknown>,
@@ -127,5 +128,45 @@ describe('the recorder service', () => {
     await recorder.start();
     await recorder.stop();
     await expect(recorder.share()).rejects.toThrow('Recorder.canShare');
+  });
+
+  it('finishes and shares a recording on the screen where it started', async () => {
+    const first = fakeRecorder();
+    const recorder = new RecorderAPI();
+    await recorder.start();
+    const second = fakeRecorder();
+    await recorder.pause();
+    await recorder.resume();
+    await recorder.stop();
+    await recorder.share();
+    expect(first.stop).toHaveBeenCalledOnce();
+    expect(first.share).toHaveBeenCalledOnce();
+    expect(second.pause).not.toHaveBeenCalled();
+    await recorder.start();
+    first.fail(new Error('late error'));
+    expect(recorder.state).toBe('recording');
+    await recorder.abort();
+    expect(second.abort).toHaveBeenCalledOnce();
+  });
+
+  it('aborts only the owning App on a shared mini-game recorder, including during start', async () => {
+    let accept!: () => void;
+    const shared = fakeRecorder({ start: vi.fn(() => new Promise<void>(resolve => { accept = resolve; })) });
+    const priorLife = new AbortController();
+    const prior = new RecorderAPI({ signal: priorLife.signal } as App);
+    const other = new RecorderAPI();
+    const starting = prior.start();
+    await expect(other.start()).rejects.toThrow('already recording');
+    priorLife.abort();
+    accept();
+    await starting;
+    await vi.waitFor(() => expect(prior.state).toBe('idle'));
+    expect(shared.abort).toHaveBeenCalledOnce();
+    expect(prior.available).toBe(false);
+    const retry = other.start();
+    accept();
+    await retry;
+    await other.stop();
+    expect(shared.abort).toHaveBeenCalledOnce();
   });
 });

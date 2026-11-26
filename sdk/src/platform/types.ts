@@ -627,9 +627,10 @@ export interface PlatformAdapter {
      *  host asks at share time, so the provider can answer with live state. */
     onShareRequest?(provide: () => PlatformShareOptions): void;
 
-    /** The host's screen recorder, or null where this particular host has none.
-     *  Absent on platforms that cannot record at all (native, playable). */
-    screenRecorder?(): PlatformScreenRecorder | null;
+    /** Record a bound canvas for its App's lifetime, or use the host screen
+     *  when called without arguments. A null canvas is an App with no drawable;
+     *  mini-game hosts supply their screen directly. */
+    screenRecorder?(canvas?: PlatformCanvas | null, lifetime?: AbortSignal): PlatformScreenRecorder | null;
 
     /** Send a message into the open data context — the second JS runtime that
      *  is the only place friend data can be read. ONE WAY by nature: no host
@@ -784,9 +785,9 @@ export interface PlatformRecordingShareOptions {
 }
 
 /**
- * The host's game-screen recorder, one per host (both vendors hand out a
- * singleton). Every call resolves when the host says the thing happened, not
- * when it was asked: otherwise a refused start shows "recording" over nothing.
+ * The game-screen recorder for a browser render surface or a mini-game host
+ * (both vendors hand out a singleton). Commands resolve when the host confirms
+ * them so that a refused start cannot leave a game showing "recording".
  */
 export interface PlatformScreenRecorder {
     /** The recording length the host accepts, in seconds. */

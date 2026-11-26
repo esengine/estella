@@ -5,12 +5,28 @@ import type { PlatformCanvas } from '../platform/types';
 import type { ESEngineModule } from '../wasm';
 
 type ViewportSize = () => { width: number; height: number };
+type CanvasModule = Partial<Pick<ESEngineModule, 'GL' | 'canvas'>>;
 interface AppSurface {
     graphics?: GraphicsPath | null;
     canvas?: PlatformCanvas;
     size?: ViewportSize;
 }
 const surfaces = new WeakMap<App, AppSurface>();
+interface BoundSurface extends AppSurface { signal: AbortSignal }
+interface SurfaceRef { deref(): BoundSurface | undefined }
+const WeakSurface = (globalThis as { WeakRef?: new (surface: BoundSurface) => SurfaceRef }).WeakRef;
+const liveSurfaces: SurfaceRef[] = [];
+
+/** An unscoped call uses the newest live renderer. Keeping the lookup alive
+ *  must not retain an abandoned browser App or its WebGL context. */
+export function currentRenderSurface(): BoundSurface | undefined {
+    while (liveSurfaces.length) {
+        const surface = liveSurfaces[liveSurfaces.length - 1].deref();
+        if (surface) return surface;
+        liveSurfaces.pop();
+    }
+    return undefined;
+}
 
 export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | null {
     switch (surface.kind) {
@@ -22,7 +38,7 @@ export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | nu
     }
 }
 
-function canvasForSurface(module: ESEngineModule, surface: RenderSurfaceSource): PlatformCanvas | undefined {
+function canvasForSurface(module: CanvasModule, surface: RenderSurfaceSource): PlatformCanvas | undefined {
     if (surface.kind === 'gl-context') {
         return module.GL?.contexts?.[surface.handle]?.GLctx.canvas
             ?? module.GL?.currentContext?.GLctx.canvas ?? module.canvas;
@@ -36,8 +52,15 @@ function canvasForSurface(module: ESEngineModule, surface: RenderSurfaceSource):
     return globalThis.document?.querySelector?.<HTMLCanvasElement>(selector) ?? module.canvas;
 }
 
-export function bindRenderSurface(app: App, module: ESEngineModule, surface: RenderSurfaceSource, size?: ViewportSize): void {
-    surfaces.set(app, { graphics: graphicsPathFor(surface), canvas: canvasForSurface(module, surface), size });
+export function bindRenderSurface(app: App, module: CanvasModule, surface: RenderSurfaceSource, size?: ViewportSize): void {
+    const bound: BoundSurface = { graphics: graphicsPathFor(surface), canvas: canvasForSurface(module, surface), size, signal: app.signal };
+    surfaces.set(app, bound);
+    const ref = WeakSurface ? new WeakSurface(bound) : { deref: () => bound };
+    liveSurfaces.push(ref);
+    bound.signal.addEventListener('abort', () => {
+        liveSurfaces.splice(liveSurfaces.indexOf(ref), 1);
+        surfaces.delete(app);
+    }, { once: true });
 }
 
 export function renderCanvasOf(app: App): PlatformCanvas | undefined {
@@ -51,7 +74,9 @@ export function graphicsPathOf(app: App): GraphicsPath | null {
 
 /** Hosts such as the native core supply the drawable size after construction. */
 export function setAppSurfaceSize(app: App, size: ViewportSize): void {
-    surfaces.set(app, { ...surfaces.get(app), size });
+    const surface = surfaces.get(app);
+    if (surface) surface.size = size;
+    else surfaces.set(app, { size });
 }
 
 export function surfaceSizeOf(app: App): ReturnType<ViewportSize> | null {

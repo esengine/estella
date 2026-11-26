@@ -12,7 +12,7 @@
  */
 import {
     defineResource, platformScreenRecorder,
-    type PlatformRecording, type PlatformRecordingShareOptions, type PlatformScreenRecorder,
+    type App, type PlatformRecording, type PlatformRecordingShareOptions, type PlatformScreenRecorder,
 } from 'esengine';
 
 export type Recording = PlatformRecording;
@@ -26,11 +26,24 @@ export interface RecordOptions {
 }
 
 const DEFAULT_MAX_SECONDS = 300;
+interface RecordingSession { host: PlatformScreenRecorder; pending?: Promise<void> }
+// Both mini-game vendors expose one device recorder to every App.
+const occupied = new WeakSet<PlatformScreenRecorder>();
 
 export class RecorderAPI {
     private state_: RecorderState = 'idle';
     private last_: Recording | null = null;
+    private lastHost_: PlatformScreenRecorder | null = null;
+    private session_: RecordingSession | null = null;
+    private readonly lifetime_?: AbortSignal;
     private readonly failureListeners_ = new Set<(error: Error) => void>();
+
+    constructor(private readonly app_?: App) {
+        this.lifetime_ = app_?.signal;
+        this.lifetime_?.addEventListener('abort', () => {
+            void this.abort().catch(error => this.notify_(error));
+        }, { once: true });
+    }
 
     /** Whether this host can record at all — what a game reads to hide its
      *  record button rather than show one that fails. */
@@ -66,30 +79,36 @@ export class RecorderAPI {
     }
 
     async start(options: RecordOptions = {}): Promise<void> {
-        const host = this.require_();
         if (this.state_ !== 'idle') throw new Error(`cannot start while ${this.state_}`);
+        const host = this.host_();
+        if (!host) throw new Error('this platform cannot record — check Recorder.available');
+        if (occupied.has(host)) throw new Error('already recording on this screen');
         const { minSeconds, maxSeconds } = host.limits;
         const seconds = Math.min(maxSeconds, Math.max(minSeconds, options.maxSeconds ?? DEFAULT_MAX_SECONDS));
+        const session: RecordingSession = { host };
+        occupied.add(host);
+        this.session_ = session;
         this.state_ = 'starting';
         try {
-            await host.start(seconds, (error) => this.failed_(error));
-            this.state_ = 'recording';
+            session.pending = host.start(seconds, error => {
+                if (this.session_ !== session) return;
+                this.finish_(session);
+                if (!this.lifetime_?.aborted) this.notify_(error);
+            });
+            await session.pending;
+            if (this.session_ === session && this.state_ === 'starting') this.state_ = 'recording';
         } catch (e) {
-            this.state_ = 'idle';
+            this.finish_(session);
             throw e;
-        }
+        } finally { session.pending = undefined; }
     }
 
-    async pause(): Promise<void> {
-        if (this.state_ !== 'recording') throw new Error(`cannot pause while ${this.state_}`);
-        await this.require_().pause();
-        this.state_ = 'paused';
+    pause(): Promise<void> {
+        return this.transition_('pause', 'recording', 'paused');
     }
 
-    async resume(): Promise<void> {
-        if (this.state_ !== 'paused') throw new Error(`cannot resume while ${this.state_}`);
-        await this.require_().resume();
-        this.state_ = 'recording';
+    resume(): Promise<void> {
+        return this.transition_('resume', 'paused', 'recording');
     }
 
     /** Finish the recording. It becomes `last`, and `share()` can send it. */
@@ -97,24 +116,31 @@ export class RecorderAPI {
         if (this.state_ !== 'recording' && this.state_ !== 'paused') {
             throw new Error(`cannot stop while ${this.state_}`);
         }
+        const session = this.session_!;
         this.state_ = 'stopping';
         try {
-            const recording = await this.require_().stop();
+            await session.pending?.catch(() => {});
+            if (this.session_ !== session) throw new Error('the recording has ended');
+            const recording = await session.host.stop();
+            if (this.session_ !== session) throw new Error('the recording has ended');
             this.last_ = recording;
+            this.lastHost_ = session.host.canShare ? session.host : null;
             return recording;
         } finally {
-            this.state_ = 'idle';
+            this.finish_(session);
         }
     }
 
     /** Drop the recording in progress; `last` is left as it was. */
     async abort(): Promise<void> {
-        if (this.state_ !== 'recording' && this.state_ !== 'paused') return;
+        const session = this.session_;
+        if (!session || this.state_ === 'stopping') return;
         this.state_ = 'stopping';
         try {
-            await this.require_().abort();
+            await session.pending?.catch(() => {});
+            if (this.session_ === session) await session.host.abort();
         } finally {
-            this.state_ = 'idle';
+            this.finish_(session);
         }
     }
 
@@ -125,7 +151,7 @@ export class RecorderAPI {
      */
     highlight(beforeSeconds = 3, afterSeconds = 3): void {
         if (this.state_ !== 'recording') return;
-        this.host_()?.highlight(beforeSeconds, afterSeconds);
+        this.session_?.host.highlight(beforeSeconds, afterSeconds);
     }
 
     /**
@@ -134,24 +160,34 @@ export class RecorderAPI {
      * reason, `code` included where the host gave one.
      */
     share(card: RecordingShareCard = {}, recording: Recording | null = this.last_): Promise<void> {
-        const host = this.host_();
+        const host = recording && recording === this.last_ && !this.lifetime_?.aborted ? this.lastHost_ : this.host_();
         if (!host?.canShare) return Promise.reject(new Error('this platform cannot share a recording — check Recorder.canShare'));
         if (!recording) return Promise.reject(new Error('nothing has been recorded yet'));
         return host.share(recording, card);
     }
 
     private host_(): PlatformScreenRecorder | null {
-        return platformScreenRecorder();
+        return this.lifetime_?.aborted ? null : this.session_?.host ?? platformScreenRecorder(this.app_);
     }
 
-    private require_(): PlatformScreenRecorder {
-        const host = this.host_();
-        if (!host) throw new Error('this platform cannot record — check Recorder.available');
-        return host;
+    private async transition_(command: 'pause' | 'resume', from: RecorderState, to: RecorderState): Promise<void> {
+        const session = this.session_;
+        if (!session || session.pending || this.state_ !== from) throw new Error(`cannot ${command} while ${this.state_}`);
+        try {
+            session.pending = session.host[command]();
+            await session.pending;
+            if (this.session_ === session && this.state_ === from) this.state_ = to;
+        } finally { session.pending = undefined; }
     }
 
-    private failed_(error: Error): void {
+    private finish_(session: RecordingSession): void {
+        if (this.session_ !== session) return;
+        occupied.delete(session.host);
+        this.session_ = null;
         this.state_ = 'idle';
+    }
+
+    private notify_(error: Error): void {
         for (const listener of this.failureListeners_) listener(error);
     }
 }
