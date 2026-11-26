@@ -16,7 +16,7 @@ import type { Entity } from '../types';
 import { defineComponent } from '../ecs/component';
 import type { SaveMigration } from '../scene/saveGame';
 import { restoreEntity, snapshotEntity, type EntitySnapshot, type EntitySnapshotOptions } from './entitySnapshot';
-import { RecordBook } from './records';
+import { RecordBook, type LoadedRecord } from './records';
 import type { PersistStore } from './store';
 
 export interface PersistentData {
@@ -58,7 +58,7 @@ export class WorldPersistence {
     private readonly snapshot_: EntitySnapshotOptions;
     /** key -> the JSON last written (or restored) and the store version it is at. */
     private readonly written_ = new Map<string, { json: string; version: number }>();
-    private flushing_: Promise<WorldFlushResult> | null = null;
+    private operation_: Promise<unknown> | null = null;
 
     constructor(options: WorldPersistenceOptions) {
         ensurePersistComponentsRegistered();
@@ -72,37 +72,58 @@ export class WorldPersistence {
     /**
      * Bring back every stored entity. One the world already holds under the
      * same key (placed by the scene) takes the stored state; the rest are
-     * spawned. Returns how many were restored. Call once, before the first flush.
+     * spawned. Returns how many were restored. Queue it before the first flush.
      */
     async restore(world: World): Promise<number> {
+        const lifetime = world.entityLifetime;
+        return this.enqueue_(() => this.restoreNow_(world, lifetime));
+    }
+
+    private async restoreNow_(world: World, lifetime: symbol): Promise<number> {
+        const assertCurrent = () => {
+            if (world.entityLifetime !== lifetime) throw new Error('[persist] the world changed during entity restore');
+        };
+        assertCurrent();
+        const rows: { key: string; loaded: LoadedRecord<EntitySnapshot>; json: string }[] = [];
+        for (const key of await this.book_.keys()) {
+            const loaded = await this.book_.load(key);
+            if (loaded) rows.push({ key, loaded, json: JSON.stringify(loaded.data) });
+        }
+        assertCurrent();
+
         const byKey = new Map<string, Entity>();
         for (const e of world.getEntitiesWithComponents([Persistent])) {
             const key = (world.tryGet(e, Persistent) as PersistentData).key;
             if (key) byKey.set(key, e);
         }
-        let n = 0;
-        for (const key of await this.book_.keys()) {
-            const loaded = await this.book_.load(key);
-            if (!loaded) continue;
-            const e = restoreEntity(world, loaded.data, byKey.get(key));
-            if (!byKey.has(key)) world.insert(e, Persistent, { key });
-            this.written_.set(key, { json: JSON.stringify(loaded.data), version: loaded.version });
-            n++;
+        for (const { key, loaded, json } of rows) {
+            const target = byKey.get(key);
+            const into = target !== undefined && !world.isDestructionPending(target)
+                && world.tryGet(target, Persistent)?.key === key ? target : undefined;
+            const e = restoreEntity(world, loaded.data, into);
+            if (into === undefined) {
+                assertCurrent();
+                world.insert(e, Persistent, { key });
+            }
+            assertCurrent();
+            this.written_.set(key, { json, version: loaded.version });
         }
-        return n;
+        return rows.length;
     }
 
     /**
      * Write every persistent entity that changed since it was last written,
-     * and delete the stored ones whose entity is gone. Runs one at a time:
-     * a flush called while one is running waits for it and then runs.
+     * and delete the stored ones whose entity is gone. Queued with restores and other flushes.
      */
     flush(world: World): Promise<WorldFlushResult> {
-        const run = () => this.flushNow_(world);
-        const next: Promise<WorldFlushResult> = (this.flushing_ ?? Promise.resolve()).then(run, run).finally(() => {
-            if (this.flushing_ === next) this.flushing_ = null;
+        return this.enqueue_(() => this.flushNow_(world));
+    }
+
+    private enqueue_<T>(run: () => Promise<T>): Promise<T> {
+        const next: Promise<T> = (this.operation_ ?? Promise.resolve()).then(run, run).finally(() => {
+            if (this.operation_ === next) this.operation_ = null;
         });
-        this.flushing_ = next;
+        this.operation_ = next;
         return next;
     }
 

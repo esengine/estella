@@ -24,6 +24,7 @@ import { replicationPlugin, Replicated } from '../src/net/replication';
 import type { Entity } from '../src/types';
 import { reservePromise } from '../src/util/reservePromise';
 import { registerWorldSceneComponentCodec } from '../src/scene/scene';
+import { connectFakeCpp } from './helpers/fakeEngine';
 
 let dir: string;
 let Bag: ReturnType<typeof defineComponent<{ gold: number; items: string[] }>>;
@@ -302,6 +303,91 @@ describe('WorldPersistence', () => {
     const named = (app: App, name: string): Entity | undefined =>
         app.world.getEntitiesWithComponents([Persistent])
             .find((e) => (app.world.tryGet(e, Name) as { value: string } | null)?.value === name);
+
+    it('restores into the current entity and queues a flush behind a pending read', async () => {
+        const store = new MemoryStore(), app = App.new();
+        const book = new RecordBook({ store, schema: 1, prefix: 'entity:' });
+        await book.save('hero', { name: 'Hero', components: [{ type: 'Bag', data: { gold: 25, items: [] } }] });
+        const place = () => {
+            const entity = app.world.spawn('Hero');
+            app.world.insert(entity, Bag, { gold: 1, items: [] });
+            app.world.insert(entity, Persistent, { key: 'hero' });
+            return entity;
+        };
+        const original = place();
+        const reading = reservePromise<void>(), release = reservePromise<void>();
+        const get = store.get.bind(store);
+        vi.spyOn(store, 'get').mockImplementationOnce(async key => {
+            reading.resolve();
+            await release.promise;
+            return get(key);
+        });
+        const put = vi.spyOn(store, 'put');
+        const keeper = new WorldPersistence({ store, schema: 1 });
+        const restore = keeper.restore(app.world);
+        let flush: ReturnType<WorldPersistence['flush']> | undefined;
+        try {
+            await reading.promise;
+            app.world.despawn(original);
+            const replacement = place();
+            flush = keeper.flush(app.world);
+            void flush.catch(() => undefined);
+            await flushTasks();
+            expect(put).not.toHaveBeenCalled();
+
+            release.resolve();
+            expect(await restore).toBe(1);
+            expect(await flush).toEqual({ written: 0, deleted: 0 });
+            expect(app.world.getEntitiesWithComponents([Persistent])).toEqual([replacement]);
+            expect(app.world.get(replacement, Bag).gold).toBe(25);
+        } finally { release.resolve(); await Promise.allSettled([restore, flush]); app.quit(); }
+    });
+
+    it('leaves the world untouched on a later read failure and restores all records on retry', async () => {
+        const store = new MemoryStore(), app = App.new();
+        const book = new RecordBook({ store, schema: 1, prefix: 'entity:' });
+        for (const key of ['first', 'second']) {
+            await book.save(key, { name: key, components: [{ type: 'Bag', data: { gold: 5, items: [] } }] });
+        }
+        const placed = app.world.spawn('first');
+        app.world.insert(placed, Persistent, { key: 'first' });
+        app.world.insert(placed, Bag, { gold: 1, items: [] });
+        const get = store.get.bind(store);
+        const failure = new Error('second record unavailable');
+        vi.spyOn(store, 'get').mockImplementationOnce(key => get(key)).mockRejectedValueOnce(failure);
+        const keeper = new WorldPersistence({ store, schema: 1 });
+        try {
+            await expect(keeper.restore(app.world)).rejects.toBe(failure);
+            expect(app.world.get(placed, Bag).gold).toBe(1);
+            expect(app.world.getEntitiesWithComponents([Persistent])).toEqual([placed]);
+            expect(await keeper.restore(app.world)).toBe(2);
+            expect(app.world.get(placed, Bag).gold).toBe(5);
+            expect(await keeper.flush(app.world)).toEqual({ written: 0, deleted: 0 });
+        } finally { app.quit(); }
+    });
+
+    it('does not apply a pending restore to a replacement registry', async () => {
+        const store = new MemoryStore(), app = App.new();
+        const book = new RecordBook({ store, schema: 1, prefix: 'entity:' });
+        await book.save('hero', { name: 'Hero', components: [] });
+        const reading = reservePromise<void>(), release = reservePromise<void>();
+        const get = store.get.bind(store);
+        vi.spyOn(store, 'get').mockImplementationOnce(async key => {
+            reading.resolve();
+            await release.promise;
+            return get(key);
+        });
+        const keeper = new WorldPersistence({ store, schema: 1 });
+        const restore = keeper.restore(app.world);
+        try {
+            await reading.promise;
+            connectFakeCpp(app.world);
+            release.resolve();
+            await expect(restore).rejects.toThrow('the world changed during entity restore');
+            expect(app.world.getAllEntities()).toEqual([]);
+            expect(await keeper.restore(app.world)).toBe(1);
+        } finally { release.resolve(); await Promise.allSettled([restore]); app.quit(); }
+    });
 
     it('reports a partial write once and lets a queued flush retry the unwritten entity', async () => {
         const store = new MemoryStore(), app = App.new();
