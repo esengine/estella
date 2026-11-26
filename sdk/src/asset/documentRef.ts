@@ -127,6 +127,16 @@ export function findDocumentAsset<T>(
     return first === 'document' ? lookup(sibling) ?? lookup(normalized) : lookup(normalized) ?? lookup(sibling);
 }
 
+/** Prefer the document's sibling, using the index for legacy unqualified project paths. */
+export function resolveIndexedSiblingRef(document: string, ref: string, isKnown: (path: string) => boolean): string {
+    const normalized = ref.replace(/\\/g, '/');
+    const resolved = resolveDocumentRef(document, ref);
+    if (isLocatorOrId(normalized) || isLogicalAssetRef(normalized) || normalized.startsWith('./') || normalized.startsWith('../')) {
+        return resolved;
+    }
+    return findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, 'document') ?? resolved;
+}
+
 function isLocatorOrId(ref: string): boolean {
     return ref.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(ref) || assetRefId(ref) !== null;
 }

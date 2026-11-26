@@ -406,6 +406,7 @@ describe('cookAssets (A4)', () => {
       const SHADER = 'aaaa3333-3333-4333-8333-333333333333';
       const TEX = 'aaaa4444-4444-4444-8444-444444444444';
       const ORPHAN = 'aaaa5555-5555-4555-8555-555555555555';
+      const LEGACY = 'aaaa6666-6666-4666-8666-666666666666';
       const wa = (rel: string, type: string, uuid: string, body: string): void => {
         const abs = path.join(r, rel);
         mkdirSync(path.dirname(abs), { recursive: true });
@@ -416,12 +417,13 @@ describe('cookAssets (A4)', () => {
       // @uuid:), and the material names its shader + texture RELATIVE to itself.
       wa('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({
         version: '1.0', type: 'material', shader: 'm.esshader',
-        properties: { u_mask: 'green.png', u_mode: 'additive' },
+        properties: { u_mask: 'green.png', u_roughness: 'rough.png', u_mode: 'additive' },
       }));
       wa('assets/materials/m.esshader', 'shader', SHADER,
         '#pragma shader "M"\n#pragma fragment\nvoid main() {}\n#pragma end\n');
       wa('assets/materials/green.png', 'texture', TEX, 'G');
-      wa('assets/materials/orphan.png', 'texture', ORPHAN, 'O');
+      wa('green.png', 'texture', ORPHAN, 'O');
+      wa('rough.png', 'texture', LEGACY, 'R');
       wa('s/main.esscene', 'scene', SC, JSON.stringify({
         version: '1.0', name: 's', entities: [
           { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { material: 'assets/materials/m.esmaterial' } }] },
@@ -429,7 +431,7 @@ describe('cookAssets (A4)', () => {
       }));
 
       const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out' });
-      expect(res.included.sort()).toEqual([SC, MAT, SHADER, TEX].sort());
+      expect(res.included.sort()).toEqual([SC, MAT, SHADER, TEX, LEGACY].sort());
       expect(res.unused).toEqual([ORPHAN]);
       // A twin-less shader ships GL-only: the cook says so.
       expect(res.warnings.some((w) => w.includes('no WGSL twin'))).toBe(true);
@@ -452,6 +454,7 @@ describe('cookAssets (A4)', () => {
       };
       expect(stagedMat.shader).toBe('assets/materials/m.esshader');
       expect(stagedMat.properties.u_mask).toBe('assets/materials/green.png');
+      expect(stagedMat.properties.u_roughness).toBe('/rough.png');
       expect(stagedMat.properties.u_mode).toBe('additive');
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
-import { isBuiltinAssetRef, resolveDocumentRef } from '../documentRef';
+import { resolveIndexedSiblingRef } from '../documentRef';
 import type { MaterialAssetData } from '../../render/material';
 import { Material } from '../../render/material';
 import { assetPropertyProblems } from '../../render/materialProblems';
@@ -21,26 +21,27 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         if (data.type !== 'material') {
             throw new Error(`Invalid material file type: ${data.type} at ${path}`);
         }
+        const resolve = (ref: string) => resolveIndexedSiblingRef(path, ref, candidate => ctx.assetTypeOf?.(candidate) !== undefined);
 
         // A material instance (`instanceOf`) inherits its parent's shader + state; load the
         // parent first, then build the instance from the asset's diffs. Parent shader resolution
         // and uniforms come from the parent material, so no shader is loaded here.
         if (data.instanceOf) {
-            const parentPath = resolveDocumentRef(path, data.instanceOf);
+            const parentPath = resolve(data.instanceOf);
             const parent = await ctx.acquireAsset<MaterialResult>('material', parentPath);
             const handle = Material.createFromAsset(data, 0, parent.value.handle);
-            const missing = await this.applyTextureProps(handle, data, path, ctx);
+            const missing = await this.applyTextureProps(handle, data, path, ctx, resolve);
             ctx.noteAssetProblems?.(path, [...assetPropertyProblems(data.properties), ...missing]);
             return { handle, shaderHandle: parent.value.shaderHandle };
         }
 
         // Enabled static switches select the shader permutation (compiled once per switch-set).
         const features = enabledSwitches(data.switches);
-        const shaderPath = isBuiltinAssetRef(data.shader) ? data.shader : resolveDocumentRef(path, data.shader);
+        const shaderPath = resolve(data.shader);
         const source = await ctx.acquireAsset<MaterialShaderSource>('material-shader', shaderPath);
         const shaderHandle = source.value.compile(features);
         const handle = Material.createFromAsset(data, shaderHandle);
-        const missing = await this.applyTextureProps(handle, data, path, ctx);
+        const missing = await this.applyTextureProps(handle, data, path, ctx, resolve);
         // The material loaded, and draws with what could be read. Said once, where the editor's diagnostics and an agent can find it: a surface
         // that quietly falls back to the default look is otherwise indistinguishable from one that is meant to look that way.
         ctx.noteAssetProblems?.(path, [...assetPropertyProblems(data.properties), ...missing]);
@@ -57,11 +58,12 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         data: MaterialAssetData,
         matPath: string,
         ctx: LoadContext,
+        resolve: (ref: string) => string,
     ): Promise<string[]> {
         const problems: string[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
-            const texPath = resolveDocumentRef(matPath, value);
+            const texPath = resolve(value);
             ctx.noteMaterialTexture?.(matPath, texPath);
             try {
                 const tex = await ctx.acquireTexture(texPath);

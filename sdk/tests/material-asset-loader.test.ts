@@ -62,6 +62,22 @@ describe('MaterialAssetLoader texture failure', () => {
         warnSpy.mockRestore();
     });
 
+    it('uses a project match only when an unqualified material ref has no sibling match', async () => {
+        const ctx = makeCtx();
+        const paths = new Set(['fx.esshader', 'missing.png', 'assets/materials/missing.png', 'flat.png']);
+        ctx.assetTypeOf = path => paths.has(path) ? 'indexed' : undefined;
+        (ctx.loadText as ReturnType<typeof vi.fn>).mockImplementation(async path => path === MAT_PATH
+            ? JSON.stringify({ type: 'material', shader: 'fx.esshader',
+                properties: { mainTex: TEX_REF, roughnessTex: 'flat.png', otherTex: './flat.png' } })
+            : '// shader src');
+        (ctx.acquireTexture as ReturnType<typeof vi.fn>).mockResolvedValue({ value: { handle: 12 } });
+        await new MaterialAssetLoader().load(MAT_PATH, ctx);
+        expect(ctx.loadText).toHaveBeenCalledWith('fx.esshader');
+        expect((ctx.acquireTexture as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+            ['assets/materials/missing.png'], ['flat.png'], ['assets/materials/flat.png'],
+        ]);
+    });
+
     it('warns with the material path and the texture path', async () => {
         const loader = new MaterialAssetLoader();
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
