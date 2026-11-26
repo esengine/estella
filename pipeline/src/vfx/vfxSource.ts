@@ -14,9 +14,11 @@
  *          so the same clip the Sequencer opens is what moves it.
  */
 
+import { VFX_SHEETS } from './vfxTextures';
+
 const DEG = Math.PI / 180;
 
-export const VFX_TEXTURES = ['glow', 'soft', 'smoke', 'spark', 'flame', 'ring'] as const;
+export const VFX_TEXTURES = ['glow', 'soft', 'smoke', 'spark', 'flame', 'ring', 'flame-sheet', 'smoke-sheet', 'fireball-sheet'] as const;
 export type VfxTexture = (typeof VFX_TEXTURES)[number];
 
 const SHAPES: Record<string, number> = { point: 0, circle: 1, box: 2, cone: 3, sphere: 4, hemisphere: 5 };
@@ -291,6 +293,9 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
     const stops = typeof l.color === 'string' ? null : [...l.color].sort((a, b) => a[0] - b[0]);
     const first = stops ? hexColor(stops[0]![1]) : hexColor(l.color as string), last = stops ? hexColor(stops[stops.length - 1]![1]) : first;
     const lifeMax = hi(l.life), rate = l.rate ?? 0;
+    // A built-in sheet plays as it was drawn: a flame round and round, a puff once over each particle's life.
+    const sheet = l.texture ? VFX_SHEETS[l.texture as VfxTexture] : undefined;
+    const book = l.flipbook ?? (sheet ? { columns: sheet.columns, rows: sheet.rows, loop: sheet.loop, fps: sheet.fps ?? Math.round(((sheet.columns * sheet.rows) / ((lo(l.life) + hi(l.life)) / 2)) * 100) / 100 } : undefined);
     const burstTotal = (l.bursts ?? []).reduce((n, b) => n + b[1], 0);
     // Enough for all a layer can have alive at once, with a little room, unless it is said.
     const max = l.max ?? Math.max(8, Math.ceil(rate * lifeMax * 1.2 + burstTotal));
@@ -308,7 +313,7 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
       rotationMin: lo(l.rotation ?? 0), rotationMax: hi(l.rotation ?? 0), angularVelocityMin: lo(l.spin ?? 0), angularVelocityMax: hi(l.spin ?? 0),
       gravity: vec(gravity as [number, number, number]), damping: l.drag ?? 0,
       noiseStrength: (l.noise?.strength ?? 0) * k, noiseFrequency: (l.noise?.frequency ?? 1) / k, noiseScrollSpeed: l.noise?.scroll ?? 0, noiseOctaves: l.noise?.octaves ?? 1,
-      spriteColumns: l.flipbook?.columns ?? 1, spriteRows: l.flipbook?.rows ?? 1, spriteFPS: l.flipbook?.fps ?? 10, spriteLoop: l.flipbook?.loop ?? true,
+      spriteColumns: book?.columns ?? 1, spriteRows: book?.rows ?? 1, spriteFPS: book?.fps ?? 10, spriteLoop: book?.loop ?? true,
       blendMode: BLENDS[l.blend ?? 'add'], simulationSpace: l.space === 'local' ? 1 : 0,
       renderMode: l.render === 'stretched' ? 1 : 0,
       velocityScale: l.render === 'stretched' ? (l.stretch?.speed ?? 0.05) : 0, lengthScale: l.stretch?.length ?? 1,
@@ -361,7 +366,10 @@ export function buildVfx(spec: VfxSpec): VfxBuild {
     L?.fade ? (L.delay ?? 0) + L.fade : 0,
   );
   const reach = Math.max(...spec.layers.map(layerReach), L ? Math.hypot(...(L.at ?? [0, 0, 0])) : 0);
-  return { root, children, textures: [...textures], lightClip, lasts: lasts === null ? null : Math.round(lasts * 100) / 100, reach: Math.round(reach * 100) / 100, notes };
+  const lastsRounded = lasts === null ? null : Math.round(lasts * 100) / 100;
+  // A one-shot removes itself once its last particle and its light are gone: a game that spawns one at every hit leaves nothing behind.
+  if (lastsRounded !== null) root.components.push({ type: 'EffectLifetime', data: { seconds: Math.round((lastsRounded + 0.1) * 100) / 100 } });
+  return { root, children, textures: [...textures], lightClip, lasts: lastsRounded, reach: Math.round(reach * 100) / 100, notes };
 }
 
 /** A prefab entity as stored: what {@link describeVfx} reads. */

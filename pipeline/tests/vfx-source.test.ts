@@ -61,6 +61,9 @@ describe('an effect from a description', () => {
     expect(sparks.renderMode).toBe(1);
     expect(sparks.collisionEnabled).toBe(true);
     expect(b.lasts).toBeCloseTo(0.2 + 0.05 + 4, 1);
+    // It removes itself once it is over.
+    expect(b.root.components.find((c) => c.type === 'EffectLifetime')?.data.seconds).toBeGreaterThan(b.lasts!);
+    expect(buildVfx(fire()).root.components.some((c) => c.type === 'EffectLifetime')).toBe(false);
     const clip = b.lightClip as any;
     expect(clip.wrapMode).toBe('once');
     expect(clip.tracks[0].channels[0].keyframes.at(-1).value).toBe(0);
@@ -76,6 +79,16 @@ describe('an effect from a description', () => {
       again.children.forEach((c, i) => expect(c.components).toEqual(b.children[i]!.components));
       expect(back.layers.map((l) => l.texture)).toEqual(spec.layers.map((l) => l.texture));
     }
+  });
+
+  it('plays a built-in sheet as it was drawn: a flame round and round, a puff once over its life', () => {
+    const b = buildVfx({ layers: [
+      { name: 'f', rate: 10, life: 1, size: [1, 1], color: '#ffffff', texture: 'flame-sheet' },
+      { name: 's', rate: 10, life: [2, 6], size: [1, 1], color: '#ffffff', texture: 'smoke-sheet', blend: 'alpha' },
+    ] });
+    const [f, s] = b.children.map((c) => c.components[1]!.data as Record<string, number | boolean>);
+    expect([f!.spriteColumns, f!.spriteRows, f!.spriteLoop, f!.spriteFPS]).toEqual([4, 4, true, 20]);
+    expect([s!.spriteLoop, s!.spriteFPS]).toEqual([false, 4]);
   });
 
   it('draws its own textures from recipes the image tools accept', () => {
