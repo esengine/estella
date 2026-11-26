@@ -2009,7 +2009,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     bool sunFollowed = false;
     for (auto entity : view) {
         const auto& light = view.get(entity);
-        if (!light.enabled || light.intensity <= 0.0f) continue;
+        if (!light.enabled || light.intensity <= 0.0f || !std::isfinite(light.intensity)) continue;
         const auto type = static_cast<ecs::LightType>(light.type);
         if (type == ecs::LightType::Directional && light.followEnvironmentSun) sunFollowed = true;
         if (sky || type != ecs::LightType::Ambient || !environmentOf(light).isValid()) continue;
@@ -2052,7 +2052,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // aims into the screen; Point/Spot need a position and are skipped without one.
     for (auto entity : view) {
         const auto& light = view.get(entity);
-        if (!light.enabled || light.intensity <= 0.0f) continue;
+        if (!light.enabled || light.intensity <= 0.0f || !std::isfinite(light.intensity)) continue;
 
         const auto type = static_cast<ecs::LightType>(light.type);
         // color.a is unused; intensity carries the strength. Authored sRGB ->
@@ -2173,22 +2173,27 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     const u32 tiledLimit = std::min(quality.count(QualityValue::TiledLights), MAX_TILED_LIGHTS);
     light_cap_.limit = loopLimit + tiledLimit;
     light_cap_.requested = static_cast<u32>(collected.size() + light_cap_.refused.size());
-    std::vector<CollectedLight> tiled;
-    if (collected.size() > loopLimit) {
-        const auto rank = [](const CollectedLight& l) {
-            const bool directional = l.gpu.posDir.z > 0.5f && l.gpu.posDir.z < 1.5f;
-            return directional ? 0 : (l.castsMeshShadow ? 1 : 2);
-        };
-        std::stable_sort(collected.begin(), collected.end(), [&rank](const CollectedLight& a, const CollectedLight& b) {
-            const int ra = rank(a), rb = rank(b);
-            if (ra != rb) return ra < rb;
-            return a.gpu.color.a > b.gpu.color.a;
+    const u32 loopCount = static_cast<u32>(std::min<usize>(collected.size(), loopLimit));
+    const bool overflow = collected.size() > loopLimit;
+    auto& order = light_order_scratch_;
+    if (overflow) {
+        order.clear();
+        order.reserve(collected.size());
+        for (u32 i = 0; i < collected.size(); ++i) {
+            const auto& item = collected[i];
+            const bool directional = item.gpu.posDir.z > 0.5f && item.gpu.posDir.z < 1.5f;
+            const u32 priority = directional ? 0u : item.castsMeshShadow ? 1u : 2u;
+            order.push_back({item.gpu.color.a, priority, i});
+        }
+        std::sort(order.begin(), order.end(), [](const LightOrder& a, const LightOrder& b) {
+            if (a.priority != b.priority) return a.priority < b.priority;
+            if (a.brightness != b.brightness) return a.brightness > b.brightness;
+            return a.index < b.index;
         });
-        for (usize i = loopLimit; i < collected.size(); ++i) {
-            CollectedLight& rest = collected[i];
-            const bool positional = rest.gpu.posDir.z < 0.5f || rest.gpu.posDir.z > 1.5f;
-            if (positional && !rest.castsMeshShadow && tiled.size() < tiledLimit) {
-                tiled.push_back(rest);
+        for (usize i = loopCount; i < order.size(); ++i) {
+            const auto& rest = collected[order[i].index];
+            if (order[i].priority == 2u && lights.tiledCount() < tiledLimit) {
+                lights.addTiledLight(rest.gpu, view_projection_);
                 continue;
             }
             light_cap_.refused.push_back({rest.caster.light, static_cast<u8>(rest.gpu.posDir.z),
@@ -2196,20 +2201,20 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             if (loopLimit == MAX_LIGHTS && tiledLimit == MAX_TILED_LIGHTS) {
                 ES_LOG_WARN("collectLights: light {} is not in this frame ({}); {} kept of {}, brightest first",
                             rest.caster.light.raw, lightRefusalName(LightRefusal::Capacity),
-                            loopLimit + tiled.size(), collected.size());
+                            loopCount + lights.tiledCount(), collected.size());
             }
         }
-        collected.resize(loopLimit);
     }
-    light_cap_.accepted = static_cast<u32>(collected.size() + tiled.size());
-    for (u32 slot = 0; slot < collected.size(); ++slot) {
-        if (collected[slot].castsMeshShadow) {
-            ShadowCaster caster = collected[slot].caster;
+    light_cap_.accepted = loopCount + lights.tiledCount();
+    for (u32 slot = 0; slot < loopCount; ++slot) {
+        const auto& item = collected[overflow ? order[slot].index : slot];
+        if (item.castsMeshShadow) {
+            ShadowCaster caster = item.caster;
             caster.slot = slot;
             shadow_casters_.push_back(caster);
         }
         // The sun a sky's clouds shade is the first directional light, as the sky's own findSun takes it.
-        const glm::vec4& pd = collected[slot].gpu.posDir;
+        const glm::vec4& pd = item.gpu.posDir;
         if (cloud_sun_slot_ < 0 && pd.z > 0.5f && pd.z < 1.5f) {
             const glm::vec3 aim(pd.x, pd.y, pd.w);
             if (glm::length(aim) > 1e-6f) {
@@ -2217,10 +2222,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
                 cloud_sun_aim_ = glm::normalize(aim);
             }
         }
-        lights.addLight(collected[slot].gpu);
-    }
-    for (const CollectedLight& light : tiled) {
-        lights.addTiledLight(light.gpu, view_projection_);
+        lights.addLight(item.gpu);
     }
     // ...and which screen tiles each of the loop's own lights can reach, for the flat lit surfaces (sprites, tilemap layers).
     lights.markLoopLights(view_projection_);

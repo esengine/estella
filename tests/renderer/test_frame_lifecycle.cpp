@@ -11,6 +11,7 @@
 #include "esengine/ecs/TransformSystem.hpp"
 #include "esengine/ecs/components/LODGroup.hpp"
 #include "esengine/ecs/components/LODMember.hpp"
+#include "esengine/ecs/components/Light.hpp"
 #include "esengine/ecs/components/MeshRenderer.hpp"
 #include "esengine/renderer/plugins/MeshPlugin.hpp"
 #ifdef ES_ENABLE_GPU_PARTICLES
@@ -19,6 +20,7 @@
 #endif
 
 #include <cstdio>
+#include <limits>
 
 using namespace esengine;
 
@@ -50,6 +52,53 @@ void drawBusyFrame(RenderFrame& frame, ecs::Registry& registry) {
     frame.submitScreenOverlay(registry);
     frame.endScreenOverlay(0);
 
+    frame.endFrame();
+}
+
+void testLightBudgetAcrossViews() {
+    MockGfxDevice device;
+    RenderContext context(device);
+    resource::ResourceManager resources;
+    ecs::Registry registry;
+    RenderFrame frame(device, context, resources);
+    frame.setQualityValue("loopLights", 2.0f);
+    frame.setQualityValue("tiledLights", 2.0f);
+    const auto light = [&](ecs::LightType type, f32 intensity, f32 position, bool shadows = false) {
+        const Entity id = registry.create();
+        registry.emplace<ecs::Transform>(id).position.x = position;
+        auto& item = registry.emplace<ecs::Light>(id);
+        item.type = static_cast<i32>(type);
+        item.intensity = intensity;
+        item.meshShadows = shadows;
+        return id;
+    };
+    using Kind = ecs::LightType;
+    light(Kind::Point, 1.0f, 11.0f);
+    light(Kind::Point, 1.2f, 12.0f);
+    light(Kind::Directional, 0.1f, 0.0f);
+    light(Kind::Point, 0.4f, 13.0f, true);
+    const Entity tied = light(Kind::Point, 1.0f, 14.0f);
+    const Entity shadow = light(Kind::Point, 0.2f, 15.0f, true);
+    light(Kind::Point, std::numeric_limits<f32>::infinity(), 16.0f);
+    light(Kind::Directional, std::numeric_limits<f32>::quiet_NaN(), 0.0f);
+    ecs::TransformSystem{}.ensureComposed(registry);
+
+    frame.beginFrame();
+    for (const auto& vp : {glm::mat4(1.0f), glm::mat4(0.5f)}) {
+        frame.begin(vp);
+        frame.collectAll(registry);
+        const auto& lights = context.lights();
+        const auto& data = lights.data();
+        const auto& report = frame.lightCap();
+        CHECK(lights.count() == 2 && data.lights[0].color.a == 0.1f && data.lights[1].color.a == 0.4f,
+              "directional and shadow lights take the loop slots first");
+        CHECK(lights.tiledCount() == 2 && data.tiledLights[0].posDir.x == 12.0f && data.tiledLights[1].posDir.x == 11.0f,
+              "the deferred positional lights keep brightness and original tie order");
+        CHECK(report.requested == 6 && report.accepted == 4 && report.refused.size() == 2
+              && report.refused[0].light == shadow && report.refused[1].light == tied,
+              "the two views report the same rejected lights in priority order");
+        frame.end();
+    }
     frame.endFrame();
 }
 
@@ -189,6 +238,7 @@ void testGpuParticleReset() {
 }  // namespace
 
 int main() {
+    testLightBudgetAcrossViews();
     {
         MockGfxDevice device;
         RenderContext edit(device), play(device);

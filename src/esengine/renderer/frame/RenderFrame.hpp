@@ -1245,6 +1245,12 @@ private:
         ShadowCaster caster;
     };
     std::vector<CollectedLight> light_scratch_;  // reused across frames; collectLights only
+    struct LightOrder {
+        f32 brightness;
+        u32 priority;
+        u32 index;
+    };
+    std::vector<LightOrder> light_order_scratch_;
     /// Every light that asked for a map this frame, in UBO slot order. Written by
     /// collectLights, read by buildShadowPlan; empty = nobody asked.
     std::vector<ShadowCaster> shadow_casters_;
