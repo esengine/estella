@@ -4,7 +4,7 @@
  * A scene is validated by the same pass a prefab is, and the loader refuses what
  * it cannot honour. Each test pins one code, so they stay stable for readers.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { SceneData, DocumentDiagnostic } from '../src/index';
 import { validateScene, SCENE_FORMAT_VERSION, loadSceneData, resetWorldTo } from '../src/index';
 import { World } from '../src/ecs/world';
@@ -104,6 +104,23 @@ describe('loadSceneData refuses what it cannot honour', () => {
         const s = clean();
         s.entities[1].components.push({ type: 'Chaser', data: { target: 77 } });
         expect(loadSceneData(world, s).size).toBe(2);
+    });
+
+    it('rolls back a load when the world rejects a parent link', () => {
+        const world = new World();
+        const prior = world.spawn();
+        vi.spyOn(world, 'trySetParent').mockReturnValueOnce(false);
+        expect(() => loadSceneData(world, clean())).toThrow(/Sword.*Player/);
+        expect(world.getAllEntities()).toEqual([prior]);
+    });
+
+    it('rolls back if an entity is removed at the last load phase', () => {
+        const world = new World();
+        const prior = world.spawn();
+        expect(() => loadSceneData(world, clean(), undefined, phase => {
+            if (phase === 'spawn.hierarchy') world.despawn(world.getAllEntities().at(-1)!);
+        })).toThrow(/removed during scene load/);
+        expect(world.getAllEntities()).toEqual([prior]);
     });
 
     it.each(['duplicate', 'cycle', 'future'] as const)('preserves the current world when a replacement has a %s', (problem) => {

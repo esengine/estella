@@ -648,7 +648,13 @@ function* spawnSceneJob(
         }
     }
     const { entities: entityMap, hidden } = spawn;
-    const rows = sceneData.entities.filter((entityData) => entityData.visible !== false && !isPrefabEntry(entityData));
+    const rows: SceneEntityData[] = [];
+    let skipped = 0;
+    for (const row of sceneData.entities) {
+        if (row.visible === false) continue;
+        if (isPrefabEntry(row)) skipped++;
+        else rows.push(row);
+    }
     const total = Math.max(1, rows.length * 3);
     let done = 0;
     let completed = false;
@@ -656,13 +662,8 @@ function* spawnSceneJob(
     attempt.entities = entityMap;
     const release = attempt.watch();
     try {
-        let skipped = 0, entityMs = 0;
-        for (const entityData of sceneData.entities) {
-            if (entityData.visible === false) continue;
-            // A prefab-instance entry reaching here means the synchronous path was
-            // used on an unexpanded prefab scene — it has no spawnable components.
-            // Skip it (loadSceneWithAssets is the supported prefab-scene path).
-            if (isPrefabEntry(entityData)) { skipped++; continue; }
+        let entityMs = 0;
+        for (const entityData of rows) {
             const entity = world.spawnImmediate(undefined, created => entityMap.set(entityData.id, created));
             assertCurrent();
             world.insert(entity, Name, { value: entityData.name });
@@ -720,12 +721,15 @@ function* spawnSceneJob(
         }
 
         let hierarchyMs = 0;
-        for (const entityData of sceneData.entities) {
+        for (const entityData of rows) {
             if (entityData.parent !== null) {
                 const entity = entityMap.get(entityData.id);
                 const parentEntity = entityMap.get(entityData.parent);
                 if (entity !== undefined && parentEntity !== undefined) {
-                    world.setParent(entity, parentEntity);
+                    if (!world.trySetParent(entity, parentEntity)) {
+                        const parentName = rows.find(row => row.id === entityData.parent)?.name;
+                        throw new Error(`Scene "${sceneData.name}" could not attach "${entityData.name}" to "${parentName ?? entityData.parent}"`);
+                    }
                     done++;
                     if (onPhase) hierarchyMs += since();
                     yield done / total;
@@ -734,6 +738,9 @@ function* spawnSceneJob(
             }
         }
         if (onPhase) onPhase('spawn.hierarchy', hierarchyMs + since());
+        for (const [id, entity] of entityMap) {
+            if (!world.valid(entity)) throw new Error(`Entity ${id} was removed during scene load for "${sceneData.name}"`);
+        }
         completed = true;
         return spawn;
     } finally {

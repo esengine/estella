@@ -517,7 +517,7 @@ describe('Scene', () => {
         });
 
         it('should set up parent-child hierarchy', () => {
-            const setParentSpy = vi.spyOn(world, 'setParent');
+            const setParentSpy = vi.spyOn(world, 'trySetParent');
             const sceneData: SceneData = {
                 version: '1.0',
                 name: 'TestScene',

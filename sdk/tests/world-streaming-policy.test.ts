@@ -375,13 +375,13 @@ describe('a staged spawn', () => {
         const w = world();
         let now = 0;
         const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
-        const insert = w.insert.bind(w), setParent = w.setParent.bind(w);
+        const insert = w.insert.bind(w), trySetParent = w.trySetParent.bind(w);
         w.onSpawn(() => { now += 2; });
         w.insert = (entity, component, value) => {
             if (component === Tag) now += 3;
             return insert(entity, component, value);
         };
-        w.setParent = (child, parent) => { now += 7; setParent(child, parent); };
+        w.trySetParent = (child, parent) => { now += 7; return trySetParent(child, parent); };
         const [root, child, off] = data.entities;
         const scene = { ...data, entities: [{ ...root, children: [2, 3] }, child, { ...off, parent: 1 }] };
         const phases: [string, number][] = [];
