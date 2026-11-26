@@ -3,7 +3,7 @@ import type { App } from '../src/app/app';
 import type { ESEngineModule } from '../src/wasm';
 import { entityIndex } from '../src/types';
 import { World } from '../src/ecs/world';
-import { Sprite, MeshRenderer, Transform, Disabled, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { Sprite, MeshRenderer, Transform, Disabled, defineComponent, ensureBuiltinComponentsRegistered, unregisterComponent } from '../src/ecs/component';
 import { UINode, UIDisplay } from '../src/ui/core/ui-node';
 import { TextInput } from '../src/ui/text/text-input';
 import { worldSnapshot } from '../src/runtime/worldSnapshot';
@@ -14,6 +14,56 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () => {
     let module: ESEngineModule;
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+
+    it('captures detached script records and pooled values in both snapshot modes', () => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        const Meter = defineComponent('SnapshotMeter', { count: 2, enabled: true });
+        const Path = defineComponent('SnapshotPath', { points: [{ x: 1 }] });
+        try {
+            const entity = world.spawn('Path');
+            world.insert(entity, Meter);
+            world.insert(entity, Path);
+            const detail = worldSnapshot(app, entity, false).selected!;
+            const full = worldSnapshot(app, entity, true).selected!;
+            const saved = serializeScene(world).entities[0].components;
+            world.update(entity, Meter, meter => { meter.count = 5; });
+            world.update(entity, Path, path => { path.points[0].x = 5; });
+            expect(detail.components).toEqual(saved);
+            expect(full.components).toEqual(saved);
+
+            const captured = detail.components.find(c => c.type === Path._name)!.data as { points: { x: number }[] };
+            captured.points[0].x = 7;
+            expect(world.get(entity, Path).points[0].x).toBe(5);
+            expect(full.components).toEqual(saved);
+        } finally {
+            world.disconnectCpp(); registry.delete();
+            unregisterComponent(Meter._name); unregisterComponent(Path._name);
+        }
+    });
+
+    it('retains cyclic script relationships in the detached snapshot', () => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        type Graph = { links: Graph[]; runtimeOnly: boolean };
+        const Graph = defineComponent<Graph>('SnapshotGraph', { links: [], runtimeOnly: true }, { transientFields: ['runtimeOnly'] });
+        try {
+            const entity = world.spawn();
+            world.insert(entity, Graph);
+            world.update(entity, Graph, graph => { graph.links.push(graph); });
+            const detail = worldSnapshot(app, entity, false).selected!.components.find(c => c.type === Graph._name)!;
+            const data = detail.data as Omit<Graph, 'runtimeOnly'>;
+            expect(data).not.toBe(world.get(entity, Graph));
+            expect(data.links[0]).toBe(data);
+            expect(data).not.toHaveProperty('runtimeOnly');
+            expect(world.get(entity, Graph).runtimeOnly).toBe(true);
+        } finally {
+            world.disconnectCpp(); registry.delete();
+            unregisterComponent(Graph._name);
+        }
+    });
 
     it('inspects authored text without carrying live input focus into scene edits', () => {
         const registry = new module.Registry(), world = new World();

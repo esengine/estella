@@ -8,22 +8,22 @@
 import { setOwn } from './ownProperties';
 
 /**
- * Recursively clone plain objects and arrays; primitives AND class instances
- * (Map, Date, a custom class with methods, …) pass through by reference.
- *
- * Used to materialise per-instance copies of shared default templates (component
- * defaults, resource defaults) so mutating one instance never leaks into the
- * shared definition or a sibling world. Class instances pass through because
- * cloning them into a bare object would strip their prototype (and methods) — a
- * resource whose default is a stateful singleton keeps its identity. Avoids
- * `structuredClone`, which is absent in some minigame runtimes.
+ * Recursively clone plain objects and arrays. Class instances retain identity
+ * so resources can keep their stateful services.
+ * Pass a copy map to preserve repeated references and cycles in plain data.
  */
-export function deepClone<T>(value: T): T {
+export function deepClone<T>(value: T, copies?: WeakMap<object, object>): T {
     if (value === null || typeof value !== 'object') {
         return value;
     }
+    const cached = copies?.get(value);
+    if (cached) return cached as T;
     if (Array.isArray(value)) {
-        return value.map(deepClone) as T;
+        if (!copies) return value.map(item => deepClone(item)) as T;
+        const array: unknown[] = new Array(value.length);
+        copies.set(value, array);
+        value.forEach((item, i) => { array[i] = deepClone(item, copies); });
+        return array as T;
     }
     // Only plain objects are cloned; a class instance (non-Object prototype) is
     // shared by reference so its methods survive.
@@ -32,8 +32,9 @@ export function deepClone<T>(value: T): T {
         return value;
     }
     const result: Record<string, unknown> = {};
+    copies?.set(value, result);
     for (const key of Object.keys(value)) {
-        setOwn(result, key, deepClone((value as Record<string, unknown>)[key]));
+        setOwn(result, key, deepClone((value as Record<string, unknown>)[key], copies));
     }
     return result as T;
 }

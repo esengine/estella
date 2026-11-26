@@ -12,7 +12,7 @@ import type { Entity } from '../types';
 import { isLiveEntity, liveEntities } from '../ecs/liveEntityHandles';
 import { getComponent, type AnyComponentDef } from '../ecs/component';
 import { entityVisibilityIndex, entityVisibilitySource } from '../ecs/entityUtils';
-import { getComponentAssetFieldDescriptors, withoutTransientComponentFields } from '../scene/scene';
+import { captureAuthoredComponentData, getComponentAssetFieldDescriptors } from '../scene/scene';
 import { Assets } from '../asset/AssetPlugin';
 import { sceneOriginOf } from '../scene/sceneOrigins';
 
@@ -207,7 +207,7 @@ export function worldSnapshot(
             if (!def) continue;
             // The current registry already confirmed membership. Read without the SDK's cached membership check.
             const data = world.get(selectedId as never, def) as Record<string, unknown> | undefined;
-            if (data) raw.push({ type, data: withoutTransientComponentFields(def, data) });
+            if (data) raw.push({ type, data: captureAuthoredComponentData(def, data) });
         }
         const assets = app.hasResource(Assets) ? app.getResource(Assets) : null;
         const components = assets ? translateAssetHandles(raw, (kind, handle) => {
