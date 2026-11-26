@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Parent, Transform } from '../src/ecs/component';
+import { defineSystem } from '../src/ecs/system';
 import { Input, InputState } from '../src/input/input';
 import { spawnUIEntity } from '../src/ui/core/compose';
 import { UIEvents } from '../src/ui/core/events';
@@ -19,7 +20,6 @@ import { UIBehaviorPlugin } from '../src/ui/behavior/plugin';
 import { FocusPlugin } from '../src/ui/input/focus';
 import { FocusManager } from '../src/ui/input/focusable';
 import { UIInteraction } from '../src/ui/input/interactable';
-import { createDialogSystem } from '../src/ui/behavior/dialog';
 import { moveUIFocus } from '../src/ui/input/focus-transition';
 import { createDialog } from '../src/ui/widgets/dialog';
 import { createDropdown } from '../src/ui/widgets/dropdown';
@@ -50,6 +50,11 @@ describe.skipIf(!HAS_WASM)('modal dismissal on real WASM', () => {
     }
     async function key(code: string) {
         input.noteKeyDown(code); await tick(); input.noteKeyUp(code); await tick();
+    }
+    function pressBackdropEachFrame(entity: Entity): void {
+        app.addSystem(defineSystem([], () => {
+            app.world.update(entity, UIInteraction, state => { state.justPressed = true; });
+        }, { name: 'SyntheticBackdropPress', runBefore: ['UIDialogSystem'] }));
     }
     const dialog = (parent: Entity, closeOnEscape = true) => createDialog({ world: app.world, events: app.getResource(UIEvents),
         parent, startHidden: false, closeOnEscape });
@@ -114,13 +119,13 @@ describe.skipIf(!HAS_WASM)('modal dismissal on real WASM', () => {
         await tap(12, 12); expect(outer.isOpen()).toBe(false);
     });
 
-    it('accepts a synthetic backdrop press when used without the pointer plugin', async () => {
+    it('accepts a synthetic backdrop press with no captured pointer', async () => {
         const outer = dialog(canvas), dd = dropdown(outer.panelEntity);
-        await tick(); dd.open(); app.world.update(outer.entity, UIInteraction, d => { d.justPressed = true; });
-        const system = createDialogSystem(app.world, app.getResource(UIEvents));
-        system._fn(input);
+        await tick(); dd.open();
+        pressBackdropEachFrame(outer.entity);
+        await tick();
         expect([dd.isOpen(), outer.isOpen()]).toEqual([false, true]);
-        system._fn(input); expect(outer.isOpen()).toBe(false);
+        await tick(); expect(outer.isOpen()).toBe(false);
     });
 
     it('rejects an old floating row immediately when a child dialog opens', async () => {
@@ -161,8 +166,8 @@ describe.skipIf(!HAS_WASM)('modal dismissal on real WASM', () => {
         await tick();
         const events = app.getResource(UIEvents);
         events.on(first.entity, 'change', () => second.dispose());
-        app.world.update(first.entity, UIInteraction, d => { d.justPressed = true; });
-        createDialogSystem(app.world, events)._fn(input);
+        pressBackdropEachFrame(first.entity);
+        await tick();
         expect(first.isOpen()).toBe(false);
         expect(app.world.valid(second.entity)).toBe(false);
     });

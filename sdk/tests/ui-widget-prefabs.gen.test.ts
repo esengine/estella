@@ -5,6 +5,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { World } from '../src/ecs/world';
+import { isQuatLike } from '../src/animation/quatMix';
 import type { PrefabData } from '../src/prefab/types';
 import { widgetToPrefab } from '../src/ui/widgets/toPrefab';
 import { createButton } from '../src/ui/widgets/button';
@@ -243,7 +244,9 @@ describe('UI widget prefab codegen', () => {
         expect(label.components.find(c => c.type === 'Text')?.data.content).toBe('One');
         expect(strokes).toHaveLength(2);
         const angles = strokes.map(stroke => {
-            const z = stroke.components.find(c => c.type === 'Transform')!.data.rotation.z;
+            const rotation = stroke.components.find(c => c.type === 'Transform')?.data.rotation;
+            if (!isQuatLike(rotation)) throw new Error('Dropdown chevron stroke is missing its rotation');
+            const z = rotation.z;
             expect(stroke.components.find(c => c.type === 'ThemeStyle')?.data.visual).toBe('text');
             expect(stroke.components.find(c => c.type === 'UIGear')?.data.bindings).toContainEqual({
                 controller: '$dropdown', component: 'Transform', property: 'rotation.z', pages: { closed: z, open: -z },
