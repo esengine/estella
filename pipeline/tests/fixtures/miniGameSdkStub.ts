@@ -15,7 +15,7 @@ import type { MiniGameExportProfile } from '../../src/export/miniGameExportProfi
  * project imports beyond the entry's own list (`defineComponent`, say).
  */
 export function miniGameSdkStub(profile: Pick<MiniGameExportProfile, 'runtimeInit' | 'platformInit'>, extra: readonly string[] = []): string {
-  const named = [profile.runtimeInit, profile.platformInit, 'installMiniGamePlatform', ...extra].filter((n): n is string => !!n);
+  const named = [profile.runtimeInit, profile.platformInit, 'installMiniGamePlatform', 'installMiniGameWorkers', ...extra].filter((n): n is string => !!n);
   return `${[...new Set(named)].map((n) => `export function ${n}(){return Promise.resolve();}`).join('\n')}\n`
     + 'export function captureProjectRegistrations(){return {build(){}};}\n';
 }

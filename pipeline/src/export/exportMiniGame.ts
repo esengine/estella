@@ -62,6 +62,7 @@ import { resolveEmcc } from '../bundle/emccPath';
 import { stageCompiledSystems } from './stageCompiledSystems';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
+import { MINIGAME_WORKER_DIR, miniGameWorkerKinds, writeMiniGameWorkers } from './miniGameWorkers';
 import type { Physics3DBackend } from 'esengine';
 import { engineInstalls, forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
 
@@ -588,6 +589,12 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // gets, from the same evidence, so a subsystem cannot be installed on one
   // target and silently missing on the other.
   const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
+  // The engine's job workers, for the kinds the content reaches, where this host starts workers from the package.
+  const workerKinds = profile.workers ? miniGameWorkerKinds(usedSubsystems.keys(), cook.includedPaths) : [];
+  if (workerKinds.length > 0) {
+    await writeMiniGameWorkers(absOut, workerKinds, profile.esTarget, minifiesScripts(opts));
+    progress({ phase: 'Writing workers', detail: workerKinds.join(', ') });
+  }
   // A script can add an Animator to a world no scene mentioned, and the name is exported from `esengine` itself.
   const needsSkeletal = !usedSubsystems.has('skeletalAnimation') && await scriptsMentionSkeletal(opts.root, opts.scriptsEntry);
   const plan = engineInstalls({
@@ -625,12 +632,15 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const projectScript = scriptsAbs && existsSync(scriptsAbs) ? JSON.stringify(scriptsAbs) : null;
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
-    `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''}${projectScript ? ', captureProjectRegistrations' : ''} } from 'esengine';\n` +
+    `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''}${projectScript ? ', captureProjectRegistrations' : ''}${workerKinds.length > 0 ? ', installMiniGameWorkers' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(platformProfileModule)};\n` : '') +
     `let projectReady;\n` +
     `async function prepareProject() {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
+    (workerKinds.length > 0
+      ? `  installMiniGameWorkers(typeof ${profile.hostGlobal} !== 'undefined' ? ${profile.hostGlobal} : undefined, ${JSON.stringify(workerKinds)});\n`
+      : '') +
     (projectScript ? `  await import(${projectScript});\n  return captureProjectRegistrations();\n` : '') +
     `}\n` +
     `export async function boot(engineFactory, sideModuleFactories) {\n` +
@@ -754,6 +764,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     hasOpenData: !!openDataEntry && errors.length === 0,
     openDataRoot: OPEN_DATA_DIR,
     debugChannel: !!debugChannel,
+    ...(workerKinds.length > 0 ? { workersDir: MINIGAME_WORKER_DIR } : {}),
   });
   for (const { file, content } of configFiles) {
     await writeFile(path.join(absOut, file), content);

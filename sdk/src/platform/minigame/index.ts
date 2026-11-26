@@ -25,6 +25,7 @@ export type {
 
 export { MiniGamePlatformAdapter } from './adapter';
 export { installMiniGamePlatform } from './install';
+export { installMiniGameWorkers, miniGameWorkerFactory, type MiniGameWorker, type MiniGameWorkerHost } from './workers';
 export { polyfillFetch, mgFetch } from './fetch';
 export { polyfillPerformance, polyfillTextEncoder } from './polyfills';
 export {

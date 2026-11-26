@@ -32,3 +32,6 @@ export { wechatProfile } from './platform/wechat';
 // side effect, and a bundler dropped it — a lean-entry WeChat package booted to
 // "Platform not initialized". Idempotent.
 export { initWeChatPlatform } from './platform/wechat';
+
+// The package's job workers, for the kinds its export carried: the generated entry calls it after the platform is installed.
+export { installMiniGameWorkers } from './platform/minigame/workers';

@@ -55,6 +55,8 @@ export interface MiniGameConfigContext {
     /** A development build that dials the editor: the host has to let a socket reach
      *  an address no domain list names. */
     debugChannel?: boolean;
+    /** The directory this export wrote the job workers' file under, for a host whose config must name it; absent when it wrote none. */
+    workersDir?: string;
 }
 
 /**
@@ -271,6 +273,12 @@ export interface MiniGameExportProfile {
      * documented rather than probed: the loader cannot be asked.
      */
     readonly wasmBrotli: boolean;
+    /**
+     * Whether the package carries the engine's job workers as a file (sdk/src/platform/minigame/workers.ts): the host starts a worker
+     * by path, and its config names the directory (`emitConfigFiles` gets `workersDir`). Absent: no workers, and the engine's jobs are
+     * done on the main thread in turns of the frame's budget. Only a vendor whose worker API a document or a device has settled says yes.
+     */
+    readonly workers?: boolean;
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
     /**
@@ -411,6 +419,9 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // `WXWebAssembly.instantiate(path)` takes 「.wasm 和 .wasm.br」 from base library
     // 2.14.0 — and a package whose engine is one, in a subpackage, plays in devtools.
     wasmBrotli: true,
+    // developers.weixin.qq.com/minigame/dev/api/worker/wx.createWorker.html: one worker, started by path from the directory game.json's
+    // `workers` names; a message may be any data from base library 2.20.2 (Worker.postMessage.html), checked at runtime.
+    workers: true,
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
 
@@ -424,6 +435,10 @@ export const wechatExportProfile: MiniGameExportProfile = {
         // build failure rather than a feature nobody uses.
         if (ctx.hasOpenData) {
             gameCfg.openDataContext = ctx.openDataRoot;
+        }
+        // The engine's job workers: WeChat starts a worker only from the directory this names.
+        if (ctx.workersDir) {
+            gameCfg.workers = ctx.workersDir;
         }
         // WeChat 分包: each lazy group is a subpackage rooted at subpackages/<name>/.
         // The game calls Assets.loadGroup(name) → wx.loadSubpackage at runtime.

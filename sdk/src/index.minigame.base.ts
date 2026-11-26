@@ -45,6 +45,8 @@ export * from './runtime/webAppFactory';
 
 // The family platform: describe the host as data, install, done.
 export { MiniGamePlatformAdapter, installMiniGamePlatform } from './platform/minigame';
+// The package's job workers, for the kinds its export carried: the generated entry calls it after the platform is installed.
+export { installMiniGameWorkers } from './platform/minigame/workers';
 export type {
     MiniGameProfile,
     MiniGameVendor,
