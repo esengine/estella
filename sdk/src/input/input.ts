@@ -3,6 +3,7 @@
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
 import type { App, Plugin } from '../app/app';
+import { renderCanvasOf } from '../app/surface';
 import { claimsKeyDefault, recordTabModifiers, clearTabModifiers } from './keyDefaultPolicy';
 import { getPlatform } from '../platform';
 import { InputBinding } from '../platform/listeners';
@@ -675,7 +676,7 @@ export class InputPlugin implements Plugin {
                 state.updateGamepads([]);
             });
             inputRouter.resetModifiers();
-            platform.bindInputEvents(callbacks, this.target_ ?? undefined);
+            platform.bindInputEvents(callbacks, this.target_ ?? renderCanvasOf(app));
         });
 
         // Gamepads are polled (no DOM events). Web supplies pollGamepads; platforms

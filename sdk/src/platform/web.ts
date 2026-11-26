@@ -29,12 +29,41 @@ import { GameSocket } from '../net/GameSocket';
 import { createPrimaryPointer } from './primaryPointer';
 import { createWebRecorder } from './webRecorder';
 import { WebDevice } from '../device/web';
-import { InputBinding } from './listeners';
+import { InputBinding, type ListenerScope } from './listeners';
 import { cacheEntryName } from './cacheEntryName';
 import { imageSizeAtEdge, readCanvasPixels } from './imagePixels';
 import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCacheWrite } from './webCacheStore';
 
 const WHEEL_LINE_HEIGHT = 16;
+
+/** A dock can move the canvas or any of its containers into another document. */
+function followInputDocument(el: HTMLElement, scope: ListenerScope, onAdopt: () => void): void {
+    const doc = el.ownerDocument;
+    const watchParents = () => {
+        changes.disconnect();
+        if (el.ownerDocument !== doc) {
+            onAdopt();
+            return;
+        }
+        // Only changes to the canvas's ancestry can move it. Normal DOM updates
+        // inside other panels do not need to wake the engine's input adapter.
+        for (let node = el.parentNode; node; node = node.parentNode ?? (node as ShadowRoot).host) {
+            changes.observe(node, { childList: true });
+        }
+    };
+    const changes = new MutationObserver(watchParents);
+    scope.add(() => changes.disconnect());
+    watchParents();
+    // An initially detached canvas can first appear in a different window.
+    // Its original document sees no removal in that case.
+    if (typeof ResizeObserver === 'function') {
+        const size = new ResizeObserver(watchParents);
+        scope.add(() => size.disconnect());
+        size.observe(el);
+    }
+    scope.listen(el, 'pointerover', watchParents);
+    scope.listen(el, 'focusin', watchParents);
+}
 
 // =============================================================================
 // Web Platform Adapter
@@ -188,17 +217,24 @@ class WebPlatformAdapter implements PlatformAdapter {
     }
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void {
-        const el = (target as HTMLElement) ?? document.querySelector('canvas') ?? document.body;
+        const element = target as HTMLElement | undefined;
+        const doc = element?.ownerDocument ?? globalThis.document;
+        if (!doc) {
+            this.unbindInputEvents();
+            return;
+        }
+        const el = element ?? doc.querySelector('canvas') ?? doc.body;
+        const win = doc.defaultView ?? window;
 
         const heldKeys = new Set<string>();
         const heldButtons = new Set<number>();
         const heldTouches = new Set<number>();
         const onKeyDown = (e: Event) => {
             const key = e as KeyboardEvent;
-            const target = key.target instanceof HTMLElement ? key.target : null;
+            const target = key.target as HTMLElement | null;
             // Host forms keep typing/Tab; the engine's own hidden editor still routes Tab.
-            if (target?.closest('input, textarea, select, button, a[href], [contenteditable]')
-                && target.dataset.estellaTextEditor !== 'true') return;
+            if (target?.closest?.('input, textarea, select, button, a[href], [contenteditable]')
+                && target.dataset?.estellaTextEditor !== 'true') return;
             if (key.isComposing || key.keyCode === 229) return;
             if ((key.ctrlKey || key.metaKey || key.altKey) && ['Tab', 'Enter', 'Space'].includes(key.code)) return;
             heldKeys.add(key.code);
@@ -217,7 +253,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             heldTouches.clear();
             callbacks.onInputCancel?.();
         };
-        const onVisibilityChange = () => { if (document.hidden) onBlur(); };
+        const onVisibilityChange = () => { if (doc.hidden) onBlur(); };
         const onMouseMove = (e: Event) => {
             const me = e as MouseEvent;
             callbacks.onPointerMove(me.offsetX, me.offsetY, me.movementX, me.movementY);
@@ -236,7 +272,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onTouchStart = (e: Event) => {
             e.preventDefault();
             const te = e as TouchEvent;
-            const rect = (el as HTMLElement).getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
             for (let i = 0; i < te.changedTouches.length; i++) {
                 const touch = te.changedTouches[i];
                 heldTouches.add(touch.identifier);
@@ -246,7 +282,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onTouchMove = (e: Event) => {
             e.preventDefault();
             const te = e as TouchEvent;
-            const rect = (el as HTMLElement).getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
             for (let i = 0; i < te.changedTouches.length; i++) {
                 const touch = te.changedTouches[i];
                 pointer.move(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
@@ -275,8 +311,8 @@ class WebPlatformAdapter implements PlatformAdapter {
                 dx *= WHEEL_LINE_HEIGHT;
                 dy *= WHEEL_LINE_HEIGHT;
             } else if (we.deltaMode === 2) {
-                dx *= window.innerWidth;
-                dy *= window.innerHeight;
+                dx *= win.innerWidth;
+                dy *= win.innerHeight;
             }
             callbacks.onWheel(dx, dy);
         };
@@ -284,13 +320,20 @@ class WebPlatformAdapter implements PlatformAdapter {
         this.inputBinding_.bind(callbacks, scope => {
             scope.add(onBlur);
             scope.add(() => this.resetGamepadPoll_());
-            scope.listen(window, 'blur', onBlur);
-            scope.listen(document, 'visibilitychange', onVisibilityChange);
-            scope.listen(document, 'keydown', onKeyDown);
-            scope.listen(document, 'keyup', onKeyUp);
+            scope.listen(win, 'blur', onBlur);
+            scope.listen(doc, 'visibilitychange', onVisibilityChange);
+            scope.listen(doc, 'keydown', onKeyDown);
+            scope.listen(doc, 'keyup', onKeyUp);
+            scope.listen(doc, 'mouseup', onMouseUp);
+            // Offscreen surfaces have no DOM coordinates or pointer target.
+            if (typeof el.getBoundingClientRect !== 'function') return;
+            if (target && el.ownerDocument) {
+                followInputDocument(el, scope, () => {
+                    if (this.inputBinding_.owner === callbacks) this.bindInputEvents(callbacks, el);
+                });
+            }
             scope.listen(el, 'mousemove', onMouseMove);
             scope.listen(el, 'mousedown', onMouseDown);
-            scope.listen(document, 'mouseup', onMouseUp);
             scope.listen(el, 'touchstart', onTouchStart, { passive: false });
             scope.listen(el, 'touchmove', onTouchMove, { passive: false });
             scope.listen(el, 'touchend', onTouchEnd, { passive: false });

@@ -46,6 +46,28 @@ it('keeps the replacement canvas and keyboard live when the previous App quits',
     expect(input.isMouseButtonDown(2)).toBe(false);
 });
 
+it('follows a mounted canvas into its new document and releases keys held in the old one', async () => {
+    const frame = document.body.appendChild(document.createElement('iframe'));
+    const other = frame.contentDocument!;
+    const canvas = document.body.appendChild(document.createElement('canvas'));
+    const input = new InputState(), callbacks = inputEventCallbacks(input);
+    webAdapter.bindInputEvents(callbacks, canvas);
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA' }));
+    expect(input.isKeyDown('KeyA')).toBe(true);
+    other.body.appendChild(other.adoptNode(canvas));
+    await vi.waitFor(() => expect(input.isKeyDown('KeyA')).toBe(false));
+    const key = () => new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true });
+    document.dispatchEvent(key());
+    const field = other.body.appendChild(other.createElement('input'));
+    field.dispatchEvent(key());
+    expect(input.isKeyDown('KeyW')).toBe(false);
+    other.dispatchEvent(key());
+    expect(input.isKeyDown('KeyW')).toBe(true);
+    canvas.dispatchEvent(new MouseEvent('mousedown', { button: 2 }));
+    other.dispatchEvent(new MouseEvent('mouseup', { button: 2 }));
+    expect(input.isMouseButtonDown(2)).toBe(false);
+});
+
 it('releases input on the adapter that supplied it after the host has changed', () => {
     const oldHost = { bindInputEvents: vi.fn(), unbindInputEvents: vi.fn() };
     const newHost = { bindInputEvents: vi.fn(), unbindInputEvents: vi.fn() };

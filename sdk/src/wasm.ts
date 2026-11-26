@@ -12,6 +12,7 @@
 * @brief   WASM module type definitions
 */
 import type { Entity } from './types';
+import type { PlatformCanvas } from './platform/types';
 import type { NativeEngineApi } from './ecs/bridge/nativeEngineApi.generated';
 import type { Registry as GeneratedRegistry } from './wasm/wasm.generated';
 
@@ -226,6 +227,8 @@ type TilemapBindings = Pick<NativeEngineApi, Exclude<TilemapCalls, ScopedTilemap
 };
 
 export interface ESEngineModule extends TilemapBindings {
+    /** Canvas supplied by the host when instantiating the module. */
+    readonly canvas?: PlatformCanvas;
     Registry: new () => CppRegistry;
     /** JS-newable engine context. */
     EstellaContext: new () => CppEngineContext;

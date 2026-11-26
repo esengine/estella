@@ -7,6 +7,9 @@ import {AppContext,setDefaultContext} from '../src/ecs/context';
 import {createMockModule} from './mocks/wasm';
 import {setPlatform} from '../src/platform/base';
 import {nodeAdapter} from '../src/platform/node';
+import {webAdapter} from '../src/platform/web';
+import {Input, inputPlugin} from '../src/input/input';
+import type { RenderSurfaceSource } from '../src/app/app';
 
 // Ownership tests isolate graphics bootstrap; actual editor runs exercise it.
 vi.mock('../src/app/corePlugin',async importOriginal=>({...await importOriginal<typeof import('../src/app/corePlugin')>(),corePlugin:{build(){}}}));
@@ -60,6 +63,60 @@ describe('App registry ownership',()=>{
         const app=createWebApp(f.module,{renderSurface,plugins:[{build}]});
         expect(build).toHaveBeenCalledTimes(1);app.quit({keepRenderer:true});
         expect(f.release).toHaveBeenCalledTimes(1);expect(f.shutdown).not.toHaveBeenCalled();
+    });
+
+    it.each(['gl-context', 'webgpu', 'default', 'threaded-webgl2', 'threaded-webgpu'] as const)(
+        'installs input on the canvas selected by the %s renderer', kind => {
+            setPlatform(webAdapter);
+            const preview = document.createElement('canvas'), game = document.createElement('canvas');
+            game.id = kind === 'webgpu' ? 'custom-game' : 'canvas';
+            document.body.append(preview, game);
+            const { module } = fixture();
+            const gl = { GLctx: { canvas: game } };
+            Object.assign(module, {
+                canvas: preview,
+                GL: { contexts: [null, gl], currentContext: kind === 'default' ? gl : { GLctx: { canvas: preview } } },
+                initRendererWithContext: () => true, initRendererWebGPU: () => true,
+                renderThread_bootStatus: () => kind === 'threaded-webgpu' ? 2 : 1,
+            });
+            const renderSurface: RenderSurfaceSource = kind === 'gl-context' ? { kind, handle: 1 }
+                : kind === 'webgpu' ? { kind, canvasSelector: '#custom-game' } : { kind };
+            const app = createWebApp(module, { renderSurface });
+            try {
+                const input = app.getResource(Input);
+                app.addPlugin(inputPlugin);
+                expect(app.getResource(Input)).toBe(input);
+                preview.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                expect(input.isMouseButtonDown(0)).toBe(false);
+                game.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                expect(input.isMouseButtonDown(0)).toBe(true);
+            } finally {
+                app.quit({ keepRenderer: true });
+                preview.remove(); game.remove();
+            }
+        });
+
+    it('keeps host controls touchable before the render canvas is mounted', () => {
+        setPlatform(webAdapter);
+        const game = document.createElement('canvas');
+        const button = document.body.appendChild(document.createElement('button'));
+        const { module } = fixture();
+        Object.assign(module, { canvas: game, initRendererWithContext: () => true });
+        const app = createWebApp(module, { renderSurface: { kind: 'gl-context', handle: 1 } });
+        const touch = () => Object.assign(new Event('touchstart', { bubbles: true, cancelable: true }), {
+            changedTouches: [{ identifier: 2, clientX: 6, clientY: 8 }],
+        });
+        try {
+            const input = app.getResource(Input);
+            expect(button.dispatchEvent(touch())).toBe(true);
+            expect(input.touches.size).toBe(0);
+            document.body.append(game);
+            expect(game.dispatchEvent(touch())).toBe(false);
+            expect(input.touches.has(2)).toBe(true);
+        } finally {
+            app.quit({ keepRenderer: true });
+            button.remove(); game.remove();
+        }
     });
 
     it('a failed verification retains its diagnostic even when registry deletion throws',()=>{

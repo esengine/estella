@@ -40,6 +40,7 @@ import {
 } from './ambiguity';
 import { accessOf, conflicts, type SystemAccess } from './access';
 import { platformNow } from '../platform';
+import { bindRenderSurface } from './surface';
 import { RenderPipeline } from '../render/renderPipeline';
 import { clearWorldDrawCallbacks } from '../render/customDraw';
 import type { SceneConfig } from '../scene/sceneManager';
@@ -2184,42 +2185,7 @@ export interface WebAppOptions {
 
 /** The graphics API a web app's renderer draws through, as a connected device reports it. */
 export type GraphicsPath = 'WebGPU' | 'WebGL2' | 'EmscriptenGLX';
-interface AppSurface {
-    graphics: GraphicsPath | null;
-    size: (() => { width: number; height: number }) | null;
-}
-const surfaces = new WeakMap<App, AppSurface>();
-
-/** Null for an app whose module resolved its own surface. */
-export function graphicsPathOf(app: App): GraphicsPath | null {
-    return surfaces.get(app)?.graphics ?? null;
-}
-
-/**
- * Tell @p app the size its host draws at — what a host that builds its App
- * without {@link createWebApp} (the native core) does, so frame read-back and
- * anything else asking {@link surfaceSizeOf} gets the same answer on every core.
- * @internal
- */
-export function setAppSurfaceSize(app: App, size: () => { width: number; height: number }): void {
-    surfaces.set(app, { graphics: surfaces.get(app)?.graphics ?? null, size });
-}
-
-/** The size the engine draws at, as its host reports it; null when the host did not say. */
-export function surfaceSizeOf(app: App): { width: number; height: number } | null {
-    return surfaces.get(app)?.size?.() ?? null;
-}
-
-export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | null {
-    switch (surface.kind) {
-        case 'threaded-webgpu': return 'WebGPU';
-        case 'threaded-webgl2': return 'WebGL2';
-        case 'webgpu': return 'WebGPU';
-        case 'gl-context': return surface.glx ? 'EmscriptenGLX' : 'WebGL2';
-        case 'default': return null;
-    }
-}
-
+export { graphicsPathFor, graphicsPathOf, setAppSurfaceSize, surfaceSizeOf } from './surface';
 /** Construct an App over a host-owned engine. All factories unwind the plugins and ECS
  *  resources they installed if a later construction step throws. @internal */
 export function constructApp(build: (app: App) => void): App {
@@ -2285,7 +2251,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 }
                 break;
         }
-        surfaces.set(app, { graphics: graphicsPathFor(surface), size: options?.getViewportSize ?? null });
+        bindRenderSurface(app, module, surface, options?.getViewportSize);
         applyFrameOptions(module, options);
 
         app.addPlugin(corePlugin);
