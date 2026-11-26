@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { App } from '../src/app/app';
+import { AssetScope } from '../src/asset/AssetLease';
+import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 import { World } from '../src/ecs/world';
 import { Children, Name } from '../src/ecs/component';
 import type { ChildrenData, NameData } from '../src/ecs/component';
 import { instantiatePrefab, type PrefabData, type PrefabOverride } from '../src/prefab';
 import { cutToRoot, isDeferredInstance, rootOnly } from '../src/prefab/deferred';
-import { expandScenePrefabs, loadSceneWithAssets, type SceneData } from '../src/scene/scene';
+import { expandScenePrefabs, loadOwnedSceneWithAssets, loadSceneWithAssets, type SceneData } from '../src/scene/scene';
+import { SceneManagerState } from '../src/scene/sceneManager';
 import { deferredEntities, deferredRecord } from '../src/scene/deferredInstances';
 import { UIPages } from '../src/ui/pages/ui-pages';
 import { UIWorldAnchor } from '../src/ui/core/world-anchor';
@@ -125,7 +129,7 @@ describe.skipIf(!HAS_WASM)('virtual prefab instances: in a world', () => {
     const assetsFor = (prefabs: Record<string, PrefabData>): Assets => ({
         loadPrefab: async (ref: string) => { const data = prefabs[ref]; if (!data) throw new Error('no such prefab ' + ref); return { data }; },
         acquireTyped: async (_t: string, ref: string) => ({ value: { data: prefabs[ref] }, release() {} }),
-        preloadSceneAssets: async () => ({ scope: { releaseAll() {}, absorb() {} }, missing: [], textureHandles: new Map(), materialHandles: new Map() }),
+        preloadSceneAssets: async () => ({ scope: new AssetScope(), missing: [], textureHandles: new Map(), materialHandles: new Map() }),
         resolveSceneAssetPaths() {}, trackSceneAssetReferences() {},
     } as unknown as Assets);
     const nameOf = (w: World, e: Entity): string => (w.get(e, Name) as NameData).value;
@@ -136,23 +140,36 @@ describe.skipIf(!HAS_WASM)('virtual prefab instances: in a world', () => {
     };
     const find = (w: World, name: string): Entity => { const e = w.getAllEntities().find((x) => w.has(x, Name) && nameOf(w, x) === name); if (e === undefined) throw new Error('no entity ' + name); return e; };
 
-    it('loads only the root of a virtual instance, registers it, and opens it on demand under that root', async () => {
+    it.each(['borrowed', 'owned', 'path'])('opens a virtual prefab on demand after a %s scene load', async mode => {
         const prefabs = { home: prefab('home', ['a', 'b']), shop: prefab('shop', ['x', 'y', 'z']) };
-        const w = world(), assets = assetsFor(prefabs);
-        await loadSceneWithAssets(w, sceneOf(entry(2, 'home'), entry(3, 'shop', [mark()])), { assets });
-        expect(w.getAllEntities()).toHaveLength(1 + 3 + 1);                       // canvas, home + 2, the shop's root alone
-        const shop = find(w, 'shop');
-        expect(deferredEntities(w)).toEqual([shop]);
-        expect(deferredRecord(w, shop)!.prefab).toBe('shop');
-        expect(under(w, shop)).toEqual(['shop']);
+        const app = App.new();
+        app.connectCpp(new engine.Registry() as unknown as CppRegistry, engine, { ownedRegistry: true });
+        const w = app.world, assets = assetsFor(prefabs);
+        const data = sceneOf(entry(2, 'home'), entry(3, 'shop', [mark()]));
+        try {
+            if (mode === 'path') {
+                const fetchJson = vi.fn(async () => JSON.parse(JSON.stringify(data)));
+                app.insertResource(AssetsResource, Object.assign(assets, { fetchJson }));
+                const manager = new SceneManagerState(app);
+                manager.register({ name: 'start', path: 'start.esscene' });
+                await manager.load('start');
+                expect(fetchJson.mock.calls).toEqual([['start.esscene']]);
+            } else if (mode === 'owned') await loadOwnedSceneWithAssets(w, data, { assets });
+            else await loadSceneWithAssets(w, data, { assets });
+            expect(w.getAllEntities()).toHaveLength(5);
+            const shop = find(w, 'shop');
+            expect(deferredEntities(w)).toEqual([shop]);
+            expect(deferredRecord(w, shop)!.prefab).toBe('shop');
+            expect(under(w, shop)).toEqual(['shop']);
 
-        const pages = new UIPages(w, assets);
-        expect(pages.registerDeferredAll()).toEqual(['shop']);
-        expect(pages.isBuilt('shop')).toBe(false);
-        const handle = await pages.open('shop');
-        expect(handle.root).toBe(shop);
-        expect(under(w, shop)).toEqual(['shop', 'x', 'y', 'z']);
-        expect(w.getAllEntities()).toHaveLength(1 + 3 + 4);
+            const pages = new UIPages(w, assets);
+            expect(pages.registerDeferredAll()).toEqual(['shop']);
+            expect(pages.isBuilt('shop')).toBe(false);
+            const handle = await pages.open('shop');
+            expect(handle.root).toBe(shop);
+            expect(under(w, shop)).toEqual(['shop', 'x', 'y', 'z']);
+            expect(w.getAllEntities()).toHaveLength(8);
+        } finally { app.quit(); }
     });
 
     it('opens and reopens a nested page with its outer, local and scene targets intact', async () => {

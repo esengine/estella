@@ -320,7 +320,7 @@ export function declareSceneOutOfBandFields(type: string, fields: readonly strin
 
 /** True if any scene entry is a prefab instance (cheap gate before expansion). */
 export function sceneHasPrefabEntries(scene: SceneData): boolean {
-    return (scene.entities as SceneEntry[]).some(isPrefabEntry);
+    return Array.isArray(scene?.entities) && (scene.entities as SceneEntry[]).some(isPrefabEntry);
 }
 
 /** Resolves a prefab asset ref to its PrefabData, or null when unresolvable. */
@@ -807,21 +807,7 @@ export async function loadSceneWithAssets(
     options?: SceneLoadOptions
 ): Promise<Map<number, Entity>> {
     const attempt = new SceneLoadAttempt(world, sceneData.name, { signal: options?.signal });
-    // Expand prefab-instance entries first (via the same flattenPrefab core the
-    // editor uses) so migration + asset resolution + spawn all operate on plain
-    // entities — this is how a saved prefab scene achieves play == ship. The
-    // prefab's own asset refs are resolved by the regular preload below.
-    let scene = sceneData;
-    if (options?.assets && sceneHasPrefabEntries(scene)) {
-        const assets = options.assets;
-        const timed = scenePhaseRunner(attempt.observe(options.onPhase));
-        scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets));
-        attempt.assertCurrent();
-    }
-    // Migrate up-front to a private copy; asset resolution + spawn all operate
-    // on it, so the caller's SceneData is never mutated.
-    const { data } = migrateSceneData(scene);
-    return loadSceneAssetsAndSpawn(world, data, options, attempt, scene.deferredInstances);
+    return loadSceneDocument(world, sceneData, options, attempt, 'borrowed');
 }
 
 /**
@@ -835,13 +821,26 @@ export async function loadOwnedSceneWithAssets(
     world: World, scene: SceneData, options?: SceneLoadOptions,
     attempt = new SceneLoadAttempt(world, scene.name, { signal: options?.signal }),
 ): Promise<Map<number, Entity>> {
-    const { data } = migrateOwnedSceneData(scene);
+    return loadSceneDocument(world, scene, options, attempt, 'owned');
+}
+
+async function loadSceneDocument(
+    world: World, scene: SceneData, options: SceneLoadOptions | undefined, attempt: SceneLoadAttempt,
+    ownership: 'borrowed' | 'owned',
+): Promise<Map<number, Entity>> {
+    if (options?.assets && sceneHasPrefabEntries(scene)) {
+        const assets = options.assets;
+        const timed = scenePhaseRunner(attempt.observe(options.onPhase));
+        scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets));
+        attempt.assertCurrent();
+    }
+    const { data } = ownership === 'owned' ? migrateOwnedSceneData(scene) : migrateSceneData(scene);
     return loadSceneAssetsAndSpawn(world, data, options, attempt);
 }
 
 async function loadSceneAssetsAndSpawn(
     world: World, data: SceneData, options: SceneLoadOptions | undefined,
-    attempt: SceneLoadAttempt, deferred?: readonly DeferredRecord[],
+    attempt: SceneLoadAttempt,
 ): Promise<Map<number, Entity>> {
     return runSceneLoad(attempt, async () => {
         const onPhase = attempt.observe(options?.onPhase);
@@ -880,7 +879,7 @@ async function loadSceneAssetsAndSpawn(
             assertCurrent();
             ownership?.attach(world, entities);
             assets?.trackSceneAssetReferences(data, entities, world);
-            registerDeferredInstances(world, deferred, entities, options?.externalEntities);
+            registerDeferredInstances(world, data.deferredInstances, entities, options?.externalEntities);
             const result = attempt.assets;
             if (result && collector) {
                 for (const handle of result.materialHandles.values()) if (handle) collector.materialHandles.add(handle);

@@ -14,7 +14,7 @@ import type { SystemDef } from '../ecs/system';
 import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';
-import { loadSceneWithAssets } from './scene';
+import { loadOwnedSceneWithAssets, loadSceneWithAssets } from './scene';
 import { SceneAssetProgress } from './sceneAssetProgress';
 import { recordSceneOrigins } from './sceneOrigins';
 import { detachFromSceneParent, SceneEntityBatch } from './sceneHierarchy';
@@ -790,6 +790,7 @@ export class SceneManagerState {
                 if (this.preparingSwitch_?.instance !== instance) throw new SceneLoadCancelled(name);
             }
             let sceneData = config.data;
+            let loadDocument = loadSceneWithAssets;
             if (!sceneData && config.path) {
                 const began = performance.now();
                 const assetServer = this.app_.hasResource(Assets)
@@ -802,10 +803,11 @@ export class SceneManagerState {
                     if (!response.ok) throw new Error(`Scene "${name}" could not load "${config.path}" (HTTP ${response.status})`);
                     sceneData = await response.json() as SceneData;
                 }
+                loadDocument = loadOwnedSceneWithAssets;
                 config.onPhase?.('fetch', performance.now() - began);
             }
 
-            await this.loadSceneData_(instance, name, config, sceneData, ctx, handoff);
+            await this.loadSceneData_(instance, name, config, sceneData, loadDocument, ctx, handoff);
             this.assertSceneCanActivate_(instance);
             const change = request.activate && this.changeActiveScene_(name);
             if (change) {
@@ -1108,6 +1110,7 @@ export class SceneManagerState {
         name: string,
         config: SceneConfig,
         sceneData: SceneData | undefined,
+        loadDocument: typeof loadSceneWithAssets,
         ctx: SceneContextImpl,
         handoff?: () => Promise<void>,
     ): Promise<void> {
@@ -1146,9 +1149,7 @@ export class SceneManagerState {
                 loadOptions.assets = this.app_.getResource(Assets);
             }
 
-            const entityMap = await loadSceneWithAssets(
-                this.app_.world, sceneData, loadOptions
-            );
+            const entityMap = await loadDocument(this.app_.world, sceneData, loadOptions);
             if (handoff && this.preparingSwitch_?.instance === instance) await handoff();
 
             // Load token: if a concurrent unload (or a superseding load) replaced
