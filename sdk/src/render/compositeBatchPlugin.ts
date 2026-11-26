@@ -6,8 +6,8 @@
  *
  * @details The parts stay as authored: scripts find them, colliders collide, the editor picks them; only their
  *          MeshRenderer is switched off, and entities parented to the root draw them instead (see compositeBatch.ts
- *          for how a part is folded). Because those entities are the root's children, moving, turning or scaling the
- *          root moves the whole model at the cost of one transform.
+ *          for how a part is folded). The holders follow rigid motion and uniform scale changes of the root.
+ *          A change in the root's scale ratios rechecks which placements its holders can represent.
  *
  *          The pass looks again twice a second. A part added under the root, removed, switched to another mesh or
  *          placed somewhere else in it re-plans the composite, and only the chunks whose members changed are merged
@@ -34,7 +34,8 @@ import { log } from '../util/logger';
 import type { Entity } from '../types';
 import { channelSignature, layoutRefusal, mergeMeshes, staticBatchKey, type StaticBatchRefusal } from './staticBatch';
 import {
-    COMPOSITE_DEFAULTS, COMPOSITE_PLACEMENT_FLOATS, placementsOf, planComposite, rootLocalMatrix, sameMatrix,
+    COMPOSITE_DEFAULTS, COMPOSITE_PLACEMENT_FLOATS, canBatchCompositePart, compositeRootScale, placementsOf,
+    planComposite, rootLocalMatrix, sameCompositeRootScale, sameMatrix,
     type CompositeLimits, type CompositePart, type Mat4, type TRS,
 } from './compositeBatch';
 
@@ -124,9 +125,11 @@ interface CompositeState {
     /** Parts whose MeshRenderer this pass switched off, and so must switch back on. */
     owned: Set<Entity>;
     moving: Set<Entity>;
-    refused: Map<Entity, StaticBatchRefusal>;
+    refused: Map<Entity, StaticBatchRefusal | 'transform'>;
     holders: Set<Entity>;
     nextScan: number;
+    rootScale: ReturnType<typeof compositeRootScale>;
+    transformEpoch: number;
 }
 
 /** Run-time access to the composites: what each one draws, and how to look again now. */
@@ -178,10 +181,11 @@ export class CompositeBatchPlugin implements Plugin {
         const state = new CompositeBatching();
         app.insertResource(CompositeBatchingRes, state);
         let frame = 0;
-        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => {
             frame++;
-            if (state.busy_ || !app.hasResource(Assets)) return;
+            if (!app.hasResource(Assets)) return;
             const world = app.world;
+            const epoch = world.transformEpoch();
             // A root that went away takes its draws with it and gives its parts their own back.
             for (const [root, c] of state.composites_) {
                 if (!world.valid(root) || !world.has(root, CompositeBatch)) { this.discard(app, c); state.composites_.delete(root); }
@@ -193,12 +197,27 @@ export class CompositeBatchPlugin implements Plugin {
                     c = {
                         root, cellSize: null, parts: new Map(), chunks: new Map(), sets: new Map(), owned: new Set(),
                         moving: new Set(), refused: new Map(), holders: new Set(), nextScan: frame,
+                        rootScale: null, transformEpoch: -1,
                     };
                     state.composites_.set(root, c);
                 }
+                if (epoch < 0 || c.transformEpoch !== epoch) {
+                    c.transformEpoch = epoch;
+                    const scale = compositeRootScale(rootLocalMatrix(this.chain(world, root)!));
+                    if (!sameCompositeRootScale(scale, c.rootScale)) {
+                        c.rootScale = scale;
+                        if (c.parts.size || c.owned.size) {
+                            this.discard(app, c);
+                            this.stamp(app, c, 0, 0);
+                        }
+                        c.nextScan = frame + 1;
+                        continue;
+                    }
+                }
+                if (!c.rootScale) continue;
                 if (state.forced_.has(root) || frame >= c.nextScan) due.push(root);
             }
-            if (due.length === 0) return;
+            if (state.busy_ || due.length === 0) return;
             state.busy_ = true;
             void (async () => {
                 for (const root of due) {
@@ -245,16 +264,15 @@ export class CompositeBatchPlugin implements Plugin {
         return out;
     }
 
-    /** The local transforms from just under the root, through any grouping entities. */
-    private chain(app: App, root: Entity, entity: Entity): TRS[] | null {
-        const world = app.world;
+    /** Transform chain up to the specified root or the end of the hierarchy. */
+    private chain(world: App['world'], entity: Entity, root?: Entity): TRS[] | null {
         const out: TRS[] = [];
         let at = entity;
         while (at !== root) {
-            const parent = world.tryGet(at, Parent);
-            if (!parent) return null;
             const t = world.tryGet(at, Transform);
             if (t) out.push({ position: t.position, rotation: t.rotation, scale: t.scale });
+            const parent = world.tryGet(at, Parent);
+            if (!parent) return root === undefined ? out.reverse() : null;
             at = parent.entity;
         }
         return out.reverse();
@@ -276,9 +294,11 @@ export class CompositeBatchPlugin implements Plugin {
 
     private async scan(app: App, c: CompositeState): Promise<void> {
         const world = app.world;
-        const counts = app.getResource(CompositeBatchingRes).counts;
+        const state = app.getResource(CompositeBatchingRes);
+        const counts = state.counts;
+        const rootScale = c.rootScale;
+        if (!rootScale || !world.valid(c.root) || !world.has(c.root, CompositeBatch)) return;
         counts.scans++;
-        if (!world.valid(c.root)) return;
         const settings = world.get(c.root, CompositeBatch) as CompositeBatchData;
         const limits: CompositeLimits = { ...COMPOSITE_DEFAULTS, instanceMin: settings.instanceMin, cellSize: settings.cellSize };
 
@@ -307,15 +327,20 @@ export class CompositeBatchPlugin implements Plugin {
             if (mesh === undefined) {
                 mesh = await this.meshData(app, mr.mesh);
                 this.resolved_.set(mr.mesh, mesh);
+                if (c.rootScale !== rootScale || state.composites_.get(c.root) !== c) return;
             }
             if (!world.valid(e) || !world.valid(c.root)) continue;
             if (!mesh) { c.refused.set(e, 'no-mesh'); continue; }
             const layout = layoutRefusal(mesh);
             if (layout) { c.refused.set(e, layout); continue; }
 
-            const chain = this.chain(app, c.root, e);
+            const chain = this.chain(world, e, c.root);
             if (!chain) continue;
             const local = rootLocalMatrix(chain);
+            if (!canBatchCompositePart(local, rootScale)) {
+                c.refused.set(e, 'transform');
+                continue;
+            }
             const known = c.parts.get(e);
             const key = known && known.mesh === mr.mesh && sameDrawState(known.mr, mr) ? known.key : staticBatchKey({
                 material: mr.material, texture: mr.texture, normalMap: mr.normalMap, color: mr.color, layer: mr.layer,

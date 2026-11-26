@@ -186,6 +186,40 @@ try {
         assert.equal(grouped.component.instanced, 104);
         compare('deep-composite-hierarchy', groupedPlain, await capture('grouped-batched'));
         await toggle(false);
+
+        const scale = (id, on) => page.evaluate(({ id, on }) => {
+            window.__estellaHeadless.api.setField(id, 'Transform', 'scale', '', { x: on ? 2.5 : 1, y: 1, z: on ? 0.4 : 1 });
+        }, { id, on });
+        const turnParts = (on) => page.evaluate(({ on, parts }) => {
+            const { api } = window.__estellaHeadless;
+            for (const id of parts) api.setField(id, 'Transform', 'rotation', '', {
+                x: 0, y: on ? Math.sin(Math.PI / 8) : 0, z: 0, w: on ? Math.cos(Math.PI / 8) : 1,
+            });
+        }, { on, parts: groupedParts });
+        await scale(groups[0].id, true);
+        await turnParts(true);
+        const shearedPlain = await capture('sheared-plain');
+        await page.evaluate(() => window.__estellaHeadless.api.setComponent(1000, 'CompositeBatch', { instanceMin: 4, cellSize: 2 }));
+        const sheared = await settle(107);
+        assert.equal(sheared.report.refused, 2);
+        assert.equal(sheared.component.instanced, 103);
+        compare('rotated-parts-under-nonuniform-scale', shearedPlain, await capture('sheared-batched'));
+        await toggle(false);
+        await scale(groups[0].id, false);
+        await toggle(true, 109);
+        await scale(1000, true);
+        const restoredOnResize = await page.evaluate(async () => {
+            const { api } = window.__estellaHeadless;
+            await api.step(1);
+            return api.compositeBatchReport(1000);
+        });
+        assert.equal(restoredOnResize.holders.length, 0);
+        assert.equal((await settle(107)).report.refused, 2);
+        const scaledRootBatch = await capture('scaled-root-batched');
+        await toggle(false);
+        compare('changing-root-scale-ratios', await capture('scaled-root-plain'), scaledRootBatch);
+        await scale(1000, false);
+        await turnParts(false);
         await page.evaluate(ids => {
             for (const id of ids) window.__estellaHeadless.api.setParent(id, 1000);
         }, groupedParts);

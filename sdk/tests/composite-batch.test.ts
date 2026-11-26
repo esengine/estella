@@ -7,7 +7,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-    COMPOSITE_DEFAULTS, multiply, placementsOf, planComposite, rootLocalMatrix, sameMatrix, type CompositePart,
+    COMPOSITE_DEFAULTS, canBatchCompositePart, compositeRootScale, multiply, placementsOf, planComposite,
+    rootLocalMatrix, sameCompositeRootScale, sameMatrix, type CompositePart,
 } from '../src/render/compositeBatch';
 import { worldMatrix } from '../src/render/staticBatch';
 
@@ -40,6 +41,25 @@ describe('rootLocalMatrix', () => {
         expect(b[12]).toBeCloseTo(500 + 2 * 2);
         expect(b[14]).toBeCloseTo(9 - 2 * 3);
         expect(sameMatrix(local, rootLocalMatrix([at(3, 1, 2)]))).toBe(true);
+    });
+});
+
+describe('composite placement eligibility', () => {
+    const turn = { ...at(0), rotation: { x: 0, y: Math.sin(Math.PI / 8), z: 0, w: Math.cos(Math.PI / 8) } };
+    const stretch = { ...at(0), scale: { x: 2.5, y: 1, z: 0.4 } };
+
+    it('leaves only the sheared placements out of a batch with an anisotropic holder', () => {
+        const scale = compositeRootScale(rootLocalMatrix([stretch]))!;
+        expect(canBatchCompositePart(rootLocalMatrix([at(1, 2, 3)]), scale)).toBe(true);
+        expect(canBatchCompositePart(rootLocalMatrix([turn]), scale)).toBe(false);
+        expect(compositeRootScale(rootLocalMatrix([stretch, turn]))).toBeNull();
+    });
+
+    it('preserves scale ratios through rigid motion and uniform resizing', () => {
+        const scale = compositeRootScale(rootLocalMatrix([stretch]));
+        const moved = rootLocalMatrix([{ ...turn, position: { x: 4, y: 5, z: 6 }, scale: { x: 2, y: 2, z: 2 } }, stretch]);
+        expect(sameCompositeRootScale(scale, compositeRootScale(moved))).toBe(true);
+        expect(sameCompositeRootScale(scale, compositeRootScale(rootLocalMatrix([at(0)])))).toBe(false);
     });
 });
 

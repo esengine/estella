@@ -8,8 +8,8 @@
  *          mesh is nailed to where the parts stood: a ship, a train or a moving platform
  *          assembled from planks, rails and props cannot use it. A composite batch bakes
  *          each part relative to the composite's ROOT instead, and draws the result from an
- *          entity parented to that root. Moving the root moves every draw with no work per
- *          part; the parts themselves are never touched again.
+ *          entity parented to that root. Rigid motion and uniform resizing of the root reuse
+ *          those draws without rebuilding the placements.
  *
  *          Two ways to fold a part, chosen per mesh:
  *            - a mesh repeated `instanceMin` times or more (deck planks, rail posts) stays one
@@ -52,6 +52,41 @@ export function rootLocalMatrix(chain: readonly TRS[]): Mat4 {
     let m = worldMatrix({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 }, { x: 1, y: 1, z: 1 });
     for (const t of chain) m = multiply(m, worldMatrix(t.position, t.rotation, t.scale));
     return m;
+}
+
+type AxisLengths = readonly [number, number, number];
+const TRS_TOLERANCE = 1e-6;
+
+/** Lengths of the matrix axes if the basis can be drawn as a rotation and scale. */
+function orthogonalAxisLengths(m: Mat4, scale: AxisLengths): AxisLengths | null {
+    const [sx, sy, sz] = scale;
+    const ax = m[0] * sx, ay = m[1] * sy, az = m[2] * sz;
+    const bx = m[4] * sx, by = m[5] * sy, bz = m[6] * sz;
+    const cx = m[8] * sx, cy = m[9] * sy, cz = m[10] * sz;
+    const a = Math.hypot(ax, ay, az), b = Math.hypot(bx, by, bz), c = Math.hypot(cx, cy, cz);
+    if (!(Math.min(a, b, c) > TRS_TOLERANCE) || !Number.isFinite(a + b + c)) return null;
+    return Math.abs(ax * bx + ay * by + az * bz) <= TRS_TOLERANCE * a * b
+        && Math.abs(ax * cx + ay * cy + az * cz) <= TRS_TOLERANCE * a * c
+        && Math.abs(bx * cx + by * cy + bz * cz) <= TRS_TOLERANCE * b * c ? [a, b, c] : null;
+}
+
+/** The scale ratios of a usable holder frame. Its rotation and translation preserve orthogonality. */
+export function compositeRootScale(m: Mat4): AxisLengths | null {
+    const lengths = orthogonalAxisLengths(m, [1, 1, 1]);
+    if (!lengths) return null;
+    const max = Math.max(...lengths);
+    return [lengths[0] / max, lengths[1] / max, lengths[2] / max];
+}
+
+/** Whether a holder and a part produce a basis the individual mesh renderer can draw. */
+export function canBatchCompositePart(local: Mat4, rootScale: AxisLengths): boolean {
+    return orthogonalAxisLengths(local, rootScale) !== null;
+}
+
+/** Uniform scaling and rigid motion leave the existing placements valid. */
+export function sameCompositeRootScale(a: AxisLengths | null, b: AxisLengths | null): boolean {
+    return a === b || (a !== null && b !== null
+        && a.every((v, axis) => Math.abs(v - b[axis]) <= TRS_TOLERANCE * Math.max(v, b[axis])));
 }
 
 /** Whether two placements are the same within a rounding a float transform picks up from a read-back. */
