@@ -95,6 +95,10 @@ const DECLARED_GAPS = {
     play: 'the play realm boots on the editor\'s own context; the two backends are held '
       + 'equal by the pixel gates (`verify-render --backend webgpu`) rather than by Play',
   },
+  vr: {
+    editor: 'the editor never presents in a headset: its canvas is the editing view, and a headset is entered from a page',
+    play: 'Enter VR is offered by an exported web page; embedded Play and the device preview show no such button yet',
+  },
   threadedRendering: {
     editor: 'the editing canvas and its inspection tools share the editor thread',
     play: 'embedded Play shares an unisolated editor window; local browser preview runs the exported host with cross-origin isolation',
@@ -135,6 +139,7 @@ const PARSE_KEY = {
   outputTransform: 'r.outputTransform',
   renderBackend: 'r.backend',
   threadedRendering: 'r.threadedRendering',
+  vr: 'r.vr',
   asyncCompute: 'r.asyncCompute',
   screenFit: 'r.cameraScaleMode',
   msaaSamples: 'r.msaa',
@@ -168,6 +173,7 @@ const AUTHORING = {
   quality: { ui: 'project.rendering.quality' },
   renderBackend: { ui: 'project.rendering.backend' },
   threadedRendering: { ui: 'project.rendering.threadedRendering' },
+  vr: { owed: 'set in project.esproject by hand (features.rendering.vr); Project Settings has no VR switch yet' },
   asyncCompute: { ui: 'project.rendering.asyncCompute' },
   screenFit: { ui: 'project.display.cameraFit' },
 };

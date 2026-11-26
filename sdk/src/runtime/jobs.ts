@@ -234,7 +234,12 @@ export function setMainThreadGate(next: MainThreadGate | null): () => void {
     const before = gate;
     gate = next;
     drain();
-    return () => { if (gate === next) { gate = before; drain(); } };
+    return () => {
+        if (gate === next) {
+            gate = before;
+            drain();
+        }
+    };
 }
 
 /** How long a job done here waits for a turn before it runs anyway: frames that stop after it asked must not keep it waiting for good. */
@@ -293,8 +298,19 @@ function waitForTurn(g: MainThreadGate): Promise<void> {
     if (!g.stepping()) return new Promise((go) => setTimeout(go, 0));
     return new Promise<void>((go) => {
         let open = true;
-        const timer = setTimeout(() => { if (open) { open = false; go(); } }, TURN_WAIT_MS);
-        void g.turn(HERE).then(() => { if (open) { open = false; clearTimeout(timer); go(); } });
+        const timer = setTimeout(() => {
+            if (open) {
+                open = false;
+                go();
+            }
+        }, TURN_WAIT_MS);
+        void g.turn(HERE).then(() => {
+            if (open) {
+                open = false;
+                clearTimeout(timer);
+                go();
+            }
+        });
     });
 }
 

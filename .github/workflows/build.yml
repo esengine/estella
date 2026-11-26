@@ -555,6 +555,11 @@ jobs:
     - name: Verify the WebGL2 render worker
       run: node tools/verify-render-thread.mjs build/wasm/web webgl2
 
+    # A web build in a headset: both eyes into the session's framebuffer, a controller held and pressed. Against a
+    # stand-in headset, in the Chromium installed above; it exports with the SDK built above and this job's wasm.
+    - name: Verify VR presentation
+      run: node tools/verify-xr.mjs
+
     - name: Run Desktop tests (engine-coupled)
       env:
         ESTELLA_REQUIRE_WASM: '1'

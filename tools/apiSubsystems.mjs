@@ -181,6 +181,16 @@ export const SUBSYSTEMS = [
         entry: ['Camera', 'CameraData'],
     },
     {
+        id: 'xr',
+        title: 'VR headsets (WebXR)',
+        titleZh: 'VR 头显（WebXR）',
+        source: ['xr'],
+        tier: 'experimental',
+        why: 'checked only against a stand-in headset in a headless browser; no headset has played a build yet',
+        whyZh: '只在无头浏览器里对着模拟头显验证过，还没有真头显玩过任何一个包',
+        entry: ['enterVR', 'XRController'],
+    },
+    {
         id: 'spine',
         title: 'Spine',
         titleZh: 'Spine',

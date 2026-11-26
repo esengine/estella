@@ -62,7 +62,9 @@ const forward = -input.getXRAxis(XRAxis.ThumbstickY, 'left');
 ```
 
 `XRButton` names `Trigger`, `Squeeze`, `Touchpad`, `Thumbstick` (its click), `Primary` (A or X) and `Secondary` (B or
-Y). Actions can be bound to them with `XrButton(button, hand)` and `XrStick(hand)`, and a rebind listens to them too.
+Y). The controllers are also gamepads, 1000 for the left hand and 1001 for the right (`xrPadIndex(hand)`), so any
+gamepad query or binding reaches them. Actions can be bound to them with `XrButton(button, hand)` and `XrStick(hand)`,
+and a rebind listens to them too.
 `xrPresentation(app)` reports each controller's poses and what the browser says it is, and the head's pose.
 
 ## What a headset does not show

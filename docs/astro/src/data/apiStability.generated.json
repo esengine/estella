@@ -3,10 +3,10 @@
   "counts": {
     "public": 115,
     "beta": 182,
-    "experimental": 3613,
+    "experimental": 3638,
     "deprecated": 3
   },
-  "total": 3910,
+  "total": 3935,
   "subsystems": [
     {
       "id": "mobile-controls",
@@ -206,6 +206,18 @@
       "entry": [
         "Camera",
         "CameraData"
+      ]
+    },
+    {
+      "id": "xr",
+      "title": "VR headsets (WebXR)",
+      "titleZh": "VR 头显（WebXR）",
+      "tier": "experimental",
+      "why": "checked only against a stand-in headset in a headless browser; no headset has played a build yet",
+      "whyZh": "只在无头浏览器里对着模拟头显验证过，还没有真头显玩过任何一个包",
+      "entry": [
+        "enterVR",
+        "XRController"
       ]
     },
     {

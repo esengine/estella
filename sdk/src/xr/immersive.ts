@@ -22,6 +22,7 @@ import type { App } from '../app/app';
 import { Renderer } from '../render/renderer';
 import { log } from '../util/logger';
 import { Input } from '../input/input';
+import { forgetExternalFramebuffer, nameExternalFramebuffer } from '../asset/glTextureUpload';
 import { setXRPresentation, xrPresentation, type XRControllerState, type XREyeView, type XRPoseLike, type XRPresentationState } from './xrPresentation';
 
 // The slice of WebXR used here: the DOM library TypeScript ships does not declare it.
@@ -117,8 +118,6 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
     const gl = engineGL(app);
     if (!gl) throw new Error('VR needs the WebGL2 renderer on the page\'s own thread: a WebGPU or threaded build cannot draw into a headset yet.');
     const module = app.wasmModule!;
-    const glTable = module.GL;
-    if (!glTable.framebuffers) throw new Error('internal: this engine build does not expose its framebuffer table, so a headset\'s framebuffer cannot be drawn into.');
 
     const session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
     let fbId = 0;
@@ -131,8 +130,8 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
         session.updateRenderState({ baseLayer: layer });
         const refSpace = await session.requestReferenceSpace(options.referenceSpace ?? 'local');
         if (!layer.framebuffer) throw new Error('The headset\'s layer has no framebuffer to draw into.');
-        fbId = glTable.getNewId(glTable.framebuffers);
-        glTable.framebuffers[fbId] = layer.framebuffer;
+        fbId = nameExternalFramebuffer(module, layer.framebuffer);
+        if (!fbId) throw new Error('internal: this engine build does not expose its framebuffer table, so the headset\'s framebuffer cannot be drawn into.');
         if (!Renderer.setScreenTarget(fbId)) throw new Error('This renderer cannot draw into a headset\'s framebuffer.');
 
         const state: XRPresentationState = {
@@ -204,7 +203,7 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
             input?.updateXRControllers([]);
             app.setFrameSource(null);
             Renderer.setScreenTarget(0);
-            delete glTable.framebuffers![fbId];
+            forgetExternalFramebuffer(module, fbId);
             log.info('xr', `left VR: ${state.drawnFrames} frame(s) shown, ${state.missedFrames} drawn too late to be`);
         };
         session.addEventListener('end', end);
@@ -218,7 +217,7 @@ export async function enterVR(app: App, options: EnterVROptions = {}): Promise<v
     } catch (e) {
         if (fbId) {
             Renderer.setScreenTarget(0);
-            delete glTable.framebuffers[fbId];
+            forgetExternalFramebuffer(module, fbId);
         }
         await session.end().catch(() => {});
         throw e;

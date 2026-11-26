@@ -267,3 +267,22 @@ export function readBitmapTexels(image: GlImageSource, width: number, height: nu
         gl.deleteTexture(texture);
     }
 }
+
+/**
+ * Names a framebuffer the platform owns (an immersive XR session's layer) in the module's GL object pool, so the device can
+ * bind it by that name (`Renderer.setScreenTarget`). Here, beside the textures, because this file is the one place the SDK
+ * reaches into that pool. Answers 0 when the module has no framebuffer pool to name it in. The device never deletes it.
+ */
+export function nameExternalFramebuffer(module: ESEngineModule, framebuffer: WebGLFramebuffer): number {
+    const pool = module.GL?.framebuffers;
+    if (!pool) return 0;
+    const id = module.GL.getNewId(pool);
+    pool[id] = framebuffer;
+    return id;
+}
+
+/** Takes back a name {@link nameExternalFramebuffer} gave, when the platform's framebuffer is gone. */
+export function forgetExternalFramebuffer(module: ESEngineModule, id: number): void {
+    const pool = module.GL?.framebuffers;
+    if (pool && id) delete pool[id];
+}

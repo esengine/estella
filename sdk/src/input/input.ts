@@ -90,6 +90,22 @@ export enum XRAxis {
 /** Which hand holds a VR controller. @experimental */
 export type XRHandedness = 'left' | 'right';
 
+/** The first gamepad index the VR controllers take: far past any a browser numbers its pads with. */
+const XR_PAD_BASE = 1000;
+
+/**
+ * The gamepad index of the VR controller in `hand` (1000 left, 1001 right): every gamepad query and binding reaches it there,
+ * `GpButton(XRButton.Trigger, xrPadIndex('right'))` among them. @experimental
+ */
+export function xrPadIndex(hand: XRHandedness): number {
+    return XR_PAD_BASE + (hand === 'left' ? 0 : 1);
+}
+
+/** Whether a gamepad index is a VR controller's. @experimental */
+export function isXRPadIndex(index: number): boolean {
+    return index === XR_PAD_BASE || index === XR_PAD_BASE + 1;
+}
+
 /** @internal Per-gamepad runtime state — current + previous frame, for edges. */
 interface PadState {
     connected: boolean;
@@ -380,74 +396,66 @@ export class InputState {
     /** Axis magnitudes below this read as 0 (rest-position stick jitter). */
     gamepadDeadzone = 0.15;
 
-    // — VR controllers (set each headset frame by the session; edges as a gamepad's) —
-    /** Each hand's controller, while a headset presents. Not in {@link gamepads}: their layout is not the standard one. */
-    xrControllers = new Map<XRHandedness, PadState>();
+    // — VR controllers (set each headset frame by the session) —
+    // They are gamepads at two indices of their own ({@link xrPadIndex}), so every gamepad query, binding and rebind reaches
+    // them; these methods read them by hand. Their layout is `xr-standard`, not the standard one: query them with XRButton.
 
     /** Whether the controller in `hand` is tracked now. @experimental */
     isXRControllerConnected(hand: XRHandedness): boolean {
-        return this.xrControllers.get(hand)?.connected ?? false;
+        return this.isGamepadConnected(xrPadIndex(hand));
     }
 
     /** Whether `button` on the controller in `hand` is held down (an analog one at or past {@link gamepadButtonThreshold}). @experimental */
     isXRButtonDown(button: XRButton, hand: XRHandedness): boolean {
-        const p = this.connectedXR_(hand);
-        return !!p && (p.buttons[button] ?? 0) >= this.gamepadButtonThreshold;
+        return this.isGamepadButtonDown(button, xrPadIndex(hand));
     }
 
     /** Whether `button` went down this frame. @experimental */
     isXRButtonPressed(button: XRButton, hand: XRHandedness): boolean {
-        const p = this.connectedXR_(hand);
-        if (!p) return false;
-        const t = this.gamepadButtonThreshold;
-        return (p.buttons[button] ?? 0) >= t && (p.prevButtons[button] ?? 0) < t;
+        return this.isGamepadButtonPressed(button, xrPadIndex(hand));
     }
 
     /** Whether `button` came up this frame. @experimental */
     isXRButtonReleased(button: XRButton, hand: XRHandedness): boolean {
-        const p = this.connectedXR_(hand);
-        if (!p) return false;
-        const t = this.gamepadButtonThreshold;
-        return (p.buttons[button] ?? 0) < t && (p.prevButtons[button] ?? 0) >= t;
+        return this.isGamepadButtonReleased(button, xrPadIndex(hand));
     }
 
     /** How far `button` is pressed, 0..1 (a trigger is analog; a face button is 0 or 1). @experimental */
     getXRButtonValue(button: XRButton, hand: XRHandedness): number {
-        return this.connectedXR_(hand)?.buttons[button] ?? 0;
+        return this.getGamepadButtonValue(button, xrPadIndex(hand));
     }
 
     /** An axis of the controller in `hand`, with the gamepad dead zone applied. @experimental */
     getXRAxis(axis: XRAxis, hand: XRHandedness): number {
-        const v = this.connectedXR_(hand)?.axes[axis] ?? 0;
-        return Math.abs(v) < this.gamepadDeadzone ? 0 : v;
+        return this.getGamepadAxis(axis, xrPadIndex(hand));
     }
 
     /**
-     * This headset frame's controllers: the previous values become the ones edges are measured from, and a hand not in
-     * `controllers` reads as disconnected. The XR session calls it once a frame; an empty list when it ends. @experimental
+     * This headset frame's controllers, into their gamepad indices: the previous values become the ones edges are measured
+     * from, and a hand not in `controllers` reads as disconnected. The XR session calls it once a frame; an empty list when it
+     * ends. @experimental
      */
     updateXRControllers(controllers: ReadonlyArray<{ hand: string; buttons: number[]; axes: number[] }>): void {
-        const seen = new Set<XRHandedness>();
+        const seen = new Set<number>();
         for (const c of controllers) {
             if (c.hand !== 'left' && c.hand !== 'right') continue;
-            let p = this.xrControllers.get(c.hand);
+            const index = xrPadIndex(c.hand);
+            let p = this.gamepads.get(index);
             if (!p) {
                 p = { connected: false, buttons: [], prevButtons: [], axes: [] };
-                this.xrControllers.set(c.hand, p);
+                this.gamepads.set(index, p);
             }
             // A controller found again starts from nothing pressed, so a button held through the gap is a press.
             p.prevButtons = p.connected ? p.buttons : [];
             p.buttons = c.buttons;
             p.axes = c.axes;
             p.connected = true;
-            seen.add(c.hand);
+            seen.add(index);
         }
-        for (const [hand, p] of this.xrControllers) if (!seen.has(hand)) p.connected = false;
-    }
-
-    private connectedXR_(hand: XRHandedness): PadState | undefined {
-        const p = this.xrControllers.get(hand);
-        return p?.connected ? p : undefined;
+        for (const hand of ['left', 'right'] as const) {
+            const p = this.gamepads.get(xrPadIndex(hand));
+            if (p && !seen.has(xrPadIndex(hand))) p.connected = false;
+        }
     }
 
     /** Indices of currently-connected gamepads. */
@@ -538,7 +546,8 @@ export class InputState {
             ...snapshots.filter((s) => !this.injected_.has(s.index)),
             ...this.injected_.values(),
         ];
-        for (const p of this.gamepads.values()) p.connected = false;
+        // The VR controllers' indices are the session's, not the poll's.
+        for (const [index, p] of this.gamepads) if (!isXRPadIndex(index)) p.connected = false;
         for (const snap of merged) {
             let p = this.gamepads.get(snap.index);
             if (!p) {

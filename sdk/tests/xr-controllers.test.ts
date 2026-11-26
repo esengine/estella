@@ -4,7 +4,7 @@
  * @file  VR controllers: their buttons and sticks as input, actions bound to them, and the entities that follow them.
  */
 import { describe, expect, it } from 'vitest';
-import { InputState, XRAxis, XRButton } from '../src/input/input';
+import { InputState, XRAxis, XRButton, xrPadIndex } from '../src/input/input';
 import { Axis2D, Button, InputMap, XrButton, XrStick } from '../src/input/inputMap';
 import { World } from '../src/ecs/world';
 import { Parent, Transform } from '../src/ecs/component';
@@ -50,6 +50,16 @@ describe('VR controller input', () => {
         input.updateXRControllers([]);
         expect(input.isXRControllerConnected('left')).toBe(false);
         expect(input.getXRAxis(XRAxis.ThumbstickY, 'left')).toBe(0);
+    });
+
+    it('are gamepads at indices of their own, which the poll of real pads leaves alone', () => {
+        const input = new InputState();
+        input.updateXRControllers([controller('right', [1])]);
+        // The page's pads are polled every frame; a VR controller is not among them and must not be marked gone.
+        input.updateGamepads([]);
+        expect(input.isXRControllerConnected('right')).toBe(true);
+        expect(input.isGamepadButtonDown(XRButton.Trigger, xrPadIndex('right'))).toBe(true);
+        expect(input.getGamepads()).toContain(xrPadIndex('right'));
     });
 
     it('presses again a button held while the controller was lost', () => {

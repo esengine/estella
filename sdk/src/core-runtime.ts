@@ -322,6 +322,8 @@ export {
     GamepadAxis,
     XRButton,
     XRAxis,
+    xrPadIndex,
+    isXRPadIndex,
     type XRHandedness,
     type TouchPoint,
 } from './input/input';

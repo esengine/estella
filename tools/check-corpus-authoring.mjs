@@ -134,6 +134,8 @@ const DISPOSITION = {
   Planet: ['owed', 'authored by a game today (star-neighbors, a round planet from its own generator); an example that registers a planet provider is owed'],
   MeshInstances: ['derived', 'the foliage and world generation systems write it, one entity a kind and part of a cell; its places are data a system computes, not something a scene authors'],
   ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
+  XRController: ['owed', 'no example is played in a headset yet; a VR example where the player holds a lantern and points with the other hand is where the first one goes'],
+  XRHead: ['owed', 'no example is played in a headset yet; the same VR example, with something worn on the head, is where the first one goes'],
   Waterfall: ['owed', 'no example has water falling off a lip yet; the terrain-and-water example, where a river meets a cliff, is where the first one goes'],
   Breakable: ['owed', 'no example scene breaks an object yet; a breakable crate in the physics-3d example is where the first one goes'],
   WindWake: ['owed', 'no example scene moves a body through grass yet; the wilds meadow, with its character walking through it, is where the first one goes'],
