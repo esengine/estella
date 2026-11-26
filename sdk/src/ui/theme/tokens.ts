@@ -4,14 +4,13 @@
  * @file    ui/theme/tokens.ts
  * @brief   ThemeTokens — semantic design tokens for the widget layer.
  *
- * Widgets read their defaults from the active theme via {@link getTheme} instead
- * of hard-coding values ("去裸色"): one place defines the palette + type scale, and
- * an app re-themes every widget it constructs afterwards by calling {@link setTheme}
- * first. Semantic roles (surface/control/primary/text/…) decouple widgets from
- * literal values, so the same widget code renders correctly under {@link DARK_TOKENS}
- * or {@link LIGHT_TOKENS}. `DARK_TOKENS` is the built-in default.
+ * Widgets read the palette and type scale of their owning world through
+ * {@link getTheme}. Semantic roles such as surface, control and text let the
+ * same widgets use either {@link DARK_TOKENS} or {@link LIGHT_TOKENS}.
+ * {@link setTheme} sets a shared palette. The built-in default is dark.
  */
 import type { Color } from '../../types';
+import type { World } from '../../ecs/world';
 
 /**
  * Semantic colour roles widgets read, so a project restyles by naming roles
@@ -164,26 +163,35 @@ export function resolveThemeTokens(base: 'dark' | 'light', overrides?: ThemeOver
     };
 }
 
-let activeTheme: ThemeTokens = DARK_TOKENS;
+let defaultTheme = DARK_TOKENS;
+let activeTheme = defaultTheme;
+let worldThemes = new WeakMap<World, ThemeTokens>();
 
 /** The active design tokens widgets resolve their defaults from. */
-export function getTheme(): ThemeTokens {
-    return activeTheme;
+export function getTheme(world?: World): ThemeTokens {
+    return world ? worldThemes.get(world) ?? defaultTheme : activeTheme;
 }
 
-/** Replace the active design tokens (affects widgets constructed afterwards). */
+/** Set the shared palette for future widgets. Use switchTheme to restyle a live world. */
 export function setTheme(tokens: ThemeTokens): void {
+    defaultTheme = tokens;
+    worldThemes = new WeakMap();
     activeTheme = tokens;
 }
 
-/** The active colour palette — what a widget reads at build time, so a theme
- *  swap after that needs a rebuild rather than a repaint.
+/** @internal Select a world's palette while retaining the single-world no-argument reader. */
+export function setWorldTheme(world: World, tokens: ThemeTokens): void {
+    worldThemes.set(world, tokens);
+    activeTheme = tokens;
+}
+
+/** The colour palette widgets in this world read at build time.
  *  @beta */
-export function themeColors(): ThemeColors {
-    return activeTheme.colors;
+export function themeColors(world?: World): ThemeColors {
+    return getTheme(world).colors;
 }
 
 /** Convenience: the active type scale. */
-export function themeType(): ThemeType {
-    return activeTheme.type;
+export function themeType(world?: World): ThemeType {
+    return getTheme(world).type;
 }

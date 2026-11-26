@@ -41,7 +41,7 @@ export interface ColorPickerHandle {
 
 /** The picker composes existing TextInput, Slider and Button controls. @beta */
 export function createColorPicker(opts: ColorPickerOptions): ColorPickerHandle {
-    const { world, events } = opts, colors = themeColors();
+    const { world, events } = opts, colors = themeColors(world);
     const entity = spawnUIEntity({ world, parent: opts.parent, node: opts.node ?? { width: px(280), height: px(412) }, visual: { color: colors.surfaceElevated } });
     markThemed(world, entity, { visual: 'surfaceElevated' });
     const box = (top: number, height: number): UINodeInit => ({ position: 1, insetLeft: px(14), insetRight: px(14), insetTop: px(top), height: px(height) });

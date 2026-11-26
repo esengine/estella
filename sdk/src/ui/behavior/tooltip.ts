@@ -200,7 +200,7 @@ export function createTooltipSystem(world: World, prefabHost?: TooltipPrefabHost
                         console.warn('[UITooltip] Could not display style prefab:', error);
                     });
                 } else {
-                    const c = themeColors();
+                    const c = themeColors(world);
                     s.popup = spawnUIEntity({ world, parent: canvas, node: { position: 1 }, visual: { color: c.surfaceElevated } });
                     markThemed(world, s.popup, { visual: 'surfaceElevated' });
                     s.label = spawnUIEntity({ world, parent: s.popup, node: { fill: true },

@@ -83,7 +83,7 @@ export function setTreeViewData<T>(world: World, entity: Entity, data: TreeDataS
 export function createTreeView<T = TreeViewNode>(opts: TreeViewOptions<T>): TreeViewHandle<T> {
     const { world, events } = opts;
     const entity = spawnUIEntity({ world, parent: opts.parent,
-        node: opts.node ?? { width: px(320), height: px(320) }, visual: { color: themeColors().surface } });
+        node: opts.node ?? { width: px(320), height: px(320) }, visual: { color: themeColors(world).surface } });
     markThemed(world, entity, { visual: 'surface' }); makeWidgetInteractable(world, entity);
     world.insert(entity, UITreeView, { ...structuredClone(UITreeView._default), ...opts.settings, nodes: opts.nodes ?? [] });
     const binding: Binding = { options: opts as unknown as TreeViewOptions<unknown> }; bindingsFor(world).set(entity, binding);
@@ -224,12 +224,12 @@ export function installTreeViews(app: App, host: ListViewHost): () => void {
                 const list = createListView({ world, host, parent: root, node: { fill: true }, viewportSize,
                     data: model, layout: { itemHeight: height }, dragScroll: true,
                     item: { create(w, parent) {
-                        const rowEntity = item ? item.create(w, parent) : spawnUIEntity({ world: w, parent, node: { height: px(height) }, visual: { color: themeColors().surface } });
+                        const rowEntity = item ? item.create(w, parent) : spawnUIEntity({ world: w, parent, node: { height: px(height) }, visual: { color: themeColors(world).surface } });
                         makeWidgetInteractable(w, rowEntity, { focusable: false });
                         targets.set(rowEntity, rowEntity);
                         if (!item) {
-                            const label = spawnUIEntity({ world: w, parent: rowEntity, node: { fill: true, insetLeft: px(28), insetRight: px(data.dragEnabled ? 28 : 4) }, text: { content: '', fontSize: 14, color: themeColors().text, align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: false, overflow: TextOverflow.Ellipsis } });
-                            const arrow = spawnUIEntity({ world: w, parent: rowEntity, node: { position: 1, width: px(24), height: px(height), insetLeft: px(0), insetTop: px(0) }, text: { content: '', fontSize: 14, color: themeColors().text, align: TextAlign.Center, verticalAlign: TextVerticalAlign.Middle } });
+                            const label = spawnUIEntity({ world: w, parent: rowEntity, node: { fill: true, insetLeft: px(28), insetRight: px(data.dragEnabled ? 28 : 4) }, text: { content: '', fontSize: 14, color: themeColors(world).text, align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: false, overflow: TextOverflow.Ellipsis } });
+                            const arrow = spawnUIEntity({ world: w, parent: rowEntity, node: { position: 1, width: px(24), height: px(height), insetLeft: px(0), insetTop: px(0) }, text: { content: '', fontSize: 14, color: themeColors(world).text, align: TextAlign.Center, verticalAlign: TextVerticalAlign.Middle } });
                             labels.set(rowEntity, label); arrows.set(rowEntity, arrow);
                             markThemed(w, label, { text: 'text' }); markThemed(w, arrow, { text: 'text' });
                             makeWidgetInteractable(w, arrow, { focusable: false });
@@ -253,9 +253,9 @@ export function installTreeViews(app: App, host: ListViewHost): () => void {
                         if (data.dragEnabled) {
                             const grip = item ? binding.options.dragHandle?.(rowEntity) ?? rowEntity : spawnUIEntity({ world: w, parent: rowEntity,
                                 node: { position: 1, insetRight: px(0), insetTop: px(0), width: px(24), height: px(height) },
-                                text: { content: '⠿', fontSize: 14, color: themeColors().text, align: TextAlign.Center, verticalAlign: TextVerticalAlign.Middle } });
+                                text: { content: '⠿', fontSize: 14, color: themeColors(world).text, align: TextAlign.Center, verticalAlign: TextVerticalAlign.Middle } });
                             if (w.valid(grip)) { makeWidgetInteractable(w, grip, { focusable: false }); w.insert(grip, UIConsumesDrag); grips.set(grip, rowEntity); targets.set(grip, rowEntity); }
-                            const cue = spawnUIEntity({ world: w, parent: rowEntity, node: { position: 1, insetLeft: px(0), insetRight: px(0), insetTop: px(0), height: px(2), pointerEvents: UIPointerEvents.None }, visual: { color: themeColors().primary } });
+                            const cue = spawnUIEntity({ world: w, parent: rowEntity, node: { position: 1, insetLeft: px(0), insetRight: px(0), insetTop: px(0), height: px(2), pointerEvents: UIPointerEvents.None }, visual: { color: themeColors(world).primary } });
                             w.update(cue, UINode, node => { node.display = UIDisplay.None; }); cues.set(rowEntity, cue); markThemed(w, cue, { visual: 'primary' });
                         }
                         unsubs.push(events.on(rowEntity, UIEventType.Click, () => {
@@ -286,9 +286,9 @@ export function installTreeViews(app: App, host: ListViewHost): () => void {
                         world.update(arrow, Text, text => { text.content = row.hasChildren ? row.expanded ? '⌄' : '›' : ''; });
                         world.update(arrow, UINode, node => { node.insetLeft = px(indent); });
                         const role = model.isSelected(row.id) ? 'controlFocus' : 'surface';
-                        world.update(rowEntity, UIVisual, visual => { visual.color = themeColors()[role]; }); markThemed(world, rowEntity, { visual: role });
+                        world.update(rowEntity, UIVisual, visual => { visual.color = themeColors(world)[role]; }); markThemed(world, rowEntity, { visual: role });
                     } } });
-                const empty = spawnUIEntity({ world, parent: root, node: { fill: true }, text: { content: 'No items', fontSize: 14, color: themeColors().text } });
+                const empty = spawnUIEntity({ world, parent: root, node: { fill: true }, text: { content: 'No items', fontSize: 14, color: themeColors(world).text } });
                 markThemed(world, empty, { text: 'text' });
                 runtime = { binding, model, list, rowIds, grips, targets, cues, cueRow: null, unsubs, config, nodes: data.nodes, snapshot: '', empty, disposed: false, drag: null,
                     activeId: model.selectedIds[model.selectedIds.length - 1] ?? null,

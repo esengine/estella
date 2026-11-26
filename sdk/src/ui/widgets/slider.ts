@@ -67,7 +67,7 @@ export function createSlider(opts: SliderOptions): SliderHandle {
     const value = sliderClamp(opts.value ?? min, { min, max, step });
     const frac = sliderFraction({ min, max, value });
 
-    const c = themeColors();
+    const c = themeColors(world);
 
     // Slider fill is a horizontal Filled bar growing from the left — the same
     // partial-fill primitive progress uses, shared via FILL_AXIS.

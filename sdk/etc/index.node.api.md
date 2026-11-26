@@ -18158,7 +18158,7 @@ Plugin
 
 ## getTheme — function @experimental
 ```
-(): ThemeTokens
+(world?: World): ThemeTokens
 ```
 
 ## getUserComponent — function @experimental
@@ -20558,17 +20558,17 @@ Plugin
 
 ## themeButtonStates — function @experimental
 ```
-(): Record<string, ButtonStateVisual>
+(world?: World): Record<string, ButtonStateVisual>
 ```
 
 ## themeColors — function @beta
 ```
-(): ThemeColors
+(world?: World): ThemeColors
 ```
 
 ## themeType — function @experimental
 ```
-(): ThemeType
+(world?: World): ThemeType
 ```
 
 ## timeOfDayAt — function @beta

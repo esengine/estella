@@ -65,8 +65,8 @@ export interface ButtonHandle {
 /** The canonical button state colors from the active theme's control roles —
  *  `createButton`'s default when the caller passes no `states`. `disabled` reuses
  *  the resting control fill at reduced alpha. */
-export function themeButtonStates(): Record<string, ButtonStateVisual> {
-    const c = themeColors();
+export function themeButtonStates(world?: World): Record<string, ButtonStateVisual> {
+    const c = themeColors(world);
     return {
         normal: { color: c.control },
         hover: { color: c.controlHover },
@@ -100,7 +100,7 @@ export function createButton(opts: ButtonOptions): ButtonHandle {
         tabIndex: opts.tabIndex,
     });
 
-    const states = opts.states ?? themeButtonStates();
+    const states = opts.states ?? themeButtonStates(world);
     // Canonical pages first (the driver's vocabulary), then any custom states
     // (e.g. "loading") so setButtonState can flip to them.
     const pages = [
@@ -126,7 +126,7 @@ export function createButton(opts: ButtonOptions): ButtonHandle {
     if (opts.text !== undefined) {
         const userText = typeof opts.text === 'string' ? { content: opts.text } : opts.text;
         // Theme-default the label's color + size; the caller's fields win.
-        const textInit = { color: themeColors().text, fontSize: themeType().label, ...userText };
+        const textInit = { color: themeColors(world).text, fontSize: themeType(world).label, ...userText };
         const label = spawnUIEntity({
             world,
             parent: entity,

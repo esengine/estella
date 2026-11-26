@@ -13,6 +13,8 @@ import type { SceneData } from '../src/scene/scene';
 import { SceneLoadCancelled, SceneManager, type SceneManagerState } from '../src/scene/sceneManager';
 import { sceneManagerPlugin } from '../src/scene/scenePlugin';
 import type { Entity } from '../src/types';
+import { switchTheme } from '../src/ui/behavior/theme-apply';
+import { themeColors, LIGHT_TOKENS, DARK_TOKENS, setTheme } from '../src/ui/theme/tokens';
 import { reservePromise } from '../src/util/reservePromise';
 import * as resourceManager from '../src/wasm/resourceManager';
 
@@ -271,6 +273,26 @@ it('releases incoming raw assets immediately when cancelled during staggered out
         finish.resolve(); await scenes.whenLoadsSettle();
         expect(scenes.getScene('next')).toBeNull();
     } finally { finish.resolve(); app.quit(); }
+});
+
+it('selects the project palette before plugins build and keeps an in-game choice across scenes', async () => {
+    const app = App.new();
+    app.addPlugin(sceneManagerPlugin);
+    try {
+        const build = vi.fn((owner: App) => { expect(themeColors(owner.world)).toEqual(LIGHT_TOKENS.colors); });
+        await initRuntime({
+            app, module: null, firstScene: 'home', uiTheme: 'light', projectPlugin: { name: 'controls', build },
+            scenes: ['home', 'next'].map(name => ({ name, data: { ...empty, name } })),
+            source: { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } },
+        });
+        expect(build).toHaveBeenCalledOnce();
+        const fresh = App.new();
+        try { expect(themeColors(fresh.world)).toEqual(DARK_TOKENS.colors); }
+        finally { fresh.quit(); }
+        switchTheme(app.world, DARK_TOKENS);
+        await app.getResource(SceneManager).switchTo('next');
+        expect(themeColors(app.world)).toEqual(DARK_TOKENS.colors);
+    } finally { app.quit(); setTheme(DARK_TOKENS); }
 });
 
 it.each(['authored', 'packaged'])('applies the %s scene’s shared UI texture border only after handoff', async entry => {

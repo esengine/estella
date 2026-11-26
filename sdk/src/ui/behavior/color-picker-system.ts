@@ -60,7 +60,7 @@ function createRamps(app: App, owner: CppResourceManager): number[] {
         created.push(upload(2, 1, [255, 255, 255, 255, 255, 255, 255, 0]));
         const hue: number[] = []; for (let i = 0; i <= 360; i++) { const c = col.fromHsv(i, 1, 1); hue.push(c.r * 255, c.g * 255, c.b * 255, 255); }
         created.push(upload(361, 1, hue));
-        const checker: number[] = [], theme = themeColors();
+        const checker: number[] = [], theme = themeColors(app.world);
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
             const c = ((x < 4) !== (y < 4)) ? theme.control : theme.track;
             checker.push(c.r * 255, c.g * 255, c.b * 255, 255);

@@ -30,7 +30,7 @@ export function createVirtualJoystick(options: VirtualJoystickOptions) {
     const entity = spawnUIEntity({ world, parent: options.parent,
         node: options.node ?? { width: px(mode === VirtualJoystickMode.Follow ? 240 : diameter), height: px(mode === VirtualJoystickMode.Follow ? 160 : diameter) } });
     makeWidgetInteractable(world, entity, { disabled: options.disabled, focusable: false });
-    const colors = themeColors();
+    const colors = themeColors(world);
     const childNode = (size: number): UINodeInit => ({ position: 1, width: px(size), height: px(size),
         insetLeft: percent(50), insetTop: percent(50), marginLeft: px(-size / 2), marginTop: px(-size / 2) });
     const base = spawnUIEntity({ world, parent: entity, node: childNode(diameter), visual: options.baseVisual ?? { color: colors.control } });

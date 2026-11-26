@@ -86,7 +86,7 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         parent: button,
         node: opts.check?.node ?? { fill: true },
         visual: {
-            color: opts.check?.color ?? themeColors().primary,
+            color: opts.check?.color ?? themeColors(world).primary,
             texture: opts.check?.sprite,
             visualType: opts.check?.sprite ? 2 /* Image */ : 1 /* SolidColor */,
         },

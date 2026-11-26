@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Schedule } from '../src/ecs/system';
-import { Canvas, Disabled, Parent } from '../src/ecs/component';
+import { Canvas, Disabled, Parent, registerComponent } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { Interactable } from '../src/ui/input/interactable';
 import { Focusable } from '../src/ui/input/focusable';
@@ -21,6 +21,12 @@ import { UIEventQueue } from '../src/ui/core/events';
 import { UIDropdown, createDropdownSystem } from '../src/ui/behavior/dropdown';
 import { createDropdown } from '../src/ui/widgets/dropdown';
 import { UIController } from '../src/ui/controller/ui-controller';
+import { UIGear } from '../src/ui/controller/ui-gear';
+import { ThemeStyle } from '../src/ui/theme/theme-style';
+import { LIGHT_TOKENS, DARK_TOKENS, setTheme } from '../src/ui/theme/tokens';
+import { switchTheme } from '../src/ui/behavior/theme-apply';
+import { BUILTIN_UI_PREFABS } from '../src/ui/widgets/prefabs/generated';
+import { instantiatePrefab } from '../src/prefab';
 import { UICollections } from '../src/ui/collection/collection-host';
 import { ScrollContainer } from '../src/ui/collection/scroll-container';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
@@ -34,7 +40,7 @@ describe.skipIf(!HAS_WASM)('dropdown live options on real WASM', () => {
         app = App.new(); app.connectCpp(registry, engine); events = new UIEventQueue();
         app.addSystemToSchedule(Schedule.Update, createDropdownSystem(app.world, events));
     });
-    afterEach(() => { app.quit({ keepRenderer: true }); registry.delete(); });
+    afterEach(() => { setTheme(DARK_TOKENS); app.quit({ keepRenderer: true }); registry.delete(); });
     const smallScreen = () => {
         const layout = screenLayoutRect(null, 320, 180, { left: 8, bottom: 8, right: 8, top: 8 });
         const overlay = { ...defaultScreenOverlay(), active: true, projection: screenProjection(layout),
@@ -50,6 +56,30 @@ describe.skipIf(!HAS_WASM)('dropdown live options on real WASM', () => {
         const hit = (x: number, top: number) => uiHitAtScreen(app.world, UICameraInfo._default, overlay, x, 180 - top);
         return { canvas, solve, hit };
     };
+    it('resolves a spawned dropdown against the current world even when roles precede their components', async () => {
+        const { world } = app;
+        for (const component of [ThemeStyle, Text, UIDropdown, UIGear, UIController, Focusable, Interactable]) {
+            registerComponent(component._name, component);
+        }
+        const saved = structuredClone(BUILTIN_UI_PREFABS.Dropdown!);
+        for (const row of saved.entities) {
+            if ('components' in row) row.components.sort((a, b) => Number(b.type === 'ThemeStyle') - Number(a.type === 'ThemeStyle'));
+        }
+        switchTheme(world, LIGHT_TOKENS);
+        const existing = createDropdown({ world, events, options: ['First'] });
+        const literal = { r: 0.2, g: 0.3, b: 0.4, a: 0.5 };
+        world.update(existing.labelEntity, Text, label => { label.color = literal; });
+        const { root } = await instantiatePrefab(world, saved);
+        const pages = () => world.get(root, UIGear).bindings.find(binding => binding.property === 'color')!.pages;
+        const label = world.get(root, UIDropdown).label;
+        expect(pages().normal).toEqual(LIGHT_TOKENS.colors.control);
+        expect(world.get(label, Text).color).toEqual(LIGHT_TOKENS.colors.text);
+        expect(world.get(existing.labelEntity, Text).color).toEqual(literal);
+        switchTheme(world, DARK_TOKENS);
+        expect(pages().normal).toEqual(DARK_TOKENS.colors.control);
+        expect(world.get(label, Text).color).toEqual(DARK_TOKENS.colors.text);
+    });
+
     it('opens above a bottom-edge trigger and lets players pick the last row outside its masked parent', async () => {
         const { world } = app, { canvas, solve, hit } = smallScreen();
         const strip = spawnUIEntity({ world, parent: canvas, node: { position: 1, insetLeft: px(90),

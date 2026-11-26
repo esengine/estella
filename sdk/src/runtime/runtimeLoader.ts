@@ -19,7 +19,7 @@ import { prepareSpawnOwnership, prepareSceneAuxiliaryAssets, type PreparedSpawnO
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
-import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
+import { getTheme, switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import type { SceneAssetRefs } from '../asset/discoverAssets';
 import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
@@ -199,9 +199,8 @@ export interface LoadRuntimeSceneOptions {
     physicsEnabled?: boolean;
     /** An already-resolved 3D physics module, for tests and headless hosts. */
     physics3dModule?: Physics3DWasmModule;
-    /** Project-declared UI theme (Project Settings → UI). Dark is the default;
-     *  'light' switches the token set AND re-resolves already-instantiated
-     *  ThemeStyle-tagged widgets (prefab instances carry dark baked values). */
+    /** Optional palette to select when publishing this scene. Without a value
+     *  the scene inherits the current world theme. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared partial re-skin over the base theme (Project Settings →
      *  UI theme colors); merged via {@link resolveThemeTokens}. */
@@ -735,10 +734,9 @@ async function publishPreparedScene(
     // (an editor inspecting its own running game). No-op otherwise.
     mark('origins', () => recordSceneOrigins(app, entityMap));
 
-    // Apply the project theme over the freshly instantiated scene: prefabs bake
-    // the default dark palette, so a light base or any token override re-resolves
-    // every ThemeStyle tag.
-    if (uiTheme === 'light' || uiThemeOverrides) {
+    // A direct scene load can request a palette of its own. Managed scene switches
+    // inherit the world's current palette, including any in-game change.
+    if (uiTheme || uiThemeOverrides) {
         mark('theme', () => switchTheme(app.world, resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides)));
     }
 
@@ -1190,6 +1188,10 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // loading a scene into, and handing a loop to, an App that was released under it.
     const life = app.signal;
 
+    const theme = config.uiTheme || config.uiThemeOverrides
+        ? resolveThemeTokens(config.uiTheme ?? 'dark', config.uiThemeOverrides)
+        : getTheme(app.world);
+    switchTheme(app.world, theme);
     if (config.projectPlugin) app.addPlugin(config.projectPlugin);
     else flushPendingRegistrations(app);
 
@@ -1269,8 +1271,6 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physics3dBackend: config.physics3dBackend,
         physics3dWorld: config.physics3dWorld,
         physicsEnabled: config.physicsEnabled,
-        uiTheme: config.uiTheme,
-        uiThemeOverrides: config.uiThemeOverrides,
     };
 
     registerRuntimeScenes(config, sceneOpts);

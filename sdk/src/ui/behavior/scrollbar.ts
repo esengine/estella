@@ -58,7 +58,7 @@ function spawnThumb(world: World, viewport: Entity, axis: 'v' | 'h'): Entity {
                   height: px(THUMB_THICKNESS),
                   width: px(THUMB_MIN_LENGTH),
               },
-        visual: { color: { ...themeColors().text, a: 0 } },
+        visual: { color: { ...themeColors(world).text, a: 0 } },
     });
     markThemed(world, thumb, { visual: 'text' });
     return thumb;

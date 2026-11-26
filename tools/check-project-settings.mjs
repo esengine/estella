@@ -46,6 +46,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { ROOT, read } from './lib/repo.mjs';
+import { ts } from './lib/sdkProgram.mjs';
 
 const RUNTIME_CONFIG = 'pipeline/src/project/runtimeConfig.ts';
 const FORMAT = 'pipeline/src/project/format.ts';
@@ -178,33 +179,33 @@ const AUTHORING = {
   screenFit: { ui: 'project.display.cameraFit' },
 };
 
-/** Field names of the RuntimeProjectConfig interface, in declaration order. */
-function runtimeConfigFields(src) {
-  const body = src.slice(src.indexOf('export interface RuntimeProjectConfig {'));
-  const end = body.indexOf('\n}');
-  return [...body.slice(0, end).matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1]);
+function sourceFile(file) {
+  return ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest, true);
 }
 
-const runtimeSrc = read(RUNTIME_CONFIG);
+function bodyOf(declarations, name) {
+  const declaration = declarations.find(node => node.name?.getText() === name && node.body);
+  if (!declaration) throw new Error(`check-project-settings: missing implementation of ${name}`);
+  return declaration.body.getText();
+}
+
+const runtimeFile = sourceFile(RUNTIME_CONFIG);
 const formatSrc = read(FORMAT);
-const storeSrc = read(STORE);
+const storeFile = sourceFile(STORE);
 const settingsSrc = SETTINGS_FILES.map(read).join(String.fromCharCode(10));
-const fields = runtimeConfigFields(runtimeSrc);
+const config = runtimeFile.statements.find(node => ts.isInterfaceDeclaration(node) && node.name.text === 'RuntimeProjectConfig');
+const fields = config?.members.filter(ts.isPropertySignature).map(member => member.name.getText()) ?? [];
 
 if (fields.length === 0) {
   console.error('check-project-settings: could not read RuntimeProjectConfig — has it moved?');
   process.exit(1);
 }
 
-// The consumers, each as "does this text carry the field". Deliberately textual:
-// the alternative is importing the editor's module graph into a lint script.
-const editorApplyAt = storeSrc.indexOf('private applyEditorRuntimeConfig');
-const editorApply = storeSrc.slice(editorApplyAt, storeSrc.indexOf('\n  }\n', editorApplyAt));
-const playPayload = storeSrc.slice(
-  storeSrc.indexOf('playPayload()'),
-  storeSrc.indexOf('audioFeature()'),
-);
-const packagedFields = runtimeSrc.slice(runtimeSrc.indexOf('export function packagedRuntimeFields'));
+// Inspect the implementations without executing the editor. Parameters, return types and method order may change.
+const store = storeFile.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'ProjectStoreImpl');
+const editorApply = bodyOf(store?.members ?? [], 'applyEditorRuntimeConfig');
+const playPayload = bodyOf(store?.members ?? [], 'playPayload');
+const packagedFields = bodyOf(runtimeFile.statements, 'packagedRuntimeFields');
 
 const inPackagedSlice = (f) => packagedFields.includes(`rc.${f}`);
 const CONSUMERS = {

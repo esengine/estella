@@ -99,7 +99,7 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
 
     // Fresh theme resolution per open — the popup is transient, so a stale
     // capture would pin whatever theme was active earlier.
-    const t = themeColors();
+    const t = themeColors(world);
     const size = { x: 0, y: options.length * optionHeight + 2 * POPUP_PADDING };
     const view = createScrollView({
         world, parent: e, viewportSize: size, contentSize: size,

@@ -53,7 +53,7 @@ export interface DialogHandle {
  */
 export function createDialog(opts: DialogOptions): DialogHandle {
     const { world, events } = opts;
-    const c = themeColors();
+    const c = themeColors(world);
 
     const backdrop = spawnUIEntity({
         world,

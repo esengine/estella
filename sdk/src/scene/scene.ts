@@ -6,6 +6,7 @@
  */
 
 import { patchComponentFields, World } from '../ecs/world';
+import { initializeSceneComponents, installWorldHook, type WorldHooks } from './worldHooks';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
@@ -272,20 +273,6 @@ export interface SceneComponentCodec {
 }
 
 const sceneComponentCodecs = new Map<string, SceneComponentCodec>();
-type WorldHooks<K, V> = WeakMap<World, Map<K, { value: V }>>;
-
-function installWorldHook<K, V>(worlds: WorldHooks<K, V>, world: World, key: K, value: V): () => void {
-    let hooks = worlds.get(world);
-    if (!hooks) worlds.set(world, hooks = new Map());
-    const installation = { value };
-    hooks.set(key, installation);
-    return () => {
-        if (hooks.get(key) !== installation) return;
-        hooks.delete(key);
-        if (hooks.size === 0) worlds.delete(world);
-    };
-}
-
 const worldComponentCodecs: WorldHooks<string, SceneComponentCodec> = new WeakMap();
 
 /** @internal A world's component codecs take precedence over host defaults. */
@@ -710,6 +697,8 @@ export function* spawnAndLoadEntitiesJob(
                 assertCurrent();
                 if (byType) byType.set(compData.type, (byType.get(compData.type) ?? 0) + since());
             }
+            initializeSceneComponents(world, entity);
+            assertCurrent();
             done++;
             yield done / total;
             resume();

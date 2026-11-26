@@ -28,6 +28,7 @@ import { Interactable, UIInteraction, type UIInteractionData } from '../input/in
 import { UINode } from '../core/ui-node';
 import { getEntityDepth, walkParentChain } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
+import { installWidgetTheme } from './theme-apply';
 import { UISlider, createSliderSystem } from './slider';
 import { UIToggle, UIToggleGroup, createToggleSystem } from './toggle';
 import { UIDropdown, closeAllDropdowns, createDropdownSystem } from './dropdown';
@@ -104,6 +105,7 @@ export class UIBehaviorPlugin implements Plugin {
 
     build(app: App): void {
         this.cleanup(app);
+        installWidgetTheme(app.world);
         // UIInteractionPlugin (declared as our dependency) owns the
         // UIEvents resource and wires onDespawn cleanup. We just grab
         // the queue so our systems emit into the same bus.

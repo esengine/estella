@@ -65,16 +65,16 @@ Font sizes in px, shared between the light and dark sets:
 - **`DARK_TOKENS`** — the built-in default.
 - **`LIGHT_TOKENS`** — the same roles on light surfaces with dark text.
 
-The active set is read with `getTheme()` (or the `themeColors()` /
-`themeType()` shorthands) and replaced with `setTheme(tokens)` — but note that
-`setTheme` alone only affects widgets constructed *afterwards*; for a live
-swap use [`switchTheme`](#live-theme-swap--switchtheme) below.
+Use `getTheme(world)`, `themeColors(world)` and `themeType(world)` to read the palette
+for a particular world. With no argument these functions read the most recently
+selected palette. `setTheme(tokens)` sets the palette for future widgets across all worlds.
+Use [`switchTheme(world, tokens)`](#live-theme-swap--switchtheme) to update a live world.
 
 ## How widgets consume tokens
 
 Widget factories resolve tokens **at build time**: `createButton` reads
-`themeColors().control` / `controlHover` / `controlActive` for its state pages
-and `themeColors().text` + `themeType().label` for its label; `createSlider`
+`themeColors(world).control` / `controlHover` / `controlActive` for its state pages
+and `themeColors(world).text` + `themeType(world).label` for its label; `createSlider`
 reads `track` / `primary` / `onPrimary` for track, fill, and handle; and so on.
 The resolved values are baked into ordinary components (`UIVisual`, `Text`,
 `$interaction` color gears) — there is no per-frame theme lookup.
@@ -104,7 +104,7 @@ colors, and each `$interaction` color-gear page — against the new palette:
 import { switchTheme, getTheme, DARK_TOKENS, LIGHT_TOKENS } from 'esengine';
 
 // e.g. from a settings toggle:
-switchTheme(world, getTheme() === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
+switchTheme(world, getTheme(world) === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
 ```
 
 Semantics worth knowing:
@@ -148,14 +148,11 @@ const overrides = parseThemeOverrides({ primary: '#e5484d' });
 switchTheme(world, resolveThemeTokens('dark', overrides));
 ```
 
-The flow end to end: the **editor** previews the effective theme live in the
-edit viewport (it runs exactly `switchTheme(world, resolveThemeTokens(...))`
-on the edit world — WYSIWYG for the settings panel, with per-role color
-pickers whose placeholders show the inherited base value). On **export**, the
-theme and colors are cooked into the shipped game config, and every runtime
-boots the scene and then applies
-`switchTheme(world, resolveThemeTokens(theme, overrides))` — prefabs bake
-dark values, so the post-load swap is what re-resolves every `ThemeStyle` tag.
+The edit viewport previews project color changes live. Play and exported games
+select the project palette before game plugins build their widgets. Each scene
+and prefab resolves its saved `ThemeStyle` roles as its entities load, including
+prefabs spawned during play. A player’s theme choice made with `switchTheme`
+carries into the next scene. Starting a fresh Play session reads the project settings again.
 
 <Aside type="note">
   Dark is expressed by *absence*: only `'light'` and non-empty color overrides
@@ -171,7 +168,7 @@ out of theming**. The rule is consistent: a theme-defaulted field gets a
 tag and is yours forever.
 
 - `createButton({ states: {...} })` — custom state colors don't re-theme;
-  omit `states` to get `themeButtonStates()` (the canonical
+  omit `states` to get `themeButtonStates(world)` (the canonical
   `control`-role states), which do.
 - `createButton({ text: { color } })` — an explicit label color skips the
   `text`-role tag; omit `color` and the label follows the theme.
@@ -185,7 +182,7 @@ themes).
 ## Theming custom widgets
 
 To make your own composition behave like a built-in widget, do what the
-factories do: resolve from `themeColors()` / `themeType()` at build, then
+factories do: resolve from `themeColors(world)` / `themeType(world)` at build, then
 `markThemed` each entity with the roles you used.
 
 ```typescript
@@ -193,7 +190,7 @@ import type { World, Entity } from 'esengine';
 import { spawnUIEntity, markThemed, themeColors, themeType, px } from 'esengine';
 
 function createBadge(world: World, parent: Entity, label: string): Entity {
-  const c = themeColors();
+  const c = themeColors(world);
 
   const badge = spawnUIEntity({
     world, parent,
@@ -204,7 +201,7 @@ function createBadge(world: World, parent: Entity, label: string): Entity {
 
   const text = spawnUIEntity({
     world, parent: badge,
-    text: { content: label, color: c.onPrimary, fontSize: themeType().label },
+    text: { content: label, color: c.onPrimary, fontSize: themeType(world).label },
   });
   markThemed(world, text, { text: 'onPrimary' });
 
@@ -218,7 +215,7 @@ widget with `$interaction` color gears, tag the page→role map instead:
 
 ## Best practices
 
-- **Roles, not colors.** Reach for `themeColors().primary`, not a literal —
+- **Roles, not colors.** Reach for `themeColors(world).primary`, not a literal —
   and tag it with `markThemed` so it survives a swap.
 - **Declare the base theme in Project Settings**, not in code —
   the editor preview, and every export target then agree.

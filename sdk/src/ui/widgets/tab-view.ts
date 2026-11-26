@@ -37,7 +37,7 @@ export interface TabViewHandle {
 export function createTabView(opts: TabViewOptions): TabViewHandle {
     const { world, events } = opts;
     const entity = spawnUIEntity({ world, parent: opts.parent,
-        node: opts.node ?? { width: px(420), height: px(240) }, visual: { color: themeColors().surface } });
+        node: opts.node ?? { width: px(420), height: px(240) }, visual: { color: themeColors(world).surface } });
     markThemed(world, entity, { visual: 'surface' });
     world.insert(entity, UIToggleGroup, { allowSwitchOff: false });
     const tabs: Entity[] = [], pages: Entity[] = [], handles: Array<{ dispose(): void }> = [];
@@ -50,7 +50,7 @@ export function createTabView(opts: TabViewOptions): TabViewHandle {
         handles.push(toggle); tabs.push(toggle.entity);
         world.insert(toggle.entity, Name, { value: `${label} Tab` });
         const text = spawnUIEntity({ world, parent: toggle.entity, node: { fill: true },
-            text: { content: label, color: themeColors().text } });
+            text: { content: label, color: themeColors(world).text } });
         markThemed(world, text, { text: 'text' });
         const page = spawnUIEntity({ world, parent: entity, node: {
             fill: true, insetTop: px(height + 12), insetLeft: px(12), insetRight: px(12), insetBottom: px(12),

@@ -50,7 +50,7 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
     const { world } = opts;
     const direction = opts.direction ?? 'right';
     let value = clamp01(opts.value ?? 0);
-    const c = themeColors();
+    const c = themeColors(world);
     const [fillMethod, fillOrigin] = opts.radial
         ? ([FillMethod.Radial360, FillOrigin.Top] as const)
         : FILL_AXIS[direction];

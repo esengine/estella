@@ -81,7 +81,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const labels = opts.options.map((option, index) => labelOf(option, index));
     const selectedIndex = clampDropdownIndex(opts.selectedIndex ?? 0, labels.length);
 
-    const c = themeColors();
+    const c = themeColors(world);
     const btnColors = {
         normal:  opts.buttonStates?.normal  ?? c.control,
         hover:   opts.buttonStates?.hover   ?? c.controlHover,

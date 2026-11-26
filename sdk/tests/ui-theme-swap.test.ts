@@ -8,6 +8,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
     createButton,
+    createDropdown,
+    getTheme,
+    themeColors,
     switchTheme,
     applyThemeToWorld,
     markThemed,
@@ -78,6 +81,20 @@ describe('live re-theming', () => {
 
     const colorPages = (w: World, e: Entity): Record<string, GearValue> =>
         (w.get(e, UIGear) as UIGearData).bindings.find((b) => b.property === 'color')!.pages;
+
+    it('builds each dropdown with the palette of its own world', () => {
+        const light = mockWorld(), dark = mockWorld();
+        switchTheme(light, LIGHT_TOKENS);
+        expect(getTheme()).toBe(LIGHT_TOKENS);
+        expect(getTheme(dark)).toBe(DARK_TOKENS);
+        switchTheme(dark, DARK_TOKENS);
+        const dropdown = (world: World) => createDropdown({ world, events: noEvents, options: ['One', 'Two'] }).entity;
+        expect(colorPages(light, dropdown(light)).normal).toEqual(LIGHT_TOKENS.colors.control);
+        expect(colorPages(dark, dropdown(dark)).normal).toEqual(DARK_TOKENS.colors.control);
+        setTheme(LIGHT_TOKENS);
+        expect(themeColors(dark)).toBe(LIGHT_TOKENS.colors);
+        expect(themeColors(mockWorld())).toBe(LIGHT_TOKENS.colors);
+    });
 
     it('switchTheme restyles an already-built button (gear pages + label)', () => {
         const w = mockWorld();

@@ -64,15 +64,15 @@ interface ThemeTokens {
 - **`DARK_TOKENS`** —— 内建默认值。
 - **`LIGHT_TOKENS`** —— 同一套角色,亮色表面配深色文字。
 
-用 `getTheme()`(或简写 `themeColors()` / `themeType()`)读取活动令牌集,用
-`setTheme(tokens)` 替换——但注意,单独的 `setTheme` 只影响*之后*构建的控件;
-要实时切换请用下文的 [`switchTheme`](#实时换肤--switchtheme)。
+用 `getTheme(world)`、`themeColors(world)` 和 `themeType(world)` 读取指定世界的主题。
+省略世界参数时，这些函数返回最近一次选用的主题。`setTheme(tokens)` 为所有世界中随后
+构建的控件设置共享配色。要给当前世界里已有的控件换肤，请用 [`switchTheme(world, tokens)`](#实时换肤--switchtheme)。
 
 ## 控件如何消费令牌
 
-控件工厂在**构建时**解析令牌:`createButton` 读取 `themeColors().control` /
-`controlHover` / `controlActive` 作为状态页颜色,读 `themeColors().text` +
-`themeType().label` 作为标签样式;`createSlider` 用 `track` / `primary` /
+控件工厂在**构建时**解析令牌:`createButton` 读取 `themeColors(world).control` /
+`controlHover` / `controlActive` 作为状态页颜色,读 `themeColors(world).text` +
+`themeType(world).label` 作为标签样式;`createSlider` 用 `track` / `primary` /
 `onPrimary` 填轨道、填充与手柄;其余同理。解析出的值被烘焙进普通组件
 (`UIVisual`、`Text`、`$interaction` 颜色 gear)——不存在逐帧的主题查询。
 
@@ -100,7 +100,7 @@ prefab 与场景持久化**,所以编辑器摆放的控件与代码构建的控�
 import { switchTheme, getTheme, DARK_TOKENS, LIGHT_TOKENS } from 'esengine';
 
 // e.g. from a settings toggle:
-switchTheme(world, getTheme() === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
+switchTheme(world, getTheme(world) === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
 ```
 
 值得了解的语义:
@@ -143,12 +143,9 @@ const overrides = parseThemeOverrides({ primary: '#e5484d' });
 switchTheme(world, resolveThemeTokens('dark', overrides));
 ```
 
-端到端的流程:**编辑器**在编辑视口里实时预览有效主题(它对编辑世界执行的正是
-`switchTheme(world, resolveThemeTokens(...))`——设置面板所见即所得,逐角色的
-取色器以继承的基础值为占位显示)。**导出**时,主题与颜色被烘焙进出货的游戏
-配置,每个运行时先启动场景、再应用
-`switchTheme(world, resolveThemeTokens(theme, overrides))`——prefab 烘焙的是
-暗色值,加载后的这次切换正是重解析所有 `ThemeStyle` 标记的那一步。
+编辑视口会实时预览项目配色。编辑器 Play 和导出的游戏都会在项目插件创建控件前选好主题。
+场景和预制件载入时，各实体按所在世界的主题解析自己的 `ThemeStyle`，运行中生成的控件也一样。
+玩家用 `switchTheme` 切换的配色会带入下一场景。重新开始 Play 时会再次读取项目设置。
 
 <Aside type="note">
   暗色用*缺省*表达:清单里只持久化 `'light'` 与非空的颜色覆盖。没有
@@ -162,7 +159,7 @@ switchTheme(world, resolveThemeTokens('dark', overrides));
 *没有*标记,永远归你。
 
 - `createButton({ states: {...} })` —— 自定义状态颜色不换肤;省略 `states` 则
-  获得 `themeButtonStates()`(标准的 `control` 角色状态),会换肤。
+  获得 `themeButtonStates(world)`(标准的 `control` 角色状态),会换肤。
 - `createButton({ text: { color } })` —— 显式标签颜色跳过 `text` 角色标记;
   省略 `color`,标签就跟随主题。
 - `createSlider({ trackVisual / fillVisual / handleVisual })` —— 逐部件同理。
@@ -173,7 +170,7 @@ switchTheme(world, resolveThemeTokens('dark', overrides));
 ## 让自定义控件接入主题
 
 想让你自己的组合表现得像内建控件,就照工厂的做法来:构建时从
-`themeColors()` / `themeType()` 解析,然后用 `markThemed` 给每个实体标上你用过
+`themeColors(world)` / `themeType(world)` 解析,然后用 `markThemed` 给每个实体标上你用过
 的角色。
 
 ```typescript
@@ -181,7 +178,7 @@ import type { World, Entity } from 'esengine';
 import { spawnUIEntity, markThemed, themeColors, themeType, px } from 'esengine';
 
 function createBadge(world: World, parent: Entity, label: string): Entity {
-  const c = themeColors();
+  const c = themeColors(world);
 
   const badge = spawnUIEntity({
     world, parent,
@@ -192,7 +189,7 @@ function createBadge(world: World, parent: Entity, label: string): Entity {
 
   const text = spawnUIEntity({
     world, parent: badge,
-    text: { content: label, color: c.onPrimary, fontSize: themeType().label },
+    text: { content: label, color: c.onPrimary, fontSize: themeType(world).label },
   });
   markThemed(world, text, { text: 'onPrimary' });
 
@@ -206,7 +203,7 @@ function createBadge(world: World, parent: Entity, label: string): Entity {
 
 ## 最佳实践
 
-- **用角色,别用颜色。** 伸手拿 `themeColors().primary` 而非字面量——并用
+- **用角色,别用颜色。** 伸手拿 `themeColors(world).primary` 而非字面量——并用
   `markThemed` 打标,让它在换肤后依然成立。
 - **在项目设置里声明基础主题**,别写在代码里——编辑器预览与所有导出目标就此
   达成一致。

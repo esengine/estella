@@ -65,7 +65,7 @@ export interface TextInputHandle {
  */
 export function createTextInput(opts: TextInputOptions): TextInputHandle {
     const { world, events } = opts;
-    const c = themeColors();
+    const c = themeColors(world);
 
     const entity = spawnUIEntity({
         world,
@@ -81,7 +81,7 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
         placeholderI18nKey: opts.placeholderI18nKey ?? '',
         placeholderColor: opts.placeholderColor ?? { ...c.text, a: c.text.a * 0.5 },
         fontFamily: opts.fontFamily ?? '',
-        fontSize: opts.fontSize ?? themeType().label,
+        fontSize: opts.fontSize ?? themeType(world).label,
         color: opts.color ?? { ...c.text },
         backgroundColor: opts.backgroundColor ?? { ...c.control },
         padding: opts.padding ?? 6,
