@@ -18,6 +18,7 @@ import { cameraPlugin, renderCameraFrame, syncScreenCameras } from '../src/camer
 import { EditorView } from '../src/camera/EditorView';
 import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
 import { CameraView, PresentedCameraView } from '../src/camera/Camera';
+import { BlendCurve, setViewTarget } from '../src/camera/CameraDirector';
 import { followRenderOrigin, resetRenderOrigin, setRenderOriginStep } from '../src/render/renderOrigin';
 import { screenToUiWorld, uiWorldToScreen } from '../src/ui/util/ui-pick';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
@@ -115,6 +116,48 @@ describe('the camera a frame was drawn with', () => {
         ui.rebasedProjection?.viewProjection.fill(99);
         followRenderOrigin(x + 8192, 0, 0);
         expect(presented.screenToWorld(sampleX, 300)?.x).toBeCloseTo(x + 24, 4);
+    });
+
+    it.each([0, 1 / 30])('follows the resolved screen view during a camera change lasting %s seconds', async duration => {
+        const { app, cam, registry } = bootWithCamera();
+        const x = 2 ** 28 + 32;
+        const destination = app.world.spawn('distant camera');
+        app.world.insert(destination, Transform, { position: { x, y: 0, z: 0 }, worldPosition: { x, y: 0, z: 0 } });
+        app.world.insert(destination, Camera, { isActive: true, orthoSize: 300 });
+        registry.getCameraEntities = () => [cam, destination];
+        setRenderOriginStep(1024);
+        setViewTarget(app, cam);
+        await app.tick(1 / 60);
+        setViewTarget(app, destination, { time: duration, curve: BlendCurve.Linear });
+        await app.tick(1 / 60);
+        if (duration) await app.tick(1 / 60);
+
+        const center = duration ? x / 2 : x;
+        const commit = app.getResource(CameraCommit);
+        expect(commit.rebasedProjection?.origin.x).toBe(Math.round(center / 1024) * 1024);
+        expect(commit.rebasedProjection?.viewProjection).toEqual(drawnWith);
+        expect(app.getResource(PresentedCameraView).screenToWorld(424, 300)?.x).toBeCloseTo(center + 24, 3);
+        expect(renderCameraFrame(app, 800, 600)).toBe(true);
+        expect(app.getResource(PresentedCameraView).screenToWorld(424, 300)?.x).toBeCloseTo(center + 24, 3);
+    });
+
+    it('follows the first presented viewport when a frame consists of split views', async () => {
+        const { app, cam, registry } = bootWithCamera();
+        const x = 2 ** 28 + 32;
+        app.world.update(cam, Camera, data => {
+            data.viewport = { x: 0.5, y: 0, z: 0.5, w: 1 };
+            data.priority = 10;
+        });
+        const left = app.world.spawn('left viewport');
+        app.world.insert(left, Transform, { worldPosition: { x, y: 0, z: 0 } });
+        app.world.insert(left, Camera, { isActive: true, orthoSize: 300, viewport: { x: 0, y: 0, z: 0.5, w: 1 } });
+        registry.getCameraEntities = () => [cam, left];
+        setRenderOriginStep(1024);
+        await app.tick(1 / 60);
+
+        const commit = app.getResource(CameraCommit);
+        expect(commit).toMatchObject({ vpX: 0, vpW: 400, rebasedProjection: { origin: { x: x - 32 } } });
+        expect(app.getResource(PresentedCameraView).screenToWorld(200, 300)?.x).toBeCloseTo(x, 3);
     });
 
     it('an offscreen camera cannot take over screen picking, commits or HUD layers', async () => {

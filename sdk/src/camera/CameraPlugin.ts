@@ -629,24 +629,21 @@ function resolveCameras(
     const offscreen = povs.filter((p) => p.renderTarget !== 0).sort((a, b) => a.priority - b.priority);
     const onScreen = povs.filter((p) => p.renderTarget === 0);
     const { fullFrame, overlays } = splitOnScreenCameras(onScreen);
-
-    // The origin follows the screen's own camera, before any view is built for it.
+    // Resolve the presented view before anchoring the frame, including cuts, blends and shakes.
+    let mainViews = fullFrame;
+    if (fullFrame.length > 0 && app.hasResource(CameraDirector)) {
+        const main = resolveMainPOV(app.getResource(CameraDirector), fullFrame, now, advance);
+        mainViews = main ? [main] : [];
+    } else {
+        fullFrame.sort((a, b) => a.priority - b.priority);
+    }
     if (followsOrigin) {
-        const eye = fullFrame[0] ?? onScreen[0];
+        const eye = mainViews[0] ?? overlays[0];
         if (eye) followRenderOrigin(eye.x, eye.y, eye.z);
     }
     const out: CameraInfo[] = [];
     for (const p of offscreen) out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
-    // The director resolves ONE main view from the full-frame candidates (active
-    // camera + view-target blending); index 0 → it also drives screen<->world.
-    if (fullFrame.length > 0 && app.hasResource(CameraDirector)) {
-        const main = resolveMainPOV(app.getResource(CameraDirector), fullFrame, now, advance);
-        if (main) out.push(buildCameraInfo(main, width, height, canvas, pool, out.length));
-    } else {
-        for (const p of fullFrame.slice().sort((a, b) => a.priority - b.priority)) {
-            out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
-        }
-    }
+    for (const p of mainViews) out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
     // Sub-viewport cameras render on top (minimaps, picture-in-picture).
     for (const p of overlays) {
         out.push(buildCameraInfo(p, width, height, canvas, pool, out.length));
