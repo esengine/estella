@@ -1699,6 +1699,8 @@ export const SHIPPED = {
     { notCertifiable: "Closing and reopening a project is an editor action, not a game act. desktop/tests/project-close.test.ts covers the discard refusal and the one close door, and the editor check project-close closes, reopens and refuses a dirty project through the MCP doors." },
   "Prefabs show what they contain in the Content Browser and the Details panel.":
     { notCertifiable: "A thumbnail is an editor picture, not a game act. The editor check prefab-preview draws a UI, a sprite and a model prefab, checks each covers its picture, the model is lit with no near-black pixels, an empty prefab keeps its icon and the edited world is pixel-identical before and after." },
+  "WeChat mini-games run the engine's background work on a worker.":
+    { notCertifiable: "A mini-game host is not available to a golden project's run. pipeline/tests/export-wechat-workers.test.ts covers the workers/index.js an export writes and its game.json entry, and sdk/tests/minigame-workers.test.ts the job worker started through the host's factory." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

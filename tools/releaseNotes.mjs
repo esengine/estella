@@ -6836,4 +6836,10 @@ export const NOTED = {
     { note: "The Sequencer previews clips in their authored Once, Loop or Ping-pong mode." },
   "fix(editor): align timeline preview and settings with the authored clip":
     { note: "The Sequencer previews clips in their authored Once, Loop or Ping-pong mode." },
+  "perf(runtime): spread main-thread jobs over the frame budget where there are no workers":
+    { note: "Mini-games and other hosts without workers no longer freeze while textures and recipes load." },
+  "fix(sdk): give the declaration build a 4 GB heap so the macOS release legs finish":
+    { internal: "The SDK's declaration build ran out of Node's default 2 GB heap on the macOS release runners and stopped v0.117.0's macOS and iOS legs; it now runs with 4 GB. Nothing a project builds or calls changes." },
+  "feat(minigame): carry the engine's job workers in WeChat packages":
+    { note: "WeChat mini-games run the engine's background work on a worker." },
 };
