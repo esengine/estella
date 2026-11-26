@@ -7,11 +7,12 @@ import { Assets } from '../src/asset/AssetPlugin';
 import type { App } from '../src/app/app';
 import { imagePixelsAt } from '../src/terrain/layerArrays';
 
-/** A PNG of `rows` (bytes per row, unfiltered), each row written with `filter` applied, of colour `type` (0 grey, 2 RGB, 6 RGBA). */
-function png(width: number, height: number, type: number, rows: number[][], filter = 0, depth = 8): Uint8Array {
-    const stride = { 0: 1, 2: 3, 6: 4 }[type as 0 | 2 | 6] * depth / 8;
+/** A PNG of unfiltered row bytes, written with the specified PNG row filters. */
+function png(width: number, height: number, type: 0 | 2 | 4 | 6, rows: number[][], filters: number | readonly number[] = 0, depth = 8): Uint8Array {
+    const stride = { 0: 1, 2: 3, 4: 2, 6: 4 }[type] * depth / 8;
     const raw: number[] = [];
     rows.forEach((row, y) => {
+        const filter = typeof filters === 'number' ? filters : filters[y]!;
         raw.push(filter);
         row.forEach((v, x) => {
             const a = x >= stride ? row[x - stride]! : 0;
@@ -94,6 +95,24 @@ describe('a PNG read as data', () => {
     it('widens grey and RGB to RGBA with an opaque alpha', async () => {
         expect(Array.from((await decodePngData(png(2, 1, 0, [[7, 200]])))!.pixels)).toEqual([7, 7, 7, 255, 200, 200, 200, 255]);
         expect(Array.from((await decodePngData(png(1, 1, 2, [[1, 2, 3]])))!.pixels)).toEqual([1, 2, 3, 255]);
+    });
+
+    it.each([
+        [0, 1, [40, 40, 40, 255]],
+        [2, 3, [40, 80, 120, 255]],
+        [4, 2, [40, 40, 40, 80]],
+        [6, 4, [40, 80, 120, 160]],
+    ] as const)('assembles colour type %i consistently across mixed filters', async (type, channels, expected) => {
+        const high = Array.from({ length: channels }, (_, i) => 40 * (i + 1));
+        const wide = high.flatMap((v, i) => [v, 230 + i]);
+        const filters = [4, 1, 0, 2, 3, 4];
+        for (const depth of [8, 16]) {
+            const pixel = depth === 16 ? wide : high;
+            const rows = filters.map(() => [...pixel, ...pixel]);
+            const result = (await decodePngData(png(2, rows.length, type, rows, filters, depth)))!;
+            expect(Array.from(result.pixels)).toEqual(rows.flatMap(() => [...expected, ...expected]));
+            if (depth === 16) expect(result.wide).toEqual(new Uint16Array(rows.length * 2).fill((40 << 8) | 230));
+        }
     });
 
     it('declines what it does not read, so the image path decodes it', async () => {

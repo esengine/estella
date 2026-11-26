@@ -43,6 +43,32 @@ const paeth = (a: number, b: number, c: number): number => {
     return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 };
 
+/** Undo one filter into a packed RGBA row or in place in the inflated scanlines. */
+function restoreRow(raw: Uint8Array, src: number, out: Uint8Array, dst: number, up: number, stride: number, step: number): void {
+    const filter = raw[src - 1];
+    if (filter === 1) {
+        if (raw !== out) out.set(raw.subarray(src, src + step), dst);
+        for (let x = step; x < stride; x++) out[dst + x] = raw[src + x]! + out[dst + x - step]!;
+    } else if (filter === 2 && up >= 0) {
+        for (let x = 0; x < stride; x++) out[dst + x] = raw[src + x]! + out[up + x]!;
+    } else if (filter === 3) {
+        for (let x = 0; x < stride; x++) {
+            const left = x >= step ? out[dst + x - step]! : 0;
+            const above = up >= 0 ? out[up + x]! : 0;
+            out[dst + x] = raw[src + x]! + ((left + above) >> 1);
+        }
+    } else if (filter === 4) {
+        for (let x = 0; x < stride; x++) {
+            const left = x >= step ? out[dst + x - step]! : 0;
+            const above = up >= 0 ? out[up + x]! : 0;
+            const corner = up >= 0 && x >= step ? out[up + x - step]! : 0;
+            out[dst + x] = raw[src + x]! + paeth(left, above, corner);
+        }
+    } else if (raw !== out) {
+        out.set(raw.subarray(src, src + stride), dst);
+    }
+}
+
 /**
  * The RGBA bytes of a PNG, top row first, as stored; null when it uses an unsupported PNG format.
  */
@@ -68,33 +94,28 @@ export async function decodePngData(bytes: Uint8Array): Promise<PngData | null> 
     const rawSize = (stride + 1) * height;
     const raw = await inflate(joined, rawSize);
     if (raw.length !== rawSize) return null;
-    const rows = new Uint8Array(stride * height);
+    const direct = channels === 4 && size === 1;
+    const pixels = new Uint8Array(width * height * 4);
+    const wide = size === 2 ? new Uint16Array(width * height) : undefined;
+    const rows = direct ? pixels : raw;
+    const rowSize = direct ? stride : stride + 1;
+    const green = channels > 2 ? size : 0, blue = green * 2;
+    const alpha = channels === 2 || channels === 4 ? (channels - 1) * size : -1;
     for (let y = 0; y < height; y++) {
-        const filter = raw[y * (stride + 1)]!;
-        const src = y * (stride + 1) + 1, dst = y * stride, up = dst - stride;
-        for (let x = 0; x < stride; x++) {
-            const a = x >= step ? rows[dst + x - step]! : 0;
-            const b = y > 0 ? rows[up + x]! : 0;
-            const c = x >= step && y > 0 ? rows[up + x - step]! : 0;
-            const v = raw[src + x]!;
-            rows[dst + x] = (filter === 1 ? v + a : filter === 2 ? v + b : filter === 3 ? v + ((a + b) >> 1)
-                : filter === 4 ? v + paeth(a, b, c) : v) & 255;
+        const src = y * (stride + 1) + 1, dst = direct ? y * stride : src;
+        restoreRow(raw, src, rows, dst, y > 0 ? dst - rowSize : -1, stride, step);
+        if (direct) continue;
+        // At 16 bits a channel the bytes are big-endian: RGBA keeps each high byte.
+        const first = y * width;
+        for (let x = 0; x < width; x++) {
+            const at = src + x * step, i = first + x, d = i * 4;
+            const high = raw[at]!;
+            pixels[d] = high;
+            pixels[d + 1] = raw[at + green]!;
+            pixels[d + 2] = raw[at + blue]!;
+            pixels[d + 3] = alpha < 0 ? 255 : raw[at + alpha]!;
+            if (wide) wide[i] = (high << 8) | raw[at + 1]!;
         }
     }
-    if (channels === 4 && size === 1) return { width, height, pixels: rows };
-    // At 16 bits a channel the bytes are big-endian: the RGBA bytes keep each channel's high byte.
-    const at = (i: number, ch: number): number => rows[i * step + ch * size]!;
-    const pixels = new Uint8Array(width * height * 4);
-    for (let i = 0; i < width * height; i++) {
-        const d = i * 4;
-        const grey = channels <= 2;
-        pixels[d] = at(i, 0);
-        pixels[d + 1] = grey ? at(i, 0) : at(i, 1);
-        pixels[d + 2] = grey ? at(i, 0) : at(i, 2);
-        pixels[d + 3] = channels === 2 ? at(i, 1) : channels === 4 ? at(i, 3) : 255;
-    }
-    if (size === 1) return { width, height, pixels };
-    const wide = new Uint16Array(width * height);
-    for (let i = 0; i < width * height; i++) wide[i] = (rows[i * step]! << 8) | rows[i * step + 1]!;
-    return { width, height, pixels, wide };
+    return wide ? { width, height, pixels, wide } : { width, height, pixels };
 }
