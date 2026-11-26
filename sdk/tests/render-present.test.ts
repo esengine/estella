@@ -44,10 +44,11 @@ function fakePostProcess(hasStack: boolean) {
 const VP = { x: 0, y: 0, w: 1244, h: 700 };   // an editor play panel
 const DESIGN_WORLD_HEIGHT = 1080;
 
-function run(policy: RenderResolution | undefined, hasStack: boolean) {
+function run(policy: RenderResolution | undefined, hasStack: boolean, renderTarget = 0, presentationTarget = 0) {
     const pp = fakePostProcess(hasStack);
     const pipeline = new RenderPipeline();
     pipeline.setPostProcess(pp as never);
+    pipeline.beginFrame(0, presentationTarget);
     pipeline.renderCamera({
         registry: { _cpp: {} as never },
         viewProjection: new Float32Array(16),
@@ -57,6 +58,7 @@ function run(policy: RenderResolution | undefined, hasStack: boolean) {
         cameraEntity: 1 as never,
         worldHeight: DESIGN_WORLD_HEIGHT,
         renderPolicy: policy,
+        renderTarget,
     });
     return pp;
 }
@@ -120,6 +122,30 @@ describe('renderCamera — the render size and the present rect', () => {
         const pp = run(undefined, /*hasStack=*/false);
         expect(pp.begin).not.toHaveBeenCalled();
         expect(pp.resize).not.toHaveBeenCalled();
+    });
+
+    it('draws an authored render texture at its own resolution under the integer display policy', () => {
+        const pp = run(RenderResolution.IntegerMultiple, false, 7);
+
+        expect(Renderer.setViewport).toHaveBeenCalledWith(VP.x, VP.y, VP.w, VP.h);
+        expect(pp.begin).not.toHaveBeenCalled();
+    });
+
+    it('keeps camera effects at the authored render texture resolution', () => {
+        const pp = run(RenderResolution.IntegerMultiple, true, 7);
+
+        expect(pp.resize).toHaveBeenCalledWith(VP.w, VP.h);
+        expect(pp.setPresentRequired).toHaveBeenCalledWith(false);
+        expect(pp._applyForCamera).toHaveBeenCalledWith(1);
+        expect(pp._resetAfterCamera).toHaveBeenCalled();
+    });
+
+    it('uses the display policy for a preview that presents to a texture', () => {
+        const pp = run(RenderResolution.Design, false, 7, 7);
+
+        expect(pp.resize).toHaveBeenCalledWith(expect.any(Number), DESIGN_WORLD_HEIGHT);
+        expect(pp.setOutputViewport).toHaveBeenCalledWith(VP.x, VP.y, VP.w, VP.h);
+        expect(pp.begin).toHaveBeenCalled();
     });
 
     it('a camera whose viewport already matches the world height does not scale', () => {

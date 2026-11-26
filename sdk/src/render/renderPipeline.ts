@@ -96,7 +96,7 @@ export interface CameraRenderParams {
     renderTarget?: number;
     /** World units the camera shows vertically (`2 * halfH`); drives the render size. */
     worldHeight?: number;
-    /** How the render resolution is chosen; omitted = render straight to the surface. */
+    /** How the render resolution is chosen for the frame output; intermediate targets use their own resolution. */
     renderPolicy?: RenderResolution;
     /**
      * Draw the scene the previous camera collected, from this view, rather than collecting it again: a headset's second eye,
@@ -364,18 +364,18 @@ export class RenderPipeline {
 
     renderCamera(params: CameraRenderParams): void {
         const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed, cameraEntity } = params;
+        const target = params.renderTarget ?? 0;
+        const presentsFrame = target === this.presentationTarget_;
+        const policy = (presentsFrame ? params.renderPolicy : undefined) ?? RenderResolution.Surface;
 
         // Where the scene is drawn and where it lands are two rects. A sprite that
         // scales itself can only clamp at its own texture's edge, so every boundary
         // breaks; scaling one whole image has no interior boundary to break.
-        let plan = planPresent(
-            params.renderPolicy ?? RenderResolution.Surface,
-            params.worldHeight ?? 0, vp.w, vp.h);
+        let plan = planPresent(policy, params.worldHeight ?? 0, vp.w, vp.h);
         const quality = this.quality_;
         const scale = quality?.renderScale ?? 1;
-        const fixedResolution = (params.renderPolicy ?? RenderResolution.Surface)
-            !== RenderResolution.Surface;
-        const scaling = scale < 1 && !fixedResolution && !params.renderTarget;
+        const fixedResolution = policy !== RenderResolution.Surface;
+        const scaling = scale < 1 && !fixedResolution && presentsFrame && target === 0;
         if (scale < 1 && fixedResolution) quality?.setLimitation('fixed-render-resolution', true);
         if (scaling && !this.postProcess_) {
             quality?.setLimitation('resolution-present-unavailable', true);
@@ -428,14 +428,13 @@ export class RenderPipeline {
         // dance, no sticky clear state at the boundary.
         const beginView = params.renderViewProjection ?? viewProjection;
         const replayed = params.replay === true
-            && Renderer.beginReplay(beginView, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
-        if (!replayed) Renderer.begin(beginView, params.renderTarget ?? 0, clearFlags, params.clearColor, scene);
+            && Renderer.beginReplay(beginView, target, clearFlags, params.clearColor, scene);
+        if (!replayed) Renderer.begin(beginView, target, clearFlags, params.clearColor, scene);
         // Set after begin (which clears the draw list) and before the collect it gates.
         Renderer.setCullingMask(params.cullingMask ?? 0xFFFFFFFF);
         // The camera IS the view: a level picked from how big something looks is
         // this camera's answer, and the next camera must be free to disagree.
         Renderer.setViewId(cameraEntity ?? 0);
-        const presentsFrame = (params.renderTarget ?? 0) === this.presentationTarget_;
         this.submitScene(registry, viewProjection, scene, elapsed, replayed, presentsFrame);
         Renderer.end();
         if (presentsFrame && overScreenCallbacks.entries.size > 0) {
