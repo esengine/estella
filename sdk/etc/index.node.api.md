@@ -4718,6 +4718,7 @@ ySortLayers: number | undefined
 components: readonly { type: string; data: Record<string, unknown>; }[]
 id: number
 name: string
+parent: number | null | undefined
 visible: boolean | undefined
 ```
 

@@ -20,6 +20,7 @@ import { LightType } from '../wasm/wasm.generated';
 export interface EnvironmentLightEntity {
     id: number;
     name: string;
+    parent?: number | null;
     /** Absent is visible. */
     visible?: boolean;
     components: ReadonlyArray<{ type: string; data: Record<string, unknown> }>;
@@ -58,23 +59,63 @@ function field<T>(authored: Record<string, unknown>, defaults: Record<string, un
  */
 export function sceneAmbientLights(entities: readonly EnvironmentLightEntity[],
                                    exists: (ref: string) => boolean): SceneAmbientLight[] {
+    return readSceneLights(entities, exists).ambient;
+}
+
+/** Match the runtime's inherited Disabled state for entities present after scene loading. */
+function sceneLightActivity(entities: readonly EnvironmentLightEntity[]) {
+    let loaded: Map<number, EnvironmentLightEntity> | undefined;
+    const active = new Map<number, boolean>();
+    const pending: number[] = [];
+    return (entity: EnvironmentLightEntity): boolean => {
+        pending.length = 0;
+        let current: EnvironmentLightEntity | undefined = entity;
+        let enabled = true;
+        while (current) {
+            const known = active.get(current.id);
+            if (known !== undefined) { enabled = known; break; }
+            pending.push(current.id);
+            // A repeated entry is a cycle; the loader would reject the hierarchy.
+            active.set(current.id, false);
+            if (current.components.some(c => c.type === 'Disabled')) { enabled = false; break; }
+            if (current.parent == null) break;
+            if (!loaded) {
+                loaded = new Map();
+                for (const row of entities) if (row.visible !== false) loaded.set(row.id, row);
+            }
+            current = loaded.get(current.parent);
+        }
+        for (const id of pending) active.set(id, enabled);
+        return enabled;
+    };
+}
+
+/** Read the light eligibility used by both the environment selector and the studio preview report. */
+export function readSceneLights(entities: readonly EnvironmentLightEntity[], exists: (ref: string) => boolean) {
     const defaults = COMPONENT_META['Light']?.defaults as Record<string, unknown> | undefined;
     const editorDefaults = COMPONENT_META['Light']?.editorDefaults as Record<string, unknown> | undefined;
     const base = { ...defaults, ...editorDefaults };
-    const out: SceneAmbientLight[] = [];
+    const isActive = sceneLightActivity(entities);
+    const ambient: SceneAmbientLight[] = [];
+    let direct = 0;
+    let total = 0;
     for (const entity of entities) {
         for (const component of entity.components) {
             if (component.type !== 'Light') continue;
-            if (field<number>(component.data, base, 'type', 0) !== LightType.Ambient) continue;
-            const named = field<unknown>(component.data, base, 'environment', '');
-            const ref = typeof named === 'string' && named !== '' ? named : null;
+            total++;
             const intensity = field<number>(component.data, base, 'intensity', 1);
             const skipped: AmbientSkip | null =
                 entity.visible === false ? 'hidden'
-                    : field<boolean>(component.data, base, 'enabled', true) === false ? 'disabled'
-                        : !(intensity > 0) ? 'no-intensity' : null;
+                    : !isActive(entity) || field<boolean>(component.data, base, 'enabled', true) === false ? 'disabled'
+                        : !(intensity > 0 && Number.isFinite(intensity)) ? 'no-intensity' : null;
+            if (field<number>(component.data, base, 'type', 0) !== LightType.Ambient) {
+                if (!skipped) direct++;
+                continue;
+            }
+            const named = field<unknown>(component.data, base, 'environment', '');
+            const ref = typeof named === 'string' && named !== '' ? named : null;
             const rotation = field<number>(component.data, base, 'environmentRotation', 0);
-            out.push({
+            ambient.push({
                 entityId: entity.id,
                 name: entity.name,
                 skipped,
@@ -86,7 +127,7 @@ export function sceneAmbientLights(entities: readonly EnvironmentLightEntity[],
             });
         }
     }
-    return out;
+    return { ambient, direct, total };
 }
 
 /** An Ambient light the frame could take the environment from. */

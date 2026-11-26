@@ -6,9 +6,12 @@
  * environment the project holds — and every other one named, never removed.
  */
 import { describe, it, expect } from 'vitest';
+import { App } from '../src/app/app';
 import {
     sceneAmbientLights, sceneEnvironment, carriesEnvironment, type EnvironmentLightEntity,
 } from '../src/lightmap';
+import { loadSceneData, type SceneEntityData } from '../src/scene/scene';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 let next = 1;
 function entity(name: string, light: Record<string, unknown>, visible?: boolean): EnvironmentLightEntity {
@@ -47,6 +50,32 @@ describe('the Ambient lights of a scene document', () => {
     });
 });
 
+it.skipIf(!HAS_WASM)('matches scene loading and inherited runtime activity for environment lights', async () => {
+    const engine = await loadWasmModule();
+    const app = App.new();
+    const registry = new engine.Registry();
+    app.connectCpp(registry, engine);
+    const disabled = { type: 'Disabled', data: {} };
+    const light = (id: number, name: string, parent: number): SceneEntityData => ({
+        id, name, parent, children: [], components: [{ type: 'Light', data: { type: AMBIENT } }],
+    });
+    const rows: SceneEntityData[] = [
+        light(1, 'Inactive', 101), light(2, 'Detached', 102),
+        { id: 101, name: 'Disabled', parent: null, children: [1], components: [disabled] },
+        { id: 102, name: 'Omitted', parent: null, children: [2], components: [disabled], visible: false },
+    ];
+    try {
+        const entities = await loadSceneData(app.world, { version: 4, name: 'Lighting', entities: rows });
+        const active = rows.slice(0, 2).map(row => app.world.isEntityActive(entities.get(row.id)!));
+        expect(active).toEqual([false, true]);
+        expect(sceneAmbientLights(rows, all).map(light => light.skipped === null)).toEqual(active);
+    } finally {
+        for (const entity of app.world.getAllEntities()) app.world.despawn(entity);
+        app.world.disconnectCpp();
+        registry.delete();
+    }
+});
+
 describe('the scene\'s environment', () => {
     const pick = (entities: EnvironmentLightEntity[], exists: (r: string) => boolean = all) =>
         sceneEnvironment(sceneAmbientLights(entities, exists));
@@ -75,5 +104,19 @@ describe('the scene\'s environment', () => {
         ]);
         expect(r.effective?.name).toBe('First');
         expect(r.shadowed.map((l) => l.name)).toEqual(['Second', 'Third']);
+    });
+
+    it('skips lights below disabled entities and selects the next finite light', () => {
+        const group = { id: next++, name: 'Off group', components: [{ type: 'Disabled', data: {} }] };
+        const folder = { id: next++, name: 'Folder', parent: group.id, components: [] };
+        const child = { ...ambient('Under group', { environment: 'off.esenv' }), parent: folder.id };
+        const infinite = ambient('Infinite', { environment: 'infinite.esenv', intensity: Infinity });
+        const fallback = ambient('Fallback', { environment: 'fallback.esenv' });
+        const lights = sceneAmbientLights([child, folder, group, infinite, fallback], all);
+        expect(lights.map((l) => l.skipped)).toEqual(['disabled', 'no-intensity', null]);
+        expect(sceneEnvironment(lights).effective?.name).toBe('Fallback');
+
+        const detached = pick([child, folder, { ...group, visible: false }, fallback]);
+        expect(detached.effective?.name).toBe('Under group');
     });
 });

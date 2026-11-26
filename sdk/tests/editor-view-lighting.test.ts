@@ -80,9 +80,20 @@ describe('why the scene is dark, from the document', () => {
         expect(studioPreviewReport([light({ type: 1, enabled: false })], all).sceneDark).toBe('no-enabled-light');
     });
 
+    it('reports a scene as dark when its only direct lights are inactive or non-finite', () => {
+        const group = { id: next++, name: 'Off group', components: [{ type: 'Disabled', data: {} }] };
+        const child = { ...light({ type: 1 }), parent: group.id };
+        const infinite = light({ type: 1, intensity: Infinity });
+        expect(studioPreviewReport([child, group, infinite], all)).toMatchObject({
+            sceneLights: 0, sceneDark: 'no-enabled-light',
+        });
+    });
+
     it('tells apart an Ambient that names nothing, one that names a missing file, and a usable one', () => {
-        expect(studioPreviewReport([light({ type: 2 })], all).skyUnavailable).toBe('no-environment');
-        expect(studioPreviewReport([light({ type: 2, environment: 'a.esenv' })], () => false).skyUnavailable).toBe('missing');
+        expect(studioPreviewReport([light({ type: 2 })], all)).toMatchObject({ skyUnavailable: 'no-environment', sceneDark: null });
+        expect(studioPreviewReport([light({ type: 2, environment: 'a.esenv' })], () => false)).toMatchObject({
+            skyUnavailable: 'missing', sceneDark: null,
+        });
         const ok = studioPreviewReport([light({ type: 2, environment: 'a.esenv' })], all);
         expect(ok.skyUnavailable).toBeNull();
         expect(ok.environment).not.toBeNull();

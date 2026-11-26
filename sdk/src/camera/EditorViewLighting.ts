@@ -17,10 +17,8 @@
  */
 import { defineResource } from '../ecs/resource';
 import type { ESEngineModule } from '../wasm';
-import { COMPONENT_META } from '../lightmap/metaAccess';
-import { LightType } from '../wasm/wasm.generated';
 import {
-    sceneAmbientLights, sceneEnvironment, carriesEnvironment,
+    readSceneLights, sceneEnvironment, carriesEnvironment,
     type EnvironmentLightEntity, type SceneAmbientLight,
 } from '../lightmap/environmentLight';
 
@@ -122,25 +120,7 @@ export function studioPreviewReport(
     entities: readonly EnvironmentLightEntity[],
     exists: (ref: string) => boolean,
 ): StudioPreviewReport {
-    const meta = COMPONENT_META['Light'];
-    const defaults = {
-        ...(meta?.defaults as Record<string, unknown> | undefined),
-        ...(meta?.editorDefaults as Record<string, unknown> | undefined),
-    };
-    let lit = 0;
-    let anyLight = 0;
-    for (const entity of entities) {
-        for (const c of entity.components) {
-            if (c.type !== 'Light') continue;
-            anyLight++;
-            const type = (c.data.type ?? defaults.type ?? 0) as number;
-            if (type === LightType.Ambient) continue;
-            const enabled = (c.data.enabled ?? defaults.enabled ?? true) !== false;
-            const intensity = (c.data.intensity ?? defaults.intensity ?? 1) as number;
-            if (entity.visible !== false && enabled && intensity > 0) lit++;
-        }
-    }
-    const ambient = sceneAmbientLights(entities, exists);
+    const { ambient, direct, total } = readSceneLights(entities, exists);
     const { effective } = sceneEnvironment(ambient);
     const named = ambient.filter((l) => l.environment !== null);
 
@@ -154,6 +134,8 @@ export function studioPreviewReport(
     }
 
     let sceneDark: SceneDark | null = null;
-    if (lit === 0 && !effective) sceneDark = anyLight === 0 ? 'no-lights' : 'no-enabled-light';
-    return { sceneLights: lit, environment: effective, skyUnavailable, sceneDark };
+    if (direct === 0 && !ambient.some(light => light.skipped === null)) {
+        sceneDark = total === 0 ? 'no-lights' : 'no-enabled-light';
+    }
+    return { sceneLights: direct, environment: effective, skyUnavailable, sceneDark };
 }
