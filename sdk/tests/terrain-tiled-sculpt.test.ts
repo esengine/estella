@@ -328,10 +328,29 @@ describe('a heightmap in and out of ground kept as tiles', () => {
         expect(map.pixels).toEqual(image(9, (x, z) => expected[z * 9 + x]!).pixels);
     });
 
+    it('prepares the import without editing the ground and updates tiles loaded before it is applied', async () => {
+        const t = tiled();
+        const field: Heightfield = { width: 2, height: 2, data: new Float32Array(4).fill(0.25) };
+        const staged = t.edit.prepareImageImport(field, 'all');
+        const tile = (await t.source.readTile(0, 0))!;
+        expect(tile.field.data[0]).toBeCloseTo(ground(0, 0), 6);
+        expect(t.source.overview.data[0]).toBeCloseTo(ground(0, 0), 6);
+        expect(t.remade).toHaveLength(0);
+        staged.apply();
+        expect(tile.field.data[0]).toBeCloseTo(q(0.25), 6);
+        expect(t.source.overview.data[0]).toBe(0.25);
+        staged.apply();
+        expect(t.remade).toHaveLength(1);
+    });
+
     it('refuses to import over changes not saved', async () => {
         const t = tiled();
         await loadAll(t.source);
+        const field = { width: 2, height: 2, data: new Float32Array(4) };
+        const staged = t.edit.prepareImageImport(field, 'all');
         t.edit.sculpt(SculptMode.Raise, 0, 0, 30, 0.5, 10);
-        expect(() => t.edit.importImage({ width: 2, height: 2, data: new Float32Array(4) }, 'all')).toThrow(/save or undo/);
+        expect(() => t.edit.importImage(field, 'all')).toThrow(/save or undo/);
+        expect(staged.assertClean).toThrow(/save or undo/);
+        expect(staged.apply).toThrow(/save or undo/);
     });
 });

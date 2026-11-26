@@ -14,7 +14,7 @@ import { encodeHeightmap, paintSplat, reach, sculptField, SculptMode, unionDirty
 import { BeforeTiles, clearChannel, usedChannels, put, type Piece } from './groundEdit';
 import type { ModifiedSource, Splat } from './source';
 import { paintKernel, type TerrainPaintSettings } from './weightBrush';
-import type { Heightfield } from './heightfield';
+import { HeightmapFormat, heightfieldFromPixels, type Heightfield } from './heightfield';
 import type { Tile, TiledSource, TerrainTilesDocument } from './tiles';
 import type { GroundHost } from './groundEdit';
 
@@ -270,24 +270,38 @@ export class TiledGroundEdit {
      * and the overview's). Refused while there are changes not saved, which it would overwrite.
      */
     importImage(field: Heightfield, mode: 'all' | 'loaded'): TiledGroundImage[] {
+        const staged = this.prepareImageImport(field, mode);
+        staged.apply();
+        return staged.images;
+    }
+
+    /** Prepare the files without changing the live ground. Apply after the caller has published the files. */
+    prepareImageImport(field: Heightfield, mode: 'all' | 'loaded'): {
+        images: TiledGroundImage[];
+        assertClean(): void;
+        apply(): void;
+    } {
         const s = this.source, n = s.doc.tileSamples - 1, t = n + 1;
-        if (s.dirtyTiles().length > 0 || s.overviewDirty) throw new Error('save or undo the changes to this terrain before importing over it');
+        const assertClean = () => {
+            if (s.dirtyTiles().length > 0 || s.overviewDirty) throw new Error('save or undo the changes to this terrain before importing over it');
+        };
+        assertClean();
         const at = (gi: number, gj: number): number => bilinear(field.data, field.width,
             gi / (s.samplesX - 1) * (field.width - 1), gj / (s.samplesZ - 1) * (field.height - 1));
         const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
         const images: TiledGroundImage[] = [];
         const columnsByRow = new Map<number, Set<number>>();
+        const preparedResident = new Map<number, Float32Array>();
         for (const e of chosen) {
             let columns = columnsByRow.get(e.z);
             if (!columns) columnsByRow.set(e.z, columns = new Set());
             columns.add(e.x);
             const heights: Heightfield = { width: t, height: t, data: new Float32Array(t * t) };
             for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) heights.data[j * t + i] = at(e.x * n + i, e.z * n + j);
-            const tile = s.tileAt(e.x, e.z);
-            if (tile) tile.field.data.set(heights.data);
+            if (s.tileAt(e.x, e.z)) preparedResident.set(images.length, heights.data);
             images.push(heightImage(e.height, heights, s.doc.format));
         }
-        const ov = s.overview;
+        const ov = { ...s.overview, data: s.overview.data.slice() };
         for (let oj = 0; oj < ov.height; oj++) {
             const gj = oj / (ov.height - 1) * (s.samplesZ - 1);
             const columns = columnsByRow.get(Math.min(Math.floor(gj / n), s.doc.tilesZ - 1));
@@ -299,8 +313,23 @@ export class TiledGroundEdit {
             }
         }
         images.push(heightImage(s.doc.overview, ov, s.doc.format));
-        this.host.remake(this.world([-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2]));
-        return images;
+        let applied = false;
+        return {
+            images, assertClean,
+            apply: () => {
+                if (applied) return;
+                assertClean();
+                for (const [i, entry] of chosen.entries()) {
+                    const tile = s.tileAt(entry.x, entry.z);
+                    if (!tile) continue;
+                    const samples = preparedResident.get(i) ?? heightfieldFromPixels(t, t, images[i]!.pixels, HeightmapFormat.RedGreen16).data;
+                    tile.field.data.set(samples);
+                }
+                s.overview.data.set(ov.data);
+                applied = true;
+                this.host.remake(this.world([-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2]));
+            },
+        };
     }
 
     /** After the images of {@link saveImages} are written: the tiles may leave memory again. */
