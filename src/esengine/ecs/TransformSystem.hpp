@@ -454,8 +454,19 @@ inline void syncHierarchyComponents(Registry& registry, Entity entity, Entity ol
             if (!rel.hasSources(owner)) continue;
             registry.emplace<Children>(owner);
         }
-        auto list = rel.sources(owner);
-        if (registry.get<Children>(owner).entities != list) registry.patch<Children>(owner).entities = std::move(list);
+        auto& children = registry.get<Children>(owner).entities;
+        const auto count = rel.count(owner);
+        bool changed = children.size() != count;
+        if (changed) children.resize(count);
+        usize index = 0;
+        rel.eachSource(owner, [&](Entity child) {
+            if (children[index] != child) {
+                children[index] = child;
+                changed = true;
+            }
+            ++index;
+        });
+        if (changed) registry.markChanged<Children>(owner);
     }
 }
 
@@ -567,7 +578,10 @@ inline void destroyWithChildren(Registry& registry, Entity entity) {
         if (parent.isValid() && registry.valid(parent) && registry.has<Children>(parent)) {
             auto& children = registry.get<Children>(parent).entities;
             const auto it = std::find(children.begin(), children.end(), e);
-            if (it != children.end()) children.erase(it);
+            if (it != children.end()) {
+                children.erase(it);
+                registry.markChanged<Children>(parent);
+            }
         }
     }
 }

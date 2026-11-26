@@ -70,6 +70,24 @@ TEST_CASE("removing a sibling keeps the others in order") {
     CHECK(r.childOf().count(root) == 1);
 }
 
+TEST_CASE("hierarchy writes repair the children mirror and stamp actual changes") {
+    Registry r;
+    const auto root = r.create(), a = r.create(), b = r.create(), c = r.create();
+    REQUIRE(setParent(r, a, root));
+    REQUIRE(setParent(r, b, root));
+    r.patch<Children>(root).entities = {b, a};
+
+    const auto beforeAppend = r.beginChangeRead();
+    REQUIRE(setParent(r, c, root));
+    CHECK(r.get<Children>(root).entities == std::vector<Entity>{a, b, c});
+    CHECK(r.changedSince<Children>(root, beforeAppend));
+
+    const auto beforeDestroy = r.beginChangeRead();
+    destroyWithChildren(r, b);
+    CHECK(r.get<Children>(root).entities == std::vector<Entity>{a, c});
+    CHECK(r.changedSince<Children>(root, beforeDestroy));
+}
+
 TEST_CASE("a destroyed parent leaves its children roots") {
     Registry r;
     const auto root = r.create(), child = r.create(), leaf = r.create();
