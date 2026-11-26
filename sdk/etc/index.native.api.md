@@ -1774,6 +1774,7 @@ priorityExtraMs: number
 release: (owner: object) => void
 run: <T>(label: string, job: WorkJob<T>) => { done: Promise<T>; cancel: () => void; finish: () => void; }
 step: (now?: () => number) => void
+stepping: () => boolean
 turn: (owner?: object) => Promise<void>
 urge: (owner: object, urgent: boolean) => void
 urgent: boolean
@@ -8988,6 +8989,7 @@ volume: number | undefined
 achievements: string[] | undefined
 app: App
 assetBaseUrl: string | undefined
+assetDocuments: readonly { path: string; contents: string; }[] | undefined
 assetManifest: Record<string, string>
 assetPathMap: Record<string, string> | undefined
 audioConfig: AudioProjectConfig | undefined
@@ -11385,7 +11387,7 @@ contentSize: Vec2
 decelerationRate: number | undefined
 direction: "both" | "horizontal" | "vertical" | undefined
 dragScroll: boolean | undefined
-host: ListViewHost
+host: CollectionHost | undefined
 node: UINodeInit | undefined
 onScroll: ((offset: Vec2) => void) | undefined
 parent: number | undefined
