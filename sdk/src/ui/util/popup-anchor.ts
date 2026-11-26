@@ -9,7 +9,7 @@ import type { ScreenOverlayData } from '../core/screen-overlay';
 import type { UICameraData } from '../core/ui-camera-info';
 import { UIPointerEvents } from '../core/ui-node';
 import { walkParentChain } from './helpers';
-import { projectWorldPoint } from './math';
+import { projectCameraPoint } from './math';
 import { isScreenEntity, screenToUiLayout } from './ui-pick';
 
 export interface PopupBounds { left: number; right: number; bottom: number; top: number }
@@ -55,7 +55,7 @@ export function createPopupBoundsReader(world: World) {
             let sx = m[0] * x + m[4] * y + m[12], sy = m[1] * x + m[5] * y + m[13];
             if (!screen) {
                 const z = m[2] * x + m[6] * y + m[14];
-                const pixel = projectWorldPoint(sx, sy, z, camera.viewProjection, camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+                const pixel = projectCameraPoint(camera, sx, sy, z);
                 if (!(pixel.clipW > 0)) return null;
                 const layout = screenToUiLayout(overlay, pixel.x, pixel.y);
                 sx = layout.x; sy = layout.y;

@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { buildCameraInfo } from '../src/camera/CameraPlugin';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
-import { Canvas, Disabled, Name, Parent, Transform, registerComponent } from '../src/ecs/component';
+import { Canvas, ClearFlags, Disabled, Name, Parent, ProjectionType, Transform, registerComponent } from '../src/ecs/component';
 import { Schedule } from '../src/ecs/system';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Input, InputState } from '../src/input/input';
@@ -15,7 +16,7 @@ import { createTabView } from '../src/ui/widgets/tab-view';
 import { createTooltip } from '../src/ui/widgets/tooltip';
 import { spawnUIEntity } from '../src/ui/core/compose';
 import { px } from '../src/ui/core/dimension';
-import { UINode, UIDisplay, UIPointerEvents } from '../src/ui/core/ui-node';
+import { UINode, UIDisplay, UIPointerEvents, UIPositionType } from '../src/ui/core/ui-node';
 import { Text } from '../src/ui/core/text';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { FocusManager, FocusManagerState, Focusable } from '../src/ui/input/focusable';
@@ -26,6 +27,8 @@ import { UIInteractionPlugin } from '../src/ui/input/interaction';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../src/ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
+import { createPopupBoundsReader } from '../src/ui/util/popup-anchor';
+import { followRenderOrigin, resetRenderOrigin, setRenderOriginStep } from '../src/render/renderOrigin';
 import { cancelPrimaryPointer } from '../src/input/pointerCancellation';
 import { ThemeStyle } from '../src/ui/theme/theme-style';
 import { UIController } from '../src/ui/controller/ui-controller';
@@ -93,6 +96,50 @@ describe.skipIf(!HAS_WASM)('TabView and Tooltip on real WASM', () => {
         app.getResource(UIControlPointers).pointers.set(id, p); return p;
     };
     const bubbles = () => app.world.getEntitiesWithComponents([Text]).filter(e => app.world.get(e, Text).content === 'Volume controls the music.');
+
+    it.each([ProjectionType.Orthographic, ProjectionType.Perspective])('anchors world popups to the rebased projection %s', projection => {
+        const { world } = app;
+        const anchor = world.spawn();
+        world.insert(anchor, Transform);
+        const canvas = spawnUIEntity({ world, parent: anchor, node: { width: px(800), height: px(600) } });
+        world.insert(canvas, Canvas);
+        const trigger = spawnUIEntity({ world, parent: canvas, node: {
+            position: UIPositionType.Absolute, width: px(40), height: px(20), insetLeft: px(380), insetTop: px(290),
+        } });
+        const reader = createPopupBoundsReader(world);
+        const measure = (x: number) => {
+            world.update(anchor, Transform, t => { t.position.x = x; });
+            engine.uiLayout_update(registry, -400, -300, 400, 300, true);
+            engine.transform_update(registry);
+            expect(engine.ui_isScreenDomain!(registry, trigger)).toBe(false);
+            followRenderOrigin(x, 0, 120);
+            const camera = buildCameraInfo({
+                entity: anchor, isActive: true, x, y: 0, z: 120, rotation: 0,
+                tilt: { x: 0, y: Math.sin(0.025), z: 0, w: Math.cos(0.025) },
+                projection, orthoSize: 137, fov: 60, near: 0.1, far: 1000,
+                viewport: { x: 0, y: 0, z: 1, w: 1 }, clearFlags: ClearFlags.ColorAndDepth,
+                priority: 0, pixelPerfect: false, cullingMask: 0xffffffff, renderTarget: 0,
+            }, 800, 600, null, [], 0);
+            return reader.read(trigger, { ...UICameraInfo._default, valid: true, vpW: 800, vpH: 600,
+                viewProjection: camera.viewProjection, rebasedProjection: x === 0 ? undefined : {
+                    origin: camera.renderOrigin, viewProjection: camera.renderViewProjection,
+                } }, app.getResource(ScreenOverlay));
+        };
+        try {
+            setRenderOriginStep(1000);
+            const near = measure(0), distant = measure(100_000_000);
+            expect(near).not.toBeNull();
+            expect(distant).not.toBeNull();
+            expect(near!.left).toBeGreaterThan(-400);
+            expect(near!.right).toBeLessThan(400);
+            for (const edge of ['left', 'right', 'bottom', 'top'] as const) {
+                expect(distant![edge]).toBeCloseTo(near![edge], 3);
+            }
+        } finally {
+            reader.dispose();
+            resetRenderOrigin();
+        }
+    });
     const realPointerTarget = () => {
         interaction = new UIInteractionPlugin(); interaction.build(app);
         const e = target();
