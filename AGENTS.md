@@ -11,8 +11,9 @@
   exporting. Review how shared controls look and behave in real panels,
   including narrow layouts and keyboard use. Look for awkward interactions
   and for engine and editor code that give different answers to the same operation.
-- Correctness comes first. Establish the expected behavior with a regression
-  check, then profile the engine or editor workflow that feels slow. Prioritize
+- Correctness comes first. A measured bottleneck in the engine or editor is
+  itself a reason to take on architecture work. Establish the expected behavior
+  with a regression check, then profile the workflow that feels slow. Prioritize
   work by measured cost. Compare the same scene, workload and host before and
   after a performance change, and rerun the behavior check alongside it.
 - Review actual PR merge status and verification evidence before updating
