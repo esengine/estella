@@ -135,16 +135,10 @@ export interface ExportScene {
 }
 
 /**
- * Every scene the shipped game can switch to: all `.esscene` under the
- * project's scenes dir plus the entry scene wherever it lives, minus the
- * project's export exclusions (`packaging.excludeScenes` — dev/test scenes).
- * Names are the scenes-dir-relative path without extension ('main',
- * 'levels/boss') — the stable ids game code passes to
- * `SceneManager.switchTo`; a scene outside the scenes dir is named by its
- * project-relative path. The entry always sorts first and always ships, an
- * exclusion notwithstanding. Cook reachability runs from ALL of these roots,
- * so every scene's assets ship (playable stays entry-only: a size-capped
- * single file).
+ * The entry scene is always first and ships even if excluded. Other scenes
+ * under `scenesDir` ship unless listed in `excludeScenes`.
+ * `SceneManager.switchTo` uses extensionless paths relative to `scenesDir`,
+ * or to the project root for an entry outside that directory.
  */
 export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string, excludeScenes?: string[]): Promise<ExportScene[]> {
   const excluded = new Set((excludeScenes ?? []).map((p) => p.replace(/\\/g, '/')));

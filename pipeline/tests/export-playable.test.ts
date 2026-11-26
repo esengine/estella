@@ -246,6 +246,32 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
+  it('boots the selected nested scene when an all-scenes playable includes another scene with the same filename', async () => {
+    const scenesDir = 'levels';
+    const entryScene = 'levels/campaign/intro.esscene';
+    mkdirSync(path.join(root, 'levels/campaign'), { recursive: true });
+    for (const [file, name, uuid] of [
+      [entryScene, 'Campaign intro', '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      ['levels/intro.esscene', 'Standalone intro', '22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+    ]) {
+      writeFileSync(path.join(root, file), JSON.stringify({ version: '1.0', name, entities: [] }));
+      writeFileSync(path.join(root, `${file}.meta`), meta(uuid, 'scene'));
+    }
+    const result = await exportGame({
+      root, entryScene, scenesDir, playableScenes: 'all', platform: 'playable',
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-nested'),
+    });
+    expect(result.ok, result.errors.join('\n')).toBe(true);
+    const html = readFileSync(path.join(result.outDir, 'index.html'), 'utf8');
+    const scenes = JSON.parse(inlinedText(html, '__GAME_SCENES__')) as Array<{ name: string; data: { name: string } }>;
+    const first = JSON.parse(html.match(/window\.__GAME_FIRST__=("[^";]*");/)![1]);
+    expect(scenes.find(scene => scene.name === first)?.data.name).toBe('Campaign intro');
+    expect(first).toBe('campaign/intro');
+    expect(scenes.find(scene => scene.name === 'intro')?.data.name).toBe('Standalone intro');
+    expect(result.inlineParts?.some(part => part.path === 'scenes/campaign/intro.json')).toBe(true);
+  }, 60_000);
+
   // How a texture is sampled is in its .meta, and the manifest is the only way that reaches a package. A playable was handed none:
   // every texture took the defaults, so a wall or a ground whose picture repeats drew one copy and smeared its edge over the rest,
   // while the same scene was right in the editor and in a web export.

@@ -269,6 +269,7 @@ export async function exportPlayable(opts: {
   const sceneList = opts.scenesDir !== undefined
     ? await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes)
     : [{ name: path.basename(opts.entryScene).replace(/\.[^.]+$/, ''), path: opts.entryScene }];
+  const sceneName = sceneList[0]!.name;
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
   progress({ phase: 'Cooking assets' });
   // No KTX2 transcoder: PNGs honor Max Size through the raw-image path. Audio
@@ -347,7 +348,6 @@ export async function exportPlayable(opts: {
   }
 
   // 3. Scene inlined (keeps @uuid: refs — EmbeddedAssetProvider resolves them).
-  const sceneName = path.basename(opts.entryScene).replace(/\.[^.]+$/, '');
   let scenes: Array<{ name: string; data: unknown }> = [];
   try {
     for (const scene of sceneList) scenes.push({ name: scene.name, data: JSON.parse(await readFile(path.join(cookDir, scene.path), 'utf8')) });
