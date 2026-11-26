@@ -192,10 +192,7 @@ export class TiledGroundEdit {
         const doc = this.source.doc, images: TiledGroundImage[] = [];
         let named = false;
         const beside = (path: string, suffix: string): string => path.replace(/(\.[^./]+)?$/, `${suffix}.png`);
-        for (const key of this.source.dirtyTiles()) {
-            const [tx, tz] = key.split(':').map(Number) as [number, number];
-            const tile = this.source.tileAt(tx, tz), entry = doc.tiles.find((t) => t.x === tx && t.z === tz);
-            if (!tile || !entry) continue;
+        for (const { tile, entry } of this.source.residentDirtyTiles()) {
             images.push({ path: entry.height, width: tile.field.width, height: tile.field.height, pixels: encodeHeightmap(tile.field) });
             if (tile.splat) {
                 if (!entry.splat) { entry.splat = beside(entry.height, '_splat'); named = true; }

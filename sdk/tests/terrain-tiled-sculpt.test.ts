@@ -233,6 +233,20 @@ describe('brushes on ground kept as tiles', () => {
         t.edit.saved();
         expect(t.edit.saveImages().document).toBeNull();
     });
+
+    it('captures only resident dirty tiles in coordinate-key order', async () => {
+        const { source, edit } = tiled();
+        await source.readTile(2, 1);
+        await source.readTile(0, 2);
+        await source.readTile(1, 1);
+        source.markDirty(2, 1);
+        source.markDirty(0, 2);
+        source.markDirty(2, 2);
+        const { images, document } = edit.saveImages();
+        expect(images.map(image => image.path)).toEqual(['t0_2.png', 't2_1.png']);
+        expect(images[0]?.pixels).toEqual(image(T, (i, j) => ground(i, 2 * (T - 1) + j)).pixels);
+        expect(document).toBeNull();
+    });
 });
 
 describe('a heightmap in and out of ground kept as tiles', () => {

@@ -214,6 +214,14 @@ export class TiledSource implements TerrainSource {
         return [...this.dirty_].sort();
     }
 
+    /** @internal Resident dirty tiles and their manifest entries, in save order. */
+    *residentDirtyTiles(): Iterable<{ tile: Tile; entry: TerrainTileEntry }> {
+        for (const key of this.dirtyTiles()) {
+            const tile = this.tiles_.get(key), entry = this.entries_.get(key);
+            if (tile && entry) yield { tile, entry };
+        }
+    }
+
     /** @internal Whether the overview has changed since it was read or last saved. */
     get overviewDirty(): boolean {
         return this.overviewDirty_;
