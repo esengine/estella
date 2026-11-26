@@ -137,8 +137,8 @@ editor window and starts read-only. The connect dialog identifies its editor by 
 About fifty everyday tools (the scene, Play, opening and saving, screenshots, logs) are listed from the start. The
 others are in groups the agent enables with `enable_tools`:
 
-`look`, `assets`, `timeline`, `prefab`, `authoring`, `view`, `play`, `render`, `project`, `code`, `image`, `sound`,
-`terrain`, `modeling`, `tripo`, `device`, and `plugins` (tools added by the project's editor plugins).
+`look`, `assets`, `timeline`, `prefab`, `authoring`, `view`, `play`, `render`, `project`, `code`, `image`, `rig`,
+`sound`, `terrain`, `modeling`, `tripo`, `device`, and `plugins` (tools added by the project's editor plugins).
 
 Any tool can be called by name without being listed. `--all-tools` lists all of them from the start. At connection the
 agent receives the operating rules: tool groups, the open scene versus the running game, `step` instead of waiting,
@@ -168,6 +168,16 @@ A typical sequence: `open_project` → `open_scene` → `list_entity_templates` 
 - **Entities by name.** `entity` also accepts a name, looked up in the world the tool acts on (the open scene, or the
   running game for `inspect_entity`), since the two number entities differently. A name shared by two entities is
   refused with their numbers; in the scene, a path such as `"HUD/ScoreText"` selects one.
+
+## 2D skeletal characters
+
+The `rig` group lets an agent build a 2D skeletal character and animate it. It works from a picture of the character's
+separate parts, which can be drawn with `image_write`. `rig_write` takes bones from joint to tip and the box each part was
+drawn in, and writes the `.esrig` with its `.esmesh` and `.esprefab`. Its answer is a sheet with the pose, which bones move
+each part, and every joint bent both ways, so a joint that opens or a part that follows the wrong bone shows before any
+animation. `rig_clip_write` writes a motion as an `.estimeline`. It shows the frames side by side and laid over each other,
+with the paths of the hands and feet, and measures how far a planted foot slides. `rig_read` and `rig_clip_read` return the
+same descriptions, ready to change and write again. The rig opens in the Rig editor and the clip in the Sequencer.
 
 ## Tripo AI
 

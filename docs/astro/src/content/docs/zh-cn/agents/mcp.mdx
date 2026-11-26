@@ -112,7 +112,7 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 约五十个日常工具（场景、运行、打开与保存、截图、日志）一开始就会列出。其余工具位于分组中，由智能体通过 `enable_tools` 开启：
 
-`look`、`assets`、`timeline`、`prefab`、`authoring`、`view`、`play`、`render`、`project`、`code`、`image`、`sound`、`terrain`、`modeling`、`tripo`、`device`，以及 `plugins`（项目编辑器插件添加的工具）。
+`look`、`assets`、`timeline`、`prefab`、`authoring`、`view`、`play`、`render`、`project`、`code`、`image`、`rig`、`sound`、`terrain`、`modeling`、`tripo`、`device`，以及 `plugins`（项目编辑器插件添加的工具）。
 
 任何工具都可以不经列出直接按名称调用。`--all-tools` 一开始就列出全部工具。连接时智能体会收到操作规则：工具分组、打开的场景与运行中游戏的区别、用 `step` 代替等待，以及每次调用对应一个撤销步骤。
 
@@ -133,6 +133,10 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 - **描述** 足够简短，客户端会完整传递。带有扩展说明的工具（`model_write`、`image_write`、`music_write` 等）在描述末尾列出主题；智能体通过 `tool_guide` 阅读，它由工具目录直接回答，不会启动编辑器。
 - **参数名称** 统一：实体为 `entity`（打开的场景或运行中游戏里的编号），组件字段为 `field`，搜索文本为 `query`，结果上限为 `limit`。旧名称（`id`、`key`、`match`、`maxResults`）仍被接受。
 - **按名称指定实体。** `entity` 也接受名称，在工具作用的世界中查找（打开的场景，或 `inspect_entity` 对应的运行中游戏），因为两者对实体的编号不同。两个实体同名时会被拒绝并列出各自编号；在场景中可用 `"HUD/ScoreText"` 这样的路径指定其一。
+
+## 2D 骨骼角色
+
+`rig` 分组让智能体制作 2D 骨骼角色并做动画。它以一张角色各部件分开画的图为起点，这张图可以用 `image_write` 画。`rig_write` 按“关节到末端”给出骨骼，并给出每个部件在图上的框，写出 `.esrig` 以及配套的 `.esmesh` 和 `.esprefab`。它返回一张图：姿势、每个部件跟随哪些骨骼，以及每个关节向两边各弯一次的效果。关节裂开、部件跟错骨骼这类问题，在做动画之前就能看出来。`rig_clip_write` 把动作写成 `.estimeline`，并把各帧并排、叠在一起显示，画出手脚的运动轨迹，还会测量落地的脚滑了多远。`rig_read` 和 `rig_clip_read` 以同样的描述格式读回，改完可以直接再写。骨骼在骨骼编辑器里打开，片段在 Sequencer 里打开。
 
 ## Tripo AI
 
