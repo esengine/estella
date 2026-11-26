@@ -44,6 +44,9 @@ import {
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
+import { parseTerrainTiles } from '../../../sdk/src/terrain/tiles';
+import { addressableKeys } from './addressableRecord';
 import { visitAnimatorClips } from './animatorRefs';
 import { mapTilesetImages } from '../../../sdk/src/tilemap/tiledRefs';
 // Single source for the folder→delivery-group model, shared with the editor Play
@@ -1128,6 +1131,7 @@ export async function cookAssets(
   // lacks is a 404 the game shows as a missing texture or absent lighting rather
   // than as an error — and the type it happens on need not be one anyone wired up.
   const shipped = new Set(manifestEntries.map((e) => e.sourcePath));
+  let shippedKeys: ReturnType<typeof addressableKeys> | undefined;
   for (const entry of manifestEntries) {
     const type = getAssetTypeEntry(entry.sourcePath);
     if (type?.contentType !== 'json' && type?.contentType !== 'text') continue;
@@ -1135,6 +1139,26 @@ export async function cookAssets(
     try {
       text = (await readFile(path.join(absOut, entry.path))).toString('utf8');
     } catch { continue; }
+    if (entry.type === 'terrain-tiles') {
+      shippedKeys ??= addressableKeys(manifestEntries);
+      try {
+        const doc = parseTerrainTiles(JSON.parse(text));
+        const refs = new Set([doc.overview, doc.overviewSplat, doc.overviewSplat2]);
+        for (const tile of doc.tiles) {
+          refs.add(tile.height).add(tile.splat).add(tile.splat2);
+        }
+        for (const ref of refs) {
+          if (typeof ref !== 'string' || !ref || /^(?:https?:)?\/\//i.test(ref)) continue;
+          // Terrain opens project paths and asset ids through the runtime catalog.
+          const logical = ref.replace(/^\//, '');
+          if (shippedKeys.has(logical) || shippedKeys.has(assetRefId(logical) ?? logical)) continue;
+          failed.push(`${entry.sourcePath}: terrain image '${ref}' is not packaged`);
+        }
+      } catch (error) {
+        failed.push(`${entry.sourcePath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      continue;
+    }
     for (const ref of unresolvedDocumentRefs(entry.sourcePath, text, shipped)) {
       warnings.push(`${entry.sourcePath}: names '${ref}', which the package does not carry`);
     }

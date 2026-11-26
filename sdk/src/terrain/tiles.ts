@@ -51,7 +51,7 @@ export function parseTerrainTiles(json: unknown, file = 'terrain tiles'): Terrai
     if (!Array.isArray(o.tiles)) throw new Error(`${file}: has no tile list`);
     const seen = new Set<string>();
     for (const t of o.tiles) {
-        if (!whole(t?.x, 0) || !whole(t?.z, 0) || t.x >= o.tilesX || t.z >= o.tilesZ || typeof t.height !== 'string') {
+        if (!whole(t?.x, 0) || !whole(t?.z, 0) || t.x >= o.tilesX || t.z >= o.tilesZ || typeof t.height !== 'string' || !t.height) {
             throw new Error(`${file}: tile ${JSON.stringify(t)} is outside the ${o.tilesX} by ${o.tilesZ} grid or names no heights`);
         }
         if (seen.has(`${t.x}:${t.z}`)) throw new Error(`${file}: tile ${t.x}, ${t.z} is listed twice`);

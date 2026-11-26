@@ -51,3 +51,32 @@ it('ships terrain tile and overview samples byte-for-byte through the asset cook
         rmSync(root, { recursive: true, force: true });
     }
 });
+
+it('fails a cook when a reachable terrain names unavailable paths or UUIDs', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'estella-terrain-missing-'));
+    const terrain = 'assets/maps/ground.esterrain', scene = 'assets/main.esscene';
+    const overview = 'assets/maps/unregistered.png', height = 'excluded/tile.png';
+    const weights = '@uuid:aaaaaaaa-aaaa-4aaa-8aaa-000000000024';
+    const put = (rel: string, body: string, type?: string, suffix?: string) => {
+        const abs = path.join(root, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        if (type) writeFileSync(abs + '.meta', JSON.stringify({ type, version: '2.0', uuid: 'aaaaaaaa-aaaa-4aaa-8aaa-' + suffix }));
+    };
+    try {
+        put('project.esproject', JSON.stringify({ name: 'Terrain', assetExclude: ['excluded'] }));
+        put(overview, 'unregistered image');
+        put(height, 'excluded image', 'texture', '000000000021');
+        put(terrain, JSON.stringify({ version: 1, tileSamples: 9, tilesX: 1, tilesZ: 1, overview, tiles: [{ x: 0, z: 0, height, splat: weights }] }),
+            'terrain-tiles', '000000000022');
+        put(scene, JSON.stringify({ version: '1.0', name: 'Terrain', entities: [{
+            id: 1, name: 'Ground', parent: null, children: [], components: [{ type: 'Terrain', data: { tiles: terrain } }],
+        }] }), 'scene', '000000000023');
+
+        const result = await cookAssets(root, { entryScenes: [scene], outDir: 'build' });
+        expect(result.ok).toBe(false);
+        expect(result.failed).toEqual([overview, height, weights].map(ref => `${terrain}: terrain image '${ref}' is not packaged`));
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});

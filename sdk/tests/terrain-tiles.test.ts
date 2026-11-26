@@ -88,10 +88,11 @@ describe('ground kept as tiles', () => {
         expect(source.stats()).toMatchObject({ resident: 1, bytes: one });
     });
 
-    it('refuses a document whose tiles fall outside its grid, or are listed twice', () => {
+    it('requires in-grid, unique tiles with named heights', () => {
         const doc = { version: 1, tileSamples: 9, tilesX: 1, tilesZ: 1, overview: 'o.png', tiles: [{ x: 0, z: 0, height: 'a.png' }] };
         expect(parseTerrainTiles(doc).tiles).toHaveLength(1);
         expect(() => parseTerrainTiles({ ...doc, tiles: [{ x: 1, z: 0, height: 'a.png' }] })).toThrow(/outside/);
         expect(() => parseTerrainTiles({ ...doc, tiles: [doc.tiles[0], doc.tiles[0]] })).toThrow(/twice/);
+        expect(() => parseTerrainTiles({ ...doc, tiles: [{ x: 0, z: 0, height: '' }] })).toThrow(/names no heights/);
     });
 });
