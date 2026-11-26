@@ -456,8 +456,8 @@ function createComponentDef<T extends object>(
 // User components live in the per-app AppContext registry (reset-able). Builtins
 // are global and live in `builtinRegistry` (declared further below). The public
 // catalogue accessors merge the two — see getComponentRegistry().
-function userComponents(): Map<string, AnyComponentDef> {
-    return getDefaultContext().componentRegistry as Map<string, AnyComponentDef>;
+function userComponents() {
+    return getDefaultContext().componentRegistry;
 }
 
 /**
@@ -499,7 +499,6 @@ export function defineComponent<T extends object>(
 
     const def = createComponentDef(name, defaults, metadata);
     userComponents().set(name, def);
-    componentRegistryVersion_++;
     registerToEditor(name, defaults as Record<string, unknown>, false);
     return def;
 }
@@ -524,7 +523,6 @@ export function defineTag(name: string): ComponentDef<{}> {
 
     const def = createComponentDef(name, {});
     userComponents().set(name, def);
-    componentRegistryVersion_++;
     registerToEditor(name, {}, true);
     return def;
 }
@@ -535,12 +533,10 @@ export function getUserComponent(name: string): ComponentDef<any> | undefined {
 
 export function clearUserComponents(): void {
     userComponents().clear();
-    componentRegistryVersion_++;
 }
 
 export function unregisterComponent(name: string): void {
     userComponents().delete(name);
-    componentRegistryVersion_++;
 }
 
 // The engine's own `defineComponent`s (AI, animation, audio, physics joints, UI
@@ -683,6 +679,11 @@ export function getUserComponents(): Map<string, AnyComponentDef> {
     return userComponents();
 }
 
+/** @internal The current app's canonical script names in registration order. */
+export function getUserComponentNamesById(): ReadonlyMap<symbol, string> {
+    return userComponents().namesById;
+}
+
 /**
  * A stable digest of the current context's user component schemas — each component's
  * name plus its default field shape (keys + value types, recursively). The hot-reload
@@ -727,31 +728,21 @@ export function getReplicatedFields(name: string): readonly string[] {
 /** A component that gates its drawing on a bool field, so that field is known. */
 export type RenderableComponentDef = AnyComponentDef & { readonly renderableField: string };
 
-/** Bumped by every registry mutation in this module, so the derived views below
- *  can tell "same components as last time" from "looks the same". */
-let componentRegistryVersion_ = 0;
 let renderableCache_: {
-    version: number;
+    builtinRevision: number;
     userMap: Map<string, AnyComponentDef>;
-    userSize: number;
-    builtinSize: number;
+    userRevision: number;
     list: readonly RenderableComponentDef[];
 } | null = null;
 
-/**
- * Every registered component taking part in an entity's visibility, with the field
- * that gates each. Derived per call — a project's own component registers long
- * after load. The memo key carries both registry sizes and the context's map
- * identity, so a mutation outside this module (reset, hot reload) still misses it.
- */
+/** Every registered component taking part in visibility, refreshed on catalogue changes. */
 export function renderableComponents(): readonly RenderableComponentDef[] {
     const userMap = userComponents();
     const cached = renderableCache_;
     if (cached !== null
-        && cached.version === componentRegistryVersion_
+        && cached.builtinRevision === builtinRegistryVersion_
         && cached.userMap === userMap
-        && cached.userSize === userMap.size
-        && cached.builtinSize === builtinRegistry.size) {
+        && cached.userRevision === userMap.revision) {
         return cached.list;
     }
     const list: RenderableComponentDef[] = [];
@@ -765,10 +756,9 @@ export function renderableComponents(): readonly RenderableComponentDef[] {
         if (def.renderableField !== null) list.push(def as RenderableComponentDef);
     }
     renderableCache_ = {
-        version: componentRegistryVersion_,
+        builtinRevision: builtinRegistryVersion_,
         userMap,
-        userSize: userMap.size,
-        builtinSize: builtinRegistry.size,
+        userRevision: userMap.revision,
         list,
     };
     return list;

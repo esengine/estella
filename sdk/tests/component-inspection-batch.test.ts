@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { AppContext, getDefaultContext, setDefaultContext } from '../src/ecs/context';
-import { defineComponent, getUserComponents, unregisterComponent } from '../src/ecs/component';
+import { defineComponent, getUserComponents, renderableComponents, unregisterComponent } from '../src/ecs/component';
 
 function isolated(run: (context: AppContext, world: World) => void) {
     const previous = getDefaultContext(), context = new AppContext();
@@ -11,15 +11,17 @@ function isolated(run: (context: AppContext, world: World) => void) {
 }
 
 describe('group component inspection', () => {
-    it('matches scalar ordering and builds the script index once for a large group', () => isolated((_context, world) => {
+    it('shares one current script-name index between scalar and group inspection', () => isolated((_context, world) => {
         for (let i = 0; i < 200; i++) defineComponent('Unused' + i, { value: 0 });
         const a = defineComponent('GroupFirst', { value: 1 }), b = defineComponent('GroupSecond', { value: 2 });
         const entities = Array.from({ length: 100 }, () => world.spawn());
         for (const entity of entities) { world.insert(entity, b); world.insert(entity, a); }
         const input = [entities[1], entities[0], ...entities];
-        const expected = input.map(entity => world.getComponentTypes(entity));
         const iterator = vi.spyOn(getUserComponents(), Symbol.iterator);
+        const expected = input.map(() => ['GroupSecond', 'GroupFirst']);
+        expect(world.getComponentTypes(entities[0])).toEqual(expected[0]);
         expect(world.getComponentTypesBatch(input)).toEqual(expected);
+        expect(input.map(entity => world.getComponentTypes(entity))).toEqual(expected);
         expect(iterator).toHaveBeenCalledTimes(1);
         iterator.mockRestore();
         world.remove(entities[0], b);
@@ -27,6 +29,26 @@ describe('group component inspection', () => {
         world.despawn(entities[1]);
         expect(world.getComponentTypesBatch(input)).toEqual(input.map(entity => world.getComponentTypes(entity)));
         expect(world.getComponentTypesBatch([])).toEqual([]);
+    }));
+
+    it('refreshes the name and renderer indexes after a same-size registry replacement', () => isolated((context, world) => {
+        const old = defineComponent('PreviousRenderer', { visible: true }, { renderableField: 'visible' });
+        const next = defineComponent('CurrentRenderer', { visible: true }, { renderableField: 'visible' });
+        context.componentRegistry.clear();
+        context.componentRegistry.set('Renderer', old);
+        const entity = world.spawn();
+        world.insert(entity, old);
+        expect(world.getComponentTypes(entity)).toEqual(['Renderer']);
+        expect(renderableComponents()).toContain(old);
+        context.componentRegistry.set('Renderer', next);
+        expect(world.getComponentTypes(entity)).toEqual([]);
+        expect(renderableComponents()).toContain(next);
+        expect(renderableComponents()).not.toContain(old);
+        world.insert(entity, next);
+        expect(world.getComponentTypesBatch([entity])).toEqual([['Renderer']]);
+        context.reset();
+        context.componentRegistry.set('RestoredRenderer', old);
+        expect(world.getComponentTypes(entity)).toEqual(['RestoredRenderer']);
     }));
 
     it('follows aliases, same-size catalogue edits and replacement registrations', () => isolated((context, world) => {

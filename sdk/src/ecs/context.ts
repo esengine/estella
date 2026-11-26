@@ -4,6 +4,7 @@
  * @file    context.ts
  * @brief   Explicit application context replacing globalThis implicit coupling
  */
+import type { AnyComponentDef } from './component';
 
 /**
  * Surface the engine exposes to an attached editor host.
@@ -52,8 +53,49 @@ export interface WasmErrorState {
     suppressedCount: number;
 }
 
+/** Derived views track mutations made through the public Map as well as declarations. */
+class ComponentRegistry extends Map<string, AnyComponentDef> {
+    private revision_ = 0;
+    private namesById_: ReadonlyMap<symbol, string> | undefined;
+
+    get revision(): number { return this.revision_; }
+
+    get namesById(): ReadonlyMap<symbol, string> {
+        if (!this.namesById_) {
+            const names = new Map<symbol, string>();
+            for (const [name, def] of this) {
+                // Several names can point to one component. The first registered name wins.
+                if (!names.has(def._id)) names.set(def._id, name);
+            }
+            this.namesById_ = names;
+        }
+        return this.namesById_;
+    }
+
+    override set(name: string, def: AnyComponentDef): this {
+        if (this.get(name) !== def) this.invalidate();
+        return super.set(name, def);
+    }
+
+    override delete(name: string): boolean {
+        const removed = super.delete(name);
+        if (removed) this.invalidate();
+        return removed;
+    }
+
+    override clear(): void {
+        if (this.size) this.invalidate();
+        super.clear();
+    }
+
+    private invalidate(): void {
+        this.revision_++;
+        this.namesById_ = undefined;
+    }
+}
+
 export class AppContext {
-    readonly componentRegistry = new Map<string, any>();
+    readonly componentRegistry = new ComponentRegistry();
     readonly pendingSystems: PendingSystemEntry[] = [];
     /** Plugins a project bundle installed at module level, drained with the
      *  systems: a bundle is imported before an App exists. */

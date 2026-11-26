@@ -7,7 +7,7 @@
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
 import { type Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, Transform, type ParentData, type ChildrenData } from './component';
+import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponentNamesById, getComponent, Disabled, Name, Parent, Children, Transform, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, type BridgeConnectOptions,
@@ -1577,11 +1577,7 @@ export class World {
     /** @internal Inspect a group with one script catalogue index, preserving input order. */
     getComponentTypesBatch(entities: readonly Entity[]): string[][] {
         if (entities.length === 0) return [];
-        const scriptNames = new Map<symbol, string>();
-        for (const [name, def] of getUserComponents()) {
-            // Match the scalar lookup's first registered name for an id.
-            if (!scriptNames.has(def._id)) scriptNames.set(def._id, name);
-        }
+        const scriptNames = getUserComponentNamesById();
         return entities.map(entity => this.componentTypes_(entity, scriptNames));
     }
 
@@ -1604,19 +1600,10 @@ export class World {
         }
         const ids = this.scripts_.getEntityComponentIds(entity);
         if (ids) {
-            const registry = scriptNames ? null : getUserComponents();
+            const names = scriptNames ?? getUserComponentNamesById();
             for (const id of ids) {
-                if (scriptNames) {
-                    const name = scriptNames.get(id);
-                    if (name !== undefined) types.add(name);
-                    continue;
-                }
-                for (const [name, def] of registry!) {
-                    if (def._id === id) {
-                        types.add(name);
-                        break;
-                    }
-                }
+                const name = names.get(id);
+                if (name !== undefined) types.add(name);
             }
         }
         return Array.from(types);
