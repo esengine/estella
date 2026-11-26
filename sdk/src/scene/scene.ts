@@ -6,6 +6,7 @@
  */
 
 import { patchComponentFields, World } from '../ecs/world';
+import { liveEntities } from '../ecs/liveEntityHandles';
 import { initializeSceneComponents, installWorldHook, shouldExportComponent, type WorldHooks } from './worldHooks';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
@@ -1061,24 +1062,20 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
     // RuntimeOnly entities are world-only projections their systems re-derive
     // (Tilemap source layers, tile colliders); excluding them up front also
     // keeps them out of every parent/children list below.
-    const omitted = new Set<Entity>();
-    const allEntities = world.getAllEntities().filter(entity => {
-        if (!world.has(entity, RuntimeOnly)) return true;
-        omitted.add(entity);
-        return false;
-    });
+    const allEntities = liveEntities(world).filter(entity => !world.has(entity, RuntimeOnly));
 
     const registeredTypes = world.getComponentTypesBatch(allEntities);
     const parents: (Entity | null)[] = new Array(allEntities.length).fill(null);
     const children = new Map<Entity, Entity[]>();
     if (parentDef) {
+        let included: Set<Entity> | undefined;
         const readParent = world.resolveGetter(parentDef);
         for (const [i, entity] of allEntities.entries()) {
             if (!registeredTypes[i]!.includes(parentDef._name)) continue;
             const relation = (readParent ? readParent(entity) : world.get(entity, parentDef)) as { entity: Entity } | null;
             const parent = relation?.entity;
-            // A persistent child of a runtime-only entity becomes a scene root.
-            if (parent === undefined || omitted.has(parent)) continue;
+            // A child whose parent is absent from the snapshot becomes a root.
+            if (parent === undefined || !(included ??= new Set(allEntities)).has(parent)) continue;
             parents[i] = parent;
             const siblings = children.get(parent);
             if (siblings) siblings.push(entity);

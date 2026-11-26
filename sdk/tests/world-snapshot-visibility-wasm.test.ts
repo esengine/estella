@@ -23,7 +23,29 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             registry.destroy(parent);
             expect(registry.hasParent(child)).toBe(false);
             expect(worldSnapshot(app, child, false).selected).toMatchObject({ parent: null, name: 'Child' });
-            expect(serializeScene(world).entities.find(e => e.id === child)?.parent).toBeNull();
+            const snapshot = worldSnapshot(app, parent, true);
+            expect(snapshot.selected).toBeNull();
+            expect(snapshot.tree!.entities.map(e => e.id)).toEqual([child]);
+            expect(worldSnapshot(app, parent, false).selected).toBeNull();
+            expect(serializeScene(world).entities).toMatchObject([{ id: child, parent: null }]);
+            const replacement = world.spawn('Replacement');
+            expect(entityIndex(replacement)).toBe(entityIndex(parent));
+            expect(serializeScene(world).entities.map(e => e.id)).toEqual([child, replacement]);
+        } finally { world.disconnectCpp(); registry.delete(); }
+    });
+
+    it('keeps snapshots self-contained when an SDK entity is parented to a native-only handle', () => {
+        const registry = new module.Registry(), world = new World();
+        world.connectCpp(registry, module);
+        const app = { world, hasResource: () => false } as unknown as App;
+        try {
+            const child = world.spawn('Child');
+            const native = registry.create();
+            registry.setParent(child, native);
+            expect(registry.getParent(child).entity).toBe(native);
+            expect(worldSnapshot(app, child, false).selected!.parent).toBeNull();
+            expect(worldSnapshot(app, child, true).tree!.entities).toMatchObject([{ id: child, parent: null }]);
+            expect(serializeScene(world).entities).toMatchObject([{ id: child, parent: null }]);
         } finally { world.disconnectCpp(); registry.delete(); }
     });
 

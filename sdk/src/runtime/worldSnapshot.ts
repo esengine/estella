@@ -8,6 +8,7 @@
  */
 import type { App } from '../app/app';
 import type { World } from '../ecs/world';
+import { isLiveEntity, liveEntities } from '../ecs/liveEntityHandles';
 import { getComponent, renderableComponents, type AnyComponentDef } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
 import { Assets } from '../asset/AssetPlugin';
@@ -91,13 +92,13 @@ export function worldSnapshot(
     app: App, selectedId: number | null, withTree: boolean, opts: WorldSnapshotOptions = {},
 ): WorldSnapshot {
     const world = app.world;
-    if (selectedId != null && !world.valid(selectedId as never)) selectedId = null;
+    if (selectedId != null && !isLiveEntity(world, selectedId as never)) selectedId = null;
     if (!withTree && selectedId == null) return { tree: null, selected: null };
     const nameDef = getComponent('Name');
     const parentDef = getComponent('Parent');
     const childrenDef = getComponent('Children');
     const ownerDef = getComponent('SceneOwner');
-    const all = withTree ? world.getAllEntities() : [];
+    const all = withTree ? liveEntities(world) : [];
     const treeTypes = withTree ? world.getComponentTypesBatch(all) : null;
     const detailTypes = !withTree && selectedId != null ? world.getComponentTypes(selectedId as never) : null;
     let parentReader: ReturnType<World['resolveGetter']> | undefined;
@@ -114,7 +115,7 @@ export function worldSnapshot(
     const childrenOf = new Map<number, number[]>();
     if (!withTree && selectedId != null && childrenDef) {
         const parent = parentValue(selectedId, detailTypes!);
-        if (parent !== undefined) parentOf.set(selectedId, parent);
+        if (parent !== undefined && isLiveEntity(world, parent as never)) parentOf.set(selectedId, parent);
         // Native hierarchy writers can move children without updating the SDK's
         // membership cache. Ask the current core before reading this relation.
         const hasChildren = world.resolveHas(childrenDef);
@@ -129,16 +130,21 @@ export function worldSnapshot(
             // Children is maintained with Parent. The inspector's order is the
             // world's storage order, which can differ from attachment order.
             const members = new Set(c.entities);
-            childrenOf.set(selectedId, world.getAllEntities().filter(e => members.has(e)));
+            childrenOf.set(selectedId, world.getAllEntities().filter(e => members.has(e) && isLiveEntity(world, e)));
         }
     } else if (parentDef) {
-        const entities = withTree ? all : world.getAllEntities();
+        const entities = withTree ? all : liveEntities(world);
         const types = treeTypes ?? world.getComponentTypesBatch(entities);
+        let live: Set<number> | undefined;
         for (let i = 0; i < entities.length; i++) {
-            const parent = parentValue(entities[i], types[i]);
-            if (parent !== undefined) parentOf.set(entities[i], parent);
+            const entity = entities[i];
+            const parent = parentValue(entity, types[i]);
+            if (parent === undefined || !(live ??= new Set(entities)).has(parent)) continue;
+            parentOf.set(entity, parent);
+            const children = childrenOf.get(parent);
+            if (children) children.push(entity);
+            else childrenOf.set(parent, [entity]);
         }
-        for (const [child, parent] of parentOf) (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(child);
     }
 
     const nameOf = (e: number): string =>
