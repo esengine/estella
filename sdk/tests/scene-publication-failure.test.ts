@@ -14,7 +14,7 @@ import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publis
 import { SceneLoadCancelled, SceneManager, SceneManagerState, type SceneConfig } from '../src/scene/sceneManager';
 import { bakesOf } from '../src/runtime/bakes';
 import { spawnPrepared } from '../src/prefab/preparedPrefab';
-import { defineComponent, Disabled, MeshRenderer, Parent } from '../src/ecs/component';
+import { defineComponent, Disabled, MeshRenderer, Parent, Sprite } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 
 vi.mock('../src/wasm/resourceManager', () => ({
@@ -111,6 +111,38 @@ describe('scene-owned physics preparation', () => {
 });
 
 describe('scene asset discovery', () => {
+    it.each(['inline', 'lazy', 'prepared document'])('keeps 2D and 3D authored data across scene revisits (%s)', async source => {
+        const { app, options, assets, unloaded } = await runtime();
+        connectFakeCpp(app.world);
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const authored: SceneData = { ...scene, entities: [
+            { ...scene.entities[0]!, name: 'mesh' },
+            { id: 2, name: 'sprite', parent: null, children: [], components: [{ type: 'Sprite', data: { size: { x: 32, y: 16 } } }] },
+        ] };
+        const bytes = JSON.stringify(authored);
+        const read = vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(bytes);
+        const prepareDocument = source === 'prepared document' ? async () => authored : undefined;
+        manager.register(createRuntimeSceneConfig('room', source === 'inline' ? authored : undefined,
+            { ...options, prepareDocument }, 'room.esscene'));
+        try {
+            for (let visit = 0; visit < 2; visit++) {
+                if (visit === 0) await manager.prepare('room');
+                await manager.load('room');
+                const mesh = app.world.findEntityByName('mesh')!;
+                const sprite = app.world.findEntityByName('sprite')!;
+                expect(app.world.get(mesh, MeshRenderer).mesh).toBe(7);
+                expect(app.world.get(sprite, Sprite).size).toEqual({ x: 32, y: 16 });
+                await manager.unload('room');
+                expect(app.world.getAllEntities()).toEqual([]);
+                expect(assets.sizes().refRows).toBe(0);
+            }
+            expect(read).toHaveBeenCalledTimes(source === 'inline' ? 0 : 2);
+            expect(unloaded).toHaveBeenCalledTimes(2);
+            expect(JSON.stringify(authored)).toBe(bytes);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['authored', 'packaged'])('uses the same %s declarations for reads and entity lifetimes', async entry => {
         const { app, assets, options, unloaded } = await runtime();
         const seen = new Set<string>();

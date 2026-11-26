@@ -356,14 +356,15 @@ export function prepareRuntimeScene(options: LoadRuntimeSceneOptions, sceneOwned
 }
 
 type SceneLoadIntent = 'prepare' | 'load';
+type SceneDocumentOwnership = 'borrowed' | 'owned';
 
 function prepareWithAttempt(options: LoadRuntimeSceneOptions, sceneOwned: boolean, attempt: SceneLoadAttempt,
-    intent: SceneLoadIntent = 'prepare'): Promise<PreparedRuntimeScene> {
-    return runSceneLoad(attempt, () => readRuntimeScene(options, attempt, sceneOwned, intent));
+    intent: SceneLoadIntent = 'prepare', document: SceneDocumentOwnership = 'borrowed'): Promise<PreparedRuntimeScene> {
+    return runSceneLoad(attempt, () => readRuntimeScene(options, attempt, sceneOwned, intent, document));
 }
 
 async function readRuntimeScene(
-    options: LoadRuntimeSceneOptions, attempt: SceneLoadAttempt, sceneOwned: boolean, intent: SceneLoadIntent,
+    options: LoadRuntimeSceneOptions, attempt: SceneLoadAttempt, sceneOwned: boolean, intent: SceneLoadIntent, document: SceneDocumentOwnership,
 ): Promise<PreparedRuntimeScene> {
     const { app, module, source, physicsConfig, physicsEnabled, sceneName } = options;
     const onPhase = attempt.observe(options.onPhase);
@@ -389,13 +390,14 @@ async function readRuntimeScene(
     // A cooked scene keeps prefab refs and overrides. Expand them through the
     // same loader as authoring before discovery walks the resulting entities.
     const runtimeAssets = ensureRuntimeAssets(app, module, source);
-    // A private copy: resolution below writes handles over the asset refs, and the
-    // document given here is the one a registered scene loads from every time. A
-    // reload of the mutated one found no ref to acquire and spawned the handles the
-    // outgoing scene had just released, so a restarted scene drew its images white.
-    const copyBegan = onPhase ? performance.now() : 0;
-    let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
-    const copyMs = onPhase ? performance.now() - copyBegan : 0;
+    // Resolution writes handles over authored refs. Only a freshly parsed private document can be used in place.
+    let sceneData = options.sceneData;
+    let copyMs = 0;
+    if (document === 'borrowed') {
+        const copyBegan = onPhase ? performance.now() : 0;
+        sceneData = JSON.parse(JSON.stringify(sceneData)) as SceneData;
+        if (onPhase) copyMs = performance.now() - copyBegan;
+    }
     if (sceneHasPrefabEntries(sceneData)) {
         await turn();
         sceneData = await timed('prefab', () => expandScenePrefabAssets(sceneData, runtimeAssets));
@@ -897,6 +899,7 @@ export function createRuntimeSceneConfig(
         assertActive();
         const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
         let data = sceneData;
+        let document: SceneDocumentOwnership = 'borrowed';
         if (!data) {
             // Lazy scene: fetched by path through the per-App runtime Assets, so
             // the data arrives via the realm's own backend — http on web, wx fs
@@ -915,16 +918,18 @@ export function createRuntimeSceneConfig(
             const parsed = performance.now();
             data = JSON.parse(text) as SceneData;
             config.onPhase?.('parse', performance.now() - parsed);
+            document = 'owned';
         }
         let publishDocument: (() => void) | undefined;
         if (options.prepareDocument) {
             data = await options.prepareDocument(data, assertActive, install => { publishDocument = install; });
             assertActive();
+            document = 'borrowed';
         }
         const ready = await prepareWithAttempt({
             ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
             onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
-        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load');
+        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
         return publishDocument ? { ...ready, publishDocument } : ready;
     };
     const discard = (pending: Preparation): number => {
