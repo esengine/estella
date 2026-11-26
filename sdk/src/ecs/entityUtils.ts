@@ -18,6 +18,7 @@ import type { Entity } from '../types';
 import type { World } from './world';
 import { Disabled, getComponent, getComponentRegistry, renderableComponents, Transform, type AnyComponentDef, type RenderableComponentDef } from './component';
 import { UINode, UIDisplay } from '../ui/core/ui-node';
+import { setComponentProperty } from './propertyPath';
 
 interface VisibilitySource {
     name: string;
@@ -92,9 +93,7 @@ export function setEntityVisible(world: World, entity: Entity, visible: boolean)
     const sources = types.includes(uiVisibility.name) ? [uiVisibility]
         : types.map(type => index.get(type)).filter(source => source !== undefined).sort((a, b) => a.rank - b.rank);
     for (const { definition, field, hiddenValue, shownValue } of sources) {
-        const data = world.get(entity, definition) as Record<string, unknown>;
-        data[field] = visible ? shownValue : hiddenValue;
-        world.set(entity, definition, data as never);
+        setComponentProperty(world, entity, definition, field, visible ? shownValue : hiddenValue);
     }
 }
 

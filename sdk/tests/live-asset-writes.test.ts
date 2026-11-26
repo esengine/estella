@@ -8,6 +8,7 @@ import { ownedAssetLease } from '../src/asset/AssetLease';
 import { bindAssetReferenceTracking } from '../src/asset/assetReferenceTracking';
 import { migrateLiveBindings } from '../src/asset/liveAssetRebind';
 import { defineComponent, MeshRenderer, Sprite, unregisterComponent } from '../src/ecs/component';
+import { setEntityVisible } from '../src/ecs/entityUtils';
 import { World } from '../src/ecs/world';
 import { SystemRunner } from '../src/ecs/system';
 import { ResourceStorage, Time } from '../src/ecs/resource';
@@ -66,6 +67,21 @@ describe.skipIf(!HAS_WASM)('live asset field writes', () => {
         resources.insert(Time, { ...Time._default, delta: 1 / 60 });
         return new SystemRunner(world, resources).run(createGearApplySystem(world));
     }
+
+    it.each([Sprite, MeshRenderer])('keeps a loading $_name texture through hide and show', async component => {
+        const { world, entity, assets, waiting, settle, released, dispose } = realm();
+        try {
+            world.insert(entity, component, { texture: 'pending.png' as never });
+            await vi.waitFor(() => expect(waiting.has('pending.png')).toBe(true));
+            setEntityVisible(world, entity, false);
+            expect(world.get(entity, component).enabled).toBe(false);
+            setEntityVisible(world, entity, true);
+            await settle('pending.png', 29, 0);
+            expect(world.get(entity, component)).toMatchObject({ enabled: true, texture: 29 });
+            expect(assets.getRefCounter()!.getTextureRefs('pending.png', world)).toEqual([entity]);
+            expect(released).not.toHaveBeenCalled();
+        } finally { dispose(); }
+    });
 
     it.each(['theme', 'gear', 'property action'])('keeps a loading UI texture through a %s color edit', async source => {
         const { world, entity, assets, settle, released, dispose } = realm();
