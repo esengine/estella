@@ -275,6 +275,36 @@ describe('exportGame (playable)', () => {
     expect(result.inlineParts?.some(part => part.path === 'scenes/campaign/intro.json')).toBe(true);
   }, 60_000);
 
+  it('packages an outside entry and a scenes-directory scene with the same runtime name', async () => {
+    const entryScene = 'previews/intro.esscene';
+    const sibling = 'collision-scenes/previews/intro.esscene';
+    mkdirSync(path.join(root, 'previews'), { recursive: true });
+    mkdirSync(path.join(root, 'collision-scenes/previews'), { recursive: true });
+    for (const [file, name, uuid] of [
+      [entryScene, 'Preview intro', '11111111-cccc-4ccc-8ccc-cccccccccccc'],
+      [sibling, 'Game intro', '22222222-cccc-4ccc-8ccc-cccccccccccc'],
+    ]) {
+      writeFileSync(path.join(root, file), JSON.stringify({ version: '1.0', name, entities: [] }));
+      writeFileSync(path.join(root, `${file}.meta`), meta(uuid, 'scene'));
+    }
+    const opts = {
+      root, entryScene, scenesDir: 'collision-scenes', playableScenes: 'all', platform: 'playable',
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-collision'),
+    } as const;
+    const result = await exportGame(opts);
+    expect(result.ok, result.errors.join('\n')).toBe(true);
+    const html = readFileSync(path.join(result.outDir, 'index.html'), 'utf8');
+    const scenes = JSON.parse(inlinedText(html, '__GAME_SCENES__')) as Array<{ name: string; data: { name: string } }>;
+    expect(scenes.map(scene => [scene.name, scene.data.name])).toEqual([
+      ['@project/previews/intro', 'Preview intro'], ['previews/intro', 'Game intro'],
+    ]);
+    expect(html).toContain('window.__GAME_FIRST__="@project/previews/intro";');
+    expect(await discoverProjectScenes(root, entryScene, opts.scenesDir, [sibling])).toEqual([
+      { name: '@project/previews/intro', path: entryScene },
+    ]);
+  }, 60_000);
+
   it('discovers a project-root entry once and matches exclusions with dot segments', async () => {
     const project = path.join(root, 'root-layout');
     mkdirSync(path.join(project, 'campaign'), { recursive: true });

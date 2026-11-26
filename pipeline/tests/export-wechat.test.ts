@@ -628,13 +628,19 @@ describe('exportGame (wechat)', () => {
     expect(bundle).toContain('"level2"');
     expect(bundle).toContain('firstScene: "main"');
     expect(bundle).toContain('ident: true');
+    writeFileSync(path.join(root, 'main.esscene'), JSON.stringify({ version: '1.0', name: 'Outside entry', entities: [] }));
+    writeFileSync(path.join(root, 'main.esscene.meta'), meta('12121212-1212-1212-1212-121212121213', 'scene'));
     const outIdent = path.join(root, 'dist-wechat-ident');
     expect((await exportGame({
-      minifyScripts: false, root, entryScene: 'scenes-multi/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      minifyScripts: false, root, entryScene: 'main.esscene', scenesDir: 'scenes-multi', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts', sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: outIdent, platform: 'wechat',
       splash: { ident: false },
     })).ok).toBe(true);
-    expect(readFileSync(path.join(outIdent, 'game-bundle.js'), 'utf8')).not.toContain('ident: true');
+    const outsideBundle = readFileSync(path.join(outIdent, 'game-bundle.js'), 'utf8');
+    expect(outsideBundle).not.toContain('ident: true');
+    expect(outsideBundle).toContain('firstScene: "@project/main"');
+    expect(JSON.parse(readFileSync(path.join(outIdent, 'scenes/@project/main.json'), 'utf8')).name).toBe('Outside entry');
+    expect(JSON.parse(readFileSync(path.join(outIdent, 'scenes/main.json'), 'utf8')).name).toBe('Main');
     // No .esscene rides in packOptions — nothing ships under that suffix.
     const pcfg = JSON.parse(readFileSync(path.join(outMulti, 'project.config.json'), 'utf8'));
     expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });

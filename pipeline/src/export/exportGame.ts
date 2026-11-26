@@ -30,7 +30,7 @@ import { exportedAssetFiles, pruneExportedAssets } from './assetCleanup';
 import type { DebugChannelConfig, PackagedGameConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
-import { normalizeScenePath, projectSceneEntry, type ProjectSceneEntry } from '../project/sceneNames';
+import { normalizeScenePath, projectSceneEntries, type ProjectSceneEntry } from '../project/sceneNames';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -135,14 +135,13 @@ export type ExportScene = ProjectSceneEntry;
 /**
  * The entry scene is always first and ships even if excluded. Other scenes
  * under `scenesDir` ship unless listed in `excludeScenes`.
- * `SceneManager.switchTo` uses extensionless paths relative to `scenesDir`,
- * or to the project root for an entry outside that directory.
+ * Resolve names before exclusions so toggling a scene's shipping status keeps other names stable.
  */
 export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string, excludeScenes?: string[]): Promise<[ExportScene, ...ExportScene[]]> {
   const excluded = new Set((excludeScenes ?? []).map(normalizeScenePath));
-  const dir = normalizeScenePath(scenesDir ?? path.posix.dirname(normalizeScenePath(entryScene)));
-  const first = projectSceneEntry(entryScene, dir);
-  const scenes: [ExportScene, ...ExportScene[]] = [first];
+  const pathOfEntry = normalizeScenePath(entryScene);
+  const dir = normalizeScenePath(scenesDir ?? path.posix.dirname(pathOfEntry));
+  const paths = [pathOfEntry];
   const absDir = path.join(root, dir);
   if (existsSync(absDir)) {
     const walk = async (sub: string): Promise<void> => {
@@ -150,16 +149,14 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
         const rel = sub ? `${sub}/${entry.name}` : entry.name;
         if (entry.isDirectory()) await walk(rel);
         else if (/\.esscene$/i.test(entry.name)) {
-          const projectPath = dir ? `${dir}/${rel}` : rel;
-          if (projectPath !== first.path && !excluded.has(projectPath)) {
-            scenes.push(projectSceneEntry(projectPath, dir));
-          }
+          paths.push(dir ? `${dir}/${rel}` : rel);
         }
       }
     };
     await walk('');
   }
-  return scenes;
+  const [first, ...rest] = projectSceneEntries(paths, dir);
+  return [first!, ...rest.filter(scene => !excluded.has(scene.path))];
 }
 
 /** The build's own record of which chunks each entry reaches (sdk/rolldown.config.js). */
