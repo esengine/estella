@@ -5,7 +5,7 @@
  *        role bindings onto its UIVisual / Text / `$interaction` colour gear, so
  *        already-built widgets restyle — not just future ones.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
     createButton,
     createDropdown,
@@ -18,6 +18,7 @@ import {
     UIVisual,
     UIVisualType,
     Text,
+    TextInput,
     UIGear,
     DARK_TOKENS,
     LIGHT_TOKENS,
@@ -122,5 +123,29 @@ describe('live re-theming', () => {
         expect(w.has(btn, ThemeStyle)).toBe(false); // untagged → not theme-managed
         switchTheme(w, LIGHT_TOKENS);
         expect(colorPages(w, btn).normal).toMatchObject({ r: 0.5, g: 0.1, b: 0.9 }); // caller's color survives
+    });
+
+    it('reapplying a palette writes only the roles whose live colors need repair', () => {
+        const w = mockWorld(), e = w.spawn();
+        const palette = LIGHT_TOKENS.colors;
+        createButton({ world: w, events: noEvents, text: 'Apply' });
+        w.insert(e, UIVisual, { color: { ...palette.control, a: 0.3 } });
+        w.insert(e, TextInput, { ...TextInput._default });
+        markThemed(w, e, { visual: 'control', input: { background: 'surface', text: 'text', placeholder: 'text' } });
+        switchTheme(w, LIGHT_TOKENS);
+        // Native UIVisual channels are returned as float32. They already display the requested color.
+        const { r, g, b } = palette.control;
+        w.insert(e, UIVisual, { color: { r: Math.fround(r), g: Math.fround(g), b: Math.fround(b), a: 0.3 } });
+        const write = vi.spyOn(w, 'insert');
+        applyThemeToWorld(w);
+        expect(write).not.toHaveBeenCalled();
+
+        const input = w.get(e, TextInput);
+        w.insert(e, TextInput, { ...input, color: { r: 1, g: 0, b: 0, a: 0.4 } });
+        write.mockClear();
+        applyThemeToWorld(w);
+        expect(write.mock.calls.map(call => call[1])).toEqual([TextInput]);
+        expect(w.get(e, TextInput).color).toEqual({ ...palette.text, a: 0.4 });
+        expect(w.get(e, UIVisual).color.a).toBe(0.3);
     });
 });

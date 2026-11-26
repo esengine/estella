@@ -15,11 +15,11 @@ import type { World } from '../../ecs/world';
 import { registerSceneComponentInitializer } from '../../scene/worldHooks';
 import type { Color, Entity } from '../../types';
 import { ThemeStyle, type ColorRole } from '../theme/theme-style';
-import { setWorldTheme, themeColors, type ThemeTokens } from '../theme/tokens';
+import { setWorldTheme, themeColors, type ThemeColors, type ThemeTokens } from '../theme/tokens';
 import { UIVisual, type UIVisualData } from '../core/ui-visual';
 import { Text, type TextData } from '../core/text';
 import { INTERACTION_CONTROLLER } from '../controller/ui-controller';
-import { UIGear, type UIGearData } from '../controller/ui-gear';
+import { UIGear, type GearBinding } from '../controller/ui-gear';
 import { TextInput, type TextInputData } from '../text/text-input';
 
 /**
@@ -34,44 +34,59 @@ export function applyThemeToWorld(world: World): void {
     for (const entity of world.getEntitiesWithComponents([ThemeStyle])) applyEntityTheme(world, entity, colors);
 }
 
+function themedColor(colors: ThemeColors, role: ColorRole | undefined, current: Color, native = false): Color {
+    const target = role && colors[role];
+    if (!target) return current;
+    const { r, g, b } = target;
+    if (current.r === r && current.g === g && current.b === b) return current;
+    // UIVisual comes back from the native registry with float32 channels.
+    if (native && current.r === Math.fround(r) && current.g === Math.fround(g) && current.b === Math.fround(b)) return current;
+    return { r, g, b, a: current.a };
+}
+
 function applyEntityTheme(world: World, e: Entity, colors = themeColors(world)): void {
     const s = world.get(e, ThemeStyle);
-    const dye = (role: ColorRole | undefined, current: Color): Color => {
-        const color = role && colors[role];
-        return color ? { r: color.r, g: color.g, b: color.b, a: current.a } : current;
-    };
-
     if (s.visual && world.has(e, UIVisual)) {
         const v = world.get(e, UIVisual) as UIVisualData;
-        world.insert(e, UIVisual, { ...v, color: dye(s.visual, v.color) });
+        const color = themedColor(colors, s.visual, v.color, true);
+        if (color !== v.color) world.insert(e, UIVisual, { ...v, color });
     }
     if (s.text && world.has(e, Text)) {
         const t = world.get(e, Text) as TextData;
-        world.insert(e, Text, { ...t, color: dye(s.text, t.color) });
+        const color = themedColor(colors, s.text, t.color);
+        if (color !== t.color) world.insert(e, Text, { ...t, color });
     }
     if (s.input && world.has(e, TextInput)) {
         const ti = world.get(e, TextInput) as TextInputData;
-        world.insert(e, TextInput, {
-            ...ti,
-            backgroundColor: dye(s.input.background, ti.backgroundColor),
-            color: dye(s.input.text, ti.color),
-            placeholderColor: dye(s.input.placeholder, ti.placeholderColor),
-        });
+        const backgroundColor = themedColor(colors, s.input.background, ti.backgroundColor);
+        const color = themedColor(colors, s.input.text, ti.color);
+        const placeholderColor = themedColor(colors, s.input.placeholder, ti.placeholderColor);
+        if (backgroundColor !== ti.backgroundColor || color !== ti.color || placeholderColor !== ti.placeholderColor) {
+            world.insert(e, TextInput, { ...ti, backgroundColor, color, placeholderColor });
+        }
     }
     const states = s.states;
     if (states && world.has(e, UIGear)) {
-        const g = world.get(e, UIGear) as UIGearData;
-        const bindings = g.bindings.map((b) => {
-            if (b.controller !== INTERACTION_CONTROLLER
-                || b.component !== 'UIVisual' || b.property !== 'color') return b;
-            const pages = { ...b.pages };
+        const gear = world.get(e, UIGear);
+        let bindings: GearBinding[] | undefined;
+        for (const [index, binding] of gear.bindings.entries()) {
+            if (binding.controller !== INTERACTION_CONTROLLER
+                || binding.component !== 'UIVisual' || binding.property !== 'color') continue;
+            let pages: GearBinding['pages'] | undefined;
             for (const [page, role] of Object.entries(states)) {
-                const cur = pages[page];
-                if (cur && typeof cur === 'object' && 'a' in cur) pages[page] = dye(role, cur as Color);
+                const current = binding.pages[page];
+                if (!current || typeof current !== 'object' || !('a' in current)) continue;
+                const color = themedColor(colors, role, current);
+                if (color === current) continue;
+                pages ??= { ...binding.pages };
+                pages[page] = color;
             }
-            return { ...b, pages };
-        });
-        world.insert(e, UIGear, { ...g, bindings });
+            if (pages) {
+                bindings ??= gear.bindings.slice();
+                bindings[index] = { ...binding, pages };
+            }
+        }
+        if (bindings) world.insert(e, UIGear, { ...gear, bindings });
     }
 }
 
