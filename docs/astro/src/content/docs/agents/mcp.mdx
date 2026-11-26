@@ -137,7 +137,7 @@ editor window and starts read-only. The connect dialog identifies its editor by 
 About fifty everyday tools (the scene, Play, opening and saving, screenshots, logs) are listed from the start. The
 others are in groups the agent enables with `enable_tools`:
 
-`look`, `assets`, `timeline`, `prefab`, `authoring`, `view`, `play`, `render`, `project`, `code`, `image`, `rig`,
+`look`, `assets`, `timeline`, `prefab`, `authoring`, `view`, `play`, `render`, `project`, `code`, `image`, `rig`, `vfx`,
 `sound`, `terrain`, `modeling`, `tripo`, `device`, and `plugins` (tools added by the project's editor plugins).
 
 Any tool can be called by name without being listed. `--all-tools` lists all of them from the start. At connection the
@@ -178,6 +178,14 @@ each part, and every joint bent both ways, so a joint that opens or a part that 
 animation. `rig_clip_write` writes a motion as an `.estimeline`. It shows the frames side by side and laid over each other,
 with the paths of the hands and feet, and measures how far a planted foot slides. `rig_read` and `rig_clip_read` return the
 same descriptions, ready to change and write again. The rig opens in the Rig editor and the clip in the Sequencer.
+
+## Visual effects
+
+The `vfx` group builds effects such as fire, smoke, sparks, explosions, magic and hits. `vfx_write` takes an effect
+described in metres and seconds and writes it as a prefab: one particle emitter per layer, plus a light. It draws the
+textures the layers name. A light that flickers or fades is played from a timeline on the prefab's root. The answer shows
+the effect drawn by the engine at chosen moments without starting Play, with the number of live particles in each layer.
+`vfx_read` gives the description back. The tool's topics include working numbers for common effects.
 
 ## Tripo AI
 

@@ -49,7 +49,7 @@ exposure, grade. Light intensity multiplies albedo directly: a three.js number d
 - Plants: `audit_vegetation` before adding them; short grass casts no shadow.
 - Props and characters: `model_write`. Read its topics with `tool_guide` first (a person: people, organic, colour, hair,
   drape), and judge a model from every side, not the front alone.
-- Fire, smoke and sparks are particle effects (`ParticleEmitter`), not solid meshes.
+- Fire, smoke, sparks and explosions are particle effects, not solid meshes: make them with `vfx_write` (read its `craft` and `recipes` topics first), which writes a prefab and shows the effect at chosen moments without Play.
 
 ## Prove it by playing, then look
 
