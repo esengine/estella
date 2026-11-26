@@ -59,7 +59,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     skeletalAnimation: ['Animator', 'AnimatorRootMotion', 'GripPose', 'GripSurface', 'GripProfile', 'GripHolder'],
     // Hair, Skin and Eye are shaders, not components: a character's materials are what name them (see SHADER_SUBSYSTEM).
     characterShaders: [],
-    particles: ['ParticleEmitter', 'ParticleForceField', 'ParticleCollider'],
+    particles: ['ParticleEmitter', 'ParticleForceField', 'ParticleCollider', 'EffectLifetime'],
     postprocess: ['PostProcessVolume'],
     physics: [
         'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'SegmentCollider2D',

@@ -2353,6 +2353,22 @@
       ]
     },
     {
+      "name": "EffectLifetime",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "seconds",
+          "type": "number",
+          "default": "5",
+          "doc": "Seconds after it first runs in the game until it and everything under it is removed: a one-shot effect that cleans up after itself. Only a running game removes it.",
+          "range": "≥ 0"
+        }
+      ],
+      "animatable": [
+        "seconds"
+      ]
+    },
+    {
       "name": "EventBinding",
       "source": "ts",
       "fields": [

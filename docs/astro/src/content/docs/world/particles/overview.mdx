@@ -190,6 +190,15 @@ The particle plugin runs the per-frame update; game code does not call it.
   `play`, or with `emitAt` at the hit point, instead of spawning a new entity each time.
 </Aside>
 
+## One-shot effects
+
+An explosion or a hit plays once. Put an `EffectLifetime` on the effect's root, and once the effect has run for `seconds`
+in a running game, the root and every emitter and light under it are removed. Set `seconds` to the time the last particle
+takes to die: the latest burst or end of emission, plus the longest particle life. Game code can then spawn one at every
+impact and never clean up after it. The time counts from the frame the entity first runs in the game, stops while the
+game is paused, and slows with the game's time scale. The editor never removes it, so the effect stays in the scene
+while you work on it. `vfx_write` adds it to every one-shot effect it writes.
+
 ## Imported particle units
 
 `ParticleModelUnits` holds an imported emitter's size ranges (`startSizeMin`, `startSizeMax`, `endSizeMin`,

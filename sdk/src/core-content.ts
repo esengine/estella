@@ -837,6 +837,8 @@ export {
     ParticleAPI,
     ParticlePlugin,
     particlePlugin,
+    EffectLifetime,
+    type EffectLifetimeData,
     ParticleCollisionEvent,
     type ParticleCollisionEventPayload,
     type ParticleCollisionStats,

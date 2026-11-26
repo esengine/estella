@@ -6,7 +6,7 @@ import { disposeAll } from '../util/disposeAll';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
 import { Time, type TimeData } from '../ecs/resource';
-import { fxPreviewOrPlayMode } from '../ecs/env';
+import { fxPreviewOrPlayMode, playModeOnly } from '../ecs/env';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { declareSceneOutOfBandFields, registerWorldSceneComponentCodec } from '../scene/scene';
@@ -20,6 +20,7 @@ import type { QualityController } from '../render/quality';
 
 import { bakeGradient, type Gradient } from './gradient';
 import { bakeCurve, type Curve } from './curve';
+import { EffectLifetime, advanceLifetimes } from './effectLifetime';
 
 const authoredFields = ['colorGradient', 'sizeCurve', 'bursts'] as const;
 
@@ -105,6 +106,24 @@ export class ParticlePlugin implements Plugin {
             },
             { name: 'ParticleSystem' }
         ), { runIf: fxPreviewOrPlayMode });
+
+        // A one-shot removes itself once it has run its course. A running game only: the editor's preview runs particles too,
+        // and must never delete an entity of the scene being edited.
+        const ages = new Map<number, number>();
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
+            [Res(Time)],
+            (time: TimeData) => {
+                const world = app.world;
+                const present = world.getEntitiesWithComponents([EffectLifetime]) as unknown as number[];
+                if (present.length === 0 && ages.size === 0) return;
+                const due = advanceLifetimes(ages, present, (e) => (world.get(e as never, EffectLifetime) as { seconds: number }).seconds, time.delta);
+                for (const e of due) {
+                    ages.delete(e);
+                    world.despawn(e as never);
+                }
+            },
+            { name: 'EffectLifetimeSystem' }
+        ), { runIf: playModeOnly });
     }
 
     cleanup(app?: App): void {

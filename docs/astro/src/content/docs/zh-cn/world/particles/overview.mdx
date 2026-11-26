@@ -179,6 +179,10 @@ const control = defineSystem([Res(Particle)], (particles) => {
   在命中点生成，而不是每次创建新实体。
 </Aside>
 
+## 一次性特效
+
+爆炸、命中这类特效只播放一次。在特效的根节点上加一个 `EffectLifetime`：游戏运行中特效播放满 `seconds` 秒后，根节点连同下面所有的发射器和灯光会被一起移除。`seconds` 设成最后一个粒子消失的时间，也就是最晚一次爆发或发射结束的时间，加上最长的粒子寿命。这样游戏代码可以在每次命中时生成一个，不用再管清理。计时从实体在游戏里第一次运行的那一帧开始，游戏暂停时停止，随游戏的时间缩放变慢或变快。编辑器里不会移除它，所以编辑时特效一直留在场景里。`vfx_write` 写出的一次性特效都会自动带上它。
+
 ## 导入粒子的单位
 
 `ParticleModelUnits` 以模型单位保存导入发射器的尺寸范围（`startSizeMin`、`startSizeMax`、`endSizeMin`、`endSizeMax`）、
