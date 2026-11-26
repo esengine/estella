@@ -601,12 +601,14 @@ function resolveCameras(
     frameCanvas: FrameCanvas,
     pool: CameraInfo[],
     now: number,
-    advance: boolean,
+    mode: 'peek' | 'tick' | 'redraw',
 ): CameraInfo[] {
+    const advance = mode === 'tick';
+    const followsOrigin = mode !== 'peek';
     if (app.hasResource(EditorView)) {
         const view = app.getResource(EditorView);
         if (view.active && width > 0 && height > 0) {
-            if (advance) { const eye = editorViewEye(view); followRenderOrigin(eye.x, eye.y, eye.z); }
+            if (followsOrigin) { const eye = editorViewEye(view); followRenderOrigin(eye.x, eye.y, eye.z); }
             return [editorCameraInfo(view, width, height, pool)];
         }
     }
@@ -629,7 +631,7 @@ function resolveCameras(
     const { fullFrame, overlays } = splitOnScreenCameras(onScreen);
 
     // The origin follows the screen's own camera, before any view is built for it.
-    if (advance) {
+    if (followsOrigin) {
         const eye = fullFrame[0] ?? onScreen[0];
         if (eye) followRenderOrigin(eye.x, eye.y, eye.z);
     }
@@ -725,7 +727,10 @@ function publishScreenLayout(app: App, fit: CanvasScale | null, width: number, h
 function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): void {
     const commit = app.getResource(CameraCommit);
     if (!cam) {
-        commit.valid = false;
+        if (commit.valid) {
+            commit.valid = false;
+            cameraCommitChanged();
+        }
         return;
     }
     const rebasedMoved = copyRebasedProjection(commit, cam);
@@ -1017,7 +1022,7 @@ export function cameraPlugin(
                     // Same scenes and Canvas as that render: the UI lays out in between, from what this publishes.
                     const activeScenes = runningScenes(app);
                     const frameCanvas = resolveFrameCanvas(app, module, cppRegistry, app.world, activeScenes);
-                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, now, false);
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, now, 'peek');
                     syncUICameraInfo(app, frameCanvas, width, height, cameras);
                 },
             };
@@ -1080,9 +1085,9 @@ export function cameraPlugin(
                     app.measureFrameScope('render.updateTransforms', () =>
                         Renderer.updateTransforms({ _cpp: cppRegistry }));
 
-                    // Authoritative tick (advance=true): ticks the director's blend.
+                    // The regular render ticks the director's blend.
                     const cameras = app.measureFrameScope('render.resolveCameras', () =>
-                        resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, elapsed, true));
+                        resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, elapsed, 'tick'));
 
                     pushRenderOrigin((x, y, z) => { Renderer.setOrigin(x, y, z); });
 
@@ -1242,6 +1247,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     if (target && pipeline.screenEffectsActive) return false;
     const elapsed = pipeline.frameElapsed;
     let drewCamera = false;
+    let presented: CameraInfo | null = null;
     Renderer.resize(width, height);
     pipeline.beginFrame(elapsed, target ?? 0);
     try {
@@ -1250,11 +1256,15 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         // camera can be inspected), but uses the same project fit as gameplay.
         const frameCanvas = resolveFrameCanvas(app, module, registry, app.world);
         const cameras = entity === undefined
-            ? resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], elapsed, false)
+            ? resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], elapsed, target ? 'peek' : 'redraw')
             : collectCameraPOVs(module, registry, width, height, app.world)
                 .filter(pov => pov.entity === entity)
-                .map((pov, i) => buildCameraInfo({ ...pov, renderTarget: 0 }, width, height, frameCanvas.fit, [], i));
+                .map((pov, i) => {
+                    if (!target) followRenderOrigin(pov.x, pov.y, pov.z);
+                    return buildCameraInfo({ ...pov, renderTarget: 0 }, width, height, frameCanvas.fit, [], i);
+                });
         if (!cameras.length) return false;
+        pushRenderOrigin((x, y, z) => { Renderer.setOrigin(x, y, z); });
         const clearColor = frameCanvas.data?.backgroundColor;
         const policy = app.hasResource(ScreenScaling) ? app.getResource(ScreenScaling).renderPolicy : undefined;
         syncUICameraInfo(app, frameCanvas, width, height, cameras);
@@ -1277,9 +1287,11 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         Renderer.setViewport(0, 0, width, height);
         if (app.hasResource(ScreenOverlay)) pipeline.renderScreenOverlay({ _cpp: registry }, app.getResource(ScreenOverlay), target ?? 0);
         pipeline.renderOverScreen();
+        if (!target) presented = primaryScreenCamera(cameras);
     } finally {
         pipeline.endFrame();
     }
+    if (presented) commitCamera(app, presented, app.getResource(UICameraInfo));
     return drewCamera;
 }
 
@@ -1293,6 +1305,6 @@ export function syncScreenCameras(app: App, width: number, height: number): void
     if (!pipeline || !registry || width <= 0 || height <= 0) return;
     Renderer.resize(width, height);
     const frameCanvas = resolveFrameCanvas(app, module, registry, app.world);
-    const cameras = resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], pipeline.frameElapsed, false);
+    const cameras = resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], pipeline.frameElapsed, 'peek');
     syncUICameraInfo(app, frameCanvas, width, height, cameras);
 }

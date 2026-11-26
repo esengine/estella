@@ -14,7 +14,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
-import { cameraPlugin, renderCameraFrame } from '../src/camera/CameraPlugin';
+import { cameraPlugin, renderCameraFrame, syncScreenCameras } from '../src/camera/CameraPlugin';
+import { EditorView } from '../src/camera/EditorView';
 import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
 import { CameraView, PresentedCameraView } from '../src/camera/Camera';
 import { followRenderOrigin, resetRenderOrigin, setRenderOriginStep } from '../src/render/renderOrigin';
@@ -68,7 +69,7 @@ describe('the camera a frame was drawn with', () => {
         app.setPipeline(new RenderPipeline());
         setRendererBackend(fakeBackend());
         app.addPlugin(cameraPlugin(() => ({ ...viewport })));
-        return { app, cam };
+        return { app, cam, registry };
     }
 
     beforeEach(() => {
@@ -265,6 +266,55 @@ describe('the camera a frame was drawn with', () => {
             viewport.width = 1200;
             await app.tick(1 / 60);
             expect(told).toBe(1);
+        } finally { off(); }
+    });
+
+    it('commits a manual redraw of a paused screen and keeps texture previews private', async () => {
+        const { app, cam } = bootWithCamera();
+        await app.tick(1 / 60);
+        app.setPaused(true);
+        let notifications = 0;
+        const off = onCameraCommitChanged(() => { notifications++; });
+        const commit = app.getResource(CameraCommit);
+        const revision = commit.revision;
+        try {
+            expect(renderCameraFrame(app, 320, 180, cam, 9)).toBe(true);
+            expect(commit.revision).toBe(revision);
+            expect(notifications).toBe(0);
+            syncScreenCameras(app, 1200, 600);
+            expect(commit.vpW).toBe(800);
+            expect(notifications).toBe(0);
+            expect(renderCameraFrame(app, 1200, 600)).toBe(true);
+            expect(commit.vpW).toBe(1200);
+            expect(commit.revision).toBeGreaterThan(revision);
+            expect(commit.viewProjection).toEqual(drawnWith);
+            expect(notifications).toBe(1);
+        } finally { off(); }
+    });
+
+    it('updates the render origin during a manual viewport draw without a gameplay tick', () => {
+        const { app } = bootWithCamera();
+        const x = 2 ** 28 + 32;
+        setRenderOriginStep(1024);
+        Object.assign(app.getResource(EditorView), { active: true, x, orthoSize: 300 });
+        expect(renderCameraFrame(app, 800, 600)).toBe(true);
+        const commit = app.getResource(CameraCommit);
+        expect(commit.rebasedProjection?.origin.x).toBe(x - 32);
+        expect(commit.rebasedProjection?.viewProjection).toEqual(drawnWith);
+        expect(app.getResource(PresentedCameraView).screenToWorld(424, 300)?.x).toBeCloseTo(x + 24, 4);
+    });
+
+    it('announces once when the last presented camera disappears', async () => {
+        const { app, registry } = bootWithCamera();
+        await app.tick(1 / 60);
+        const callback = vi.fn();
+        const off = onCameraCommitChanged(callback);
+        try {
+            registry.getCameraEntities = () => [];
+            await app.tick(1 / 60);
+            await app.tick(1 / 60);
+            expect(app.getResource(PresentedCameraView).screenToWorld(400, 300)).toBeNull();
+            expect(callback).toHaveBeenCalledTimes(1);
         } finally { off(); }
     });
 
