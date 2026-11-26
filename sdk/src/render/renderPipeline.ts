@@ -15,7 +15,7 @@ import { screenOverlayPasses, type ScreenOverlayData } from '../ui/core/screen-o
 import { Draw, beginPresentedDraw, endPresentedDraw, isDrawAPIReady } from './draw';
 import { sceneDrawCallbacks, preSceneCallbacks, overScreenCallbacks, type DrawFrameInfo } from './customDraw';
 import { log } from '../util/logger';
-import { planPresent, RenderResolution } from '../camera/presentPlan';
+import { planPresent, RenderResolution, type PresentPlan } from '../camera/presentPlan';
 import type { QualityController } from './quality';
 import { RenderDemand } from './renderDemand';
 
@@ -119,6 +119,7 @@ export class RenderPipeline {
     private overlayPass_ = 0;
     private overlayCallbackCount_ = 0;
     private postProcess_: PostProcessAPI | null = null;
+    private postProcessInitFailed_ = false;
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
     private warnedMissingPresent_ = false;
@@ -154,6 +155,7 @@ export class RenderPipeline {
      */
     setPostProcess(pp: PostProcessAPI | null): void {
         this.postProcess_ = pp;
+        this.postProcessInitFailed_ = false;
     }
 
     /** An owner scopes the callback to its current registry and releases it when the app quits. */
@@ -194,6 +196,7 @@ export class RenderPipeline {
         this.frameElapsed_ = elapsedSec;
         this.presentationTarget_ = presentationTarget;
         this.overScreenView_ = null;
+        this.postProcessInitFailed_ = false;
         this.applyQuality_?.();
         this.quality_?.setLimitation('fixed-render-resolution', false);
         this.quality_?.setLimitation('resolution-present-unavailable', false);
@@ -301,10 +304,7 @@ export class RenderPipeline {
 
     beginScreenCapture(): void {
         const pp = this.postProcess_;
-        if (pp && pp.screenStack && pp.screenStack.enabledPassCount > 0) {
-            if (!pp.isInitialized()) {
-                pp.init(1, 1);
-            }
+        if (pp?.screenStack && pp.screenStack.enabledPassCount > 0 && this.ensurePostProcess()) {
             pp._applyScreenStack();
             pp._beginScreenCapture();
         }
@@ -312,7 +312,7 @@ export class RenderPipeline {
 
     endScreenCapture(): void {
         const pp = this.postProcess_;
-        if (pp && pp.screenStack && pp.screenStack.enabledPassCount > 0) {
+        if (pp?.screenStack && pp.screenStack.enabledPassCount > 0 && pp.isInitialized()) {
             pp._endScreenCapture();
             pp._executeScreenPasses();
         }
@@ -362,6 +362,28 @@ export class RenderPipeline {
         Renderer.end();
     }
 
+    private ensurePostProcess(): boolean {
+        const pp = this.postProcess_;
+        if (!pp) return false;
+        if (pp.isInitialized()) return true;
+        // Picking and submission must use the same fallback within a frame.
+        if (this.postProcessInitFailed_) return false;
+        const initialized = pp.init(1, 1);
+        this.postProcessInitFailed_ = !initialized;
+        return initialized;
+    }
+
+    /** @internal Resolve the project's display policy against the active backend for drawing and picking. */
+    cameraPresentPlan(vp: Viewport, worldHeight: number, policy = RenderResolution.Surface): PresentPlan {
+        const plan = planPresent(policy, worldHeight, vp.w, vp.h);
+        if (plan.oneToOne || this.ensurePostProcess()) return plan;
+        if (!this.warnedMissingPresent_) {
+            log.warn('render', 'Resolution policy needs post-processing; using surface resolution');
+            this.warnedMissingPresent_ = true;
+        }
+        return planPresent(RenderResolution.Surface, 0, vp.w, vp.h);
+    }
+
     renderCamera(params: CameraRenderParams): void {
         const { registry, viewProjection, viewportPixels: vp, clearFlags, elapsed, cameraEntity } = params;
         const target = params.renderTarget ?? 0;
@@ -371,25 +393,19 @@ export class RenderPipeline {
         // Where the scene is drawn and where it lands are two rects. A sprite that
         // scales itself can only clamp at its own texture's edge, so every boundary
         // breaks; scaling one whole image has no interior boundary to break.
-        let plan = planPresent(policy, params.worldHeight ?? 0, vp.w, vp.h);
+        let plan = this.cameraPresentPlan(vp, params.worldHeight ?? 0, policy);
         const quality = this.quality_;
         const scale = quality?.renderScale ?? 1;
         const fixedResolution = policy !== RenderResolution.Surface;
         const scaling = scale < 1 && !fixedResolution && presentsFrame && target === 0;
         if (scale < 1 && fixedResolution) quality?.setLimitation('fixed-render-resolution', true);
-        if (scaling && !this.postProcess_) {
-            quality?.setLimitation('resolution-present-unavailable', true);
-        }
-        if (scaling && this.postProcess_) {
-            plan = { ...plan, renderWidth: Math.max(1, Math.round(vp.w * scale)),
-                renderHeight: Math.max(1, Math.round(vp.h * scale)), oneToOne: false };
-        }
-        if (!plan.oneToOne && !this.postProcess_) {
-            if (!this.warnedMissingPresent_) {
-                log.warn('render', 'Resolution policy needs post-processing; using surface resolution');
-                this.warnedMissingPresent_ = true;
+        if (scaling) {
+            if (this.ensurePostProcess()) {
+                plan = { ...plan, renderWidth: Math.max(1, Math.round(vp.w * scale)),
+                    renderHeight: Math.max(1, Math.round(vp.h * scale)), oneToOne: false };
+            } else {
+                quality?.setLimitation('resolution-present-unavailable', true);
             }
-            plan = planPresent(RenderResolution.Surface, 0, vp.w, vp.h);
         }
         const scene: Viewport = plan.oneToOne
             ? vp
@@ -400,28 +416,19 @@ export class RenderPipeline {
 
         const pp = this.postProcess_;
         pp?.setQualityFilter(quality?.enabled ? quality.profile : null);
-        const hasStack = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null;
-        // A scaling present needs the chain even with no effects on it: the blit
-        // that ends the chain IS the present, and nothing else can draw one.
-        const hasPostProcess = pp !== null && (hasStack || !plan.oneToOne);
+        const useStack = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null
+            && (!plan.oneToOne || this.ensurePostProcess());
+        const usePostProcess = useStack || !plan.oneToOne;
 
-        if (hasPostProcess) {
-            // A present is not an effect: with no stack nothing else would ever
-            // bring the pipeline up, and an uninitialised one reports itself
-            // disengaged — so the policy would go quietly missing.
-            if (!pp!.isInitialized()) pp!.init(1, 1);
-            if (hasStack) pp!._applyForCamera(cameraEntity!);
-        }
-        if (pp?.isInitialized()) {
+        if (useStack) pp._applyForCamera(cameraEntity);
+        if (pp && (usePostProcess || pp.isInitialized())) {
             pp.resize(scene.w, scene.h);
             pp.setOutputViewport(present.x, present.y, present.w, present.h);
             // A letterbox at 1x is the same size as its chain and merely offset, so
             // the engine cannot read the need for it off the rects.
             pp.setPresentRequired(!plan.oneToOne);
         }
-        if (hasPostProcess) {
-            pp!.begin();
-        }
+        if (usePostProcess) pp!.begin();
 
         Renderer.setViewport(scene.x, scene.y, scene.w, scene.h);
         // The camera's clear rides begin as a region-scoped load-op — no scissor
@@ -448,9 +455,9 @@ export class RenderPipeline {
             };
         }
 
-        if (hasPostProcess) {
+        if (usePostProcess) {
             pp!.end();
-            if (hasStack) pp!._resetAfterCamera();
+            if (useStack) pp!._resetAfterCamera();
         }
     }
 

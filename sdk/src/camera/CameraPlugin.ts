@@ -37,7 +37,7 @@ import { EditorViewShading, DEFAULT_EDITOR_VIEW_SHADING, pushEditorViewShading, 
 import type { ViewShading } from '../render/renderer';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewEye, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
 import { ScreenScaling, SCREEN_FIT_OFF } from './ScreenScaling';
-import { planPresent, viewportPixels, RenderResolution } from './presentPlan';
+import { viewportPixels } from './presentPlan';
 import { CameraDirector, CameraEvent, createDirectorState, pickActive, resolveMainPOV, type CameraDirectorState, type CameraEventPayload } from './CameraDirector';
 import { EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Input } from '../input/input';
@@ -804,11 +804,11 @@ function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, hei
         const policy = app.hasResource(ScreenScaling)
             ? app.getResource(ScreenScaling).renderPolicy
             : undefined;
-        const shown = planPresent(policy ?? RenderResolution.Surface, 2 * cam.halfH, box.w, box.h);
-        uiCam.vpX = box.x + shown.x;
-        uiCam.vpY = box.y + shown.y;
-        uiCam.vpW = shown.width;
-        uiCam.vpH = shown.height;
+        const shown = app.pipeline?.cameraPresentPlan(box, 2 * cam.halfH, policy);
+        uiCam.vpX = box.x + (shown?.x ?? 0);
+        uiCam.vpY = box.y + (shown?.y ?? 0);
+        uiCam.vpW = shown?.width ?? box.w;
+        uiCam.vpH = shown?.height ?? box.h;
         uiCam.screenW = width;
         uiCam.screenH = height;
         // The box UI lays out within, from the fit the camera was built from (the frame's Canvas). The editor's free-zoom

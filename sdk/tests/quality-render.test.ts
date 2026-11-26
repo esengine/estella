@@ -23,7 +23,7 @@ describe('quality present', () => {
         const q = new QualityController({ mode: 'low' });
         pipeline.setQuality(q);
         const pp = { setQualityFilter: vi.fn(), getStack: () => null,
-            isInitialized: () => true, resize: vi.fn(), setOutputViewport: vi.fn(),
+            isInitialized: vi.fn(() => true), init: vi.fn(() => false), resize: vi.fn(), setOutputViewport: vi.fn(),
             setPresentRequired: vi.fn(), begin: vi.fn(), end: vi.fn() };
         if (post) pipeline.setPostProcess(pp as unknown as PostProcessAPI);
         const submit = vi.spyOn(pipeline, 'submitScene').mockImplementation(() => {});
@@ -65,6 +65,17 @@ describe('quality present', () => {
         expect(q.report().limitations).toContain('resolution-present-unavailable');
         pipeline.renderCamera({ ...params(), renderPolicy: RenderResolution.Design });
         expect(Renderer.setViewport).toHaveBeenLastCalledWith(200, 50, 800, 600);
+    });
+
+    it('falls back to full surface size when adaptive scaling cannot initialize', () => {
+        const { pipeline, q, pp } = setup();
+        pp.isInitialized.mockReturnValue(false);
+        pipeline.renderCamera(params());
+
+        expect(pp.init).toHaveBeenCalledTimes(1);
+        expect(pp.begin).not.toHaveBeenCalled();
+        expect(Renderer.setViewport).toHaveBeenCalledWith(200, 50, 800, 600);
+        expect(q.report().limitations).toContain('resolution-present-unavailable');
     });
 
     it('switches back to full resolution without reloading the scene', () => {

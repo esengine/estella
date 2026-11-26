@@ -16,6 +16,8 @@ import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 import { cameraPlugin, renderCameraFrame, syncScreenCameras } from '../src/camera/CameraPlugin';
 import { EditorView } from '../src/camera/EditorView';
+import { DEFAULT_SCREEN_SCALING, ScreenScaling } from '../src/camera/ScreenScaling';
+import { RenderResolution } from '../src/camera/presentPlan';
 import { CameraCommit, onCameraCommitChanged } from '../src/camera/CameraCommit';
 import { CameraView, PresentedCameraView } from '../src/camera/Camera';
 import { BlendCurve, setViewTarget } from '../src/camera/CameraDirector';
@@ -24,6 +26,7 @@ import { screenToUiWorld, uiWorldToScreen } from '../src/ui/util/ui-pick';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { ScreenOverlay, defaultScreenOverlay } from '../src/ui/core/screen-overlay';
 import { RenderPipeline } from '../src/render/renderPipeline';
+import { PostProcessAPI } from '../src/postprocess';
 import { Renderer, setRendererBackend, type RendererBackend } from '../src/render/renderer';
 import { RenderTexture } from '../src/render/renderTexture';
 import { defineSystem, Schedule } from '../src/ecs/system';
@@ -90,6 +93,36 @@ describe('the camera a frame was drawn with', () => {
         // would send every overlay somewhere the frame never drew.
         expect(drawnWith).not.toBeNull();
         expect(Array.from(commit.viewProjection)).toEqual(Array.from(drawnWith!));
+    });
+
+    it.each(['missing', 'unavailable', 'ready'] as const)('maps the picture under integer scaling with post-processing %s', async support => {
+        const { app, cam } = bootWithCamera();
+        app.world.update(cam, Camera, data => { data.orthoSize = 200; });
+        app.insertResource(ScreenScaling, { ...DEFAULT_SCREEN_SCALING, renderPolicy: RenderResolution.IntegerMultiple });
+        const submit = vi.spyOn(app.pipeline!, 'submitScene');
+        const pp = new PostProcessAPI();
+        vi.spyOn(pp, 'isInitialized').mockReturnValue(support === 'ready');
+        vi.spyOn(pp, 'init').mockReturnValue(false);
+        vi.spyOn(pp, 'resize').mockImplementation(() => {});
+        vi.spyOn(pp, 'setOutputViewport').mockImplementation(() => {});
+        vi.spyOn(pp, 'setPresentRequired').mockImplementation(() => {});
+        vi.spyOn(pp, 'begin').mockImplementation(() => {});
+        vi.spyOn(pp, 'end').mockImplementation(() => {});
+        if (support !== 'missing') app.pipeline!.setPostProcess(pp);
+
+        await app.tick(1 / 60);
+
+        if (support === 'ready') {
+            expect(submit.mock.lastCall?.[2]).toEqual({ x: 0, y: 0, w: 533, h: 400 });
+            expect(pp.setOutputViewport).toHaveBeenCalledWith(133, 100, 533, 400);
+            expect(app.getResource(CameraCommit)).toMatchObject({ vpX: 133, vpY: 100, vpW: 533, vpH: 400 });
+        } else {
+            expect(submit.mock.lastCall?.[2]).toEqual({ x: 0, y: 0, w: 800, h: 600 });
+            expect(pp.begin).not.toHaveBeenCalled();
+            expect(app.getResource(CameraCommit)).toMatchObject({ vpX: 0, vpY: 0, vpW: 800, vpH: 600 });
+            expect(app.getResource(UICameraInfo)).toMatchObject({ vpX: 0, vpY: 0, vpW: 800, vpH: 600 });
+            expect(app.getResource(PresentedCameraView).screenToWorld(600, 450)?.y).toBeCloseTo(100);
+        }
     });
 
     it('projects and picks where the renderer draws a distant rebased camera', async () => {

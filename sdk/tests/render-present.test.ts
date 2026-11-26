@@ -104,6 +104,22 @@ describe('renderCamera — the render size and the present rect', () => {
         expect(pp.init).toHaveBeenCalled();
     });
 
+    it('shares a failed presentation initialization within the frame and retries next frame', () => {
+        const pp = fakePostProcess(false);
+        pp.init.mockReturnValueOnce(false);
+        const pipeline = new RenderPipeline();
+        pipeline.setPostProcess(pp as never);
+
+        pipeline.beginFrame();
+        expect(pipeline.cameraPresentPlan(VP, DESIGN_WORLD_HEIGHT, RenderResolution.Design).oneToOne).toBe(true);
+        expect(pipeline.cameraPresentPlan(VP, DESIGN_WORLD_HEIGHT, RenderResolution.Design).oneToOne).toBe(true);
+        expect(pp.init).toHaveBeenCalledTimes(1);
+
+        pipeline.beginFrame();
+        expect(pipeline.cameraPresentPlan(VP, DESIGN_WORLD_HEIGHT, RenderResolution.Design).oneToOne).toBe(false);
+        expect(pp.init).toHaveBeenCalledTimes(2);
+    });
+
     it('draws the scene into the whole render target, not the panel rect', () => {
         run(RenderResolution.Design, false);
         expect(Renderer.setViewport).toHaveBeenCalledWith(0, 0, expect.any(Number), DESIGN_WORLD_HEIGHT);

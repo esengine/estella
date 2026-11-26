@@ -10458,6 +10458,7 @@ width: number
 
 ## RenderPipeline — class @experimental
 ```
+@internal cameraPresentPlan: (vp: Viewport, worldHeight: number, policy?: RenderResolution) => PresentPlan
 addPreFlushCallback: (cb: PassCallback, owner?: App) => () => void
 addScreenOverlayCallback: (cb: PassCallback, still?: PassStill, owner?: App) => () => void
 beginFrame: (elapsedSec?: number, presentationTarget?: number) => void
