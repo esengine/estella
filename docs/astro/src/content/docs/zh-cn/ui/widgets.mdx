@@ -298,7 +298,7 @@ const name = createTextInput({
 |---|---|---|
 | `node` | 220×32 | 输入框的 `UINode` 布局(唯一不默认填满父级的工厂)。 |
 | `value` / `placeholder` | `''` | 内容 / 为空时的提示。 |
-| `placeholderI18nKey` | `''` | 空输入框提示的文案键;需要 `Localization` 资源。写在 `placeholder` 里的原文作为回退。 |
+| `placeholderI18nKey` | `''` | 用 `Localization.t()` 翻译空输入框的提示。键为空或没有本地化资源时显示 `placeholder` 原文。当前语言和回退语言都缺少译文时显示键名。 |
 | `maxLength` | `0` | 字符上限(`0` = 不限)。 |
 | `multiline` | `false` | Enter 插入换行而不是提交。 |
 | `password` | `false` | 掩码显示字符。 |
@@ -310,6 +310,9 @@ const name = createTextInput({
 | `disabled` / `tabIndex` | `false` / `0` | 交互性 + Tab 顺序。文本框永远可聚焦——它就是干这个的。 |
 | `onChange(value, entity)` | — | 每次编辑触发。 |
 | `onSubmit(value, entity)` | — | Enter 触发(单行)。 |
+
+UI 节点缺少 `UIVisual` 时，输入框会用 `backgroundColor` 填充背景。缺少 `UIMask` 时，输入框会创建矩形裁剪区域以容纳长文本。
+移除 `TextInput` 会一并清理它生成的背景和遮罩。自行设置的皮肤和遮罩会保留在实体上。
 
 工厂是 `TextInput` **组件**之上的语法糖——直接把组件插到任意 UI 实体上可获得完全的
 手动控制(上表所有字段,外加实时的 `focused` / `cursorPos` 状态):

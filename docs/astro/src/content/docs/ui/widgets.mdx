@@ -317,7 +317,7 @@ const name = createTextInput({
 |---|---|---|
 | `node` | 220×32 | The field's `UINode` layout (the one factory that doesn't default to fill-parent). |
 | `value` / `placeholder` | `''` | Content / hint shown while empty. |
-| `placeholderI18nKey` | `''` | Catalog key for the empty-field hint; needs a `Localization` resource. The authored `placeholder` stays the fallback. |
+| `placeholderI18nKey` | `''` | Translates the empty-field hint through `Localization.t()`. An empty key or absent resource displays `placeholder`. A key missing in both languages displays its key name. |
 | `maxLength` | `0` | Character cap (`0` = unlimited). |
 | `multiline` | `false` | Enter inserts a newline instead of submitting. |
 | `password` | `false` | Mask the characters. |
@@ -329,6 +329,9 @@ const name = createTextInput({
 | `disabled` / `tabIndex` | `false` / `0` | Interactivity + Tab order. Text fields are always focusable — that is what they are for. |
 | `onChange(value, entity)` | — | Fires on every edit. |
 | `onSubmit(value, entity)` | — | Fires on Enter (single-line). |
+
+A UI node without a `UIVisual` gets a fill in `backgroundColor`. A field without a `UIMask` gets a scissor to clip long text.
+Removing `TextInput` clears the fill and mask it generated. A skin or mask you set yourself stays on the entity.
 
 The factory is sugar over the `TextInput` **component** — insert that directly on any
 UI entity for full manual control (every field above, plus the live `focused` /

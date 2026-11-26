@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app/app';
-import type { Entity } from '../../types';
+import type { Color, Entity } from '../../types';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { registerComponent } from '../../ecs/component';
 import { TextInput, applyTextInputFilter, type TextInputData } from './text-input';
@@ -19,7 +19,8 @@ import { Transform, Sprite, type TransformData, type SpriteData } from '../../ec
 import { ContentRect } from '../core/content-rect';
 import { UIEvents, UIEventQueue, UIEventType, type UIEvent } from '../core/events';
 import { Res } from '../../ecs/resource';
-import { playModeOnly } from '../../ecs/env';
+import { getDefaultContext } from '../../ecs/context';
+import { playsInContext } from '../../ecs/env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { spawnUIEntity, identityTransform, buildText } from '../core/compose';
 import { px } from '../core/dimension';
@@ -35,6 +36,7 @@ import {
 import { uiWorldToScreen, uiLayoutToScreen, uiPointerFor, isScreenEntity } from '../util/ui-pick';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
+import type { TextEditorEvent } from '../../platform/types';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { log } from '../../util/logger';
@@ -45,6 +47,15 @@ const PASSWORD_CHAR = '●';
 
 /** Selection-highlight fill (a translucent accent drawn behind the text). */
 const SELECTION_COLOR = { r: 0.30, g: 0.55, b: 1.0, a: 0.35 };
+
+interface FieldChildren {
+    text: Entity;
+    sel: Entity | null;
+    caret: Entity | null;
+    world: boolean;
+    fillWrite?: number;
+    maskWrite?: number;
+}
 
 export class TextInputPlugin implements Plugin {
     name = PluginName.TextInput;
@@ -68,15 +79,14 @@ export class TextInputPlugin implements Plugin {
         this.cleanup(app);
         registerComponent('TextInput', TextInput);
 
-        if (!playModeOnly()) return;
-
         // The OS surface that holds the value + selection while a field is focused:
         // a hidden textarea on the web, the soft keyboard and its IME on a device.
-        // A realm without one (headless) renders fields but cannot type into them.
-        const editor = platformCreateTextEditor();
-        if (!editor) {
+        // Edit viewports and hosts without an editing surface still draw the committed value.
+        const context = getDefaultContext();
+        let playing = playsInContext(context);
+        let editor = playing ? platformCreateTextEditor() : null;
+        if (playing && !editor) {
             log.info('ui', 'TextInput: this realm has no text-editing surface — fields render, typing is off');
-            return;
         }
 
         // Null on the native core, whose glyphs come from the platform rasterizer
@@ -91,7 +101,12 @@ export class TextInputPlugin implements Plugin {
         // per-entity Canvas2D rasterization / texture upload. `measureRenderer`
         // owns an atlas used only to position the caret (measureWidth); its glyph
         // advances match the child Text's atlas (same font config).
-        const childrenOf = new Map<Entity, { sel: Entity; text: Entity; caret: Entity }>();
+        const childrenOf = new Map<Entity, FieldChildren>();
+        let fieldLifetime: symbol | undefined;
+        // A later authored write, even to the same value in the same frame, transfers ownership.
+        // Only opt in to tracking a component when a field actually creates one.
+        let fillChanged: ((entity: Entity, since: number) => boolean) | undefined;
+        let maskChanged: ((entity: Entity, since: number) => boolean) | undefined;
         // The render system's horizontal scroll per field, read by click-to-caret
         // (Update) to map a pointer x back to a character index under the scroll.
         const scrollXOf = new Map<Entity, number>();
@@ -135,6 +150,7 @@ export class TextInputPlugin implements Plugin {
 
         let composing = false;
         let editingEntity: Entity | null = null;
+        let prevFocusedTextInput: Entity | null = null;
         let nativeEvents: UIEvent[] = [];
         let cursorVisible = true;
         let cursorTimer = 0;
@@ -164,7 +180,8 @@ export class TextInputPlugin implements Plugin {
             editor!.blur();
         }
 
-        const unsubscribe = editor.subscribe((event) => {
+        function onEditorEvent(event: TextEditorEvent): void {
+            if (!playsInContext(context)) return;
             const focused = getEditingTextInput();
             if (focused === null) {
                 // A hidden field or an opened modal can invalidate the owner
@@ -215,19 +232,43 @@ export class TextInputPlugin implements Plugin {
                     }
                     break;
             }
-        });
+        }
+        function subscribeSurface(): (() => void) | undefined {
+            const surface = editor;
+            return surface?.subscribe(event => {
+                if (surface === editor) onEditorEvent(event);
+            });
+        }
+        let unsubscribe = subscribeSurface();
+
+        function syncRunMode(): void {
+            const next = playsInContext(context);
+            if (playing === next) return;
+            playing = next;
+            unsubscribe?.();
+            const previous = editingEntity;
+            detachEditor();
+            if (previous !== null && app.getResource(FocusManager).focusedEntity === previous) {
+                app.getResource(FocusManager).blur();
+                if (world.valid(previous) && world.has(previous, Focusable)) {
+                    world.update(previous, Focusable, focus => { focus.isFocused = false; });
+                }
+            }
+            editor?.dispose();
+            editor = playing ? platformCreateTextEditor() : null;
+            unsubscribe = subscribeSurface();
+            prevFocusedTextInput = null;
+            nativeEvents = [];
+        }
 
         this.cleanupListeners_.set(app, () => {
             editingEntity = null;
             nativeEvents = [];
-            unsubscribe();
-            editor.dispose();
-            for (const ch of childrenOf.values()) {
-                if (world.valid(ch.sel)) world.despawn(ch.sel);
-                if (world.valid(ch.text)) world.despawn(ch.text);
-                if (world.valid(ch.caret)) world.despawn(ch.caret);
-            }
-            childrenOf.clear();
+            unsubscribe?.();
+            editor?.dispose();
+            editor = null;
+            forgetRetiredFields();
+            for (const [entity, ch] of childrenOf) releaseField(entity, ch);
             const renderer = measureRenderer;
             measureRenderer = null;
             renderer?.dispose();
@@ -392,7 +433,7 @@ export class TextInputPlugin implements Plugin {
         // Native callbacks dispatch immediately. Restore their query records
         // after interaction drains the old frame, without replaying callbacks.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
-            if (nativeEvents.length === 0) return;
+            if (!nativeEvents.length || !playsInContext(context)) return;
             const pending = nativeEvents;
             nativeEvents = [];
             const events = app.getResource(UIEvents) as UIEventQueue;
@@ -403,11 +444,10 @@ export class TextInputPlugin implements Plugin {
             }
         }, { name: 'TextInputEventSystem' }), { runAfter: [SystemLabel.UIInteraction] });
 
-        let prevFocusedTextInput: Entity | null = null;
-
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(FocusManager)],
             (_focusManager: FocusManagerState) => {
+                if (!editor) return;
                 const textInputEntities = world.getEntitiesWithComponents([TextInput]);
                 for (const entity of textInputEntities) {
                     ensureComponent(world, entity, Focusable, { tabIndex: 0, isFocused: false });
@@ -477,6 +517,8 @@ export class TextInputPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [],
             () => {
+                forgetRetiredFields();
+                syncRunMode();
                 const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
                 let dt = lastTime === 0 ? 0 : (now - lastTime) / 1000;
                 lastTime = now;
@@ -494,31 +536,31 @@ export class TextInputPlugin implements Plugin {
                 // Reap the child entities of removed inputs.
                 for (const [e, ch] of childrenOf) {
                     if (!world.valid(e) || !world.has(e, TextInput)) {
-                        if (world.valid(ch.sel)) world.despawn(ch.sel);
-                        if (world.valid(ch.text)) world.despawn(ch.text);
-                        if (world.valid(ch.caret)) world.despawn(ch.caret);
-                        childrenOf.delete(e);
-                        scrollXOf.delete(e);
-                        alignOffsetOf.delete(e);
+                        releaseField(e, ch);
                     }
                 }
 
+                const localization = playing && app.hasResource(Localization) ? app.getResource(Localization) : undefined;
                 for (const entity of world.getEntitiesWithComponents([TextInput])) {
                     const ti = world.get(entity, TextInput) as TextInputData;
                     const box = boxOf(entity);
-                    if (!box || box.w <= 0 || box.h <= 0) continue;
+                    if (!box || box.w <= 0 || box.h <= 0) {
+                        const ch = childrenOf.get(entity);
+                        if (ch) releaseField(entity, ch);
+                        continue;
+                    }
                     const w = box.w;
                     const h = box.h;
 
-                    ensureBackground(entity, ti, box);
                     const ch = ensureChildren(entity, ti, box);
+                    ensureBackground(entity, ti, ch);
                     // While focused, the editing surface is the single source of
                     // truth — caret moves, native shift/Ctrl-A selection, and the
                     // live IME preedit all land there — so a focused field renders
                     // the surface's value + selection; a blurred field renders its
                     // committed component value.
                     const editing = focused === entity;
-                    const state = editing ? editor.read() : null;
+                    const state = editing && editor ? editor.read() : null;
                     const val = state ? state.value : ti.value;
                     const len = val.length;
                     const sel = state
@@ -529,11 +571,9 @@ export class TextInputPlugin implements Plugin {
                         world.update(entity, TextInput, (d) => { d.cursorPos = sel.caret; });
                     }
 
-                    const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR,
-                        ti.placeholderI18nKey, app.hasResource(Localization) ? app.getResource(Localization) : undefined);
-                    const atlas = ensureMeasure().atlas;
+                    const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR, ti.placeholderI18nKey, localization);
                     const family = resolveTextFamily(ti.font, ti.fontFamily);
-                    const mw = (s: string): number => measureWidth(s, atlas, family, ti.fontSize, 0);
+                    const mw = (s: string): number => s.length ? measureWidth(s, ensureMeasure().atlas, family, ti.fontSize, 0) : 0;
                     const innerW = Math.max(0, w - 2 * ti.padding);
                     const vCenter = Math.max(0, (h - ti.fontSize) / 2);
 
@@ -569,7 +609,7 @@ export class TextInputPlugin implements Plugin {
                     } else {
                         const caretRaw = mw(maskedPrefix(val, sel.caret, ti.password, PASSWORD_CHAR));
                         scrollX = Math.max(0, caretRaw - innerW);
-                        ao = alignOffset(ti.textAlign, innerW, mw(disp.text));
+                        ao = ti.textAlign === TextAlign.Left ? 0 : alignOffset(ti.textAlign, innerW, mw(disp.text));
                         caretX = ti.padding + ao + caretRaw - scrollX;
                         caretTop = vCenter;
                         if (sel.hasRange) {
@@ -583,10 +623,10 @@ export class TextInputPlugin implements Plugin {
                     scrollXOf.set(entity, scrollX);
                     alignOffsetOf.set(entity, ao);
 
-                    syncSelChild(ch.sel, ti, box, sshow, sx, stop, sw);
+                    if (ch.sel !== null) syncSelChild(ch.sel, ti, box, sshow, sx, stop, sw);
                     syncTextChild(ch.text, ti, box, disp, innerW, scrollX, ao);
                     // The blinking caret hides while a highlight is drawn.
-                    syncCaretChild(ch.caret, ti, box, caretX, caretTop, editing && ti.focused && cursorVisible && !sshow);
+                    if (ch.caret !== null) syncCaretChild(ch.caret, ti, box, caretX, caretTop, editing && ti.focused && cursorVisible && !sshow);
 
                     // Anchor the IME at the caret. Not while composing — moving it
                     // mid-composition would yank an open candidate window.
@@ -595,18 +635,21 @@ export class TextInputPlugin implements Plugin {
                     }
                 }
             },
-            { name: 'TextInputRenderSystem' }
+            { name: 'TextInputRenderSystem', runWhenPaused: true }
         ));
 
-        function ensureBackground(entity: Entity, ti: TextInputData, box: FieldBox): void {
+        function ensureBackground(entity: Entity, ti: TextInputData, ch: FieldChildren): void {
             // Clip the editable text + caret to the field box: a long value scrolls
             // horizontally past the edge and must not spill outside the input.
             if (!world.has(entity, UIMask)) {
+                maskChanged ??= world.resolveChangeSequenceMatcher(UIMask, false);
                 world.insert(entity, UIMask, { enabled: true, mode: MaskMode.Scissor });
+                ch.maskWrite = world.getChangeSequence();
             }
             // A field standing in the world is drawn by the sprite its scene gave it: there is no background of the field's own to keep.
-            if (box.world) return;
+            if (ch.world) return;
             if (!world.has(entity, UIVisual)) {
+                fillChanged ??= world.resolveChangeSequenceMatcher(UIVisual, false);
                 world.insert(entity, UIVisual, {
                     visualType: UIVisualType.SolidColor, texture: 0,
                     color: { ...ti.backgroundColor },
@@ -614,14 +657,16 @@ export class TextInputPlugin implements Plugin {
                     sliceBorder: { x: 0, y: 0, z: 0, w: 0 }, tileSize: { x: 32, y: 32 },
                     fillMethod: 0, fillOrigin: 0, fillAmount: 1, material: 0, enabled: true,
                 });
+                ch.fillWrite = world.getChangeSequence();
+                return;
+            }
+            if (ch.fillWrite === undefined) return;
+            if (fillChanged!(entity, ch.fillWrite)) {
+                ch.fillWrite = undefined;
                 return;
             }
             const bg = world.get(entity, UIVisual) as UIVisualData;
-            // A visual that is not a plain fill was put there on purpose — the
-            // 9-sliced frame every skinned input field in every UI pack is drawn
-            // with. `backgroundColor` is the fallback for a field nobody skinned,
-            // so it stops at the fill it owns instead of flattening the art every
-            // frame. A field authored with a frame keeps its frame.
+            // Only the field's own generated fill follows its backgroundColor.
             if (bg.visualType !== UIVisualType.SolidColor) return;
             const c = ti.backgroundColor;
             if (!bg.enabled
@@ -629,6 +674,7 @@ export class TextInputPlugin implements Plugin {
                 bg.color = { ...c };
                 bg.enabled = true;
                 world.insert(entity, UIVisual, bg);
+                ch.fillWrite = world.getChangeSequence();
             }
         }
 
@@ -646,50 +692,85 @@ export class TextInputPlugin implements Plugin {
             return e;
         }
 
-        function ensureChildren(entity: Entity, ti: TextInputData, box: FieldBox): { sel: Entity; text: Entity; caret: Entity } {
-            const existing = childrenOf.get(entity);
-            if (existing && world.valid(existing.sel) && world.valid(existing.text) && world.valid(existing.caret)) return existing;
-            // Spawn order is the tree-DFS render order: highlight (behind) < text < caret.
-            let ch: { sel: Entity; text: Entity; caret: Entity };
+        function despawnChildren(ch: FieldChildren): void {
+            if (ch.sel !== null && world.valid(ch.sel)) world.despawn(ch.sel);
+            if (world.valid(ch.text)) world.despawn(ch.text);
+            if (ch.caret !== null && world.valid(ch.caret)) world.despawn(ch.caret);
+        }
+
+        function forgetRetiredFields(): void {
+            if (!childrenOf.size || fieldLifetime === world.entityLifetime) return;
+            // A replacement registry can reuse both parent and child handles for new authored entities.
+            childrenOf.clear();
+            scrollXOf.clear();
+            alignOffsetOf.clear();
+            if (editingEntity !== null) {
+                editingEntity = null;
+                composing = false;
+                editor?.blur();
+            }
+            prevFocusedTextInput = null;
+            nativeEvents = [];
+        }
+
+        function releaseField(entity: Entity, ch: FieldChildren): void {
+            despawnChildren(ch);
+            if (world.valid(entity)) {
+                if (ch.fillWrite !== undefined && !fillChanged!(entity, ch.fillWrite) && world.has(entity, UIVisual)) world.remove(entity, UIVisual);
+                if (ch.maskWrite !== undefined && !maskChanged!(entity, ch.maskWrite) && world.has(entity, UIMask)) world.remove(entity, UIMask);
+            }
+            childrenOf.delete(entity);
+            scrollXOf.delete(entity);
+            alignOffsetOf.delete(entity);
+        }
+
+        function decoration(entity: Entity, ti: TextInputData, box: FieldBox, width: number, color: Color): Entity | null {
+            if (!editor) return null;
             if (box.world) {
-                const layer = layerOf(entity);
-                const sel = spawnWorldPart(entity);
-                world.insert(sel, Sprite, { layer, color: { ...SELECTION_COLOR }, enabled: false } as Partial<SpriteData> as SpriteData);
-                const text = spawnWorldPart(entity);
+                const part = spawnWorldPart(entity);
+                world.insert(part, Sprite, { layer: layerOf(entity), color: { ...color }, enabled: false });
+                return part;
+            }
+            return spawnUIEntity({
+                world, parent: entity,
+                node: { position: UIPositionType.Absolute, width: px(width), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
+                visual: { visualType: UIVisualType.SolidColor, color: { ...color }, enabled: false },
+            });
+        }
+
+        function ensureChildren(entity: Entity, ti: TextInputData, box: FieldBox): FieldChildren {
+            const existing = childrenOf.get(entity);
+            if (existing) {
+                if (existing.world === box.world && (existing.caret !== null) === (editor !== null) && world.valid(existing.text)
+                    && (existing.sel === null || world.valid(existing.sel)) && (existing.caret === null || world.valid(existing.caret))) return existing;
+                releaseField(entity, existing);
+            }
+            // Spawn order is the tree-DFS render order: highlight (behind) < text < caret.
+            const sel = decoration(entity, ti, box, 0, SELECTION_COLOR);
+            let text: Entity;
+            if (box.world) {
+                text = spawnWorldPart(entity);
                 world.insert(text, Text, buildText({
                     content: '', font: ti.font, fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                     align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
-                    renderMode: ti.renderMode, layer,
+                    renderMode: ti.renderMode, layer: layerOf(entity),
                 }));
-                const caret = spawnWorldPart(entity);
-                world.insert(caret, Sprite, { layer, color: { ...ti.color }, enabled: false } as Partial<SpriteData> as SpriteData);
-                ch = { sel, text, caret };
             } else {
-                const pad = px(ti.padding);
-                const sel = spawnUIEntity({
-                    world, parent: entity,
-                    node: { position: UIPositionType.Absolute, width: px(0), height: px(ti.fontSize), insetLeft: pad, insetTop: px(0) },
-                    visual: { visualType: UIVisualType.SolidColor, color: { ...SELECTION_COLOR }, enabled: false },
-                });
-                const text = spawnUIEntity({
+                text = spawnUIEntity({
                     world, parent: entity,
                     // Left-anchored by insetLeft (scrolled by the render loop) with an
                     // explicit width — NOT insetRight — so a single-line value can slide
                     // under the Scissor mask instead of being pinned to the box.
-                    node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetBottom: px(0), width: px(0) },
+                    node: { position: UIPositionType.Absolute, insetLeft: px(ti.padding), insetTop: px(0), insetBottom: px(0), width: px(0) },
                     text: {
                         content: '', font: ti.font, fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                         align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
                         renderMode: ti.renderMode,
                     },
                 });
-                const caret = spawnUIEntity({
-                    world, parent: entity,
-                    node: { position: UIPositionType.Absolute, width: px(2), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
-                    visual: { visualType: UIVisualType.SolidColor, color: ti.color, enabled: false },
-                });
-                ch = { sel, text, caret };
             }
+            const ch = { sel, text, caret: decoration(entity, ti, box, 2, ti.color), world: box.world };
+            if (!childrenOf.size) fieldLifetime = world.entityLifetime;
             childrenOf.set(entity, ch);
             return ch;
         }

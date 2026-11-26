@@ -9,7 +9,7 @@
  * functions are the stable public surface; gameplay systems gate on
  * {@link playModeOnly}.
  */
-import { getDefaultContext } from './context';
+import { getDefaultContext, type AppContext } from './context';
 
 export function setEditorMode(active: boolean): void {
     getDefaultContext().editorMode = active;
@@ -38,7 +38,11 @@ export function isPlayMode(): boolean {
  * systems (which do not use this gate) keep ticking.
  */
 export function playModeOnly(): boolean {
-    const ctx = getDefaultContext();
+    return playsInContext(getDefaultContext());
+}
+
+/** @internal A platform surface follows the mode of the App that acquired it. */
+export function playsInContext(ctx: AppContext): boolean {
     return !ctx.editorMode || ctx.playMode;
 }
 

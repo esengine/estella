@@ -30,7 +30,7 @@ app.addPlugin(new LocalizationPlugin({
 | `catalogs` | `Record<string, LocaleCatalog>` | — | 启动时注册的目录，按语言区域分组。 |
 | `tables` | string[] | — | 启动时通过 `Assets` 加载的 `.eslocale` 资源（路径或 `@uuid:` 引用）。需要资源插件。 |
 
-把 `Text` 绑定到键的场景会自动安装该插件（[把 Text 绑定到键](#把-text-绑定到键)）。
+场景中的文本标签或输入框占位提示绑定了文案键时，会自动安装该插件（[把 Text 绑定到键](#把-text-绑定到键)）。
 
 ## 目录与查找
 
@@ -95,7 +95,7 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 
 - `assets.loadLocaleTable(path)`：需要本地化插件，否则失败；
 - `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`；
-- 由含键绑定 `Text` 的场景自动加载（[见下文](#把-text-绑定到键)）。
+- 由绑定了文本标签或输入框占位提示的场景自动加载（[见下文](#把-text-绑定到键)）。
 
 烘焙始终发布 `.eslocale` 文件，因为它们按键寻址，没有场景会引用它们。
 
@@ -121,6 +121,8 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 ## 把 Text 绑定到键
 
 设置 `Text.i18nKey`（Details 面板中的 **I18n Key** 字段，列出项目所有字符串表中的键并带翻译预览）后，`content` 成为派生值：**每帧**重新解析，因此 `setLocale` 或稍后加载完成的字符串表会更新所有绑定的标签，无需代码。
+
+在 `TextInput` 的 **Placeholder I18n Key** 中选择文案键，可翻译空输入框的占位提示。在视口选择预览语言即可看到译文，切回**自动**后，编辑视口会恢复场景中填写的 `placeholder` 原文。预览语言只影响显示。输入框已有内容时显示当前值，密码框显示掩码。
 
 绑定了任意键的场景：
 

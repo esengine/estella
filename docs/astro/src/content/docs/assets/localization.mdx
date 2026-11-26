@@ -31,7 +31,7 @@ app.addPlugin(new LocalizationPlugin({
 | `catalogs` | `Record<string, LocaleCatalog>` | — | Catalogs to register at startup, keyed by locale. |
 | `tables` | string[] | — | `.eslocale` assets (paths or `@uuid:` refs) to load at startup through `Assets`. Requires the asset plugin. |
 
-A scene that binds a `Text` to a key installs the plugin automatically ([Binding Text to keys](#binding-text-to-keys)).
+A scene with a key-bound label or input placeholder installs the plugin automatically ([Binding Text to keys](#binding-text-to-keys)).
 
 ## Catalogs and lookup
 
@@ -102,7 +102,7 @@ Tables are loaded in one of three ways:
 
 - `assets.loadLocaleTable(path)`, which requires the localization plugin and fails otherwise;
 - `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`;
-- automatically, by a scene with key-bound `Text` ([below](#binding-text-to-keys)).
+- automatically, by a scene with a key-bound label or input placeholder ([below](#binding-text-to-keys)).
 
 The cook always ships `.eslocale` files, because they are addressed by key and no scene references them.
 
@@ -135,6 +135,10 @@ keys. Each edit is written to that language's file at once. Plural entries are e
 Setting `Text.i18nKey` (the **I18n Key** field in the Details panel, which lists every key across the project's tables
 with a translated preview) makes `content` derived: it is resolved again **every frame**, so `setLocale` or a table that
 finishes loading later updates every bound label without code.
+
+Set **Placeholder I18n Key** on a `TextInput` to translate its empty-field hint. In the viewport, choose a preview language
+to see the translated hint. Switching back to **Auto** restores the authored `placeholder` in Edit. Previewing a language
+keeps the scene file intact. A filled field displays its value, masked when **Password** is enabled.
 
 A scene that binds any key:
 

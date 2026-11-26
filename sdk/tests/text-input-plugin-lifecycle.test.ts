@@ -22,6 +22,7 @@ vi.mock('../src/ui/text/text-renderer', () => ({
 }));
 
 const surfaces: ReturnType<typeof createSurface>[] = [];
+let surfaceAvailable = true;
 function createSurface() {
     const listeners = new Set<(event: TextEditorEvent) => void>();
     return {
@@ -38,6 +39,7 @@ function createSurface() {
 vi.mock('../src/platform/base', async original => ({
     ...await original<typeof import('../src/platform/base')>(),
     platformCreateTextEditor: () => {
+        if (!surfaceAvailable) return null;
         const surface = createSurface();
         surfaces.push(surface);
         return surface;
@@ -48,14 +50,22 @@ const { TextInputPlugin } = await import('../src/ui/text/text-input-plugin');
 const { FocusManager, FocusManagerState } = await import('../src/ui/input/focusable');
 const { UIEvents, UIEventQueue } = await import('../src/ui/core/events');
 const { TextInput } = await import('../src/ui/text/text-input');
-const { Text } = await import('../src/ui/core/text');
+const { Text, TextAlign } = await import('../src/ui/core/text');
+const { ContentRect } = await import('../src/ui/core/content-rect');
+const { UIVisual, UIVisualType } = await import('../src/ui/core/ui-visual');
+const { UIMask, MaskMode } = await import('../src/ui/core/ui-mask');
+const { Children } = await import('../src/ecs/component');
 const { defineSystem, Schedule } = await import('../src/ecs/system');
 const { Disabled, Transform } = await import('../src/ecs/component');
 const { UINode } = await import('../src/ui/core/ui-node');
 const { Interactable } = await import('../src/ui/input/interactable');
+const { setEditorMode, setPlayMode } = await import('../src/ecs/env');
+const { TextPlugin } = await import('../src/ui/text/plugin');
+const { LocalizationPlugin } = await import('../src/i18n/LocalizationPlugin');
 const apps: ReturnType<typeof App.new>[] = [];
-function build(plugin: InstanceType<typeof TextInputPlugin>) {
+function build(plugin: InstanceType<typeof TextInputPlugin>, editMode = false) {
     const app = bootMockApp().app;
+    setEditorMode(editMode);
     apps.push(app);
     app.addPlugin({ name: 'focus', build(app) {
         app.insertResource(FocusManager, new FocusManagerState());
@@ -66,10 +76,176 @@ function build(plugin: InstanceType<typeof TextInputPlugin>) {
 afterEach(() => {
     for (const app of apps.splice(0)) app.quit();
     surfaces.length = 0;
+    surfaceAvailable = true;
+    setEditorMode(false);
+    setPlayMode(false);
     measurements.length = 0;
     dimensions.width.mockReturnValue(0);
     dimensions.height.mockReturnValue(0);
     vi.restoreAllMocks();
+});
+
+it.each(['editor', 'runtime without an editing surface'])('draws field values and hints in the %s', async realm => {
+    const editMode = realm === 'editor';
+    surfaceAvailable = editMode;
+    dimensions.width.mockReturnValue(160);
+    dimensions.height.mockReturnValue(40);
+    const app = build(new TextInputPlugin(), editMode);
+    app.addPlugin(new TextPlugin());
+    if (!editMode) app.addPlugin(new LocalizationPlugin({ catalogs: { en: { hint: 'Translated hint', title: 'Label' } } }));
+    app.setPaused(editMode);
+    const field = app.world.spawn();
+    app.world.insert(field, Transform, {});
+    app.world.insert(field, UINode, {});
+    app.world.insert(field, Text, { content: 'Caption', i18nKey: 'title' });
+    app.world.insert(field, TextInput, { placeholder: 'Authored hint', placeholderI18nKey: 'hint' });
+    await app.tick(1 / 60);
+    const labels = app.world.getEntitiesWithComponents([Text]).filter(e => e !== field);
+    expect(labels).toHaveLength(1);
+    const child = labels[0]!;
+    expect(app.world.get(field, Children).entities).toEqual([child]);
+    expect(app.world.get(child, Text).content).toBe(editMode ? 'Authored hint' : 'Translated hint');
+    expect(app.world.get(field, Text).content).toBe(editMode ? 'Caption' : 'Label');
+    expect(app.world.get(field, TextInput).placeholder).toBe('Authored hint');
+    expect(surfaces).toHaveLength(0);
+    expect(app.world.has(field, Interactable)).toBe(false);
+    app.world.update(field, TextInput, ti => { ti.placeholderI18nKey = ''; ti.placeholder = 'New literal'; });
+    await app.tick(1 / 60);
+    expect(app.world.get(child, Text).content).toBe('New literal');
+    app.world.update(field, TextInput, ti => { ti.password = true; ti.value = 'abc'; });
+    await app.tick(1 / 60);
+    expect(app.world.get(child, Text).content).toBe('●●●');
+    const insert = vi.spyOn(app.world, 'insert');
+    await app.tick(1 / 60);
+    expect(insert.mock.calls.filter(([e, component]) => e === child && component === Text)).toHaveLength(0);
+    app.world.remove(field, UINode);
+    app.world.insert(field, ContentRect, { size: { x: 100, y: 30 }, pivot: { x: 0.5, y: 0.5 } });
+    await app.tick(1 / 60);
+    const [worldText] = app.world.get(field, Children).entities;
+    expect(app.world.has(worldText, ContentRect)).toBe(true);
+    expect(app.world.get(worldText, Text).content).toBe('●●●');
+    app.world.remove(field, ContentRect);
+    await app.tick(1 / 60);
+    expect(app.world.valid(worldText)).toBe(false);
+    app.world.remove(field, TextInput);
+    await app.tick(1 / 60);
+    expect(app.world.valid(child)).toBe(false);
+    expect(app.world.valid(field)).toBe(true);
+});
+
+it('opens and releases the input surface when the same edit world enters and leaves Play', async () => {
+    dimensions.width.mockReturnValue(160);
+    dimensions.height.mockReturnValue(40);
+    const app = build(new TextInputPlugin(), true);
+    app.addPlugin(new LocalizationPlugin({ catalogs: { en: { hint: 'Play hint' } } }));
+    const field = app.world.spawn();
+    app.world.insert(field, Transform, {});
+    app.world.insert(field, UINode, {});
+    app.world.insert(field, TextInput, { placeholder: 'Edit preview', placeholderI18nKey: 'hint' });
+    const shown = () => app.world.getEntitiesWithComponents([Text]).map(e => app.world.get(e, Text).content);
+    await app.tick(1 / 60);
+    expect(shown()).toEqual(['Edit preview']);
+    expect(surfaces).toHaveLength(0);
+    setPlayMode(true);
+    await app.tick(1 / 60);
+    expect(shown()).toEqual(['Play hint']);
+    expect(surfaces).toHaveLength(1);
+    app.getResource(FocusManager).focus(field);
+    await app.tick(1 / 60);
+    expect(surfaces[0].focus).toHaveBeenCalledOnce();
+    setPlayMode(false);
+    const late = [...surfaces[0].listeners];
+    for (const listener of late) listener({ kind: 'change' });
+    app.setPaused(true);
+    await app.tick(1 / 60);
+    expect(shown()).toEqual(['Edit preview']);
+    expect(app.world.get(field, TextInput).focused).toBe(false);
+    expect(app.world.get(field, TextInput).value).toBe('');
+    expect(surfaces[0].dispose).toHaveBeenCalledOnce();
+    expect(surfaces[0].listeners.size).toBe(0);
+    setPlayMode(true);
+    app.setPaused(false);
+    await app.tick(1 / 60);
+    app.getResource(FocusManager).focus(field);
+    await app.tick(1 / 60);
+    expect(surfaces[1].focus).toHaveBeenCalledOnce();
+    for (const listener of late) listener({ kind: 'change' });
+    expect(app.world.get(field, TextInput).value).toBe('');
+});
+
+it('keeps a running app interactive while another app context is in edit mode', async () => {
+    const plugin = new TextInputPlugin();
+    const game = build(plugin), edit = build(plugin, true);
+    const field = game.world.spawn();
+    game.world.insert(field, TextInput, { value: 'game' });
+    game.getResource(FocusManager).focus(field);
+    await edit.tick(1 / 60);
+    await game.tick(1 / 60);
+    expect(surfaces).toHaveLength(1);
+    expect(surfaces[0].focus).toHaveBeenCalledOnce();
+    expect(surfaces[0].dispose).not.toHaveBeenCalled();
+});
+
+it('releases the fill and scissor created for a field on removal, a box change or plugin cleanup', async () => {
+    dimensions.width.mockReturnValue(160); dimensions.height.mockReturnValue(40);
+    const plugin = new TextInputPlugin(), app = build(plugin, true), world = app.world;
+    const fields = Array.from({ length: 3 }, () => {
+        const field = world.spawn();
+        world.insert(field, Transform, {}); world.insert(field, UINode, {}); world.insert(field, TextInput, {});
+        return field;
+    });
+    await app.tick(1 / 60);
+    for (const field of fields) expect([world.has(field, UIVisual), world.has(field, UIMask)]).toEqual([true, true]);
+    const [removed, worldField, retained] = fields;
+    const red = { r: 1, g: 0, b: 0, a: 1 };
+    world.update(removed, TextInput, ti => { ti.backgroundColor = red; });
+    await app.tick(1 / 60);
+    expect(world.get(removed, UIVisual).color).toMatchObject(red);
+    world.remove(removed, TextInput);
+    world.remove(worldField, UINode);
+    world.insert(worldField, ContentRect, { size: { x: 100, y: 30 } });
+    await app.tick(1 / 60);
+    expect([world.has(removed, UIVisual), world.has(removed, UIMask)]).toEqual([false, false]);
+    expect([world.has(worldField, UIVisual), world.has(worldField, UIMask)]).toEqual([false, true]);
+    plugin.cleanup(app);
+    expect(world.has(worldField, UIMask)).toBe(false);
+    expect([world.has(retained, UIVisual), world.has(retained, UIMask)]).toEqual([false, false]);
+});
+
+it.each(['before', 'after'])('preserves authored fill and mask written %s the field first renders', async when => {
+    dimensions.width.mockReturnValue(160); dimensions.height.mockReturnValue(40);
+    const app = build(new TextInputPlugin(), true), world = app.world, field = world.spawn();
+    world.insert(field, Transform, {}); world.insert(field, UINode, {}); world.insert(field, TextInput, {});
+    if (when === 'after') await app.tick(1 / 60);
+    const skin = { r: 1, g: 0, b: 0, a: 1 };
+    world.insert(field, UIVisual, { visualType: UIVisualType.SolidColor, color: skin });
+    // Same value as a generated mask; a new authored write still takes ownership.
+    world.insert(field, UIMask, { enabled: true, mode: MaskMode.Scissor });
+    await app.tick(1 / 60);
+    expect(world.get(field, UIVisual).color).toMatchObject(skin);
+    world.remove(field, TextInput);
+    await app.tick(1 / 60);
+    expect(world.get(field, UIVisual).color).toMatchObject(skin);
+    expect(world.get(field, UIMask)).toMatchObject({ enabled: true, mode: MaskMode.Scissor });
+});
+
+it('does not release an authored entity in a replacement registry that reuses the old glyph handle', async () => {
+    dimensions.width.mockReturnValue(160); dimensions.height.mockReturnValue(40);
+    const plugin = new TextInputPlugin(), app = build(plugin, true), world = app.world;
+    const field = world.spawn();
+    world.insert(field, Transform, {}); world.insert(field, UINode, {}); world.insert(field, TextInput, {});
+    await app.tick(1 / 60);
+    const [oldGlyph] = world.get(field, Children).entities;
+    const { createMockModule } = await import('./mocks/wasm');
+    world.disconnectCpp();
+    const core = createMockModule();
+    app.connectCpp(core.getRegistry(), core);
+    const other = world.spawn(), label = world.spawn();
+    expect([other, label]).toEqual([field, oldGlyph]);
+    world.insert(label, Text, { content: 'Authored' });
+    plugin.cleanup(app);
+    expect(world.valid(label)).toBe(true);
+    expect(world.get(label, Text).content).toBe('Authored');
 });
 
 it.each(['change', 'composition', 'submit'] as const)('delivers native %s after UI clearing and before Update consumers', async kind => {
@@ -217,7 +393,7 @@ it('releases each App measurement atlas without disposing the newer field atlas'
         const app = build(plugin), field = app.world.spawn();
         app.world.insert(field, Transform, {});
         app.world.insert(field, UINode, {});
-        app.world.insert(field, TextInput, { value: 'preview' });
+        app.world.insert(field, TextInput, { value: 'preview', textAlign: TextAlign.Center });
         await app.tick(1 / 60);
         return app;
     };
