@@ -104,6 +104,13 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             };
             verify(group);
             expect(worldSnapshot(app, group, false).selected!.children).toEqual([first, second, third]);
+            // A small group in a large scene should not enumerate unrelated entities.
+            for (let i = 0; i < 64; i++) world.spawn();
+            const enumerate = world.getAllEntities;
+            world.getAllEntities = () => { throw new Error('small group detail enumerated the world'); };
+            try {
+                expect(worldSnapshot(app, group, false).selected!.children).toEqual([first, second, third]);
+            } finally { world.getAllEntities = enumerate; }
             world.applyEntityOrder([third, second, first, group, other]);
             verify(group);
             expect(worldSnapshot(app, group, false).selected!.children).toEqual([third, second, first]);

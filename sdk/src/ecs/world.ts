@@ -866,6 +866,20 @@ export class World {
         return Array.from(this.entities_.keys());
     }
 
+    /** @internal Return known handles once each, in storage order. */
+    entitySubsetInStorageOrder(candidates: readonly Entity[]): Entity[] {
+        if (candidates.length === 0) return [];
+        const members = new Set(candidates);
+        // A broad subset is cheaper to read in order than to sort.
+        if (members.size * 4 >= this.entities_.size) {
+            const ordered: Entity[] = [];
+            for (const entity of this.entities_.keys()) if (members.has(entity)) ordered.push(entity);
+            return ordered;
+        }
+        return [...members].filter(entity => this.entities_.has(entity))
+            .sort((a, b) => this.entities_.get(a)! - this.entities_.get(b)!);
+    }
+
     /**
      * Reorder the world's storage so every iteration follows `entities`.
      *

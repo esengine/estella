@@ -15818,6 +15818,7 @@ send: (data: string | ArrayBuffer) => void
 @internal endIteration: () => void
 @internal ensureTransformsComposed: () => void
 @internal entityLifetime: symbol
+@internal entitySubsetInStorageOrder: (candidates: readonly Entity[]) => Entity[]
 @internal flushEngineStamps: () => void
 @internal getChangeSequence: () => number
 @internal getComponentIncarnation: (entity: Entity, component: AnyComponentDef) => number

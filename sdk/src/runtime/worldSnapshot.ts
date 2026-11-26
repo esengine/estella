@@ -8,6 +8,7 @@
  */
 import type { App } from '../app/app';
 import type { World } from '../ecs/world';
+import type { Entity } from '../types';
 import { isLiveEntity, liveEntities } from '../ecs/liveEntityHandles';
 import { getComponent, renderableComponents, type AnyComponentDef, type RenderableComponentDef } from '../ecs/component';
 import { getComponentAssetFieldDescriptors } from '../scene/scene';
@@ -132,18 +133,17 @@ export function worldSnapshot(
         // Native hierarchy writers can move children without updating the SDK's
         // membership cache. Ask the current core before reading this relation.
         const hasChildren = world.resolveHas(childrenDef);
-        let c: { entities?: number[] } | null = null;
+        let c: { entities?: Entity[] } | null = null;
         if (!hasChildren) {
-            c = world.tryGet(selectedId as never, childrenDef) as { entities?: number[] } | null;
+            c = world.tryGet(selectedId as never, childrenDef) as { entities?: Entity[] } | null;
         } else if (hasChildren(selectedId as never)) {
             const read = world.resolveGetter(childrenDef, 'retained');
-            c = (read ? read(selectedId as never) : world.tryGet(selectedId as never, childrenDef)) as { entities?: number[] } | null;
+            c = (read ? read(selectedId as never) : world.tryGet(selectedId as never, childrenDef)) as { entities?: Entity[] } | null;
         }
         if (c?.entities?.length) {
             // Children is maintained with Parent. The inspector's order is the
             // world's storage order, which can differ from attachment order.
-            const members = new Set(c.entities);
-            childrenOf.set(selectedId, world.getAllEntities().filter(e => members.has(e) && isLiveEntity(world, e)));
+            childrenOf.set(selectedId, world.entitySubsetInStorageOrder(c.entities).filter(e => isLiveEntity(world, e)));
         }
     } else if (parentDef) {
         const entities = withTree ? all : liveEntities(world);
