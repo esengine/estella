@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { HeightmapFormat, sampleHeight, type Heightfield } from '../src/terrain/heightfield';
 import { TiledSource, parseTerrainTiles, type TerrainImage, type TerrainTilesDocument } from '../src/terrain/tiles';
+import { terrainPaintTargets } from '../src/terrain/paintLayers';
+import { makePage, PAGE_TEXELS } from '../src/terrain/pages';
 
 const T = 9, TILES = 4, N = TILES * (T - 1) + 1, SIZE = 640, HEIGHT = 100;
 const ground = (u: number, v: number): number => 0.5 + 0.4 * Math.sin(u * 7) * Math.cos(v * 5);
@@ -73,6 +75,31 @@ describe('ground kept as tiles', () => {
         expect(reads.sort()).toEqual(['t0_0.png', 't1_0.png', 't0_1.png', 't1_1.png'].sort());
         expect(fine.heights[0]).toBeCloseTo(exact(-320, -320), 4);
         expect(source.region(-320, -320, 30, 9)).not.toBeInstanceOf(Promise);
+    });
+
+    it('uses a standalone second paint map in overview, detailed pages and point queries', async () => {
+        const { source: base, files } = world();
+        const overlay = (alpha: number): TerrainImage => ({ width: 2, height: 2,
+            pixels: Uint8Array.from([alpha, 0, 0, 0, alpha, 0, 0, 0, alpha, 0, 0, 0, alpha, 0, 0, 0]) });
+        base.doc.tiles[0].splat2 = 'detail-paint.png';
+        files.set('detail-paint.png', overlay(192));
+        const source = new TiledSource(base.doc, params, base.overview, null, overlay(64), async path => files.get(path) ?? null);
+        const names = ['grass', 'dirt', 'snow', 'rock', 'trail'];
+        source.paintLayout = terrainPaintTargets(names, [
+            { name: 'trail', slot: 4, blend: 'alpha', info: '', physicalMaterial: '', hardness: 0.5 },
+        ]);
+        const x = -300, z = -300;
+        const overview = await source.region(x, z, source.overviewSpacing, 1);
+        expect(overview.paint?.[0]).toBeCloseTo(191 / 255);
+        expect(overview.paint2?.[0]).toBeCloseTo(64 / 255);
+        expect(source.paint(x, z, 0, 1)[4]).toBeCloseTo(64 / 255);
+        expect((await makePage(source, x, z, source.overviewSpacing * PAGE_TEXELS)).paint2[0]).toBe(64);
+
+        const detail = await source.region(x, z, 1, 1);
+        expect(detail.paint?.[0]).toBeCloseTo(63 / 255);
+        expect(detail.paint2?.[0]).toBeCloseTo(192 / 255);
+        expect(source.paint(x, z, 0, 1)[4]).toBeCloseTo(192 / 255);
+        expect((await makePage(source, x, z, 32)).paint2[0]).toBe(192);
     });
 
     it('lets go of the least recently used tiles past its budget, and reads them again when asked', async () => {

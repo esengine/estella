@@ -28,6 +28,10 @@ export interface TerrainTileStats { resident: number; reading: number; bytes: nu
 /** @internal One tile in memory. */
 export interface Tile { field: Heightfield; splat: Splat | null; splat2: Splat | null; bytes: number; used: number }
 
+function hasPaint(tile: Tile | null | undefined): tile is Tile {
+    return !!(tile?.splat || tile?.splat2);
+}
+
 type Params = Pick<TerrainData, 'sizeX' | 'sizeZ' | 'height' | 'rockSlope' | 'dirtHeight' | 'snowHeight'>;
 
 /** The default most a tiled ground keeps of its full-detail tiles in memory. */
@@ -112,8 +116,8 @@ export class TiledSource implements TerrainSource {
     private rawPaint(x: number, z: number, h: number, ny: number): LayerWeights {
         const at = this.locate(x, z), tile = this.tile(at.key);
         const u = x / this.params.sizeX + 0.5, v = z / this.params.sizeZ + 0.5;
-        if (tile?.splat) return weights(tile.splat, tile.splat2, at.lx / (this.doc.tileSamples - 1), at.lz / (this.doc.tileSamples - 1));
-        if (this.overviewSplat) return weights(this.overviewSplat, this.overviewSplat2, u, v);
+        if (hasPaint(tile)) return weights(tile.splat, tile.splat2, at.lx / (this.doc.tileSamples - 1), at.lz / (this.doc.tileSamples - 1));
+        if (this.overviewSplat || this.overviewSplat2) return weights(this.overviewSplat, this.overviewSplat2, u, v);
         return initialPaintWeights(paintWeights((h - this.minHeight) / Math.max(this.maxHeight, 1e-6), ny, this.params), this.paintLayout);
     }
 
@@ -309,13 +313,13 @@ export class TiledSource implements TerrainSource {
 
     private fromOverview(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples {
         const heights = new Float32Array(count * count);
-        const p1 = this.overviewSplat ? new Float32Array(count * count * 4) : undefined;
+        const p1 = this.overviewSplat || this.overviewSplat2 ? new Float32Array(count * count * 4) : undefined;
         const p2 = this.overviewSplat2 ? new Float32Array(count * count * 4) : undefined;
         for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
             const k = j * count + i;
             const u = clamp((x0 + i * spacing) / this.params.sizeX + 0.5, 0, 1), v = clamp((z0 + j * spacing) / this.params.sizeZ + 0.5, 0, 1);
             heights[k] = this.params.height * bilinear(this.overview.data, this.overview.width, u * (this.overview.width - 1), v * (this.overview.height - 1));
-            if (p1) fill(p1, k, this.overviewSplat!, u, v);
+            if (p1 && this.overviewSplat) fill(p1, k, this.overviewSplat, u, v);
             if (p2) fill(p2, k, this.overviewSplat2!, u, v);
         }
         return this.materialRegion(heights, p1, p2);
@@ -336,7 +340,7 @@ export class TiledSource implements TerrainSource {
 
     private fromTiles(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples {
         const heights = new Float32Array(count * count);
-        const painted = this.overviewSplat !== null || [...this.tiles_.values()].some((t) => t.splat);
+        const painted = this.overviewSplat !== null || this.overviewSplat2 !== null || [...this.tiles_.values()].some(hasPaint);
         const p1 = painted ? new Float32Array(count * count * 4) : undefined;
         const second = this.overviewSplat2 !== null || [...this.tiles_.values()].some((t) => t.splat2);
         const p2 = painted && second ? new Float32Array(count * count * 4) : undefined;
@@ -348,8 +352,9 @@ export class TiledSource implements TerrainSource {
             heights[k] = tile ? this.params.height * bilinear(tile.field.data, tile.field.width, at.lx, at.lz)
                 : this.params.height * bilinear(this.overview.data, this.overview.width, u * (this.overview.width - 1), v * (this.overview.height - 1));
             if (!p1) continue;
-            const splat = tile?.splat ?? this.overviewSplat, splat2 = tile?.splat ? tile.splat2 : this.overviewSplat2;
-            const su = tile?.splat ? at.lx / n : u, sv = tile?.splat ? at.lz / n : v;
+            const useTile = hasPaint(tile);
+            const splat = useTile ? tile.splat : this.overviewSplat, splat2 = useTile ? tile.splat2 : this.overviewSplat2;
+            const su = useTile ? at.lx / n : u, sv = useTile ? at.lz / n : v;
             if (splat) fill(p1, k, splat, su, sv);
             if (p2 && splat2) fill(p2, k, splat2, su, sv);
         }
@@ -372,13 +377,9 @@ function fill(out: Float32Array, k: number, s: Splat, u: number, v: number): voi
     for (let c = 0; c < 4; c++) out[k * 4 + c] = s.pixels[(j * s.width + i) * 4 + c]! / 255;
 }
 
-function weights(a: Splat, b: Splat | null, u: number, v: number): LayerWeights {
+function weights(a: Splat | null, b: Splat | null, u: number, v: number): LayerWeights {
     const out = new Float32Array(b ? 8 : 4);
-    fill(out, 0, a, u, v);
-    if (b) {
-        const tmp = new Float32Array(4);
-        fill(tmp, 0, b, u, v);
-        out.set(tmp, 4);
-    }
+    if (a) fill(out, 0, a, u, v);
+    if (b) fill(out, 1, b, u, v);
     return [...out];
 }
