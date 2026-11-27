@@ -711,8 +711,12 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         onPointerCancel(button) {
             if (discardMouse(button) && button === 0) cancelPrimaryPointer(state);
         },
-        onWheel(deltaX, deltaY) {
+        onWheel(deltaX, deltaY, x, y) {
             if (executionOwners.has(state)) return;
+            if (x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y)) {
+                state.mouseX = x;
+                state.mouseY = y;
+            }
             if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
             state.scrollDeltaX += deltaX;
             state.scrollDeltaY += deltaY;

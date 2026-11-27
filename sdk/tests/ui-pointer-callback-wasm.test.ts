@@ -18,6 +18,8 @@ import { ScreenOverlay } from '../src/ui/core/screen-overlay';
 import { UILayoutGeneration } from '../src/ui/layout/ui-layout-generation';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { uiInteractionPlugin } from '../src/ui/input/interaction';
+import { UIBehaviorPlugin } from '../src/ui/behavior/plugin';
+import { ScrollContainer } from '../src/ui/collection/scroll-container';
 import { UiPointerHitCache, MOUSE_POINTER } from '../src/ui/input/pointerBook';
 import { UIEvents } from '../src/ui/core/events';
 import { onGestureClick, fireGestureClick, takeGestureFired } from '../src/ui/input/gestureClick';
@@ -25,13 +27,15 @@ import { inputRouter } from '../src/input/inputRouter';
 import { webAdapter } from '../src/platform/web';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
-const hit = vi.hoisted(() => ({ entity: null as number | null }));
+const hit = vi.hoisted(() => ({ entity: null as number | null, wheelTarget: null as number | null }));
 // Deterministic picking isolates event dispatch over the actual WASM Registry.
 vi.mock('../src/ui/util/ui-pick', () => ({
     screenToUiWorld: (_camera: unknown, x: number, y: number) => ({ x, y }),
     screenToUiLayout: (_overlay: unknown, x: number, y: number) => ({ x, y }),
     isScreenEntity: () => true,
-    uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity, uiHitAtScreen: () => hit.entity,
+    uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity,
+    uiHitAtScreen: (_world: unknown, _cam: unknown, _overlay: unknown, x: number) =>
+        x >= 200 && hit.wheelTarget !== null ? hit.wheelTarget : hit.entity,
 }));
 
 describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
@@ -49,6 +53,7 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         uiInteractionPlugin.build(app); flushPendingRegistrations(app);
     });
     afterEach(() => {
+        hit.wheelTarget = null;
         uiInteractionPlugin.cleanup(app);
         vi.restoreAllMocks();
         for (const entity of app.world.getAllEntities()) app.world.despawn(entity);
@@ -162,6 +167,33 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
             expect(overlay.pointerX).toBeCloseTo(400);
             expect(overlay.pointerY).toBeCloseTo(300);
         } finally { canvas.remove(); }
+    });
+    it('scrolls the control under a wheel event without a preceding move', async () => {
+        const behavior = new UIBehaviorPlugin();
+        behavior.build(app);
+        const left = app.world.spawn(), right = app.world.spawn();
+        hit.entity = left;
+        hit.wheelTarget = right;
+        const container = () => new ScrollContainer({ viewportSize: { x: 100, y: 100 }, contentSize: { x: 100, y: 1000 } });
+        const leftScroll = container(), rightScroll = container();
+        for (const entity of [left, right]) app.world.insert(entity, Interactable);
+        behavior.attachScrollContainer(left, leftScroll);
+        behavior.attachScrollContainer(right, rightScroll);
+        const canvas = document.body.appendChild(document.createElement('canvas'));
+        webAdapter.bindInputEvents(inputEventCallbacks(app.getResource(Input)), canvas);
+        try {
+            await app.tick(1 / 60);
+            const event = new WheelEvent('wheel', { deltaY: 30 });
+            Object.defineProperties(event, { offsetX: { value: 250 }, offsetY: { value: 80 } });
+            canvas.dispatchEvent(event);
+            await app.tick(1 / 60);
+            expect(leftScroll.getOffset().y).toBe(0);
+            expect(rightScroll.getOffset().y).toBe(30);
+        } finally {
+            webAdapter.unbindInputEvents();
+            canvas.remove();
+            behavior.cleanup(app);
+        }
     });
     it('a consumed primary release cancels the actual WASM control instead of clicking it', async () => {
         const entity = app.world.spawn(); hit.entity = entity; app.world.insert(entity, Interactable);

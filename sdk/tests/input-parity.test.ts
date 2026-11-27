@@ -136,6 +136,19 @@ describe('input adapter parity (web vs native)', () => {
         expect(driveNative()).toEqual(web);
     });
 
+    it('uses the wheel position before any pointer move on a scaled browser canvas', () => {
+        const input = new InputState();
+        const event = new WheelEvent('wheel', { deltaY: 1, deltaMode: 1, clientX: 180, clientY: 123 });
+        Object.defineProperties(event, { offsetX: { value: 80 }, offsetY: { value: 44.5 } });
+        webAdapter.bindInputEvents(inputEventCallbacks(input), element);
+        try {
+            element.dispatchEvent(event);
+            expect(input.getMousePosition()).toEqual({ x: 80, y: 44.5 });
+            expect(input.getMouseDelta()).toEqual({ x: 0, y: 0 });
+            expect(input.getScrollDelta()).toEqual({ x: 0, y: 16 });
+        } finally { webAdapter.unbindInputEvents(); }
+    });
+
     it.each([[1, 1], [2, 1.5]])('keeps mouse and touch in canvas coordinates with borders and scale %s × %s', (scaleX, scaleY) => {
         const { callbacks, trace } = recorder();
         const outside = document.body.appendChild(document.createElement('div'));

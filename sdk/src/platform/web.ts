@@ -334,7 +334,14 @@ class WebPlatformAdapter implements PlatformAdapter {
                 dx *= win.innerWidth;
                 dy *= win.innerHeight;
             }
-            callbacks.onWheel(dx, dy);
+            if (doc.pointerLockElement === el) {
+                callbacks.onWheel(dx, dy);
+            } else if (we.target === el) {
+                callbacks.onWheel(dx, dy, we.offsetX, we.offsetY);
+            } else {
+                const { left, top, scaleX, scaleY } = surfacePointerFrame(el);
+                callbacks.onWheel(dx, dy, (we.clientX - left) * scaleX, (we.clientY - top) * scaleY);
+            }
         };
 
         this.inputBinding_.bind(callbacks, scope => {

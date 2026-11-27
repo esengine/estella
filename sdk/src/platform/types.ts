@@ -58,7 +58,7 @@ export interface InputEventCallbacks {
     onPointerUp(button: number, x?: number, y?: number): void;
     /** End a held pointer button without a release or click. */
     onPointerCancel?(button: number): void;
-    onWheel(deltaX: number, deltaY: number): void;
+    onWheel(deltaX: number, deltaY: number, x?: number, y?: number): void;
     onTouchStart?(id: number, x: number, y: number): void;
     onTouchMove?(id: number, x: number, y: number): void;
     onTouchEnd?(id: number, x?: number, y?: number): void;
