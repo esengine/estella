@@ -189,6 +189,60 @@ describe('packaged scene files', () => {
         expect(releaseShow).toHaveBeenCalledOnce();
     });
 
+    it('resolves the streamed world through the active package manifest when revisiting a scene', async () => {
+        const worldRef = 'world/room.world.json';
+        const key = 'afbace01-5555-4555-8555-555555555555';
+        const shipped = 'staged/room-world-v1.json', updated = 'staged/room-world-v2.json';
+        const cdn = 'https://cdn.invalid/v2';
+        const scene = (name: string) => ({ version: 4, name, entities: [] });
+        const world = (path: string) => ({
+            version: 1, scene: 'room', persistentRefs: [], cellSize: 100,
+            cells: [{ name: 'room-cell', path, x: 0, z: 0, minX: 0, minZ: 0, maxX: 100, maxZ: 100, entityCount: 0 }],
+        });
+        const manifest = (path: string, bundleMode: 'local' | 'remote') => ({
+            version: '2.0' as const, groups: { main: { bundleMode, labels: [], assets: {
+                [key]: { path, address: worldRef, type: 'json' as const, size: 100, labels: [] },
+            } } },
+        });
+        const config: PackagedGameConfig = {
+            entryScene: 'menu.json',
+            scenes: [{ name: 'menu', path: 'menu.json' }, { name: 'room', path: 'room.json' }],
+            worlds: [{ scene: 'room', manifest: worldRef }],
+        };
+        const files = new Map<string, unknown>([
+            ['game.config.json', config], ['asset-manifest.json', manifest(shipped, 'local')],
+            ['menu.json', scene('menu')], ['room.json', scene('room')], [shipped, world('world/cell-v1.json')],
+        ]);
+        const bridge = makeBridge({});
+        const read = vi.fn(async (path: string) => {
+            if (!files.has(path)) throw new Error(`missing ${path}`);
+            return new TextEncoder().encode(JSON.stringify(files.get(path))).buffer;
+        });
+        const fetch = vi.fn(async (url: string) => ({
+            ok: url === `${cdn}/${updated}`, status: url === `${cdn}/${updated}` ? 200 : 404,
+            text: JSON.stringify(world('world/cell-v2.json')),
+        }));
+        bridge.readFile = read;
+        bridge.fetch = fetch;
+        const scope = withRegistryOps({ es_Camera_buffer: () => null, es_Camera_has: () => false, es_Camera_remove: () => {} });
+        const { app } = await initNativeGame({ bridge, scope, width: 32, height: 32 });
+        try {
+            const manager = app.getResource(SceneManager), assets = app.getResource(Assets);
+            expect(read).not.toHaveBeenCalledWith(shipped);
+            await manager.switchTo('room');
+            expect(worldCellDocumentPath(app, 'room-cell')).toBe('world/cell-v1.json');
+            await manager.switchTo('menu');
+            await manager.switchTo('room');
+            expect(read.mock.calls.filter(([path]) => path === shipped)).toHaveLength(1);
+            await manager.switchTo('menu');
+            assets.setManifest(manifest(updated, 'remote'));
+            assets.setRemoteRoot(cdn);
+            await manager.switchTo('room');
+            expect(worldCellDocumentPath(app, 'room-cell')).toBe('world/cell-v2.json');
+            expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${cdn}/${updated}`]);
+        } finally { app.quit(); }
+    });
+
     it('reads a world on first use, retries a bad manifest, and gives residency only to the active scene', async () => {
         const scenes = ['menu', 'levels/a', 'levels/b'].map(name => ({ name, path: name + '.json' }));
         const worlds = scenes.slice(1).map(({ name }) => ({ scene: name, manifest: name + '.world.json' }));

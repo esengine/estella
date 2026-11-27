@@ -1159,7 +1159,15 @@ function registerRuntimeScenes(
     const { app } = config;
     const manager = app.getResource(SceneManager);
     const sceneNames = new Set(config.scenes.map(scene => scene.name));
-    const worlds = new Map<string, { manifest: WorldManifest; documents?: ReadonlyMap<string, SceneData> }>();
+    const worlds = new Map<string, {
+        manifest: WorldManifest;
+        documents?: ReadonlyMap<string, SceneData>;
+        packageFile?: { path: string; version: string | null };
+    }>();
+    // The packaged path can belong to the shipped revision. Keep the record
+    // key so Assets can resolve the active revision at load time.
+    const packagedRef = (path?: string): string | undefined =>
+        path ? shippedManifest?.recordForRef(path)?.key ?? path : undefined;
     for (const manifest of config.worlds ?? []) {
         assertWorldManifest(manifest, { sceneNames });
         worlds.set(manifest.scene, { manifest, documents: config.cellDocuments });
@@ -1167,13 +1175,20 @@ function registerRuntimeScenes(
     if (worlds.size > 0) enableSceneOrigins(app);
     for (const scene of config.scenes) {
         const { worldPath } = scene;
+        const worldRef = packagedRef(worldPath);
         const prepareDocument = async (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void): Promise<SceneData> => {
-            if (worldPath) {
-                if (!worlds.has(scene.name)) {
-                    const manifest: unknown = JSON.parse(await app.getResource(AssetsResource).backend.fetchText(worldPath));
+            if (worldRef) {
+                const assets = app.getResource(AssetsResource);
+                const model = assets.getManifest();
+                const record = model?.recordForRef(worldRef);
+                const path = assets.resolveLoadPath(worldRef);
+                const version = record ? record.asset.contentHash ?? model?.revision() ?? null : null;
+                const cached = worlds.get(scene.name);
+                if (!cached || (cached.packageFile && (cached.packageFile.path !== path || cached.packageFile.version !== version))) {
+                    const manifest = await assets.fetchJson(worldRef);
                     assertActive();
                     assertWorldManifest(manifest, { scene: scene.name, path: worldPath, sceneNames });
-                    onPublish(() => { worlds.set(scene.name, { manifest, documents: config.cellDocuments }); });
+                    onPublish(() => { worlds.set(scene.name, { manifest, documents: config.cellDocuments, packageFile: { path, version } }); });
                 }
             } else if (config.prepareWorld) {
                 const cut = await config.prepareWorld(data, scene.name);
@@ -1191,10 +1206,7 @@ function registerRuntimeScenes(
             return data;
         };
         const sceneOptions = worldPath || config.prepareWorld ? { ...options, prepareDocument } : options;
-        // The packaged path can belong to the shipped revision. Keep the
-        // record key so Assets can resolve the active revision at load time.
-        const sceneRef = scene.path ? shippedManifest?.recordForRef(scene.path)?.key ?? scene.path : undefined;
-        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, sceneRef);
+        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, packagedRef(scene.path));
         if (config.prepareWorld && !worldPath) registration.cleanup = () => { worlds.delete(scene.name); };
         manager.register(registration);
     }
