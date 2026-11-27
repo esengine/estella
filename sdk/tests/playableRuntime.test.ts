@@ -19,6 +19,8 @@ import { Assets } from '../src/asset/AssetPlugin';
 import { App } from '../src/app/app';
 import { Input, InputState } from '../src/input/input';
 import type { PlayableAdBridge } from '../src/runtime/playableCta';
+import { Audio, AudioAPI } from '../src/audio/Audio';
+import type { PlatformAudioBackend } from '../src/audio/PlatformAudioBackend';
 
 function createMockConfig(overrides?: Partial<PlayableRuntimeConfig>): PlayableRuntimeConfig {
     const canvas = { width: 320, height: 480 } as HTMLCanvasElement;
@@ -105,6 +107,30 @@ describe('initPlayableRuntime', () => {
         (plain.app as any).stepFrames = vi.fn();
         await initPlayableRuntime(plain);
         expect((plain.app as any).stepFrames).not.toHaveBeenCalled();
+    });
+
+    it('loads embedded audio once through logical paths, Windows paths and UUID aliases', async () => {
+        const id = 'cccc1111-1111-4111-8111-111111111111';
+        const path = 'assets/music/level.wav';
+        const url = 'data:audio/mpeg;base64,AQID';
+        const loadBuffer = vi.fn(async () => ({ id: 1, duration: 1 }));
+        const loadBufferFromData = vi.fn(async () => ({ id: 1, duration: 1 }));
+        const app = App.new();
+        const audio = new AudioAPI({ delivery: 'bytes', loadBuffer, loadBufferFromData } as unknown as PlatformAudioBackend);
+        app.insertResource(Audio, audio);
+        vi.spyOn(app, 'run').mockImplementation(async () => {});
+        vi.mocked(initRuntime).mockImplementationOnce(async ({ source }) => {
+            audio.setRefResolver(ref => source.backend.resolveUrl(source.resolveRef!(ref)), source.resolveAddress);
+        });
+
+        await initPlayableRuntime(createMockConfig({ app, assets: { [`@uuid:${id}`]: url },
+            assetPathMap: { [path]: `@uuid:${id}` } }));
+        await audio.preload('assets\\music\\level.wav');
+        await audio.preload('.\\assets\\music\\level.wav');
+        await audio.preload('/' + path);
+        await audio.preload(id.toUpperCase());
+        expect(loadBuffer).not.toHaveBeenCalled();
+        expect(loadBufferFromData.mock.calls).toEqual([[url, new Uint8Array([1, 2, 3]).buffer]]);
     });
 
     it('passes an embedded image and its requested edge to the platform decoder', async () => {

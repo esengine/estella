@@ -21,7 +21,7 @@ import { log } from '../util/logger';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
 import { platformLoadImagePixels } from '../platform/base';
-import { assetRefId, UUID_REF_PREFIX } from '../asset/AssetRegistry';
+import { assetRefId, normalizeAssetPathSeparators, UUID_REF_PREFIX } from '../asset/AssetRegistry';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import type { SceneData } from '../scene/scene';
@@ -85,7 +85,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // emit) — the aliases point at the SAME data-URL strings, so path refs cost
     // nothing and every consumer below resolves through one map.
     const assets = { ...config.assets };
-    const keyToPath: Record<string, string> = {};
+    const keyToPath = new Map<string, string>();
     for (const [logical, key] of Object.entries(config.assetPathMap ?? {})) {
         const data = assets[key];
         if (!data) continue;
@@ -93,7 +93,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         assets[`/${logical}`] ??= data;
         // Reverse index (@uuid key → its logical source path); first path wins.
         const id = assetRefId(key);
-        keyToPath[id ? UUID_REF_PREFIX + id : key] ??= logical;
+        const ref = id ? UUID_REF_PREFIX + id : key;
+        if (!keyToPath.has(ref)) keyToPath.set(ref, logical);
     }
 
     // Canonical asset source: the shared EmbeddedBackend (data-URLs) + a DOM image
@@ -109,7 +110,9 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     const catalog = config.catalog ? Catalog.fromJson(config.catalog) : model && catalogForModel(model);
     const embeddedPath = (ref: string): string => {
         const uuid = assetRefId(ref);
-        return keyToPath[uuid ? UUID_REF_PREFIX + uuid : ref] ?? ref;
+        const portable = normalizeAssetPathSeparators(ref);
+        const key = uuid !== null ? UUID_REF_PREFIX + uuid : portable.replace(/^(?:\.\/|\/(?!\/))/, '');
+        return keyToPath.get(key) ?? (backend.has(key) ? key : backend.has(portable) ? portable : ref);
     };
     const resolveRefToPath = (ref: string) => catalog?.getAtlasFrame(ref)?.atlas ?? embeddedPath(ref);
     const inlined: RuntimeAssetSource = {
@@ -130,10 +133,10 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     const source = config.serve ? config.serve(inlined) : inlined;
 
     if (app.hasResource(Audio)) {
-        app.getResource(Audio).setAssetResolver((url: string) => {
-            const dataUrl = assets[url];
-            if (!dataUrl) return null;
-            return decodeDataUrlBinary(dataUrl).buffer as ArrayBuffer;
+        app.getResource(Audio).setAssetResolver((ref: string) => {
+            const path = embeddedPath(ref);
+            if (!backend.has(path)) return null;
+            return decodeDataUrlBinary(backend.resolveUrl(path)).buffer as ArrayBuffer;
         });
     }
 
