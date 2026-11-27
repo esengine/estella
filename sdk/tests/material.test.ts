@@ -86,8 +86,10 @@ describe('Material API', () => {
             const parent = Material.create({shader:1,uniforms:{u_value:3}});
             const inheriting = Material.createInstance(parent), overriding = Material.createInstance(parent);
             Material.setUniform(overriding,'u_value',9);mock.material_undefine.mockClear();
+            mock.material_define.mockClear();
             Material.applyState(parent,{});
             expect(mock.material_undefine.mock.calls.map(call=>call[0])).toEqual([parent,inheriting]);
+            expect(mock.material_define.mock.calls.map(call=>call[0])).toEqual([parent,inheriting]);
             expect(Material.getUniform(overriding,'u_value')).toBe(9);
             expect(Material.getUniform(inheriting,'u_value')).toBeUndefined();
         });

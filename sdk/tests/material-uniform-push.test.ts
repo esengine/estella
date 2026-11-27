@@ -73,6 +73,7 @@ describe('writing one uniform of a material', () => {
         const sibling = Material.createInstance(parent);
         Material.setUniform(sibling, 'u_c', { x: 7, y: 8 });
         mock.material_setUniform.mockClear();
+        mock.material_define.mockClear();
 
         color.x = 9;
         Material.applyState(parent, { uniforms: { u_a: 1, u_b: 2, u_c: color } });
@@ -80,10 +81,12 @@ describe('writing one uniform of a material', () => {
             [parent, 'u_c', 2, 9, 2, 0, 0],
             [child, 'u_c', 2, 9, 2, 0, 0],
         ]);
+        expect(mock.material_define).not.toHaveBeenCalled();
         mock.material_setUniform.mockClear();
         const program = { handle: 2, lease: ownedAssetLease('new-shader', 1, {}, vi.fn()) };
         Material.applyState(parent, { program, uniforms: { u_a: 1, u_b: 2, u_c: color } });
         expect(mock.material_setUniform).toHaveBeenCalledTimes(9);
+        expect(mock.material_define).toHaveBeenCalledTimes(3);
         expect(mock.material_setUniform).toHaveBeenCalledWith(sibling, 'u_c', 2, 7, 8, 0, 0);
     });
 
@@ -97,6 +100,7 @@ describe('writing one uniform of a material', () => {
         initMaterialAPI(replacement as unknown as ESEngineModule);
         Material.applyState(material, { uniforms: { u_a: -0, u_b: 2 } });
         expect(replacement.material_setUniform).toHaveBeenCalledTimes(2);
+        expect(replacement.material_define).toHaveBeenCalledTimes(1);
     });
 
     it('reaches an instance that inherits the value and leaves one that overrides it', () => {

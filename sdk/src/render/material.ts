@@ -438,10 +438,14 @@ function flushMaterial(handle: MaterialHandle, previous?: ReadonlyMap<MaterialHa
             if (removed || (old && old.shader !== resolved.shader)) {
                 data?.sent_?.clear();
             }
-            module.material_define(id, resolved.shader, resolved.blendMode,
-                materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
-                resolved.depthBias);
             const skipUnchanged = !!data?.pushed_ && old?.shader === resolved.shader && !removed;
+            if (!skipUnchanged || old.blendMode !== resolved.blendMode
+                || old.depthTest !== resolved.depthTest || old.depthWrite !== resolved.depthWrite
+                || old.cull !== resolved.cull || old.depthBias !== resolved.depthBias) {
+                module.material_define(id, resolved.shader, resolved.blendMode,
+                    materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
+                    resolved.depthBias);
+            }
             for (const [name, value] of resolved.uniforms) pushUniform(id, name, value, skipUnchanged);
             if (data) data.pushed_ = true;
         }
