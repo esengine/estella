@@ -121,6 +121,12 @@ function componentData(entry: SceneEntry, type: string): Record<string, unknown>
     return null;
 }
 
+/** Read the settings from the same authored declaration used to select a streamed scene. */
+export function streamedWorldData(scene: SceneData): Record<string, unknown> | null {
+    const declared = streamedWorldDeclaration(scene);
+    return declared ? componentData(declared, 'StreamedWorld') : null;
+}
+
 function vec3(value: unknown, fallback: Vec3): Vec3 {
     if (value === null || typeof value !== 'object') return fallback;
     const v = value as Partial<Vec3>;
@@ -229,12 +235,23 @@ export function partitionWorld(
     const errors: string[] = [];
     const warnings: string[] = [];
     const byId = new Map<number, SceneEntry>();
+    let otherDeclaration: SceneEntry | undefined;
     for (const entry of entries) {
         if (byId.has(entry.id)) {
             return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
                 errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
         }
         byId.set(entry.id, entry);
+        if (!otherDeclaration && entry !== declared && hasComponent(entry, 'StreamedWorld')) otherDeclaration = entry;
+    }
+    const duplicateComponent = componentsOf(declared).filter(component => component.type === 'StreamedWorld').length > 1;
+    if (otherDeclaration || duplicateComponent) {
+        const first = `entity ${declared.id} ("${nameOf(declared)}")`;
+        const locations = otherDeclaration
+            ? `${first} and entity ${otherDeclaration.id} ("${nameOf(otherDeclaration)}")`
+            : first;
+        return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
+            errors: [`Scene "${sceneName}" can have only one StreamedWorld declaration; found multiple on ${locations}`] };
     }
 
     const childrenOf = new Map<number, number[]>();
@@ -261,7 +278,7 @@ export function partitionWorld(
         const entry = byId.get(root)!;
         const { transform, worldPersistent } = localPlacement(entry, options, errors);
         const streamed = !worldPersistent
-            && !hasComponent(entry, 'StreamedWorld')
+            && entry !== declared
             && (isPrefabEntry(entry) || transform !== null);
         const rootPosition = vec3(transform?.position, ORIGIN);
         let cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
@@ -319,12 +336,8 @@ export function partitionWorld(
         }
     }
 
-    const rootIds = new Set(roots);
-    for (const entry of entries) {
-        if (rootIds.has(entry.id)) continue;
-        if (hasComponent(entry, 'StreamedWorld')) {
-            errors.push(`entity ${entry.id} ("${nameOf(entry)}") carries StreamedWorld but is not top-level`);
-        }
+    if (declared.parent != null && byId.has(declared.parent)) {
+        errors.push(`entity ${declared.id} ("${nameOf(declared)}") carries StreamedWorld but is not top-level`);
     }
 
     const persistentRefs = new Set<number>();

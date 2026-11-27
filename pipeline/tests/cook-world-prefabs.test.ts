@@ -133,6 +133,22 @@ describe('cooking a world that instances a prefab', () => {
         await expect(readFile(path.join(root, 'world/main.world.json'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
+    it('refuses competing world declarations without writing cells or a manifest', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const scenePath = 'assets/scenes/main.esscene';
+        const sceneFile = path.join(root, scenePath);
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities.push({ id: 2, name: 'Overlay', parent: null, children: [], components: [
+            { type: 'StreamedWorld', data: { cellSize: 250, plane: StreamPlane.Screen, farProxies: true } },
+        ] });
+        const staged = JSON.stringify(scene);
+        await writeFile(sceneFile, staged);
+
+        await expect(cookWorlds(root, root, [{ name: 'main', path: scenePath }])).rejects.toThrow(/only one StreamedWorld.*Overlay/);
+        expect(await readFile(sceneFile, 'utf8')).toBe(staged);
+        await expect(readFile(path.join(root, 'world/main.world.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
     it('writes persistent entity links from instance components into the world manifest', async () => {
         const root = await projectWith([1500, 0, 500], null);
         const sceneFile = path.join(root, 'assets/scenes/main.esscene');

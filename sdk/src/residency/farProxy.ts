@@ -18,6 +18,7 @@ import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
 import { worldFileStem, type CutWorld } from './cutWorld';
+import { streamedWorldData } from './partitionWorld';
 import type { WorldCell } from './cells';
 
 /** How a world's far proxies are baked and how far they are shown, from its `StreamedWorld`. @experimental */
@@ -74,17 +75,13 @@ function finite(value: unknown, fallback: number): number {
 
 /** The world's far-proxy settings, or null when its `StreamedWorld` does not ask for far proxies. @experimental */
 export function farProxySettings(scene: SceneData): FarProxySettings | null {
-    for (const entity of scene.entities ?? []) {
-        const declaration = componentOf(entity, 'StreamedWorld');
-        if (!declaration) continue;
-        if (declaration.farProxies !== true) return null;
-        return {
-            farDistance: Math.max(0, finite(declaration.farDistance, 8000)),
-            ratio: Math.min(1, Math.max(0.001, finite(declaration.proxyRatio, 0.01))),
-            maxWorldError: Math.max(0, finite(declaration.proxyError, 1)),
-        };
-    }
-    return null;
+    const declaration = streamedWorldData(scene);
+    if (declaration?.farProxies !== true) return null;
+    return {
+        farDistance: Math.max(0, finite(declaration.farDistance, 8000)),
+        ratio: Math.min(1, Math.max(0.001, finite(declaration.proxyRatio, 0.01))),
+        maxWorldError: Math.max(0, finite(declaration.proxyError, 1)),
+    };
 }
 
 function localMatrix(transform: Record<string, unknown>): number[] {

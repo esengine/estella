@@ -153,6 +153,14 @@ describe('the snapshot Play boots', () => {
         ), 'main', resolveRef)).rejects.toThrow(/cell \(1, 0\).*non-finite bounds/);
     });
 
+    it('refuses competing world declarations in Play', async () => {
+        vi.stubGlobal('fetch', refuseFetch);
+        await expect(cutPlayWorld(scene(
+            entity(1, 'Landscape', null, { components: [declaration] }),
+            entity(2, 'Overlay', null, { components: [{ ...declaration, data: { cellSize: SIZE / 2, plane: 1 } }] }),
+        ), 'main', resolveRef)).rejects.toThrow(/only one StreamedWorld.*Landscape.*Overlay/);
+    });
+
     it('refuses a world a build would refuse, rather than playing it whole', async () => {
         vi.stubGlobal('fetch', refuseFetch);
         await expect(cutPlayWorld(scene(

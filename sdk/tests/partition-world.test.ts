@@ -98,6 +98,23 @@ describe('partitionWorld', () => {
         expect(cut(scene(entity(0, 'Ground', [0, 0, 0])))).toBeNull();
     });
 
+    it('refuses competing streamed-world declarations before producing any cells', () => {
+        const competing = { type: 'StreamedWorld', data: { cellSize: 250, plane: StreamPlane.Screen } };
+        const first = entity(1, 'Ground settings', null, { components: [declaration] });
+        const second = entity(2, 'Screen settings', null, { components: [competing] });
+        const prop = entity(3, 'Prop', [1500, 500, 500]);
+        for (const declarations of [[first, second], [second, first]]) {
+            const partition = cut(scene(...declarations, prop))!;
+            expect(partition.errors.join('\n')).toMatch(/only one StreamedWorld/);
+            expect(partition.errors.join('\n')).toContain('Ground settings');
+            expect(partition.errors.join('\n')).toContain('Screen settings');
+            expect(partition.cells).toEqual([]);
+        }
+        const duplicate = cut(scene(entity(1, 'World settings', null, { components: [declaration, competing] }), prop))!;
+        expect(duplicate.errors.join('\n')).toMatch(/only one StreamedWorld.*World settings/);
+        expect(duplicate.cells).toEqual([]);
+    });
+
     it('places top-level entities by their own position, and keeps the rest persistent', () => {
         const partition = cut(scene(
             entity(0, 'World', null, { components: [declaration] }),
