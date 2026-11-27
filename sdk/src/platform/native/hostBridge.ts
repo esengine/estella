@@ -193,8 +193,8 @@ export function createHostBridge(
         else if (type === POINTER_MOVE) listener.onPointerMove(x, y, dx, dy);
         else listener.onPointerUp(button, x, y);
     };
-    scope.es_onNativeWheel = (deltaX: number, deltaY: number): void => {
-        listener?.onWheel(deltaX, deltaY);
+    scope.es_onNativeWheel = (deltaX: number, deltaY: number, x?: number, y?: number): void => {
+        listener?.onWheel(deltaX, deltaY, x, y);
     };
     scope.es_onNativeKey = (down: boolean, code: string): void => {
         if (!listener) return;

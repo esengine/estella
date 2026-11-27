@@ -628,8 +628,10 @@ int main(int argc, char** argv) {
                 // pixels, positive TOWARD the content's end. So the vertical sign
                 // flips and both scale by the same line height the web adapter uses.
                 const float flip = e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                const float density = pixelScale();
                 eshost::wheel(e.wheel.x * flip * kWheelLineHeight,
-                              -e.wheel.y * flip * kWheelLineHeight);
+                              -e.wheel.y * flip * kWheelLineHeight,
+                              e.wheel.mouse_x * density, e.wheel.mouse_y * density);
                 break;
             }
             case SDL_EVENT_KEY_DOWN:

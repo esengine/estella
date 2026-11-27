@@ -395,8 +395,8 @@ void touch(int type, int id, float x, float y);
 void pointer(int type, int button, float x, float y, float dx = 0, float dy = 0);
 
 /** @brief Feeds one wheel event, in PIXELS — the DOM `deltaMode: 0` contract, and
- *         positive-down like it, so a game scrolls the same way everywhere. */
-void wheel(float dx, float dy);
+ *         positive-down like it. @p x and @p y locate the event in surface pixels. */
+void wheel(float dx, float dy, float x, float y);
 
 /** @brief Feeds one key transition. @p code is the DOM `KeyboardEvent.code` (the
  *         physical key: "KeyW", "Space", "ArrowLeft"), which is what the SDK's

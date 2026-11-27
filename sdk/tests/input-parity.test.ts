@@ -30,7 +30,7 @@ function recorder(): { callbacks: InputEventCallbacks; trace: Trace } {
             onPointerMove: (x, y, dx, dy) => trace.push(`pointerMove ${x},${y}${dx === undefined ? '' : ` delta ${dx},${dy}`}`),
             onPointerDown: (b, x, y) => trace.push(`pointerDown ${b} ${x},${y}`),
             onPointerUp: (b, x, y) => trace.push(`pointerUp ${b}${x === undefined ? '' : ` at ${x},${y}`}`),
-            onWheel: (dx, dy) => trace.push(`wheel ${dx},${dy}`),
+            onWheel: (dx, dy, x, y) => trace.push(`wheel ${dx},${dy}${x === undefined ? '' : ` at ${x},${y}`}`),
             onTouchStart: (id, x, y) => trace.push(`touchStart ${id} ${x},${y}`),
             onTouchMove: (id, x, y) => trace.push(`touchMove ${id} ${x},${y}`),
             onTouchEnd: (id, x, y) => trace.push(`touchEnd ${id}${x === undefined ? '' : ` at ${x},${y}`}`),
@@ -92,7 +92,11 @@ describe('input adapter parity (web vs native)', () => {
             outside.dispatchEvent(mouse('mousemove', 0, 830, 21, 7, 0, 20));
             outside.dispatchEvent(mouse('mouseup', 2, 842, 24));
             outside.dispatchEvent(mouse('mousemove', 0, 850, 28));
-            element.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 48, deltaMode: 0 }));
+            for (const [deltaY, x, y] of [[48, 120, 30], [-16, 130, 40]]) {
+                const wheel = new WheelEvent('wheel', { deltaY, clientX: x + 10, clientY: y + 15 });
+                Object.defineProperties(wheel, { offsetX: { value: x }, offsetY: { value: y } });
+                element.dispatchEvent(wheel);
+            }
             document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
             document.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
         } finally {
@@ -114,7 +118,9 @@ describe('input adapter parity (web vs native)', () => {
         (scope.es_onNativePointer as Pointer)(1, 0, 11, 21, 4, -3);
         (scope.es_onNativePointer as Pointer)(1, 0, 830, 21, 7, 0);
         (scope.es_onNativePointer as Pointer)(2, 2, 842, 24);
-        (scope.es_onNativeWheel as (dx: number, dy: number) => void)(0, 48);
+        type Wheel = (dx: number, dy: number, x: number, y: number) => void;
+        (scope.es_onNativeWheel as Wheel)(0, 48, 120, 30);
+        (scope.es_onNativeWheel as Wheel)(0, -16, 130, 40);
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(true, 'KeyW');
         (scope.es_onNativeKey as (down: boolean, code: string) => void)(false, 'KeyW');
 
@@ -129,11 +135,26 @@ describe('input adapter parity (web vs native)', () => {
             'pointerMove 11,21 delta 4,-3',
             'pointerMove 830,21 delta 7,0',
             'pointerUp 2 at 842,24',
-            'wheel 0,48',
+            'wheel 0,48 at 120,30',
+            'wheel 0,-16 at 130,40',
             'keyDown KeyW',
             'keyUp KeyW',
         ]);
         expect(driveNative()).toEqual(web);
+    });
+
+    it('keeps a native wheel event from an older host usable without a position', () => {
+        const scope = hostScope();
+        const native = new NativePlatformAdapter(createHostBridge(scope));
+        const input = new InputState();
+        input.mouseX = 19;
+        input.mouseY = 23;
+        native.bindInputEvents(inputEventCallbacks(input));
+        try {
+            (scope.es_onNativeWheel as (dx: number, dy: number) => void)(2, 48);
+            expect(input.getMousePosition()).toEqual({ x: 19, y: 23 });
+            expect(input.getScrollDelta()).toEqual({ x: 2, y: 48 });
+        } finally { native.unbindInputEvents(); }
     });
 
     it('uses the wheel position before any pointer move on a scaled browser canvas', () => {

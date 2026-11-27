@@ -54,8 +54,8 @@ export interface NativeInputListener {
     /** Relative motion when the host supplies it, in the same pixel units as position. */
     onPointerMove(x: number, y: number, dx?: number, dy?: number): void;
     onPointerUp(button: number, x?: number, y?: number): void;
-    /** Wheel delta in PIXELS, positive-down (the DOM `deltaMode: 0` contract). */
-    onWheel(deltaX: number, deltaY: number): void;
+    /** Wheel delta in pixels, positive-down, and optional position in surface pixels. */
+    onWheel(deltaX: number, deltaY: number, x?: number, y?: number): void;
     /** The DOM `KeyboardEvent.code` — the physical key, which is what the SDK's
      *  input maps are written against. NOT optional: it was, and the entry point
      *  that would have fed it was never written, so no native key ever arrived. */

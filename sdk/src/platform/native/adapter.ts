@@ -211,7 +211,7 @@ export class NativePlatformAdapter implements PlatformAdapter {
             onPointerDown: (button, x, y) => { heldButtons.add(button); callbacks.onPointerDown(button, x, y); },
             onPointerMove: (x, y, dx, dy) => callbacks.onPointerMove(x, y, dx, dy),
             onPointerUp: (button, x, y) => { if (heldButtons.delete(button)) callbacks.onPointerUp(button, x, y); },
-            onWheel: (dx, dy) => callbacks.onWheel(dx, dy),
+            onWheel: (dx, dy, x, y) => callbacks.onWheel(dx, dy, x, y),
             onKeyDown: (code) => { heldKeys.add(code); callbacks.onKeyDown(code); },
             onKeyUp: (code) => { if (heldKeys.delete(code)) callbacks.onKeyUp(code); },
         };

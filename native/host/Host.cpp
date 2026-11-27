@@ -513,12 +513,14 @@ void pointer(int type, int button, float x, float y, float dx, float dy) {
     callJs(h, "es_onNativePointer", 6, args);
 }
 
-void wheel(float dx, float dy) {
+void wheel(float dx, float dy, float x, float y) {
     if (!booted()) return;
     HostState& h = host();
     esjs::Enter enter;
-    const esjs::Val args[2] = {esjs::number(dx), esjs::number(dy)};
-    callJs(h, "es_onNativeWheel", 2, args);
+    const esjs::Val args[4] = {
+        esjs::number(dx), esjs::number(dy), esjs::number(x), esjs::number(y),
+    };
+    callJs(h, "es_onNativeWheel", 4, args);
 }
 
 void key(bool down, const char* code) {
