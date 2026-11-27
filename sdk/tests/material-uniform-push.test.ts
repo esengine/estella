@@ -66,6 +66,39 @@ describe('writing one uniform of a material', () => {
         expect(mock.material_setUniform).toHaveBeenCalledWith(m, 'u_c', 2, 9, 2, 0, 0);
     });
 
+    it('resends only changed batch uniforms on the same shader and all uniforms on shader replacement', () => {
+        const color = { x: 1, y: 2 };
+        const parent = made({ u_a: 1, u_b: 2, u_c: color });
+        const child = Material.createInstance(parent);
+        const sibling = Material.createInstance(parent);
+        Material.setUniform(sibling, 'u_c', { x: 7, y: 8 });
+        mock.material_setUniform.mockClear();
+
+        color.x = 9;
+        Material.applyState(parent, { uniforms: { u_a: 1, u_b: 2, u_c: color } });
+        expect(mock.material_setUniform.mock.calls).toEqual([
+            [parent, 'u_c', 2, 9, 2, 0, 0],
+            [child, 'u_c', 2, 9, 2, 0, 0],
+        ]);
+        mock.material_setUniform.mockClear();
+        const program = { handle: 2, lease: ownedAssetLease('new-shader', 1, {}, vi.fn()) };
+        Material.applyState(parent, { program, uniforms: { u_a: 1, u_b: 2, u_c: color } });
+        expect(mock.material_setUniform).toHaveBeenCalledTimes(9);
+        expect(mock.material_setUniform).toHaveBeenCalledWith(sibling, 'u_c', 2, 7, 8, 0, 0);
+    });
+
+    it('preserves signed zero and uploads the full snapshot after reconnecting', () => {
+        const material = made({ u_a: 0, u_b: 2 });
+        mock.material_setUniform.mockClear();
+        Material.applyState(material, { uniforms: { u_a: -0, u_b: 2 } });
+        expect(mock.material_setUniform.mock.calls).toEqual([[material, 'u_a', 1, -0, 0, 0, 0]]);
+
+        const replacement = createMock();
+        initMaterialAPI(replacement as unknown as ESEngineModule);
+        Material.applyState(material, { uniforms: { u_a: -0, u_b: 2 } });
+        expect(replacement.material_setUniform).toHaveBeenCalledTimes(2);
+    });
+
     it('reaches an instance that inherits the value and leaves one that overrides it', () => {
         const parent = made();
         const inheriting = Material.createInstance(parent);

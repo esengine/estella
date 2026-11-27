@@ -229,8 +229,15 @@ export function installWgslTwinSource(fn: ((source: string) => string) | null): 
  * connecting, which is what makes the narrowing here sound.
  */
 export function initMaterialAPI(engine: NonNullable<EngineApi>): void {
+    const prior = module;
     bridge.connect(engine);
     module = bridge.module as MaterialCore;
+    if (prior !== module) {
+        for (const data of materials.values()) {
+            data.sent_?.clear();
+            data.pushed_ = false;
+        }
+    }
 }
 
 export function shutdownMaterialAPI(): void {
@@ -310,22 +317,31 @@ function unregisterChild(parent: MaterialHandle, child: MaterialHandle): void {
 // Push one param value into the engine material store: texture refs bind to a sampler unit,
 // scalar/vector values pack into the std140 MaterialConstants UBO (both by the offset/unit the
 // shader's #pragma param reflection assigns). A no-op engine-side for unknown params.
-function pushUniform(handle: MaterialHandle, name: string, value: UniformValue): void {
+function pushUniform(handle: MaterialHandle, name: string, value: UniformValue, skipUnchanged = false): void {
     if (!module) return;
+    const data = materials.get(handle);
     if (isTextureRef(value)) {
+        data?.sent_?.delete(name);
         module.material_setTexture(handle, name, value.textureId);
         return;
     }
     const { arity, values } = classifyUniformArity(value);
-    const data = materials.get(handle);
+    const previous = data?.sent_?.get(name);
+    if (skipUnchanged && previous && matchesSent(previous, arity, values)) return;
+    module.material_setUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
     if (data) {
         let sent = data.sent_;
         if (!sent) { sent = new Map(); data.sent_ = sent; }
-        const held = sent.get(name);
-        if (held) { held[0] = arity; held[1] = values[0]; held[2] = values[1]; held[3] = values[2]; held[4] = values[3]; }
+        if (previous) {
+            previous[0] = arity; previous[1] = values[0]; previous[2] = values[1]; previous[3] = values[2]; previous[4] = values[3];
+        }
         else sent.set(name, [arity, values[0], values[1], values[2], values[3]]);
     }
-    module.material_setUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
+}
+
+function matchesSent(held: readonly number[], arity: UniformArity['arity'], values: UniformArity['values']): boolean {
+    return held[0] === arity && Object.is(held[1], values[0]) && Object.is(held[2], values[1])
+        && Object.is(held[3], values[2]) && Object.is(held[4], values[3]);
 }
 
 /** Whether the engine already holds exactly this value for the uniform. */
@@ -333,7 +349,7 @@ function alreadySent(handle: MaterialHandle, name: string, value: Exclude<Unifor
     const held = materials.get(handle)?.sent_?.get(name);
     if (!held) return false;
     const { arity, values } = classifyUniformArity(value);
-    return held[0] === arity && held[1] === values[0] && held[2] === values[1] && held[3] === values[2] && held[4] === values[3];
+    return matchesSent(held, arity, values);
 }
 
 /** One changed uniform to the engine, for this material and the instances that inherit it (those that override the name keep their own). */
@@ -415,14 +431,18 @@ function flushMaterial(handle: MaterialHandle, previous?: ReadonlyMap<MaterialHa
         if (module) {
             // define preserves bindings, so a deleted value needs to return to its shader default.
             const old = previous?.get(id);
-            if (old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name))) {
+            const removed = old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name));
+            if (removed) {
                 module.material_undefine(id);
+            }
+            if (removed || (old && old.shader !== resolved.shader)) {
                 data?.sent_?.clear();
             }
             module.material_define(id, resolved.shader, resolved.blendMode,
                 materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
                 resolved.depthBias);
-            for (const [name, value] of resolved.uniforms) pushUniform(id, name, value);
+            const skipUnchanged = !!data?.pushed_ && old?.shader === resolved.shader && !removed;
+            for (const [name, value] of resolved.uniforms) pushUniform(id, name, value, skipUnchanged);
             if (data) data.pushed_ = true;
         }
         if (data) data.dirty_ = true;

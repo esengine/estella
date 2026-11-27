@@ -107,6 +107,8 @@ describe('Material API', () => {
             const leftLeaf = Material.createInstance(left);
             const rightLeaf = Material.createInstance(right);
             Material.applyState(left, { uniforms: { u_shared: 0, u_drop: 7 }, depthTest: true });
+            expect(mock.material_setUniform).toHaveBeenCalledWith(leftLeaf, 'u_shared', 1, 0, 0, 0, 0);
+            expect(mock.material_setUniform).toHaveBeenCalledWith(leftLeaf, 'u_drop', 1, 7, 0, 0, 0);
             mock.material_undefine.mockClear();
             mock.material_setUniform.mockClear();
             mock.material_define.mockClear();
@@ -114,8 +116,9 @@ describe('Material API', () => {
             Material.applyState(root, { uniforms: { u_shared: 5 }, blendMode: BlendMode.Additive });
 
             expect(mock.material_undefine.mock.calls.map(([handle]) => handle)).toEqual([root, right, rightLeaf]);
-            expect(mock.material_setUniform).toHaveBeenCalledWith(leftLeaf, 'u_shared', 1, 0, 0, 0, 0);
-            expect(mock.material_setUniform).toHaveBeenCalledWith(leftLeaf, 'u_drop', 1, 7, 0, 0, 0);
+            expect(mock.material_setUniform.mock.calls.some(([handle]) => handle === leftLeaf)).toBe(false);
+            expect(Material.getUniform(leftLeaf, 'u_shared')).toBe(0);
+            expect(Material.getUniform(leftLeaf, 'u_drop')).toBe(7);
             expect(mock.material_setUniform).toHaveBeenCalledWith(rightLeaf, 'u_shared', 1, 5, 0, 0, 0);
             expect(mock.material_setUniform).not.toHaveBeenCalledWith(rightLeaf, 'u_drop', expect.anything(), expect.anything(), expect.anything(), expect.anything(), expect.anything());
             expect(mock.material_define).toHaveBeenCalledWith(leftLeaf, 1, BlendMode.Additive, flags(true, true, CullMode.None), 0);
