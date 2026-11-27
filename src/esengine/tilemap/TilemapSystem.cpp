@@ -77,27 +77,36 @@ inline void writeTile(TilemapSystem::LayerData& layer, i32 x, i32 y, u16 value) 
 void buildChunksFromFlat(TilemapSystem::LayerData& layer,
                          const u16* tiles, u32 width, u32 height, u32 count) {
     layer.clearChunks();
-    const u32 chunksX = (width + CHUNK_SIZE - 1) / CHUNK_SIZE;
-    const u32 chunksY = (height + CHUNK_SIZE - 1) / CHUNK_SIZE;
-    for (u32 cy = 0; cy < chunksY; ++cy) {
-        for (u32 cx = 0; cx < chunksX; ++cx) {
+    if (width == 0 || height == 0 || count == 0) return;
+
+    constexpr u32 coordinateEnd = static_cast<u32>(std::numeric_limits<i32>::max()) + 1;
+    const u32 fullRows = count / width;
+    const u32 tail = count % width;
+    const u32 coveredHeight = std::min({height, fullRows + static_cast<u32>(tail != 0), coordinateEnd});
+    for (u32 top = 0; top < coveredHeight; top += CHUNK_SIZE) {
+        const u32 rows = std::min(CHUNK_SIZE, coveredHeight - top);
+        const u32 right = std::min(top < fullRows ? width : tail, coordinateEnd);
+        for (u32 left = 0; left < right; left += CHUNK_SIZE) {
             ChunkData chunk;
-            bool any = false;
-            for (u32 ly = 0; ly < CHUNK_SIZE; ++ly) {
-                const u32 ty = cy * CHUNK_SIZE + ly;
-                if (ty >= height) break;
-                for (u32 lx = 0; lx < CHUNK_SIZE; ++lx) {
-                    const u32 tx = cx * CHUNK_SIZE + lx;
-                    if (tx >= width) break;
-                    const usize i = static_cast<usize>(ty) * width + tx;
-                    const u16 v = (i < count) ? tiles[i] : EMPTY_TILE;
-                    chunk.tiles[ly * CHUNK_SIZE + lx] = v;
-                    if (v != EMPTY_TILE) any = true;
+            u16 occupied = EMPTY_TILE;
+            const u32 columns = std::min(CHUNK_SIZE, right - left);
+            for (u32 row = 0; row < rows; ++row) {
+                const u32 y = top + row;
+                u32 present = columns;
+                if (y == fullRows) {
+                    if (left >= tail) break;
+                    present = std::min(columns, tail - left);
+                }
+                const auto* source = tiles + static_cast<usize>(y) * width + left;
+                auto* dest = chunk.tiles + row * CHUNK_SIZE;
+                for (u32 col = 0; col < present; ++col) {
+                    dest[col] = source[col];
+                    occupied |= source[col];
                 }
             }
-            if (any) {
+            if (occupied != EMPTY_TILE) {
                 chunk.revision = ++layer.edit_revision;
-                layer.chunks[{static_cast<i32>(cx), static_cast<i32>(cy)}] = chunk;
+                layer.chunks.try_emplace(ChunkCoord{static_cast<i32>(left / CHUNK_SIZE), static_cast<i32>(top / CHUNK_SIZE)}, chunk);
             }
         }
     }

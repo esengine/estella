@@ -227,6 +227,45 @@ TEST_CASE("tilemap_set_tiles_partial") {
     CHECK_EQ(sys.getTile(E(0), 3, 0), EMPTY_TILE);
 }
 
+TEST_CASE("tilemap_set_tiles_partial_across_chunk_boundaries") {
+    TilemapSystem sys;
+    sys.initLayer(E(0), 19, 48, 16, 16);
+    sys.setTile(E(0), 18, 35, 8);
+    std::vector<u16> partial(19 * 16 + 2);
+    partial[18] = 5;
+    partial[19 * 15] = 6;
+    partial.back() = 0x6007;
+
+    sys.setTiles(E(0), partial.data(), static_cast<u32>(partial.size()));
+    const auto& layer = *sys.getLayerData(E(0));
+    REQUIRE(layer.chunks.size() == 3);
+    CHECK(layer.chunks_erased == 1);
+    CHECK(layer.chunks.at({0, 0}).revision == 3);
+    CHECK(layer.chunks.at({1, 0}).revision == 4);
+    CHECK(layer.chunks.at({0, 1}).revision == 5);
+    CHECK(sys.getTile(E(0), 18, 0) == 5);
+    CHECK(sys.getTile(E(0), 0, 15) == 6);
+    CHECK(sys.getTile(E(0), 1, 16) == 0x6007);
+    CHECK(sys.getTile(E(0), 2, 16) == EMPTY_TILE);
+    CHECK(sys.getTile(E(0), 18, 35) == EMPTY_TILE);
+
+    sys.setTiles(E(0), nullptr, 0);
+    CHECK(layer.chunks.empty());
+    CHECK(layer.chunks_erased == 2);
+    CHECK(layer.edit_revision == 6);
+}
+
+TEST_CASE("tilemap_set_tiles_preserves_a_short_prefix_on_a_wide_layer") {
+    TilemapSystem sys;
+    sys.initLayer(E(0), std::numeric_limits<u32>::max(), 17, 16, 16);
+    const u16 tiles[] = {3, 0x6004};
+    sys.setTiles(E(0), tiles, 2);
+    CHECK(sys.getTile(E(0), 0, 0) == 3);
+    CHECK(sys.getTile(E(0), 1, 0) == 0x6004);
+    CHECK(sys.getTile(E(0), 2, 0) == EMPTY_TILE);
+    CHECK(sys.getLayerData(E(0))->chunks.size() == 1);
+}
+
 TEST_CASE("tilemap_compute_visible_range") {
     // Map: 20x15 tiles, 32x32 px each, origin at (0,0)
     // Map covers world (0,0) to (640,480)
