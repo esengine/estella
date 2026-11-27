@@ -515,8 +515,9 @@ describe('an edge comes from the acquisition that made it', () => {
 
         expect(a.dependenciesOf('tilemap', 'maps/level.tmj'))
             .toContainEqual({ kind: 'source', path: 'maps/terrain.tsj' });
-        expect(b.dependenciesOf('tilemap', 'maps/level.tmj').some((e) => e.kind === 'source'),
-               'one realm\'s edges showed up in the other').toBe(false);
+        const bEdges = b.dependenciesOf('tilemap', 'maps/level.tmj');
+        expect(bEdges).toContainEqual({ kind: 'source', path: 'maps/rock.png' });
+        expect(bEdges).not.toContainEqual({ kind: 'source', path: 'maps/terrain.tsj' });
     });
 });
 
@@ -664,6 +665,35 @@ describe('a handle-bound loader owns nothing of its own', () => {
         expect(pool.liveTextures(), 'released while a holder was still using it').toBe(1);
         second.release();
         expect(pool.liveTextures()).toBe(0);
+    });
+
+    it('invalidates a material when a newly indexed sibling takes precedence over its fallback texture', async () => {
+        const assets = realm({ 'hero.esmaterial': MATERIAL });
+        const ref = 'materials/hero.esmaterial', sibling = 'materials/wall.png';
+        const indexed = new Set(['wall.png']);
+        assets.setAssetRefResolver(path => path, path => indexed.has(path) ? 'texture' : undefined);
+        const invalidations = vi.fn();
+        assets.onInvalidate(invalidations);
+        try {
+            const old = await assets.acquireTyped<{ handle: number }>('material', ref);
+            expect(assets.dependenciesOf('material', ref)).toContainEqual({ kind: 'owned', type: 'texture', path: 'wall.png' });
+
+            indexed.add(sibling);
+            assets.invalidate(sibling);
+            await assets.assetGraphSettled();
+            expect(invalidations).toHaveBeenCalledWith(expect.objectContaining({ type: 'material', ref }));
+            const current = await assets.acquireTyped<{ handle: number }>('material', ref);
+            expect(current.value.handle).not.toBe(old.value.handle);
+            expect(assets.dependenciesOf('material', ref)).toContainEqual({ kind: 'owned', type: 'texture', path: sibling });
+            old.release();
+
+            invalidations.mockClear();
+            assets.invalidate('wall.png');
+            await assets.assetGraphSettled();
+            expect(invalidations).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'material', ref }));
+            current.release();
+            expect(pool.liveTextures()).toBe(0);
+        } finally { assets.releaseAll(); }
     });
 });
 

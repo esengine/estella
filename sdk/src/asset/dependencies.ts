@@ -290,7 +290,7 @@ export class DependencyRecorder {
         return lease;
     }
 
-    /** Content this preparation read to decide what to produce. */
+    /** Content or an index entry this preparation consulted to decide what to produce. */
     read(path: string): void {
         if (this.state_ !== 'open') return;
         this.edges_.push({ kind: 'source', path });

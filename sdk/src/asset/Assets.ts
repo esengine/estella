@@ -3591,7 +3591,11 @@ export class Assets {
             ...base,
             get resourceManager() { return base.resourceManager ??= requireResourceManager(); },
             recorder, textureInputs: inputs,
-            assetTypeOf: ref => this.hostAssetType_?.(ref) ?? base.catalog.assetTypeOf(ref),
+            assetTypeOf: ref => {
+                // An absent candidate can outrank the selected fallback once it appears.
+                recorder.read(ref);
+                return this.hostAssetType_?.(ref) ?? base.catalog.assetTypeOf(ref);
+            },
             sourceAddressOf: ref => {
                 // Registry slots own logical addresses and handle-backed loaders can own record keys.
                 // Two documents can ship identical bytes while naming different siblings.
