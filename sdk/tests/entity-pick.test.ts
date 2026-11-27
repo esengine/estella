@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { CameraViewAPI, presentedCameraView } from '../src/camera/Camera';
 import { CameraCommit } from '../src/camera/CameraCommit';
-import { pickEntitiesByBounds, pickEntitiesByRay, type PickWorld } from '../src/ecs/entityPick';
+import { pickEntityByRay, pickEntitiesByBounds, pickEntitiesByRay, type PickWorld } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import { q } from '../src/math/quat';
 import { ortho, perspective } from '../src/math/mat4';
@@ -97,6 +97,25 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
 });
 
 describe('picking entities by ray', () => {
+    it('keeps the same first hit across opaque ties, group overrides and blended layer rules', () => {
+        const bounds = { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 };
+        const world: PickWorld = fakeWorld({
+            1: { Transform: T(0, 0, 20), MeshRenderer: { layer: 1, opaque: true } },
+            2: { Transform: T(0, 0, 10), MeshRenderer: { layer: 5, opaque: true } },
+            3: { Transform: T(0, 0, 20), MeshRenderer: { layer: 2, opaque: true } },
+            4: { Transform: T(0, -5, 15), Sprite: sprite(1), Parent: { entity: ent(6) } },
+            5: { Transform: T(0, 5, -15), Sprite: sprite(3) },
+            6: { SortingGroup: { layer: 2, order: 0, enabled: true } },
+        }, { 1: bounds, 2: bounds, 3: bounds });
+        const ray = down(0, 0);
+        expect(pickEntityByRay(world, ray, { cullingMask: 0b110 })).toBe(ent(4));
+        expect(pickEntityByRay(world, ray, { pickable: id => id < ent(4) })).toBe(ent(3));
+        for (const options of [{}, { depthLayers: 0b1010 }, { cullingMask: 0b110, ySortLayers: 0b100 }, { cullingMask: 0 }]) {
+            expect(pickEntityByRay(world, ray, options)).toBe(pickEntitiesByRay(world, ray, options)[0] ?? null);
+            const clipped = { ...ray, maxDistance: 900 };
+            expect(pickEntityByRay(world, clipped, options)).toBeNull();
+        }
+    });
     it.each(['orthographic', 'perspective'] as const)('uses the drawn depth range for %s camera picks', projection => {
         const origin = { x: 1e8, y: -1e8, z: 1e8 };
         const matrix = projection === 'orthographic'

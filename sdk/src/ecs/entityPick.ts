@@ -98,26 +98,9 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    const maxDistance = ray.maxDistance ?? Infinity;
-    visitPickHits(world, opts, box => {
-        const distance = entityBoxRayHit(box, ray.origin, ray.dir);
-        return distance !== null && distance <= maxDistance ? distance : null;
-    }, {
+    visitPickHits(world, opts, rayIntersection(ray), {
         ranked(entity, distance, identity, opaque) {
-            const t = world.get(entity, Transform);
-            const candidate: PickCandidate<Entity> = {
-                entity,
-                index: hits.length + opaqueHits.length,
-                rank: {
-                    layer: identity.layer,
-                    order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
-                    orderInLayer: identity.orderInLayer,
-                    groupInner: identity.groupInner,
-                    opaque,
-                    worldY: t.worldPosition.y,
-                    worldZ: t.worldPosition.z ?? 0,
-                },
-            };
+            const candidate = rankRayHit(world, opts, entity, hits.length + opaqueHits.length, identity, opaque);
             if (opaque) opaqueHits.push({ candidate, distance });
             else hits.push(candidate);
         },
@@ -129,6 +112,59 @@ export function pickEntitiesByRay(
     opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
     hits.push(opaqueHits[0].candidate);
     return rankPickCandidates(hits).concat(opaqueHits.slice(1).map(hit => hit.candidate.entity));
+}
+
+/** The topmost ray hit, with the same result as the first entry of {@link pickEntitiesByRay}. @experimental */
+export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPickOptions = {}): Entity | null {
+    const hits: PickCandidate<Entity>[] = [];
+    let index = 0;
+    let nearestOpaque: PickCandidate<Entity> | undefined;
+    let nearestDistance = Infinity;
+    visitPickHits(world, opts, rayIntersection(ray), {
+        ranked(entity, distance, identity, opaque) {
+            const position = index++;
+            if (opaque && distance > nearestDistance) return;
+            const candidate = rankRayHit(world, opts, entity, position, identity, opaque);
+            if (opaque) {
+                nearestOpaque = candidate;
+                nearestDistance = distance;
+            } else {
+                hits.push(candidate);
+            }
+        },
+    });
+    // Later opaque hits at equal distance win, just as they do in the stack.
+    // Keep the same draw ordering for blended hits and the nearest opaque hit.
+    if (nearestOpaque) hits.push(nearestOpaque);
+    return hits.length <= 1 ? hits[0]?.entity ?? null : rankPickCandidates(hits)[0] ?? null;
+}
+
+function rayIntersection(ray: WorldRay): (box: EntityBox) => number | null {
+    const maxDistance = ray.maxDistance ?? Infinity;
+    return box => {
+        const distance = entityBoxRayHit(box, ray.origin, ray.dir);
+        return distance !== null && distance <= maxDistance ? distance : null;
+    };
+}
+
+function rankRayHit(
+    world: PickWorld, opts: EntityPickOptions, entity: Entity, index: number,
+    identity: ReturnType<typeof sortingIdentity>, opaque?: boolean,
+): PickCandidate<Entity> {
+    const t = world.get(entity, Transform);
+    return {
+        entity,
+        index,
+        rank: {
+            layer: identity.layer,
+            order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
+            orderInLayer: identity.orderInLayer,
+            groupInner: identity.groupInner,
+            opaque,
+            worldY: t.worldPosition.y,
+            worldZ: t.worldPosition.z ?? 0,
+        },
+    };
 }
 
 /** Active, visible world entities whose pick bounds pass a spatial test, in storage order. @experimental */
