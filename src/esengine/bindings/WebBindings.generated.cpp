@@ -1726,12 +1726,14 @@ struct UIMaskJS {
     bool enabled;
     i32 mode;
     f32 alphaCutoff;
+    glm::vec2 softness;
 };
 
 void uimaskApplyJS(esengine::ecs::UIMask& c, const UIMaskJS& js) {
     c.enabled = js.enabled;
     c.mode = static_cast<MaskMode>(js.mode);
     c.alphaCutoff = js.alphaCutoff;
+    c.softness = js.softness;
 }
 
 esengine::ecs::UIMask uimaskFromJS(const UIMaskJS& js) {
@@ -1745,6 +1747,7 @@ UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
     js.enabled = c.enabled;
     js.mode = static_cast<i32>(c.mode);
     js.alphaCutoff = c.alphaCutoff;
+    js.softness = c.softness;
     return js;
 }
 
@@ -2498,7 +2501,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<UIMaskJS>("UIMask")
         .field("enabled", &UIMaskJS::enabled)
         .field("mode", &UIMaskJS::mode)
-        .field("alphaCutoff", &UIMaskJS::alphaCutoff);
+        .field("alphaCutoff", &UIMaskJS::alphaCutoff)
+        .field("softness", &UIMaskJS::softness);
 
     value_object<UINodeJS>("UINode")
         .field("position", &UINodeJS::position)
@@ -4937,6 +4941,7 @@ static_assert(offsetof(esengine::ecs::UIInteraction, justReleased) == 3, "ABI of
 static_assert(offsetof(esengine::ecs::UIMask, enabled) == 0, "ABI offset drift: esengine::ecs::UIMask.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIMask, mode) == 1, "ABI offset drift: esengine::ecs::UIMask.mode (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::UIMask, alphaCutoff) == 4, "ABI offset drift: esengine::ecs::UIMask.alphaCutoff (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::UIMask, softness) == 8, "ABI offset drift: esengine::ecs::UIMask.softness (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift: esengine::ecs::UINode.position (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UINode, display) == 1, "ABI offset drift: esengine::ecs::UINode.display (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::UINode, opacity) == 4, "ABI offset drift: esengine::ecs::UINode.opacity (EHT expected 4)");
@@ -4988,7 +4993,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "29b5ecc6deced320";
+static const char* kEsAbiLayoutHash = "fd76cc8941885de8";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

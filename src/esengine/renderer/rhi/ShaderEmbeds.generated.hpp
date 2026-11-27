@@ -91,6 +91,22 @@ in float v_sdfBias;
 
 uniform sampler2D u_textures[8];
 
+
+
+layout(std140) uniform ClipConstants {
+    highp vec4 u_clipRect;
+    highp vec4 u_clipEdge;
+};
+
+float softClip() {
+    if (u_clipEdge.x + u_clipEdge.y + u_clipEdge.z + u_clipEdge.w <= 0.0) return 1.0;
+    highp vec2 p = gl_FragCoord.xy;
+    highp vec4 inside = vec4(p - u_clipRect.xy, u_clipRect.zw - p);
+    highp vec4 fade = clamp(inside / max(u_clipEdge, vec4(1e-4)), 0.0, 1.0);
+    fade = mix(vec4(1.0), fade, step(vec4(1e-4), u_clipEdge));
+    return fade.x * fade.y * fade.z * fade.w;
+}
+
 out vec4 fragColor;
 
 void main() {
@@ -153,6 +169,11 @@ void main() {
   #endif
         fragColor = texColor * tint;
     }
+#endif
+#ifdef PREMULTIPLIED_COLOR
+    fragColor *= softClip();
+#else
+    fragColor.a *= softClip();
 #endif
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT
@@ -237,6 +258,17 @@ struct VSOut {
 @group(1) @binding(14) var s6 : sampler;
 @group(1) @binding(15) var s7 : sampler;
 
+struct ClipConstants { u_clipRect : vec4f, u_clipEdge : vec4f };
+@group(0) @binding(6) var<uniform> es_clip : ClipConstants;
+
+fn softClip(p : vec2f) -> f32 {
+    let edge = es_clip.u_clipEdge;
+    if (edge.x + edge.y + edge.z + edge.w <= 0.0) { return 1.0; }
+    let inside = vec4f(p - es_clip.u_clipRect.xy, es_clip.u_clipRect.zw - p);
+    let fade = mix(vec4f(1.0), clamp(inside / max(edge, vec4f(1e-4)), vec4f(0.0), vec4f(1.0)), step(vec4f(1e-4), edge));
+    return fade.x * fade.y * fade.z * fade.w;
+}
+
 struct VSOut {
     @builtin(position) pos : vec4f,
     @location(0) v_color : vec4f,
@@ -276,7 +308,7 @@ struct VSOut {
 #endif
 #ifdef LIT
     let base = texColor * tint;
-    let shown = vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
+    var shown = vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
 #else
     let mode = (idx >> 3u) & 31;
     let distWidth = fwidth(texColor.a);
@@ -309,6 +341,12 @@ struct VSOut {
   #endif
         shown = texColor * tint;
     }
+#endif
+
+#ifdef PREMULTIPLIED_COLOR
+    shown = shown * softClip(v.pos.xy);
+#else
+    shown = vec4f(shown.rgb, shown.a * softClip(v.pos.xy));
 #endif
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT

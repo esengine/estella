@@ -5,7 +5,7 @@ Symbols: 115 public · 170 beta · 2465 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"29b5ecc6deced320"
+"fd76cc8941885de8"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -14472,6 +14472,7 @@ BuiltinComponentDef<UIMaskData>
 alphaCutoff: number
 enabled: boolean
 mode: MaskMode
+softness: Vec2 | undefined
 ```
 
 ## UIMaskPlugin — class @experimental

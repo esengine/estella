@@ -74,6 +74,7 @@ void DrawList::clear() {
     morph_shapes_.clear();
     probes_.clear();
     planar_.clear();
+    clips_.clear();
     probe_slots_.clear();
     run_entities_.clear();
     run_first_.clear();
@@ -321,7 +322,8 @@ bool DrawList::joinsRun(const DrawCommand& p, const DrawCommand& c) {
     // and a mirror each are a block per draw. In one call the draws are still drawn in order, so blended ones may share one too.
     const auto runnable = [](const DrawCommand& d) {
         return d.hasPersistentGeometry() && d.instance_count != 0 && d.instance_buffer == BufferHandle::Invalid
-            && d.layout_id == LayoutId::MeshInstance && d.skin_count == 0 && d.morph_index == 0 && d.planar_index == 0;
+            && d.layout_id == LayoutId::MeshInstance && d.skin_count == 0 && d.morph_index == 0 && d.planar_index == 0
+            && d.clip_index == 0;
     };
     if (!runnable(p) || !runnable(c)) return false;
     // Everything the draw binds or sets, the same: the pipeline's every input, its textures, its material, its dynamic state.
@@ -462,6 +464,9 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool drawRuns) {
         if (blocks.planar && cmd.planar_index > 0) {
             staged.planar = blocks.planar->stage(&planar_[cmd.planar_index - 1], sizeof(PlanarConstants));
         }
+        if (blocks.clip && cmd.clip_index > 0 && cmd.clip_index <= clips_.size()) {
+            staged.clip = blocks.clip->stage(&clips_[cmd.clip_index - 1], sizeof(ClipConstants));
+        }
         // The pose, for a draw that has one — in a range of this draw's own. A
         // block shared between two draws of one pass is read by both with what
         // the last wrote, which is a room of characters in one pose.
@@ -496,7 +501,7 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool drawRuns) {
         // Where this draw's entry is: its records, and its shapes when it has any (see InstanceConstants.hpp).
         stageEntry(i);
     }
-    for (PerDrawBlocks* pool : {blocks.skin, blocks.probe, blocks.instance, blocks.planar}) {
+    for (PerDrawBlocks* pool : {blocks.skin, blocks.probe, blocks.instance, blocks.planar, blocks.clip}) {
         if (pool) pool->upload();
     }
 }
@@ -696,6 +701,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
 
         if (blocks.planar) blocks.planar->bind(PLANAR_CONSTANTS_BINDING, staged.planar);
+        if (blocks.clip) blocks.clip->bind(CLIP_CONSTANTS_BINDING, staged.clip);
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).
         if (cmd.state_flags & CMD_STATE_SCISSOR) {

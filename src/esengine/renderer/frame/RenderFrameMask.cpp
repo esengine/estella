@@ -63,22 +63,29 @@ MaskBox maskBoxOf(ecs::Registry& registry, Entity entity) {
     return {};
 }
 
-ScreenRect computeMaskScreenRect(
+/// A mask's box on the screen before it is rounded to whole pixels, and the box's own size, for a soft edge measured in its units.
+struct MaskScreenBox {
+    f32 minX = 0.0f, minY = 0.0f, maxX = 0.0f, maxY = 0.0f;
+    glm::vec2 size{0.0f, 0.0f};
+    bool present = false;
+};
+
+MaskScreenBox computeMaskScreenBox(
     ecs::Registry& registry, Entity entity,
     const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH
 ) {
     const MaskBox box = maskBoxOf(registry, entity);
     if (!box.present || !registry.has<ecs::Transform>(entity)) {
-        return {0, 0, 0, 0};
+        return {};
     }
-    if (box.size.x <= 0.0f || box.size.y <= 0.0f) return {0, 0, 0, 0};
+    if (box.size.x <= 0.0f || box.size.y <= 0.0f) return {};
     auto& transform = registry.get<ecs::Transform>(entity);
     // The world TRS below is decomposed on demand, so a mask whose transform no
     // other pass has read this frame would be clipped to where it used to be.
     transform.ensureDecomposed();
 
     if (transform.worldScale.x == 0 || transform.worldScale.y == 0
-        || !ecs::hasFlatGeometryArea(registry, entity, transform)) return {0, 0, 0, 0};
+        || !ecs::hasFlatGeometryArea(registry, entity, transform)) return {};
     glm::vec3 axisX, axisY;
     if (registry.has<ecs::Parent>(entity)) {
         axisX = glm::vec3(transform.cachedMatrix_[0]);
@@ -107,12 +114,38 @@ ScreenRect computeMaskScreenRect(
         maxY = std::max(maxY, s.y);
     }
 
+    return {minX, minY, maxX, maxY, box.size, true};
+}
+
+ScreenRect computeMaskScreenRect(
+    ecs::Registry& registry, Entity entity,
+    const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH
+) {
+    const MaskScreenBox b = computeMaskScreenBox(registry, entity, vp, vpX, vpY, vpW, vpH);
+    if (!b.present) return {0, 0, 0, 0};
     return {
-        static_cast<i32>(std::round(minX)),
-        static_cast<i32>(std::round(minY)),
-        static_cast<i32>(std::round(maxX - minX)),
-        static_cast<i32>(std::round(maxY - minY)),
+        static_cast<i32>(std::round(b.minX)),
+        static_cast<i32>(std::round(b.minY)),
+        static_cast<i32>(std::round(b.maxX - b.minX)),
+        static_cast<i32>(std::round(b.maxY - b.minY)),
     };
+}
+
+/// The soft edge a Scissor mask with softness puts on what it holds: its box in framebuffer pixels and the softness turned from its own
+/// units into pixels. Zero edges (no soft clip) for a mask without softness or without a box.
+ClipConstants computeMaskSoftClip(
+    ecs::Registry& registry, Entity entity, const ecs::UIMask& mask,
+    const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH
+) {
+    if (!(mask.softness.x > 0.0f || mask.softness.y > 0.0f)) return {};
+    const MaskScreenBox b = computeMaskScreenBox(registry, entity, vp, vpX, vpY, vpW, vpH);
+    if (!b.present) return {};
+    const f32 perX = (b.maxX - b.minX) / b.size.x, perY = (b.maxY - b.minY) / b.size.y;
+    const f32 x = std::max(0.0f, mask.softness.x) * perX, y = std::max(0.0f, mask.softness.y) * perY;
+    ClipConstants soft;
+    soft.rect = {b.minX, b.minY, b.maxX, b.maxY};
+    soft.edge = {x, y, x, y};
+    return soft;
 }
 
 bool hasAncestorScissorMask(ecs::Registry& registry, Entity entity,
@@ -146,10 +179,14 @@ void applyScissorToDescendants(
     ecs::Registry& registry, RenderFrame& frame, Entity entity,
     const ScreenRect& clipRect, const std::unordered_set<u32>& maskSet,
     const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH,
-    std::vector<std::pair<Entity, ScissorRect>>& work
+    std::vector<std::pair<Entity, ScissorRect>>& work,
+    std::vector<ClipConstants>& softWork
 ) {
     work.clear();
+    softWork.clear();
     work.emplace_back(entity, clipRect);
+    // The nearest soft mask above a node is the one it fades by; a soft mask inside another replaces it, and its scissor still cuts.
+    softWork.push_back(computeMaskSoftClip(registry, entity, registry.get<ecs::UIMask>(entity), vp, vpX, vpY, vpW, vpH));
     usize walked = 0;
     while (!work.empty()) {
         if (++walked > registry.entityCount()) {
@@ -158,22 +195,29 @@ void applyScissorToDescendants(
             return;
         }
         const auto [owner, parentClip] = work.back();
+        const ClipConstants parentSoft = softWork.back();
         work.pop_back();
+        softWork.pop_back();
         if (!registry.has<ecs::Children>(owner)) continue;
         const auto& children = registry.get<ecs::Children>(owner).entities;
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
             const Entity child = *it;
             if (!registry.valid(child)) continue;
             ScreenRect childClip = parentClip;
+            ClipConstants childSoft = parentSoft;
             if (maskSet.count(child.id())) {
                 const auto& childMask = registry.get<ecs::UIMask>(child);
                 if (childMask.mode == ecs::MaskMode::Scissor) {
                     const auto childRect = computeMaskScreenRect(registry, child, vp, vpX, vpY, vpW, vpH);
                     childClip = intersectRects(parentClip, childRect);
+                    const ClipConstants own = computeMaskSoftClip(registry, child, childMask, vp, vpX, vpY, vpW, vpH);
+                    if (own.edge != glm::vec4(0.0f)) childSoft = own;
                 }
             }
             frame.setEntityClipRect(child.id(), childClip.x, childClip.y, childClip.w, childClip.h);
+            if (parentSoft.edge != glm::vec4(0.0f)) frame.setEntitySoftClip(child.id(), parentSoft);
             work.emplace_back(child, childClip);
+            softWork.push_back(childSoft);
         }
     }
 }
@@ -290,7 +334,8 @@ void RenderFrame::processMasks(ecs::Registry& registry, const glm::mat4& project
         for (auto entity : rootScissors) {
             ScreenRect rect = computeMaskScreenRect(registry, entity, projection, vpX, vpY, vpW, vpH);
             rect = intersectRects(rect, {vpX, vpY, vpW, vpH});
-            applyScissorToDescendants(registry, *this, entity, rect, maskSet, projection, vpX, vpY, vpW, vpH, mask_scissor_walk_scratch_);
+            applyScissorToDescendants(registry, *this, entity, rect, maskSet, projection, vpX, vpY, vpW, vpH, mask_scissor_walk_scratch_,
+                                      mask_soft_walk_scratch_);
         }
     }
 

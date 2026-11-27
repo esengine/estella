@@ -715,6 +715,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 0 },
             { name: 'mode', type: 'u8', offset: 1 },
             { name: 'alphaCutoff', type: 'f32', offset: 4 },
+            { name: 'softness', type: 'vec2', offset: 8 },
         ],
     },
     UINode: {

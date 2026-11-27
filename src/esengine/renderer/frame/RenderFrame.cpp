@@ -1583,6 +1583,11 @@ void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {
 
 void RenderFrame::clearAllClipRects() {
     clip_rects_.clear();
+    soft_clips_.clear();
+}
+
+void RenderFrame::setEntitySoftClip(u32 entity, const ClipConstants& soft) {
+    soft_clips_[entity] = soft;
 }
 
 void RenderFrame::setEntityStencilMask(u32 entity, i32 refValue, bool hierarchical) {
@@ -1614,6 +1619,9 @@ void RenderFrame::buildClipState() {
 
     for (const auto& [entity, rect] : clip_rects_) {
         clip_state_.setScissor(entity, rect.x, rect.y, rect.w, rect.h);
+    }
+    for (const auto& [entity, soft] : soft_clips_) {
+        clip_state_.setSoftClip(entity, soft);
     }
 
     for (const auto& [entity, info] : stencil_masks_) {

@@ -1118,6 +1118,7 @@ export interface UIMask {
     enabled: boolean;
     mode: number;
     alphaCutoff: number;
+    softness: Vec2;
 }
 
 export interface UINode {

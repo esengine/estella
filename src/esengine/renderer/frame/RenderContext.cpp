@@ -19,6 +19,7 @@
 #include "../draw/DrawParams.hpp"
 #include "../store/SkinConstants.hpp"
 #include "../store/PlanarConstants.hpp"
+#include "../store/ClipConstants.hpp"
 #include "../store/InstanceConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../../core/Log.hpp"
@@ -87,6 +88,7 @@ void RenderContext::shutdown() {
     probeBlocks_.shutdown();
     instanceBlocks_.shutdown();
     planarBlocks_.shutdown();
+    clipBlocks_.shutdown();
 
     materials_.clear();  // free per-material UBOs while the device is still valid
     materials_.setResourceManager(nullptr);
@@ -194,11 +196,13 @@ void RenderContext::initFrameUbo() {
     // Where the draw's entry is, one texel of the record texture; a run's entries follow its head's, read by gl_DrawID.
     instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants)));
     planarBlocks_.init(device_, static_cast<u32>(sizeof(PlanarConstants)));
+    clipBlocks_.init(device_, static_cast<u32>(sizeof(ClipConstants)));
     // What a draw with no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.
     probeBlocks_.bindZero(PROBE_CONSTANTS_BINDING);
     instanceBlocks_.bindZero(INSTANCE_CONSTANTS_BINDING);
     planarBlocks_.bindZero(PLANAR_CONSTANTS_BINDING);
+    clipBlocks_.bindZero(CLIP_CONSTANTS_BINDING);
 
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }

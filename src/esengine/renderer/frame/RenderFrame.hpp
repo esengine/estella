@@ -13,6 +13,7 @@
 #include "./RenderContext.hpp"
 #include "./PlanarReflectionCamera.hpp"
 #include "../store/PlanarConstants.hpp"
+#include "../store/ClipConstants.hpp"
 #include "../store/LightConstants.hpp"
 #include "../store/ShadowAtlas.hpp"
 #include "../store/ShadowPlan.hpp"
@@ -324,6 +325,8 @@ public:
     bool screenOverlayOpen() const { return overlay_active_; }
 
     void setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
+    /** @brief Fades @p entity's draws in from the edges of a soft mask (a UIMask with softness); cleared with the clip rects. */
+    void setEntitySoftClip(u32 entity, const ClipConstants& soft);
     void clearAllClipRects();
 
     void setEntityStencilMask(u32 entity, i32 refValue, bool hierarchical = false);
@@ -926,6 +929,7 @@ private:
     u32 height_ = 0;
 
     std::unordered_map<u32, ScissorRect> clip_rects_;
+    std::unordered_map<u32, ClipConstants> soft_clips_;
 
     struct EntityStencilInfo {
         i32 ref_value = 0;
@@ -1668,6 +1672,7 @@ private:
     std::vector<Entity> mask_stencil_scratch_;
     std::vector<Entity> mask_root_scratch_;
     std::vector<std::pair<Entity, ScissorRect>> mask_scissor_walk_scratch_;
+    std::vector<ClipConstants> mask_soft_walk_scratch_;
     std::vector<std::pair<Entity, i32>> mask_stencil_walk_scratch_;
     std::unordered_set<u32> mask_set_scratch_;
     std::unordered_set<u32> stencil_set_scratch_;

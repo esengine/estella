@@ -629,6 +629,33 @@ TEST_CASE("empty scissors suppress direct and prebuilt-vertex submissions") {
     CHECK(h.list.command(0).index_offset == 0);
 }
 
+// A soft-edged mask (UIMask.softness) is a block per draw: the draws under one mask still share a draw call, those under another or
+// under none are their own, and the clip a draw reads is the one its mask set.
+TEST_CASE("soft clips: draws under one soft mask share a clip and a call, others do not") {
+    Harness h;
+    ClipConstants a;
+    a.rect = {10.0f, 20.0f, 410.0f, 120.0f};
+    a.edge = {100.0f, 0.0f, 100.0f, 0.0f};
+    ClipConstants b = a;
+    b.edge = {40.0f, 0.0f, 40.0f, 0.0f};
+    for (u32 e : {91u, 92u, 93u}) h.clips.setScissor(e, 10, 20, 400, 100);
+    h.clips.setSoftClip(91, a);
+    h.clips.setSoftClip(92, a);
+    h.clips.setSoftClip(93, b);
+    BatchVertex quad[4] = {};
+    for (u32 e : {91u, 92u, 93u, 94u}) {
+        auto key = quadKey(42); key.entity = Entity(e);
+        appendQuad(h.pool, h.list, h.clips, quad, key);
+    }
+    REQUIRE(h.list.commandCount() == 4);
+    CHECK(h.list.command(0).clip_index == 1);
+    CHECK(h.list.command(1).clip_index == 1);
+    CHECK(h.list.command(2).clip_index == 2);
+    CHECK(h.list.command(3).clip_index == 0);
+    h.list.finalize(h.pool);
+    CHECK(h.list.mergedDrawCallCount() == 3);
+}
+
 TEST_CASE("stencil-only entries and nonempty scissors still draw") {
     Harness h;
     BatchVertex quad[4] = {};

@@ -10,6 +10,7 @@
 #include "../store/MorphConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../store/InstanceConstants.hpp"
+#include "../store/ClipConstants.hpp"
 #include "../rhi/PerDrawBlocks.hpp"
 #include "../../math/Math.hpp"
 
@@ -141,6 +142,13 @@ public:
      *  stays available for "no volume holds this draw". */
     u32 addProbe(const ProbeConstants& probe);
     u32 addPlanar(const PlanarConstants& value) { planar_.push_back(value); return static_cast<u32>(planar_.size()); }
+
+    /** A soft clip for this frame; returns 1 + where it sits. The same clip again answers the same place, so draws under one mask still merge. */
+    u32 addClip(const ClipConstants& value) {
+        for (usize i = clips_.size(); i-- > 0;) if (clips_[i] == value) return static_cast<u32>(i + 1);
+        clips_.push_back(value);
+        return static_cast<u32>(clips_.size());
+    }
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     /** Entities by original submission type, independent of a merged run's head. */
@@ -317,6 +325,7 @@ private:
     std::vector<MorphConstants> morph_shapes_;
     std::vector<ProbeConstants> probes_;
     std::vector<PlanarConstants> planar_;
+    std::vector<ClipConstants> clips_;
     /// One entry per INSTANCE of every merged run, in the order the run draws
     /// them: the merge is where an instance's probe is still known, and the
     /// texture is packed from this afterwards.
@@ -330,7 +339,7 @@ private:
     std::vector<glm::vec4> probe_run_;
     /// Each merged draw's per-draw blocks, staged for the pass before it draws.
     struct StagedBlocks {
-        PerDrawBlocks::Range skin, probe, instance, planar;
+        PerDrawBlocks::Range skin, probe, instance, planar, clip;
     };
     std::vector<StagedBlocks> staged_;
     /// Per merged draw: how many draws the run it heads holds (drawn as one call where the device can), 0 for a draw inside a run.

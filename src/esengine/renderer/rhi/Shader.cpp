@@ -23,6 +23,7 @@
 #include "../store/InstanceConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../store/PlanarConstants.hpp"
+#include "../store/ClipConstants.hpp"
 #include "../../core/Log.hpp"
 
 #include <cstring>
@@ -284,6 +285,12 @@ void Shader::finishLink() {
     const u32 planarBlock = device_->getUniformBlockIndex(program_, PLANAR_CONSTANTS_BLOCK);
     if (planarBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(program_, planarBlock, PLANAR_CONSTANTS_BINDING);
+    }
+
+    // A soft-edged UI clip, rewritten per draw like the planar capture.
+    const u32 clipBlock = device_->getUniformBlockIndex(program_, CLIP_CONSTANTS_BLOCK);
+    if (clipBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, clipBlock, CLIP_CONSTANTS_BINDING);
     }
 
     // Same for the per-draw params block (rewriteLooseUniforms generates it for

@@ -5,6 +5,7 @@
 #include "../../core/Types.hpp"
 #include "./RenderItem.hpp"
 #include "./DrawCommand.hpp"
+#include "../store/ClipConstants.hpp"
 
 #include <unordered_map>
 
@@ -17,7 +18,12 @@ public:
         ScissorRect scissor;
         i32 stencil_ref = 0;
         u16 stencil_depth = 0;
+        /// A soft edge inside the scissor (a UIMask with softness); all-zero edges are none.
+        ClipConstants soft;
     };
+
+    /// Fades @p entity's draws in from the edges of @p soft.rect, over @p soft.edge pixels, inside whatever hard clip it has.
+    void setSoftClip(u32 entity, const ClipConstants& soft) { entries_[entity].soft = soft; }
 
     void setScissor(u32 entity, i32 x, i32 y, i32 w, i32 h) {
         auto& e = entries_[entity];

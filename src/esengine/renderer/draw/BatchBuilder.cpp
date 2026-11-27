@@ -185,6 +185,9 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.layer = layer;
 
     clips.applyTo(key.entity, cmd);
+    if (const auto* entry = clips.getEntry(key.entity.id()); entry && entry->soft.edge != glm::vec4(0.0f)) {
+        cmd.clip_index = drawList.addClip(entry->soft);
+    }
     drawList.push(cmd);
 }
 

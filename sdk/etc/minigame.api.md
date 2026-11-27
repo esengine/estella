@@ -14763,6 +14763,7 @@ BuiltinComponentDef<UIMaskData>
 alphaCutoff: number
 enabled: boolean
 mode: MaskMode
+softness: Vec2 | undefined
 ```
 
 ## UIMaskPlugin — class @experimental

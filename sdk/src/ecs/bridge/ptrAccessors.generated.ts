@@ -2851,6 +2851,7 @@ export interface UIMaskPtrData {
     enabled: boolean;
     mode: number;
     alphaCutoff: number;
+    softness: Vec2;
 }
 
 export function fillUIMask(
@@ -2860,6 +2861,7 @@ export function fillUIMask(
     out.enabled = u8[ptr] !== 0;
     out.mode = u8[ptr + 1];
     out.alphaCutoff = f32[(ptr + 4) >> 2];
+    const softness_ = out.softness; softness_.x = f32[(ptr + 8) >> 2]; softness_.y = f32[((ptr + 8) >> 2) + 1];
 }
 
 export function writeUIMask(
@@ -2869,6 +2871,7 @@ export function writeUIMask(
     u8[ptr] = data.enabled ? 1 : 0;
     u8[ptr + 1] = data.mode;
     f32[(ptr + 4) >> 2] = data.alphaCutoff;
+    f32[(ptr + 8) >> 2] = data.softness.x; f32[((ptr + 8) >> 2) + 1] = data.softness.y;
 }
 
 export function createUIMaskData(): UIMaskPtrData {
@@ -2876,6 +2879,7 @@ export function createUIMaskData(): UIMaskPtrData {
         enabled: false,
         mode: 0,
         alphaCutoff: 0,
+        softness: { x: 0, y: 0 },
     };
 }
 

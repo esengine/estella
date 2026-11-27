@@ -10839,6 +10839,13 @@
           "type": "number",
           "default": "0",
           "doc": "Stencil only: above 0, clip to the mask sprite's shape instead of its box."
+        },
+        {
+          "key": "softness",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "doc": "Scissor only: fade what the mask holds in from its edges over this many UI pixels (x: left and right, y: bottom and top) instead of cutting it. 0 is the hard edge.",
+          "range": "≥ 0"
         }
       ]
     },

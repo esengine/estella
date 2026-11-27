@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '29b5ecc6deced320';
+export const ABI_LAYOUT_HASH = 'fd76cc8941885de8';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -1431,6 +1431,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             enabled: true,
             mode: 0,
             alphaCutoff: 0,
+            softness: { x: 0, y: 0 },
         },
         assetFields: [],
         entityFields: [],
@@ -1439,6 +1440,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         fields: {
             mode: { enum: [{ label: 'Scissor', value: 0 }, { label: 'Stencil', value: 1 }] },
             alphaCutoff: { tooltip: "Stencil only: above 0, clip to the mask sprite's shape instead of its box." },
+            softness: { min: 0, tooltip: "Scissor only: fade what the mask holds in from its edges over this many UI pixels (x: left and right, y: bottom and top) instead of cutting it. 0 is the hard edge." },
         },
     },
     UINode: {
@@ -2277,6 +2279,7 @@ export interface UIMaskData {
     enabled: boolean;
     mode: MaskMode;
     alphaCutoff: number;
+    softness?: Vec2;
 }
 
 export interface UINodeData {

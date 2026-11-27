@@ -169,6 +169,8 @@ struct PerDrawBlockSet {
     PerDrawBlocks* probe = nullptr;
     PerDrawBlocks* instance = nullptr;
     PerDrawBlocks* planar = nullptr;
+    /// A soft-edged clip (ClipConstants): the zero block for a draw under no soft mask.
+    PerDrawBlocks* clip = nullptr;
 };
 
 }  // namespace esengine
