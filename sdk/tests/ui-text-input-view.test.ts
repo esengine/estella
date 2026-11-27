@@ -9,10 +9,13 @@
  *        native shift/Ctrl-A selection) — so covering the branches here covers
  *        the caret / preedit / selection render paths.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { App } from '../src/app/app';
+import { framebufferToPointer, pointerProjection } from '../src/input/pointerProjection';
+import * as platform from '../src/platform/base';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex, alignOffset,
-    splitLines, caretLineCol, lineSelections, imeAnchorCss,
+    splitLines, caretLineCol, lineSelections,
 } from '../src/ui/text/text-input-view';
 
 import { LocalizationAPI } from '../src/i18n/Localization';
@@ -180,26 +183,16 @@ describe('lineSelections', () => {
     });
 });
 
-describe('imeAnchorCss', () => {
-    it('flips GL bottom-up device px into top-down CSS px (dpr 1)', () => {
-        // screenH 600, a point 100px up from the bottom → 500px down from the top.
-        expect(imeAnchorCss(200, 100, 600, 1)).toEqual({ left: 200, top: 500 });
-    });
-
-    it('divides by the device pixel ratio', () => {
-        expect(imeAnchorCss(400, 200, 1200, 2)).toEqual({ left: 200, top: 500 });
-    });
-
-    it('is the exact inverse of the hit-test mapping (mouseX*dpr, screenH − mouseY*dpr)', () => {
-        const cssX = 137, cssY = 88, screenH = 600, dpr = 1.5;
-        const glX = cssX * dpr, glY = screenH - cssY * dpr;
-        const back = imeAnchorCss(glX, glY, screenH, dpr);
-        expect(back.left).toBeCloseTo(cssX, 6);
-        expect(back.top).toBeCloseTo(cssY, 6);
-    });
-
-    it('guards a zero dpr', () => {
-        expect(imeAnchorCss(200, 100, 600, 0)).toEqual({ left: 200, top: 500 });
+describe('caret projection without a measured browser canvas', () => {
+    it.each([0, 1, 1.5, 2])('inverts the input mapping with host device pixel ratio %s', ratio => {
+        const scale = vi.spyOn(platform, 'renderSurfaceDevicePixelRatio').mockReturnValue(ratio);
+        const app = App.new();
+        try {
+            const dpr = ratio || 1;
+            expect(framebufferToPointer(app, 800, 600 * dpr, 200 * dpr, 100 * dpr)).toEqual({ x: 200, y: 500 });
+            const screen = pointerProjection(app, 800, 600)(137, 88);
+            expect(framebufferToPointer(app, 800, 600, screen.x, screen.y)).toEqual({ x: 137, y: 88 });
+        } finally { scale.mockRestore(); app.quit({ keepRenderer: true }); }
     });
 });
 

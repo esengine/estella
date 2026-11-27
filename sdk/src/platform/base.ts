@@ -5,7 +5,7 @@
  * @brief   Base platform adapter - no platform-specific code
  */
 
-import type { ImageLoadResult, PlatformAdapter } from './types';
+import type { ImageLoadResult, PlatformAdapter, PlatformCanvas } from './types';
 import type { App } from '../app/app';
 import { currentRenderSurface, renderCanvasOf } from '../app/surface';
 import { fitImagePixels } from './imagePixels';
@@ -174,9 +174,9 @@ export function platformRasterizeGlyph(
 /** The platform's text-editing surface, or null where there is none (a headless
  *  realm, the editor in edit mode) — fields then render but cannot be typed
  *  into. Safe before a platform is set. */
-export function platformCreateTextEditor(): import('./types').PlatformTextEditor | null {
+export function platformCreateTextEditor(canvas?: PlatformCanvas): import('./types').PlatformTextEditor | null {
     if (!isPlatformInitialized()) return null;
-    return getPlatform().createTextEditor?.() ?? null;
+    return getPlatform().createTextEditor?.(canvas) ?? null;
 }
 
 export function platformNow(): number {

@@ -32,14 +32,16 @@ import { measureWidth, measurePrefixWidths } from './layout';
 import { resolveTextFamily } from './font-registry';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
-    splitLines, caretLineCol, lineSelections, imeAnchorCss, alignOffset,
+    splitLines, caretLineCol, lineSelections, alignOffset,
     type TextFieldDisplay,
 } from './text-input-view';
 import { uiLayoutToScreen, uiPointerFor, isScreenEntity, uiLayoutRay, uiPointerRay } from '../util/ui-pick';
 import { createLocalTransformReader } from '../util/local-transform';
 import { isProjectable, projectCameraPoint } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
-import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
+import { platformCreateTextEditor } from '../../platform';
+import { renderCanvasOf } from '../../app/surface';
+import { framebufferToPointer } from '../../input/pointerProjection';
 import type { TextEditorEvent } from '../../platform/types';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
@@ -89,7 +91,8 @@ export class TextInputPlugin implements Plugin {
         // Edit viewports and hosts without an editing surface still draw the committed value.
         const context = getDefaultContext();
         let playing = playsInContext(context);
-        let editor = playing ? platformCreateTextEditor() : null;
+        const createEditor = () => platformCreateTextEditor(renderCanvasOf(app));
+        let editor = playing ? createEditor() : null;
         if (playing && !editor) {
             log.info('ui', 'TextInput: this realm has no text-editing surface — fields render, typing is off');
         }
@@ -260,7 +263,7 @@ export class TextInputPlugin implements Plugin {
                 }
             }
             editor?.dispose();
-            editor = playing ? platformCreateTextEditor() : null;
+            editor = playing ? createEditor() : null;
             unsubscribe = subscribeSurface();
             nativeEvents = [];
         }
@@ -441,9 +444,9 @@ export class TextInputPlugin implements Plugin {
             if (projected && !isProjectable(projected)) return;
             const scr = projected ?? uiLayoutToScreen(overlay, position.x, position.y);
             if (!Number.isFinite(scr.x) || !Number.isFinite(scr.y)) return;
-            const surfaceH = screen ? overlay.surfaceH : cam.screenH;
-            const css = imeAnchorCss(scr.x, scr.y, surfaceH, platformDevicePixelRatio());
-            editor!.setCaretAnchor?.(css.left, css.top);
+            const css = framebufferToPointer(app, screen ? overlay.surfaceW : cam.screenW,
+                screen ? overlay.surfaceH : cam.screenH, scr.x, scr.y);
+            editor!.setCaretAnchor?.(css.x, css.y);
         }
 
         function resetCursorBlink(): void {

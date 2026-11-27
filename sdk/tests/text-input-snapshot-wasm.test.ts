@@ -2,10 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { bindRenderSurface } from '../src/app/surface';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform } from '../src/ecs/component';
 import { Input, InputState } from '../src/input/input';
 import { createWebTextEditor } from '../src/platform/webTextEditor';
+import type { PlatformCanvas } from '../src/platform/types';
 import { perspective } from '../src/math/mat4';
 import { resetWorldTo, serializeScene } from '../src/scene/scene';
 import { ContentRect } from '../src/ui/core/content-rect';
@@ -27,7 +29,7 @@ import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 vi.mock('../src/platform/base', async original => ({
     ...await original<typeof import('../src/platform/base')>(),
-    platformCreateTextEditor: () => createWebTextEditor(),
+    platformCreateTextEditor: (canvas?: PlatformCanvas) => createWebTextEditor(canvas),
     platformHasGlyphRasterizer: () => true,
     platformRasterizeGlyph: () => ({ pixels: new Uint8Array(), width: 0, height: 0, advance: 24, bearingX: 0, bearingY: 0 }),
 }));
@@ -99,6 +101,37 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
         expect(app.world.get(field, TextInput).focused).toBe(true);
         expect(input.style.left).toBe(`${Math.round(400 + caretX * Math.cos(tilt) * pixelsPerUnit)}px`);
         expect(input.style.top).toBe(`${Math.round(300 - caretY * pixelsPerUnit)}px`);
+    });
+
+    it('anchors a world caret to the translated and scaled canvas in the browser viewport', async () => {
+        const canvas = document.body.appendChild(document.createElement('canvas'));
+        Object.assign(canvas.style, { width: '400px', height: '240px', padding: '4px 6px', border: '2px solid' });
+        canvas.getBoundingClientRect = () => new DOMRect(40, 60, 832, 378);
+        vi.spyOn(window, 'ResizeObserver').mockImplementation(function (callback: ResizeObserverCallback) {
+            const observer = {
+                disconnect: vi.fn(), unobserve: vi.fn(),
+                observe: () => callback([{ target: canvas, contentRect: new DOMRect(6, 4, 400, 240) } as ResizeObserverEntry], observer),
+            };
+            return observer;
+        });
+        // Reinstall the UI plugin from a fresh app so the render surface is known before input setup.
+        app.quit();
+        app = App.new();
+        app.connectCpp(registry, engine);
+        bindRenderSurface(app, { canvas }, { kind: 'gl-context', handle: 0 });
+        app.insertResource(Input, new InputState());
+        app.addPlugin(new UIPlugin());
+        try {
+            const field = worldField(0, '');
+            app.world.insert(field, Focusable, { tabIndex: 0 });
+            app.getResource(FocusManager).focus(field);
+            await tick();
+            await tick();
+            const input = document.querySelector<HTMLTextAreaElement>('textarea[data-estella-text-editor]')!;
+            const pixelsPerUnit = 300 / (Math.tan(fov / 2) * distance);
+            expect(input.style.left).toBe(`${Math.round(56 + (400 - 44 * pixelsPerUnit))}px`);
+            expect(input.style.top).toBe(`${Math.round(69 + (300 + 10 * pixelsPerUnit) * 0.6)}px`);
+        } finally { canvas.remove(); vi.restoreAllMocks(); }
     });
 
     it.each([0, Math.PI / 3])('places the caret at the clicked text edge on a world field with tilt %s', async tilt => {

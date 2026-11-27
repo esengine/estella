@@ -13,14 +13,15 @@
  * what makes the IME candidate window pop under the text being typed.
  */
 import type {
-    PlatformTextEditor, TextEditorEvent, TextEditorOptions, TextEditorState,
+    PlatformCanvas, PlatformTextEditor, TextEditorEvent, TextEditorOptions, TextEditorState,
 } from './types';
+import { surfacePointerFrame } from './webSurface';
 
 const PARKED_PX = '-9999px';
 
-function createHiddenTextarea(): HTMLTextAreaElement | null {
-    if (typeof document === 'undefined' || !document.body) return null;
-    const textarea = document.createElement('textarea');
+function createHiddenTextarea(doc: Document | undefined): HTMLTextAreaElement | null {
+    if (!doc?.body) return null;
+    const textarea = doc.createElement('textarea');
     textarea.style.position = 'fixed';
     // Parked off-screen until a field focuses, then moved to the caret so the IME
     // candidate window anchors there. Invisible and click-through so the on-screen
@@ -40,12 +41,14 @@ function createHiddenTextarea(): HTMLTextAreaElement | null {
     textarea.setAttribute('autocorrect', 'off');
     textarea.setAttribute('autocapitalize', 'off');
     textarea.setAttribute('spellcheck', 'false');
-    document.body.appendChild(textarea);
+    doc.body.appendChild(textarea);
     return textarea;
 }
 
-export function createWebTextEditor(): PlatformTextEditor | null {
-    const textarea = createHiddenTextarea();
+export function createWebTextEditor(surface?: PlatformCanvas): PlatformTextEditor | null {
+    const canvas = surface && 'localName' in surface && surface.localName === 'canvas'
+        ? surface as PlatformCanvas & HTMLCanvasElement : undefined;
+    const textarea = createHiddenTextarea(canvas?.ownerDocument ?? globalThis.document);
     if (!textarea) return null;
 
     const handlers = new Set<(event: TextEditorEvent) => void>();
@@ -105,6 +108,7 @@ export function createWebTextEditor(): PlatformTextEditor | null {
 
     return {
         focus(state: TextEditorState, options: TextEditorOptions): void {
+            if (canvas && textarea.ownerDocument !== canvas.ownerDocument) canvas.ownerDocument.body.appendChild(textarea);
             composing = false;
             multiline = options.multiline;
             // No limit is the ABSENCE of the attribute — assigning a negative
@@ -135,6 +139,11 @@ export function createWebTextEditor(): PlatformTextEditor | null {
             textarea.selectionEnd = state.selectionEnd;
         },
         setCaretAnchor(left: number, top: number): void {
+            if (canvas && textarea.ownerDocument === canvas.ownerDocument) {
+                const frame = surfacePointerFrame(canvas);
+                left = frame.left + left / frame.scaleX;
+                top = frame.top + top / frame.scaleY;
+            }
             textarea.style.left = Math.round(left) + 'px';
             textarea.style.top = Math.round(top) + 'px';
         },

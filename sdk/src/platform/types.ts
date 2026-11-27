@@ -230,8 +230,8 @@ export interface PlatformTextEditor {
      *  maxLength truncation. */
     write(state: TextEditorState): void;
     /**
-     * Put the caret at this point in CSS px (y down from the top-left of the
-     * drawing surface), so an IME pops its candidate window there instead of in
+     * Put the caret at this point in the drawing surface's CSS input coordinates,
+     * so an IME pops its candidate window there instead of in
      * a screen corner. Optional — a platform whose IME is a fixed system panel
      * has nowhere to put it.
      */
@@ -440,7 +440,7 @@ export interface PlatformAdapter {
      * {@link PlatformTextEditor}). Optional — a host without one (a headless
      * realm, the editor's edit mode) renders fields but cannot type into them.
      */
-    createTextEditor?(): PlatformTextEditor | null;
+    createTextEditor?(canvas?: PlatformCanvas): PlatformTextEditor | null;
 
     now(): number;
 
