@@ -1701,6 +1701,20 @@ export const SHIPPED = {
     { notCertifiable: "A thumbnail is an editor picture, not a game act. The editor check prefab-preview draws a UI, a sprite and a model prefab, checks each covers its picture, the model is lit with no near-black pixels, an empty prefab keeps its icon and the edited world is pixel-identical before and after." },
   "WeChat mini-games run the engine's background work on a worker.":
     { notCertifiable: "A mini-game host is not available to a golden project's run. pipeline/tests/export-wechat-workers.test.ts covers the workers/index.js an export writes and its game.json entry, and sdk/tests/minigame-workers.test.ts the job worker started through the host's factory." },
+  "VR is switched on in Project Settings, and Play offers Enter VR.":
+    { notCertifiable: "A settings switch and an editor button are editor UI, not a game act, and no CI host has a headset. desktop/tests/vr-setting.test.tsx covers the switch being saved, reopened and carried to web builds and Play but not to a desktop build; the Enter VR button itself has no test." },
+  "One-shot effects can remove themselves, and the effect tools draw animated textures and report what an effect costs.":
+    { notCertifiable: "An effect ending is a look over time, not a state a game act ends on. sdk/tests/effect-lifetime.test.ts covers the clock from the first frame, its seconds and the pause, and the editor check vfx-tools the animated sheets and the per-layer cover figure." },
+  "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools.":
+    { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. pipeline/tests/rig-author.test.ts covers building the .esrig, its mesh and prefab, and the editor check rig-tools writes, poses and animates a rig through the tools." },
+  "Particles can swirl, gather, be born on a rim or part of a ring, and lie flat on the ground; lights can pulse or flicker on their own.":
+    { notCertifiable: "Particle motion and a light's pulse are looks over time, not a game act. tests/particle/test_particle_orbit.cpp, test_particle_shapes.cpp and tests/renderer/test_light_pulse.cpp cover the arithmetic, and the pixel gates particle-orbit, particle-align-front, particle-align-top and light-pulse draw them on both backends." },
+  "An AI agent can build visual effects through the editor's MCP tools and see them without Play.":
+    { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. pipeline/tests/vfx-source.test.ts covers the description check, build and read-back, and the editor check vfx-tools writes, previews and reads effects through the tools." },
+  "VR controllers work as input and can hold things.":
+    { notCertifiable: "No CI host has a headset or controllers. sdk/tests/xr-controllers.test.ts covers the per-hand buttons and sticks, dead zones, the gamepad indices, bound actions, rebinds and controller entities placed through the rig, with a fake XR session; holding has no test of its own." },
+  "Web builds can be played in a VR headset.":
+    { notCertifiable: "No CI host has a headset. sdk/tests/xr-eyes.test.ts covers both eyes drawn from the session's projections and poses with the project's metre scale, using a fake XR session." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

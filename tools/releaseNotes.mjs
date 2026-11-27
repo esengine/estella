@@ -6842,4 +6842,570 @@ export const NOTED = {
     { internal: "The SDK's declaration build ran out of Node's default 2 GB heap on the macOS release runners and stopped v0.117.0's macOS and iOS legs; it now runs with 4 GB. Nothing a project builds or calls changes." },
   "feat(minigame): carry the engine's job workers in WeChat packages":
     { note: "WeChat mini-games run the engine's background work on a worker." },
+  "perf(timeline): skip asset lookups for inactive sequence clips":
+    { note: "Long timelines do less work during playback and scrubbing." },
+  "fix(editor): keep keyboard focus through animator constraint edits":
+    { note: "Animator constraints can be expanded and edited by keyboard." },
+  "fix(editor): ship keyboard controls for animator constraints":
+    { note: "Animator constraints can be expanded and edited by keyboard." },
+  "fix(sdk): bring the API snapshots up to the exports on master":
+    { internal: "The API surface snapshots catch up with exports already on master; nothing a project can call changes." },
+  "fix(assets): rebind the scene before releasing hot-reloaded handles":
+    { note: "Scene assets stay valid through hot reload." },
+  "fix(editor): ship safe scene asset hot reload":
+    { note: "Scene assets stay valid through hot reload." },
+  "fix(editor): remove recovery copies of discarded documents promptly":
+    { note: "Recovery copies follow each open document's save and discard state." },
+  "fix(project): ship document-scoped recovery cleanup":
+    { note: "Recovery copies follow each open document's save and discard state." },
+  "perf(editor): batch the snapshots used to keep Play edits":
+    { note: "Keeping edits to many Play entities is faster." },
+  "fix(render): route frame overlays to the capture surface":
+    { note: "Camera captures include overlays on their output surface." },
+  "fix(camera): align picking with the render resolution fallback":
+    { note: "Camera picking follows the rendered image when display scaling is unavailable." },
+  "fix(camera): query world coordinates using the drawn render origin":
+    { note: "Camera picking follows the drawn scene in large worlds." },
+  "fix(editor): refresh viewport overlays on render origin changes":
+    { note: "Camera picking follows the drawn scene in large worlds." },
+  "fix(project): ship render origin aware viewport overlays":
+    { note: "Camera picking follows the drawn scene in large worlds." },
+  "fix(camera): keep render texture passes off the screen":
+    { note: "Render texture cameras keep their own output surfaces." },
+  "fix(render): preserve authored camera texture resolution":
+    { note: "Camera render textures retain their own resolution." },
+  "fix(export): resolve scene names from canonical project paths":
+    { note: "Exports resolve scene names and exclusions from the same project-relative paths." },
+  "fix(render): preserve mesh appearance when composite transforms shear":
+    { note: "Composite batching preserves mesh appearance under nonuniform scale." },
+  "fix(render): preserve composite placement through deep hierarchies":
+    { note: "Composite batching preserves placement in deep hierarchies." },
+  "fix(editor): keep deep Outliner hierarchies searchable":
+    { note: "The Outliner can now open, expand and search deeply nested scenes without running out of call stack." },
+  "fix(runtime): detach script component values from world snapshots":
+    { note: "Runtime inspection captures script component values at the time of the snapshot." },
+  "fix(editor): validate and retire device capture pixel replies":
+    { note: "Device screenshots and frame replays reject incomplete pixel data." },
+  "fix(runtime): scope device debug replies to their connection":
+    { note: "Device diagnostics stay in the correct editor session after reconnecting." },
+  "fix(ui): make dropdown chevrons legible and dismiss one overlay at a time":
+    { note: "Dropdowns show their open state with a clearer chevron and close one layer at a time." },
+  "fix(export): keep colliding project scenes addressable":
+    { note: "Scenes with colliding runtime names remain addressable." },
+  "fix(editor): dismiss dropdowns when dock resizing moves their anchor":
+    { note: "Docked dropdowns close when a splitter moves their trigger." },
+  "fix(editor): ship dropdown dismissal for dock resizing":
+    { note: "Docked dropdowns close when a splitter moves their trigger." },
+  "fix(editor): dim check marks for disabled dropdown choices":
+    { note: "Disabled dropdown choices use the same muted color for the label and check mark." },
+  "fix(project): ship consistent disabled dropdown styling":
+    { note: "Disabled dropdown choices use the same muted color for the label and check mark." },
+  "fix(editor): match menu and dropdown typeahead against choice names":
+    { note: "Typing a name in an editor menu or dropdown now matches the choice label." },
+  "fix(project): ship consistent dropdown keyboard matching":
+    { note: "Typing a name in an editor menu or dropdown now matches the choice label." },
+  "fix(editor): preserve focus moved by a dropdown selection":
+    { note: "Dropdowns preserve focus moved by a selection." },
+  "fix(editor): ship focus-safe dropdown selections":
+    { note: "Dropdowns preserve focus moved by a selection." },
+  "fix(editor): share project scene naming with exports":
+    { note: "Exports resolve scene names and exclusions from the same project-relative paths." },
+  "fix(editor): ship shared project scene naming in Play":
+    { note: "Exports resolve scene names and exclusions from the same project-relative paths." },
+  "fix(editor): keep colliding scene names distinct in Play":
+    { note: "Scenes with colliding runtime names remain addressable." },
+  "fix(editor): ship distinct scene names in Play":
+    { note: "Scenes with colliding runtime names remain addressable." },
+  "fix(editor): keep dropdown keyboard focus when choices refresh":
+    { note: "Open dropdowns remain keyboard-operable when their options change." },
+  "fix(editor): align dropdown options and restore panel tab order":
+    { note: "Editor dropdowns keep option labels aligned in narrow panes." },
+  "perf(editor): reuse dropdown labels for keyboard prefix search":
+    { note: "Typing to navigate long editor dropdowns uses fewer DOM reads." },
+  "fix(editor): share authored pose restoration between clip previews":
+    { note: "Grip preview restores the latest scene edits." },
+  "fix(editor): ship authored pose restoration for grip previews":
+    { note: "Grip preview restores the latest scene edits." },
+  "fix(editor): hand off the edit pose between timeline and grip previews":
+    { note: "Grip and Sequencer previews hand off the edit pose cleanly." },
+  "fix(editor): ship timeline and grip preview handoff":
+    { note: "Grip and Sequencer previews hand off the edit pose cleanly." },
+  "perf(animator): window large constraint joint lists":
+    { note: "Animator joint pickers open faster on large rigs." },
+  "perf(editor): ship windowed animator joint lists":
+    { note: "Animator joint pickers open faster on large rigs." },
+  "perf(inspector): window large entity target lists":
+    { note: "Entity target dropdowns open faster in large scenes." },
+  "perf(editor): ship windowed entity target lists":
+    { note: "Entity target dropdowns open faster in large scenes." },
+  "fix(editor): share current project translations across the inspector and viewport":
+    { note: "The text inspector and viewport now agree when translation files override the same key." },
+  "perf(editor): reuse enabled choices during dropdown keyboard navigation":
+    { note: "Keyboard navigation in long editor dropdowns does less work per key press." },
+  "perf(animator): index source entities for target path discovery":
+    { note: "Animation and Timeline target paths load faster in large scenes." },
+  "perf(editor): ship faster scene target path discovery":
+    { note: "Animation and Timeline target paths load faster in large scenes." },
+  "fix(sequencer): offer bound cameras when adding and editing shots":
+    { note: "Sequencer shots can target cameras through TimelinePlayer bindings." },
+  "fix(editor): ship timeline camera binding authoring":
+    { note: "Sequencer shots can target cameras through TimelinePlayer bindings." },
+  "fix(sequencer): choose sequence roots by binding path":
+    { note: "Sequencer can bind a nested timeline to an external entity." },
+  "fix(editor): ship bound roots for nested timeline clips":
+    { note: "Sequencer can bind a nested timeline to an external entity." },
+  "fix(sequencer): preserve scene edits under timeline preview":
+    { note: "Timeline preview restores the latest scene edits." },
+  "fix(editor): ship authored pose restoration during preview":
+    { note: "Timeline preview restores the latest scene edits." },
+  "fix(sequencer): restore preview poses when scene bindings change":
+    { note: "Timeline preview restores poses when its scene targets change." },
+  "fix(editor): ship timeline preview rebinding":
+    { note: "Timeline preview restores poses when its scene targets change." },
+  "feat(editor): a VR switch in Project Settings, and Enter VR in Play":
+    { note: "VR is switched on in Project Settings, and Play offers Enter VR." },
+  "feat(particle): EffectLifetime removes a one-shot effect once it has run its course":
+    { note: "One-shot effects can remove themselves, and the effect tools draw animated textures and report what an effect costs." },
+  "feat(pipeline): animated flame, smoke and fireball sheets for effects, and one-shots that remove themselves":
+    { note: "One-shot effects can remove themselves, and the effect tools draw animated textures and report what an effect costs." },
+  "feat(editor): vfx previews in front of a backdrop without the scene's air, with each layer's overdraw":
+    { note: "One-shot effects can remove themselves, and the effect tools draw animated textures and report what an effect costs." },
+  "perf(editor): reuse entity picker search text within a scene revision":
+    { note: "Entity picker searches respond faster in large scenes." },
+  "perf(project): ship faster entity picker searches":
+    { note: "Entity picker searches respond faster in large scenes." },
+  "fix(scene): publish texture borders only after scene load commits":
+    { note: "A failed scene load preserves the running scene's shared texture borders." },
+  "fix(flipbook): resolve preview textures like the runtime":
+    { note: "Flipbook previews show the textures the game uses." },
+  "fix(editor): ship consistent flipbook texture resolution":
+    { note: "Flipbook previews show the textures the game uses." },
+  "fix(grip): preview clips with timeline bindings and nested poses":
+    { note: "Grip clip previews follow timeline bindings and nested poses." },
+  "fix(editor): ship grip preview timeline bindings":
+    { note: "Grip clip previews follow timeline bindings and nested poses." },
+  "perf(ecs): reuse children storage when syncing hierarchy edits":
+    { note: "Adding many siblings to a parent allocates less memory." },
+  "fix(editor): preserve preview state when toggling hierarchy visibility":
+    { note: "Hiding a group now also hides the text and automatic background of its input fields in 2D and 3D views." },
+  "fix(ui): respect editor visibility for generated input visuals":
+    { note: "Hiding a group now also hides the text and automatic background of its input fields in 2D and 3D views." },
+  "fix(render): retire inline geometry with its mesh component":
+    { note: "Removing and re-adding a MeshRenderer starts with empty inline geometry." },
+  "fix(ui): render text fields consistently across edit and play":
+    { note: "The preview language now applies to input placeholders in both 2D and 3D scenes." },
+  "fix(editor): preview localized input hints and recover unavailable languages":
+    { note: "The preview language now applies to input placeholders in both 2D and 3D scenes." },
+  "fix(input): keep the mouse and touch release position":
+    { note: "Mouse and touch releases use their actual position." },
+  "fix(runtime): omit transient fields from authoring snapshots":
+    { note: "Play and device inspection follow the same transient-field rules as scene saves." },
+  "fix(editor): show input binding and curve dropdowns as editable fields":
+    { note: "Input binding and curve interpolation dropdowns now look editable when closed." },
+  "fix(editor): keep shared input binding values visible in narrow panels":
+    { note: "Input binding and curve interpolation dropdowns now look editable when closed." },
+  "fix(editor): keep keyboard edits and IME input in editable property dropdowns":
+    { note: "Editable inspector dropdowns support keyboard selection and input methods." },
+  "fix(editor): keep inspector flags in panel tab order":
+    { note: "Inspector flag dropdowns follow the panel tab order." },
+  "fix(editor): ship keyboard navigation for inspector flags":
+    { note: "Inspector flag dropdowns follow the panel tab order." },
+  "perf(physics3d): step the 3D world on a thread pool on devices":
+    { note: "3D physics uses several cores on desktop and mobile builds." },
+  "fix(editor): keep only edited axes when applying Play changes":
+    { note: "Keep Play changes preserves untouched axes." },
+  "perf(editor): keep large editable dropdowns responsive as project choices change":
+    { note: "Large localization and suggestion lists open faster and keep the highlighted choice through a project refresh." },
+  "perf(scene): reuse privately parsed scene documents during preparation":
+    { note: "On-demand scenes prepare without copying the document a second time." },
+  "fix(render): keep light pulses finite on long-running clocks":
+    { note: "Pulsing and flickering lights keep a finite brightness during long sessions." },
+  "fix(runtime): include native-added renderers in live snapshots":
+    { note: "Live inspection shows renderers added by the engine." },
+  "fix(runtime): share visibility resolution with live snapshots":
+    { note: "The Play hierarchy eye follows the entity's current renderers." },
+  "perf(i18n): resolve updated translations without rebuilding every language":
+    { note: "Updating a translation refreshes live labels without rebuilding every language's dictionary." },
+  "fix(editor): preserve preview translations when a string table cannot reload":
+    { note: "Updating a translation refreshes live labels without rebuilding every language's dictionary." },
+  "fix(camera): commit the view drawn by manual screen refreshes":
+    { note: "Paused viewport redraws update picking and overlays." },
+  "fix(material): refresh inherited properties after dependency changes":
+    { note: "Open material instances refresh when a parent material or shader changes on disk." },
+  "fix(editor): ship live material inheritance refresh":
+    { note: "Open material instances refresh when a parent material or shader changes on disk." },
+  "fix(material): keep inherited texture references tied to their source":
+    { note: "Material instances show the textures inherited from their ancestors." },
+  "fix(editor): ship accurate inherited material textures":
+    { note: "Material instances show the textures inherited from their ancestors." },
+  "fix(material): resolve inspector references like the loader":
+    { note: "Material previews and builds resolve the same files." },
+  "fix(material): align runtime lookups with the cooked asset index":
+    { note: "Material previews and builds resolve the same files." },
+  "fix(editor): reopen the project when the MCP front restarts a dead editor, and say why":
+    { note: "When the editor dies between two MCP calls, the next call opens the project again and says what happened." },
+  "fix(editor): keep Outliner actions visible in narrow docks":
+    { note: "The Outliner’s sort menu and Add button stay within reach in a narrow dock." },
+  "fix(ecs): clear hierarchy components during native entity destruction":
+    { note: "Deleting an entity through the native registry now updates the hierarchy seen by scripts and inspectors." },
+  "fix(input): carry relative mouse motion on native desktop":
+    { note: "Native desktop games receive relative mouse movement." },
+  "fix(assets): recognize structured refs during scene reprojection":
+    { note: "Scene asset updates reach references inside arrays and objects." },
+  "fix(editor): ship nested asset refresh and effect reference fixes":
+    { note: "Scene asset updates reach references inside arrays and objects." },
+  "perf(editor): index Outliner folder children and counts":
+    { note: "Opening and filtering scenes with many Outliner folders is faster." },
+  "perf(editor): group Outliner folder work by path":
+    { note: "Large scenes with shared folders respond faster in the Outliner." },
+  "perf(project): ship faster Outliner folder projection":
+    { note: "Large scenes with shared folders respond faster in the Outliner." },
+  "perf(editor): reuse scene data between Outliner projections":
+    { note: "Searching and sorting the Outliner takes less work in large scenes." },
+  "perf(project): ship faster Outliner searches in large scenes":
+    { note: "Searching and sorting the Outliner takes less work in large scenes." },
+  "fix(scene): share prefab preparation across scene loading paths":
+    { note: "Preview and file-backed scene loads share prefab preparation." },
+  "fix(particle): retire simulation state with its emitter component":
+    { note: "Replacing a particle emitter starts a fresh simulation on that entity." },
+  "refactor(render): share the particle instance layout contract":
+    { internal: "Share the particle instance record across render paths and fix the native batch test's outdated fixture." },
+  "fix(render): align CPU particle trails with the render origin":
+    { note: "CPU particle trails stay attached in large worlds." },
+  "fix(runtime): keep pending asset paths in authored snapshots":
+    { note: "Inspection and scene snapshots retain the selected asset while it loads." },
+  "perf(editor): skip camera-only renders in Play diagnostics":
+    { note: "Play diagnostics stay responsive while the camera moves." },
+  "perf(editor): skip Game inspector renders on camera-only updates":
+    { note: "The Game inspector does less work while the camera moves." },
+  "fix(editor): use the full parent frame for Play dragging":
+    { note: "Play dragging follows the selected axis and depth under a tilted parent." },
+  "fix(editor): keep keyboard focus with the active play session":
+    { note: "Reloading a preview keeps the keyboard where you were working." },
+  "fix(project): update the editor play focus lifecycle":
+    { note: "Reloading a preview keeps the keyboard where you were working." },
+  "fix(editor): merge Play axis edits in the running world":
+    { note: "Editing one axis in Play preserves the other axes." },
+  "perf(editor): coalesce Play inspector refresh bursts":
+    { note: "Rapid edits and selection changes send fewer inspection requests during Play." },
+  "fix(editor): keep Play inspector replies in order":
+    { note: "The Play inspector keeps the current selection when an older reply arrives late." },
+  "fix(editor): preserve nested field edits in Play and scene writes":
+    { note: "Play keeps nested property edits without copying neighboring values." },
+  "fix(editor): bind Play snapshots to the requested scene":
+    { note: "Play and timeline rendering keep their source scene while preparing." },
+  "fix(project): ship scene-bound preview preparation":
+    { note: "Play and timeline rendering keep their source scene while preparing." },
+  "perf(editor): release Play query deadlines when requests settle":
+    { note: "Play monitoring releases its timers when queries finish." },
+  "fix(runtime): preserve loading assets when toggling visibility":
+    { note: "Play visibility and field edits keep assets loading." },
+  "fix(editor): preserve loading assets during Play field edits":
+    { note: "Play visibility and field edits keep assets loading." },
+  "perf(runtime): avoid world-wide scans for small hierarchy selections":
+    { note: "Inspecting a small group in Play stays responsive in large scenes." },
+  "fix(editor): retire Play inspection requests with their session":
+    { note: "Stopping Play releases pending inspection reads." },
+  "perf(editor): skip unused Play visibility detail queries":
+    { note: "Keeping bulk Play visibility edits takes less work at Stop." },
+  "fix(export): start all-scenes playables in the selected scene":
+    { note: "Single-file playables start in the selected scene when all scenes are included." },
+  "fix(export): preserve startup scene names in single-scene playables":
+    { note: "Single-scene playable ads preserve the startup scene's runtime name." },
+  "perf(assets): reconstruct data PNG scanlines without an intermediate image":
+    { note: "Heightmap PNGs decode with less temporary memory." },
+  "fix(terrain): preserve PNG data channels on non-DOM hosts":
+    { note: "Terrain PNGs preserve their stored samples on hosts without browser image APIs." },
+  "perf(assets): speed up portable PNG decompression":
+    { note: "Large data PNGs load faster on hosts without streaming decompression." },
+  "fix(scene): validate parent cycles before expanding prefabs":
+    { note: "Scene loads report circular parenting before resolving prefab assets." },
+  "perf(prefab): route nested overrides by slot":
+    { note: "Scenes with many customized nested prefabs expand faster." },
+  "fix(editor): keep prefab entity IDs stable across recovery and saves":
+    { note: "Prefab recovery copies and manual saves agree on new entity IDs." },
+  "fix(project): ship stable prefab recovery identities":
+    { note: "Prefab recovery copies and manual saves agree on new entity IDs." },
+  "fix(render): draw Multiply and Screen from a premultiplied colour, so a half-clear texel no longer lights what is behind it":
+    { note: "The Multiply and Screen blends no longer brighten what is behind a soft-edged sprite, particle or trail." },
+  "test(editor): hold Multiply and Screen particles to their blend formulas over a grey board":
+    { note: "The Multiply and Screen blends no longer brighten what is behind a soft-edged sprite, particle or trail." },
+  "fix(render): premultiply a material's own shader under Multiply and Screen too, by wrapping its fragment entry":
+    { note: "The Multiply and Screen blends no longer brighten what is behind a soft-edged sprite, particle or trail." },
+  "test(editor): hold sprites with a Multiply or Screen material to the same blend formulas":
+    { note: "The Multiply and Screen blends no longer brighten what is behind a soft-edged sprite, particle or trail." },
+  "fix(tools): find the editor's Play payload by name in the project-settings gate":
+    { internal: "The project-settings gate finds the editor's Play payload by name again; nothing a project can set changes." },
+  "fix(persist): queue world restores with saves and stage reads before applying":
+    { note: "World restores finish reading before applying saved entities." },
+  "fix(render): expose camera relative coordinates to viewport draws":
+    { note: "Viewport handles stay aligned in large worlds." },
+  "fix(editor): align large world overlay drawing and handle picking":
+    { note: "Viewport handles stay aligned in large worlds." },
+  "fix(project): ship camera relative viewport handles":
+    { note: "Viewport handles stay aligned in large worlds." },
+  "fix(ui): anchor world popups with the rendered camera projection":
+    { note: "World-space tooltips and dropdowns stay aligned far from the origin." },
+  "fix(render): keep authored geometry when the core rejects an upload":
+    { note: "Inline meshes keep their last accepted geometry when an upload is rejected." },
+  "fix(sequencer): reload nested timelines after disk changes":
+    { note: "Open timeline previews pick up changes to nested clips on disk." },
+  "fix(editor): ship nested timeline preview refresh":
+    { note: "Open timeline previews pick up changes to nested clips on disk." },
+  "fix(camera): follow the resolved view with the render origin":
+    { note: "The floating origin follows camera cuts and blends." },
+  "fix(scene): isolate saved mesh geometry and particle settings":
+    { note: "Saved meshes and particle effects retain the data the engine imported." },
+  "feat(pipeline): build a 2D rig and its clips from a description, and draw them for review":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "feat(editor): rig tools that let an agent build and animate a 2D skeletal character":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "feat(pipeline): solve two-bone reaches in rig clips and measure planted tips by speed":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "feat(editor): rig clips reach for points, report how planted feet move, and enlarge their frames":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "feat(pipeline): keep feet flat on a reach, copy a motion shifted, and measure the lowest point on the drawing":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "feat(editor): rig clips keep feet flat and copy a leg half a cycle on":
+    { note: "An AI agent can make and animate a 2D skeletal character through the editor's MCP tools." },
+  "fix(editor): clear Play overlays with their snapshot selection":
+    { note: "Play clears the selection outline as soon as the running world reports that an entity is gone." },
+  "perf(runtime): index renderer visibility for world snapshots":
+    { note: "Play clears the selection outline as soon as the running world reports that an entity is gone." },
+  "fix(runtime): read the drawable camera aspect after scene loading":
+    { note: "A game's initial camera aspect follows the drawable surface." },
+  "fix(assets): match scene atlas coordinates to the acquired textures":
+    { note: "Scenes keep the atlas coordinates that match the textures they acquired." },
+  "fix(editor): preserve scene save state past the undo limit":
+    { note: "Scene save state survives a full undo history." },
+  "fix(project): ship reliable scene save state past the undo limit":
+    { note: "Scene save state survives a full undo history." },
+  "fix(lighting): align scene light reports with runtime activity":
+    { note: "Lighting reports respect disabled scene hierarchies." },
+  "fix(scene): roll back incomplete hierarchy loads":
+    { note: "The scene loader now reports a failure when the world rejects a parent link or a load callback removes a newly created entity." },
+  "fix(editor): bind queued saves to the open document":
+    { note: "A queued save cannot write a scene that opened after the request." },
+  "fix(project): ship safe scene open and save ordering":
+    { note: "A queued save cannot write a scene that opened after the request." },
+  "fix(editor): roll a failed apply_scene_ops back inside an agent call, and write fields the present state hides":
+    { note: "A failed `apply_scene_ops` call no longer leaves part of its work in the scene." },
+  "fix(scene): check authored ids before expanding prefab instances":
+    { note: "Scenes with repeated entity IDs fail consistently when they contain prefab instances." },
+  "fix(assets): deduplicate skeletal asset pairs per runtime":
+    { note: "Spine and DragonBones scene assets are discovered independently." },
+  "fix(scene): keep saved hierarchy links consistent across runtime edits":
+    { note: "Scene snapshots keep valid parent and child links when an engine system moves entities at runtime." },
+  "fix(assets): report each unresolved scene reference once":
+    { note: "Scene loading reports each unresolved asset reference once." },
+  "perf(ecs): share the live script component name index":
+    { note: "Inspecting entities with script components is faster." },
+  "fix(sequencer): match nested sequence validation to playback":
+    { note: "Sequencer accepts the full nesting depth supported by playback." },
+  "fix(editor): ship consistent nested sequence validation":
+    { note: "Sequencer accepts the full nesting depth supported by playback." },
+  "fix(sequencer): isolate pending timeline reads by project":
+    { note: "Timeline previews handle project changes while nested clips are loading." },
+  "fix(editor): ship project-safe timeline dependency loading":
+    { note: "Timeline previews handle project changes while nested clips are loading." },
+  "fix(sequencer): anchor the track menu and render the current clip independently":
+    { note: "The Sequencer’s Track menu stays beside its button, and Render includes unsaved timeline edits." },
+  "fix(runtime): load authored asset snapshots for play and timeline renders":
+    { note: "The Sequencer’s Track menu stays beside its button, and Render includes unsaved timeline edits." },
+  "fix(editor): reconcile spine ownership with shared pair keys":
+    { note: "Skeletal assets with colons in their URLs keep their own skeleton and atlas." },
+  "fix(assets): share collision-safe skeletal pair keys":
+    { note: "Skeletal assets with colons in their URLs keep their own skeleton and atlas." },
+  "fix(scene): omit native-deleted handles from snapshots":
+    { note: "Scene snapshots and the running-world inspector omit entities deleted by the native registry." },
+  "perf(render): rank light budgets without moving collected lights":
+    { note: "Scenes that exceed the light budget sort smaller records per view." },
+  "fix(camera): share pixel bounds for split viewports":
+    { note: "Split camera views line up on odd-sized windows and render textures." },
+  "fix(editor): keep open dropdowns anchored as choices change":
+    { note: "Open editor dropdowns stay aligned when their options change." },
+  "fix(project): ship stable editor dropdown placement":
+    { note: "Open editor dropdowns stay aligned when their options change." },
+  "fix(editor): keep large string tables responsive and save translations to the intended file":
+    { note: "Large string tables stay responsive while you search, scroll and edit translations." },
+  "fix(editor): apply the shared theme to string table controls and rig labels":
+    { note: "String table controls follow the editor theme." },
+  "fix(editor): avoid duplicate suggestion field writes on blur":
+    { note: "Editable suggestion fields save each edit once." },
+  "fix(editor): ship single writes from suggestion fields":
+    { note: "Editable suggestion fields save each edit once." },
+  "perf(terrain): skip overview sampling in full heightmap exports":
+    { note: "Full terrain heightmap exports do less work." },
+  "perf(terrain): index the tile coverage used by heightmap imports":
+    { note: "Heightmap imports update tiled terrain overviews faster." },
+  "fix(terrain): bind heightmap transfers to their original ground":
+    { note: "Heightmap transfers stay with the terrain that started them." },
+  "fix(editor): ship terrain heightmap target checks":
+    { note: "Heightmap transfers stay with the terrain that started them." },
+  "fix(terrain): keep imported heights when pending tile reads finish":
+    { note: "Tiles loading in the background keep the imported heights." },
+  "fix(terrain): resolve tiled terrain files in editor tools":
+    { note: "Tiled terrain works with UUID references." },
+  "fix(terrain): treat tiled terrain documents as path-valued assets":
+    { note: "Tiled terrain works with UUID references." },
+  "fix(editor): keep tile layer actions inside the layer panel":
+    { note: "Tile layer actions are accessible from the keyboard." },
+  "fix(project): ship keyboard tile layer actions and focus recovery":
+    { note: "Tile layer actions are accessible from the keyboard." },
+  "perf(editor): defer tile layer enumeration until the menu opens":
+    { note: "The closed layer menu stays responsive while other entities are edited." },
+  "perf(project): ship lighter tile layer toolbar updates":
+    { note: "The closed layer menu stays responsive while other entities are edited." },
+  "fix(editor): make the tile layer panel keyboard operable":
+    { note: "Switch tile layers from the keyboard." },
+  "fix(project): ship keyboard navigation for tile layers":
+    { note: "Switch tile layers from the keyboard." },
+  "fix(editor): keep the tile layer menu anchored after switching layers":
+    { note: "The tile layer menu stays open when its toolbar chip changes width." },
+  "perf(editor): filter tile layer menu updates by scene changes":
+    { note: "The open tile layer menu skips unrelated component edits." },
+  "perf(project): ship targeted tile layer menu updates":
+    { note: "The open tile layer menu skips unrelated component edits." },
+  "fix(editor): close tile opacity gestures on pointer interruption":
+    { note: "Interrupted tile opacity drags restore the original value." },
+  "fix(project): ship tile opacity gesture recovery":
+    { note: "Interrupted tile opacity drags restore the original value." },
+  "fix(editor): bind tile layer drag ordering to the original layer":
+    { note: "Tile layer drags keep their original source." },
+  "fix(project): ship stable tile layer drag ordering":
+    { note: "Tile layer drags keep their original source." },
+  "perf(editor): plan tile replacements directly from chunks":
+    { note: "Tile replacement previews are faster on large maps." },
+  "perf(project): ship faster tile replacement previews":
+    { note: "Tile replacement previews are faster on large maps." },
+  "perf(editor): reuse decoded chunks while adjusting tile replacement":
+    { note: "Adjusting a tile replacement reuses the layer’s decoded chunks." },
+  "perf(project): ship faster tile replacement parameter edits":
+    { note: "Adjusting a tile replacement reuses the layer’s decoded chunks." },
+  "fix(editor): keep tile replacement bound to the opening layer":
+    { note: "Replace Tiles stays tied to the chosen layer." },
+  "fix(project): ship tile replacement target checks":
+    { note: "Replace Tiles stays tied to the chosen layer." },
+  "fix(terrain): encode tiled height images in their document format":
+    { note: "Grey terrain heightmaps preserve their depth when edited." },
+  "fix(terrain): carry the height format through tiled edits":
+    { note: "Grey terrain heightmaps preserve their depth when edited." },
+  "fix(terrain): keep heightmap exports in their originating project":
+    { note: "Full terrain heightmap exports require every tile." },
+  "fix(terrain): reject incomplete full heightmap exports":
+    { note: "Full terrain heightmap exports require every tile." },
+  "fix(editor): write imported terrain images as one file batch":
+    { note: "Failed heightmap imports restore the files they replaced." },
+  "fix(project): ship terrain import file rollback":
+    { note: "Failed heightmap imports restore the files they replaced." },
+  "fix(editor): update imported terrain previews after writing images":
+    { note: "The terrain preview changes after a heightmap import is saved." },
+  "fix(terrain): prepare tiled heightmap imports before editing the ground":
+    { note: "The terrain preview changes after a heightmap import is saved." },
+  "fix(cook): preserve the source images of reachable tiled terrain":
+    { note: "Published tiled terrain keeps its original height and weight samples." },
+  "perf(terrain): reuse the tile index when preparing saves":
+    { note: "Saving edits to large tiled terrain prepares changed tiles faster." },
+  "fix(cook): reject packages with unresolved tiled terrain images":
+    { note: "Packaging reports unavailable tiled terrain images." },
+  "perf(tilemap): decode aligned chunks without per-cell coordinate lookups":
+    { note: "Large saved tilemaps decode faster." },
+  "fix(tilemap): keep grid coordinates precise at distant origins":
+    { note: "Tile coordinates stay precise far from the world origin." },
+  "fix(tilemap): align gameplay coordinates with tile rendering":
+    { note: "World-space digs and explosions follow the drawn tile grid." },
+  "refactor(editor): use the shared tilemap world frame":
+    { note: "World-space digs and explosions follow the drawn tile grid." },
+  "refactor(project): share tilemap coordinates with the editor":
+    { note: "World-space digs and explosions follow the drawn tile grid." },
+  "fix(timeline): give back the camera when playback ends or detaches":
+    { note: "Timeline gives back the view when its camera shot stops." },
+  "fix(timeline): preserve nested cue entry boundaries":
+    { note: "Nested Timeline cues at time zero fire once on entry or when playback reaches a new loop." },
+  "fix(timeline): retain nested loop phase for cue crossings":
+    { note: "Looping nested sequences keep their cues through long playback steps." },
+  "fix(timeline): dispatch markers and custom events from nested sequences":
+    { note: "Nested timelines deliver their custom events and markers during playback." },
+  "perf(timeline): select overlapping camera shots in one pass":
+    { note: "Timeline evaluates overlapping camera shots in a single pass." },
+  "fix(timeline): sample poses and shots on paused seeks":
+    { note: "Paused timeline seeks update the pose and camera." },
+  "perf(sequencer): reuse sampled layers for camera preview":
+    { note: "Timeline avoids resolving nested layers twice on steady playback and preview frames." },
+  "perf(timeline): reuse sampled sequence layers for shots":
+    { note: "Timeline avoids resolving nested layers twice on steady playback and preview frames." },
+  "fix(editor): align transform handle picking with draw clipping":
+    { note: "Clipped transform handles no longer intercept the viewport pointer." },
+  "fix(project): ship transform gizmo clipping consistency":
+    { note: "Clipped transform handles no longer intercept the viewport pointer." },
+  "fix(ui): keep dropdown options visible and selectable across canvas edges":
+    { note: "Game UI dropdowns keep their options within the screen’s safe area." },
+  "perf(ui): reuse child lists during layout traversal":
+    { note: "Large UI trees cost less to check on static frames." },
+  "perf(ui): reuse screen membership across stable layout passes":
+    { note: "Large screen-space UI trees cost less CPU time to check for layout changes." },
+  "fix(ui): keep transient text field and dropdown visuals out of scene snapshots":
+    { note: "Input fields and open dropdowns now survive repeated scene saves and reloads without duplicating text or menu items." },
+  "fix(scene): preserve failed asset refs when spawning prepared documents":
+    { note: "Loaded scenes and prepared prefabs retain failed asset references." },
+  "fix(assets): keep unresolved paths in runtime scene snapshots":
+    { note: "Failed runtime asset loads preserve their authored paths in scene snapshots." },
+  "fix(sequencer): validate new sequence references before editing":
+    { note: "New nested sequence references are checked before the timeline changes." },
+  "fix(editor): ship validation for newly selected sequences":
+    { note: "New nested sequence references are checked before the timeline changes." },
+  "fix(scene): validate replacement scenes before clearing the world":
+    { note: "Replacing a scene keeps the current world intact when validation rejects the new scene." },
+  "feat(particle): orbital and radial velocity, arc and rim emission, ground-flat and upright quads, and a light that pulses or flickers by itself":
+    { note: "Particles can swirl, gather, be born on a rim or part of a ring, and lie flat on the ground; lights can pulse or flicker on their own." },
+  "feat(editor): vfx_write lays rings on the ground, swirls and gathers layers, and lets the engine flicker or pulse the light":
+    { note: "Particles can swirl, gather, be born on a rim or part of a ring, and lie flat on the ground; lights can pulse or flicker on their own." },
+  "fix(pipeline): effect textures clear to their edges, a cone's angle as its half-angle, and one number for a size":
+    { note: "Effects no longer draw lit squares from a faint veil in their textures, and several agent tools that misled were fixed." },
+  "fix(editor): field_sweep requires the field it takes, and every tool schema is checked for it":
+    { note: "Effects no longer draw lit squares from a faint veil in their textures, and several agent tools that misled were fixed." },
+  "fix(editor): image_write says when a picture is almost invisible":
+    { note: "Effects no longer draw lit squares from a faint veil in their textures, and several agent tools that misled were fixed." },
+  "fix(editor): vfx tools warn of a texture veil, keep other effects out of a preview, and take one number for a size":
+    { note: "Effects no longer draw lit squares from a faint veil in their textures, and several agent tools that misled were fixed." },
+  "feat(pipeline): describe a visual effect in metres and seconds, build it as a prefab of particle layers and a light, and read it back":
+    { note: "An AI agent can build visual effects through the editor's MCP tools and see them without Play." },
+  "feat(editor): vfx tools that write an effect as a prefab and show it at chosen moments without Play":
+    { note: "An AI agent can build visual effects through the editor's MCP tools and see them without Play." },
+  "fix(editor): carry a particle emitter's gradient, size curve and bursts to the engine when it is placed, created or restored":
+    { note: "An AI agent can build visual effects through the editor's MCP tools and see them without Play." },
+  "fix(editor): commit viewport transforms at the release position":
+    { note: "Viewport transforms follow the pointer all the way to release." },
+  "fix(project): ship accurate viewport transform release positions":
+    { note: "Viewport transforms follow the pointer all the way to release." },
+  "fix(input): keep web drags moving outside the canvas":
+    { note: "Web drags keep moving beyond the game canvas." },
+  "fix(input): align mouse and touch on scaled web canvases":
+    { note: "Mouse and touch agree on bordered web canvases and canvases with axis-aligned CSS scaling." },
+  "fix(xr): keep the frozen Binding type, name the headset framebuffer through the GL bridge, and give VR its gates":
+    { note: "VR controllers work as input and can hold things." },
+  "feat(xr): VR controllers as input, and entities that follow the controllers and the head":
+    { note: "VR controllers work as input and can hold things." },
+  "perf(xr): cull and collect the scene once for both eyes, and draw every frame a headset asks for":
+    { note: "In VR the scene is culled and collected once a frame, and the game draws every frame the headset asks for." },
+  "perf(xr): plan one shadow atlas for both eyes, and keep each eye's temporal history apart":
+    { note: "VR draws its shadows once a frame instead of twice, and temporal effects no longer blend the two eyes." },
+  "feat(xr): present web builds in a VR headset through WebXR":
+    { note: "Web builds can be played in a VR headset." },
+  "fix(render): a WeChat mini-game draws again - the device works out which texture units a program samples from the units it set itself, instead of reading them back with glGetUniformiv, which WeChat's WebGL does not implement":
+    { note: "3D games exported to WeChat draw again." },
+  "fix(ui): preserve loading textures while updating widget colors":
+    { note: "Widgets keep their images when their color changes during loading." },
+  "perf(ui): skip unchanged widget color writes when applying a theme":
+    { note: "Reapplying project settings is faster in scenes with many themed widgets." },
+  "fix(editor): read preview themes from the packaged project settings":
+    { note: "Dropdowns created from prefabs now match the project’s widget palette." },
+  "fix(ui): resolve widget colors in their owning world":
+    { note: "Dropdowns created from prefabs now match the project’s widget palette." },
+  "fix(persist): filter snapshots before export and keep flush errors on the queue":
+    { note: "World persistence reports a failed flush through its returned promise." },
+  "fix(ui): place the caret using the text field's press ray":
+    { note: "Clicking a 3D text field places the caret at the clicked character." },
+  "fix(ui): project the IME anchor from the world caret":
+    { note: "IME candidate windows follow the caret on 3D text inputs." },
 };
