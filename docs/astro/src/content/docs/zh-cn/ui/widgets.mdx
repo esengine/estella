@@ -494,6 +494,13 @@ settings.select(1);
 `labels` 提供页签直接 Text 子节点的文字。删除当前选择的目标后会选择其他有效绑定；
 移除绑定会恢复该内容页原本的 display。
 
+| `TabViewHandle` | 说明 |
+|---|---|
+| `entity` | 视图的根实体，带有 `UITabView`。 |
+| `tabs` / `pages` | 按顺序排列的页签 Toggle 及其内容页。 |
+| `select(index)` | 选中一个页签，效果与点击相同。 |
+| `dispose()` | 移除 `onChange` 监听并销毁该视图。 |
+
 ## Tooltip
 
 为现有控件添加 `UITooltip`，或从 UI Widgets 放入 Tooltip 示例目标。
@@ -520,6 +527,21 @@ attachTooltip(world, musicVolume, {
 可在 **UI Controls** 示例中打开 `assets/scenes/tabs-tooltips.esscene` 查看场景内直接编辑的
 页签和带提示的音量滑条。
 
+
+`attachTooltip(world, entity, settings)` 为已有控件添加 `UITooltip`，不改动它的输入配置。
+`createTooltip({ world, parent?, node?, content?, settings? })` 生成一个带提示的小型可交互按钮（即 UI Widgets 面板中的示例目标），
+返回 `{ entity, dispose() }`；`dispose()` 销毁它。
+
+| `UITooltip` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `content` | `''` | 提示文字。 |
+| `stylePrefab` | `''` | 弹出层 Prefab；留空时使用当前 UI 主题。 |
+| `hover` / `focus` / `longPress` | `true` | 哪些方式会打开提示。 |
+| `hoverDelay` / `longPressDelay` | `0.5` / `0.6` 秒 | 提示打开前的延迟。 |
+| `side` | `0` | 首选方向：下 `0`、上 `1`、左 `2`、右 `3`。 |
+| `gap` | `8` px | 与控件之间的距离。 |
+| `avoidEdges` | `true` | 放不下时尝试对侧，并限制在安全区内。 |
+| `maxWidth` | `240` px | 文字换行宽度。 |
 
 ## TreeView
 
@@ -558,6 +580,44 @@ Home / End 到达首尾可选行，Enter / Space 激活当前行。整棵树占�
 行主体仍可拖动滚动。落点为 `before` / `inside` / `after`；自身和后代落点会被拒绝。
 `drop_request` 是请求，由项目校验并修改业务数据，控件不会擅自修改项目模型。
 
+| `UITreeView` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `nodes` | `[]` | 场景中编写的 `{ id, label, children?, selectable? }` 树，未设置数据源时使用。 |
+| `expandedIds` / `selectedIds` | `[]` | 已展开和已选中的 ID。 |
+| `selectionMode` | `1` | 不可选 `0`、单选 `1`、多选 `2`。 |
+| `rowHeight` | `32` px | 每行高度。 |
+| `indent` | `20` px | 每层的缩进。 |
+| `dragEnabled` | `false` | 显示拖动握柄并允许重新排序。 |
+| `rowPrefab` / `emptyPrefab` | `''` | 行视图，以及树为空时显示的视图。 |
+
+| `TreeDataSource<T>` 成员 | 说明 |
+|---|---|
+| `getRoots()` / `getChildren(item)` | 顶层条目，以及某条目的子条目。 |
+| `getId(item)` | 唯一且稳定的 `string` 或有限 `number`。 |
+| `getLabel(item)` | 行文字。 |
+| `isSelectable?(item)` | 返回 `false` 时该行不能被选中。 |
+| `subscribe?(listener)` | 数据变化时调用 `listener`；返回取消订阅的函数。 |
+
+`createTreeView({ world, events, parent?, node?, data?, nodes?, settings?, item?, dragHandle?, canDrop?, onDrop?,
+onChange? })` 返回一个句柄；`setTreeViewData(world, entity, data, { item?, dragHandle?, canDrop?, onDrop? })` 把同样的回调绑定到
+场景中放置的树上，并返回恢复先前绑定的函数。
+
+| `TreeViewHandle` | 说明 |
+|---|---|
+| `entity` | 树的实体，带有 `UITreeView`。 |
+| `getModel()` | UI 运行时接管该树之后的 `TreeViewModel`；接管前为 `undefined`。 |
+| `refresh()` | 重新读取数据源，用于没有 `subscribe` 的数据源。 |
+| `reveal(id)` | 展开该条目的祖先并把它滚动到可见处。 |
+| `dispose()` | 移除监听并销毁该树。 |
+
+`TreeViewModel` 持有当前可见的行。`getCount()`、`getItem(index)`、`indexOf(id)` 与 `getNode(id)` 读取它们；
+`expandedIds` 与 `selectedIds` 是当前状态；`setExpanded(ids)`、`toggle(id)`、`select(ids, mode?)`（mode 同 `selectionMode`）
+与 `reveal(id)` 修改状态。刷新时遇到重复 ID 或环，会保留之前的行。
+
+`TreeRow` 表示一个可见行：`id`、`item`（你的记录）、`parentId`、`depth`、`hasChildren`、`expanded`、`selectable` 与
+`selected`。`canDrop` 与 `onDrop` 收到 `TreeDropRequest`：`source` 与 `target` 两行，以及 `position`
+（`'before'`、`'inside'` 或 `'after'`）。
+
 ## ColorPicker
 
 从 **UI 控件** 放置取色器。Inspector 可配置初始颜色、Alpha、HSV / RGB 数值格式
@@ -587,6 +647,12 @@ SV 平面支持指针捕获和方向键，Shift 增大步长。Hue / Alpha 复�
 复用 TextInput。HEX 支持引擎的短格式和完整 RGB / RGBA 格式；无效输入可继续编辑，
 失焦后恢复规范值。禁用 Alpha 会强制不透明。历史色按控件隔离；历史色容器也是普通
 可编辑 UI，容量较大时应为其安排足够空间。
+
+| `ColorPickerHandle` | 说明 |
+|---|---|
+| `entity` | 取色器的根实体，带有 `UIColorPicker`。 |
+| `getColor()` / `setColor(color)` | 读取或设置颜色；`setColor` 会更新所有字段和饱和度/明度平面。 |
+| `dispose()` | 移除 `onChange` / `onHistoryChange` 监听并销毁取色器。 |
 
 统一的 `uiPlugin` 为场景、Prefab 和工厂创建的控件安装同一套行为。渲染沿用已有 UI
 路径；每个应用共享三张小型渐变 / 棋盘纹理。每个取色器持有一张 64×64 SV 图像，

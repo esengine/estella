@@ -563,6 +563,13 @@ or copied. `labels` provides captions for the tab's direct Text child. Deleting 
 selected target chooses another valid binding; removing a binding restores that
 page's original display value.
 
+| `TabViewHandle` | Description |
+|---|---|
+| `entity` | The view's root entity, carrying `UITabView`. |
+| `tabs` / `pages` | The tab Toggles and their content pages, in order. |
+| `select(index)` | Selects a tab, as a click would. |
+| `dispose()` | Removes the `onChange` listener and despawns the view. |
+
 ## Tooltip
 
 Attach `UITooltip` to a control, or drop the Tooltip example target from UI Widgets.
@@ -594,6 +601,21 @@ the delay without changing the saved trigger settings.
 Open `assets/scenes/tabs-tooltips.esscene` in the **UI Controls** example for authored
 tabs and a volume slider with a tooltip.
 
+
+`attachTooltip(world, entity, settings)` adds `UITooltip` to an existing control and leaves its input setup alone.
+`createTooltip({ world, parent?, node?, content?, settings? })` spawns a small interactable button with a tooltip, the
+UI Widgets palette target, and returns `{ entity, dispose() }`; `dispose()` despawns it.
+
+| `UITooltip` field | Default | Description |
+|---|---|---|
+| `content` | `''` | The hint text. |
+| `stylePrefab` | `''` | Popup prefab; empty uses the live UI theme. |
+| `hover` / `focus` / `longPress` | `true` | Which triggers open the hint. |
+| `hoverDelay` / `longPressDelay` | `0.5` / `0.6` s | Delay before the hint opens. |
+| `side` | `0` | Preferred side: Bottom `0`, Top `1`, Left `2`, Right `3`. |
+| `gap` | `8` px | Distance from the control. |
+| `avoidEdges` | `true` | Tries the opposite side and clamps to the safe area. |
+| `maxWidth` | `240` px | Text wrap width. |
 
 ## TreeView
 
@@ -643,6 +665,44 @@ body retains normal drag scrolling. Drop placement is `before`, `inside` or
 intent. Your host validates and applies it. Appearance uses live project theme
 roles or your own row views.
 
+| `UITreeView` field | Default | Description |
+|---|---|---|
+| `nodes` | `[]` | Authored `{ id, label, children?, selectable? }` tree, used when no data source is set. |
+| `expandedIds` / `selectedIds` | `[]` | Expanded and selected IDs. |
+| `selectionMode` | `1` | None `0`, Single `1`, Multiple `2`. |
+| `rowHeight` | `32` px | Height of each row. |
+| `indent` | `20` px | Indent per depth level. |
+| `dragEnabled` | `false` | Shows drag grips and allows reordering. |
+| `rowPrefab` / `emptyPrefab` | `''` | Row view, and the view shown when the tree is empty. |
+
+| `TreeDataSource<T>` member | Description |
+|---|---|
+| `getRoots()` / `getChildren(item)` | The top-level items, and an item's children. |
+| `getId(item)` | A unique, stable `string` or finite `number`. |
+| `getLabel(item)` | The row text. |
+| `isSelectable?(item)` | `false` keeps the row from being selected. |
+| `subscribe?(listener)` | Calls `listener` when the data changes; returns an unsubscribe function. |
+
+`createTreeView({ world, events, parent?, node?, data?, nodes?, settings?, item?, dragHandle?, canDrop?, onDrop?,
+onChange? })` returns a handle; `setTreeViewData(world, entity, data, { item?, dragHandle?, canDrop?, onDrop? })` binds
+the same callbacks to a tree placed in a scene and returns the function that restores the previous binding.
+
+| `TreeViewHandle` | Description |
+|---|---|
+| `entity` | The tree's entity, carrying `UITreeView`. |
+| `getModel()` | The `TreeViewModel`, once the UI runtime has adopted the tree; `undefined` before. |
+| `refresh()` | Re-reads the data source, for sources without `subscribe`. |
+| `reveal(id)` | Expands the item's ancestors and scrolls it into view. |
+| `dispose()` | Removes the listeners and despawns the tree. |
+
+`TreeViewModel` holds the visible rows. `getCount()`, `getItem(index)`, `indexOf(id)` and `getNode(id)` read them;
+`expandedIds` and `selectedIds` are the current state; `setExpanded(ids)`, `toggle(id)`, `select(ids, mode?)` (mode as
+`selectionMode`) and `reveal(id)` change it. A refresh that meets a duplicate ID or a cycle keeps the previous rows.
+
+A `TreeRow` is one visible row: `id`, `item` (your record), `parentId`, `depth`, `hasChildren`, `expanded`,
+`selectable` and `selected`. `canDrop` and `onDrop` receive a `TreeDropRequest`: the `source` and `target` rows and
+`position` (`'before'`, `'inside'` or `'after'`).
+
 ## ColorPicker
 
 Drop **Color Picker** from UI Widgets. Its ordinary child controls can be edited
@@ -678,6 +738,12 @@ notation. Invalid partial text remains editable and normalizes on blur. Disablin
 alpha forces an opaque value. Recent colors are local to each picker; persistence
 is explicitly supplied by the host. The history area is an ordinary editable UI
 container: size it to accommodate the desired palette capacity.
+
+| `ColorPickerHandle` | Description |
+|---|---|
+| `entity` | The picker's root entity, carrying `UIColorPicker`. |
+| `getColor()` / `setColor(color)` | Read or set the color; `setColor` updates every field and the plane. |
+| `dispose()` | Removes the `onChange` / `onHistoryChange` listeners and despawns the picker. |
 
 The composed `uiPlugin` installs both widgets for scene/prefab instances and
 factory-created controls. Their views use the existing UI renderer. The picker
