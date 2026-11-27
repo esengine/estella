@@ -1219,6 +1219,8 @@ export interface Registry {
     changeAuditTotal(): number;
     /** Re-parents child; false when refused (a cycle, an invalid entity). */
     setParent(child: Entity, parent: Entity): boolean;
+    /** Moves child under parent before a sibling; false when the link or sibling is invalid. */
+    setParentBefore?(child: Entity, parent: Entity, before: Entity): boolean;
     /** All generated builtin names, separated by |; absent on older cores. */
     getBuiltinComponentNames?(entity: Entity): string;
     /** Host-local component ID; -1 for an unknown name. */

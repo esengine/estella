@@ -18,6 +18,7 @@ import type { CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
 import { REGISTRY_BINDINGS, REGISTRY_OPS, SCENE_QUERY_BINDINGS, INSPECTION_BINDINGS } from './nativeBindings';
+import { OPTIONAL_REGISTRY_OPS } from './registryOps.generated';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
 import {
@@ -91,6 +92,9 @@ export function createNativeRegistry(
     // TypeError in whichever system first calls it (#114 was `valid`).
     for (const [method, binding] of Object.entries(REGISTRY_OPS)) {
         reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
+    }
+    for (const [method, binding] of Object.entries(OPTIONAL_REGISTRY_OPS)) {
+        if (typeof scope[binding] === 'function') reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
     }
 
     // Entity hierarchy reads and the module-level epochs — the native siblings of

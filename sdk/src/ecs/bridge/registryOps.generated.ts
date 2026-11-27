@@ -29,4 +29,8 @@ export const REGISTRY_OPS = {
     setParent: 'es_registry_setParent',
 } as const satisfies { readonly [K in keyof Registry]?: string };
 
-export type RegistryOp = keyof typeof REGISTRY_OPS;
+export const OPTIONAL_REGISTRY_OPS = {
+    setParentBefore: 'es_registry_setParentBefore',
+} as const satisfies { readonly [K in keyof Registry]?: string };
+
+export type RegistryOp = keyof typeof REGISTRY_OPS | keyof typeof OPTIONAL_REGISTRY_OPS;

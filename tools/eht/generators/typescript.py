@@ -117,8 +117,8 @@ class TypeScriptGenerator:
 
     def generate_registry_ops(self) -> str:
         """REGISTRY_OPS: each entity op and the global a native host binds it as.
-        The SDK's native registry installs these in a loop and the boot check
-        requires every one, so a host cannot ship without an op the web has."""
+        Required operations are checked at native boot. Optional operations are
+        exposed only when a host provides them."""
         lines = [
             '/**',
             ' * @file    registryOps.generated.ts',
@@ -130,11 +130,17 @@ class TypeScriptGenerator:
             '',
             'export const REGISTRY_OPS = {',
         ]
-        lines += [f"    {op.name}: '{op.native_name}'," for op in REGISTRY_OPS]
+        lines += [f"    {op.name}: '{op.native_name}'," for op in REGISTRY_OPS if not op.optional]
         lines += [
             '} as const satisfies { readonly [K in keyof Registry]?: string };',
             '',
-            'export type RegistryOp = keyof typeof REGISTRY_OPS;',
+            'export const OPTIONAL_REGISTRY_OPS = {',
+        ]
+        lines += [f"    {op.name}: '{op.native_name}'," for op in REGISTRY_OPS if op.optional]
+        lines += [
+            '} as const satisfies { readonly [K in keyof Registry]?: string };',
+            '',
+            'export type RegistryOp = keyof typeof REGISTRY_OPS | keyof typeof OPTIONAL_REGISTRY_OPS;',
             '',
         ]
         return '\n'.join(lines)

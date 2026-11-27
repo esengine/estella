@@ -2769,6 +2769,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("auditChanges", optional_override([](Registry& r) { return r.auditChanges(); }))
         .function("changeAuditTotal", optional_override([](Registry& r) { return r.changeAuditTotal(); }))
         .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) { return esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent)); }))
+        .function("setParentBefore", optional_override([](Registry& r, u32 child, u32 parent, u32 before) { return esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent), static_cast<Entity>(before)); }))
 
         .function("getBuiltinComponentNames", optional_override([](Registry& r, u32 e) {
             const auto entity = static_cast<Entity>(e);

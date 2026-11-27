@@ -988,19 +988,32 @@ export class World {
 
     /** Reject invalid relationships without changing hierarchy or notifications. */
     trySetParent(child: Entity, parent: Entity): boolean {
+        return this.trySetParent_(child, parent);
+    }
+
+    /** @internal Move a child before a sibling without changing world iteration order. */
+    trySetParentBefore(child: Entity, parent: Entity, before: Entity): boolean {
+        return this.trySetParent_(child, parent, before);
+    }
+
+    private trySetParent_(child: Entity, parent: Entity, before?: Entity): boolean {
         if (parent === (0xFFFFFFFF as Entity)) parent = INVALID_ENTITY;
         if (this.reservedForDestruction_(child) || this.reservedForDestruction_(parent)) return false;
         if (!this.valid(child) || (parent !== INVALID_ENTITY && !this.valid(parent))) return false;
         const cppRegistry = this.builtin_.getCppRegistry();
+        if (before !== undefined && (!cppRegistry?.setParentBefore || before === INVALID_ENTITY || !this.valid(before))) return false;
         if (cppRegistry) {
             try {
                 const previous = cppRegistry.hasParent(child) ? cppRegistry.getParent(child).entity : INVALID_ENTITY;
-                if (previous === parent) {
+                if (before === undefined && previous === parent) {
                     return !cppRegistry.destructionPending?.(child) && !cppRegistry.destructionPending?.(parent);
                 }
                 // New cores return acceptance. A legacy void host remains
                 // compatible; only an explicit rejection prevents bookkeeping.
-                if (cppRegistry.setParent(child, parent) === false) return false;
+                const applied = before === undefined
+                    ? cppRegistry.setParent(child, parent)
+                    : cppRegistry.setParentBefore!(child, parent, before);
+                if (applied === false) return false;
             } catch (e) {
                 handleWasmError(e, `setParent(child=${child}, parent=${parent})`);
                 return false;

@@ -21,6 +21,7 @@ import { mixPoses } from '../src/animation/poseMix';
 import { addPoseOver, overlayPose } from '../src/animation/layerStack';
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { INSPECTION_BINDINGS, REGISTRY_BINDINGS, REGISTRY_OPS } from '../src/ecs/bridge/nativeBindings';
+import { OPTIONAL_REGISTRY_OPS } from '../src/ecs/bridge/registryOps.generated';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -45,6 +46,14 @@ function mockNativeScope(byteSize = 256): Record<string, unknown> {
 }
 
 describe('createNativeRegistry', () => {
+    it('exposes ordered parenting only when the native host binds it', () => {
+        const setParentBefore = vi.fn(() => true);
+        const registry = createNativeRegistry({ es_registry_setParentBefore: setParentBefore });
+        expect(registry.setParentBefore?.(1 as never, 2 as never, 3 as never)).toBe(true);
+        expect(setParentBefore).toHaveBeenCalledWith(1, 2, 3);
+        expect(createNativeRegistry({}).setParentBefore).toBeUndefined();
+    });
+
     it('uses optional bulk membership on hosts that provide it', () => {
         const calls: number[] = [];
         const reg = createNativeRegistry({ es_getBuiltinComponentNames: (entity: number) => {
@@ -165,7 +174,7 @@ describe('createNativeRegistry', () => {
             .map((m) => m[1]).filter((name) => !perComponent.has(name));
         expect(web).toContain('valid');
         const scope: Record<string, unknown> = {};
-        for (const name of [...Object.values(REGISTRY_OPS), ...Object.values(REGISTRY_BINDINGS),
+        for (const name of [...Object.values(REGISTRY_OPS), ...Object.values(OPTIONAL_REGISTRY_OPS), ...Object.values(REGISTRY_BINDINGS),
             ...Object.values(INSPECTION_BINDINGS)]) scope[name] = () => undefined;
         const reg = createNativeRegistry(scope) as unknown as Record<string, unknown>;
         expect(web.filter((name) => typeof reg[name] !== 'function')).toEqual([]);

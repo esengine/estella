@@ -34,6 +34,7 @@ class RegistryOp:
     # already converted to their C++ types by whichever backend emits it).
     call: str
     doc: str
+    optional: bool = False
 
     @property
     def native_name(self) -> str:
@@ -41,7 +42,8 @@ class RegistryOp:
 
     def ts_signature(self) -> str:
         args = ', '.join(f'{n}: {_TS[k]}' for n, k in self.params)
-        return f'{self.name}({args}): {_TS[self.returns]};'
+        marker = '?' if self.optional else ''
+        return f'{self.name}{marker}({args}): {_TS[self.returns]};'
 
 
 def _e(name: str = 'entity') -> Tuple[str, str]:
@@ -86,4 +88,7 @@ REGISTRY_OPS: Tuple[RegistryOp, ...] = (
     RegistryOp('setParent', (_e('child'), _e('parent')), 'bool',
                'esengine::ecs::setParent(r, {0}, {1})',
                'Re-parents child; false when refused (a cycle, an invalid entity).'),
+    RegistryOp('setParentBefore', (_e('child'), _e('parent'), _e('before')), 'bool',
+               'esengine::ecs::setParent(r, {0}, {1}, {2})',
+               'Moves child under parent before a sibling; false when the link or sibling is invalid.', optional=True),
 )

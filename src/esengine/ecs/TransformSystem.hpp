@@ -470,7 +470,7 @@ inline void syncHierarchyComponents(Registry& registry, Entity entity, Entity ol
     }
 }
 
-inline bool setParent(Registry& registry, Entity child, Entity newParent) {
+inline bool setParent(Registry& registry, Entity child, Entity newParent, Entity before = INVALID_ENTITY) {
     // SDK/scene documents use 0 for no entity; C++ uses UINT32_MAX. Index 0
     // is never allocated, so both null representations mean detachment.
     if (newParent.id() == 0) newParent = INVALID_ENTITY;
@@ -483,12 +483,14 @@ inline bool setParent(Registry& registry, Entity child, Entity newParent) {
         (!registry.valid(newParent) || child == newParent || rel.isDescendantOf(newParent, child))) {
         return false;
     }
+    if (before.isValid() && (!newParent.isValid() || !registry.valid(before) || before == child
+        || rel.target(before) != newParent || registry.destructionPending(before))) return false;
     const Entity oldParent = rel.target(child);
     // An explicit detach may repair a raw Parent component written without a link.
     const bool stale = !newParent.isValid() && !oldParent.isValid() && registry.has<Parent>(child);
-    if (oldParent == newParent && !stale) return true;
+    if (oldParent == newParent && !stale && (!before.isValid() || rel.next(child) == before)) return true;
 
-    if (newParent.isValid()) rel.link(child, newParent); else rel.unlink(child);
+    if (newParent.isValid()) rel.link(child, newParent, before); else rel.unlink(child);
     syncHierarchyComponents(registry, child, oldParent, newParent);
 
     if (newParent.isValid()) {

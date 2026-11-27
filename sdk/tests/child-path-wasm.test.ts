@@ -232,6 +232,26 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
         } finally { dispose(); }
     });
 
+    it('moves a child before a sibling while preserving world iteration order', () => {
+        const { world, node, dispose } = realm();
+        try {
+            const oldParent = node('Old'), newParent = node('New');
+            const moved = node('Rig', oldParent), existing = node('Rig', newParent);
+            const tip = node('Tip', moved);
+            const order = world.getAllEntities();
+            expect(resolveChildEntity(world, newParent, 'Rig')).toBe(existing);
+            expect(world.trySetParentBefore(moved, newParent, tip)).toBe(false);
+            expect(world.get(moved, Parent).entity).toBe(oldParent);
+            expect(world.trySetParentBefore(moved, newParent, existing)).toBe(true);
+            expect(world.get(oldParent, Children).entities).toEqual([]);
+            expect(world.get(newParent, Children).entities).toEqual([moved, existing]);
+            expect(resolveChildEntity(world, newParent, 'Rig/Tip')).toBe(tip);
+            expect(world.getAllEntities()).toEqual(order);
+            expect(world.trySetParentBefore(existing, newParent, moved)).toBe(true);
+            expect(resolveChildEntity(world, newParent, 'Rig')).toBe(existing);
+        } finally { dispose(); }
+    });
+
     it('never returns a destroyed descendant after its replacement is spawned', () => {
         const { world, node, dispose } = realm();
         try {

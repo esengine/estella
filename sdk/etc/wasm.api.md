@@ -264,6 +264,7 @@ reserveDestruction: (entity: Entity) => boolean
 setChangeAudit: (enabled: boolean) => void
 setEntityEnabled: (entity: Entity, enabled: boolean) => boolean
 setParent: (child: Entity, parent: Entity) => boolean
+setParentBefore: ((child: Entity, parent: Entity, before: Entity) => boolean) | undefined
 valid: (entity: Entity) => boolean
 ```
 

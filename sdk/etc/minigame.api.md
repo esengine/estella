@@ -16213,6 +16213,7 @@ Generator<number, T, void>
 @internal takeCompositionChanges: () => void
 @internal topologyReaderCount: (component: AnyComponentDef) => number
 @internal transformEpoch: () => number
+@internal trySetParentBefore: (child: Entity, parent: Entity, before: Entity) => boolean
 @internal useScriptPoolMemory: (memory: PoolMemory, validateOnly?: boolean) => void
 @internal writeReaderCount: (component: AnyComponentDef) => number
 despawn: (entity: Entity) => void
