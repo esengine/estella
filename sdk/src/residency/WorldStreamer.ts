@@ -522,6 +522,7 @@ export class WorldStreamer {
         const individual = bounds.individual;
         const far = this.manifest_?.farDistance ?? 0;
         const combinedReach = Math.max(bounds.reach, far);
+        const rejectNearFromFarBounds = individual !== undefined && far > 0 && far >= bounds.reach;
         let renamed = false;
         for (const state of this.cells_.values()) {
             // Registrations keep their keys even if a caller edits a manifest in place.
@@ -532,14 +533,17 @@ export class WorldStreamer {
             if (active) candidates.push(state);
             if (active && !proxy) continue;
             const reach = proxy ? combinedReach : bounds.reach;
-            const intersects = !outsideSourceReach(cell, bounds, reach);
-            if (!active && intersects && (reach === bounds.reach || !outsideSourceReach(cell, bounds, bounds.reach)) &&
-                (!individual || withinIndividualReach(cell, individual))) candidates.push(state);
-            if (!proxy) continue;
-            const inRange = far > 0 && intersects && (reach === far || !outsideSourceReach(cell, bounds, far)) &&
-                (!individual || withinIndividualReach(cell, individual, far)) &&
-                sources.some(source => distanceToCell(cell, source.x, source.z) <= far);
-            if (inRange || proxy.wanted || proxy.failed || proxy.residency !== 'unloaded') proxies.push({ state, proxy, inRange });
+            let inRange = false;
+            if (!outsideSourceReach(cell, bounds, reach)) {
+                const inFarBounds = proxy !== undefined && far > 0 && (reach === far || !outsideSourceReach(cell, bounds, far)) &&
+                    (!individual || withinIndividualReach(cell, individual, far));
+                // When far bounds cover near reach, a gap between sources can reject both paths.
+                if (!active && (!rejectNearFromFarBounds || !proxy || inFarBounds) &&
+                    (reach === bounds.reach || !outsideSourceReach(cell, bounds, bounds.reach)) &&
+                    (!individual || withinIndividualReach(cell, individual))) candidates.push(state);
+                inRange = inFarBounds && sources.some(source => distanceToCell(cell, source.x, source.z) <= far);
+            }
+            if (proxy && (inRange || proxy.wanted || proxy.failed || proxy.residency !== 'unloaded')) proxies.push({ state, proxy, inRange });
         }
         return { candidates: renamed ? [...this.cells_.values()] : candidates, proxies };
     }

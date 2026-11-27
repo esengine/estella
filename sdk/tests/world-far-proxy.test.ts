@@ -118,6 +118,26 @@ describe('a far proxy', () => {
         expect(streamer.status().proxyCells).toEqual(['c_0_0', 'c_30_0']);
     });
 
+    it('uses the exact distance at a proxy corner while another source stays in range', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        await streamer.loadManifest(world(400, cell(0), cell(15), cell(30)));
+        const right = at(2600);
+        streamer.update([{ ...at(380), z: 380 }, right]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual(['c_0_0', 'c_30_0']);
+
+        // Both axis distances are 300, but the corner is farther than 400.
+        streamer.update([{ ...at(400), z: 400 }, right]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual(['c_30_0']);
+
+        // A wider near reach can still prepare a cell outside the proxy circle.
+        streamer.update([{ ...at(400, 450), z: 400 }, right]);
+        await t.settle();
+        expect(streamer.status().preparedCells).toEqual(['c_0_0']);
+        expect(streamer.status().proxyCells).toEqual(['c_30_0']);
+    });
+
     it('rejects distant cells for both near and proxy residency in one bounds read', async () => {
         const t = host(), streamer = new WorldStreamer(t.h);
         let reads = 0;
