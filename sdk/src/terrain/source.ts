@@ -44,8 +44,15 @@ export interface TerrainSource {
  * Region samples: heights and optional banks of four weights per sample. `paint`
  * covers layers 1–4 and `paint2` covers 5–8. When either is supplied, an omitted
  * bank contributes zero. When both are omitted, pages sample the source's paint.
+ * If `paintMask` is present, a zero byte at a sample also delegates it to the
+ * source's paint function. This distinguishes an unpainted sample from zero weights.
  */
-export interface TerrainRegionSamples { heights: Float32Array; paint?: Float32Array; paint2?: Float32Array }
+export interface TerrainRegionSamples {
+    heights: Float32Array;
+    paint?: Float32Array;
+    paint2?: Float32Array;
+    paintMask?: Uint8Array;
+}
 
 /** The weights of a terrain's layers at a point, in order: four or eight of them (a missing one weighs nothing). */
 export type LayerWeights = readonly number[];

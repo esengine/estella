@@ -92,6 +92,7 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
     const heights = new Uint8Array(n * n * 4), paint = new Uint8Array(n * n * 4), paint2 = new Uint8Array(n * n * 4);
     const p1 = given?.paint, p2 = given?.paint2;
     const hasRegionPaint = !!(p1 || p2);
+    const paintMask = given?.paintMask;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const k = j * n + i;
         const enc = Math.round(Math.min(Math.max((h[k]! - source.minHeight) / span, 0), 1) * 65535);
@@ -105,12 +106,13 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
         heights[k * 4 + 2] = Math.round((nx * 0.5 + 0.5) * 255);
         heights[k * 4 + 3] = Math.round((nz * 0.5 + 0.5) * 255);
         const at = k * 4;
-        if (hasRegionPaint && !repaint) {
+        const useRegionPaint = hasRegionPaint && (!paintMask || !!paintMask[k]);
+        if (useRegionPaint && !repaint) {
             if (p1) encodePaintBank(paint, at, p1, at);
             if (p2) encodePaintBank(paint2, at, p2, at);
         } else {
             const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
-            let w: LayerWeights = hasRegionPaint
+            let w: LayerWeights = useRegionPaint
                 ? [p1?.[at] ?? 0, p1?.[at + 1] ?? 0, p1?.[at + 2] ?? 0, p1?.[at + 3] ?? 0,
                     ...(p2 ? [p2[at]!, p2[at + 1]!, p2[at + 2]!, p2[at + 3]!] : [])]
                 : source.paint(x, z, h[k]!, ny);

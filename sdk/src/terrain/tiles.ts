@@ -325,17 +325,18 @@ export class TiledSource implements TerrainSource {
         return this.materialRegion(heights, p1, p2);
     }
 
-    private materialRegion(heights: Float32Array, paint?: Float32Array, paint2?: Float32Array): TerrainRegionSamples {
+    private materialRegion(heights: Float32Array, paint?: Float32Array, paint2?: Float32Array, paintMask?: Uint8Array): TerrainRegionSamples {
         if (this.paintLayout?.length && paint) {
             const raw = Array<number>(8).fill(0);
             if (this.paintLayout.some(t => t.materialIndex >= 4)) paint2 ??= new Float32Array(paint.length);
             for (let at = 0; at < paint.length; at += 4) {
+                if (paintMask && !paintMask[at / 4]) continue;
                 for (let c = 0; c < 4; c++) { raw[c] = paint[at + c]!; raw[c + 4] = paint2?.[at + c] ?? 0; }
                 const w = materialPaintWeights(raw, this.paintLayout);
                 for (let c = 0; c < 4; c++) { paint[at + c] = w[c]!; if (paint2) paint2[at + c] = w[c + 4]!; }
             }
         }
-        return { heights, paint, paint2 };
+        return paintMask ? { heights, paint, paint2, paintMask } : { heights, paint, paint2 };
     }
 
     private fromTiles(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples {
@@ -344,6 +345,7 @@ export class TiledSource implements TerrainSource {
         const p1 = painted ? new Float32Array(count * count * 4) : undefined;
         const second = this.overviewSplat2 !== null || [...this.tiles_.values()].some((t) => t.splat2);
         const p2 = painted && second ? new Float32Array(count * count * 4) : undefined;
+        let paintMask: Uint8Array | undefined;
         const n = this.doc.tileSamples - 1;
         for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
             const k = j * count + i, x = x0 + i * spacing, z = z0 + j * spacing;
@@ -354,11 +356,17 @@ export class TiledSource implements TerrainSource {
             if (!p1) continue;
             const useTile = hasPaint(tile);
             const splat = useTile ? tile.splat : this.overviewSplat, splat2 = useTile ? tile.splat2 : this.overviewSplat2;
+            if (!splat && !splat2) {
+                // Allocate only on a page that actually needs a procedural fallback.
+                paintMask ??= new Uint8Array(heights.length).fill(1, 0, k);
+                continue;
+            }
+            if (paintMask) paintMask[k] = 1;
             const su = useTile ? at.lx / n : u, sv = useTile ? at.lz / n : v;
             if (splat) fill(p1, k, splat, su, sv);
             if (p2 && splat2) fill(p2, k, splat2, su, sv);
         }
-        return this.materialRegion(heights, p1, p2);
+        return this.materialRegion(heights, p1, p2, paintMask);
     }
 }
 

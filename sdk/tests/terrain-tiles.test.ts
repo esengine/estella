@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { HeightmapFormat, sampleHeight, type Heightfield } from '../src/terrain/heightfield';
 import { TiledSource, parseTerrainTiles, type TerrainImage, type TerrainTilesDocument } from '../src/terrain/tiles';
 import { terrainPaintTargets } from '../src/terrain/paintLayers';
-import { makePage, PAGE_TEXELS } from '../src/terrain/pages';
+import { makePage, PAGE_SIDE, PAGE_TEXELS } from '../src/terrain/pages';
 
 const T = 9, TILES = 4, N = TILES * (T - 1) + 1, SIZE = 640, HEIGHT = 100;
 const ground = (u: number, v: number): number => 0.5 + 0.4 * Math.sin(u * 7) * Math.cos(v * 5);
@@ -100,6 +100,23 @@ describe('ground kept as tiles', () => {
         expect(detail.paint2?.[0]).toBeCloseTo(192 / 255);
         expect(source.paint(x, z, 0, 1)[4]).toBeCloseTo(192 / 255);
         expect((await makePage(source, x, z, 32)).paint2[0]).toBe(192);
+    });
+
+    it.each([0, 255])('keeps procedural paint beside a tile whose authored snow weight is %i', async snow => {
+        const { source: base, files } = world();
+        base.doc.tiles[0].splat = 'paint.png';
+        files.set('paint.png', { width: 2, height: 2, pixels: Uint8Array.from({ length: 16 }, (_, i) => i % 4 === 2 ? snow : 0) });
+        for (const tile of base.doc.tiles.slice(0, 2)) files.set(tile.height, image(T, T, () => 0.72));
+        const source = new TiledSource(base.doc, params, base.overview, null, null, async path => files.get(path) ?? null);
+        source.paintLayout = terrainPaintTargets(['grass', 'dirt', 'snow', 'rock']);
+        const x = -192, z = -300;
+        const page = await makePage(source, x, z, PAGE_TEXELS);
+        const bytes = (i: number) => [...page.paint.slice((PAGE_SIDE + i) * 4, (PAGE_SIDE + i + 1) * 4)];
+        expect(bytes(1)).toEqual([255 - snow, 0, snow, 0]);
+        const unpaintedX = x + 40;
+        const expected = source.paint(unpaintedX, z, source.height(unpaintedX, z)!, 1).slice(0, 4).map(w => Math.round(w * 255));
+        expect(expected[1]).toBeGreaterThan(0);
+        expect(bytes(41)).toEqual(expected);
     });
 
     it('lets go of the least recently used tiles past its budget, and reads them again when asked', async () => {
