@@ -24,7 +24,7 @@ interface ChildIndex {
     parent: AnyComponentDef;
     revision: number;
     core: ReturnType<World['getCppRegistry']>;
-    parents: Map<Entity, ReadonlyMap<string, Entity>>;
+    parents: Map<Entity, ReadonlyMap<string, Entity> | null>;
     pathsByRoot: Map<Entity, Map<string, Entity>>;
     freePathSlots: number;
 }
@@ -61,12 +61,17 @@ function childIndex(
 
 function namedChildren(
     world: ChildPathWorld, entity: Entity, children: AnyComponentDef, name: AnyComponentDef,
-    index: ChildIndex,
+    index: ChildIndex, reachedAsChild: boolean,
 ): ReadonlyMap<string, Entity> | null {
     const cached = index.parents.get(entity);
-    if (cached) return cached;
+    if (cached !== undefined) return cached;
     const data = world.tryGet(entity, children);
-    if (!data) return null;
+    if (!data) {
+        // Resolved leaves belong to the indexed hierarchy. An arbitrary caller-supplied
+        // root may not exist, so don't retain roots with no Children component.
+        if (reachedAsChild && !index.parents.has(entity)) index.parents.set(entity, null);
+        return null;
+    }
     const named = new Map<string, Entity>();
     for (const child of (data['entities'] || []) as Entity[]) {
         const value = world.tryGet(child, name)?.['value'];
@@ -74,7 +79,7 @@ function namedChildren(
     }
     // A component read can resolve another path through this same parent.
     const existing = index.parents.get(entity);
-    if (existing) return existing;
+    if (existing !== undefined) return existing;
     index.parents.set(entity, named);
     // Limit retained paths to the number of child names already held by this index.
     index.freePathSlots += named.size;
@@ -115,7 +120,7 @@ export function resolveChildEntity(
     }
     for (const segment of remaining.split('/')) {
         if (index) {
-            const child = namedChildren(world, current, Children, Name, index)?.get(segment);
+            const child = namedChildren(world, current, Children, Name, index, current !== rootEntity)?.get(segment);
             if (child === undefined) return null;
             current = child;
             continue;

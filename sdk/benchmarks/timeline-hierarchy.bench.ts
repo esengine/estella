@@ -70,13 +70,38 @@ for (const kind of ['2D sprite', '3D joint']) {
                 (registry as unknown as { delete(): void }).delete();
             };
 
-            const sample = (deps: SampleDeps) => {
+            const sample = (deps: SampleDeps, clip = asset) => {
                 if (roots.length !== actorCount) throw new Error('Timeline benchmark was not populated');
                 const time = (frame++ % 60) / 60;
-                for (const root of roots) sampleTimeline(asset, time, root, deps);
+                for (const root of roots) sampleTimeline(clip, time, root, deps);
             };
             bench('walk hierarchy', () => sample(walked), { setup, teardown, time: 500, warmupTime: 100 });
             bench('reuse named children', () => sample(indexed), { setup, teardown, time: 500, warmupTime: 100 });
+            let partial: TimelineAsset, missing: string[];
+            const setupPartial = async () => {
+                await setup();
+                missing = [];
+                partial = { ...asset, tracks: asset.tracks.map((track, i) => {
+                    if (track.type !== TrackType.Property || i < 12 || (i - 12) % 6 !== 0) return track;
+                    const childPath = `${track.childPath}/Socket`;
+                    missing.push(childPath);
+                    return { ...track, childPath };
+                }) };
+                for (const root of roots) {
+                    if (missing.some(path => resolveChildEntity(world, root, path) !== null)) {
+                        throw new Error('A missing-target benchmark path resolved');
+                    }
+                    sampleTimeline(partial, 0.5, root, indexed);
+                }
+            };
+            bench('sample with missing targets', () => sample(indexed, partial), {
+                setup: setupPartial, teardown, time: 500, warmupTime: 100,
+            });
+            bench('resolve missing socket targets', () => {
+                for (const root of roots) for (const path of missing) resolveChildEntity(world, root, path);
+            }, {
+                setup: setupPartial, teardown, time: 500, warmupTime: 100,
+            });
             bench('rename a descendant before each sample', () => {
                 world.set(lastTarget, Name, { value: frame % 2 === 0 ? 'Renamed' : 'Node54' });
                 sample(indexed);

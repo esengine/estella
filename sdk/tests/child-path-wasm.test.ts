@@ -171,6 +171,25 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
         } finally { dispose(); }
     });
 
+    it('reuses a missing descendant lookup and rechecks it when the hierarchy changes', () => {
+        const { world, node, dispose } = realm();
+        try {
+            const root = node('Root'), arm = node('Arm', root);
+            expect(resolveChildEntity(world, root, 'Arm/Socket')).toBeNull();
+            const reads = vi.spyOn(world, 'tryGet');
+            try {
+                for (let i = 0; i < 32; i++) {
+                    expect(resolveChildEntity(world, root, 'Arm/Socket')).toBeNull();
+                }
+                expect(reads.mock.calls).toHaveLength(0);
+            } finally { reads.mockRestore(); }
+            const socket = node('Socket', arm);
+            expect(resolveChildEntity(world, root, 'Arm/Socket')).toBe(socket);
+            world.removeParent(socket);
+            expect(resolveChildEntity(world, root, 'Arm/Socket')).toBeNull();
+        } finally { dispose(); }
+    });
+
     it('follows reparenting and detachment without waiting for another frame', () => {
         const { world, node, dispose } = realm();
         try {
