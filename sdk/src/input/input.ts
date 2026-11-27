@@ -569,7 +569,7 @@ export class InputState {
 
     clearFrameState(): void {
         mousePresses.delete(this);
-        positionedWheels.delete(this);
+        wheelFrames.delete(this);
         clearActionEdges(this);
         this.keysPressed.clear();
         clearTabModifiers(this);
@@ -622,11 +622,25 @@ interface PositionedWheel {
     deltaX: number;
     deltaY: number;
 }
-const positionedWheels = new WeakMap<InputState, PositionedWheel[]>();
+interface WheelFrame {
+    readonly samples: PositionedWheel[];
+    unpositionedX: number;
+    unpositionedY: number;
+    totalX: number;
+    totalY: number;
+}
+const wheelFrames = new WeakMap<InputState, WheelFrame>();
 
-/** @internal Wheel samples whose canvas positions were reported by the host. */
-export function positionedWheelSamples(state: InputState): readonly PositionedWheel[] | undefined {
-    return positionedWheels.get(state);
+/** @internal Wheel input grouped by whether the host supplied a canvas position. */
+export function wheelFrame(state: InputState): Readonly<WheelFrame> | undefined {
+    return wheelFrames.get(state);
+}
+
+/** @internal The hover fallback also accepts direct writes to the public totals. */
+export function unpositionedWheelDelta(state: InputState, frame: Readonly<WheelFrame> | undefined): Vec2 | undefined {
+    const x = (frame?.unpositionedX ?? 0) + (state.scrollDeltaX - (frame?.totalX ?? 0));
+    const y = (frame?.unpositionedY ?? 0) + (state.scrollDeltaY - (frame?.totalY ?? 0));
+    return x !== 0 || y !== 0 ? { x, y } : undefined;
 }
 
 /** The primary mouse press before a move or release superseded its position. */
@@ -732,12 +746,24 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
                 state.mouseY = y;
             }
             if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
+            if (deltaX === 0 && deltaY === 0) return;
+            let frame = wheelFrames.get(state);
+            if (!frame) {
+                frame = { samples: [], unpositionedX: 0, unpositionedY: 0, totalX: 0, totalY: 0 };
+                wheelFrames.set(state, frame);
+            }
+            // Keep direct writes made between host events in the hover fallback.
+            frame.unpositionedX += state.scrollDeltaX - frame.totalX;
+            frame.unpositionedY += state.scrollDeltaY - frame.totalY;
             state.scrollDeltaX += deltaX;
             state.scrollDeltaY += deltaY;
-            if (positioned && (deltaX !== 0 || deltaY !== 0)) {
-                let samples = positionedWheels.get(state);
-                if (!samples) positionedWheels.set(state, samples = []);
-                samples.push({ x, y, deltaX, deltaY });
+            frame.totalX = state.scrollDeltaX;
+            frame.totalY = state.scrollDeltaY;
+            if (positioned) {
+                frame.samples.push({ x, y, deltaX, deltaY });
+            } else {
+                frame.unpositionedX += deltaX;
+                frame.unpositionedY += deltaY;
             }
         },
         onTouchStart(id, x, y) {

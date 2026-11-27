@@ -3,7 +3,7 @@
 import type { App, Plugin } from '../../app/app';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
-import { Input, positionedWheelSamples, type InputState } from '../../input/input';
+import { Input, unpositionedWheelDelta, wheelFrame, type InputState } from '../../input/input';
 import { pointerProjection } from '../../input/pointerProjection';
 import { primaryPointerCancellationVersion } from '../../input/pointerCancellation';
 import { Transform, type TransformData } from '../../ecs/component';
@@ -270,15 +270,12 @@ export class UIBehaviorPlugin implements Plugin {
             Schedule.Update,
             defineSystem([Res(Input), Res(UICameraInfo), Res(ScreenOverlay)],
                 (input: InputState, camera: UICameraData, overlay: ScreenOverlayData) => {
-                let positionedX = 0, positionedY = 0;
-                const samples = positionedWheelSamples(input);
-                if (samples) {
+                const frame = wheelFrame(input);
+                if (frame?.samples.length) {
                     const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
                         overlay.active ? overlay.surfaceH : camera.screenH);
                     let missedAt: Vec2 | undefined;
-                    for (const sample of samples) {
-                        positionedX += sample.deltaX;
-                        positionedY += sample.deltaY;
+                    for (const sample of frame.samples) {
                         if (sample.x === missedAt?.x && sample.y === missedAt.y) continue;
                         missedAt = sample;
                         const screen = project(sample.x, sample.y);
@@ -291,13 +288,12 @@ export class UIBehaviorPlugin implements Plugin {
                         missedAt = undefined;
                         scrollByWheel(target, sample.deltaX, sample.deltaY);
                         // A listener can also pause execution or blur the input host.
-                        if (positionedWheelSamples(input) !== samples) return;
+                        if (wheelFrame(input) !== frame) return;
                     }
                 }
                 // Hosts and callers can still supply deltas with no event position.
-                const dx = input.scrollDeltaX - positionedX;
-                const dy = input.scrollDeltaY - positionedY;
-                if (dx !== 0 || dy !== 0) scrollByWheel(hoveredScrollTarget(false), dx, dy);
+                const delta = unpositionedWheelDelta(input, frame);
+                if (delta) scrollByWheel(hoveredScrollTarget(false), delta.x, delta.y);
             }, { name: 'ScrollWheelSystem' }),
         );
 

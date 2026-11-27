@@ -100,6 +100,37 @@ describe.skipIf(!HAS_WASM)('the UI hit test on a frame where nothing changed (WA
         } finally { behavior.cleanup(a); }
     });
 
+    it('keeps fractional positioned deltas out of the hovered wheel fallback', async () => {
+        const { a, input, button } = boot();
+        const behavior = new UIBehaviorPlugin();
+        behavior.build(a);
+        const container = new ScrollContainer({ viewportSize: { x: 100, y: 100 }, contentSize: { x: 100, y: 300 } });
+        behavior.attachScrollContainer(button, container);
+        const wheel = inputEventCallbacks(input).onWheel;
+        const offsets: number[] = [];
+        const stop = container.onScroll(offset => offsets.push(offset.y));
+        try {
+            await frames(a, 2);
+            wheel(0, 1);
+            wheel(0, 0.1, 125, 50);
+            wheel(0, -1);
+            input.mouseX = 50;
+            await frames(a, 1);
+            expect(offsets).toEqual([]);
+            input.clearFrameState();
+
+            wheel(0, 1);
+            wheel(0, 0.1, 125, 50);
+            input.scrollDeltaY += 2;
+            input.mouseX = 50;
+            await frames(a, 1);
+            expect(offsets).toEqual([3]);
+        } finally {
+            stop();
+            behavior.cleanup(a);
+        }
+    });
+
     it.each(['blur', 'hold'])('drops the rest of a wheel batch when a scroll listener causes %s', async kind => {
         const { a, input, button } = boot();
         const behavior = new UIBehaviorPlugin();
