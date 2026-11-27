@@ -787,6 +787,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("tilemap_exportChunksInWorld", ES_RENDER_BIND(tilemap_exportChunksInWorld));
     emscripten::function("tilemap_importChunks", ES_RENDER_BIND(tilemap_importChunks));
     emscripten::function("tilemap_importChunksInWorld", ES_RENDER_BIND(tilemap_importChunksInWorld));
+    emscripten::function("tilemap_importChunksFromBytes", ES_RENDER_BIND(tilemap_importChunksFromBytes));
+    emscripten::function("tilemap_importChunksFromBytesInWorld", ES_RENDER_BIND(tilemap_importChunksFromBytesInWorld));
     emscripten::function("tilemap_initInfiniteLayer", ES_RENDER_BIND(tilemap_initInfiniteLayer));
     emscripten::function("tilemap_initInfiniteLayerInWorld", ES_RENDER_BIND(tilemap_initInfiniteLayerInWorld));
     emscripten::function("tilemap_setChunkTiles", ES_RENDER_BIND(tilemap_setChunkTiles));

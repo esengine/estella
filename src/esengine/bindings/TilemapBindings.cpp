@@ -20,6 +20,7 @@
 #include <array>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -214,7 +215,7 @@ constexpr auto kBase64Digits = [] {
     return digits;
 }();
 
-bool base64Decode(const std::string& in, std::vector<u8>& out) {
+bool base64Decode(std::string_view in, std::vector<u8>& out) {
     // Ignored characters can make the decoded size smaller than this bound.
     out.resize(in.size() / 4 * 3 + in.size() % 4 * 3 / 4);
     usize written = 0;
@@ -289,13 +290,19 @@ std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
     return base64Encode(raw.data(), raw.size());
 }
 
-bool importChunks(tilemap::TilemapSystem& map, u32 entity, const std::string& encoded) {
+bool importChunks(tilemap::TilemapSystem& map, u32 entity, std::string_view encoded) {
     const auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return false;
 
     std::vector<u8> raw;
     if (!base64Decode(encoded, raw)) return false;
     return map.importChunkBlob(e, raw.data(), raw.size());
+}
+
+bool importChunksFromBytes(tilemap::TilemapSystem& map, u32 entity, uintptr_t encodedPtr, u32 size) {
+    if (size == 0) return false;
+    const auto* encoded = boundarySpan<char>(encodedPtr, size, "tilemap_importChunksFromBytes");
+    return encoded && importChunks(map, entity, std::string_view(encoded, size));
 }
 
 void initInfiniteLayer(tilemap::TilemapSystem& map, u32 entity, f32 tileWidth, f32 tileHeight) {
@@ -486,6 +493,8 @@ ES_TILEMAP_CALL(std::string, exportChunks, (u32 entity),
                 (entity))
 ES_TILEMAP_CALL(bool, importChunks, (u32 entity, const std::string& encoded),
                 (entity, encoded))
+ES_TILEMAP_CALL(bool, importChunksFromBytes, (u32 entity, uintptr_t encodedPtr, u32 size),
+                (entity, encodedPtr, size))
 
 #undef ES_TILEMAP_CALL
 #undef ES_TILEMAP_EXPAND

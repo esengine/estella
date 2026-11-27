@@ -136,6 +136,9 @@ std::string tilemap_exportChunks(u32 entity);
 std::string tilemap_exportChunksInWorld(ecs::Registry& registry, u32 entity);
 bool tilemap_importChunks(u32 entity, const std::string& encoded);
 bool tilemap_importChunksInWorld(ecs::Registry& registry, u32 entity, const std::string& encoded);
+// The same Base64 text in a heap span, with no terminating NUL required.
+bool tilemap_importChunksFromBytes(u32 entity, uintptr_t encodedPtr, u32 size);
+bool tilemap_importChunksFromBytesInWorld(ecs::Registry& registry, u32 entity, uintptr_t encodedPtr, u32 size);
 
 }  // namespace esengine
 

@@ -196,9 +196,11 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       expect(tiles.importChunks(10, wrapped)).toBe(true);
       expect(tiles.exportChunks(10)).toBe(saved);
       const revision = tiles.getEditRevision(10);
-      expect(tiles.importChunks(10, `${fixture}!`)).toBe(false);
-      expect(tiles.getEditRevision(10)).toBe(revision);
-      expect(tiles.exportChunks(10)).toBe(saved);
+      for (const suffix of ['!', '\u0000', '\u00e9', '\ud800']) {
+        expect(tiles.importChunks(10, `${fixture}${suffix}`)).toBe(false);
+        expect(tiles.getEditRevision(10)).toBe(revision);
+        expect(tiles.exportChunks(10)).toBe(saved);
+      }
     } finally { tiles.destroyLayer(10); }
   });
 });

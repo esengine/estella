@@ -406,6 +406,8 @@ export interface NativeEngineApi {
     tilemap_hasLayer?(entity: number): boolean;
     tilemap_hasLayerInWorld?(registry: unknown, entity: number): boolean;
     tilemap_importChunks?(entity: number, encoded: string): boolean;
+    tilemap_importChunksFromBytes?(entity: number, encodedPtr: number, size: number): boolean;
+    tilemap_importChunksFromBytesInWorld?(registry: unknown, entity: number, encodedPtr: number, size: number): boolean;
     tilemap_importChunksInWorld?(registry: unknown, entity: number, encoded: string): boolean;
     tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
     tilemap_initInfiniteInWorld?(registry: unknown, entity: number, tileWidth: number, tileHeight: number): void;
@@ -878,6 +880,8 @@ export function createNativeEngineApi(
     bind('tilemap_hasLayer', 'es_tilemap_hasLayer', false);
     bind('tilemap_hasLayerInWorld', 'es_tilemap_hasLayerInWorld', true);
     bind('tilemap_importChunks', 'es_tilemap_importChunks', false);
+    bind('tilemap_importChunksFromBytes', 'es_tilemap_importChunksFromBytes', false);
+    bind('tilemap_importChunksFromBytesInWorld', 'es_tilemap_importChunksFromBytesInWorld', true);
     bind('tilemap_importChunksInWorld', 'es_tilemap_importChunksInWorld', true);
     bind('tilemap_initInfinite', 'es_tilemap_initInfinite', false);
     bind('tilemap_initInfiniteInWorld', 'es_tilemap_initInfiniteInWorld', true);

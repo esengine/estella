@@ -55,6 +55,32 @@ it('accepts complete chunk rows and rejects an undersized or invalid chunk uploa
     expect(heap.subarray(0, 8)).toEqual(new Uint8Array(8));
 });
 
+it('imports chunk text through the matching world binding and releases the byte buffer', () => {
+    const registry = {};
+    const heap = new Uint8Array(64);
+    const importString = vi.fn(() => true);
+    const importBytes = vi.fn(() => true);
+    const free = vi.fn();
+    const engine: EngineApi = {
+        _malloc: () => 8, _free: free, HEAPU8: heap,
+        tilemap_initLayerInWorld: vi.fn(),
+        tilemap_importChunksFromBytes: vi.fn(() => true),
+        tilemap_importChunksInWorld: importString,
+        tilemap_importChunksFromBytesInWorld: importBytes,
+    };
+    const scoped = createTilemapAPI(engine, registry);
+    expect(scoped.importChunks(10, 'VE1BUA==')).toBe(true);
+    expect(importBytes).toHaveBeenCalledWith(registry, 10, 8, 8);
+    expect(heap.subarray(8, 16)).toEqual(new TextEncoder().encode('VE1BUA=='));
+    expect(free).toHaveBeenCalledWith(8);
+    expect(importString).not.toHaveBeenCalled();
+
+    const legacyWorld = createTilemapAPI({ ...engine, tilemap_importChunksFromBytesInWorld: undefined }, registry);
+    expect(legacyWorld.importChunks(10, 'VE1BUA==')).toBe(true);
+    expect(importString).toHaveBeenCalledWith(registry, 10, 'VE1BUA==');
+    expect(engine.tilemap_importChunksFromBytes).not.toHaveBeenCalled();
+});
+
 describe('Tilemap Components', () => {
     beforeEach(() => {
         clearUserComponents();

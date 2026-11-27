@@ -718,6 +718,8 @@ tilemap_getTilePropertyInWorld: ((registry: CppRegistry, entity: number, x: numb
 tilemap_hasLayer: ((entity: number) => boolean) | undefined
 tilemap_hasLayerInWorld: ((registry: CppRegistry, entity: number) => boolean) | undefined
 tilemap_importChunks: ((entity: number, encoded: string) => boolean) | undefined
+tilemap_importChunksFromBytes: ((entity: number, encodedPtr: number, size: number) => boolean) | undefined
+tilemap_importChunksFromBytesInWorld: ((registry: CppRegistry, entity: number, encodedPtr: number, size: number) => boolean) | undefined
 tilemap_importChunksInWorld: ((registry: CppRegistry, entity: number, encoded: string) => boolean) | undefined
 tilemap_initInfinite: ((entity: number, tileWidth: number, tileHeight: number) => void) | undefined
 tilemap_initInfiniteInWorld: ((registry: CppRegistry, entity: number, tileWidth: number, tileHeight: number) => void) | undefined

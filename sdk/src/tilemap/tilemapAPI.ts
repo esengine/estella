@@ -16,6 +16,7 @@ function isTileExtent(value: number): boolean {
 // cores only expose the original layer API and use a full chunk export for collision.
 type LayerCalls = Pick<EngineApi, Exclude<Extract<keyof EngineApi, `tilemap_${string}`>, `${string}InWorld`>>;
 type OptionalCall = 'tilemap_initInfinite' | 'tilemap_exportChunks' | 'tilemap_importChunks' | 'tilemap_removeChunk'
+    | 'tilemap_importChunksFromBytes'
     | 'tilemap_getGeneration' | 'tilemap_getEditRevision' | 'tilemap_readChunkIndex' | 'tilemap_readChunkTiles';
 type TilemapModule = Required<Omit<LayerCalls, OptionalCall>> & Pick<LayerCalls, OptionalCall>
     & Required<Pick<EngineApi, 'HEAPU8' | '_malloc' | '_free'>>;
@@ -39,7 +40,7 @@ const worldCalls = [
     'tilemap_tileToWorldInWorld', 'tilemap_worldToTileInWorld', 'tilemap_setTileAnimationInWorld',
     'tilemap_clearTileAnimationsInWorld', 'tilemap_advanceAnimationsInWorld',
     'tilemap_setTilePropertyInWorld', 'tilemap_getTilePropertyInWorld', 'tilemap_exportChunksInWorld',
-    'tilemap_importChunksInWorld',
+    'tilemap_importChunksInWorld', 'tilemap_importChunksFromBytesInWorld',
 ] as const satisfies ReadonlyArray<keyof EngineApi>;
 
 function tilemapModule(engine: EngineApi, registry?: object | null): TilemapModule {
@@ -52,9 +53,10 @@ function tilemapModule(engine: EngineApi, registry?: object | null): TilemapModu
     const scoped = Object.create(core) as TilemapModule;
     for (const name of worldCalls) {
         const operation: ((registry: object, ...args: never[]) => unknown) | undefined = core[name];
-        if (operation) Object.defineProperty(scoped, name.slice(0, -'InWorld'.length), {
-            value: operation.bind(core, registry),
-        });
+        // If only the host's byte import exists, use the world's string import instead.
+        if (operation || name === 'tilemap_importChunksFromBytesInWorld') {
+            Object.defineProperty(scoped, name.slice(0, -'InWorld'.length), { value: operation?.bind(core, registry) });
+        }
     }
     return scoped;
 }
@@ -334,7 +336,19 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     },
 
     importChunks(entity: number, encoded: string): boolean {
-        return moduleOf()?.tilemap_importChunks?.(entity, encoded) ?? false;
+        const m = moduleOf();
+        if (!m || encoded.length === 0) return false;
+        const importBytes = m.tilemap_importChunksFromBytes;
+        if (!importBytes || typeof TextEncoder === 'undefined' || !TextEncoder.prototype.encodeInto) {
+            return m.tilemap_importChunks?.(entity, encoded) ?? false;
+        }
+        return withMalloc(m, encoded.length, ptr => {
+            if (!ptr) return false;
+            const dest = m.HEAPU8.subarray(ptr, ptr + encoded.length);
+            const { read, written } = new TextEncoder().encodeInto(encoded, dest);
+            // Base64 is ASCII. Reject multibyte input instead of importing a truncated prefix.
+            return read === encoded.length && written === encoded.length && importBytes(entity, ptr, written);
+        });
     },
   };
 }
