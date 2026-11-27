@@ -973,6 +973,9 @@ export class World {
                 core.HEAPU32!.set(entities as ArrayLike<number>, ptr >> 2);
                 push.call(core, cppRegistry, ptr, entities.length);
             });
+            // The core can also reorder each parent's Children in place. Invalidate
+            // readers of sibling order, including cached name paths, in this tick.
+            this.changes_.recordWriteRevision(Children);
         } catch (e) {
             handleWasmError(e, `applyEntityOrder(count=${entities.length})`);
         }

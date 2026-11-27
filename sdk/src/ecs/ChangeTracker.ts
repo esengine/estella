@@ -495,8 +495,13 @@ export class ChangeTracker {
         return this.trackedComponents_.has(component._id);
     }
 
-    recordChanged(component: AnyComponentDef, entity: Entity): void {
+    /** A bulk write that can invalidate component readers without a per-entity write list. */
+    recordWriteRevision(component: AnyComponentDef): void {
         this.recordRevision_(component._id, false);
+    }
+
+    recordChanged(component: AnyComponentDef, entity: Entity): void {
+        this.recordWriteRevision(component);
         // Before the tracking gate, like the other two journals: a consumer that
         // enumerates writes should not have to enrol the component in `Changed`
         // tracking, whose per-entity map it cannot enumerate cheaply anyway.

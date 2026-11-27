@@ -220,6 +220,18 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
         } finally { dispose(); }
     });
 
+    it('re-resolves cached same-name paths immediately after siblings are reordered', () => {
+        const { world, node, dispose } = realm();
+        try {
+            const root = node('Root'), first = node('Rig', root), second = node('Rig', root);
+            const firstTip = node('Tip', first), secondTip = node('Tip', second);
+            expect(resolveChildEntity(world, root, 'Rig/Tip')).toBe(firstTip);
+            world.applyEntityOrder([root, second, secondTip, first, firstTip]);
+            expect(world.get(root, Children).entities).toEqual([second, first]);
+            expect(resolveChildEntity(world, root, 'Rig/Tip')).toBe(secondTip);
+        } finally { dispose(); }
+    });
+
     it('never returns a destroyed descendant after its replacement is spawned', () => {
         const { world, node, dispose } = realm();
         try {
