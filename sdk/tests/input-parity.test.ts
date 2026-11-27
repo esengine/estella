@@ -181,6 +181,42 @@ describe('input adapter parity (web vs native)', () => {
         ]);
     });
 
+    it.each(['content-box', 'border-box'])('maps touch and outside mouse to fractional canvas offsets with %s sizing', boxSizing => {
+        const outside = document.body.appendChild(document.createElement('div'));
+        Object.assign(element.style, {
+            boxSizing, width: boxSizing === 'border-box' ? '210.5px' : '195.5px',
+            height: boxSizing === 'border-box' ? '108.5px' : '95.5px', border: 'solid', padding: '2.25px',
+            borderLeftWidth: '5.25px', borderRightWidth: '5.25px',
+            borderTopWidth: '4.25px', borderBottomWidth: '4.25px',
+        });
+        Object.defineProperties(element, {
+            offsetWidth: { value: 211 }, offsetHeight: { value: 109 },
+            clientLeft: { value: 5 }, clientTop: { value: 4 },
+        });
+        element.getBoundingClientRect = () => new DOMRect(30, 40, 421, 162.75);
+        const { callbacks, trace } = recorder();
+        const position = { clientX: 30 + (220 + 5.25) * 2, clientY: 40 + (19 + 4.25) * 1.5 };
+        const down = new MouseEvent('mousedown', { button: 0 });
+        Object.defineProperties(down, { offsetX: { value: 20 }, offsetY: { value: 15 } });
+        const touch = new Event('touchstart', { cancelable: true });
+        Object.defineProperty(touch, 'changedTouches', {
+            value: [{ identifier: 9, clientX: 30 + (20 + 5.25) * 2, clientY: 40 + (15 + 4.25) * 1.5 }],
+        });
+        webAdapter.bindInputEvents(callbacks, element);
+        try {
+            element.dispatchEvent(down);
+            outside.dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true, ...position }));
+            element.dispatchEvent(touch);
+        } finally {
+            webAdapter.unbindInputEvents();
+            outside.remove();
+        }
+        expect(trace).toEqual([
+            'pointerDown 0 20,15', 'pointerUp 0 at 220,19', 'touchStart 9 20,15', 'pointerDown 0 20,15',
+            'touchCancel 9', 'pointerUp 0',
+        ]);
+    });
+
     it('reports the same mouse cancellation on web blur and native hide', () => {
         const web = recorder(), native = recorder();
         web.callbacks.onPointerCancel = button => web.trace.push(`cancel ${button}`);
