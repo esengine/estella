@@ -22,6 +22,7 @@
 #include "TilemapSystem.hpp"
 
 #include <cstring>
+#include <limits>
 #include <vector>
 
 namespace esengine {
@@ -155,13 +156,18 @@ inline bool walkBlobCells(const u8* raw, usize size, const BlobHeader& header, F
         i32 cx = 0, cy = 0;
         std::memcpy(&cx, raw + at, sizeof(cx));
         std::memcpy(&cy, raw + at + sizeof(i32), sizeof(cy));
+        const i64 left = static_cast<i64>(cx) * side;
+        const i64 top = static_cast<i64>(cy) * side;
         const u8* cells = raw + at + sizeof(i32) * 2;
         for (u32 i = 0; i < side * side; ++i) {
             u16 word = 0;
             std::memcpy(&word, cells + static_cast<usize>(i) * sizeof(u16), sizeof(word));
             if (word == EMPTY_TILE) continue;
-            emit(static_cast<i32>(cx * static_cast<i32>(side) + static_cast<i32>(i % side)),
-                 static_cast<i32>(cy * static_cast<i32>(side) + static_cast<i32>(i / side)), word);
+            const i64 x = left + i % side;
+            const i64 y = top + i / side;
+            constexpr i64 min = std::numeric_limits<i32>::min(), max = std::numeric_limits<i32>::max();
+            if (x < min || x > max || y < min || y > max) return false;
+            emit(static_cast<i32>(x), static_cast<i32>(y), word);
         }
         at += static_cast<usize>(perChunk);
     }

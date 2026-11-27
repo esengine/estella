@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { createTilemapAPI } from '../src/tilemap/tilemapAPI';
+import { decodeTilemapChunks } from '../src/tilemap/chunkCodec';
 
 describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
   let core: ESEngineModule;
@@ -83,5 +84,27 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       tiles.removeChunk(10, 0, -0x100000000);
       expect(tiles.getTile(10, 0, 0)).toBe(3);
     } finally { tiles.destroyLayer(10); }
+  });
+
+  it('imports only cells within an existing finite layer', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    tiles.initInfiniteLayer(10, 16, 16);
+    tiles.initLayer(11, 2, 2, 16, 16);
+    try {
+      tiles.setTile(10, 0, 0, 0x6004);
+      tiles.setTile(10, 2, 0, 5);
+      tiles.setTile(10, -1, 0, 6);
+      tiles.setTile(11, 1, 1, 7);
+
+      expect(tiles.importChunks(11, tiles.exportChunks(10))).toBe(true);
+      const chunks = decodeTilemapChunks(tiles.exportChunks(11));
+      expect(chunks).toHaveLength(1);
+      expect(chunks[0].tiles.filter(word => word !== 0)).toEqual(Uint16Array.of(0x6004));
+      expect(tiles.getTile(11, 0, 0)).toBe(0x6004);
+    } finally {
+      tiles.destroyLayer(10);
+      tiles.destroyLayer(11);
+    }
   });
 });

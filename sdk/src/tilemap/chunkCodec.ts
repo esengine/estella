@@ -22,6 +22,7 @@ import {
   TILEMAP_V1_CHUNK_SIZE, TILEMAP_V1_ID_MASK,
   TILEMAP_V1_FLIP_H, TILEMAP_V1_FLIP_V, TILEMAP_V1_FLIP_D,
 } from '../wasm/constants.generated';
+import { isTileCoordinate } from './tileGeometry';
 
 /**
  * Tiles per chunk side, from the C++ `CHUNK_SIZE` that owns it. Generated, so
@@ -135,6 +136,9 @@ export function decodeTilemapChunks(blob: string): DecodedChunk[] {
     if (off + perChunk > bytes.byteLength) break;   // truncated → stop
     const cx = dv.getInt32(off, true);
     const cy = dv.getInt32(off + 4, true);
+    const left = cx * side, top = cy * side;
+    const chunkFits = isTileCoordinate(left) && isTileCoordinate(top)
+      && isTileCoordinate(left + side - 1) && isTileCoordinate(top + side - 1);
     let alignedChunk: DecodedChunk | undefined;
     let at = off + 8;
     for (let i = 0; i < side * side; i++, at += 2) {
@@ -142,12 +146,13 @@ export function decodeTilemapChunks(blob: string): DecodedChunk[] {
       if (word === 0) continue;
       const cell = sameEncoding ? word & knownBits : recodeCell(word, wrote);
       if (cell < 0) return [];   // a narrowed mask cannot carry this tile
-      if (aligned) {
+      if (aligned && chunkFits) {
         (alignedChunk ??= chunkAt(cx, cy)).tiles[i] = cell;
         continue;
       }
-      const x = cx * side + (i % side);
-      const y = cy * side + Math.floor(i / side);
+      const x = left + (i % side);
+      const y = top + Math.floor(i / side);
+      if (!chunkFits && (!isTileCoordinate(x) || !isTileCoordinate(y))) return [];
       const chunk = chunkAt(floorDiv(x, CHUNK_SIZE), floorDiv(y, CHUNK_SIZE));
       chunk.tiles[floorMod(y, CHUNK_SIZE) * CHUNK_SIZE + floorMod(x, CHUNK_SIZE)] = cell;
     }

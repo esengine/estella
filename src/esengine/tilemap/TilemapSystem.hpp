@@ -79,6 +79,8 @@ public:
     void initInfiniteLayer(Entity entity, f32 tileWidth, f32 tileHeight);
     void setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
                        const u16* tiles, u32 width, u32 height);
+    /// Replace the layer's chunks from saved bytes, leaving it intact if decoding fails.
+    bool importChunkBlob(Entity entity, const u8* bytes, usize size);
     /// Takes one chunk out of the layer: its tiles are gone and the renderer lets go of what it built for them. A layer that streams a world
     /// in as it is walked needs this, or every chunk it has ever held stays.
     void removeChunk(Entity entity, i32 chunkX, i32 chunkY);

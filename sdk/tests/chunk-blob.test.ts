@@ -151,6 +151,14 @@ describe('a map saved before this engine', () => {
             .toEqual(new Map([['0,0', 3], ['31,31', 4], ['17,2', 5]]));
     });
 
+    it('preserves reachable edge cells and refuses a blob containing an unreachable cell', () => {
+        const min = -0x80000000, max = 0x7fffffff;
+        const edge = { x: Math.floor(max / CHUNK_SIZE), y: Math.floor(min / CHUNK_SIZE),
+            cells: [[CHUNK_SIZE - 1, 0, 3]] as [number, number, number][] };
+        expect(world(decodeTilemapChunks(blob(RUNNING, [edge])))).toEqual(new Map([[`${max},${min}`, 3]]));
+        expect(decodeTilemapChunks(blob(RUNNING, [edge, { ...edge, x: edge.x + 1 }]))).toEqual([]);
+    });
+
     /** The one thing a migration cannot do: a narrower mask has nowhere to put
      *  the tile, and putting SOME other tile there is the whole failure. */
     it('refuses a tile this encoding has no room for', () => {

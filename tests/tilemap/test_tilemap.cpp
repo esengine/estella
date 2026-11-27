@@ -616,6 +616,12 @@ TEST_CASE("tilemap_blob_walk") {
         std::vector<u8> cut(raw.begin(), raw.end() - 4);
         CHECK_FALSE(walkBlobCells(cut.data(), cut.size(), header, [](i32, i32, u16) {}));
     }
+
+    SUBCASE("a saved chunk cannot place a tile beyond the cell coordinate range") {
+        const i32 unreachable = std::numeric_limits<i32>::max() / static_cast<i32>(side) + 1;
+        std::memcpy(chunk, &unreachable, sizeof(unreachable));
+        CHECK_FALSE(walkBlobCells(raw.data(), raw.size(), header, [](i32, i32, u16) {}));
+    }
 }
 
 TEST_CASE("tilemap_chunk_floor") {
@@ -626,6 +632,44 @@ TEST_CASE("tilemap_chunk_floor") {
     CHECK(floorDiv(-17, 16) == -2);
     CHECK(floorMod(-1, 16) == 15);
     CHECK(floorMod(-16, 16) == 0);
+}
+
+TEST_CASE("tilemap_chunk_import_clips_finite_layers_and_commits_only_after_validation") {
+    const auto e = E(0);
+    TilemapSystem sys;
+    sys.initLayer(e, 2, 2, 16, 16);
+    sys.setTile(e, 1, 1, 9);
+    std::vector<u8> bytes;
+    appendBlobHeader(bytes, 2);
+    const auto appendChunk = [&](i32 x, i32 y, const std::vector<u16>& tiles) {
+        const auto start = bytes.size();
+        bytes.resize(start + sizeof(i32) * 2 + tiles.size() * sizeof(u16));
+        std::memcpy(bytes.data() + start, &x, sizeof(x));
+        std::memcpy(bytes.data() + start + sizeof(i32), &y, sizeof(y));
+        std::memcpy(bytes.data() + start + sizeof(i32) * 2, tiles.data(), tiles.size() * sizeof(u16));
+    };
+    std::vector<u16> tiles(CHUNK_SIZE * CHUNK_SIZE);
+    tiles[0] = 4 | TILE_FLIP_H;
+    tiles[2] = 12;
+    appendChunk(0, 0, tiles);
+    appendChunk(-1, 0, tiles);
+
+    REQUIRE(sys.importChunkBlob(e, bytes.data(), bytes.size()));
+    const auto* layer = sys.getLayerData(e);
+    CHECK(sys.getTile(e, 0, 0) == (4 | TILE_FLIP_H));
+    CHECK(sys.getTile(e, 1, 1) == EMPTY_TILE);
+    REQUIRE(layer->chunks.size() == 1);
+    CHECK(layer->chunks.at({0, 0}).tiles[2] == EMPTY_TILE);
+    const auto revision = layer->edit_revision;
+
+    const i32 unreachable = std::numeric_limits<i32>::max() / static_cast<i32>(CHUNK_SIZE) + 1;
+    const usize secondChunk = BLOB_HEADER_V2_BYTES + 2 * sizeof(i32) + tiles.size() * sizeof(u16);
+    std::memcpy(bytes.data() + secondChunk, &unreachable, sizeof(unreachable));
+    CHECK_FALSE(sys.importChunkBlob(e, bytes.data(), bytes.size()));
+    CHECK(layer->edit_revision == revision);
+    CHECK(sys.getTile(e, 0, 0) == (4 | TILE_FLIP_H));
+    CHECK_FALSE(sys.importChunkBlob(E(1), bytes.data(), bytes.size()));
+    CHECK_FALSE(sys.hasLayer(E(1)));
 }
 
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TilemapSystem.hpp"
+#include "ChunkBlob.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -172,6 +173,45 @@ void TilemapSystem::removeChunk(Entity entity, i32 chunkX, i32 chunkY) {
     if (layer->chunks.erase(ChunkCoord{chunkX, chunkY}) == 0) return;
     ++layer->edit_revision;
     ++layer->chunks_erased;
+}
+
+bool TilemapSystem::importChunkBlob(Entity entity, const u8* bytes, usize size) {
+    if (entity == INVALID_ENTITY || !bytes) return false;
+    BlobHeader header{};
+    if (!parseBlobHeader(bytes, size, header)) return false;
+
+    auto* layer = getLayerDataMut(entity);
+    const CellEncoding running = runningEncoding();
+    constexpr i32 side = static_cast<i32>(CHUNK_SIZE);
+    ChunkMap incoming;
+    ChunkData* into = nullptr;
+    ChunkCoord at{};
+    bool lost = false;
+    const bool walked = walkBlobCells(bytes, size, header, [&](i32 x, i32 y, u16 word) {
+        if (lost) return;
+        u16 cell = 0;
+        if (!recodeCell(word, header.wrote, running, cell)) { lost = true; return; }
+        if (layer && !inBounds(*layer, x, y)) return;
+        const ChunkCoord coord{floorDiv(x, side), floorDiv(y, side)};
+        if (!into || coord != at) {
+            into = &incoming[coord];
+            at = coord;
+        }
+        into->tiles[static_cast<usize>(floorMod(y, side)) * CHUNK_SIZE
+            + static_cast<usize>(floorMod(x, side))] = cell;
+    });
+    if (!walked || lost) return false;
+
+    // Scene loading can precede the first tilemap sync. Only create the
+    // placeholder after decoding has succeeded.
+    if (!layer) {
+        initInfiniteLayer(entity, 32.0f, 32.0f);
+        layer = getLayerDataMut(entity);
+    }
+    layer->clearChunks();
+    for (auto& [coord, chunk] : incoming) chunk.revision = ++layer->edit_revision;
+    layer->chunks.swap(incoming);
+    return true;
 }
 
 void TilemapSystem::destroyLayer(Entity entity) {
