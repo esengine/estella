@@ -47,11 +47,12 @@ function enclosingGroups(world: PickWorld, entity: Entity): { layer: number; ord
 }
 
 /**
- * The reads a pick needs: a box's, plus the World's own list of entities.
+ * The reads a pick needs: a box's, plus the World's entity query in storage order.
+ * Adapters supplying only the raw list are responsible for filtering activity.
  *
  * @experimental
  */
-export type PickWorld = LayoutWorld & Pick<World, 'getAllEntities'>;
+export type PickWorld = LayoutWorld & Pick<World, 'getAllEntities'> & Partial<Pick<World, 'getEntitiesWithComponents'>>;
 
 /** @experimental */
 export interface EntityPickOptions {
@@ -91,7 +92,10 @@ export function pickEntitiesByRay(
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    for (const entity of world.getAllEntities()) {
+    // Use the ECS query's effective activity, including the parent's switch.
+    // An empty filter preserves storage order for draw-order ties.
+    const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
+    for (const entity of entities) {
         if (!world.valid(entity) || !world.has(entity, Transform)) continue;
         if (opts.pickable && !opts.pickable(entity)) continue;
         // A mesh's extent is in its vertices, so it is asked for before the icon

@@ -86,7 +86,7 @@ describe('picking entities by ray', () => {
             .toEqual([ent(2), ent(1)]);
     });
 
-    it.skipIf(!HAS_WASM)('orders meshes using bounds from the engine under a mirrored parent', async () => {
+    it.skipIf(!HAS_WASM)('orders meshes under an active mirrored parent using engine bounds', async () => {
         const core = await loadWasmModule();
         const app = App.new();
         const registry = new core.Registry();
@@ -108,8 +108,16 @@ describe('picking entities by ray', () => {
             };
             const near = mesh(8, 0), far = mesh(-8, 9);
             core.transform_update(registry);
-            const hit = pickEntitiesByRay(world, { origin: { x: 20, y: -1, z: 2 }, dir: { x: -1, y: 0, z: 0 } });
-            expect(hit).toEqual([near, far]);
+            const pick = () => pickEntitiesByRay(world, { origin: { x: 20, y: -1, z: 2 }, dir: { x: -1, y: 0, z: 0 } });
+            expect(pick()).toEqual([near, far]);
+            registry.setEntityEnabled(parent, false);
+            expect(world.valid(near)).toBe(true);
+            expect(pick()).toEqual([]);
+            registry.setEntityEnabled(far, false);
+            registry.setEntityEnabled(parent, true);
+            expect(pick()).toEqual([near]);
+            registry.setEntityEnabled(far, true);
+            expect(pick()).toEqual([near, far]);
         } finally { app.quit({ keepRenderer: true }); }
     });
 

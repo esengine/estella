@@ -8560,7 +8560,7 @@ rank: DrawRank
 
 ## PickWorld — type @experimental
 ```
-LayoutWorld & Pick<World, 'getAllEntities'>
+LayoutWorld & Pick<World, 'getAllEntities'> & Partial<Pick<World, 'getEntitiesWithComponents'>>
 ```
 
 ## PickableWorld — type @experimental
