@@ -127,6 +127,7 @@ describe('a far proxy', () => {
             return { ...entry, get minX() { reads++; return minX; } };
         });
         await streamer.loadManifest(world(400, cell(0), ...distant));
+        reads = 0; // Only count reconciliation reads after manifest validation.
         streamer.update([at(500)]);
         await t.settle();
         expect(streamer.status().proxyCells).toEqual(['c_0_0']);

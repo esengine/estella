@@ -914,6 +914,33 @@ describe('world residency teardown and replacement', () => {
         expect(h.calls).toContain('unload:c_0_0:false');
     });
 
+    it('keeps resident cells and registrations when a replacement manifest is invalid', async () => {
+        const h = recordingHost();
+        const streamer = new WorldStreamer(h.host);
+        const original = manifest(cell(0, 0));
+        await streamer.loadManifest(original);
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(streamer.residencyOf('c_0_0')).toBe('resident');
+        const before = h.calls.slice();
+        const next = cell(5, 0);
+        for (const [bad, diagnostic] of [
+            [{ ...manifest(next), cellSize: Infinity }, /cellSize/],
+            [manifest({ ...next, x: Number.MAX_VALUE }), /grid coordinates/],
+            [manifest({ ...next, minX: next.maxX + 1 }), /bounds/],
+            [manifest(next, { ...next, path: 'duplicate.json' }), /c_5_0.*already used/],
+            [{ ...manifest({ ...next, proxy: 'far.json' }, { ...cell(6, 0), name: 'c_5_0#far' }), farDistance: 500 },
+                /c_5_0#far.*already used/],
+        ] as const) {
+            await expect(streamer.loadManifest(bad)).rejects.toThrow(diagnostic);
+            expect(streamer.manifest).toBe(original);
+            expect(streamer.residencyOf('c_0_0')).toBe('resident');
+            expect(h.calls).toEqual(before);
+        }
+        await streamer.loadManifest(manifest(next));
+        expect(streamer.manifest?.cells).toEqual([next]);
+    });
+
     it('returns old preparation receipts before reusing a cell name', async () => {
         const h = recordingHost(); h.defer(true);
         const streamer = new WorldStreamer(h.host);

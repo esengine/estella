@@ -44,6 +44,7 @@ import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
 import { WorldMemoryRes } from '../residency/worldMemory';
 import type { WorldManifest } from '../residency/cells';
+import { assertWorldManifest } from '../residency/manifest';
 import type { CutWorld } from '../residency/cutWorld';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
@@ -1154,20 +1155,21 @@ export function applyFixedTimestep(app: Pick<App, 'setFixedTimestep'>, physics: 
 function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>): void {
     const { app } = config;
     const manager = app.getResource(SceneManager);
+    const sceneNames = new Set(config.scenes.map(scene => scene.name));
     const worlds = new Map<string, { manifest: WorldManifest; documents?: ReadonlyMap<string, SceneData> }>();
-    for (const manifest of config.worlds ?? []) worlds.set(manifest.scene, { manifest, documents: config.cellDocuments });
+    for (const manifest of config.worlds ?? []) {
+        assertWorldManifest(manifest, { sceneNames });
+        worlds.set(manifest.scene, { manifest, documents: config.cellDocuments });
+    }
     if (worlds.size > 0) enableSceneOrigins(app);
     for (const scene of config.scenes) {
         const { worldPath } = scene;
         const prepareDocument = async (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void): Promise<SceneData> => {
             if (worldPath) {
                 if (!worlds.has(scene.name)) {
-                    const manifest = JSON.parse(await app.getResource(AssetsResource).backend.fetchText(worldPath)) as WorldManifest;
+                    const manifest: unknown = JSON.parse(await app.getResource(AssetsResource).backend.fetchText(worldPath));
                     assertActive();
-                    if (manifest?.version !== 1 || manifest.scene !== scene.name || !Array.isArray(manifest.cells)
-                        || !Array.isArray(manifest.persistentRefs)) {
-                        throw new Error(`Invalid world manifest "${worldPath}" for scene "${scene.name}"`);
-                    }
+                    assertWorldManifest(manifest, { scene: scene.name, path: worldPath, sceneNames });
                     onPublish(() => { worlds.set(scene.name, { manifest, documents: config.cellDocuments }); });
                 }
             } else if (config.prepareWorld) {
@@ -1177,6 +1179,7 @@ function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRunt
                     onPublish(() => { worlds.delete(scene.name); });
                     return data;
                 }
+                assertWorldManifest(cut.manifest, { scene: scene.name, sceneNames });
                 onPublish(() => { worlds.set(scene.name, { manifest: cut.manifest, documents: cut.documents }); });
                 data = cut.persistent;
             }

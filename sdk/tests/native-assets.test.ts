@@ -149,7 +149,6 @@ describe('packaged scene files', () => {
                 minX: 0, minZ: 0, maxX: 100, maxZ: 100, entityCount: 0 }],
         });
         files.set(worlds[0]!.manifest, manifest('levels/a'));
-        files.set(worlds[1]!.manifest, manifest('wrong'));
         const bridge = makeBridge({});
         const read = vi.fn(async (path: string) => {
             if (!files.has(path)) throw new Error(path);
@@ -171,11 +170,19 @@ describe('packaged scene files', () => {
             expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
             expect(read.mock.calls.flat()).not.toContain(worlds[1]!.manifest);
             const original = manager.getScene('levels/a');
-            await expect(manager.switchTo('levels/b')).rejects.toThrow(/Invalid world manifest/);
-            expect(manager.getActive()).toBe('levels/a');
-            expect(manager.getScene('levels/a')).toBe(original);
-            expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
-            expect(manager.isLoaded('levels/b')).toBe(false);
+            const target = manifest('levels/b');
+            for (const [bad, diagnostic] of [
+                [manifest('wrong'), /Invalid world manifest/],
+                [{ ...target, cells: [{ ...target.cells[0], maxX: null }] }, /shared.*bounds/],
+                [{ ...target, cells: [{ ...target.cells[0], name: 'menu' }] }, /menu.*already used/],
+            ] as const) {
+                files.set(worlds[1]!.manifest, bad);
+                await expect(manager.switchTo('levels/b')).rejects.toThrow(diagnostic);
+                expect(manager.getActive()).toBe('levels/a');
+                expect(manager.getScene('levels/a')).toBe(original);
+                expect(worldCellDocumentPath(app, 'shared')).toBe('levels/a/shared.json');
+                expect(manager.isLoaded('levels/b')).toBe(false);
+            }
             files.set(worlds[1]!.manifest, manifest('levels/b'));
             await manager.switchTo('levels/b');
             expect(streamer.manifest?.scene).toBe('levels/b');
@@ -186,7 +193,7 @@ describe('packaged scene files', () => {
             expect(streamer.sourceSceneAllowed?.('levels/b')).toBe(true);
             expect(streamer.sourceSceneAllowed?.('menu')).toBe(true);
             await manager.reload();
-            expect(read.mock.calls.flat().filter(path => path === worlds[1]!.manifest)).toHaveLength(2);
+            expect(read.mock.calls.flat().filter(path => path === worlds[1]!.manifest)).toHaveLength(4);
             await manager.switchTo('menu');
             expect(streamer.manifest).toBeNull();
             expect(worldCellDocumentPath(app, 'shared')).toBeUndefined();

@@ -22,6 +22,7 @@ import {
     type ResidencySource, type SourceBounds, type WorldCell, type WorldManifest,
 } from './cells';
 import { farProxySceneName } from './farProxy';
+import { assertWorldManifest } from './manifest';
 import type { SceneConfig } from '../scene/sceneManager';
 import {
     sameReadiness, type RenderReadiness, type RenderReadinessStamp,
@@ -279,6 +280,7 @@ export class WorldStreamer {
         manifest: WorldManifest | null, sceneConfig?: (cell: WorldCell) => SceneConfig,
         proxyConfig?: (cell: WorldCell, scene: string, path: string) => SceneConfig,
     ): Promise<void> {
+        if (manifest !== null) assertWorldManifest(manifest);
         const request = ++this.manifestRequest_;
         if (this.cells_.size > 0 || this.clearing_) await this.clearCells_();
         if (request !== this.manifestRequest_) return;
