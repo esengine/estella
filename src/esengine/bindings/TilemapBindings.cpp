@@ -16,6 +16,7 @@
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -239,7 +240,7 @@ bool base64Decode(const std::string& in, std::vector<u8>& out) {
 //   repeated for each chunk:
 //     i32 chunkX, i32 chunkY
 //     u16 tiles[chunkSize * chunkSize]
-// Empty chunks are skipped to keep the payload compact for sparse maps.
+// Non-empty chunks are stored in row-major coordinate order.
 std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
     auto e = Entity::fromRaw(entity);
     const auto* layer = map.getLayerData(e);
@@ -254,6 +255,9 @@ std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
         }
         if (anyTile) nonEmpty.emplace_back(coord, &chunk);
     }
+    std::sort(nonEmpty.begin(), nonEmpty.end(), [](const auto& a, const auto& b) {
+        return a.first.y == b.first.y ? a.first.x < b.first.x : a.first.y < b.first.y;
+    });
 
     const u32 count = static_cast<u32>(nonEmpty.size());
     const usize perChunk = sizeof(i32) * 2

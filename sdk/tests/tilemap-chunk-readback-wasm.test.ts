@@ -136,4 +136,28 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       expect(tiles.getGeneration(10)).toBe(generation);
     } finally { tiles.destroyLayer(10); }
   });
+
+  it('exports identical chunk data in row order regardless of edit history', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    const cells = [[32, -1, 2], [0, 17, 0x6003], [-1, -1, 4], [-1, 0, 5]] as const;
+    tiles.initInfiniteLayer(10, 16, 16);
+    tiles.initInfiniteLayer(11, 16, 16);
+    try {
+      for (const [x, y, word] of cells) tiles.setTile(10, x, y, word);
+      for (const [x, y, word] of [...cells].reverse()) tiles.setTile(11, x, y, word);
+      tiles.setTile(11, 128, 64, 7);
+      tiles.setTile(11, 128, 64, 0);
+
+      const blob = tiles.exportChunks(10);
+      expect(tiles.exportChunks(11)).toBe(blob);
+      expect(decodeTilemapChunks(blob).map(({ x, y }) => [x, y])).toEqual([[-1, -1], [2, -1], [-1, 0], [0, 1]]);
+      expect(tiles.importChunks(11, blob)).toBe(true);
+      expect(tiles.exportChunks(11)).toBe(blob);
+      for (const [x, y, word] of cells) expect(tiles.getTile(11, x, y)).toBe(word);
+    } finally {
+      tiles.destroyLayer(10);
+      tiles.destroyLayer(11);
+    }
+  });
 });
