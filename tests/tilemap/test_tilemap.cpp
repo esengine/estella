@@ -50,6 +50,43 @@ TEST_CASE("tilemap_unchanged_writes_preserve_sparse_storage_and_revision") {
     CHECK(layer->edit_revision == revision + 1);
 }
 
+TEST_CASE("tilemap_rectangle_matches_row_major_cell_edits") {
+    TilemapSystem bulk, individual;
+    bulk.initInfiniteLayer(E(0), 16, 16);
+    individual.initInfiniteLayer(E(0), 16, 16);
+    for (auto* system : {&bulk, &individual}) {
+        system->setTile(E(0), -17, -1, 3);
+        system->setTile(E(0), 0, 0, 3);
+        system->setTile(E(0), 17, 1, 4);
+        system->setTile(E(0), 100, 100, 5);
+    }
+
+    const auto checkRect = [&](i32 left, i32 top, u32 width, u32 height, u16 word) {
+        bulk.fillRect(E(0), left, top, width, height, word);
+        for (u32 y = 0; y < height; ++y) {
+            for (u32 x = 0; x < width; ++x) {
+                individual.setTile(E(0), left + static_cast<i32>(x), top + static_cast<i32>(y), word);
+            }
+        }
+        const auto& actual = *bulk.getLayerData(E(0));
+        const auto& expected = *individual.getLayerData(E(0));
+        CHECK(actual.edit_revision == expected.edit_revision);
+        CHECK(actual.chunks_erased == expected.chunks_erased);
+        REQUIRE(actual.chunks.size() == expected.chunks.size());
+        for (const auto& [coord, chunk] : expected.chunks) {
+            REQUIRE(actual.chunks.contains(coord));
+            CHECK(actual.chunks.at(coord).revision == chunk.revision);
+            for (u32 i = 0; i < CHUNK_SIZE * CHUNK_SIZE; ++i) {
+                CHECK(actual.chunks.at(coord).tiles[i] == chunk.tiles[i]);
+            }
+        }
+    };
+
+    checkRect(-18, -2, 37, 21, 3);
+    checkRect(-18, -2, 37, 21, 3);
+    checkRect(-20, 0, 40, 20, EMPTY_TILE);
+}
+
 TEST_CASE("tilemap_init_layer") {
     TilemapSystem sys;
 

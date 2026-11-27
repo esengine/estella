@@ -260,9 +260,35 @@ void TilemapSystem::fillRect(Entity entity, i32 x, i32 y,
         endY = std::min(endY, static_cast<i64>(layer.height));
     }
     if (startX >= endX || startY >= endY) return;
+
+    constexpr i64 side = CHUNK_SIZE;
     for (i64 ty = startY; ty < endY; ++ty) {
-        for (i64 tx = startX; tx < endX; ++tx) {
-            writeTile(layer, static_cast<i32>(tx), static_cast<i32>(ty), tileId);
+        const i32 cy = chunkOf(static_cast<i32>(ty));
+        const usize row = static_cast<usize>(ty - cy * side) * CHUNK_SIZE;
+        for (i64 tx = startX; tx < endX;) {
+            const i32 cx = chunkOf(static_cast<i32>(tx));
+            const i64 chunkLeft = cx * side;
+            const i64 spanEnd = std::min(endX, chunkLeft + side);
+            const ChunkCoord coord{cx, cy};
+            auto chunk = tileId == EMPTY_TILE ? layer.chunks.find(coord)
+                                              : layer.chunks.try_emplace(coord).first;
+            if (chunk != layer.chunks.end()) {
+                auto& data = chunk->second;
+                u16* first = data.tiles + row + (tx - chunkLeft);
+                const u16* last = first + (spanEnd - tx);
+                u32 changed = 0;
+                for (; first != last; ++first) {
+                    if (*first == tileId) continue;
+                    *first = tileId;
+                    ++changed;
+                }
+                // Keep the revisions of the equivalent row-major cell writes.
+                if (changed != 0) {
+                    layer.edit_revision += changed;
+                    data.revision = layer.edit_revision;
+                }
+            }
+            tx = spanEnd;
         }
     }
 }
