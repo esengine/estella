@@ -98,6 +98,23 @@ describe('cooking a world with far proxies', () => {
         expect(manifest.cells[0]?.proxy).toBe('world/main.cell_0_0.far.json');
     });
 
+    it('bakes far proxies from an inherited prefab declaration with instance overrides', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const file = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(file, 'utf8'));
+        const asset = 'assets/prefabs/WorldSettings.esprefab';
+        await writeFile(path.join(root, asset), JSON.stringify({ rootEntityId: 'r', entities: [
+            { prefabEntityId: 'r', name: 'Settings', components: scene.entities[0].components },
+        ] }));
+        scene.entities[0] = { id: 0, name: 'Settings', parent: null, prefab: asset, added: [], removed: [],
+            overrides: [{ prefabEntityId: 'r', type: 'property', componentType: 'StreamedWorld', propertyName: 'farDistance', value: 3500 }],
+        };
+        await writeFile(file, JSON.stringify(scene));
+        const { manifest } = await cook(root);
+        expect(manifest.farDistance).toBe(3500);
+        expect(manifest.cells[0]?.proxy).toBe('world/main.cell_0_0.far.json');
+    });
+
     it('keeps manifests, cells, proxies and meshes distinct for nested names, literal escapes and Unicode', async () => {
         const root = await world({ farProxies: true, farDistance: 5000 });
         const names = ['levels/second', 'levels_second', 'levels~2f~second', '地图一', '地图二'];

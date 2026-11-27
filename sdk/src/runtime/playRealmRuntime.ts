@@ -21,7 +21,6 @@ import type { ESEngineModule } from '../wasm';
 import { initRuntime } from './runtimeLoader';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
-import { streamedWorldDeclaration } from '../residency/partitionWorld';
 import { registryEntityFields } from '../residency/componentRefs';
 import { deferFarProxies, farProxySceneName, farProxySettings, type FarProxyHost } from '../residency/farProxy';
 import { decodeMesh, encodeMesh } from '../asset/meshFormat';
@@ -255,12 +254,12 @@ function withUrlSettings(settings: Partial<RuntimeAssetSource>, manifest: Record
  */
 export async function cutPlayWorld(
     scene: SceneData, sceneName: string, resolveRef: (ref: string) => string,
-): Promise<CutWorld | null> {
-    if (!streamedWorldDeclaration(scene)) return null;
-    const resolvePrefab = await resolvePrefabRoots(scene, async (ref) => {
-        const response = await fetch(resolveRef(ref));
+    readPrefab: (url: string) => Promise<unknown | null> = async (url) => {
+        const response = await fetch(url);
         return response.ok ? await response.json() as unknown : null;
-    });
+    },
+): Promise<CutWorld | null> {
+    const resolvePrefab = await resolvePrefabRoots(scene, ref => readPrefab(resolveRef(ref)));
     const cut = cutWorld(scene, sceneName, {
         // The realm's registry, which by now holds the project's own components
         // as well as the engine's — so a cross-cell reference a cook could not
@@ -291,7 +290,7 @@ export async function addPlayFarProxies(
     cut: CutWorld, scene: SceneData, resolveRef: (ref: string) => string, made: PlayMade,
     simplify?: FarProxyHost['simplify'],
 ): Promise<void> {
-    const settings = farProxySettings(scene);
+    const settings = farProxySettings(scene, cut);
     if (settings === null || settings.farDistance <= 0) return;
     const fetched = async (ref: string): Promise<Response | null> => {
         const response = await fetch(resolveRef(ref));
@@ -352,7 +351,8 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
             ...(config.extraScenes ?? []).filter((s) => s.name !== entryName),
         ],
         async prepareWorld(data, name) {
-            const cut = await cutPlayWorld(data, name, resolveRef);
+            const cut = await cutPlayWorld(data, name, resolveRef,
+                async url => JSON.parse(await source.backend.fetchText(url)) as unknown);
             if (cut) {
                 life.throwIfAborted();
                 await addPlayFarProxies(cut, data, resolveRef, made, config.simplifyFarProxy);

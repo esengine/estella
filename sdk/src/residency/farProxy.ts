@@ -74,8 +74,8 @@ function finite(value: unknown, fallback: number): number {
 }
 
 /** The world's far-proxy settings, or null when its `StreamedWorld` does not ask for far proxies. @experimental */
-export function farProxySettings(scene: SceneData): FarProxySettings | null {
-    const declaration = streamedWorldData(scene);
+export function farProxySettings(scene: SceneData, cut?: CutWorld): FarProxySettings | null {
+    const declaration = cut?.streamedWorld ?? streamedWorldData(scene);
     if (declaration?.farProxies !== true) return null;
     return {
         farDistance: Math.max(0, finite(declaration.farDistance, 8000)),

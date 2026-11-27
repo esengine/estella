@@ -19,6 +19,7 @@ vi.mock('../src/runtime/packagedRuntime', () => ({ applyAssetRefResolvers: vi.fn
 import { cutPlayWorld, initPlayRealmRuntime } from '../src/runtime/playRealmRuntime';
 import type { RuntimeInitConfig } from '../src/runtime/runtimeLoader';
 import { cellDocumentPath } from '../src/residency/cutWorld';
+import { farProxySettings } from '../src/residency/farProxy';
 import { defineComponent } from '../src/ecs/component';
 import type { Entity } from '../src/types';
 import type { SceneData } from '../src/scene/scene';
@@ -172,6 +173,31 @@ describe('the snapshot Play boots', () => {
         expect(cut.manifest.cells.map(cell => cell.name)).toEqual(['main.cell_1_0']);
     });
 
+    it('inherits world settings from a prefab variant and honors a scene instance removal', async () => {
+        const base = 'base.esprefab';
+        const fetch = vi.fn(async (url: string) => ({ ok: true, json: async () =>
+            url === resolveRef(base)
+                ? { rootEntityId: 'r', entities: [{ prefabEntityId: 'r', ...entity(0, 'Settings', [0, 0, 0], {
+                    components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, farProxies: true } }],
+                }) }] }
+                : { rootEntityId: 'r', basePrefab: base, entities: [], overrides: [{ type: 'property', prefabEntityId: 'r',
+                    componentType: 'StreamedWorld', propertyName: 'plane', value: 1 }] },
+        }));
+        vi.stubGlobal('fetch', fetch);
+        const settings = { id: 1, name: 'Settings', parent: null, prefab: PREFAB, added: [], removed: [] };
+        const prop = entity(2, 'Sprite', [1500, 2500, 0]);
+        const document = scene({ ...settings, overrides: [{ type: 'property', prefabEntityId: 'r',
+            componentType: 'StreamedWorld', propertyName: 'cellSize', value: 500 }] }, prop);
+        const cut = (await cutPlayWorld(document, 'main', resolveRef))!;
+        expect(cut.manifest.plane).toBe('xy');
+        expect(cut.manifest.cells.map(cell => cell.name)).toEqual(['main.cell_3_5']);
+        expect(names(cut.persistent)).toEqual(['Settings']);
+        expect(farProxySettings(document, cut)?.farDistance).toBe(8000);
+        expect(fetch.mock.calls.flat()).toEqual([resolveRef(PREFAB), resolveRef(base)]);
+        await expect(cutPlayWorld(scene({ ...settings, overrides: [{ type: 'component_removed', prefabEntityId: 'r',
+            componentType: 'StreamedWorld' }] }, prop), 'main', resolveRef)).resolves.toBeNull();
+    });
+
     it('refuses a world a build would refuse, rather than playing it whole', async () => {
         vi.stubGlobal('fetch', refuseFetch);
         await expect(cutPlayWorld(scene(
@@ -245,16 +271,21 @@ describe('what Play hands the shipping runtime', () => {
         }
     });
 
-    it('gives each cell with static meshes the far proxy a build would, made when first fetched and served from memory', async () => {
+    it.each([false, true])('serves the same lazy far proxy as the build with a captured prefab declaration=%s', async inherited => {
         const cube: Component = { type: 'MeshRenderer', data: { mesh: 'builtin:cube', opaque: true } };
         // The editor's simplifier, stood in for: what it hands back is what the proxy draws.
         const simplify = vi.fn(async (mesh: MeshData) => ({ ...mesh, indices: mesh.indices.slice(0, 3) }));
+        const settings = entity(0, 'World', null, { components: [{ type: 'StreamedWorld',
+            data: { cellSize: SIZE, farProxies: true, farDistance: 4000 } }] });
+        const prefab = 'assets/World.esprefab';
         const config = await boot(scene(
-            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, farProxies: true, farDistance: 4000 } }] }),
+            inherited ? { id: 0, prefab, parent: null, overrides: [], added: [], removed: [] } : settings,
             entity(1, 'Player', [10, 0, 10], { components: [{ type: 'WorldPersistent', data: {} }] }),
             entity(2, 'RockA', [500, 0, 500], { components: [cube] }),
             entity(3, 'RockB', [1500, 0, 500]),
-        ), { simplifyFarProxy: simplify });
+        ), { simplifyFarProxy: simplify, ...(inherited ? { assetDocuments: [{ path: prefab, contents: JSON.stringify({
+            rootEntityId: 'r', entities: [{ prefabEntityId: 'r', ...settings }],
+        }) }] } : {}) });
         const world = (await config.prepareWorld!(config.scenes[0].data!, 'main'))!.manifest;
         expect(world.farDistance).toBe(4000);
         expect(world.cells.map((c) => c.proxy)).toEqual(['world/main.cell_0_0.far.json', undefined]);

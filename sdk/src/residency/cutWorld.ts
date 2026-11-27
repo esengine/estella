@@ -62,6 +62,8 @@ export interface CutWorld {
      */
     errors: readonly string[];
     warnings: readonly string[];
+    /** The effective declaration, including prefab inheritance and instance overrides. */
+    streamedWorld?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -98,6 +100,7 @@ export function cutWorld(
         documents,
         errors: partition.errors,
         warnings: partition.warnings,
+        streamedWorld: partition.streamedWorld,
     };
 }
 
@@ -125,12 +128,14 @@ function authoredPrefabRoot(prefab: PrefabDocument | null) {
 
 function rootPlacement(rootId: string, components: PrefabEntityData['components'] | undefined): PrefabRoot {
     const data = components?.find((c) => c.type === 'Transform')?.data;
+    const declaration = components?.find((c) => c.type === 'StreamedWorld');
     const at = (data?.position ?? {}) as Partial<PrefabRoot['position']>;
     return {
         rootId,
         position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 },
         transform: data ? cloneComponentData(data) : null,
         ...(components?.some(component => component.type === 'WorldPersistent') ? { worldPersistent: true } : {}),
+        ...(declaration ? { streamedWorld: cloneComponentData(declaration.data ?? {}) } : {}),
     };
 }
 

@@ -20,19 +20,24 @@ describe('targets that cannot ship a cut world', () => {
         ['plain', 'StreamedWorld', false],
         ['escaped', String.raw`\u0053treamedWorld`, false],
         ['prefab instance override', 'StreamedWorld', true],
-    ] as const)('refuses a streamed world declared by a %s component', async (_kind, componentName, instance) => {
+        ['inherited prefab root', 'StreamedWorld', true],
+    ] as const)('refuses a streamed world declared by a %s component', async (kind, componentName, instance) => {
         const { exportGame } = await import('../src/export/exportGame');
         const project = await mkdtemp(path.join(tmpdir(), 'streamed-'));
         try {
             await mkdir(path.join(project, 'assets', 'scenes'), { recursive: true });
             const declaration = { type: 'StreamedWorld', data: { cellSize: SIZE } };
+            const inherited = kind === 'inherited prefab root';
+            if (inherited) await writeFile(path.join(project, 'assets', 'Settings.esprefab'), JSON.stringify({
+                name: 'Settings', rootEntityId: 'r', entities: [{ prefabEntityId: 'r', components: [declaration] }],
+            }));
             await writeFile(path.join(project, 'assets', 'scenes', 'main.esscene'),
                 JSON.stringify({
                     version: 4, name: 'main',
                     entities: [
                         instance
                             ? { id: 0, prefab: 'assets/Settings.esprefab', parent: null, added: [], removed: [],
-                                overrides: [{ prefabEntityId: 'r', type: 'component_added', componentData: declaration }] }
+                                overrides: inherited ? [] : [{ prefabEntityId: 'r', type: 'component_added', componentData: declaration }] }
                             : { id: 0, name: 'World', parent: null, children: [], visible: true, components: [declaration] },
                         { id: 1, name: 'RockA', parent: null, children: [], visible: true,
                           components: [{ type: 'Transform', data: { position: { x: 500, y: 0, z: 500 } } }] },

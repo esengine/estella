@@ -59,15 +59,26 @@ function worldAssets(root: string, index: AssetIndex): FarProxyHost {
     };
 }
 
+function lazyWorldAssets(root: string): () => Promise<FarProxyHost> {
+    let assets: Promise<FarProxyHost> | undefined;
+    return () => assets ??= (async () => {
+        const index = await readCachedAssetIndex(root)
+            ?? (await scanAssetDatabase(root, { write: false, adopt: false })).index;
+        return worldAssets(root, index);
+    })();
+}
+
 /** Which of `scenes` have a streamed world declaration understood by Play and the world cooker. */
 export async function streamedScenes(
     root: string, scenes: ReadonlyArray<{ name: string; path: string }>,
 ): Promise<string[]> {
     const declared: string[] = [];
+    const assets = lazyWorldAssets(root);
     for (const scene of scenes) {
         try {
             const document = JSON.parse(await readFile(path.join(root, scene.path), 'utf8')) as SceneData;
-            if (streamedWorldDeclaration(document)) {
+            const resolvePrefab = await resolvePrefabRoots(document, async ref => (await assets()).loadPrefab(ref));
+            if (streamedWorldDeclaration(document, resolvePrefab)) {
                 declared.push(scene.name);
             }
         } catch { /* The scene loader handles unreadable documents. */ }
@@ -89,7 +100,7 @@ export async function cookWorlds(
     const warnings: string[] = [];
     const farProxies: CookWorldsResult['farProxies'] = [];
     const sceneNames = new Set(scenes.map(scene => scene.name));
-    let assets: FarProxyHost | undefined;
+    const assets = lazyWorldAssets(root);
 
     for (const scene of scenes) {
         const staged = path.join(payloadDir, scene.path);
@@ -100,16 +111,9 @@ export async function cookWorlds(
             continue;  // not staged for this target
         }
         const document = JSON.parse(text) as SceneData;
-        if (!streamedWorldDeclaration(document)) continue;
-
-        if (!assets) {
-            const index = await readCachedAssetIndex(root)
-                ?? (await scanAssetDatabase(root, { write: false, adopt: false })).index;
-            assets = worldAssets(root, index);
-        }
         const cut = cutWorld(document, scene.name, {
             entityFieldsOf: registryEntityFields(),
-            resolvePrefab: await resolvePrefabRoots(document, assets.loadPrefab),
+            resolvePrefab: await resolvePrefabRoots(document, async ref => (await assets()).loadPrefab(ref)),
         });
         if (cut === null) continue;
         if (cut.errors.length > 0) {
@@ -120,9 +124,9 @@ export async function cookWorlds(
         }
         warnings.push(...cut.warnings.map((w) => `${scene.name}: ${w}`));
 
-        const far = farProxySettings(document);
+        const far = farProxySettings(document, cut);
         const proxies = far !== null && far.farDistance > 0
-            ? await assembleFarProxies(cut, far, { ...assets, simplify: simplifyFarProxyMesh })
+            ? await assembleFarProxies(cut, far, { ...await assets(), simplify: simplifyFarProxyMesh })
             : null;
         const manifestPath = worldManifestPath(scene.name);
         assertWorldManifest(cut.manifest, { scene: scene.name, path: manifestPath, sceneNames });

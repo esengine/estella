@@ -3616,6 +3616,7 @@ documents: Map<string, SceneData>
 errors: readonly string[]
 manifest: WorldManifest
 persistent: SceneData
+streamedWorld: Readonly<Record<string, unknown>> | undefined
 warnings: readonly string[]
 ```
 
@@ -9258,6 +9259,7 @@ value: unknown
 ```
 position: Vec3
 rootId: string
+streamedWorld: Readonly<Record<string, unknown>> | undefined
 transform: Readonly<Record<string, unknown>> | null | undefined
 worldPersistent: boolean | undefined
 ```
@@ -16117,6 +16119,7 @@ errors: string[]
 persistent: SceneData
 persistentRefs: number[]
 plane: "xy" | "xz"
+streamedWorld: Readonly<Record<string, unknown>> | undefined
 warnings: string[]
 ```
 
@@ -18050,7 +18053,7 @@ EventBindingPlugin
 
 ## farProxySettings — function @experimental
 ```
-(scene: SceneData): FarProxySettings | null
+(scene: SceneData, cut?: CutWorld): FarProxySettings | null
 ```
 
 ## farProxySurfaces — function @experimental

@@ -45,6 +45,8 @@ export interface PrefabRoot {
     transform?: Readonly<Record<string, unknown>> | null;
     /** Whether the asset root carries WorldPersistent after asset-level overrides. */
     worldPersistent?: boolean;
+    /** StreamedWorld data from the prefab asset root, after asset-level overrides. */
+    streamedWorld?: Readonly<Record<string, unknown>>;
 }
 
 export interface PartitionOptions {
@@ -83,6 +85,8 @@ export interface WorldPartition {
     /** Refuse the build. A dangling hard reference is not a warning. */
     errors: string[];
     warnings: string[];
+    /** The effective StreamedWorld settings shared by the cut and far proxies. */
+    streamedWorld?: Readonly<Record<string, unknown>>;
 }
 
 const ORIGIN: Vec3 = { x: 0, y: 0, z: 0 };
@@ -102,7 +106,7 @@ interface WorldDeclaration {
     prefabEntityId?: string;
 }
 
-function declarationsOn(entry: SceneEntry): WorldDeclaration[] | undefined {
+function declarationsOn(entry: SceneEntry, asset?: PrefabRoot | null): WorldDeclaration[] | undefined {
     let declarations: WorldDeclaration[] | undefined;
     if (!isPrefabEntry(entry)) {
         for (const component of componentsOf(entry)) {
@@ -121,9 +125,14 @@ function declarationsOn(entry: SceneEntry): WorldDeclaration[] | undefined {
         if (target) target.push(override);
         else byTarget.set(override.prefabEntityId, [override]);
     }
+    if (asset?.streamedWorld && !byTarget?.has(asset.rootId)) {
+        (byTarget ??= new Map()).set(asset.rootId, []);
+    }
     for (const [prefabEntityId, overrides] of byTarget ?? []) {
         if (entry.removed?.includes(prefabEntityId)) continue;
-        const target = { prefabEntityId, name: '', visible: true, components: [] as SceneComponentData[] };
+        const inherited = asset?.rootId === prefabEntityId ? asset.streamedWorld : undefined;
+        const components: SceneComponentData[] = inherited ? [{ type: 'StreamedWorld', data: { ...inherited } }] : [];
+        const target = { prefabEntityId, name: '', visible: true, components };
         applyOverrides(target, overrides);
         const component = target.components[0];
         if (component) (declarations ??= []).push({ entry, data: component.data ?? {}, prefabEntityId });
@@ -131,10 +140,11 @@ function declarationsOn(entry: SceneEntry): WorldDeclaration[] | undefined {
     return declarations;
 }
 
-/** Scene-authored settings, including overrides. Ordinary scenes need no prefab reads to opt out. */
-export function streamedWorldDeclaration(scene: SceneData): WorldDeclaration | undefined {
+/** Effective declaration from a scene entry or a resolved prefab root. */
+export function streamedWorldDeclaration(scene: SceneData, resolvePrefab?: PartitionOptions['resolvePrefab']): WorldDeclaration | undefined {
     for (const entry of scene.entities ?? []) {
-        const declaration = declarationsOn(entry)?.[0];
+        const asset = isPrefabEntry(entry) ? resolvePrefab?.(entry.prefab) : undefined;
+        const declaration = declarationsOn(entry, asset)?.[0];
         if (declaration) return declaration;
     }
     return undefined;
@@ -245,7 +255,7 @@ export function partitionWorld(
     scene: SceneData, sceneName: string, options: PartitionOptions,
 ): WorldPartition | null {
     const entries = (scene.entities ?? []) as unknown as SceneEntry[];
-    const found = streamedWorldDeclaration(scene);
+    const found = streamedWorldDeclaration(scene, options.resolvePrefab);
     if (!found) return null;
     const { entry: declared, data: declaration, prefabEntityId } = found;
     const cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
@@ -267,7 +277,10 @@ export function partitionWorld(
                 errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
         }
         byId.set(entry.id, entry);
-        if (!otherDeclaration && declarationsOn(entry)?.[entry === declared ? 1 : 0]) otherDeclaration = entry;
+        if (!otherDeclaration) {
+            const asset = isPrefabEntry(entry) ? options.resolvePrefab?.(entry.prefab) : undefined;
+            if (declarationsOn(entry, asset)?.[entry === declared ? 1 : 0]) otherDeclaration = entry;
+        }
     }
     if (otherDeclaration) {
         const first = `entity ${declared.id} ("${nameOf(declared)}")`;
@@ -425,6 +438,7 @@ export function partitionWorld(
         persistent: documentOf(persistentEntries, scene.name),
         cells,
         persistentRefs: [...persistentRefs].sort((a, b) => a - b),
+        streamedWorld: declaration,
         errors,
         warnings,
     };
