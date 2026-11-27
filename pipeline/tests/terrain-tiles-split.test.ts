@@ -32,10 +32,30 @@ describe('splitTerrain', () => {
         expect(o.data[8 * 17 + 8]).toBeCloseTo(sampleHeight(f, 0.5, 0.5), 4);
     });
 
-    it('cuts the splatmaps with the heights', () => {
-        const s = { width: 4, height: 4, pixels: Uint8Array.from({ length: 64 }, (_, k) => k * 4) };
-        const out = splitTerrain(field(65, 65), s, null, { dir: 'g', name: 'x', tileSamples: 33 });
-        expect(out.document.tiles.every((t) => t.splat && out.images.has(t.splat))).toBe(true);
-        expect(out.images.has(out.document.overviewSplat!)).toBe(true);
+    it('resamples both splatmaps byte-for-byte across tile edges and the overview', () => {
+        const paint = (width: number, height: number, seed: number) => {
+            const pixels = new Uint8Array(width * height * 4 + 1).subarray(1);
+            for (let i = 0; i < pixels.length; i++) pixels[i] = (i % 8 === 3 ? 0 : i * 13 + seed) % 256;
+            return { width, height, pixels };
+        };
+        const first = paint(4, 4, 17), second = paint(3, 2, 91);
+        const out = splitTerrain(field(9, 5), first, second, { dir: 'g', name: 'x', tileSamples: 5, overviewSamples: 5 });
+        const check = (path: string | undefined, source: typeof first, width: number, height: number, uAt: (x: number) => number) => {
+            const image = out.images.get(path!)!;
+            expect([image.width, image.height]).toEqual([width, height]);
+            const expected = [];
+            for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+                const sx = Math.round(uAt(x) * (source.width - 1));
+                const sy = Math.round(y / (height - 1) * (source.height - 1));
+                expected.push(...source.pixels.subarray((sy * source.width + sx) * 4, (sy * source.width + sx + 1) * 4));
+            }
+            expect(image.rgba).toEqual(Uint8Array.from(expected));
+        };
+        for (const tile of out.document.tiles) {
+            check(tile.splat, first, 5, 5, x => (tile.x * 4 + x) / 8);
+            check(tile.splat2, second, 5, 5, x => (tile.x * 4 + x) / 8);
+        }
+        check(out.document.overviewSplat, first, 5, 3, x => x / 4);
+        check(out.document.overviewSplat2, second, 5, 3, x => x / 4);
     });
 });

@@ -48,9 +48,17 @@ function heightsPng(width: number, height: number, sample: (i: number, j: number
 
 function splatPng(s: TerrainSplat, width: number, height: number, u0: number, v0: number, du: number, dv: number): TerrainImageOut {
     const out = new Uint8Array(width * height * 4);
-    for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
-        const x = Math.round(clamp(u0 + i * du, 0, 1) * (s.width - 1)), y = Math.round(clamp(v0 + j * dv, 0, 1) * (s.height - 1));
-        out.set(s.pixels.subarray((y * s.width + x) * 4, (y * s.width + x) * 4 + 4), (j * width + i) * 4);
+    const columns = new Array<number>(width);
+    for (let i = 0; i < width; i++) columns[i] = Math.round(clamp(u0 + i * du, 0, 1) * (s.width - 1)) * 4;
+    for (let j = 0, at = 0; j < height; j++) {
+        const row = Math.round(clamp(v0 + j * dv, 0, 1) * (s.height - 1)) * s.width * 4;
+        for (let i = 0; i < width; i++, at += 4) {
+            const from = row + columns[i]!;
+            out[at] = s.pixels[from]!;
+            out[at + 1] = s.pixels[from + 1]!;
+            out[at + 2] = s.pixels[from + 2]!;
+            out[at + 3] = s.pixels[from + 3]!;
+        }
     }
     return { width, height, rgba: out };
 }
