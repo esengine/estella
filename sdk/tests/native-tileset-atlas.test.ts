@@ -6,6 +6,7 @@ import { TilesetAssetLoader } from '../src/asset/loaders/TilesetAssetLoader';
 
 it.each([
     ['../textures/ground.png', 'assets/textures/ground.png'],
+    ['../textures/ground.png?v=2', 'assets/textures/ground.png'],
     ['..\\textures\\ground.png', 'assets/textures/ground.png'],
     ['ground.png', 'ground.png'],
     ['./ground.png', 'assets/maps/ground.png'],
@@ -15,7 +16,7 @@ it.each([
     ['/ground.png', '/ground.png'],
 ])('loads the atlas %s with the tileset source address', async (texture, expected) => {
     const acquireTexture = vi.fn(async () => ({ value: { handle: 42, width: 32, height: 16 } }));
-    const paths = new Set(['ground.png', 'assets/maps/ground.png', 'assets/maps/rock.png']);
+    const paths = new Set(['ground.png', 'assets/maps/ground.png', 'assets/maps/rock.png', 'assets/textures/ground.png']);
     const loadText = vi.fn(async () => JSON.stringify({ version: '1', texture, tileWidth: 16, tileHeight: 16, columns: 2 }));
     const ctx = {
         catalog: { getBuildPath: () => 'objects/a28.estileset' },

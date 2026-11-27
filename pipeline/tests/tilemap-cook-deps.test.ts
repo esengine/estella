@@ -52,7 +52,7 @@ beforeAll(() => {
   writeAsset('assets/maps/level.tmj', 'tilemap', TILEMAP, tmj);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
   writeAsset('assets/maps/ground.estileset', 'tileset', NATIVE_TILESET, JSON.stringify({
-    version: '1', texture: '../textures/tiles.png', tileWidth: 16, tileHeight: 16, columns: 2, tiles: {},
+    version: '1', texture: '../textures/tiles.png?v=2', tileWidth: 16, tileHeight: 16, columns: 2, tiles: {},
   }));
   writeAsset('assets/scenes/painted.esscene', 'scene', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', JSON.stringify({
     version: 4, name: 'Painted', entities: [{ id: 1, parent: null, children: [], components: [
@@ -83,7 +83,7 @@ describe('tilemap tileset images are cooked dependencies', () => {
     expect(cooked.tilesets[1].image).toBe('assets/textures/props.png');
   });
 
-  it('keeps a relative native tileset atlas through content-addressed staging', async () => {
+  it('keeps a relative native tileset atlas with a query suffix through content-addressed staging', async () => {
     const cooked = await cookAssets(root, {
       entryScenes: ['assets/scenes/painted.esscene'], outDir: 'build-native', contentAddressed: true,
     });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { findDocumentAsset, resolveDocumentRef, resolveRelativePath } from '../src/asset/documentRef';
+import { findDocumentAsset, resolveDocumentRef, resolveIndexedProjectRef, resolveIndexedSiblingRef, resolveRelativePath } from '../src/asset/documentRef';
 
 describe('authored document references', () => {
     const material = 'assets/mats/m.esmaterial';
@@ -29,5 +29,17 @@ describe('authored document references', () => {
         expect(findDocumentAsset(material, '/a.png', lookup, 'document')).toBe('a.png');
         expect(findDocumentAsset(material, 'a.png', lookup)).toBe('a.png');
         expect(findDocumentAsset(material, 'a.png', lookup, 'document')).toBe('assets/mats/a.png');
+    });
+
+    it('matches a local file with a URL suffix without changing literal names or unindexed URLs', () => {
+        const files = new Set(['art.png', 'assets/mats/art.png', 'assets/mats/literal#tile.png']);
+        const known = (path: string) => files.has(path);
+        expect(resolveIndexedSiblingRef(material, 'art.png?v=2#layer', known)).toBe('assets/mats/art.png');
+        expect(resolveIndexedProjectRef(material, 'art.png?v=2#layer', known)).toBe('art.png');
+        expect(resolveIndexedSiblingRef(material, './art.png?v=2#layer', known)).toBe('assets/mats/art.png');
+        expect(resolveIndexedSiblingRef(material, '/art.png?v=2#layer', known)).toBe('art.png');
+        expect(resolveIndexedSiblingRef(material, './literal#tile.png', known)).toBe('assets/mats/literal#tile.png');
+        expect(resolveIndexedSiblingRef(material, './missing.png?v=2#layer', known)).toBe('assets/mats/missing.png?v=2#layer');
+        expect(resolveIndexedSiblingRef(material, 'https://cdn.test/art.png?v=2#layer', known)).toBe('https://cdn.test/art.png?v=2#layer');
     });
 });

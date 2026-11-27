@@ -299,7 +299,7 @@ function rewriteMaterialRefs(
 function logicalRef(ref: string, docPath: string, byPath: Map<string, AssetEntry>, first?: 'document' | 'project'): string;
 function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>, first?: 'document' | 'project'): unknown;
 function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>, first: 'document' | 'project' = 'document'): unknown {
-  if (typeof ref !== 'string' || !ref || ref.startsWith('/')) return ref;
+  if (typeof ref !== 'string' || !ref || (ref.startsWith('/') && !/[?#]/.test(ref))) return ref;
   const target = findDocumentAsset(docPath, ref, file => byPath.get(file), first);
   if (!target) return ref;
   return target.path.startsWith('assets/') ? target.path : `/${target.path}`;

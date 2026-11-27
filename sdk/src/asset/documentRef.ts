@@ -121,28 +121,40 @@ export function findDocumentAsset<T>(
 ): T | undefined {
     const normalized = normalizeAssetPathSeparators(ref);
     if (isLocatorOrId(normalized)) return undefined;
-    if (isLogicalAssetRef(normalized)) return lookup(normalized.replace(/^\//, ''));
-    const sibling = resolveDocumentRef(document, normalized).replace(/^\//, '');
-    if (normalized === sibling || normalized.startsWith('./') || normalized.startsWith('../')) return lookup(sibling);
-    return first === 'document' ? lookup(sibling) ?? lookup(normalized) : lookup(normalized) ?? lookup(sibling);
+    const exact = lookupDocumentPath(document, normalized, lookup, first);
+    if (exact !== undefined) return exact;
+    // Honor literal indexed names before treating a query or fragment as URL metadata.
+    const suffix = normalized.search(/[?#]/);
+    return suffix > 0 ? lookupDocumentPath(document, normalized.slice(0, suffix), lookup, first) : undefined;
+}
+
+function lookupDocumentPath<T>(document: string, ref: string, lookup: (path: string) => T | undefined, first: 'project' | 'document'): T | undefined {
+    if (isLogicalAssetRef(ref)) return lookup(ref.replace(/^\//, ''));
+    const sibling = resolveDocumentRef(document, ref).replace(/^\//, '');
+    if (ref === sibling || ref.startsWith('./') || ref.startsWith('../')) return lookup(sibling);
+    return first === 'document' ? lookup(sibling) ?? lookup(ref) : lookup(ref) ?? lookup(sibling);
 }
 
 /** Prefer the document's sibling, using the index for legacy unqualified project paths. */
 export function resolveIndexedSiblingRef(document: string, ref: string, isKnown: (path: string) => boolean): string {
-    const normalized = normalizeAssetPathSeparators(ref);
-    const resolved = resolveDocumentRef(document, ref);
-    if (isLocatorOrId(normalized) || isLogicalAssetRef(normalized) || normalized.startsWith('./') || normalized.startsWith('../')) {
-        return resolved;
-    }
-    return findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, 'document') ?? resolved;
+    return resolveIndexedRef(document, ref, isKnown, 'document');
 }
 
 /** Preserve legacy project paths, allowing indexed siblings and explicit relative paths. */
 export function resolveIndexedProjectRef(document: string, ref: string, isKnown: (path: string) => boolean): string {
+    return resolveIndexedRef(document, ref, isKnown, 'project');
+}
+
+function resolveIndexedRef(document: string, ref: string, isKnown: (path: string) => boolean, first: 'project' | 'document'): string {
     const normalized = normalizeAssetPathSeparators(ref);
-    if (isLocatorOrId(normalized) || isLogicalAssetRef(normalized)) return resolveDocumentRef(document, ref);
-    if (normalized.startsWith('./') || normalized.startsWith('../')) return resolveDocumentRef(document, normalized);
-    return findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, 'project') ?? normalized;
+    if (isLocatorOrId(normalized)) return ref;
+    const relative = normalized.startsWith('./') || normalized.startsWith('../');
+    const qualified = isLogicalAssetRef(normalized) || relative;
+    if (!qualified || /[?#]/.test(normalized)) {
+        const indexed = findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, first);
+        if (indexed !== undefined) return indexed;
+    }
+    return qualified || first === 'document' ? resolveDocumentRef(document, ref) : normalized;
 }
 
 function isLocatorOrId(ref: string): boolean {

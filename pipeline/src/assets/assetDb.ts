@@ -349,7 +349,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-const CANDIDATE_CACHE_VERSION = 5;
+const CANDIDATE_CACHE_VERSION = 6;
 interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
@@ -376,7 +376,7 @@ async function writeCandidateCache(root: string, cache: CandidateCache): Promise
  * a label (`Transform`, `Cocos.Widget`, `ui_layer`), and each one asked of the path index costs a normalisation and a lookup; in a project of
  * thousands of documents those are most of the scan.
  */
-const PATH_LIKE = /\.[a-z0-9]{1,16}$/i;
+const PATH_LIKE = /\.[a-z0-9]{1,16}(?:[?#].*)?$/i;
 
 const SIBLING_REF_TYPES = new Set(['material', 'environment', 'groom', 'animatorcontroller']);
 
