@@ -45,7 +45,7 @@ import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
-import { parseTerrainTiles } from '../../../sdk/src/terrain/tiles';
+import { parseTerrainTiles, terrainTileSizeError } from '../../../sdk/src/terrain/tiles';
 import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
 import type { SceneData } from '../../../sdk/src/scene/scene';
 import { addressableKeys } from './addressableRecord';
@@ -236,14 +236,22 @@ interface CookSink {
   manifestEntries: CookManifestEntry[];
 }
 
+const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
+
+function pngSizeFromHeader(bytes: Uint8Array): ReturnType<typeof pngDimensions> | null {
+  if (bytes.length < 24 || PNG_SIGNATURE.some((byte, i) => bytes[i] !== byte)
+      || bytes[12] !== 73 || bytes[13] !== 72 || bytes[14] !== 68 || bytes[15] !== 82) return null;
+  return pngDimensions(bytes);
+}
+
 /** A PNG's width and height from its IHDR, reading only the header; null for anything else. */
 async function pngHeaderSize(file: string): Promise<{ width: number; height: number } | null> {
   let handle;
   try {
     handle = await open(file, 'r');
     const header = new Uint8Array(24);
-    await handle.read(header, 0, 24, 0);
-    return header[1] === 0x50 && header[2] === 0x4e ? pngDimensions(header) : null;
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    return pngSizeFromHeader(header.subarray(0, bytesRead));
   } catch {
     return null;
   } finally {
@@ -817,6 +825,7 @@ export async function cookAssets(
     }
   }
 
+  const terrainPngSizes = new Map<string, ReturnType<typeof pngDimensions>>();
   // Each asset cooks on its own, and the encoder runs ENCODER_PARALLELISM images
   // at once, so that many are kept in flight. What each reports is merged back in
   // `reachable` order, which keeps the manifest and the warnings a serial cook's.
@@ -1076,6 +1085,10 @@ export async function cookAssets(
           height: tail.height, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight,
         };
       }
+      if (preserveSamples && !fromRecipe) {
+        const size = pngSizeFromHeader(data);
+        if (size) terrainPngSizes.set(entry.uuid.toLowerCase(), size);
+      }
       manifestEntries.push({
         uuid: entry.uuid,
         path: outRel,
@@ -1149,9 +1162,13 @@ export async function cookAssets(
       text = (await readFile(path.join(absOut, entry.path))).toString('utf8');
     } catch { continue; }
     if (entry.type === 'terrain-tiles') {
-      shippedKeys ??= addressableKeys(manifestEntries);
+      const keys = shippedKeys ??= addressableKeys(manifestEntries);
       try {
         const doc = parseTerrainTiles(JSON.parse(text));
+        const resolveImage = (ref: string) => {
+          const logical = ref.replace(/^\//, '');
+          return keys.get(logical) ?? keys.get(assetRefId(logical) ?? logical);
+        };
         const refs = new Set([doc.overview, doc.overviewSplat, doc.overviewSplat2]);
         for (const tile of doc.tiles) {
           refs.add(tile.height).add(tile.splat).add(tile.splat2);
@@ -1159,9 +1176,16 @@ export async function cookAssets(
         for (const ref of refs) {
           if (typeof ref !== 'string' || !ref || /^(?:https?:)?\/\//i.test(ref)) continue;
           // Terrain opens project paths and asset ids through the runtime catalog.
-          const logical = ref.replace(/^\//, '');
-          if (shippedKeys.has(logical) || shippedKeys.has(assetRefId(logical) ?? logical)) continue;
+          if (resolveImage(ref)) continue;
           failed.push(`${entry.sourcePath}: terrain image '${ref}' is not packaged`);
+        }
+        for (const tile of doc.tiles) {
+          const image = resolveImage(tile.height);
+          const size = image && terrainPngSizes.get(image.key);
+          if (!size) continue;
+          const imagePath = byUuid.get(image.key)?.path ?? tile.height;
+          const error = terrainTileSizeError(`${tile.x}:${tile.z}`, imagePath, doc.tileSamples, size);
+          if (error) failed.push(`${entry.sourcePath}: ${error}`);
         }
       } catch (error) {
         failed.push(`${entry.sourcePath}: ${error instanceof Error ? error.message : String(error)}`);

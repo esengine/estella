@@ -38,6 +38,12 @@ export interface TerrainTilesDocument {
 /** An image's pixels as the terrain reads them. */
 export interface TerrainImage { width: number; height: number; pixels: Uint8Array; wide?: Uint16Array }
 
+/** @internal The size required of a full-detail height tile, in a diagnostic shared by loading and cooking. */
+export function terrainTileSizeError(key: string, path: string, side: number, image: Pick<TerrainImage, 'width' | 'height'>): string | null {
+    if (image.width === side && image.height === side) return null;
+    return `terrain tile ${key} (${path}) is ${image.width} by ${image.height}, not ${side} a side`;
+}
+
 /** What a tiled ground holds in memory and is reading. @experimental */
 export interface TerrainTileStats { resident: number; reading: number; bytes: number; reads: number; evictions: number }
 
@@ -303,9 +309,8 @@ export class TiledSource implements TerrainSource {
             let field = this.importedHeights_.get(key);
             if (!field) {
                 if (!h) throw new Error(`the heights of terrain tile ${key} (${entry.height}) could not be read`);
-                if (h.width !== this.doc.tileSamples || h.height !== this.doc.tileSamples) {
-                    throw new Error(`terrain tile ${key} is ${h.width} by ${h.height}, not ${this.doc.tileSamples} a side`);
-                }
+                const sizeError = terrainTileSizeError(key, entry.height, this.doc.tileSamples, h);
+                if (sizeError) throw new Error(sizeError);
                 field = heightfieldFromPixels(h.width, h.height, h.pixels, this.doc.format, h.wide);
             }
             const splat = a && { width: a.width, height: a.height, pixels: a.pixels };

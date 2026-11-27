@@ -29,7 +29,7 @@ function world(budget?: number) {
     const overview: Heightfield = { width: 5, height: 5, data: Float32Array.from({ length: 25 }, (_, k) => (o.pixels[k * 4]! * 256 + o.pixels[k * 4 + 1]!) / 65535) };
     const reads: string[] = [];
     const read = async (path: string) => { reads.push(path); return files.get(path) ?? null; };
-    return { source: new TiledSource(doc, params, overview, null, null, read, budget), reads };
+    return { source: new TiledSource(doc, params, overview, null, null, read, budget), files, reads };
 }
 
 const exact = (x: number, z: number): number => {
@@ -55,6 +55,13 @@ describe('ground kept as tiles', () => {
         const seam = -SIZE / 2 + (T - 1) * SIZE / (N - 1);
         await source.region(seam - 20, 0, 5, 9);
         for (const x of [seam - 1e-3, seam, seam + 1e-3]) expect(source.height(x, 3)).toBeCloseTo(exact(x, 3), 4);
+    });
+
+    it('reports a height tile whose dimensions do not match the manifest grid', async () => {
+        const { source, files } = world();
+        files.set('t0_0.png', image(8, T, () => 0.5));
+        await expect(source.region(-300, -300, 1, 2)).rejects.toThrow('terrain tile 0:0 (t0_0.png) is 8 by 9, not 9 a side');
+        expect(source.stats().resident).toBe(0);
     });
 
     it('makes a page as coarse as the overview from it alone, and a finer one from the tiles it covers', async () => {

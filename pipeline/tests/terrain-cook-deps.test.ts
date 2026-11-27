@@ -7,18 +7,21 @@ import { expect, it } from 'vitest';
 import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
 import { encodeRgbaPng } from '../src/assets/png';
 
-it('ships terrain tile and overview samples byte-for-byte through the asset cook', async () => {
+it.each([9, 8])('cooks terrain with a %i×9 PNG for a 9×9 tile only when its dimensions match', async tileWidth => {
     const root = mkdtempSync(path.join(tmpdir(), 'estella-terrain-cook-'));
     const id = (n: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`;
     const terrain = 'assets/ground.esterrain';
     const scene = 'assets/main.esscene';
     const dir = 'assets/ground.atlas';
     const names = ['overview.png', 'tile.png', 'overview-weights.png', 'tile-weights.png'];
-    const images = names.map((name, i) => ({
-        path: `${dir}/${name}`,
-        uuid: id(i + 1),
-        bytes: encodeRgbaPng(9, 9, Uint8Array.from({ length: 9 * 9 * 4 }, (_, byte) => byte % 4 === 3 ? 0 : (byte + i * 23) % 256)),
-    }));
+    const images = names.map((name, i) => {
+        const width = i === 1 ? tileWidth : 9;
+        return {
+            path: `${dir}/${name}`,
+            uuid: id(i + 1),
+            bytes: encodeRgbaPng(width, 9, Uint8Array.from({ length: width * 9 * 4 }, (_, byte) => byte % 4 === 3 ? 0 : (byte + i * 23) % 256)),
+        };
+    });
     const write = (rel: string, type: string, uuid: string, body: string | Uint8Array, importer = {}) => {
         const abs = path.join(root, rel);
         mkdirSync(path.dirname(abs), { recursive: true });
@@ -30,7 +33,7 @@ it('ships terrain tile and overview samples byte-for-byte through the asset cook
         write(terrain, 'terrain-tiles', id(5), JSON.stringify({
             version: 1, tileSamples: 9, tilesX: 1, tilesZ: 1, format: 1, overview: images[0]!.path,
             overviewSplat2: '@uuid:' + images[2]!.uuid,
-            tiles: [{ x: 0, z: 0, height: images[1]!.path, splat: images[3]!.path }],
+            tiles: [{ x: 0, z: 0, height: tileWidth === 9 ? images[1]!.path : '@uuid:' + images[1]!.uuid, splat: images[3]!.path }],
         }));
         write(scene, 'scene', id(6), JSON.stringify({ version: '1.0', name: 'Terrain', entities: [{
             id: 1, name: 'Ground', parent: null, children: [],
@@ -39,6 +42,11 @@ it('ships terrain tile and overview samples byte-for-byte through the asset cook
         const result = await cookAssets(root, {
             entryScenes: [scene], outDir: 'build', atlasTextures: true, resizeTextures: true, compressTextures: true, contentAddressed: true,
         });
+        if (tileWidth === 8) {
+            expect(result.ok).toBe(false);
+            expect(result.failed).toEqual([`${terrain}: terrain tile 0:0 (${images[1]!.path}) is 8 by 9, not 9 a side`]);
+            return;
+        }
         expect(result.ok).toBe(true);
         expect(result.included).toEqual(expect.arrayContaining([id(5), ...images.map(image => image.uuid)]));
         const manifest = JSON.parse(readFileSync(result.manifestPath!, 'utf8')) as CookManifest;
