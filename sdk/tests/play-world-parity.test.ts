@@ -142,6 +142,14 @@ describe('the snapshot Play boots', () => {
         expect(names(cut!.documents.get('main.cell_2_1')!)).toEqual(['First Hut', 'Second Hut']);
     });
 
+    it('rejects a cut whose cell bounds would overflow', async () => {
+        vi.stubGlobal('fetch', refuseFetch);
+        await expect(cutPlayWorld(scene(
+            entity(0, 'World', null, { components: [{ ...declaration, data: { cellSize: Number.MAX_VALUE } }] }),
+            entity(1, 'Rock', [Number.MAX_VALUE, 0, 0]),
+        ), 'main', resolveRef)).rejects.toThrow(/cell \(1, 0\).*non-finite bounds/);
+    });
+
     it('refuses a world a build would refuse, rather than playing it whole', async () => {
         vi.stubGlobal('fetch', refuseFetch);
         await expect(cutPlayWorld(scene(

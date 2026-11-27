@@ -80,6 +80,20 @@ describe('cooking a world that instances a prefab', () => {
             .toEqual(['main.cell_0_0']);
     });
 
+    it('rejects overflowing cell bounds before replacing the staged scene or writing a manifest', async () => {
+        const root = await projectWith([Number.MAX_VALUE, 0, 0], null);
+        const scenePath = 'assets/scenes/main.esscene';
+        const sceneFile = path.join(root, scenePath);
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[0].components[0].data.cellSize = Number.MAX_VALUE;
+        const staged = JSON.stringify(scene);
+        await writeFile(sceneFile, staged);
+
+        await expect(cookWorlds(root, root, [{ name: 'main', path: scenePath }])).rejects.toThrow(/cell \(1, 0\).*non-finite bounds/);
+        expect(await readFile(sceneFile, 'utf8')).toBe(staged);
+        await expect(readFile(path.join(root, 'world/main.world.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
     it('refuses a cyclic source hierarchy before writing any world files', async () => {
         const root = await projectWith([1500, 0, 500], null);
         const scenePath = 'assets/scenes/main.esscene';

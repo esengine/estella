@@ -340,11 +340,39 @@ describe('partitionWorld', () => {
         expect(partition.cells.map(cell => cell.name)).toEqual(['main.cell_2_0']);
     });
 
-    it('names a declaration with no usable cell size instead of shipping it whole', () => {
+    it.each([0, -1, Infinity, NaN])('reports an unusable cell size (%s) before placing any cells', cellSize => {
         const partition = cut(scene(
-            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: 0 } }] }),
+            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize } }] }),
+            entity(1, 'Rock', [500, 0, 500]),
         ))!;
-        expect(partition.errors.join('\n')).toContain('no positive cellSize');
+        expect(partition.errors.join('\n')).toContain('cellSize');
+        expect(partition.cells).toEqual([]);
+    });
+
+    it.each([
+        { plane: StreamPlane.Ground, invalid: [0, 0, Infinity], valid: [10, 0, 10] },
+        { plane: StreamPlane.Screen, invalid: [0, Number.MAX_VALUE, 0], valid: [10, 10, 0] },
+    ] as const)('diagnoses a root outside the representable grid on plane $plane', ({ plane, invalid, valid }) => {
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [{ ...declaration, data: { cellSize: SIZE, plane } }] }),
+            entity(1, 'Invalid', [...invalid]),
+            entity(2, 'Valid', [...valid]),
+        ))!;
+        expect(partition.errors.join('\n')).toMatch(/entity 1 .*outside the representable cell grid/);
+        expect(partition.cells.map(cell => names(cell.data))).toEqual([['Valid']]);
+    });
+
+    it('diagnoses non-finite bounds after composing a streamed child transform', () => {
+        const root = entity(1, 'Root', null, { components: [{ type: 'Transform',
+            data: { position: { x: 10, y: 0, z: 10 }, scale: { x: Number.MAX_VALUE, y: 1, z: 1 } },
+        }] });
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            root,
+            entity(2, 'Oversized child', [2, 0, 0], { parent: 1 }),
+        ))!;
+        expect(partition.errors.join('\n')).toMatch(/cell \(0, 0\).*non-finite bounds/);
+        expect(partition.cells).toEqual([]);
     });
 });
 

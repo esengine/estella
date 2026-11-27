@@ -202,10 +202,10 @@ export function partitionWorld(
     const declaration = componentData(declared, 'StreamedWorld');
     const cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
     const plane = declaration?.plane === StreamPlane.Screen ? 'xy' : 'xz';
-    if (cellSize <= 0) {
+    if (!Number.isFinite(cellSize) || cellSize <= 0) {
         return {
             cellSize: 0, plane, persistent: scene, cells: [], persistentRefs: [],
-            errors: [`StreamedWorld in "${sceneName}" declares no positive cellSize`], warnings: [],
+            errors: [`StreamedWorld in "${sceneName}" needs a finite, positive cellSize`], warnings: [],
         };
     }
 
@@ -247,7 +247,11 @@ export function partitionWorld(
             && !hasComponent(entry, 'StreamedWorld')
             && (isPrefabEntry(entry) || transform !== null);
         const rootPosition = vec3(transform?.position, ORIGIN);
-        const cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
+        let cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
+        if (cell && (!Number.isSafeInteger(cell.x) || !Number.isSafeInteger(cell.z))) {
+            errors.push(`entity ${root} ("${nameOf(entry)}") is outside the representable cell grid`);
+            cell = null;
+        }
 
         const where = { cell, root };
         const rootMatrix = transform && childrenOf.has(root) ? localMatrix(transform, rootPosition) : null;
@@ -339,6 +343,10 @@ export function partitionWorld(
             minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
             const second = planeSecond(at, plane);
             minZ = Math.min(minZ, second); maxZ = Math.max(maxZ, second);
+        }
+        if (!Number.isFinite(minX) || !Number.isFinite(minZ) || !Number.isFinite(maxX) || !Number.isFinite(maxZ)) {
+            errors.push(`cell (${x}, ${z}) in "${sceneName}" has non-finite bounds`);
+            continue;
         }
         const name = `${sceneName}.cell_${x}_${z}`;
         cells.push({
