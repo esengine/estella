@@ -72,4 +72,16 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       expect(tiles.getTile(10, min - 1, 0)).toBe(0);
     } finally { tiles.destroyLayer(10); }
   });
+
+  it('rejects chunk coordinates that would be truncated by the bindings', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    tiles.initInfiniteLayer(10, 16, 16);
+    try {
+      tiles.setChunkTiles(10, 0, 0, Uint16Array.of(3), 1, 1);
+      tiles.setChunkTiles(10, 0x100000000, 0, Uint16Array.of(7), 1, 1);
+      tiles.removeChunk(10, 0, -0x100000000);
+      expect(tiles.getTile(10, 0, 0)).toBe(3);
+    } finally { tiles.destroyLayer(10); }
+  });
 });

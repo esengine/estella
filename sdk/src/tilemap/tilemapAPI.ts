@@ -243,6 +243,7 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
 
     setChunkTiles(entity: number, chunkX: number, chunkY: number,
                   tiles: Uint16Array, width: number, height: number): void {
+        if (!isTileCoordinate(chunkX) || !isTileCoordinate(chunkY)) return;
         const m = moduleOf();
         if (!m) return;
         const bytes = tiles.byteLength;
@@ -257,6 +258,7 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
      * calls this for the chunks it has left behind, so the layer holds the ones near and not every one it ever held.
      */
     removeChunk(entity: number, chunkX: number, chunkY: number): void {
+        if (!isTileCoordinate(chunkX) || !isTileCoordinate(chunkY)) return;
         moduleOf()?.tilemap_removeChunk?.(entity, chunkX, chunkY);
     },
 

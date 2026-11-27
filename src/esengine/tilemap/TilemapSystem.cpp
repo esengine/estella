@@ -138,13 +138,29 @@ void TilemapSystem::setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
     auto* layer = getLayerDataMut(entity);
     if (!layer) return;
 
+    // Chunk coordinates are stored separately from cell coordinates. Widen
+    // before scaling so an unreachable chunk cannot wrap into the layer.
+    const i64 left = static_cast<i64>(chunkX) * CHUNK_SIZE;
+    const i64 top = static_cast<i64>(chunkY) * CHUNK_SIZE;
+    constexpr i64 firstCell = std::numeric_limits<i32>::min();
+    constexpr i64 lastChunkStart = static_cast<i64>(std::numeric_limits<i32>::max()) - CHUNK_SIZE + 1;
+    if (left < firstCell || top < firstCell || left > lastChunkStart || top > lastChunkStart) return;
+    if (!inBounds(*layer, static_cast<i32>(left), static_cast<i32>(top))) return;
+
+    u32 columns = std::min(width, CHUNK_SIZE);
+    u32 rows = std::min(height, CHUNK_SIZE);
+    if (layer->width != 0 || layer->height != 0) {
+        columns = std::min(columns, layer->width - static_cast<u32>(left));
+        rows = std::min(rows, layer->height - static_cast<u32>(top));
+    }
+
     ChunkCoord coord{chunkX, chunkY};
     auto& chunk = layer->chunks[coord];
     chunk.revision = ++layer->edit_revision;
     std::memset(chunk.tiles, 0, sizeof(chunk.tiles));
 
-    for (u32 ly = 0; ly < height && ly < CHUNK_SIZE; ++ly) {
-        for (u32 lx = 0; lx < width && lx < CHUNK_SIZE; ++lx) {
+    for (u32 ly = 0; ly < rows; ++ly) {
+        for (u32 lx = 0; lx < columns; ++lx) {
             chunk.tiles[ly * CHUNK_SIZE + lx] = tiles[ly * width + lx];
         }
     }

@@ -663,6 +663,45 @@ TEST_CASE("tilemap_signed_coordinate_edges_preserve_chunk_ownership") {
     CHECK(layer->edit_revision == revision);
 }
 
+TEST_CASE("tilemap_chunk_writes_clip_to_finite_layer_bounds") {
+    TilemapSystem sys;
+    const auto entity = E(0);
+    sys.initLayer(entity, CHUNK_SIZE + 1, CHUNK_SIZE + 2, 16, 16);
+    std::vector<u16> tiles(CHUNK_SIZE * CHUNK_SIZE, 7);
+    tiles[CHUNK_SIZE] = 11;
+    sys.setChunkTiles(entity, 1, 1, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    const auto* layer = sys.getLayerData(entity);
+    CHECK(sys.getTile(entity, CHUNK_SIZE, CHUNK_SIZE) == 7);
+    CHECK(sys.getTile(entity, CHUNK_SIZE, CHUNK_SIZE + 1) == 11);
+    const auto& stored = layer->chunks.at({1, 1});
+    for (u32 index = 0; index < CHUNK_SIZE * CHUNK_SIZE; ++index) {
+        if (index != 0 && index != CHUNK_SIZE) CHECK(stored.tiles[index] == EMPTY_TILE);
+    }
+
+    const auto revision = layer->edit_revision;
+    sys.setChunkTiles(entity, -1, 1, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    sys.setChunkTiles(entity, 1, 2, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    CHECK(layer->chunks.size() == 1);
+    CHECK(layer->edit_revision == revision);
+}
+
+TEST_CASE("tilemap_chunk_writes_reject_unreachable_infinite_chunks") {
+    TilemapSystem sys;
+    const auto entity = E(0);
+    const i32 side = static_cast<i32>(CHUNK_SIZE);
+    const i32 min = std::numeric_limits<i32>::min(), max = std::numeric_limits<i32>::max();
+    sys.initInfiniteLayer(entity, 16, 16);
+    std::vector<u16> tiles(CHUNK_SIZE * CHUNK_SIZE, 5);
+    sys.setChunkTiles(entity, min / side, max / side, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    CHECK(sys.getTile(entity, min, max) == 5);
+    const auto* layer = sys.getLayerData(entity);
+    const auto revision = layer->edit_revision;
+    sys.setChunkTiles(entity, min / side - 1, max / side, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    sys.setChunkTiles(entity, min / side, max / side + 1, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    CHECK(layer->chunks.size() == 1);
+    CHECK(layer->edit_revision == revision);
+}
+
 TEST_CASE("tilemap_remove_chunk_takes_one_chunk_out_and_tells_the_renderer") {
     TilemapSystem sys;
     sys.initInfiniteLayer(E(0), 16.0f, 16.0f);
