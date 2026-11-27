@@ -7,7 +7,8 @@ import {
     TilemapAPI,
 } from '../src/tilemap';
 // Not on the subpath: binding the API to an engine is the plugin's, not a game's.
-import { initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
+import { createTilemapAPI, initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
+import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import type { LoadedTilemapSource } from '../src/tilemap/tilesetCache';
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
@@ -25,6 +26,34 @@ import { BodyType, RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider
 import { clearUserComponents, Transform, Marker } from '../src/ecs/component';
 import type { World } from '../src/ecs/world';
 import type { Entity } from '../src/types';
+
+it('accepts complete chunk rows and rejects an undersized or invalid chunk upload', () => {
+    const alloc = vi.fn(() => 8);
+    const upload = vi.fn();
+    const heap = new Uint8Array(64);
+    const tiles = createTilemapAPI({
+        _malloc: alloc, _free: vi.fn(), HEAPU8: heap,
+        tilemap_initLayer: vi.fn(), tilemap_setChunkTiles: upload,
+    } as unknown as EngineApi);
+    const cells = Uint16Array.of(1, 2, 0x6003, 4, 5);
+    tiles.setChunkTiles(1, -1, 0, cells.subarray(0, 3), 2, 2);
+    tiles.setChunkTiles(1, -1, 0, cells, 1.5, 2);
+    tiles.setChunkTiles(1, -1, 0, cells, -1, 2);
+    expect(alloc).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+
+    tiles.setChunkTiles(1, -1, 0, cells, 2, 2);
+    expect(alloc).toHaveBeenCalledTimes(1);
+    expect(alloc).toHaveBeenCalledWith(8);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledWith(1, -1, 0, 8, 2, 2);
+    expect(new Uint16Array(heap.buffer, 8, 4)).toEqual(cells.subarray(0, 4));
+
+    alloc.mockReturnValueOnce(0);
+    tiles.setChunkTiles(1, -1, 0, cells, 2, 2);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(heap.subarray(0, 8)).toEqual(new Uint8Array(8));
+});
 
 describe('Tilemap Components', () => {
     beforeEach(() => {

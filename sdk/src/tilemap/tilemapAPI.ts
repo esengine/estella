@@ -8,6 +8,10 @@ import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollis
 import { defineResource } from '../ecs/resource';
 import { isTileCoordinate, tileWorldToLocal } from './tileGeometry';
 
+function isTileExtent(value: number): boolean {
+    return Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
+}
+
 // The binding declarations supply the signatures on both hosts. Some older tilemap
 // cores only expose the original layer API and use a full chunk export for collision.
 type LayerCalls = Pick<EngineApi, Exclude<Extract<keyof EngineApi, `tilemap_${string}`>, `${string}InWorld`>>;
@@ -118,7 +122,7 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     fillRect(entity: number, x: number, y: number,
              w: number, h: number, tileId: number): void {
         if (!isTileCoordinate(x) || !isTileCoordinate(y)) return;
-        if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0 || w > 0xffffffff || h > 0xffffffff) return;
+        if (!isTileExtent(w) || !isTileExtent(h) || w === 0 || h === 0) return;
         moduleOf()?.tilemap_fillRect(entity, x, y, w, h, tileId);
     },
 
@@ -246,14 +250,20 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
         moduleOf()?.tilemap_initInfiniteLayer(entity, tileWidth, tileHeight);
     },
 
+    /** Replace a chunk from a row-major buffer covering the declared width and height. */
     setChunkTiles(entity: number, chunkX: number, chunkY: number,
                   tiles: Uint16Array, width: number, height: number): void {
         if (!isTileCoordinate(chunkX) || !isTileCoordinate(chunkY)) return;
+        if (!isTileExtent(width) || !isTileExtent(height)) return;
+        const count = width * height;
+        if (count > tiles.length) return;
         const m = moduleOf();
         if (!m) return;
-        const bytes = tiles.byteLength;
+        // Even an empty rectangle must supply a pointer to the chunk binding.
+        const bytes = Math.max(1, count) * Uint16Array.BYTES_PER_ELEMENT;
         withMalloc(m, bytes, ptr => {
-            new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
+            if (!ptr) return;
+            new Uint16Array(m.HEAPU8.buffer, ptr, count).set(count === tiles.length ? tiles : tiles.subarray(0, count));
             m.tilemap_setChunkTiles(entity, chunkX, chunkY, ptr, width, height);
         });
     },
