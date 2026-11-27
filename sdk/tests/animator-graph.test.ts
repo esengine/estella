@@ -110,6 +110,39 @@ describe('animatorGraph', () => {
         expect(def.parameters).toEqual([]);
     });
 
+    it('renames controller parameter references through layers, sub-machines, and nested blends', () => {
+        const condition = { param: 'speed', op: 'gt' as const, value: 0.5 };
+        const window = { param: 'speed', op: 'window' as const };
+        const transition = { to: 'Run', conditions: [condition, window] };
+        const leaf = { name: 'Run', transitions: [transition], blend: { parameter: 'speed', thresholds: [] } };
+        const def: AnimatorControllerDef = {
+            initialState: 'Idle', parameters: [{ name: 'speed', type: 'float' }, { name: 'strafe', type: 'float' }],
+            anyStateTransitions: [transition],
+            ik: [{ kind: 'look-at', tip: 'Head', target: 'Aim', parameter: 'speed' }],
+            states: [{ name: 'Idle', transitions: [transition], speedParameter: 'speed', distanceParameter: 'speed',
+                motion: { kind: 'blend2d', parameterX: 'speed', parameterY: 'strafe', points: [{ position: { x: 0, y: 0 },
+                    motion: { kind: 'blend1d', parameter: 'speed', thresholds: [] } }] } }],
+            layers: [{ name: 'arms', initialState: 'Combat', anyStateTransitions: [transition], states: [{
+                name: 'Combat', transitions: [], stateMachine: { initialState: 'Run', states: [leaf], anyStateTransitions: [transition] },
+            }] }],
+        };
+        const next = updateParam(def, 'speed', { name: 'pace' });
+        const renamed = { ...transition, conditions: [{ ...condition, param: 'pace' }, window] };
+        expect(next.parameters[0].name).toBe('pace');
+        expect(next.anyStateTransitions).toEqual([renamed]);
+        expect(next.ik![0].parameter).toBe('pace');
+        expect(next.states[0]).toMatchObject({
+            transitions: [renamed], speedParameter: 'pace', distanceParameter: 'pace',
+            motion: { parameterX: 'pace', parameterY: 'strafe', points: [{ motion: { parameter: 'pace' } }] },
+        });
+        expect(next.layers![0]).toMatchObject({ anyStateTransitions: [renamed], states: [{ stateMachine: {
+            anyStateTransitions: [renamed], states: [{ ...leaf, transitions: [renamed], blend: { parameter: 'pace' } }],
+        } }] });
+        expect(def.states[0].speedParameter).toBe('speed');
+        expect(updateParam(def, 'speed', { name: 'strafe' })).toBe(def);
+        expect(updateParam(def, 'speed', { name: ' ' })).toBe(def);
+    });
+
     it('flattens transitions into addressable edges', () => {
         let def = emptyAnimatorController();
         def = addState(def, 'Run');
