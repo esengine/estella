@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { ManifestModel, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
+import { expandScenePrefabs, type SceneData } from '../../sdk/src/scene/scene';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
@@ -32,6 +33,7 @@ const TEX = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 const MAT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 const PREFAB = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 const SCN = '11111111-2222-3333-4444-555555555555';
+const NESTED = 'd828a435-5618-4f65-8c0c-e1dcbc89fffb';
 const meta = (uuid: string, type: string) => JSON.stringify({ uuid, version: '2.0', type, importer: {} });
 
 const roots: string[] = [];
@@ -133,5 +135,38 @@ describe('exportGame (wechat) — every asset resolves to a file the package car
     // …and the bytes are the asset's, not some neighbour that happens to exist.
     const prefab = JSON.parse(readFileSync(path.join(out, model.resolvePath(PREFAB)), 'utf8'));
     expect(prefab.name).toBe('Hero');
+  }, 60_000);
+
+  it('expands a packaged scene with Windows separators in its nested prefab reference', async () => {
+    const { root, out } = scaffold();
+    const asset = (file: string) => path.join(root, 'assets', file);
+    const entity = (prefabEntityId: string, name: string, parent: string | null, children: string[] = []) =>
+      ({ prefabEntityId, name, parent, children, components: [], visible: true });
+    writeFileSync(asset('hero.esprefab'), JSON.stringify({ version: '2', name: 'Hero', rootEntityId: 'root', entities: [
+      entity('root', 'Hero', null, ['mount']),
+      { ...entity('mount', 'Accessory', 'root'), nestedPrefab: { prefabPath: 'assets\\accessory.esprefab', overrides: [] } },
+    ] }));
+    writeFileSync(asset('accessory.esprefab'), JSON.stringify({ version: '2', name: 'Accessory', rootEntityId: 'root', entities: [
+      entity('root', 'Accessory', null, ['visual']), entity('visual', 'Accessory visual', 'root'),
+    ] }));
+    writeFileSync(asset('accessory.esprefab.meta'), meta(NESTED, 'prefab'));
+    writeFileSync(path.join(root, 'scenes/main.esscene'), JSON.stringify({ version: 4, name: 'Main', entities: [
+      { id: 1, parent: null, prefab: 'assets\\hero.esprefab', overrides: [], added: [], removed: [] },
+    ] }));
+    const result = await exportGame({
+      root, entryScene: 'scenes/main.esscene', outDir: out, platform: 'wechat',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'),
+    });
+    expect(result.ok, result.errors.join('\n')).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8')) as AddressableManifest;
+    expect(manifest.groups.main.assets).toHaveProperty(NESTED);
+    const model = ManifestModel.fromJson(manifest);
+    const scene: SceneData = JSON.parse(readFileSync(path.join(out, 'scenes/main.json'), 'utf8'));
+    const expanded = await expandScenePrefabs(scene, async (ref) => {
+      const file = path.join(out, model.resolvePath(ref));
+      return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+    });
+    expect(expanded.entities.map(entity => entity.name)).toEqual(['Hero', 'Accessory', 'Accessory visual']);
   }, 60_000);
 });

@@ -5,7 +5,7 @@ import type { ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
 import { resolveMeshGI, type MeshGIRefs } from '../gi/meshGIAssets';
-import { assetRefId, UUID_REF_PREFIX } from './AssetRegistry';
+import { assetRefId, normalizeAssetPathSeparators, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
 interface ManifestRecord {
@@ -402,7 +402,8 @@ export class ManifestModel {
         const { names, files } = this.indexes();
         const direct = names.get(ref) ?? files.get(ref);
         if (direct) return direct;
-        const bare = ref.startsWith('/') ? ref.slice(1) : ref;
+        const portable = normalizeAssetPathSeparators(ref);
+        const bare = portable.startsWith('/') ? portable.slice(1) : portable;
         const name = bare.startsWith(UUID_REF_PREFIX) ? bare.slice(UUID_REF_PREFIX.length) : bare;
         return names.get(name) ?? names.get(assetRefId(bare) ?? bare) ?? files.get(bare);
     }

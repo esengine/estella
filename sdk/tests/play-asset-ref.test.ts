@@ -23,6 +23,13 @@ describe('resolvePlayAssetRef', () => {
         expect(resolvePlayAssetRef('/assets/spine/x.skel', MANIFEST, 'estella://project/')).toBe('estella://project/assets/spine/x.skel');
     });
 
+    it('normalizes Windows project paths before resolving them for Play', () => {
+        const ref = 'assets\\prefabs\\hero.esprefab';
+        expect(resolvePlayAssetRef(ref, MANIFEST, BASE)).toBe(`${BASE}/assets/prefabs/hero.esprefab`);
+        expect(resolvePlayAssetRef(ref, MANIFEST, undefined, { 'assets/prefabs/hero.esprefab': 'assets/0123.esprefab' }))
+            .toBe('assets/0123.esprefab');
+    });
+
     it('leaves a path unchanged when no base is given (shipped game keeps its own manifest)', () => {
         expect(resolvePlayAssetRef('assets/spine/x.atlas', MANIFEST, undefined)).toBe('assets/spine/x.atlas');
     });

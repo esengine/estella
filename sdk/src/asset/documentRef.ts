@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { assetRefId } from './AssetRegistry';
+import { assetRefId, normalizeAssetPathSeparators } from './AssetRegistry';
 import { registeredAssetFields } from './registeredAssetFields';
 
 /**
@@ -108,7 +108,7 @@ export function resolveDocumentRef(documentPath: string, ref: string): string {
 /** A relative owner will itself be joined to another document, so keep leading parent segments. */
 export function rebaseDocumentRef(documentPath: string, ref: string, owner: 'project' | 'relative'): string {
     if (isLocatorOrId(ref)) return ref;
-    const child = ref.replace(/\\/g, '/');
+    const child = normalizeAssetPathSeparators(ref);
     return isLogicalAssetRef(child) ? child : joinDocumentPath(documentPath, child, owner === 'relative');
 }
 
@@ -119,7 +119,7 @@ export const resolveTiledRef = resolveDocumentRef;
 export function findDocumentAsset<T>(
     document: string, ref: string, lookup: (path: string) => T | undefined, first: 'project' | 'document' = 'project',
 ): T | undefined {
-    const normalized = ref.replace(/\\/g, '/');
+    const normalized = normalizeAssetPathSeparators(ref);
     if (isLocatorOrId(normalized)) return undefined;
     if (isLogicalAssetRef(normalized)) return lookup(normalized.replace(/^\//, ''));
     const sibling = resolveDocumentRef(document, normalized).replace(/^\//, '');
@@ -129,7 +129,7 @@ export function findDocumentAsset<T>(
 
 /** Prefer the document's sibling, using the index for legacy unqualified project paths. */
 export function resolveIndexedSiblingRef(document: string, ref: string, isKnown: (path: string) => boolean): string {
-    const normalized = ref.replace(/\\/g, '/');
+    const normalized = normalizeAssetPathSeparators(ref);
     const resolved = resolveDocumentRef(document, ref);
     if (isLocatorOrId(normalized) || isLogicalAssetRef(normalized) || normalized.startsWith('./') || normalized.startsWith('../')) {
         return resolved;
@@ -138,7 +138,7 @@ export function resolveIndexedSiblingRef(document: string, ref: string, isKnown:
 }
 
 function isLocatorOrId(ref: string): boolean {
-    return ref.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(ref) || assetRefId(ref) !== null;
+    return /^[\\/]{2}/.test(ref) || /^[a-z][a-z0-9+.-]*:/i.test(ref) || assetRefId(ref) !== null;
 }
 
 /** Join path segments literally. Asset references with project or index semantics use resolveDocumentRef. */

@@ -84,10 +84,18 @@ export function assetRefId(ref: string): string | null {
     return UUID_V4_REGEX.test(ref) ? ref.toLowerCase() : null;
 }
 
-/** Resolve against lower-case index keys. Plain paths pass through and unknown IDs return null. */
+/** Normalize project path separators while preserving locators and query data. */
+export function normalizeAssetPathSeparators(ref: string): string {
+    if (!ref.includes('\\') || /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(ref)) return ref;
+    const suffix = ref.search(/[?#]/);
+    if (suffix < 0) return ref.replace(/\\/g, '/');
+    return ref.slice(0, suffix).replace(/\\/g, '/') + ref.slice(suffix);
+}
+
+/** Resolve against lower-case index keys. Unknown IDs return null. */
 export function resolveIndexedAssetRef(ref: string, paths: ReadonlyMap<string, string>): string | null {
     const id = assetRefId(ref);
-    return id === null ? ref : paths.get(id) ?? null;
+    return id === null ? normalizeAssetPathSeparators(ref) : paths.get(id) ?? null;
 }
 
 /** Build a `"@uuid:..."` serialized ref. Validates the UUID shape. */
@@ -209,10 +217,10 @@ export class AssetRegistry {
         return out;
     }
 
-    /** Resolve a prefixed or bare UUID to its registered path. Unknown IDs return null and plain paths pass through. */
+    /** Resolve a prefixed or bare UUID to its registered path. Unknown IDs return null. */
     resolveRef(ref: string): string | null {
         const id = assetRefId(ref);
-        return id === null ? ref : this.byUuid_.get(id)?.path ?? null;
+        return id === null ? normalizeAssetPathSeparators(ref) : this.byUuid_.get(id)?.path ?? null;
     }
 
     /** Iterate all entries. Stable across consecutive calls with no mutations. */

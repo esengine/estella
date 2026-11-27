@@ -63,6 +63,20 @@ describe('AssetRegistry ref helpers', () => {
         expect(resolveIndexedAssetRef('@uuid:unknown', paths)).toBeNull();
         expect(resolveIndexedAssetRef(UUID_B, paths)).toBeNull();
     });
+
+    it('normalizes project separators without rewriting locators or query data', () => {
+        const paths = new Map<string, string>();
+        const registry = new AssetRegistry();
+        const refs = [
+            ['assets\\hero.esprefab?option=x\\y', 'assets/hero.esprefab?option=x\\y'],
+            ['https://host/assets/hero.png?value=x\\y', 'https://host/assets/hero.png?value=x\\y'],
+            ['\\\\share\\hero.esprefab', '\\\\share\\hero.esprefab'],
+        ];
+        for (const [ref, expected] of refs) {
+            expect(resolveIndexedAssetRef(ref, paths)).toBe(expected);
+            expect(registry.resolveRef(ref)).toBe(expected);
+        }
+    });
 });
 
 describe('AssetRegistry CRUD', () => {

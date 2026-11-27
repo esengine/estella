@@ -32,7 +32,7 @@ import type { AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers, indexPackagedManifest } from './packagedRuntime';
-import { assetRefId } from '../asset/AssetRegistry';
+import { assetRefId, normalizeAssetPathSeparators } from '../asset/AssetRegistry';
 
 export interface PlayRealmRuntimeConfig extends RuntimeProjectSettings {
     app: App;
@@ -119,11 +119,12 @@ export function resolvePlayAssetRef(
         if (!url) throw new Error(`asset not in play manifest: ${ref}`);
         return url;
     }
+    const portable = normalizeAssetPathSeparators(ref);
     // Cooked builds: a logical path maps to its staged file (content-addressed
     // rename + possible extension swap) — resolved here so the result is the
     // extension-bearing physical path, same contract as the uuid branch.
     if (pathMap) {
-        const staged = pathMap[ref] ?? pathMap[ref.replace(/^\.?\//, '')];
+        const staged = pathMap[ref] ?? pathMap[portable.replace(/^\.?\//, '')];
         if (staged) return staged;
     }
     const base = (assetBaseUrl ?? '').replace(/\/$/, '');
@@ -131,8 +132,8 @@ export function resolvePlayAssetRef(
     // base-prefixed path must not be prefixed again. Preload resolves a ref once to
     // bucket it by type, then the loader resolves it a second time — without this
     // guard a plain path would gain the base twice (estella://…/estella://…/404).
-    if (ref.includes('://') || (base && ref.startsWith(`${base}/`))) return ref;
-    return base ? `${base}/${ref.replace(/^\//, '')}` : ref;
+    if (portable.includes('://') || (base && portable.startsWith(`${base}/`))) return portable;
+    return base ? `${base}/${portable.replace(/^\//, '')}` : portable;
 }
 
 /**

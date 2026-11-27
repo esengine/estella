@@ -42,7 +42,7 @@ it('uses the same remote record for a UUID, address and cooked path', () => {
     const address = 'assets/stone.png', path = 'cdn/stone.123.png';
     fixture.groups.cdn.assets[uuid] = { path, address, type: 'texture', size: 1, labels: [] };
     const model = ManifestModel.fromJson(fixture);
-    for (const ref of [uuid, `@uuid:${uuid.toUpperCase()}`, address, `/${address}`, path]) {
+    for (const ref of [uuid, `@uuid:${uuid.toUpperCase()}`, address, `/${address}`, 'assets\\stone.png', path]) {
         expect(model.remoteAssetPath(ref)).toBe(path);
         expect(model.remoteAssetIdentity(ref)).toBe(address);
     }
