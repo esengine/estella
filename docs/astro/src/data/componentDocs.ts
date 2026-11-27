@@ -167,6 +167,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   VirtualJoystick: { category: 'ui', summary: 'An independently captured fixed or follow joystick, feeding a named virtual InputMap axis.', doc: 'ui/widgets', anchor: 'virtualjoystick', anchorZh: 'virtualjoystick' },
   VirtualButton: { category: 'ui', summary: 'A held virtual InputMap action with independent pointer ownership and normal button appearance.', doc: 'ui/widgets', anchor: 'virtualbutton', anchorZh: 'virtualbutton' },
   UISlider: { category: 'ui', summary: 'A draggable value along a range, with an optional step.', doc: 'ui/widgets', anchor: 'slider', anchorZh: 'slider-滑块' },
+  UIMeter: { category: 'ui', summary: 'A health or stamina bar whose ghost holds the old amount a moment after a blow, then eases down to the new one.', doc: 'ui/widgets', anchor: 'meter', anchorZh: 'meter-血条' },
   UIToggle: { category: 'ui', summary: 'A two-state widget — checkbox or switch — and its group membership.', doc: 'ui/widgets', anchor: 'toggle', anchorZh: 'toggle-开关' },
   UIToggleGroup: { category: 'ui', summary: 'Makes the toggles beneath it exclusive — a radio group or tab bar. Put it on their common ancestor.', doc: 'ui/widgets', anchor: 'toggle', anchorZh: 'toggle-开关' },
   UITabView: { category: 'ui', summary: 'Connects an ordered ToggleGroup to content pages, with keyboard navigation.', doc: 'ui/widgets', anchor: 'tabview', anchorZh: 'tabview' },

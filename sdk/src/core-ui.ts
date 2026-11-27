@@ -240,6 +240,8 @@ export {
     createSlider,
     UISlider,
     type UISliderData,
+    UIMeter,
+    type UIMeterData,
     type SliderOptions,
     type SliderHandle,
     UIToggle,

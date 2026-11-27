@@ -135,6 +135,14 @@ export {
 } from './behavior/slider';
 
 export {
+    UIMeter,
+    stepMeter,
+    createMeterSystem,
+    type UIMeterData,
+    type MeterShown,
+} from './behavior/meter';
+
+export {
     UIToggle,
     UIToggleGroup,
     createToggleSystem,

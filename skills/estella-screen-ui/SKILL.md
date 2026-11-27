@@ -67,8 +67,11 @@ saturated colours and heavy type are what reads as generated. Build it from a fe
   motif repeated, such as a 7 to 8 px square turned 45 degrees (a diamond) at the start of a hairline or before the goal:
   give its `Transform` `rotation: { w: 0.9238795, x: 0, y: 0, z: 0.3826834 }` when it is created; the layout keeps a turn.
 - **Meters are thin.** Health 3 px, stamina 2 px, 200 to 260 px long, on a track of black at `a` 0.45. A ghost behind the
-  fill in the accent that falls to the new value a quarter second later (two nodes; the game sets the ghost's width after a
-  delay) says how much a blow took.
+  fill in the accent says how much a blow took: give the track a `UIMeter` and two children that fill it, each a `UIVisual`
+  of visualType Filled (5) with fillMethod Horizontal (0) and fillOrigin Left (0), the ghost (accent) first and the fill
+  (white) over it; set `UIMeter.fill` and `UIMeter.ghost` to them. The game writes only `UIMeter.value` (0..1): a drop shows
+  in the fill at once, the ghost holds the old amount for `holdTime` (0.25 s), then eases down over `fallTime` (0.6 s); hits
+  in a row keep it up, so a combo reads as one loss; a heal climbs over `riseTime` (0.3 s for the whole bar).
 - **A compass** is a strip 400 or so px wide whose two ends melt away. The letters and pins slide along it as the camera
   turns, so they sit under a `UIMask` (mode Scissor) with `softness: { x: 90, y: 0 }`: anything inside fades in over the
   outer 90 px instead of being cut at the edge. The hairline under them is one more child, or a Gradient with `u_fadeIn` and

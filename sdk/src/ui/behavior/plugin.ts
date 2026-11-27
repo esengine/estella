@@ -30,6 +30,7 @@ import { getEntityDepth, walkParentChain } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
 import { installWidgetTheme } from './theme-apply';
 import { UISlider, createSliderSystem } from './slider';
+import { UIMeter, createMeterSystem } from './meter';
 import { UIToggle, UIToggleGroup, createToggleSystem } from './toggle';
 import { UIDropdown, closeAllDropdowns, createDropdownSystem } from './dropdown';
 import { createScrollbarSystem } from './scrollbar';
@@ -154,6 +155,10 @@ export class UIBehaviorPlugin implements Plugin {
             createSliderSystem(world, events),
             { runIf: playModeOnly, activeWhen: [UISlider] },
         );
+
+        // Outside Play too: there a meter shows its value as it is, so it is placed at its real amount.
+        registerComponent('UIMeter', UIMeter);
+        app.addSystemToSchedule(Schedule.Update, createMeterSystem(world), { activeWhen: [UIMeter] });
 
         registerComponent('UIToggle', UIToggle);
         registerComponent('UIToggleGroup', UIToggleGroup);

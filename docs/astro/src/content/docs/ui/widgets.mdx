@@ -200,6 +200,31 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
   Filled-based widget fill identically.
 </Aside>
 
+## Meter
+
+`UIMeter` is a health, stamina or boss bar that says how much a blow took. Put it on the bar's track and point `fill` and
+`ghost` at two children that fill the track, each a `UIVisual` in **`Filled`** mode: the ghost (usually the accent colour)
+first, the fill over it. The game writes only `value`.
+
+```typescript
+import { UIMeter } from 'esengine';
+
+world.insert(track, UIMeter, { value: 1, fill, ghost, holdTime: 0.25, fallTime: 0.6, riseTime: 0.3 });
+// A hit:
+world.insert(track, UIMeter, { ...world.get(track, UIMeter), value: 0.4 });
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `value` | `1` | How full it is, `0..1`. |
+| `fill` | — | The Filled visual that shows the value. A drop shows in it at once. |
+| `ghost` | — | The Filled visual behind the fill: it keeps the old amount for `holdTime`, then eases down to the value. Empty for none. |
+| `holdTime` | `0.25` | Seconds the ghost holds after a drop. Another drop within it starts the hold again, so a combo reads as one loss. |
+| `fallTime` | `0.6` | Seconds the ghost takes to fall once the hold is over, easing out. |
+| `riseTime` | `0.3` | Seconds a rise across the whole bar takes the fill. `0` shows a rise at once. |
+
+Outside Play the fill and the ghost show the value as it is, so a meter is placed and judged in the editor at its real amount.
+
 ## Dropdown
 
 `createDropdown(opts)` shows the current selection and opens a popup of option rows.

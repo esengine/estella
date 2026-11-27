@@ -189,6 +189,30 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
   完全一致。
 </Aside>
 
+## Meter 血条
+
+`UIMeter` 用来做血条、体力条或首领血条,能让人看出一次受击掉了多少。把它放在血条的底槽上,`fill` 和 `ghost` 指向两个铺满底槽的子节点,
+两者都是 **`Filled`** 模式的 `UIVisual`:先放残影(通常用强调色),再在上面放填充。游戏只需要写 `value`。
+
+```typescript
+import { UIMeter } from 'esengine';
+
+world.insert(track, UIMeter, { value: 1, fill, ghost, holdTime: 0.25, fallTime: 0.6, riseTime: 0.3 });
+// 受击:
+world.insert(track, UIMeter, { ...world.get(track, UIMeter), value: 0.4 });
+```
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `value` | `1` | 当前比例,`0..1`。 |
+| `fill` | — | 显示数值的 Filled 视觉。数值下降时立刻显示。 |
+| `ghost` | — | 填充后面的 Filled 视觉:先停在原来的量 `holdTime` 秒,再缓缓落到当前值。留空就没有残影。 |
+| `holdTime` | `0.25` | 下降后残影停留的秒数。停留期间再受击会重新计时,连击读起来是一次大损失。 |
+| `fallTime` | `0.6` | 停留结束后残影回落所用的秒数,先快后慢。 |
+| `riseTime` | `0.3` | 回血时填充涨满整条所用的秒数。`0` 表示立刻涨到位。 |
+
+不在 Play 时,填充和残影直接显示当前值,方便在编辑器里按真实数值摆放和查看。
+
 ## Dropdown 下拉框
 
 `createDropdown(opts)` 显示当前选中项，支持自定义选项类型。按钮放在滚动面板内时，菜单也会在屏幕安全区内展开。下方空间不足时可向上展开。

@@ -10881,6 +10881,60 @@
       ]
     },
     {
+      "name": "UIMeter",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "value",
+          "type": "number",
+          "default": "1",
+          "doc": "How full the meter is, 0..1: what the game writes.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "fill",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The Filled UIVisual that shows the value."
+        },
+        {
+          "key": "ghost",
+          "type": "Entity",
+          "default": "none",
+          "doc": "A Filled UIVisual behind the fill, usually in the accent colour: it keeps the old amount a moment after a drop, then falls to the new one, so a hit reads as how much it took. Empty for none."
+        },
+        {
+          "key": "holdTime",
+          "type": "number",
+          "default": "0.25",
+          "doc": "Seconds the ghost holds after a drop before it falls. Another drop within it starts the hold again, so a combo reads as one loss.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "fallTime",
+          "type": "number",
+          "default": "0.6",
+          "doc": "Seconds the ghost takes to fall to the value, easing out.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "riseTime",
+          "type": "number",
+          "default": "0.3",
+          "doc": "Seconds the fill takes to climb across the whole meter when the value rises. 0 shows a rise at once.",
+          "range": "≥ 0, step 0.05"
+        }
+      ],
+      "animatable": [
+        "value",
+        "fill",
+        "ghost",
+        "holdTime",
+        "fallTime",
+        "riseTime"
+      ]
+    },
+    {
       "name": "UINode",
       "source": "cpp",
       "fields": [
