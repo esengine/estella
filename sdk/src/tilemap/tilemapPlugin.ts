@@ -596,6 +596,7 @@ export class TilemapRuntime {
                                     : { position: { x: px, y: py, z: 0 } });
                                 world.insert(tileChild, Sprite, {
                                     texture: ts.textureHandle,
+                                    ...(group.spriteColor ? { color: group.spriteColor } : {}),
                                     size: dec.flipD ? { x: h, y: w } : { x: w, y: h },
                                     uvOffset: { x: col * uvW, y: 1 - (row + 1) * uvH },
                                     uvScale: { x: uvW, y: uvH },

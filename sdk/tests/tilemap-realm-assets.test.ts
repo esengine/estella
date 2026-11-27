@@ -18,6 +18,7 @@ import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { PublishedTilemap, PublishedTileset } from '../src/tilemap/tilesetCache';
 import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 // The tilemap loaders come with the subsystem now, not with the asset
 // registry: a package without tilemaps does not carry a tilemap parser.
@@ -229,6 +230,52 @@ describe('a tilemap era owns the textures it resolved', () => {
 });
 
 describe('a tilemap runtime belongs to one app', () => {
+    it.skipIf(!HAS_WASM)('projects Tiled group offsets and sprite colors into the scene', async () => {
+        const { App } = await import('../src/app/app');
+        const { Assets: AssetsResource } = await import('../src/asset/AssetPlugin');
+        const { Marker, Sprite, Transform } = await import('../src/ecs/component');
+        const { Tilemap, TilemapLayer } = await import('../src/tilemap/components');
+        const { TilemapPlugin } = await import('../src/tilemap/tilemapPlugin');
+        const map = JSON.parse(GRID_MAP);
+        map.layers = [{ type: 'group', offsetx: 12, offsety: 5, opacity: 0.5, tintcolor: '#80ff8040', layers: [
+            map.layers[0],
+            { type: 'objectgroup', objects: [{ id: 1, gid: 1, x: 4, y: 9, width: 4, height: 4 }] },
+            { type: 'group', visible: false, layers: [{ type: 'objectgroup', objects: [{ id: 2, point: true }] }] },
+        ] }];
+        const assets = realm(JSON.stringify(map));
+        const engine = await loadWasmModule();
+        const registry = new engine.Registry();
+        const app = App.new();
+        app.connectCpp(registry, engine);
+        app.insertResource(AssetsResource, assets);
+        app.addPlugin(new TilemapPlugin());
+        const ref = 'maps/level.tmj';
+        try {
+            await assets.acquireTyped('tilemap', ref);
+            const parent = app.world.spawn();
+            app.world.insert(parent, Transform);
+            app.world.insert(parent, Tilemap, { source: ref });
+            await app.tick(1 / 60);
+            const layers = app.world.getEntitiesWithComponents([TilemapLayer]);
+            const sprites = app.world.getEntitiesWithComponents([Sprite]);
+            expect(layers).toHaveLength(1);
+            expect(sprites).toHaveLength(1);
+            const [layer] = layers, [sprite] = sprites;
+            expect(app.world.get(layer, TilemapLayer).originOffset).toEqual({ x: 12, y: -5 });
+            expect(app.world.get(sprite, Transform).position).toEqual({ x: 18, y: -12, z: 0 });
+            const color = app.world.get(sprite, Sprite).color;
+            expect(color.r).toBe(1);
+            expect(color.g).toBeCloseTo(128 / 255, 6);
+            expect(color.b).toBeCloseTo(64 / 255, 6);
+            expect(color.a).toBeCloseTo(64 / 255, 6);
+            expect(app.world.getEntitiesWithComponents([Marker])).toHaveLength(0);
+        } finally {
+            app.quit();
+            assets.releaseAll();
+            (registry as unknown as { delete(): void }).delete();
+        }
+    });
+
     it('two apps with the same entity ids do not share derived state', async () => {
         // The plugin object is a shared singleton and every one of these
         // collections is entity-keyed. Two apps both count entities from 1.

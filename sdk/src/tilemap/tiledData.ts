@@ -13,15 +13,13 @@ export function parseTiledMapDocument(text: string, path?: string): Layer {
 }
 
 /** Flatten Tiled groups in document order for the loader and package validator. */
-export function flattenTmjLayers(layers: readonly Layer[]): Layer[] {
-    const out: Layer[] = [];
+export function* walkTmjLayers(layers: readonly Layer[], groups: readonly Layer[] = []): Generator<{ layer: Layer; groups: readonly Layer[] }> {
     for (const layer of layers) {
         if (layer.type === 'group') {
             const children = layer.layers as Layer[] | undefined;
-            if (children) out.push(...flattenTmjLayers(children));
-        } else out.push(layer);
+            if (children) yield* walkTmjLayers(children, [...groups, layer]);
+        } else yield { layer, groups };
     }
-    return out;
 }
 
 function encodedTileData(layer: Layer, block: Layer, count: number): string | undefined {
@@ -61,7 +59,7 @@ export function readTiledGids(layer: Layer, block: Layer, count: number): ArrayL
 
 /** Check the same encoded layer and chunk envelopes at export, without allocating decoded tiles. */
 export function validateTiledTileData(map: Layer): void {
-    for (const layer of flattenTmjLayers((map.layers as Layer[] | undefined) ?? [])) {
+    for (const { layer } of walkTmjLayers((map.layers as Layer[] | undefined) ?? [])) {
         if (layer.type !== 'tilelayer') continue;
         const chunks = layer.chunks as Layer[] | undefined;
         if (chunks?.length) {

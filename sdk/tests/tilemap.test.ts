@@ -624,6 +624,18 @@ describe('loadTiledMap', () => {
         expect(world.spawn).toHaveBeenCalledTimes(2);
     });
 
+    it.each([false, true])('applies inherited offsets to drawing and tile collision (infinite=%s)', infinite => {
+        const world = createMockWorld();
+        const layer = infinite ? { chunks: [{ x: 0, y: 0, width: 1, height: 1, data: [1] }] } : { data: [1] };
+        const map = parseTmjJson({ width: 1, height: 1, tilewidth: 16, tileheight: 12, layers: [{
+            type: 'group', offsetx: 21, offsety: 9,
+            layers: [{ type: 'tilelayer', offsetx: 2, offsety: -3, ...layer }],
+        }] })!;
+        const [render, collider] = loadTiledMap(world, map, new Map(), { collisionTileIds: [1] });
+        expect(world.get(render, TilemapLayer).originOffset).toEqual({ x: 23, y: -6 });
+        expect(world.get(collider, Transform).position).toEqual({ x: 31, y: -12, z: 0 });
+    });
+
     it('should skip invisible layers', () => {
         const world = createMockWorld();
         const textureHandles = new Map([['terrain.png', 42]]);

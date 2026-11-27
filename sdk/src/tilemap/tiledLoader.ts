@@ -15,7 +15,7 @@ import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../util/logger';
 import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
-import { flattenTmjLayers, readTiledGids } from './tiledData';
+import { walkTmjLayers, readTiledGids } from './tiledData';
 
 export interface TiledChunkData {
     x: number;
@@ -37,6 +37,8 @@ export interface TiledLayerData {
     tintColor: { r: number; g: number; b: number; a: number };
     parallaxX: number;
     parallaxY: number;
+    /** Inherited pixel offset in the engine's y-up frame. */
+    originOffset?: { x: number; y: number };
 }
 
 export interface TiledTilesetData {
@@ -93,6 +95,8 @@ export interface TiledObjectData {
 export interface TiledObjectGroupData {
     name: string;
     visible: boolean;
+    /** Inherited tint and opacity for tile objects drawn as sprites. */
+    spriteColor?: { r: number; g: number; b: number; a: number };
     properties: Map<string, unknown>;
     objects: TiledObjectData[];
 }
@@ -162,6 +166,25 @@ function parseTintColor(hex: string | undefined): { r: number; g: number; b: num
         return { r, g, b, a: 1 };
     }
     return { r: 1, g: 1, b: 1, a: 1 };
+}
+
+/** Tiled inherits visibility, adds pixel offsets, and multiplies drawing factors. */
+function tiledLayerProperties(layer: Record<string, unknown>, groups: readonly Record<string, unknown>[]) {
+    let visible = true, x = 0, y = 0, opacity = 1, parallaxX = 1, parallaxY = 1;
+    const tintColor = { r: 1, g: 1, b: 1, a: 1 };
+    for (const row of [...groups, layer]) {
+        visible = visible && row.visible !== false;
+        if (typeof row.offsetx === 'number') x += row.offsetx;
+        if (typeof row.offsety === 'number') y -= row.offsety;
+        if (typeof row.opacity === 'number') opacity *= row.opacity;
+        if (typeof row.parallaxx === 'number') parallaxX *= row.parallaxx;
+        if (typeof row.parallaxy === 'number') parallaxY *= row.parallaxy;
+        if (typeof row.tintcolor === 'string') {
+            const tint = parseTintColor(row.tintcolor);
+            tintColor.r *= tint.r; tintColor.g *= tint.g; tintColor.b *= tint.b; tintColor.a *= tint.a;
+        }
+    }
+    return { visible, opacity, tintColor, parallaxX, parallaxY, originOffset: { x, y } };
 }
 
 // Keep the global GID as the engine tile-id (Tiled GIDs are contiguous across
@@ -268,15 +291,14 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     }
 
     const topLayers = json.layers as Array<Record<string, unknown>> | undefined;
-    const rawLayers = topLayers ? flattenTmjLayers(topLayers) : undefined;
+    const rawLayers = topLayers ? [...walkTmjLayers(topLayers)] : undefined;
     const layers: TiledLayerData[] = [];
 
     if (rawLayers) {
-        for (const layer of rawLayers) {
+        for (const { layer, groups } of rawLayers) {
             if (layer.type !== 'tilelayer') continue;
             const lw = (layer.width as number) ?? width;
             const lh = (layer.height as number) ?? height;
-            const visible = layer.visible !== false;
             const rawChunks = layer.chunks as Array<Record<string, unknown>> | undefined;
 
             const infinite = !!rawChunks && rawChunks.length > 0;
@@ -289,24 +311,14 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                 }
             }
 
-            const opacity = typeof layer.opacity === 'number' ? layer.opacity : 1;
-            const rawTint = layer.tintcolor as string | undefined;
-            const tintColor = parseTintColor(rawTint);
-            const parallaxX = typeof layer.parallaxx === 'number' ? layer.parallaxx : 1;
-            const parallaxY = typeof layer.parallaxy === 'number' ? layer.parallaxy : 1;
-
             layers.push({
+                ...tiledLayerProperties(layer, groups),
                 name: (layer.name as string) ?? '',
                 width: lw,
                 height: lh,
-                visible,
                 tiles,
                 chunks,
                 infinite,
-                opacity,
-                tintColor,
-                parallaxX,
-                parallaxY,
             });
         }
     }
@@ -315,10 +327,11 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     const collisionTileIds: number[] = [];
 
     if (rawLayers) {
-        for (const layer of rawLayers) {
+        for (const { layer, groups } of rawLayers) {
             if (layer.type !== 'objectgroup') continue;
             const objs = layer.objects as Array<Record<string, unknown>> | undefined;
             if (!objs) continue;
+            const { visible, originOffset, opacity, tintColor } = tiledLayerProperties(layer, groups);
             const parsed: TiledObjectData[] = [];
             for (const obj of objs) {
                 const props = new Map<string, unknown>();
@@ -355,8 +368,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                     type: (obj.type as string) ?? (obj.class as string) ?? '',
                     visible: obj.visible !== false,
                     shape,
-                    x: (obj.x as number) ?? 0,
-                    y: (obj.y as number) ?? 0,
+                    x: ((obj.x as number) ?? 0) + originOffset.x,
+                    y: ((obj.y as number) ?? 0) - originOffset.y,
                     width: (obj.width as number) ?? 0,
                     height: (obj.height as number) ?? 0,
                     rotation: (obj.rotation as number) ?? 0,
@@ -374,7 +387,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
             }
             objectGroups.push({
                 name: (layer.name as string) ?? '',
-                visible: layer.visible !== false,
+                visible,
+                spriteColor: { ...tintColor, a: tintColor.a * opacity },
                 properties: groupProps,
                 objects: parsed,
             });
@@ -1176,12 +1190,13 @@ export function initializeTiledLayer(
 export function tiledLayerComponent(
     layer: TiledLayerData, tileWidth: number, tileHeight: number, renderLayer: number,
     layout?: TileGridLayout,
-): Pick<TilemapLayerData, 'cellSize' | 'renderLayer' | 'visible' | 'opacity' | 'tintColor' | 'parallaxFactor'
+): Pick<TilemapLayerData, 'cellSize' | 'renderLayer' | 'visible' | 'opacity' | 'tintColor' | 'parallaxFactor' | 'originOffset'
     | 'orientation' | 'hexSideLength' | 'staggerAxis' | 'staggerIndex'> {
     return {
         orientation: layout?.orientation ?? 0, hexSideLength: layout?.hexSideLength ?? 0,
         staggerAxis: layout?.staggerAxisX ? 1 : 0, staggerIndex: layout?.staggerIndexEven ? 1 : 0,
         cellSize: { x: tileWidth, y: tileHeight },
+        originOffset: { x: layer.originOffset?.x ?? 0, y: layer.originOffset?.y ?? 0 },
         renderLayer,
         visible: layer.visible,
         opacity: layer.opacity,
@@ -1240,25 +1255,27 @@ export function loadTiledMap(
     if (tileCollisionIds.size > 0) {
         for (const layer of mapData.layers) {
             if (!layer.visible) continue;
+            const x = layer.originOffset?.x ?? 0, y = layer.originOffset?.y ?? 0;
             // Infinite layers are re-chunked to CHUNK_SIZE at parse — same generators
             // as the painted path.
             entities.push(...(layer.infinite
                 ? generateChunkCollision(
                     world, layer.chunks, tileCollisionIds,
-                    mapData.tileWidth, mapData.tileHeight, 0, 0, 1, layout)
-                : generateTileCollision(world, layer, mapData, tileCollisionIds, 0, 0)));
+                    mapData.tileWidth, mapData.tileHeight, x, y, 1, layout)
+                : generateTileCollision(world, layer, mapData, tileCollisionIds, x, y)));
         }
     }
     if (mapData.tileShapes && mapData.tileShapes.size > 0) {
         for (const layer of mapData.layers) {
             if (!layer.visible) continue;
+            const x = layer.originOffset?.x ?? 0, y = layer.originOffset?.y ?? 0;
             entities.push(...(layer.infinite
                 ? generateChunkTileShapes(
                     world, layer.chunks, mapData.tileShapes,
-                    mapData.tileWidth, mapData.tileHeight, 0, 0, 1, layout)
+                    mapData.tileWidth, mapData.tileHeight, x, y, 1, layout)
                 : generateLayerTileShapes(
                     world, layer.tiles, layer.width, layer.height, mapData.tileShapes,
-                    mapData.tileWidth, mapData.tileHeight, 0, 0, 1, layout)));
+                    mapData.tileWidth, mapData.tileHeight, x, y, 1, layout)));
         }
     }
 

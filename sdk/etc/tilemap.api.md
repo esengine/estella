@@ -405,6 +405,7 @@ height: number
 infinite: boolean
 name: string
 opacity: number
+originOffset: { x: number; y: number; } | undefined
 parallaxX: number
 parallaxY: number
 tiles: Uint16Array<ArrayBufferLike>
@@ -454,6 +455,7 @@ y: number
 name: string
 objects: TiledObjectData[]
 properties: Map<string, unknown>
+spriteColor: { r: number; g: number; b: number; a: number; } | undefined
 visible: boolean
 ```
 
