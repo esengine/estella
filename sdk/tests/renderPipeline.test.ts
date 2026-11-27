@@ -136,17 +136,19 @@ describe('RenderPipeline', () => {
         registerOverScreenDrawCallback('precise', relative, { renderSpace: true });
         const renderViewProjection = new Float32Array(16).fill(2);
         const renderOrigin = { x: 2 ** 28, y: 0, z: 1024 };
+        const parallaxCenter = { x: 96, y: 64 };
         pipeline.beginFrame(0);
-        pipeline.renderCamera({ registry, viewProjection, renderViewProjection, renderOrigin,
+        pipeline.renderCamera({ registry, viewProjection, renderViewProjection, renderOrigin, parallaxCenter,
             viewportPixels: { x: 0, y: 0, w: 800, h: 600 }, clearFlags: 3, elapsed: 0 });
         renderOrigin.x = 0;
+        parallaxCenter.x = 0;
         renderViewProjection.fill(3);
         pipeline.renderOverScreen();
 
         const expectedProjection = new Float32Array(16).fill(2);
-        expect(canonical.mock.lastCall?.[1]).toEqual({ viewProjection, width: 800, height: 600 });
+        expect(canonical.mock.lastCall?.[1]).toEqual({ viewProjection, width: 800, height: 600, parallaxCenter: { x: 96, y: 64 } });
         expect(relative.mock.lastCall?.[1]).toEqual({ viewProjection: expectedProjection, width: 800, height: 600,
-            origin: { x: 2 ** 28, y: 0, z: 1024 } });
+            origin: { x: 2 ** 28, y: 0, z: 1024 }, parallaxCenter: { x: 96, y: 64 } });
         expect(beginPresentedDraw).toHaveBeenNthCalledWith(2, expectedProjection, 800, 600);
         expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(2);
     });

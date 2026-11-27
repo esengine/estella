@@ -5,7 +5,7 @@
  * @brief   Custom draw callback registration for the render pipeline
  */
 import type { World } from '../ecs/world';
-import type { Vec3 } from '../types';
+import type { Vec2, Vec3 } from '../types';
 import { log } from '../util/logger';
 
 /** The camera facts used by the draw pass invoking a callback. */
@@ -14,6 +14,8 @@ export interface DrawFrameInfo {
     readonly viewProjection: Float32Array;
     /** Subtract this world origin from positions submitted to Draw, when present. */
     readonly origin?: Readonly<Vec3>;
+    /** Editor parallax center in the renderer's rebased coordinates. */
+    readonly parallaxCenter?: Readonly<Vec2>;
     /** Framebuffer viewport dimensions used by Draw.begin. */
     readonly width: number;
     readonly height: number;

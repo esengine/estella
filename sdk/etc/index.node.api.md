@@ -2365,6 +2365,7 @@ ResourceDef<CameraCommitData>
 
 ## CameraCommitData — interface @beta
 ```
+parallaxAnchor: Readonly<Vec2> | undefined
 rebasedProjection: RebasedProjection | undefined
 revision: number
 valid: boolean
@@ -2600,6 +2601,7 @@ clearColor: { x: number; y: number; z: number; w: number; } | undefined
 clearFlags: number
 cullingMask: number | undefined
 elapsed: number
+parallaxCenter: Readonly<Vec2> | undefined
 registry: { _cpp: CppRegistry; }
 renderOrigin: Readonly<Vec3> | undefined
 renderPolicy: RenderResolution | undefined
@@ -4306,6 +4308,7 @@ world: World | undefined
 ```
 height: number
 origin: Readonly<Vec3> | undefined
+parallaxCenter: Readonly<Vec2> | undefined
 viewProjection: Float32Array<ArrayBufferLike>
 width: number
 ```
@@ -10243,7 +10246,7 @@ setActiveScenes: (scenes: Set<string> | null) => void
 setPostProcess: (pp: PostProcessAPI | null) => void
 setQuality: (quality: QualityController, apply?: () => void) => void
 setRenderingEnabled: (enabled: boolean) => void
-submitScene: (registry: { _cpp: CppRegistry; }, viewProjection: Float32Array, viewport: Viewport, _elapsed: number, replay?: boolean, presentsFrame?: boolean) => void
+submitScene: (registry: { _cpp: CppRegistry; }, viewProjection: Float32Array, viewport: Viewport, _elapsed: number, replay?: boolean, presentsFrame?: boolean, parallaxCenter?: DrawFrameInfo["parallaxCenter"]) => void
 static new (): RenderPipeline
 static prototype: RenderPipeline
 ```

@@ -719,7 +719,9 @@ function publishScreenLayout(app: App, fit: CanvasScale | null, width: number, h
  * peek draws nothing. Copied because UICameraInfo's array is rewritten in place,
  * so a view onto it would change under a reader mid-gizmo.
  */
-function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): void {
+function commitCamera(
+    app: App, cam: CameraInfo | null, uiCam: UICameraData, anchor: CameraCommitData['parallaxAnchor'],
+): void {
     const commit = app.getResource(CameraCommit);
     if (!cam) {
         if (commit.valid) {
@@ -729,11 +731,13 @@ function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): vo
         return;
     }
     const rebasedMoved = copyRebasedProjection(commit, cam);
-    const moved = !commit.valid || rebasedMoved
+    const parallaxMoved = commit.parallaxAnchor?.x !== anchor?.x || commit.parallaxAnchor?.y !== anchor?.y;
+    const moved = !commit.valid || rebasedMoved || parallaxMoved
         || commit.vpX !== uiCam.vpX || commit.vpY !== uiCam.vpY
         || commit.vpW !== uiCam.vpW || commit.vpH !== uiCam.vpH
         || !sameMatrix(commit.viewProjection, cam.viewProjection);
     commit.viewProjection.set(cam.viewProjection);
+    if (parallaxMoved) commit.parallaxAnchor = anchor;
     commit.vpX = uiCam.vpX;
     commit.vpY = uiCam.vpY;
     commit.vpW = uiCam.vpW;
@@ -748,6 +752,10 @@ function commitCamera(app: App, cam: CameraInfo | null, uiCam: UICameraData): vo
 function sameMatrix(a: Float32Array, b: Float32Array): boolean {
     for (let i = 0; i < 16; i++) if (a[i] !== b[i]) return false;
     return true;
+}
+
+function parallaxCenterFor(anchor: CameraCommitData['parallaxAnchor'], origin: CameraInfo['renderOrigin']) {
+    return anchor && { x: anchor.x - origin.x, y: anchor.y - origin.y };
 }
 
 /** Publish the relative matrix with the exact origin it was built against. */
@@ -1134,6 +1142,7 @@ export function cameraPlugin(
                                     viewProjection: cam.viewProjection,
                                     renderViewProjection: cam.renderViewProjection,
                                     renderOrigin: cam.renderOrigin,
+                                    parallaxCenter: parallaxCenterFor(anchor ?? undefined, cam.renderOrigin),
                                     viewportPixels: cam.viewport,
                                     clearFlags: cam.clearFlags,
                                     elapsed,
@@ -1173,7 +1182,7 @@ export function cameraPlugin(
                     // The frame is drawn; say which camera drew it. After the
                     // submit, so nothing can publish a commit for a picture that
                     // then failed to render.
-                    commitCamera(app, primaryScreenCamera(cameras), app.getResource(UICameraInfo));
+                    commitCamera(app, primaryScreenCamera(cameras), app.getResource(UICameraInfo), anchor ?? undefined);
                 },
             };
 
@@ -1238,6 +1247,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     if (!pipeline || !registry || width <= 0 || height <= 0) return false;
     if (target && pipeline.screenEffectsActive) return false;
     const elapsed = pipeline.frameElapsed;
+    const anchor = app.getResource(CameraCommit).parallaxAnchor;
     let drewCamera = false;
     let presented: CameraInfo | null = null;
     Renderer.resize(width, height);
@@ -1270,7 +1280,8 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
             const passTarget = cameraPassTarget(cam, target);
             if (passTarget === null) continue;
             pipeline.renderCamera({ registry: { _cpp: registry }, viewProjection: cam.viewProjection, renderViewProjection: cam.renderViewProjection,
-                renderOrigin: cam.renderOrigin, viewportPixels: cam.viewport, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
+                renderOrigin: cam.renderOrigin, parallaxCenter: parallaxCenterFor(anchor, cam.renderOrigin),
+                viewportPixels: cam.viewport, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
                 clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy, renderTarget: passTarget });
             drewCamera = true;
         }
@@ -1282,7 +1293,8 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
     } finally {
         pipeline.endFrame();
     }
-    if (presented) commitCamera(app, presented, app.getResource(UICameraInfo));
+    // A redraw uses the override previously pushed by the regular render system.
+    if (presented) commitCamera(app, presented, app.getResource(UICameraInfo), anchor);
     return drewCamera;
 }
 

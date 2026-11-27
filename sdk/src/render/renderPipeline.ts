@@ -84,6 +84,8 @@ export interface CameraRenderParams {
     renderViewProjection?: Float32Array;
     /** The world origin of `renderViewProjection`, for render-space over-screen callbacks. */
     renderOrigin?: Readonly<Vec3>;
+    /** Editor parallax center in render space, for callbacks that align to a layer. */
+    parallaxCenter?: DrawFrameInfo['parallaxCenter'];
     viewportPixels: Viewport;
     clearFlags: number;
     elapsed: number;
@@ -128,6 +130,7 @@ export class RenderPipeline {
     private overScreenView_: {
         viewProjection: Float32Array;
         relative?: { viewProjection: Float32Array; origin: Vec3 };
+        parallaxCenter?: DrawFrameInfo['parallaxCenter'];
         viewport: Viewport;
         registry: CppRegistry;
         activeScenes: ReadonlySet<string> | null;
@@ -281,8 +284,8 @@ export class RenderPipeline {
         const view = this.overScreenView_;
         this.overScreenView_ = null;
         if (!view || overScreenCallbacks.entries.size === 0 || !isDrawAPIReady() || !Renderer.hasDrawOverScreen()) return;
-        const { viewProjection, viewport, relative } = view;
-        const size = { width: viewport.w, height: viewport.h };
+        const { viewProjection, viewport, relative, parallaxCenter } = view;
+        const info = { width: viewport.w, height: viewport.h, parallaxCenter };
         const draw = (frame: DrawFrameInfo, renderSpace?: boolean) => {
             const drew = overScreenCallbacks.dispatch(view.registry, view.activeScenes,
                 () => beginPresentedDraw(frame.viewProjection, frame.width, frame.height),
@@ -292,8 +295,8 @@ export class RenderPipeline {
                 Renderer.drawOverScreen(viewport.x, viewport.y, viewport.w, viewport.h, target);
             }
         };
-        draw({ viewProjection, ...size }, relative ? false : undefined);
-        if (relative) draw({ ...relative, ...size }, true);
+        draw({ viewProjection, ...info }, relative ? false : undefined);
+        if (relative) draw({ ...relative, ...info }, true);
     }
 
     /** Whether a screen-level effect stack is on: it draws the whole screen, so a frame meant for a render target cannot hold it. */
@@ -325,6 +328,7 @@ export class RenderPipeline {
         _elapsed: number,
         replay = false,
         presentsFrame = true,
+        parallaxCenter?: DrawFrameInfo['parallaxCenter'],
     ): void {
         // Underlays (editor grid / world-space guides) draw first so the scene's
         // sprites, flushed below, occlude them.
@@ -340,7 +344,7 @@ export class RenderPipeline {
         }
         Renderer.flush();
 
-        this.executeDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp, presentsFrame);
+        this.executeDrawCallbacks(viewProjection, viewport, _elapsed, registry._cpp, presentsFrame, parallaxCenter);
     }
 
     render(params: RenderParams): void {
@@ -442,12 +446,13 @@ export class RenderPipeline {
         // The camera IS the view: a level picked from how big something looks is
         // this camera's answer, and the next camera must be free to disagree.
         Renderer.setViewId(cameraEntity ?? 0);
-        this.submitScene(registry, viewProjection, scene, elapsed, replayed, presentsFrame);
+        this.submitScene(registry, viewProjection, scene, elapsed, replayed, presentsFrame, params.parallaxCenter);
         Renderer.end();
         if (presentsFrame && overScreenCallbacks.entries.size > 0) {
             const origin = params.renderOrigin;
             this.overScreenView_ = {
                 viewProjection: Float32Array.from(viewProjection), viewport: { ...present }, registry: registry._cpp,
+                parallaxCenter: params.parallaxCenter && { ...params.parallaxCenter },
                 relative: params.renderViewProjection && origin && (origin.x !== 0 || origin.y !== 0 || origin.z !== 0)
                     ? { viewProjection: Float32Array.from(params.renderViewProjection), origin: { x: origin.x, y: origin.y, z: origin.z } }
                     : undefined,
@@ -474,10 +479,11 @@ export class RenderPipeline {
         if (drew) Draw.end();
     }
 
-    private executeDrawCallbacks(viewProjection: Float32Array, viewport: Viewport, elapsed: number, registry: CppRegistry, presentsFrame: boolean): void {
+    private executeDrawCallbacks(viewProjection: Float32Array, viewport: Viewport, elapsed: number, registry: CppRegistry,
+                                 presentsFrame: boolean, parallaxCenter?: DrawFrameInfo['parallaxCenter']): void {
         const lateHere = presentsFrame && overScreenCallbacks.entries.size > 0 && !Renderer.hasDrawOverScreen();
         if ((!sceneDrawCallbacks.entries.size && !lateHere) || !isDrawAPIReady()) return;
-        const frame = { viewProjection, width: viewport.w, height: viewport.h };
+        const frame = { viewProjection, width: viewport.w, height: viewport.h, parallaxCenter };
         let started = false;
         const begin = () => {
             if (!started) { beginPresentedDraw(viewProjection, viewport.w, viewport.h); started = true; }

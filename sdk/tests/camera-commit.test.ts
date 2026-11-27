@@ -411,6 +411,32 @@ describe('the camera a frame was drawn with', () => {
         expect(app.getResource(PresentedCameraView).screenToWorld(424, 300)?.x).toBeCloseTo(x + 24, 4);
     });
 
+    it('commits the renderer parallax anchor when only the game camera moves', async () => {
+        const { app, cam } = bootWithCamera(undefined, 16);
+        Object.assign(app.getResource(EditorView), { active: true, parallaxPreview: true, x: 0 });
+        const setAnchor = vi.spyOn(Renderer, 'setParallaxAnchor');
+        await app.tick(1 / 60);
+        const commit = app.getResource(CameraCommit);
+        const projection = Float32Array.from(commit.viewProjection);
+        expect(setAnchor).toHaveBeenLastCalledWith(true, 16, 0);
+        expect(commit).toMatchObject({ parallaxAnchor: { x: 16, y: 0 } });
+        const callback = vi.fn(), off = onCameraCommitChanged(callback);
+        try {
+            app.world.update(cam, Transform, t => { t.position.x = t.worldPosition.x = 64; });
+            expect(commit).toMatchObject({ parallaxAnchor: { x: 16, y: 0 } });
+            await app.tick(1 / 60);
+            expect(setAnchor).toHaveBeenLastCalledWith(true, 64, 0);
+            expect(commit).toMatchObject({ parallaxAnchor: { x: 64, y: 0 } });
+            expect(commit.viewProjection).toEqual(projection);
+            expect(callback).toHaveBeenCalledOnce();
+            app.getResource(EditorView).parallaxPreview = false;
+            await app.tick(1 / 60);
+            expect(setAnchor).toHaveBeenLastCalledWith(true, 0, 0);
+            expect(commit.parallaxAnchor).toEqual({ x: 0, y: 0 });
+            expect(callback).toHaveBeenCalledTimes(2);
+        } finally { off(); }
+    });
+
     it('announces once when the last presented camera disappears', async () => {
         const { app, registry } = bootWithCamera();
         await app.tick(1 / 60);

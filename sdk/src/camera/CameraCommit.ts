@@ -18,6 +18,7 @@
  *          to having used the same one.
  */
 import { defineResource } from '../ecs/resource';
+import type { Vec2 } from '../types';
 import type { RebasedProjection } from '../ui/util/math';
 
 /** @beta */
@@ -28,6 +29,8 @@ export interface CameraCommitData {
     viewProjection: Float32Array;
     /** The render-space matrix and origin copied together when origin rebasing is active. */
     rebasedProjection?: RebasedProjection;
+    /** World-space parallax override used by the editor view for this frame. */
+    parallaxAnchor?: Readonly<Vec2>;
     /** Where the picture landed, in window pixels. */
     vpX: number;
     vpY: number;
