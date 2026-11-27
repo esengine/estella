@@ -575,11 +575,12 @@ export async function cookAssets(
   // Seed reachability from the entry scenes (path → uuid)…
   const reachable = new Set<string>();
   const queue: string[] = [];
+  let rejectedSceneIds: Set<string> | undefined;
   // Kept as it is discovered, not derived afterwards: the FIRST way in is the
   // shortest one, and re-deriving it later would answer a different question.
   const inclusionByUuid = new Map<string, Inclusion>();
   const seed = (uuid: string, how: Inclusion): void => {
-    if (!reachable.has(uuid)) {
+    if (!rejectedSceneIds?.has(uuid) && !reachable.has(uuid)) {
       reachable.add(uuid);
       inclusionByUuid.set(uuid, how);
       queue.push(uuid);
@@ -588,7 +589,14 @@ export async function cookAssets(
   for (const scenePath of opts.entryScenes) {
     const entry = byPath.get(scenePath);
     if (!entry) {
-      warnings.push(`entry scene not in asset index: ${scenePath}`);
+      failed.push(`${scenePath}: required scene is missing from the asset index. Check the path and .meta file.`);
+      continue;
+    }
+    if (entry.type !== 'scene') {
+      failed.push(`${scenePath}: expected scene metadata, found "${entry.type}"`);
+      // A rejected scene must also stay out of the package if another rule
+      // would otherwise include it as data or a referenced asset.
+      (rejectedSceneIds ??= new Set()).add(entry.uuid);
       continue;
     }
     seed(entry.uuid, { reason: 'entry' });

@@ -42,6 +42,35 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('export progress', () => {
+  it.each(['web', 'desktop'] as const)('fails a %s export when the startup scene is missing', async platform => {
+    const result = await exportGame({
+      root, entryScene: 'scenes/missing.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: path.join(root, `out-missing-${platform}`), platform,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual(expect.stringContaining('scenes/missing.esscene: required scene is missing from the asset index'));
+  }, 60_000);
+
+  it('reports an untracked switchable scene only when it is selected for export', async () => {
+    const untracked = 'scenes/untracked.esscene';
+    const file = path.join(root, untracked);
+    writeFileSync(file, JSON.stringify({ version: 4, name: 'Local sketch', entities: [] }));
+    const opts = {
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), platform: 'web' as const,
+    };
+    try {
+      const selected = await exportGame({ ...opts, outDir: path.join(root, 'out-untracked') });
+      expect(selected.ok).toBe(false);
+      expect(selected.errors).toContainEqual(expect.stringContaining(`${untracked}: required scene is missing from the asset index`));
+      const excluded = await exportGame({ ...opts, outDir: path.join(root, 'out-untracked-excluded'), excludeScenes: [untracked] });
+      expect(excluded.ok).toBe(true);
+    } finally {
+      rmSync(file, { force: true });
+    }
+  }, 60_000);
+
   it.each(['web', 'desktop'] as const)('fails a %s export with an included newer switchable scene', async platform => {
     const future = 'scenes/future.esscene';
     const file = path.join(root, future);

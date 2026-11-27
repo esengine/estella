@@ -152,11 +152,27 @@ describe('cookAssets (A4)', () => {
     expect(paths).toEqual(['assets/i18n/zh-CN.eslocale', 'assets/scenes/main.esscene', 'assets/textures/used.png']);
   });
 
-  it('warns when an entry scene is not a tracked asset', async () => {
+  it('fails when a required scene is missing from the asset index', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/missing.esscene'], outDir: 'build' });
-    expect(res.warnings.some((w) => w.includes('missing.esscene'))).toBe(true);
+    expect(res.ok).toBe(false);
+    expect(res.failed).toEqual([expect.stringMatching(/assets\/scenes\/missing\.esscene: required scene is missing from the asset index/i)]);
     // Scene-reachable set is empty; the locale table still force-includes.
     expect(res.included).toEqual([LOCALE_TABLE]);
+  });
+
+  it('fails when a required scene has metadata for the wrong asset type', async () => {
+    const scenePath = 'assets/scenes/orphan.esscene';
+    const metaPath = path.join(root, scenePath + '.meta');
+    const original = readFileSync(metaPath, 'utf8');
+    writeFileSync(metaPath, JSON.stringify({ ...JSON.parse(original), type: 'json' }));
+    try {
+      const res = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build/wrong-scene-type' });
+      expect(res.ok).toBe(false);
+      expect(res.failed).toEqual([expect.stringMatching(/orphan\.esscene: expected scene metadata, found "json"/i)]);
+      expect(res.included).not.toContain(ORPHAN_SCENE);
+    } finally {
+      writeFileSync(metaPath, original);
+    }
   });
 
   it('records a contentHash + size for each staged asset', async () => {
