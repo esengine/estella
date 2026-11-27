@@ -115,6 +115,7 @@ app.addSystemToSchedule(Schedule.Update, camera, {
 | `runBefore` / `runAfter` | 附加的排序边。 |
 | `runIf` | 每帧检查的运行条件；为 `false` 时跳过该系统。 |
 | `activeWhen` | 系统工作所依赖的组件。没有任何实体带有其中任一组件时跳过该系统；最后一个被移除后，系统再运行一帧。 |
+| `profileDomain` | 性能剖析器归档该系统开销的领域（[性能剖析](/docs/zh-cn/performance/profiling/overview/#性能剖析器面板)）。默认取在其 `build()` 中注册它的插件的领域。 |
 
 指向本阶段中不存在的系统的排序边会被忽略。排序边成环时，调度器抛出带有成环路径的错误，
 例如 `Circular system dependency: move → camera → move`。
@@ -123,6 +124,35 @@ app.addSystemToSchedule(Schedule.Update, camera, {
   顶层的 `addSystem` / `addSystemToSchedule` 不接受选项；`name`、`runBefore` 与 `runAfter` 在 `defineSystem`
   上声明。运行条件没有定义处的写法：它只能传给 `app.addSystemToSchedule` 或所属的系统集。
 </Aside>
+
+### 运行条件
+
+运行条件是一个 `() => boolean`，每帧在系统将要运行前检查。返回 `false` 时本帧跳过该系统；条件第一次返回 `true`
+的那一帧，系统恢复运行。`runIf` 在注册时或在[系统集](#系统集)上接受一个运行条件。引擎导出了它自己使用的条件：
+
+| 条件 | 何时返回 `true` |
+|---|---|
+| `playModeOnly` | 编辑器外始终为 `true`；编辑器内只在试玩（Play）期间。 |
+| `isPlayMode` | 编辑器处于试玩期间。 |
+| `isEditor` / `isRuntime` | 在编辑器内 / 编辑器外。 |
+
+```typescript
+import { Schedule, playModeOnly } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, spawnWaves, { runIf: playModeOnly });
+```
+
+引擎的模拟类插件（物理、动画、速度、AI、时间轴）都用 `playModeOnly` 控制自己的系统。正因如此，编辑器的编辑模式下
+游戏是静止的，而渲染、变换与布局仍在更新正在编辑的场景。项目自己的脚本只加载到编辑器的试玩世界中，因此无需加条件；
+[编辑器插件](/docs/zh-cn/extending/editor-plugins/)加到编辑世界中、会推进游戏的系统，需要用 `playModeOnly`。
+
+有三个选项会跳过系统，原因各不相同：
+
+| 选项 | 何时跳过系统 |
+|---|---|
+| `runIf` | 条件返回 `false` 时。 |
+| `activeWhen` | 没有任何实体带有所列组件中的任一个时。插件可为其全部系统声明它（[插件](/docs/zh-cn/core-concepts/plugins-resources/#插件)）。 |
+| `runWhenPaused` | 应用暂停时，除非该选项为 `true`。 |
 
 ### 系统集
 

@@ -28,6 +28,10 @@ readout.
 - Sorting by time reorders rows whenever two systems swap places, which on a live window happens every few frames; sort
   by name to follow one system.
 - The systems list shows twelve systems.
+- The cost tree groups systems by **domain**: the `profileDomain` of the plugin that registered them, or its `name`.
+  Systems from the project's scripts are filed under `scripts`, and systems registered outside any plugin under
+  `unattributed`. A system can name its own with the `profileDomain` registration option
+  ([Systems](/docs/core-concepts/systems/#ordering-edges)).
 - **Profiler ▸ Open…** opens a recorded `.esprof` capture ([Device Captures](/docs/performance/profiling/recording/)).
 
 In a game build, `statsPlugin` provides the equivalent data.

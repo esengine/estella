@@ -184,6 +184,7 @@ export const scorePlugin: Plugin = {
 | `before` / `after` | `string[]?` | Ordering hints against other plugin names, applied when a batch is installed with `addPlugins`. |
 | `build(app)` | required | Registers systems, resources and events. Runs immediately on `addPlugin`. |
 | `activeWhen` | `ComponentDef[]?` | Components the plugin's work depends on. While no entity has any of them, the systems registered in its `build()` are skipped; they run for one more frame after the last one is removed so the plugin can release what it holds. Absent: always run. |
+| `profileDomain` | `string?` | The domain the profiler files this plugin's systems under. Defaults to `name`; declared where the two differ, as the camera plugin filing its cost under `render`. |
 | `finish(app)` | optional | Runs once after **all** plugins have built, on the app's first tick or `run()`. For wiring that needs the complete plugin set. |
 | `cleanup(app?)` | optional | Releases acquired resources on `app.quit()` (in reverse install order) or after a failed build. Must tolerate a partially completed build. |
 
@@ -193,6 +194,11 @@ definition requires that resource to exist.
 The engine's water, terrain, planet, foliage, tilemap, navigation, behaviour tree, state machine, perception and
 velocity plugins declare `activeWhen`. A single system is gated in the same way with
 `app.addSystemToSchedule(schedule, system, { activeWhen: [MyComponent] })`.
+
+A plugin's systems that take `GetWorld()` declare the components they reach with `touches`
+([Declared access](/docs/core-concepts/systems/#declared-access)). Without it such a system conflicts with every other
+system. The velocity plugin is an example: it asks whether an entity is a dynamic `RigidBody2D` or `RigidBody3D`,
+components a physics module registers only when it is loaded, so they are named rather than queried.
 
 ### Installation
 

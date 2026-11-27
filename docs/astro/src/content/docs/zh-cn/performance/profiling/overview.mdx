@@ -23,6 +23,9 @@ Estella 的诊断功能是 SDK API，编辑器的工具也构建在其之上：
 - 单击开销树或系统列表的列标题按名称或时间排序；再次单击反转顺序。该选择会被记住。
 - 按时间排序时，两个系统交换位置就会重排行，在实时窗口中每隔几帧就会发生；要跟踪某个系统，请按名称排序。
 - 系统列表显示十二个系统。
+- 开销树按**领域**归组系统：取注册它们的插件的 `profileDomain`，否则取插件的 `name`。项目脚本中的系统归入 `scripts`，
+  不属于任何插件注册的系统归入 `unattributed`。单个系统可以用注册选项 `profileDomain` 指定自己的领域
+  （[系统](/docs/zh-cn/core-concepts/systems/#排序边)）。
 - **Profiler ▸ Open…** 打开录制的 `.esprof` 采集（[设备端采集](/docs/zh-cn/performance/profiling/recording/)）。
 
 在游戏构建中，`statsPlugin` 提供相应的数据。

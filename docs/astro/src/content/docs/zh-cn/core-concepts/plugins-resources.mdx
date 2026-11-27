@@ -177,6 +177,7 @@ export const scorePlugin: Plugin = {
 | `before` / `after` | `string[]?` | 相对于其他插件名称的排序提示，在用 `addPlugins` 安装批次时生效。 |
 | `build(app)` | 必需 | 注册系统、资源与事件。在 `addPlugin` 时立即运行。 |
 | `activeWhen` | `ComponentDef[]?` | 插件工作所依赖的组件。没有任何实体带有其中任一组件时，其 `build()` 中注册的系统被跳过；最后一个被移除后系统再运行一帧，以便插件释放所持有的内容。省略时始终运行。 |
+| `profileDomain` | `string?` | 性能剖析器归档该插件系统开销的领域。默认取 `name`；两者不同时才声明，例如相机插件把开销归到 `render`。 |
 | `finish(app)` | 可选 | 在**所有**插件构建完成后运行一次，时机为 app 的首次 tick 或 `run()`。用于需要完整插件集的接线。 |
 | `cleanup(app?)` | 可选 | 在 `app.quit()` 时（按安装的逆序）或构建失败后释放已获取的资源。必须能处理只完成了一部分的构建。 |
 
@@ -184,6 +185,10 @@ export const scorePlugin: Plugin = {
 
 引擎的水体、地形、行星、植被、瓦片地图、导航、行为树、状态机、感知与速度插件声明了 `activeWhen`。单个系统以
 `app.addSystemToSchedule(schedule, system, { activeWhen: [MyComponent] })` 同样受控。
+
+插件中使用 `GetWorld()` 的系统用 `touches` 声明它访问的组件（[声明访问](/docs/zh-cn/core-concepts/systems/#声明访问)），
+否则它与所有其他系统冲突。速度插件就是一例：它要判断实体是否为动态的 `RigidBody2D` 或 `RigidBody3D`，而这两个组件只在
+物理模块加载后才注册，所以按名字声明而不是写进查询。
 
 ### 安装
 

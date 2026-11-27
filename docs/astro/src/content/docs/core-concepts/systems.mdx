@@ -119,6 +119,7 @@ app.addSystemToSchedule(Schedule.Update, camera, {
 | `runBefore` / `runAfter` | Additional ordering edges. |
 | `runIf` | Run condition checked every frame; `false` skips the system. |
 | `activeWhen` | Components the system's work depends on. While no entity has any of them the system is skipped; it runs for one more frame after the last one is removed. |
+| `profileDomain` | Profiler domain the system's cost is filed under ([Profiling](/docs/performance/profiling/overview/#profiler-panel)). Defaults to the domain of the plugin whose `build()` registers it. |
 
 An edge naming a system that is not in the phase is ignored. Edges that form a cycle make the scheduler throw with
 the offending path, for example `Circular system dependency: move → camera → move`.
@@ -128,6 +129,38 @@ the offending path, for example `Circular system dependency: move → camera →
   on `defineSystem`. A run condition has no definition-site form: it is given to `app.addSystemToSchedule` or to the
   enclosing system set.
 </Aside>
+
+### Run conditions
+
+A run condition is a `() => boolean` checked each frame before the system would run. `false` skips the system for that
+frame; it runs again on the first frame the condition returns `true`. `runIf` takes one on a registration or on a
+[system set](#system-sets). The engine exports the conditions it uses itself:
+
+| Condition | Returns `true` |
+|---|---|
+| `playModeOnly` | Outside the editor, always. In the editor, only during Play. |
+| `isPlayMode` | While the editor is in Play. |
+| `isEditor` / `isRuntime` | Inside / outside the editor. |
+
+```typescript
+import { Schedule, playModeOnly } from 'esengine';
+
+app.addSystemToSchedule(Schedule.Update, spawnWaves, { runIf: playModeOnly });
+```
+
+The engine's simulation plugins (physics, animation, velocity, AI, timeline) gate their systems with
+`playModeOnly`. That is what stops the game in the editor's edit mode while rendering, transforms and layout keep
+updating the scene being edited. A project's own scripts are loaded only into the editor's Play world, so they need no
+gate; a system that an [editor plugin](/docs/extending/editor-plugins/) adds to the edit world uses `playModeOnly` when it
+advances the game.
+
+Three options skip a system, each for a different reason:
+
+| Option | The system is skipped while |
+|---|---|
+| `runIf` | The condition returns `false`. |
+| `activeWhen` | No entity has any of the listed components. A plugin declares it for all of its systems ([Plugins](/docs/core-concepts/plugins-resources/#plugins)). |
+| `runWhenPaused` | The app is paused, unless the option is `true`. |
 
 ### System sets
 
