@@ -183,12 +183,26 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         webAdapter.bindInputEvents(inputEventCallbacks(app.getResource(Input)), canvas);
         try {
             await app.tick(1 / 60);
-            const event = new WheelEvent('wheel', { deltaY: 30 });
-            Object.defineProperties(event, { offsetX: { value: 250 }, offsetY: { value: 80 } });
-            canvas.dispatchEvent(event);
+            const wheel = (x: number, deltaY: number) => {
+                const event = new WheelEvent('wheel', { deltaY });
+                Object.defineProperties(event, { offsetX: { value: x }, offsetY: { value: 80 } });
+                canvas.dispatchEvent(event);
+            };
+            wheel(250, 30);
             await app.tick(1 / 60);
             expect(leftScroll.getOffset().y).toBe(0);
             expect(rightScroll.getOffset().y).toBe(30);
+
+            app.getResource(Input).clearFrameState();
+            wheel(100, 20);
+            wheel(250, -20);
+            const move = new MouseEvent('mousemove');
+            Object.defineProperties(move, { offsetX: { value: 100 }, offsetY: { value: 80 } });
+            canvas.dispatchEvent(move);
+            expect(app.getResource(Input).getScrollDelta()).toEqual({ x: 0, y: 0 });
+            await app.tick(1 / 60);
+            expect(leftScroll.getOffset().y).toBe(20);
+            expect(rightScroll.getOffset().y).toBe(10);
         } finally {
             webAdapter.unbindInputEvents();
             canvas.remove();

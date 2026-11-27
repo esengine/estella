@@ -569,6 +569,7 @@ export class InputState {
 
     clearFrameState(): void {
         mousePresses.delete(this);
+        positionedWheels.delete(this);
         clearActionEdges(this);
         this.keysPressed.clear();
         clearTabModifiers(this);
@@ -615,6 +616,18 @@ export const Input = defineResource<InputState>(new InputState(), 'Input');
 
 const executionOwners = new WeakMap<InputState, Set<object>>();
 const mousePresses = new WeakMap<InputState, Vec2>();
+interface PositionedWheel {
+    x: number;
+    y: number;
+    deltaX: number;
+    deltaY: number;
+}
+const positionedWheels = new WeakMap<InputState, PositionedWheel[]>();
+
+/** @internal Wheel samples whose canvas positions were reported by the host. */
+export function positionedWheelSamples(state: InputState): readonly PositionedWheel[] | undefined {
+    return positionedWheels.get(state);
+}
 
 /** The primary mouse press before a move or release superseded its position. */
 export function mousePressPoint(state: InputState): Vec2 | undefined { return mousePresses.get(state); }
@@ -713,13 +726,19 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         },
         onWheel(deltaX, deltaY, x, y) {
             if (executionOwners.has(state)) return;
-            if (x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y)) {
+            const positioned = x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y);
+            if (positioned) {
                 state.mouseX = x;
                 state.mouseY = y;
             }
             if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
             state.scrollDeltaX += deltaX;
             state.scrollDeltaY += deltaY;
+            if (positioned && (deltaX !== 0 || deltaY !== 0)) {
+                let samples = positionedWheels.get(state);
+                if (!samples) positionedWheels.set(state, samples = []);
+                samples.push({ x, y, deltaX, deltaY });
+            }
         },
         onTouchStart(id, x, y) {
             if (executionOwners.has(state)) return;

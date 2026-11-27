@@ -3,7 +3,8 @@
 import type { App, Plugin } from '../../app/app';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
-import { Input, type InputState } from '../../input/input';
+import { Input, positionedWheelSamples, type InputState } from '../../input/input';
+import { pointerProjection } from '../../input/pointerProjection';
 import { primaryPointerCancellationVersion } from '../../input/pointerCancellation';
 import { Transform, type TransformData } from '../../ecs/component';
 import { playModeOnly } from '../../ecs/env';
@@ -13,7 +14,7 @@ import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
-import { uiPointerFor } from '../util/ui-pick';
+import { uiHitAtScreen, uiPointerFor } from '../util/ui-pick';
 import { PluginName, SystemLabel } from '../../ecs/systemLabels';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { UICollections } from '../collection/collection-host';
@@ -257,20 +258,37 @@ export class UIBehaviorPlugin implements Plugin {
             }
             return hovered === null ? null : scrollTargetOf(hovered, dragOnly);
         };
+        const scrollByWheel = (target: Entity | null, dx: number, dy: number) => {
+            if (target === null) return;
+            const container = scrollContainers.get(target)!;
+            dynamics.get(target)?.motion.stop(); // wheel takes over from a fling
+            const speed = container.getWheelSpeed();
+            container.scrollBy({ x: dx * speed, y: dy * speed });
+        };
 
         app.addSystemToSchedule(
             Schedule.Update,
-            defineSystem([Res(Input)], (input: InputState) => {
-                const dx = input.scrollDeltaX;
-                const dy = input.scrollDeltaY;
-                if (dx === 0 && dy === 0) return;
-                const best = hoveredScrollTarget(false);
-                if (best !== null) {
-                    const container = scrollContainers.get(best)!;
-                    dynamics.get(best)?.motion.stop(); // wheel takes over from a fling
-                    const speed = container.getWheelSpeed();
-                    container.scrollBy({ x: dx * speed, y: dy * speed });
+            defineSystem([Res(Input), Res(UICameraInfo), Res(ScreenOverlay)],
+                (input: InputState, camera: UICameraData, overlay: ScreenOverlayData) => {
+                let positionedX = 0, positionedY = 0;
+                const samples = positionedWheelSamples(input);
+                if (samples) {
+                    const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
+                        overlay.active ? overlay.surfaceH : camera.screenH);
+                    for (const sample of samples) {
+                        positionedX += sample.deltaX;
+                        positionedY += sample.deltaY;
+                        const screen = project(sample.x, sample.y);
+                        const hit = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
+                        if (hit === null || !world.isEntityActive(hit)
+                            || (world.has(hit, Interactable) && !world.get(hit, Interactable).enabled)) continue;
+                        scrollByWheel(scrollTargetOf(hit, false), sample.deltaX, sample.deltaY);
+                    }
                 }
+                // Hosts and callers can still supply deltas with no event position.
+                const dx = input.scrollDeltaX - positionedX;
+                const dy = input.scrollDeltaY - positionedY;
+                if (dx !== 0 || dy !== 0) scrollByWheel(hoveredScrollTarget(false), dx, dy);
             }, { name: 'ScrollWheelSystem' }),
         );
 
