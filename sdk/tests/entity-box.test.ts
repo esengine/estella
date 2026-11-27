@@ -8,9 +8,11 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { entityWorldBox, entityBoxCorners, entityBoxRayHit, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
+import { entityWorldBox, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
+import { framePreview } from '../src/app/previewApp';
+import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
 
 interface Comp { name: string }
@@ -53,6 +55,37 @@ const turn = (axis: 'x' | 'y' | 'z', rad: number) => ({
     y: axis === 'y' ? Math.sin(rad / 2) : 0,
     z: axis === 'z' ? Math.sin(rad / 2) : 0,
     w: Math.cos(rad / 2),
+});
+
+it('frames mixed scene geometry and keeps distant UI in its own preview projection', () => {
+    const world = {
+        ...fakeWorld({
+            1: { Transform: T(-100, 20, 2, 1), MeshRenderer: {} },
+            2: { Transform: T(200, -80, 1, 2, 0.6), Sprite: { size: { x: 40, y: 15 }, pivot: { x: 0.5, y: 0.5 } } },
+            3: { Transform: T(5000, 2000), UINode: {} },
+        }) as object,
+        getCppRegistry: () => ({}),
+        getWasmModule: () => ({
+            meshRenderer_localBounds: () => ({ minX: -15, minY: -10, minZ: -25, maxX: 15, maxY: 10, maxZ: 25 }),
+            uiNode_computedWidth: () => 80,
+            uiNode_computedHeight: () => 40,
+        }),
+    } as never;
+    const app = { world } as App;
+    const scene = framePreview(app, [ent(1), ent(2)], 300, 200)!;
+    const withUI = framePreview(app, [ent(1), ent(2), ent(3)], 300, 200)!;
+    expect(scene.screen).toBeNull();
+    expect(withUI.world).toEqual(scene.world);
+    const screen = withUI.screen!;
+    expect(screen[0] * 5000 + screen[12]).toBeCloseTo(0, 4);
+    expect(screen[5] * 2000 + screen[13]).toBeCloseTo(0, 4);
+    for (const box of [meshWorldBox(world, ent(1))!, entityWorldBox(world, ent(2))!]) {
+        for (const { x, y, z } of entityBoxCorners(box)) {
+            const m = scene.world;
+            expect(Math.abs(m[0] * x + m[4] * y + m[8] * z + m[12])).toBeLessThan(1);
+            expect(Math.abs(m[1] * x + m[5] * y + m[9] * z + m[13])).toBeLessThan(1);
+        }
+    }
 });
 
 describe('an entity world box', () => {
@@ -143,6 +176,20 @@ describe('an entity world box', () => {
         const solid = entityBoxCorners({ cx: 0, cy: 0, cz: 0, hw: 2, hh: 1, hd: 3, rot: IDENTITY });
         expect(new Set(solid.map((c) => `${c.x},${c.y},${c.z}`)).size).toBe(8);
         expect(Math.min(...solid.map((c) => c.z))).toBe(-3);
+    });
+
+    it('accumulates the same limits as exact corners of tilted flat and solid boxes', () => {
+        const flat = { cx: 5, cy: 1, cz: -3, hw: 7, hh: 3, hd: 0, rot: turn('x', 0.7) };
+        const solid = { cx: -8, cy: -4, cz: 3, hw: 4, hh: 3, hd: 1, rot: { x: 0.5, y: 0.5, z: 0.5, w: 0.5 } };
+        const bounds = extendEntityBoxBounds(null, flat);
+        expect(extendEntityBoxBounds(bounds, solid)).toBe(bounds);
+        const corners = [flat, solid].flatMap(entityBoxCorners);
+        expect(bounds.minX).toBeCloseTo(Math.min(...corners.map(c => c.x)), 10);
+        expect(bounds.minY).toBeCloseTo(Math.min(...corners.map(c => c.y)), 10);
+        expect(bounds.minZ).toBeCloseTo(Math.min(...corners.map(c => c.z)), 10);
+        expect(bounds.maxX).toBeCloseTo(Math.max(...corners.map(c => c.x)), 10);
+        expect(bounds.maxY).toBeCloseTo(Math.max(...corners.map(c => c.y)), 10);
+        expect(bounds.maxZ).toBeCloseTo(Math.max(...corners.map(c => c.z)), 10);
     });
 });
 

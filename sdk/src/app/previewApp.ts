@@ -47,7 +47,7 @@ import type { SceneData } from '../scene/scene';
 import type { Entity } from '../types';
 import { Transform, MeshRenderer, Sprite } from '../ecs/component';
 import { UINode } from '../ui/core/ui-node';
-import { entityWorldBox, entityBoxCorners, meshWorldBox, uiNodeWorldBox, type EntityBox } from '../ecs/entityBox';
+import { entityWorldBox, extendEntityBoxBounds, meshWorldBox, uiNodeWorldBox, type EntityBoxBounds } from '../ecs/entityBox';
 import { ortho, invertViewOrbit, multiply } from '../math/mat4';
 import { drawPreview, previewCore, DEFAULT_PREVIEW_ORBIT, type PreviewOrbit } from '../render/assetPreview';
 
@@ -119,22 +119,10 @@ export interface PreviewFraming {
 
 const PAD = 1.08;
 
-function union(boxes: readonly EntityBox[]): { lo: number[]; hi: number[] } | null {
-    if (!boxes.length) return null;
-    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-    for (const box of boxes) {
-        for (const c of entityBoxCorners(box)) {
-            lo[0] = Math.min(lo[0], c.x); lo[1] = Math.min(lo[1], c.y); lo[2] = Math.min(lo[2], c.z);
-            hi[0] = Math.max(hi[0], c.x); hi[1] = Math.max(hi[1], c.y); hi[2] = Math.max(hi[2], c.z);
-        }
-    }
-    return { lo, hi };
-}
-
 /** A front ortho over a rectangle, widened to the picture's aspect so nothing is stretched. */
-function flatFraming(lo: number[], hi: number[], aspect: number, depth: number): Float32Array {
-    const cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2;
-    let hx = Math.max((hi[0] - lo[0]) / 2, 1e-3) * PAD, hy = Math.max((hi[1] - lo[1]) / 2, 1e-3) * PAD;
+function flatFraming({ minX, minY, maxX, maxY }: EntityBoxBounds, aspect: number, depth: number): Float32Array {
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    let hx = Math.max((maxX - minX) / 2, 1e-3) * PAD, hy = Math.max((maxY - minY) / 2, 1e-3) * PAD;
     if (hx / hy > aspect) hy = hx / aspect; else hx = hy * aspect;
     return new Float32Array(ortho(cx - hx, cx + hx, cy - hy, cy + hy, -depth, depth));
 }
@@ -149,28 +137,36 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                              orbit: PreviewOrbit = DEFAULT_PREVIEW_ORBIT): PreviewFraming | null {
     const world = app.world;
     const aspect = w / h;
-    const ui: EntityBox[] = [], meshes: EntityBox[] = [], flat: EntityBox[] = [];
+    let uiBounds: EntityBoxBounds | null = null;
+    let sceneBounds: EntityBoxBounds | null = null;
+    let hasMesh = false;
     for (const e of entities) {
         if (!world.valid(e) || !world.has(e, Transform)) continue;
-        if (world.has(e, UINode)) { const b = uiNodeWorldBox(world, e); if (b) ui.push(b); continue; }
-        if (world.has(e, MeshRenderer)) { const b = meshWorldBox(world, e); if (b) meshes.push(b); continue; }
-        if (world.has(e, Sprite)) { const b = entityWorldBox(world, e); if (b) flat.push(b); }
+        if (world.has(e, UINode)) {
+            const box = uiNodeWorldBox(world, e);
+            if (box) uiBounds = extendEntityBoxBounds(uiBounds, box);
+            continue;
+        }
+        const mesh = world.has(e, MeshRenderer);
+        const box = mesh ? meshWorldBox(world, e) : world.has(e, Sprite) ? entityWorldBox(world, e) : null;
+        if (box) {
+            sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+            hasMesh ||= mesh;
+        }
     }
-    const uiBox = union(ui);
-    const screen = uiBox ? flatFraming(uiBox.lo, uiBox.hi, aspect, 1e6) : null;
+    const screen = uiBounds ? flatFraming(uiBounds, aspect, 1e6) : null;
 
-    const meshBox = union([...meshes, ...flat]);
-    if (meshes.length && meshBox) {
-        const centre = [0, 1, 2].map((i) => (meshBox.lo[i] + meshBox.hi[i]) / 2);
-        const radius = Math.max(Math.hypot(meshBox.hi[0] - meshBox.lo[0], meshBox.hi[1] - meshBox.lo[1], meshBox.hi[2] - meshBox.lo[2]) / 2, 1e-4);
-        const view = new Float32Array(invertViewOrbit(centre[0], centre[1], centre[2],
+    if (hasMesh && sceneBounds) {
+        const { minX, minY, minZ, maxX, maxY, maxZ } = sceneBounds;
+        const radius = Math.max(Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) / 2, 1e-4);
+        const view = new Float32Array(invertViewOrbit((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2,
             orbit.yaw * Math.PI / 180, orbit.pitch * Math.PI / 180, radius * 4));
         // The box's extent as the eye sees it, so a long thing is framed long.
         let half = 1e-4;
         for (let corner = 0; corner < 8; corner++) {
-            const p = [corner & 1 ? meshBox.hi[0] : meshBox.lo[0], corner & 2 ? meshBox.hi[1] : meshBox.lo[1], corner & 4 ? meshBox.hi[2] : meshBox.lo[2]];
-            const vx = view[0] * p[0] + view[4] * p[1] + view[8] * p[2] + view[12];
-            const vy = view[1] * p[0] + view[5] * p[1] + view[9] * p[2] + view[13];
+            const x = corner & 1 ? maxX : minX, y = corner & 2 ? maxY : minY, z = corner & 4 ? maxZ : minZ;
+            const vx = view[0] * x + view[4] * y + view[8] * z + view[12];
+            const vy = view[1] * x + view[5] * y + view[9] * z + view[13];
             half = Math.max(half, Math.abs(vx), Math.abs(vy));
         }
         half *= PAD;
@@ -178,7 +174,7 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
         const proj = new Float32Array(ortho(-hx, hx, -hy, hy, 0.01, radius * 8));
         return { world: new Float32Array(multiply(proj, view)), screen };
     }
-    if (meshBox) return { world: flatFraming(meshBox.lo, meshBox.hi, aspect, 1e6), screen };
+    if (sceneBounds) return { world: flatFraming(sceneBounds, aspect, 1e6), screen };
     if (screen) return { world: new Float32Array(screen), screen };
     return null;
 }

@@ -258,6 +258,37 @@ export function entityBoxCorners(b: EntityBox): Vec3[] {
     return out;
 }
 
+/** Axis-aligned limits in world units. @experimental */
+export interface EntityBoxBounds {
+    minX: number;
+    minY: number;
+    minZ: number;
+    maxX: number;
+    maxY: number;
+    maxZ: number;
+}
+
+/** Expand an existing bound in place, or start one from a single oriented box. @experimental */
+export function extendEntityBoxBounds(bounds: EntityBoxBounds | null, box: EntityBox): EntityBoxBounds {
+    // Each rotated half-axis contributes its absolute length along each world axis.
+    const right = q.rotate(box.rot, { x: box.hw, y: 0, z: 0 });
+    const up = q.rotate(box.rot, { x: 0, y: box.hh, z: 0 });
+    const forward = q.rotate(box.rot, { x: 0, y: 0, z: box.hd });
+    const x = Math.abs(right.x) + Math.abs(up.x) + Math.abs(forward.x);
+    const y = Math.abs(right.y) + Math.abs(up.y) + Math.abs(forward.y);
+    const z = Math.abs(right.z) + Math.abs(up.z) + Math.abs(forward.z);
+    const minX = box.cx - x, minY = box.cy - y, minZ = box.cz - z;
+    const maxX = box.cx + x, maxY = box.cy + y, maxZ = box.cz + z;
+    if (!bounds) return { minX, minY, minZ, maxX, maxY, maxZ };
+    bounds.minX = Math.min(bounds.minX, minX);
+    bounds.minY = Math.min(bounds.minY, minY);
+    bounds.minZ = Math.min(bounds.minZ, minZ);
+    bounds.maxX = Math.max(bounds.maxX, maxX);
+    bounds.maxY = Math.max(bounds.maxY, maxY);
+    bounds.maxZ = Math.max(bounds.maxZ, maxZ);
+    return bounds;
+}
+
 /**
  * How far along @p dir a ray from @p origin travels to meet the box, or null
  * when it misses.

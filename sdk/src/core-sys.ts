@@ -77,7 +77,7 @@ export {
 
 export { setEntityVisible, isEntityVisible, hasVisibility, setEntityActive, isEntityActive } from './ecs/entityUtils';
 
-export { entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, entityBoxRayHit, type EntityBox, type EntityBoxOptions, type ReadableWorld, type LayoutWorld } from './ecs/entityBox';
+export { entityWorldBox, uiNodeWorldBox, meshWorldBox, entityBoxCorners, extendEntityBoxBounds, entityBoxRayHit, type EntityBox, type EntityBoxBounds, type EntityBoxOptions, type ReadableWorld, type LayoutWorld } from './ecs/entityBox';
 export { pickEntityByRay, pickEntitiesByRay, pickEntitiesByBounds, type EntityPickOptions, type PickWorld } from './ecs/entityPick';
 export { pointInHitArea, type HitAreaShape } from './input/hitArea';
 
