@@ -122,10 +122,15 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
         moduleOf()?.tilemap_fillRect(entity, x, y, w, h, tileId);
     },
 
+    /** Replace the layer's tiles. An empty buffer clears its tiles and keeps the layer. */
     setTiles(entity: number, tiles: Uint16Array): void {
         const m = moduleOf();
         if (!m) return;
         const bytes = tiles.byteLength;
+        if (bytes === 0) {
+            m.tilemap_setTiles(entity, 0, 0);
+            return;
+        }
         withMalloc(m, bytes, ptr => {
             new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
             m.tilemap_setTiles(entity, ptr, tiles.length);

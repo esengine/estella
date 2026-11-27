@@ -107,4 +107,33 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       tiles.destroyLayer(11);
     }
   });
+
+  it('clears flat tile layers with an empty buffer and preserves the layer identity', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    tiles.initLayer(10, 19, 17, 16, 16);
+    try {
+      const generation = tiles.getGeneration(10);
+      tiles.setTile(10, 0, 0, 3);
+      tiles.setTile(10, 18, 16, 0x6004);
+      const revision = tiles.getEditRevision(10)!;
+      expect(core.tilemap_readChunkIndex!(10, 0, 0)).toBe(2);
+
+      core.tilemap_setTiles!(10, 0, 0);
+      expect(core.tilemap_readChunkIndex!(10, 0, 0)).toBe(0);
+      expect(tiles.getGeneration(10)).toBe(generation);
+      expect(tiles.getEditRevision(10)).toBe(revision + 1);
+
+      tiles.setTiles(10, Uint16Array.of(0x6007));
+      expect(tiles.getTile(10, 0, 0)).toBe(0x6007);
+      expect(tiles.getTile(10, 18, 16)).toBe(0);
+      tiles.setTiles(10, new Uint16Array(0));
+      const cleared = tiles.getEditRevision(10);
+      expect(tiles.getTile(10, 0, 0)).toBe(0);
+      expect(core.tilemap_readChunkIndex!(10, 0, 0)).toBe(0);
+      tiles.setTiles(10, new Uint16Array(0));
+      expect(tiles.getEditRevision(10)).toBe(cleared);
+      expect(tiles.getGeneration(10)).toBe(generation);
+    } finally { tiles.destroyLayer(10); }
+  });
 });

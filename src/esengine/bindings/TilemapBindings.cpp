@@ -75,8 +75,8 @@ void fillRect(tilemap::TilemapSystem& map, u32 entity, i32 x, i32 y,
 void setTiles(tilemap::TilemapSystem& map, u32 entity, uintptr_t tilesPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !map.hasLayer(e)) return;
-    const auto* tiles = boundarySpan<u16>(tilesPtr, count, "tilemap_setTiles");
-    if (!tiles) return;
+    const auto* tiles = count ? boundarySpan<u16>(tilesPtr, count, "tilemap_setTiles") : nullptr;
+    if (count && !tiles) return;
     map.setTiles(e, tiles, count);
 }
 
