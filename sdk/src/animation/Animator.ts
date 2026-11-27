@@ -404,6 +404,7 @@ function stateEntry(scope: AnimatorScope, name: string): { path: string[]; hasLe
 }
 
 interface ResolvedPath {
+    segments: string[];
     /** The scope that contains `states[i]` (top-level for i=0). */
     scopes: AnimatorScope[];
     /** The state chain from the outermost container down to the leaf. */
@@ -411,8 +412,9 @@ interface ResolvedPath {
 }
 
 /** Resolve a path to its scope/state chain, or null if any segment is unknown. */
-function resolveStatePath(top: AnimatorScope, segments: readonly string[]): ResolvedPath | null {
-    if (segments.length === 0) return null;
+function resolveStatePath(top: AnimatorScope, path: string): ResolvedPath | null {
+    if (!path) return null;
+    const segments = path.split(STATE_PATH_SEP);
     const scopes: AnimatorScope[] = [];
     const states: AnimatorState[] = [];
     let scope: AnimatorScope = top;
@@ -424,7 +426,7 @@ function resolveStatePath(top: AnimatorScope, segments: readonly string[]): Reso
         if (!st.stateMachine) break;
         scope = st.stateMachine;
     }
-    return { scopes, states };
+    return { segments, scopes, states };
 }
 
 export interface AnimatorPathEvalResult {
@@ -453,15 +455,25 @@ export function evaluateAnimatorPath(
     clipFinished: boolean = true,
     windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): AnimatorPathEvalResult {
-    const segments = currentPath ? currentPath.split(STATE_PATH_SEP) : [];
-    const resolved = resolveStatePath(def, segments);
+    const resolved = resolveStatePath(def, currentPath);
     if (!resolved) return { nextPath: null, consumedTriggers: [], fadeDuration: 0 };
-    const { scopes, states } = resolved;
+    return evaluateResolvedAnimatorPath(resolved, params, triggers, clipFinished, windows);
+}
+
+function evaluateResolvedAnimatorPath(
+    resolved: ResolvedPath,
+    params: AnimatorParamValues,
+    triggers: ReadonlySet<string>,
+    clipFinished: boolean,
+    windows: ReadonlySet<string>,
+): AnimatorPathEvalResult {
+    const { segments, scopes, states } = resolved;
     const depth = states.length;
+    const root = scopes[0];
 
     // (list, owning scope, path to that scope) in priority order.
     const lists: { list: readonly AnimatorTransition[]; scope: AnimatorScope; base: string[] }[] = [];
-    lists.push({ list: def.anyStateTransitions ?? [], scope: def, base: [] });
+    lists.push({ list: root.anyStateTransitions ?? [], scope: root, base: [] });
     for (let i = 0; i < depth - 1; i++) {
         const sm = states[i].stateMachine!;
         lists.push({ list: sm.anyStateTransitions ?? [], scope: sm, base: segments.slice(0, i + 1) });
@@ -488,7 +500,7 @@ export function evaluateAnimatorPath(
 
 /** The leaf (motion-bearing) state of a resolved path, or null if unresolvable. */
 export function leafStateOf(def: AnimatorScope, path: string): AnimatorState | null {
-    const resolved = resolveStatePath(def, path ? path.split(STATE_PATH_SEP) : []);
+    const resolved = resolveStatePath(def, path);
     return resolved ? resolved.states[resolved.states.length - 1] : null;
 }
 
@@ -991,12 +1003,13 @@ export class AnimatorControllerAPI {
         // Seed / repair the active state path. The path descends into a
         // sub-machine's initial state when the entry point is a container.
         let fromPath = layerState(a, index);
-        let leaf = fromPath ? leafStateOf(scope, fromPath) : null;
-        if (!leaf) {
+        let resolved = resolveStatePath(scope, fromPath);
+        if (!resolved) {
             fromPath = enterStatePath(scope, scope.initialState).join(STATE_PATH_SEP);
-            leaf = leafStateOf(scope, fromPath);
-            if (!leaf) return false;
+            resolved = resolveStatePath(scope, fromPath);
+            if (!resolved) return false;
         }
+        const leaf = resolved.states[resolved.states.length - 1];
 
         const params = ctx.params;
         const triggerSet = this.triggers.get(entity);
@@ -1047,8 +1060,8 @@ export class AnimatorControllerAPI {
             ctx.windows(leafMotion, { from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered }, held);
             for (const w of held) open.add(w.name);
         }
-        const { nextPath, consumedTriggers, fadeDuration, blend } = evaluateAnimatorPath(
-            scope, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished, open,
+        const { nextPath, consumedTriggers, fadeDuration, blend } = evaluateResolvedAnimatorPath(
+            resolved, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished, open,
         );
         for (const t of consumedTriggers) this.spentTriggers_.push(t);
 

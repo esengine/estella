@@ -207,6 +207,15 @@ describe('AnimatorControllerAPI.update — nested machine', () => {
         expect(clip(world)).toBe('swing');
     });
 
+    it('repairs a stale nested path before checking transitions from the initial state', () => {
+        const { ctrl, world } = setup();
+        world.update(E, Animator, (anim: AnimatorData) => { anim.currentState = 'Combat/Removed'; });
+        ctrl.setTrigger(E, 'attack');
+        ctrl.update(world);
+        expect(animPath(world)).toBe('Combat/Swing');
+        expect(clip(world)).toBe('swing');
+    });
+
     it('advances within the sub-machine, then exits via the container edge', () => {
         const { ctrl, world } = setup();
         ctrl.update(world);
