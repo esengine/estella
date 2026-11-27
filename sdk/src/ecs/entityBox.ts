@@ -242,13 +242,18 @@ export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | nu
  */
 export function entityBoxCorners(b: EntityBox): Vec3[] {
     const out: Vec3[] = [];
-    for (const sz of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-            for (const sx of [-1, 1]) {
-                const r = q.rotate(b.rot, { x: sx * b.hw, y: sy * b.hh, z: sz * b.hd });
-                out.push({ x: b.cx + r.x, y: b.cy + r.y, z: b.cz + r.z });
-            }
-        }
+    const count = b.hd === 0 ? 4 : 8;
+    for (let i = 0; i < count; i++) {
+        const r = q.rotate(b.rot, {
+            x: i & 1 ? b.hw : -b.hw,
+            y: i & 2 ? b.hh : -b.hh,
+            z: i & 4 ? b.hd : -b.hd,
+        });
+        out.push({ x: b.cx + r.x, y: b.cy + r.y, z: b.cz + r.z });
+    }
+    // Keep both faces in the corner order, with independently mutable points.
+    if (count === 4) {
+        for (let i = 0; i < count; i++) out.push({ ...out[i] });
     }
     return out;
 }

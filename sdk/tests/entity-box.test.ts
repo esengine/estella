@@ -137,6 +137,8 @@ describe('an entity world box', () => {
         const flat = entityBoxCorners({ cx: 0, cy: 0, cz: 0, hw: 2, hh: 1, hd: 0, rot: IDENTITY });
         expect(flat).toHaveLength(8);
         expect(new Set(flat.map((c) => `${c.x},${c.y},${c.z}`)).size).toBe(4);
+        expect(flat.slice(4)).toEqual(flat.slice(0, 4));
+        expect(flat[4]).not.toBe(flat[0]);
 
         const solid = entityBoxCorners({ cx: 0, cy: 0, cz: 0, hw: 2, hh: 1, hd: 3, rot: IDENTITY });
         expect(new Set(solid.map((c) => `${c.x},${c.y},${c.z}`)).size).toBe(8);
