@@ -49,6 +49,28 @@ describe('material shaders use the asset ownership and source graph', () => {
         a.release(); b.release();
     });
 
+    it('loads a material instance after its UUID-linked shader and parent move', async () => {
+        const { assets, docs, acquire, fetchText, material } = realm();
+        const shaderId = '@uuid:11111111-1111-4111-8111-111111111111';
+        const parentId = '@uuid:22222222-2222-4222-8222-222222222222';
+        const shaderPath = 'assets/shared/Moved.esshader', parentPath = 'assets/shared/Base.esmaterial';
+        const index = new Map([[shaderId, shaderPath], [parentId, parentPath]]);
+        assets.setAssetRefResolver(ref => index.get(ref) ?? ref);
+        docs[shaderPath] = docs['fx.esshader'];
+        docs[parentPath] = material(shaderId);
+        docs['assets/child.esmaterial'] = JSON.stringify({ type: 'material', instanceOf: parentId, properties: {} });
+        delete docs['fx.esshader'];
+        delete docs['a.esmaterial'];
+
+        const child = await acquire('assets/child.esmaterial');
+        try {
+            expect(child.value.shaderHandle).toBeGreaterThan(0);
+            expect(gpu.compiled).toEqual([{ source: 'original', features: [] }]);
+            expect(fetchText).toHaveBeenCalledWith(shaderPath);
+            expect(fetchText).toHaveBeenCalledWith(parentPath);
+        } finally { child.release(); }
+    });
+
     it('shader edits compile a new era while held old materials keep their exact program', async () => {
         const { assets, docs, acquire } = realm(); const old = await acquire('a.esmaterial');
         docs['fx.esshader'] = 'changed'; assets.invalidate('fx.esshader'); await assets.assetGraphSettled();

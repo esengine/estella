@@ -173,7 +173,10 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[CONTROLLER]).toContain(CLIP);
   });
 
-  it.each(['Sprite', 'MeshRenderer'])('cooks only material dependency fields for %s, including extensionless paths', async (type) => {
+  it.each([
+    ['Sprite', 'path'], ['MeshRenderer', 'path'],
+    ['Sprite', 'uuid'], ['MeshRenderer', 'uuid'],
+  ])('cooks only material dependency fields for %s with %s references', async (type, refs) => {
     const projectRoot = mkdtempSync(path.join(tmpdir(), 'estella-material-refs-'));
     const scene = 'assets/main.esscene';
     const child = 'assets/mats/child.esmaterial', base = 'assets/mats/base';
@@ -184,10 +187,10 @@ describe('assets named only inside another document are cooked', () => {
         components: [{ type, data: { material: child } }],
       }] }));
       put(child, 'material', 'child', JSON.stringify({
-        type: 'material', instanceOf: './base', shader: '../shaders/old.esshader', properties: {},
+        type: 'material', instanceOf: refs === 'uuid' ? '@uuid:base' : './base', shader: '../shaders/old.esshader', properties: {},
       }));
       put(base, 'material', 'base', JSON.stringify({
-        type: 'material', shader: '../shaders/model', name: 'unused.png',
+        type: 'material', shader: refs === 'uuid' ? '@uuid:shader' : '../shaders/model', name: 'unused.png',
         properties: { mainTex: 'detail', tint: { r: 1, description: 'unused.png' } },
       }));
       put(shader, 'shader', 'shader', '#pragma shader "Model"');
@@ -215,9 +218,11 @@ describe('assets named only inside another document are cooked', () => {
       const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as { entries: { uuid: string; path: string }[] };
       const stored = (id: string) => readFileSync(path.join(cooked.outDir, manifest.entries.find(e => e.uuid === id)!.path));
       expect(JSON.parse(stored('child').toString())).toMatchObject({
-        instanceOf: base, shader: '../shaders/old.esshader',
+        instanceOf: refs === 'uuid' ? '@uuid:base' : base, shader: '../shaders/old.esshader',
       });
-      expect(JSON.parse(stored('base').toString())).toMatchObject({ shader, properties: { mainTex: detail } });
+      expect(JSON.parse(stored('base').toString())).toMatchObject({
+        shader: refs === 'uuid' ? '@uuid:shader' : shader, properties: { mainTex: detail },
+      });
       expect(stored('detail')).toEqual(Buffer.from(image));
     } finally {
       rmSync(projectRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
