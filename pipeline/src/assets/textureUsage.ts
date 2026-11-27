@@ -24,6 +24,9 @@ import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
 import { canonicalComponentType } from '../../../sdk/src/scene/legacyComponents';
 import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
 import type { MaterialAssetData } from '../../../sdk/src/render/material';
+import { runWithConcurrency } from '../../../sdk/src/util/runWithConcurrency';
+
+const SCAN_IO_CONCURRENCY = 48;
 
 /** How a mesh draws a texture: on its surface, or as the baked light the surface reads. */
 export type MeshTextureRole = 'surface' | 'lightmap';
@@ -102,7 +105,7 @@ export async function meshTextureRoles(
   };
   const materials = new Set<AssetEntry>();
   const docs = entries.filter((e) => e.type === 'scene' || e.type === 'prefab');
-  await Promise.all(docs.map(async (doc) => {
+  await runWithConcurrency(docs.map(doc => async () => {
     let parsed: Documented;
     try {
       parsed = JSON.parse(await read(doc.path)) as Documented;
@@ -123,7 +126,7 @@ export async function meshTextureRoles(
         else if (field.type === 'material') materials.add(target);
       }
     });
-  }));
+  }), SCAN_IO_CONCURRENCY);
 
   const files = new Map<AssetEntry, Promise<MaterialDocument | null>>();
   const materialFile = (entry: AssetEntry): Promise<MaterialDocument | null> => {
@@ -137,7 +140,7 @@ export async function meshTextureRoles(
     }
     return pending;
   };
-  await Promise.all([...materials].map(async leaf => {
+  await runWithConcurrency(Array.from(materials, leaf => async () => {
     const chain = new Set<AssetEntry>(), bound = new Set<string>();
     let current: AssetEntry | undefined = leaf;
     while (current && !chain.has(current)) {
@@ -158,6 +161,6 @@ export async function meshTextureRoles(
       const parent: AssetEntry | undefined = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, current.path, 'document') : undefined;
       current = parent?.type === 'material' ? parent : undefined;
     }
-  }));
+  }), SCAN_IO_CONCURRENCY);
   return drawn;
 }

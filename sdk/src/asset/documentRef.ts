@@ -130,9 +130,14 @@ export function findDocumentAsset<T>(
 
 function lookupDocumentPath<T>(document: string, ref: string, lookup: (path: string) => T | undefined, first: 'project' | 'document'): T | undefined {
     if (isLogicalAssetRef(ref)) return lookup(ref.replace(/^\//, ''));
+    const relative = ref.startsWith('./') || ref.startsWith('../');
+    const projectFirst = first === 'project' && !relative;
+    const project = projectFirst ? lookup(ref) : undefined;
+    if (project != null) return project;
     const sibling = resolveDocumentRef(document, ref).replace(/^\//, '');
-    if (ref === sibling || ref.startsWith('./') || ref.startsWith('../')) return lookup(sibling);
-    return first === 'document' ? lookup(sibling) ?? lookup(ref) : lookup(ref) ?? lookup(sibling);
+    if (projectFirst) return ref === sibling ? project : lookup(sibling);
+    if (ref === sibling || relative) return lookup(sibling);
+    return lookup(sibling) ?? lookup(ref);
 }
 
 /** Prefer the document's sibling, using the index for legacy unqualified project paths. */

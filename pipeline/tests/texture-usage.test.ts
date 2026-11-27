@@ -110,6 +110,32 @@ describe('texturesDrawnIn3D', () => {
     expect((await meshTextureRoles('/p', entries, async file => { reads.push(file); return JSON.stringify(files[file]); })).size).toBe(0);
     expect(reads.sort()).toEqual(['a.esmaterial', 'b.esmaterial', 's.esscene']);
   });
+
+  it('bounds pending document and material reads while still visiting every mesh', async () => {
+    const count = 96;
+    const entries = Array.from({ length: count }, (_, i) => [
+      entry(`doc${i}`, `prop${i}.esprefab`, 'prefab'),
+      entry(`mat${i}`, `mat${i}.esmaterial`, 'material'),
+      entry(`tex${i}`, `tex${i}.png`, 'texture'),
+    ]).flat();
+    const active = { documents: 0, materials: 0 };
+    const peak = { ...active };
+    const roles = await meshTextureRoles('/p', entries, async file => {
+      const prefab = file.endsWith('.esprefab');
+      const kind = prefab ? 'documents' : 'materials';
+      peak[kind] = Math.max(peak[kind], ++active[kind]);
+      await Promise.resolve();
+      active[kind]--;
+      const i = file.match(/\d+/)?.[0];
+      return prefab
+        ? JSON.stringify({ entities: [{ components: [{ type: 'MeshRenderer', data: { material: `mat${i}.esmaterial` } }] }] })
+        : JSON.stringify({ properties: { albedo: `tex${i}.png` } });
+    });
+    expect(peak.documents).toBeLessThan(count);
+    expect(peak.materials).toBeLessThan(count);
+    expect(roles.size).toBe(count);
+    expect(roles.get('tex95')).toEqual(new Set(['surface']));
+  });
 });
 
 describe('a Compression value from an older .meta', () => {
