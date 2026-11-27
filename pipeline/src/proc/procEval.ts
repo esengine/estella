@@ -42,6 +42,8 @@ export type Item = Plot | Part;
 export interface ProcEnv {
     /** The ground's height at a place, in the source's units; what `ground` reads. */
     ground?: (x: number, z: number) => number;
+    /** Names the ground above, so a cache knows when it changed (the land's path and the time it was baked, say). */
+    groundKey?: string;
     /** Components of other files, when a `use` names one by path (reserved). */
     resolve?: (name: string) => ProcComponent | null;
 }
@@ -58,8 +60,35 @@ export interface ProcReport {
 export interface ProcResult {
     groups: { name: string; parts: Part[] }[];
     report: ProcReport;
-    /** What the node named by `probe` made, plots and parts, when one was asked for: what an editor previews. */
+    /** What the node named by `probe` made, plots and parts, when one was asked for: what an editor previews. A node inside a
+     *  component is answered in the component's own frame, as its first use made it. */
     probe?: Item[] | null;
+    /** For a probe inside a component: how many plots ran the component. */
+    probeUses?: number;
+    /** For a run given a {@link ProcCache}: how many top-level nodes were run, and how many were answered from the cache. */
+    cache?: { ran: number; reused: number };
+}
+
+/** Which node a run keeps the output of: a top-level node by id, or a node inside a component (as its first use made it). */
+export type ProcProbe = string | { component: string; node: string };
+
+interface CacheEntry { items: Item[]; warnings: string[] }
+
+/**
+ * What a run of a graph made, node by node, kept for the next run of the same graph: a node whose own fields, inputs and
+ * everything they depend on are as they were is answered from here instead of run again. An editor holds one per open
+ * graph, so a change to one node runs that node and what is downstream of it, and nothing upstream. Only what the last
+ * run used is kept.
+ */
+export class ProcCache {
+    entries = new Map<string, CacheEntry>();
+    clear(): void { this.entries.clear(); }
+}
+
+/** A node as far as what it makes goes: its fields without where it is drawn and its note. */
+function nodeKey(node: ProcNode): string {
+    const { x: _x, y: _y, note: _note, ...rest } = node;
+    return JSON.stringify(rest);
 }
 
 /** More than this many plots and parts at once is a mistake in a count, not a place. */
@@ -129,14 +158,44 @@ class Run {
     /** The top-level node whose output is kept for a preview, and what it made. */
     probeId: string | null = null;
     probed: Item[] | null = null;
-    constructor(readonly source: ProcSource, readonly env: ProcEnv) {}
+    /** A probe inside a component: the component, its node, what its first use made there, and how many plots used it. */
+    probeComponent: string | null = null;
+    probeNode: string | null = null;
+    probeUses = 0;
+    /** Where the frame the nodes are running in stands in the world: the origin at the top level, a plot inside a component. */
+    private frame = { x: 0, z: 0, yaw: 0, y: 0 };
+    /** The cache a top-level run reads and writes, the key every node's key starts from, and what it did. */
+    cache: ProcCache | null = null;
+    private nextCache = new Map<string, CacheEntry>();
+    private globalKey = '';
+    ran = 0;
+    reused = 0;
+    constructor(readonly source: ProcSource, readonly env: ProcEnv) {
+        const { nodes: _nodes, components, note: _note, ...settings } = source;
+        this.globalKey = JSON.stringify([settings, env.groundKey ?? (env.ground ? 'ground' : '')]);
+        this.componentsKey = JSON.stringify(components ?? {});
+    }
+    private componentsKey: string;
+
+    /** Keeps what this run used, and drops the rest. */
+    finishCache(): void { if (this.cache) this.cache.entries = this.nextCache; }
 
     // ------------------------------------------------------------------ values
     scopeOf(base: Map<string, ExprValue>, p: Plot | null, i: number, n: number): Map<string, ExprValue> {
         const s = new Map(base);
         s.set('i', i); s.set('n', n);
         if (p) {
-            s.set('x', p.x); s.set('z', p.z); s.set('w', p.w); s.set('d', p.d); s.set('yaw', p.yaw); s.set('y', p.y); s.set('id', p.id);
+            s.set('x', p.x);
+            s.set('z', p.z);
+            s.set('w', p.w);
+            s.set('d', p.d);
+            s.set('yaw', p.yaw);
+            s.set('y', p.y);
+            s.set('id', p.id);
+            // Where the plot is in the world: the same as x and z at the top level, and the place a component's plot stands, so
+            // noise(wx, wz, ...) in a component reads the district it is in rather than its own corner.
+            const [wx, wz] = toWorld(this.frame, p.x, p.z);
+            s.set('wx', wx); s.set('wz', wz); s.set('wy', this.frame.y + p.y);
             for (const [k, v] of Object.entries(p.attrs)) s.set(k, v);
         }
         return s;
@@ -179,13 +238,31 @@ class Run {
         const byId = new Map<string, Item[]>();
         if (input) byId.set('in', input);
         let last: Item[] = input ?? [];
+        let lastKey = 'in';
+        const keys = new Map<string, string>();
+        const caching = this.cache !== null && this.nested === 0;
         let outputs: { name: string; parts: Part[] }[] = [];
         nodes.forEach((node, index) => {
             const name = node.id ?? `${label}#${index}`;
             try {
                 const spec = PROC_OPS[node.op]!;
                 let items: Item[];
-                if (node.op === 'output') {
+                // A node's key is its own fields and the keys of what it reads; a `use` adds the components (and what is probed
+                // in them, so a preview inside one runs it again). The same key, the same output.
+                let key = '';
+                let hit: CacheEntry | undefined;
+                if (caching) {
+                    const reads = spec.many ? (node.inputs ?? []).map((r) => keys.get(r) ?? r) : spec.source ? [] : [typeof node.input === 'string' ? keys.get(node.input) ?? node.input : lastKey];
+                    const deep = node.op === 'use' || node.op === 'repeat' ? `${this.componentsKey}|${this.probeComponent ?? ''}:${this.probeNode ?? ''}` : '';
+                    key = String(hashText(`${this.globalKey}|${nodeKey(node)}|${reads.join(',')}|${deep}`)) + ':' + String(hashText(`${nodeKey(node)}${reads.join(',')}${deep}${this.globalKey}`));
+                    hit = node.op === 'output' ? undefined : this.cache!.entries.get(key);
+                }
+                const warningsBefore = this.warnings.length;
+                if (hit) {
+                    items = hit.items;
+                    this.warnings.push(...hit.warnings);
+                    this.reused++;
+                } else if (node.op === 'output') {
                     // A part goes on through every node after the one that made it, so two inputs of the output can hold the
                     // same part: it belongs to the first that names it, and is drawn once.
                     const seen = new Set<Part>();
@@ -199,6 +276,12 @@ class Run {
                     const from = typeof node.input === 'string' ? byId.get(node.input)! : last;
                     items = this.apply(node, from, base, hashText(name), name);
                 }
+                if (caching) {
+                    if (!hit) this.ran++;
+                    if (node.op !== 'output') this.nextCache.set(key, { items, warnings: this.warnings.slice(warningsBefore) });
+                    if (node.id) keys.set(node.id, key);
+                    lastKey = key;
+                }
                 this.count += items.length;
                 if (items.length > PROC_ITEM_LIMIT) throw new Error(`it makes ${items.length} plots and parts, past the ${PROC_ITEM_LIMIT} a graph may: a count or a size is wrong`);
                 if (node.id) byId.set(node.id, items);
@@ -207,7 +290,7 @@ class Run {
                 const plots = items.filter((it) => it.kind === 'plot').length;
                 if (this.nested === 0) {
                     this.reports.push({ id: name, op: node.op, plots, parts: items.length - plots });
-                    if (items.length === 0 && node.op !== 'output') this.warnings.push(`${name} (${node.op}) made nothing`);
+                    if (items.length === 0 && node.op !== 'output' && !hit) this.warnings.push(`${name} (${node.op}) made nothing`);
                 }
             } catch (e) {
                 if (e instanceof ProcBuildError) throw e;
@@ -485,14 +568,16 @@ class Run {
                 const off = this.num(node.offset ?? 0, s, 'offset');
                 const mode = node.mode ?? 'min';
                 if (mode !== 'min' && mode !== 'max' && mode !== 'center') throw new Error('mode is "min", "max" or "center"');
-                let g = this.env.ground(p.x, p.z);
+                // The land is in the world; the plot is in the frame the nodes run in (a component's plot, inside one).
+                const at = (lx: number, lz: number): number => { const [wx, wz] = toWorld(this.frame, lx, lz); return this.env.ground!(wx, wz); };
+                let g = at(p.x, p.z);
                 if (mode !== 'center') {
                     for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0, -0.5], [0, 0.5], [-0.5, 0], [0.5, 0]]) {
                         const [x, z] = toWorld(p, a! * p.w, b! * p.d);
-                        g = mode === 'min' ? Math.min(g, this.env.ground(x, z)) : Math.max(g, this.env.ground(x, z));
+                        g = mode === 'min' ? Math.min(g, at(x, z)) : Math.max(g, at(x, z));
                     }
                 }
-                return [{ ...p, y: g + off, attrs: { ...p.attrs }, tags: [...p.tags] }];
+                return [{ ...p, y: g - this.frame.y + off, attrs: { ...p.attrs }, tags: [...p.tags] }];
             }
             case 'attr': {
                 const attrs = { ...p.attrs };
@@ -580,9 +665,16 @@ class Run {
             b.set(k, typeof v === 'string' && v.startsWith('=') ? evaluate(v.slice(1), s) : Array.isArray(v) ? v.map((x, j) => this.num(x, s, `params.${k}[${j}]`)) : this.num(v, s, `params.${k}`));
         }
         const local: Plot = { kind: 'plot', x: 0, z: 0, w: p.w, d: p.d, yaw: 0, y: 0, id: p.id, attrs: { ...p.attrs }, tags: [...p.tags] };
+        const outer = this.frame;
+        const [fx, fz] = toWorld(outer, p.x, p.z);
+        this.frame = { x: fx, z: fz, yaw: outer.yaw + p.yaw, y: outer.y + p.y };
         this.nested++;
         let run: ReturnType<Run['runNodes']>;
-        try { run = this.runNodes(comp.nodes, b, [local], `${name}`); } finally { this.nested--; }
+        try { run = this.runNodes(comp.nodes, b, [local], `${name}`); } finally { this.nested--; this.frame = outer; }
+        if (name === this.probeComponent) {
+            this.probeUses++;
+            if (this.probed === null) this.probed = run.byId.get(this.probeNode ?? 'in') ?? null;
+        }
         const made = comp.output ? run.byId.get(comp.output) : run.last;
         if (!made) throw new Error(`component "${name}" has no node "${comp.output}" to answer with`);
         const turn = qYaw(p.yaw);
@@ -595,13 +687,17 @@ class Run {
 }
 
 /** Runs a validated source. Throws a {@link ProcBuildError} naming the node that could not run. */
-export function runProc(source: ProcSource, env: ProcEnv = {}, options: { probe?: string | null } = {}): ProcResult {
+export function runProc(source: ProcSource, env: ProcEnv = {}, options: { probe?: ProcProbe | null; cache?: ProcCache | null } = {}): ProcResult {
     const run = new Run(source, env);
-    run.probeId = options.probe ?? null;
+    const probe = options.probe ?? null;
+    if (typeof probe === 'string') run.probeId = probe;
+    else if (probe) { run.probeComponent = probe.component; run.probeNode = probe.node; }
+    run.cache = options.cache ?? null;
     const base = new Map<string, ExprValue>();
     base.set('seed', source.seed ?? 0);
     for (const [k, v] of Object.entries(source.params ?? {})) base.set(k, v);
     const groups = run.runNodes(source.nodes, base, null, 'graph').outputs;
+    run.finishCache();
     const parts = groups.flatMap((g) => g.parts);
     let bounds: ProcReport['bounds'] = null;
     for (const pt of parts) {
@@ -614,6 +710,8 @@ export function runProc(source: ProcSource, env: ProcEnv = {}, options: { probe?
     return {
         groups,
         report: { nodes: run.reports, groups: groups.map((g) => ({ name: g.name, parts: g.parts.length })), parts: parts.length, bounds, warnings: run.warnings },
-        ...(options.probe ? { probe: run.probed } : {}),
+        ...(probe ? { probe: run.probed } : {}),
+        ...(probe && typeof probe !== 'string' ? { probeUses: run.probeUses } : {}),
+        ...(run.cache ? { cache: { ran: run.ran, reused: run.reused } } : {}),
     };
 }

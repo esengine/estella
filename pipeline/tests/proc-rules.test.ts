@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
+import { ProcCache, copyProcNodes, extractProcComponent, pasteProcNodes, addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
 import { MeshChannel, type MeshData } from '../../sdk/src/asset/meshFormat';
 import { evaluate } from '../src/modeling/modelExpr';
 
@@ -239,5 +239,96 @@ describe('rules graph', () => {
         let blue = 0;
         for (let i = 0; i < plan.rgba.length; i += 4) if (plan.rgba[i + 2]! > 200 && plan.rgba[i]! < 80) blue++;
         expect(blue).toBeGreaterThan(50);
+    });
+
+    it('runs again only what changed and what is downstream of it, and makes the same', () => {
+        const graph = (h: number, gap: number) => validateProcSource({ version: 1, nodes: [
+            { id: 'site', op: 'rect', size: [100, 60] },
+            { id: 'lots', op: 'grid', input: 'site', cols: 5, rows: 3, gap },
+            { id: 'trees', op: 'scatter', input: 'site', count: 4, size: [3, 3] },
+            { id: 'houses', op: 'box', input: 'lots', height: h, color: '#ccbb99' },
+            { id: 'crowns', op: 'box', input: 'trees', height: 8, color: '#336633' },
+            { op: 'output', inputs: ['houses', 'crowns'] },
+        ] });
+        const cache = new ProcCache();
+        const first = runProc(graph(4, 2), {}, { cache });
+        expect(first.cache).toEqual({ ran: 6, reused: 0 });
+        // a house's height: only houses (and the output) run again
+        const second = runProc(graph(6, 2), {}, { cache });
+        expect(second.cache).toEqual({ ran: 2, reused: 4 });
+        expect(second.groups[0]!.parts.every((p) => p.sy === 6)).toBe(true);
+        // the grid's gap: lots, houses and the output; the trees are kept
+        const third = runProc(graph(6, 5), {}, { cache });
+        expect(third.cache).toEqual({ ran: 3, reused: 3 });
+        const fresh = runProc(graph(6, 5));
+        expect(third.groups.map((g) => g.parts.map((p) => [p.x, p.y, p.z, p.sx]))).toEqual(fresh.groups.map((g) => g.parts.map((p) => [p.x, p.y, p.z, p.sx])));
+        // the same source again: everything but the output is answered from the cache
+        expect(runProc(graph(6, 5), {}, { cache }).cache).toEqual({ ran: 1, reused: 5 });
+    });
+
+    it('stands a component on the land where its plot is in the world, and reads world places in sums', () => {
+        const s = validateProcSource({ version: 1, land: 'x.esland', nodes: [
+            { op: 'rect', at: [100, 0], size: [10, 10], yaw: 90 },
+            { id: 'u', op: 'use', component: 'post' },
+            { op: 'output', inputs: ['u'] },
+        ], components: { post: { nodes: [
+            { op: 'move', by: [3, 0] }, { op: 'ground' }, { op: 'box', height: '=1 + wx * 0.01', fill: [0.1, 0.1] },
+        ] } } });
+        // ground rises 1 a unit east; the post stands 3 along the plot's turned x, which is toward -z: x stays 100
+        const r = runProc(s, { ground: (x) => x });
+        const post = r.groups[0]!.parts[0]!;
+        expect(post.x).toBeCloseTo(100);
+        expect(post.z).toBeCloseTo(-3);
+        // the lowest ground under its 10 by 10 plot, which runs from x 95 to 105 in the world
+        expect(post.y - post.sy / 2).toBeCloseTo(95);
+        expect(post.sy).toBeCloseTo(1 + 100 * 0.01);
+    });
+
+    it('previews a node inside a component as its first use made it, in the component frame', () => {
+        const s = validateProcSource({ version: 1, nodes: [
+            { op: 'rect', size: [60, 20] }, { op: 'split', axis: 'x', count: 3 }, { id: 'u', op: 'use', component: 'shed' }, { op: 'output', inputs: ['u'] },
+        ], components: { shed: { nodes: [{ id: 'small', op: 'inset', by: 2 }, { id: 'b', op: 'box', height: 3 }] } } });
+        const r = runProc(s, {}, { probe: { component: 'shed', node: 'small' } });
+        expect(r.probeUses).toBe(3);
+        expect(r.probe).toHaveLength(1);
+        const plot = r.probe![0]!;
+        expect(plot.kind).toBe('plot');
+        expect([plot.x, plot.z, plot.w, plot.d]).toEqual([0, 0, 16, 16]);
+    });
+
+    it('makes a component of part of a graph that lays out the same', () => {
+        const nodes = explicitProc(validateProcSource({ version: 1, nodes: [
+            { id: 'site', op: 'rect', size: [120, 80] },
+            { id: 'lots', op: 'grid', input: 'site', cols: 4, rows: 3, gap: 4 },
+            { id: 'yard', op: 'inset', input: 'lots', by: 2 },
+            { id: 'body', op: 'box', input: 'yard', height: '=3 + rand(id) * 2', color: '#ccbb99', keep: 'top' },
+            { id: 'roof', op: 'roof', input: 'body', pitch: 30, color: '#333333' },
+            { op: 'output', inputs: ['roof'] },
+        ] }).nodes);
+        const before = runProc(validateProcSource({ version: 1, nodes }));
+        const made = extractProcComponent(nodes, ['yard', 'body', 'roof'], 'house');
+        const after = runProc(validateProcSource({ version: 1, nodes: made.nodes, components: { house: made.component } }));
+        const key = (r: typeof before) => r.groups.flatMap((g) => g.parts).map((p) => [p.x, p.y, p.z, p.sx, p.sy, p.sz].map((v) => v.toFixed(4)).join(',')).sort();
+        expect(key(after)).toEqual(key(before));
+        expect(made.nodes.find((n) => n.op === 'output')!.inputs).toEqual([made.use]);
+        expect(made.component.nodes[0]!.input).toBe('in');
+        expect(() => extractProcComponent(nodes, ['site', 'lots'], 'x')).toThrow(/cannot go into a component/);
+        expect(() => extractProcComponent(nodes, ['body'], 'x')).not.toThrow();
+    });
+
+    it('pastes copies with ids of their own, wired among themselves and to what stays', () => {
+        const nodes = explicitProc(validateProcSource({ version: 1, nodes: [
+            { id: 'site', op: 'rect', size: [40, 40] }, { id: 'lots', op: 'grid', input: 'site', cols: 2, rows: 2 },
+            { id: 'b', op: 'box', input: 'lots', height: 3 }, { op: 'output', inputs: ['b'] },
+        ] }).nodes);
+        const clip = copyProcNodes(nodes, ['lots', 'b']);
+        const pasted = pasteProcNodes(nodes, JSON.parse(JSON.stringify(clip)));
+        expect(pasted.ids).toEqual(['grid1', 'box1']);
+        const grid = pasted.nodes.find((n) => n.id === 'grid1')!, box = pasted.nodes.find((n) => n.id === 'box1')!;
+        expect(grid.input).toBe('site');
+        expect(box.input).toBe('grid1');
+        // into a graph without its source, the outside wire is taken off
+        const elsewhere = pasteProcNodes([], clip);
+        expect(elsewhere.nodes.find((n) => n.op === 'grid')!.input).toBeNull();
     });
 });

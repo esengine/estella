@@ -146,3 +146,79 @@ export function addProcNode(nodes: readonly ProcNode[], op: string, x: number, y
     if (!isSource(op) && !isMany(op)) node.input = null as unknown as string;
     return { nodes: [...nodes, node], id };
 }
+
+/** Nodes taken out of a graph to be put back elsewhere: what a copy holds. */
+export interface ProcClip { kind: 'estella-proc-nodes'; nodes: ProcNode[] }
+
+/** The nodes @p ids, as they are, in the order the graph has them: what Copy puts on the clipboard. */
+export function copyProcNodes(nodes: readonly ProcNode[], ids: readonly string[]): ProcClip {
+    const want = new Set(ids);
+    return { kind: 'estella-proc-nodes', nodes: JSON.parse(JSON.stringify(nodes.filter((n) => n.id && want.has(n.id)))) as ProcNode[] };
+}
+
+/**
+ * Puts the nodes of @p clip into @p nodes, moved by (@p dx, @p dy). Each gets an id of its own; a wire between two of them
+ * follows them, a wire to a node outside the clip stays where that node is in this graph and is taken off (`null`) where it
+ * is not. Answers the new list and the new nodes' ids, in the clip's order.
+ */
+export function pasteProcNodes(nodes: readonly ProcNode[], clip: ProcClip, dx = 40, dy = 40): { nodes: ProcNode[]; ids: string[] } {
+    const out = [...nodes];
+    const rename = new Map<string, string>();
+    for (const n of clip.nodes) {
+        const id = freshProcId(out, n.op);
+        rename.set(n.id!, id);
+        out.push({ ...n, id });
+    }
+    const present = new Set(nodes.map((n) => n.id));
+    const remap = (ref: string): string | null => rename.get(ref) ?? (present.has(ref) || ref === 'in' ? ref : null);
+    const made = out.slice(nodes.length).map((n) => {
+        const next: ProcNode = { ...JSON.parse(JSON.stringify(n)), x: Math.round((n.x ?? 0) + dx), y: Math.round((n.y ?? 0) + dy) };
+        if (isMany(n.op)) next.inputs = (n.inputs ?? []).map(remap).filter((r): r is string => r !== null);
+        else if (typeof n.input === 'string') next.input = remap(n.input) as string;
+        return next;
+    });
+    return { nodes: sortProc([...nodes, ...made]), ids: made.map((n) => n.id!) };
+}
+
+/**
+ * Moves the nodes @p ids into a new component @p name and puts one `use` node in their place: an HDA made from part of a
+ * graph. The selection must read from one node outside it (the plot each use is given, "in" inside) and feed at most one
+ * node's output out (or the last of them is the component's output). A component runs once per plot in that plot's own
+ * frame, so a selection that makes plots of its own (a source) or ends the graph (output) cannot be one.
+ */
+export function extractProcComponent(nodes: readonly ProcNode[], ids: readonly string[], name: string):
+{ nodes: ProcNode[]; component: { params: Record<string, number>; nodes: ProcNode[]; output: string }; use: string } {
+    const want = new Set(ids);
+    const chosen = nodes.filter((n) => n.id && want.has(n.id));
+    if (chosen.length === 0) throw new ProcBuildError('select the nodes to make a component of');
+    const bad = chosen.find((n) => isSource(n.op) || n.op === 'output');
+    if (bad) throw new ProcBuildError(`${bad.id} (${bad.op}) cannot go into a component: a component works on the plot it is given`, bad.id ?? null, bad.op);
+    const outside = new Set(chosen.flatMap((n) => procInputsOf(n)).filter((r) => !want.has(r)));
+    if (outside.size !== 1) {
+        throw new ProcBuildError(outside.size === 0
+            ? 'the selection reads from nothing outside it: a component needs the plot it is given'
+            : `the selection reads from ${[...outside].join(', ')}; a component reads one input`);
+    }
+    const from = [...outside][0]!;
+    const fed = new Set(nodes.filter((n) => !want.has(n.id!)).flatMap((n) => procInputsOf(n)).filter((r) => want.has(r)));
+    if (fed.size > 1) throw new ProcBuildError(`${[...fed].join(' and ')} are both read from outside the selection; a component answers with one`);
+    const output = fed.size === 1 ? [...fed][0]! : chosen[chosen.length - 1]!.id!;
+    const minX = Math.min(...chosen.map((n) => n.x ?? 0)), minY = Math.min(...chosen.map((n) => n.y ?? 0));
+    const inner = chosen.map((n): ProcNode => {
+        const next: ProcNode = { ...JSON.parse(JSON.stringify(n)), x: Math.round((n.x ?? 0) - minX + 280), y: Math.round((n.y ?? 0) - minY + 40) };
+        if (isMany(n.op)) next.inputs = (n.inputs ?? []).map((r) => (r === from ? 'in' : r));
+        else if (n.input === from) next.input = 'in';
+        return next;
+    });
+    const use = freshProcId(nodes, 'use');
+    const useNode: ProcNode = {
+        id: use, op: 'use', input: from, component: name,
+        x: Math.round(chosen.reduce((a, n) => a + (n.x ?? 0), 0) / chosen.length), y: Math.round(chosen.reduce((a, n) => a + (n.y ?? 0), 0) / chosen.length),
+    };
+    const rest = nodes.filter((n) => !want.has(n.id!)).map((n) => {
+        if (isMany(n.op) && (n.inputs ?? []).includes(output)) return { ...n, inputs: n.inputs!.map((r) => (r === output ? use : r)) };
+        if (n.input === output) return { ...n, input: use };
+        return n;
+    });
+    return { nodes: sortProc([...rest, useNode]), component: { params: {}, nodes: sortProc(inner), output }, use };
+}
