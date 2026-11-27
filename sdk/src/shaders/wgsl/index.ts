@@ -12,7 +12,7 @@ import { installWgslTranspiler } from './install';
 
 export { transpileFragment } from './transpile';
 export { GlslError } from './parse';
-export { withWgslTwin } from './twin';
+export { withWgslTwin, wgslTwinProblem, type WgslTwinProblem } from './twin';
 export { installWgslTranspiler } from './install';
 
 // Importing this subpath INSTALLS the transpiler — see tilemap/index.ts.

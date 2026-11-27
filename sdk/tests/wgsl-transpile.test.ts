@@ -5,7 +5,7 @@ import { transpileFragment, transpileVertexHook } from '../src/shaders/wgsl/tran
 import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
 import { PLANET_SHADER_TEMPLATE } from '../src/terrain/planetShader';
 import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
-import { withWgslTwin } from '../src/shaders/wgsl/twin';
+import { withWgslTwin, wgslTwinProblem } from '../src/shaders/wgsl/twin';
 import { ENGINE_SHADER_API } from '../src/shaders/wgsl/engineApi.generated';
 import { BUILTIN_SHADER_TEMPLATES, MODEL } from '../src/render/builtinShaders';
 import { deriveVoxelGround } from '../src/voxel/voxelShader';
@@ -185,5 +185,22 @@ describe('the built-in shaders written in GLSL alone', () => {
         if (/^#pragma vertex[ \t]*\r?$/m.test(glsl)) return;
         expect(() => transpileFragment(glsl, ENGINE_SHADER_API)).not.toThrow();
         if (/^#pragma vertexoffset[ \t]*\r?$/m.test(glsl)) expect(() => transpileVertexHook(glsl, ENGINE_SHADER_API)).not.toThrow();
+    });
+});
+
+describe('why a shader would draw on WebGL alone', () => {
+    it('is nothing for a source that translates, or that has nothing to translate', () => {
+        expect(wgslTwinProblem(shader('Unlit', 'in vec4 v_color;\nout vec4 fragColor;\nvoid main() { fragColor = v_color; }'))).toBeNull();
+        expect(wgslTwinProblem('#pragma shader "T"\n#pragma domain Unlit\n')).toBeNull();
+    });
+
+    it('names the line of the whole file the transpiler stopped at, not the line of its section', () => {
+        const source = shader('Unlit', 'in vec4 v_color;\nout vec4 fragColor;\nvoid main() {\n    fragColor = v_color *;\n}');
+        const problem = wgslTwinProblem(source);
+        expect(problem?.section).toBe('fragment');
+        expect(problem?.line).toBe(source.split('\n').findIndex((l) => l.includes('v_color *;')) + 1);
+        expect(problem?.message).not.toMatch(/^line \d+/);
+        // Asked again, it answers again: nothing is remembered between edits.
+        expect(wgslTwinProblem(source)).toEqual(problem);
     });
 });
