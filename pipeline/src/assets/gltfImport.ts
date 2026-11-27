@@ -481,6 +481,7 @@ interface MaterialContext {
     stem: string;
     textures: ImportedTexture[];
     warnings: string[];
+    noteExternal: (uri: string) => string;
 }
 
 const GL_NEAREST = 9728;
@@ -546,7 +547,7 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
         // An image already on disk is REFERENCED, never copied: a second copy is
         // a second thing to keep in sync with the file the artist edits.
         if (image.uri && !image.uri.startsWith('data:')) {
-            return withSettings({ file: decodeURIComponent(image.uri), external: true });
+            return withSettings({ file: ctx.noteExternal(image.uri), external: true });
         }
         const bytes = image.uri
             ? decodeDataUri(image.uri)
@@ -701,7 +702,7 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     const extraMap = (key: string): ImportedImageRef | null => {
         const uri = src.extras?.[key];
         return typeof uri === 'string' && uri !== '' && !uri.startsWith('data:')
-            ? { file: decodeURIComponent(uri), external: true, settings: { sRGB: false } } : null;
+            ? { file: ctx.noteExternal(uri), external: true, settings: { sRGB: false } } : null;
     };
     const flow = extraMap('flow_map'), shift = extraMap('shift_map');
     const tipSoftness = src.extras?.suggested_tipSoftness;
@@ -1254,9 +1255,10 @@ export async function importGltfMeshes(
 
     for (const note of json.extras?.estella?.warnings ?? []) if (typeof note === 'string') warnings.push('Scene bridge: ' + note);
     const externalFiles: string[] = [];
-    const noteExternal = (uri: string): void => {
+    const noteExternal = (uri: string): string => {
         const decoded = decodeURIComponent(uri);
         if (!externalFiles.includes(decoded)) externalFiles.push(decoded);
+        return decoded;
     };
 
     const buffers: (Uint8Array | null)[] = (json.buffers ?? []).map((b, i) => {
@@ -1309,7 +1311,7 @@ export async function importGltfMeshes(
         : null;
 
     const src: GltfBytes = { json, bin, buffers, decoded: new Map() };
-    const materialCtx: MaterialContext = { src, json, stem, textures, warnings };
+    const materialCtx: MaterialContext = { src, json, stem, textures, warnings, noteExternal };
     const textureCache = new Map<number, ImportedImageRef | null>();
     const materialCache = new Map<number, ImportedMaterial>();
     const materialFor = (index: number): ImportedMaterial => {
@@ -1518,7 +1520,7 @@ export async function importGltfMeshes(
     const bindParticle = (node: ImportedNode) => {
         const texture = (json.nodes?.[node.index]?.extras as any)?.estella?.particle?.texture;
         if (node.particle && Number.isInteger(texture) && texture >= 0)
-            node.particle.texture = readTexture({ src, json, stem, textures, warnings }, particleTextures, { index: texture }, node.name) ?? undefined;
+            node.particle.texture = readTexture(materialCtx, particleTextures, { index: texture }, node.name) ?? undefined;
         node.children.forEach(bindParticle);
     };
     nodes.forEach(bindParticle);

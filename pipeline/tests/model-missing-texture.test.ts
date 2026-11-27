@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { importModelFile } from '../src/assets/importModelFile';
+import { cookAssets } from '../src/assets/cookAssets';
+import { encodeRgbaPng } from '../src/assets/png';
 
 function triangleGltf(image: string, specularGlossiness = false): string {
     const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
@@ -85,5 +87,37 @@ describe('a model that names a texture the project does not have', () => {
         expect(result.warnings.some(w => w.includes('sg.png'))).toBe(true);
         expect(text).not.toContain('sg.png');
         expect(text).toContain('ES_SPECULAR_GLOSSINESS');
+    });
+
+    it('resolves custom hair maps relative to the source and ships only the existing maps', async () => {
+        const root = mkdtempSync(path.join(tmpdir(), 'model-hair-maps-'));
+        roots.push(root);
+        const source = path.join(root, 'assets/source/hair.gltf');
+        const flow = 'assets/source/textures/flow map.png';
+        mkdirSync(path.dirname(path.join(root, flow)), { recursive: true });
+        writeFileSync(path.join(root, flow), encodeRgbaPng(1, 1, new Uint8Array([128, 100, 0, 255])));
+        const authored = JSON.parse(triangleGltf('unused.png'));
+        authored.images = [];
+        authored.textures = [];
+        authored.materials = [{ name: 'hair_cards', extras: { flow_map: 'textures/flow%20map.png', shift_map: 'textures/absent.png' } }];
+        writeFileSync(source, JSON.stringify(authored));
+        const result = await importModelFile({ root, absSource: source, destDir: 'assets/generated', settings: { characters: true } });
+        const material = result.products.find(file => file.endsWith('.esmaterial'))!;
+        const generated = JSON.parse(readFileSync(path.join(root, material), 'utf8'));
+        expect(generated.shader).toBe('builtin:hair');
+        expect(generated.properties.u_flowMap).toBe(flow);
+        expect(generated.properties).not.toHaveProperty('u_shiftMap');
+        expect(result.warnings).toContain('textures/absent.png is not there; the material is left without that texture');
+        const meta = JSON.parse(readFileSync(path.join(root, flow + '.meta'), 'utf8'));
+        expect(meta.importer.sRGB).toBe(false);
+
+        const scene = 'assets/main.esscene';
+        writeFileSync(path.join(root, scene), JSON.stringify({
+            version: 4, name: 'main', entities: [{ id: 1, prefab: result.prefab, parent: null, overrides: [], added: [], removed: [] }],
+        }));
+        writeFileSync(path.join(root, scene + '.meta'), JSON.stringify({ version: '2.0', uuid: 'main', type: 'scene', importer: {} }));
+        const cooked = await cookAssets(root, { entryScenes: [scene], outDir: 'cooked', contentAddressed: true });
+        expect(cooked.ok, cooked.warnings.join('\n')).toBe(true);
+        expect(cooked.included).toContain(meta.uuid);
     });
 });
