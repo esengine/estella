@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { fitRange, levelRange, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from '../src/terrain/quadtree';
 import { makePage, PageTable, PAGE_SIDE } from '../src/terrain/pages';
-import { NoiseSource, noised } from '../src/terrain/source';
+import { NoiseSource, noised, type TerrainSource } from '../src/terrain/source';
 
 const area: QuadtreeParams = { leafSize: 32, levels: 5, range0: 80, bounds: [-256, -256, 256, 256], minHeight: 0, maxHeight: 50 };
 const covers = (nodes: TerrainNode[], x: number, z: number): number =>
@@ -76,6 +76,25 @@ describe('the pages', () => {
         expect(h).toBeCloseTo(ground.height(64, -32), 1);
         expect(page.min).toBeLessThanOrEqual(page.max);
         expect(page.heights.length).toBe(n * n * 4);
+    });
+
+    it.each(['points', 'region'] as const)('uses a single height range for a page sampled by %s', async kind => {
+        let lowerReads = 0, upperReads = 0;
+        const source: TerrainSource = {
+            infinite: true, bounds: null,
+            get minHeight() { lowerReads++; return -20; },
+            get maxHeight() { upperReads++; return 60; },
+            height: (x) => x < 0 ? null : 20,
+            normal: () => [0, 1, 0], paint: () => [1, 0, 0, 0],
+        };
+        if (kind === 'region') source.region = (_x, _z, _step, count) => ({
+            heights: Float32Array.from({ length: count * count }, (_, i) => i % count === 0 ? -20 : 20),
+        });
+        const page = await makePage(source, 0, 0, 64);
+        expect([page.min, page.max]).toEqual([20, 20]);
+        expect([...page.heights.slice(0, 2)]).toEqual([0, 0]);
+        expect([...page.heights.slice(4, 6)]).toEqual([128, 0]);
+        expect([lowerReads, upperReads]).toEqual([1, 1]);
     });
 
     it('give a full atlas\'s oldest page up for a new one, but not one drawn this frame', () => {

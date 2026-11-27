@@ -321,6 +321,11 @@ export interface TerrainModifier {
     readonly shifts?: readonly [number, number];
 }
 
+function modifierTouches(m: TerrainModifier, x0: number, z0: number, x1: number, z1: number): boolean {
+    const b = m.bounds;
+    return b[0] <= x1 && b[2] >= x0 && b[1] <= z1 && b[3] >= z0;
+}
+
 /** A source with the modifiers laid over it: what the pages, the queries and collision all read. */
 export class ModifiedSource implements TerrainSource {
     readonly infinite: boolean;
@@ -359,7 +364,9 @@ export class ModifiedSource implements TerrainSource {
 
     height(x: number, z: number): number | null {
         const h = this.base.height(x, z);
-        return h === null ? null : this.modify(x, z, h);
+        if (h === null) return null;
+        const modified = this.applyModifiers(x, z, h, this.modifiers());
+        return Math.min(Math.max(modified, this.minHeight), this.maxHeight);
     }
 
     normal(x: number, z: number): [number, number, number] | null {
@@ -381,10 +388,19 @@ export class ModifiedSource implements TerrainSource {
         return (x0, z0, spacing, count) => {
             const got = region(x0, z0, spacing, count);
             const lay = (r: TerrainRegionSamples) => {
-                if (!this.touched(x0, z0, x0 + spacing * (count - 1), z0 + spacing * (count - 1))) return r;
+                const { x: ox, z: oz } = this.origin;
+                const reach = spacing * (count - 1);
+                const modifiers: TerrainModifier[] = [];
+                for (const m of this.modifiers()) {
+                    if (modifierTouches(m, x0 + ox, z0 + oz, x0 + reach + ox, z0 + reach + oz)) modifiers.push(m);
+                }
+                if (!modifiers.length) return r;
+                const lo = this.minHeight, hi = this.maxHeight;
                 const heights = new Float32Array(r.heights);
                 for (let j = 0; j < count; j++) for (let i = 0; i < count; i++) {
-                    heights[j * count + i] = this.modify(x0 + i * spacing, z0 + j * spacing, heights[j * count + i]!);
+                    const k = j * count + i;
+                    const h = this.applyModifiers(x0 + i * spacing, z0 + j * spacing, heights[k]!, modifiers);
+                    heights[k] = Math.min(Math.max(h, lo), hi);
                 }
                 return { ...r, heights };
             };
@@ -396,21 +412,20 @@ export class ModifiedSource implements TerrainSource {
     touched(x0: number, z0: number, x1: number, z1: number): boolean {
         const ox = this.origin.x, oz = this.origin.z;
         for (const m of this.modifiers()) {
-            const b = m.bounds;
-            if (b[0] <= x1 + ox && b[2] >= x0 + ox && b[1] <= z1 + oz && b[3] >= z0 + oz) return true;
+            if (modifierTouches(m, x0 + ox, z0 + oz, x1 + ox, z1 + oz)) return true;
         }
         return false;
     }
 
-    private modify(x: number, z: number, h: number): number {
+    private applyModifiers(x: number, z: number, h: number, modifiers: Iterable<TerrainModifier>): number {
         const wx = x + this.origin.x, wz = z + this.origin.z, oy = this.origin.y;
         let out = h + oy;
-        for (const m of this.modifiers()) {
+        for (const m of modifiers) {
             const b = m.bounds;
             if (wx < b[0] || wx > b[2] || wz < b[1] || wz > b[3]) continue;
             out = m.apply(wx, wz, out);
         }
-        return Math.min(Math.max(out - oy, this.minHeight), this.maxHeight);
+        return out - oy;
     }
 }
 

@@ -40,6 +40,12 @@ export interface Page {
 /** The pixels of one page. */
 export interface PageImage { heights: Uint8Array; paint: Uint8Array; paint2: Uint8Array; min: number; max: number }
 
+/** Snapshot the source's encoding range for the whole page, including any missing samples. */
+function pageHeightRange(source: TerrainSource): { min: number; span: number } {
+    const min = source.minHeight;
+    return { min, span: Math.max(source.maxHeight - min, 1e-6) };
+}
+
 /**
  * Samples a node's page from `source`: square (x0, z0) to (x0 + size, z0 + size) in the terrain's space. Heights are encoded over
  * the source's range. Off an area's edge the ground is its nearest edge's, so the pages there are whole. A source that samples regions
@@ -59,15 +65,16 @@ export function makePage(source: TerrainSource, x0: number, z0: number, size: nu
 /** A page made in bounded sample batches. Use only when height() is ready and synchronous; region-only providers keep their async path. */
 export function* makePageJob(source: TerrainSource, x0: number, z0: number, size: number, repaint?: Repaint): Generator<number, PageImage, void> {
     const n = PAGE_SIDE, step = pageSampleStep(size), h = new Float32Array(n * n);
+    const range = pageHeightRange(source);
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
     for (let k = 0; k < h.length; k++) {
         const i = k % n, j = Math.floor(k / n);
         const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
-        h[k] = source.height(x, z) ?? source.minHeight;
+        h[k] = source.height(x, z) ?? range.min;
         if ((k + 1) % 32 === 0) yield 0.4 * (k + 1) / h.length;
     }
     yield 0.4;
-    return yield* encodePageJob(source, x0, z0, step, h, undefined, repaint);
+    return yield* encodePageJob(source, x0, z0, step, h, range, undefined, repaint);
 }
 
 function finishPage(job: Generator<number, PageImage, void>): PageImage {
@@ -79,7 +86,7 @@ export type Repaint = (x: number, z: number, h: number, ny: number, w: LayerWeig
 
 /** Encodes a page's samples (row by row, one past each edge): heights and normals into one image, the paint into the other. */
 function encodePage(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array, given?: TerrainRegionSamples, repaint?: Repaint): PageImage {
-    return finishPage(encodePageJob(source, x0, z0, step, h, given, repaint));
+    return finishPage(encodePageJob(source, x0, z0, step, h, pageHeightRange(source), given, repaint));
 }
 
 function encodePaintBank(out: Uint8Array, at: number, weights: LayerWeights | Float32Array, start: number): void {
@@ -88,19 +95,20 @@ function encodePaintBank(out: Uint8Array, at: number, weights: LayerWeights | Fl
     }
 }
 
-function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array, given?: TerrainRegionSamples, repaint?: Repaint): Generator<number, PageImage, void> {
+function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array,
+    range: { min: number; span: number }, given?: TerrainRegionSamples, repaint?: Repaint,
+): Generator<number, PageImage, void> {
     const n = PAGE_SIDE;
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
     let min = Infinity, max = -Infinity;
     for (let j = 1; j <= n - 2; j++) for (let i = 1; i <= n - 2; i++) { const v = h[j * n + i]!; min = Math.min(min, v); max = Math.max(max, v); }
-    const span = Math.max(source.maxHeight - source.minHeight, 1e-6);
     const heights = new Uint8Array(n * n * 4), paint = new Uint8Array(n * n * 4), paint2 = new Uint8Array(n * n * 4);
     const p1 = given?.paint, p2 = given?.paint2;
     const hasRegionPaint = !!(p1 || p2);
     const paintMask = given?.paintMask;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const k = j * n + i;
-        const enc = Math.round(Math.min(Math.max((h[k]! - source.minHeight) / span, 0), 1) * 65535);
+        const enc = Math.round(Math.min(Math.max((h[k]! - range.min) / range.span, 0), 1) * 65535);
         const hl = h[j * n + Math.max(i - 1, 0)]!, hr = h[j * n + Math.min(i + 1, n - 1)]!;
         const hd = h[Math.max(j - 1, 0) * n + i]!, hu = h[Math.min(j + 1, n - 1) * n + i]!;
         const sx = (hr - hl) / (2 * step), sz = (hu - hd) / (2 * step);

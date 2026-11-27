@@ -12,7 +12,7 @@ import {
     noiseProvider, ProviderSource, registerTerrainProvider, TerrainUnavailable, type TerrainProvider, type TerrainRegion,
 } from '../src/terrain/provider';
 import { makePage, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from '../src/terrain/pages';
-import { flattenModifier, type NoiseParams } from '../src/terrain/source';
+import { flattenModifier, ModifiedSource, type NoiseParams, type TerrainSource } from '../src/terrain/source';
 
 // These scenes are written in metres: a project of one unit a metre, so the Terrain's own defaults are metres beside them.
 beforeAll(() => setWorldUnitsPerMeter(1));
@@ -252,6 +252,22 @@ describe('a Terrain with no renderer (a server)', () => {
 });
 
 describe('modifiers on the ground', () => {
+    it('applies intersecting modifiers in order in a region and uses the full height range', async () => {
+        const base: TerrainSource = {
+            infinite: true, bounds: null, minHeight: 0, maxHeight: 40,
+            height: () => 10, normal: () => [0, 1, 0], paint: () => [1, 0, 0, 0],
+            region: async (_x, _z, _step, count) => ({ heights: new Float32Array(count * count).fill(10) }),
+        };
+        const source = new ModifiedSource(base, () => [
+            { id: 'raise', bounds: [100, -15, 101, -13], apply: (_x, _z, h) => h + 6 },
+            { id: 'steepen', bounds: [101, -15, 102, -13], apply: (_x, _z, h) => 130 + (h - 130) * 3 },
+            { id: 'elsewhere', bounds: [1000, 1000, 1001, 1001], heights: [150, 175], apply: () => 175 },
+        ], { x: 100, y: 130, z: -15 }, 1);
+        const sampled = await source.region!(0, 0, 1, 3);
+        expect([...sampled.heights]).toEqual([16, 45, 30, 16, 45, 30, 16, 45, 30]);
+        for (let i = 0; i < sampled.heights.length; i++) expect(sampled.heights[i]).toBe(source.height(i % 3, Math.floor(i / 3)));
+    });
+
     const boot = (): App => {
         setDefaultContext(new AppContext());
         setEditorMode(false);
