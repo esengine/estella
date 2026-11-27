@@ -13,6 +13,7 @@ import type { RegistryEra } from '../registryAssets';
 import { parseTileset } from '../../tilemap/tilesetAsset';
 import type { PublishedTileset } from '../../tilemap/tilesetCache';
 import { log } from '../../util/logger';
+import { resolveIndexedProjectRef } from '../documentRef';
 
 export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
     readonly type = 'tileset';
@@ -24,18 +25,19 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const asset = parseTileset(JSON.parse(text));
 
-            // The atlas is a `@uuid:` ref inside the .estileset; the acquire resolves it.
             let textureHandle = 0;
             let textureWidth: number | undefined;
             let textureHeight: number | undefined;
             if (asset.texture) {
+                const document = ctx.sourceAddressOf?.(path) ?? path;
+                const atlas = resolveIndexedProjectRef(document, asset.texture, candidate => ctx.assetTypeOf?.(candidate) !== undefined);
                 try {
-                    const lease = await ctx.acquireTexture(asset.texture, true, 'imported');
+                    const lease = await ctx.acquireTexture(atlas, true, 'imported');
                     textureHandle = lease.value.handle;
                     textureWidth = lease.value.width;
                     textureHeight = lease.value.height;
                 } catch (e) {
-                    log.warn('asset', `Failed to load tileset atlas: ${asset.texture}`, e);
+                    log.warn('asset', `Failed to load tileset atlas: ${atlas}`, e);
                 }
             }
             const published: PublishedTileset = {

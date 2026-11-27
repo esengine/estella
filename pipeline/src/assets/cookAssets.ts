@@ -296,11 +296,11 @@ function rewriteMaterialRefs(
  * does not survive it. `@uuid:` / `builtin:` / URLs / already-logical refs and
  * anything naming no asset pass through.
  */
-function logicalRef(ref: string, docPath: string, byPath: Map<string, AssetEntry>): string;
-function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown;
-function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>): unknown {
+function logicalRef(ref: string, docPath: string, byPath: Map<string, AssetEntry>, first?: 'document' | 'project'): string;
+function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>, first?: 'document' | 'project'): unknown;
+function logicalRef(ref: unknown, docPath: string, byPath: Map<string, AssetEntry>, first: 'document' | 'project' = 'document'): unknown {
   if (typeof ref !== 'string' || !ref || ref.startsWith('/')) return ref;
-  const target = findDocumentAsset(docPath, ref, file => byPath.get(file), 'document');
+  const target = findDocumentAsset(docPath, ref, file => byPath.get(file), first);
   if (!target) return ref;
   return target.path.startsWith('assets/') ? target.path : `/${target.path}`;
 }
@@ -392,7 +392,9 @@ function rewriteTilemapRefs(
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
   const rewrite = (ref: string) => logicalRef(ref, docPath, byPath);
   let staged = json;
-  if (docPath.toLowerCase().endsWith('.tsj')) {
+  if (docPath.toLowerCase().endsWith('.estileset')) {
+    if (typeof json.texture === 'string') json.texture = logicalRef(json.texture, docPath, byPath, 'project');
+  } else if (docPath.toLowerCase().endsWith('.tsj')) {
     staged = mapTilesetImages(json, rewrite);
   } else if (Array.isArray(json.tilesets)) {
     staged = { ...json, tilesets: json.tilesets.map(ts => typeof ts.source === 'string'
@@ -994,7 +996,7 @@ export async function cookAssets(
       }
       // Tilemaps: relative tileset image/source refs → logical project paths, so the
       // @uuid-loaded map resolves them to the embedded assets (see rewriteTilemapRefs).
-      if (/^\.(?:tmj|tmx|tsj)$/i.test(ext)) {
+      if (/^\.(?:tmj|tmx|tsj|estileset)$/i.test(ext)) {
         try {
           data = rewriteTilemapRefs(data, entry.path, byPath);
         } catch (err) {

@@ -137,6 +137,14 @@ export function resolveIndexedSiblingRef(document: string, ref: string, isKnown:
     return findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, 'document') ?? resolved;
 }
 
+/** Preserve legacy project paths, allowing indexed siblings and explicit relative paths. */
+export function resolveIndexedProjectRef(document: string, ref: string, isKnown: (path: string) => boolean): string {
+    const normalized = normalizeAssetPathSeparators(ref);
+    if (isLocatorOrId(normalized) || isLogicalAssetRef(normalized)) return resolveDocumentRef(document, ref);
+    if (normalized.startsWith('./') || normalized.startsWith('../')) return resolveDocumentRef(document, normalized);
+    return findDocumentAsset(document, normalized, path => isKnown(path) ? path : undefined, 'project') ?? normalized;
+}
+
 function isLocatorOrId(ref: string): boolean {
     return /^[\\/]{2}/.test(ref) || /^[a-z][a-z0-9+.-]*:/i.test(ref) || assetRefId(ref) !== null;
 }

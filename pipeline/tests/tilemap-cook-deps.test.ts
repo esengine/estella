@@ -18,6 +18,7 @@ const TILES_TEX = '11111111-1111-4111-8111-111111111111';
 const PROPS_TEX = '22222222-2222-4222-8222-222222222222';
 const TILEMAP = '33333333-3333-4333-8333-333333333333';
 const SCENE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const NATIVE_TILESET = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function writeAsset(rel: string, type: string, uuid: string, body = ''): void {
   const abs = path.join(root, rel);
@@ -50,6 +51,14 @@ beforeAll(() => {
   writeAsset('assets/textures/props.png', 'texture', PROPS_TEX, 'PROPS');
   writeAsset('assets/maps/level.tmj', 'tilemap', TILEMAP, tmj);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
+  writeAsset('assets/maps/ground.estileset', 'tileset', NATIVE_TILESET, JSON.stringify({
+    version: '1', texture: '../textures/tiles.png', tileWidth: 16, tileHeight: 16, columns: 2, tiles: {},
+  }));
+  writeAsset('assets/scenes/painted.esscene', 'scene', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', JSON.stringify({
+    version: 4, name: 'Painted', entities: [{ id: 1, parent: null, children: [], components: [
+      { type: 'TilemapLayer', data: { tilesetAsset: `@uuid:${NATIVE_TILESET}` } },
+    ] }],
+  }));
 });
 
 afterAll(() => {
@@ -72,5 +81,17 @@ describe('tilemap tileset images are cooked dependencies', () => {
     // so the @uuid-loaded map resolves it to the embedded asset in the single-file playable.
     expect(cooked.tilesets[0].image).toBe('assets/textures/tiles.png');
     expect(cooked.tilesets[1].image).toBe('assets/textures/props.png');
+  });
+
+  it('keeps a relative native tileset atlas through content-addressed staging', async () => {
+    const cooked = await cookAssets(root, {
+      entryScenes: ['assets/scenes/painted.esscene'], outDir: 'build-native', contentAddressed: true,
+    });
+    expect(cooked.ok, cooked.warnings.join('\n')).toBe(true);
+    expect(cooked.included).toEqual(expect.arrayContaining([NATIVE_TILESET, TILES_TEX]));
+    const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as { entries: { uuid: string; path: string }[] };
+    const stored = manifest.entries.find(entry => entry.uuid === NATIVE_TILESET)!;
+    const tileset = JSON.parse(readFileSync(path.join(cooked.outDir, stored.path), 'utf8'));
+    expect(tileset.texture).toBe('assets/textures/tiles.png');
   });
 });
