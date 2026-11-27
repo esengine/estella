@@ -129,16 +129,16 @@ export function setInitial(def: AnimatorControllerDef, name: string, layer = 0):
 }
 
 /**
- * What a state plays, of any kind. Rebuilt rather than merged: a state names ONE
- * motion, so the fields spelling every other way of naming one have to go, or a
- * state would carry two and the reader would have to rank them.
+ * Replace the motion source while retaining the state's playback settings.
  */
-function withMotion(s: AnimatorState, motion: Partial<AnimatorState>): AnimatorState {
-    return {
-        name: s.name, x: s.x, y: s.y,
-        transitions: s.transitions, speed: s.speed, loop: s.loop,
-        ...motion,
-    };
+function withMotion(state: AnimatorState, source: Pick<AnimatorState, 'clip' | 'motion'>): AnimatorState {
+    const next = { ...state };
+    delete next.clip;
+    delete next.blend;
+    delete next.spine;
+    delete next.stateMachine;
+    delete next.motion;
+    return Object.assign(next, source);
 }
 
 /** Set the state's motion to a single sprite clip (clears any other motion). */

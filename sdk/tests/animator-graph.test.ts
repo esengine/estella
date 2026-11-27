@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
     emptyAnimatorController, animatorEdges,
     addState, removeState, moveState, renameState, setInitial,
+    setStateClip, setStateMotion,
     addTransition, removeTransition, updateTransition, setConditions,
     addParam, removeParam, updateParam,
     addLayer as addAnimatorLayer, removeLayer as removeAnimatorLayer,
@@ -76,6 +77,26 @@ describe('animatorGraph', () => {
         expect(def.states.find(s => s.name === 'Run')).toMatchObject({ x: 40, y: 50 });
         expect(setInitial(def, 'Nope')).toBe(def);
         expect(setInitial(def, 'Run').initialState).toBe('Run');
+    });
+
+    it('replaces motion without losing state playback settings', () => {
+        const settings = {
+            rootMotion: true, speed: 1.5, loop: false, speedParameter: 'Speed',
+            distanceParameter: 'Remaining', distanceFloor: 1, distanceMaxPace: 3,
+        };
+        const state = { ...emptyAnimatorController().states[0], ...settings };
+        const def = {
+            ...emptyAnimatorController(),
+            states: [{ ...state, clip: 'old.esanim' }],
+        };
+        const motion = { kind: 'timeline', clip: 'walk.estimeline' };
+        const changed = setStateMotion(def, 'Idle', motion);
+        expect(changed.states[0]).toEqual({ ...state, motion });
+        expect(def.states[0].clip).toBe('old.esanim');
+
+        const newClip = setStateClip(changed, 'Idle', 'new.esanim');
+        expect(newClip.states[0]).toEqual({ ...state, clip: 'new.esanim' });
+        expect(setStateMotion(newClip, 'Idle', null).states[0]).toEqual(state);
     });
 
     it('manages parameters', () => {
