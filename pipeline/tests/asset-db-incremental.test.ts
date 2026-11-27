@@ -177,6 +177,33 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     expect(inc.adopted).toEqual(['assets/textures/player.png']);
     expect(inc.index.entries.some((e) => e.path === 'assets/textures/player.png')).toBe(true);
   });
+
+  it.each(['{"uuid":', JSON.stringify({ uuid: TEX2 }), 'null'])(
+    're-resolves references while an atlas sidecar is invalid (%s), and recovers on repair', async invalidMeta => {
+      const atlas = 'assets/tiles/ground.png', backup = 'ground.png';
+      const fallback = '55555555-5555-4555-8555-555555555555';
+      writeAsset(atlas, 'texture', TEX2, 'ATLAS');
+      writeAsset(backup, 'texture', fallback, 'FALLBACK');
+      writeAsset('assets/tiles/material.esmaterial', 'material', MAT, JSON.stringify({ properties: { mainTex: 'ground.png' } }));
+      const { index: good } = await scanAssetDatabase(root, { write: false });
+      expect(good.deps[MAT]).toEqual([TEX2]);
+
+      const sidecar = `${atlas}.meta`;
+      const validMeta = readFileSync(path.join(root, sidecar), 'utf8');
+      writeFileSync(path.join(root, sidecar), invalidMeta);
+      const invalid = await updateAssetIndex(root, good, [sidecar], { write: false });
+      const full = await scanAssetDatabase(root, { write: false });
+      expect(invalid.fullRescan).toBe(false);
+      expect(invalid.index).toEqual(full.index);
+      expect(invalid.index.deps[MAT]).toEqual([fallback]);
+      expect(invalid.warnings.find(warning => warning.startsWith(sidecar))).toBe(full.warnings.find(warning => warning.startsWith(sidecar)));
+      expect(invalid.warnings.some(warning => warning.startsWith(sidecar))).toBe(true);
+
+      writeFileSync(path.join(root, sidecar), validMeta);
+      const repaired = await updateAssetIndex(root, invalid.index, [sidecar], { write: false });
+      expect(repaired.index).toEqual(good);
+    },
+  );
 });
 
 describe('updateAssetIndex — fallbacks (never silent)', () => {

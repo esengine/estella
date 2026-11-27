@@ -81,6 +81,17 @@ function entryFromMeta(path: string, meta: AssetMetaFields | null): AssetEntry |
   };
 }
 
+async function readIndexEntry(root: string, metaRel: string): Promise<{ entry: AssetEntry } | { warning: string }> {
+  let meta: AssetMetaFields | null;
+  try {
+    meta = JSON.parse(await readTextInRoot(path.join(root, metaRel)));
+  } catch (err) {
+    return { warning: `${metaRel}: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const entry = entryFromMeta(metaRel.slice(0, -META_EXT.length), meta);
+  return entry ? { entry } : { warning: `${metaRel}: missing uuid or type` };
+}
+
 /**
  * The project asset index. `entries` is the uuid↔path registry; `deps` maps a
  * scene/prefab uuid to the asset uuids it references (for delete-detection +
@@ -609,20 +620,10 @@ export async function scanAssetDatabase(
   // the cost — run those in parallel, then assemble deterministically in order.
   const metaRels: string[] = [];
   for await (const metaRel of walkMeta(root, '', exclude)) metaRels.push(metaRel);
-  type WalkResult = { entry?: AssetEntry; warning?: string };
-  const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, async (metaRel): Promise<WalkResult> => {
-    let meta: AssetMetaFields;
-    try {
-      meta = JSON.parse(await readTextInRoot(path.join(root, metaRel)));
-    } catch (err) {
-      return { warning: `${metaRel}: ${err instanceof Error ? err.message : String(err)}` };
-    }
-    const entry = entryFromMeta(metaRel.slice(0, -META_EXT.length), meta);
-    return entry ? { entry } : { warning: `${metaRel}: missing uuid or type` };
-  });
+  const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, metaRel => readIndexEntry(root, metaRel));
   for (const r of walkResults) {
-    if (r.entry) entries.push(r.entry);
-    else if (r.warning) warnings.push(r.warning);
+    if ('entry' in r) entries.push(r.entry);
+    else warnings.push(r.warning);
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
@@ -718,6 +719,7 @@ export async function updateAssetIndex(
 
   const byPath = new Map(prev.entries.map((e) => [e.path, e] as const));
   const adopted: string[] = [];
+  const warnings: string[] = [];
   // An ADD or a uuid/type change makes path + bare-uuid resolution global again —
   // a ref that used to dangle can now land. A REMOVAL cannot do that, so the two
   // are tracked apart; see the deps branch below for what each costs.
@@ -745,14 +747,13 @@ export async function updateAssetIndex(
       if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
       else { drop(before, content); continue; }
     }
-    let meta: AssetMetaFields;
-    try {
-      meta = JSON.parse(await readTextInRoot(abs + META_EXT));
-    } catch {
-      continue; // unreadable/partial .meta — a later event will settle it
+    const result = await readIndexEntry(root, content + META_EXT);
+    if ('warning' in result) {
+      warnings.push(result.warning);
+      drop(before, content);
+      continue;
     }
-    const entry = entryFromMeta(content, meta);
-    if (!entry) continue;
+    const { entry } = result;
     if (!before || before.uuid !== entry.uuid || before.type !== entry.type || before.source !== entry.source) resolutionChanged = true;
     byPath.set(content, entry);
   }
@@ -761,7 +762,6 @@ export async function updateAssetIndex(
   // Here too, and here MOST: a folder of assets dropped in with their sidecars
   // arrives through the watcher, which is exactly where duplicate uuids come from.
   // Before deps, which are keyed by uuid.
-  const warnings: string[] = [];
   const reminted = await resolveDuplicateUuids(root, entries, warnings);
   if (reminted.length > 0) resolutionChanged = true;
 
