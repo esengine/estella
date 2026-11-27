@@ -77,13 +77,49 @@ describe('resolveTilesetModel', () => {
     it('tileCount falls back to the highest authored tile id', () => {
         const a: ResolvedTileset = {
             textureHandle: 1,
-            asset: tileset({ columns: 4, tiles: { 3: { collision: { type: 'box' } } } }), // no tileCount
+            asset: tileset({ tiles: { 3: { collision: { type: 'box' }, animation: [{ tile: 4, durationMs: 50 }] } } }),
         };
-        const b: ResolvedTileset = { textureHandle: 2, asset: tileset({ tileCount: 4, tiles: { 1: { collision: { type: 'box' } } } }) };
+        const b: ResolvedTileset = {
+            textureHandle: 2,
+            asset: tileset({ tiles: { 1: { collision: { type: 'box' }, animation: [{ tile: 2, durationMs: 100 }] } } }),
+        };
         const m = resolveTilesetModel([a, b]);
         // a's count falls back to max id 3 → b starts at firstId 4
         expect(m.slots[1].firstId).toBe(4);
         expect(m.collidableTileIds).toEqual([3, 4]); // a tile 3 → 3; b tile 1 → global 4
+        expect([...m.animations]).toEqual([[4, [{ tileId: 5, duration: 100 }]]]);
+    });
+
+    it.each(['declared tile count', 'atlas height'])('keeps collision, properties and animation inside the %s', countSource => {
+        const a: ResolvedTileset = {
+            textureHandle: 1,
+            textureHeight: countSource === 'declared tile count' ? 48 : 16,
+            asset: tileset({
+                columns: 2,
+                tileCount: countSource === 'declared tile count' ? 2 : undefined,
+                tiles: {
+                    1: { animation: [{ tile: 3, durationMs: 50 }, { tile: 2, durationMs: 100 }] },
+                    2: { animation: [{ tile: 3, durationMs: 50 }] },
+                    3: { collision: { type: 'box' }, properties: { terrain: 'old' } },
+                    4: { collision: { type: 'circle', cx: 8, cy: 8, r: 4 }, animation: [{ tile: 1, durationMs: 100 }] },
+                },
+            }),
+        };
+        const b: ResolvedTileset = {
+            textureHandle: 2,
+            asset: tileset({ tileCount: 2, tiles: {
+                1: { animation: [{ tile: 0, durationMs: 50 }, { tile: 1, durationMs: 100 }] },
+            } }),
+        };
+        const model = resolveTilesetModel([a, b]);
+        expect(model.slots.map(slot => slot.firstId)).toEqual([1, 3]);
+        expect(model.collidableTileIds).toEqual([]);
+        expect(model.tileShapes.size).toBe(0);
+        expect(model.tileProperties?.size).toBe(0);
+        expect([...model.animations]).toEqual([
+            [1, [{ tileId: 2, duration: 100 }]],
+            [3, [{ tileId: 3, duration: 100 }]],
+        ]);
     });
 });
 

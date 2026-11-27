@@ -122,19 +122,16 @@ export function atlasCells(size: number, margin: number, tileSize: number, spaci
 /**
  * Tiles in a tileset — the span its global ids occupy. Explicit `tileCount` wins;
  * else derive `columns × rows` from the atlas texture height (the correct span for
- * a full grid, so multiple tilesets get non-overlapping firstId ranges); else fall
- * back to the highest authored tile id (single-tileset maps never hit the collision).
+ * a full grid, so multiple tilesets get non-overlapping firstId ranges).
  */
-function tilesetCount(asset: TilesetAsset, textureHeight?: number): number {
+function tilesetCount(asset: TilesetAsset, textureHeight?: number): number | undefined {
     if (typeof asset.tileCount === 'number' && asset.tileCount > 0) return asset.tileCount;
     if (typeof textureHeight === 'number' && textureHeight > 0) {
         const rows = Math.max(1, atlasCells(
             textureHeight, asset.margin || 0, asset.tileHeight || 1, asset.spacing || 0));
         return Math.max(1, asset.columns * rows);
     }
-    let max = 0;
-    for (const k of Object.keys(asset.tiles)) max = Math.max(max, Number(k));
-    return max; // local ids are 1-based, so the max id == count of the spanned range
+    return undefined;
 }
 
 /**
@@ -150,7 +147,19 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     const tileProperties = new Map<number, Record<string, string>>();
 
     let firstId = 1;
-    for (const { asset, textureHandle, textureHeight } of tilesets) {
+    for (const [index, { asset, textureHandle, textureHeight }] of tilesets.entries()) {
+        const tileKeys = Object.keys(asset.tiles);
+        const hasNext = index + 1 < tilesets.length;
+        // Without atlas dimensions, keep the legacy inferred boundary before the next tileset.
+        // The final slot can still animate to a cell with no metadata when its size is unknown.
+        let limit = tilesetCount(asset, textureHeight);
+        if (limit === undefined && hasNext) {
+            limit = 1;
+            for (const key of tileKeys) {
+                const id = Number(key);
+                if (Number.isInteger(id)) limit = Math.max(limit, id);
+            }
+        }
         slots.push({
             firstId, textureHandle, columns: asset.columns,
             margin: asset.margin || 0, spacing: asset.spacing || 0,
@@ -160,9 +169,9 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
         const th = asset.tileHeight || 1;
 
         // Local tile ids are 1-based; global id = firstId + (localId - 1).
-        for (const key of Object.keys(asset.tiles)) {
+        for (const key of tileKeys) {
             const localId = Number(key);
-            if (!Number.isInteger(localId) || localId <= 0) continue;
+            if (!Number.isInteger(localId) || localId < 1 || localId > (limit ?? Infinity)) continue;
             const globalId = firstId + localId - 1;
             const tile = asset.tiles[localId];
             if (tile.properties && Object.keys(tile.properties).length > 0) tileProperties.set(globalId, tile.properties);
@@ -172,17 +181,16 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
                 else tileShapes.set(globalId, resolveTileCollision(tile.collision, tw, th));
             }
             if (tile.animation && tile.animation.length > 0) {
-                animations.set(
-                    globalId,
-                    tile.animation.map((f) => ({
-                        tileId: firstId + f.tile - 1,
-                        duration: f.durationMs,
-                    })),
-                );
+                const frames: { tileId: number; duration: number }[] = [];
+                for (const frame of tile.animation) {
+                    if (!Number.isInteger(frame.tile) || frame.tile < 1 || frame.tile > (limit ?? Infinity)) continue;
+                    frames.push({ tileId: firstId + frame.tile - 1, duration: frame.durationMs });
+                }
+                if (frames.length > 0) animations.set(globalId, frames);
             }
         }
 
-        firstId += Math.max(1, tilesetCount(asset, textureHeight));
+        if (limit !== undefined) firstId += Math.max(1, limit);
     }
 
     collidable.sort((a, b) => a - b);
