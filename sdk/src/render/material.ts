@@ -367,6 +367,11 @@ function resolveMaterial(handle: MaterialHandle, includeUniforms = true): Resolv
     const data = materials.get(handle);
     if (!data) return null;
     const parent = data.parent !== undefined ? resolveMaterial(data.parent, includeUniforms) : null;
+    return resolveLocalMaterial(data, parent, includeUniforms);
+}
+
+function resolveLocalMaterial(data: MaterialData, parent: ResolvedMaterial | null, includeUniforms: boolean,
+    sharedParent = false): ResolvedMaterial {
     if (!parent) {
         return {
             shader: data.ownShader ?? data.shader, blendMode: data.blendMode, depthTest: data.depthTest,
@@ -374,8 +379,11 @@ function resolveMaterial(handle: MaterialHandle, includeUniforms = true): Resolv
             uniforms: includeUniforms ? new Map(data.uniforms) : NO_UNIFORMS,
         };
     }
-    const uniforms = parent.uniforms;  // fresh map from the recursive call
-    if (includeUniforms) for (const [k, v] of data.uniforms) uniforms.set(k, v);  // instance overrides win
+    let uniforms = parent.uniforms;
+    if (includeUniforms && data.uniforms.size) {
+        if (sharedParent) uniforms = new Map(uniforms);
+        for (const [name, value] of data.uniforms) uniforms.set(name, value);
+    }
     return {
         shader: data.ownShader ?? parent.shader,  // instances inherit the shader unless they switched permutation
         blendMode: data.overrides.has('blendMode') ? data.blendMode : parent.blendMode,
@@ -387,29 +395,38 @@ function resolveMaterial(handle: MaterialHandle, includeUniforms = true): Resolv
     };
 }
 
+// Resolve the root once. A child without local uniforms can share its parent's
+// snapshot, while a child with overrides must leave the sibling branches alone.
+function walkResolvedMaterials(handle: MaterialHandle, visit: (handle: MaterialHandle, state: ResolvedMaterial) => void,
+    resolved = resolveMaterial(handle)): void {
+    if (!resolved) return;
+    visit(handle, resolved);
+    for (const child of childrenOf.get(handle) ?? []) {
+        const data = materials.get(child);
+        if (data) walkResolvedMaterials(child, visit, resolveLocalMaterial(data, resolved, true, true));
+    }
+}
+
 // Push a material's flattened state to the engine, then re-flush every instance of it — so a
 // base edit propagates to non-overriding children. The single push point for create + edits.
 function flushMaterial(handle: MaterialHandle, previous?: ReadonlyMap<MaterialHandle, ResolvedMaterial>): void {
-    const resolved = resolveMaterial(handle);
-    if (resolved && module) {
-        // define preserves existing constants and texture bindings. A deleted value
-        // must return to the shader default, including in inheriting descendants.
-        const old = previous?.get(handle);
-        if (old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name))) {
-            module.material_undefine(handle);
-            materials.get(handle)?.sent_?.clear();
+    walkResolvedMaterials(handle, (id, resolved) => {
+        const data = materials.get(id);
+        if (module) {
+            // define preserves bindings, so a deleted value needs to return to its shader default.
+            const old = previous?.get(id);
+            if (old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name))) {
+                module.material_undefine(id);
+                data?.sent_?.clear();
+            }
+            module.material_define(id, resolved.shader, resolved.blendMode,
+                materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
+                resolved.depthBias);
+            for (const [name, value] of resolved.uniforms) pushUniform(id, name, value);
+            if (data) data.pushed_ = true;
         }
-        module.material_define(handle, resolved.shader, resolved.blendMode,
-            materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
-            resolved.depthBias);
-        for (const [name, value] of resolved.uniforms) pushUniform(handle, name, value);
-        const pushed = materials.get(handle);
-        if (pushed) pushed.pushed_ = true;
-    }
-    const data = materials.get(handle);
-    if (data) data.dirty_ = true;
-    const kids = childrenOf.get(handle);
-    if (kids) for (const child of kids) flushMaterial(child, previous);
+        if (data) data.dirty_ = true;
+    });
 }
 
 // Convert a .esmaterial `properties` map (JSON numbers / colors / vectors) into typed
@@ -607,13 +624,7 @@ export const Material = {
             return;
         }
         const previous = new Map<MaterialHandle, ResolvedMaterial>();
-        const collect = (handle: MaterialHandle): void => {
-            if (previous.has(handle)) return;
-            const resolved = resolveMaterial(handle);
-            if (resolved) previous.set(handle, resolved);
-            for (const child of childrenOf.get(handle) ?? []) collect(child);
-        };
-        collect(material);
+        walkResolvedMaterials(material, (handle, state) => previous.set(handle, state));
         const previousProgram = state.program ? ownedPrograms.get(material) : undefined;
         if (state.program) {
             ownedPrograms.set(material, state.program.lease);
