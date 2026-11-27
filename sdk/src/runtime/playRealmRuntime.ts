@@ -254,12 +254,12 @@ function withUrlSettings(settings: Partial<RuntimeAssetSource>, manifest: Record
  */
 export async function cutPlayWorld(
     scene: SceneData, sceneName: string, resolveRef: (ref: string) => string,
-    readPrefab: (url: string) => Promise<unknown | null> = async (url) => {
-        const response = await fetch(url);
+    readPrefab: (ref: string) => Promise<unknown | null> = async (ref) => {
+        const response = await fetch(resolveRef(ref));
         return response.ok ? await response.json() as unknown : null;
     },
 ): Promise<CutWorld | null> {
-    const resolvePrefab = await resolvePrefabRoots(scene, ref => readPrefab(resolveRef(ref)));
+    const resolvePrefab = await resolvePrefabRoots(scene, readPrefab);
     const cut = cutWorld(scene, sceneName, {
         // The realm's registry, which by now holds the project's own components
         // as well as the engine's — so a cross-cell reference a cook could not
@@ -350,9 +350,9 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
             { name: entryName, data: sceneData },
             ...(config.extraScenes ?? []).filter((s) => s.name !== entryName),
         ],
-        async prepareWorld(data, name) {
+        async prepareWorld(data, name, readPrefab) {
             const cut = await cutPlayWorld(data, name, resolveRef,
-                async url => JSON.parse(await source.backend.fetchText(url)) as unknown);
+                readPrefab ?? (async ref => JSON.parse(await source.backend.fetchText(resolveRef(ref))) as unknown));
             if (cut) {
                 life.throwIfAborted();
                 await addPlayFarProxies(cut, data, resolveRef, made, config.simplifyFarProxy);

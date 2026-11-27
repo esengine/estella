@@ -12,11 +12,12 @@ import { requireSupportedSceneDocument } from '../scene/sceneFormat';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
          updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
-         type SceneLoadProgressCallback, publishSceneTextureMetadata } from '../scene/scene';
+         type PrefabAssetResolver, type SceneLoadProgressCallback, publishSceneTextureMetadata } from '../scene/scene';
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, SceneLoadAttempt } from '../scene/sceneLoadAttempt';
 import { prepareSpawnOwnership, prepareSceneAuxiliaryAssets, type PreparedSpawnOwnership } from '../prefab/preparedAssetOwnership';
+import type { PrefabData } from '../prefab/types';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
@@ -33,6 +34,8 @@ import type { RuntimeProjectSettings } from './projectSettings';
 import type { App } from '../app/app';
 import { surfaceSizeOf } from '../app/surface';
 import { Assets as AssetsClass } from '../asset/Assets';
+import { AssetScope } from '../asset/AssetLease';
+import type { PrefabResult } from '../asset/AssetLoader';
 import { Assets as AssetsResource, installRuntimeAssets } from '../asset/AssetPlugin';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
@@ -873,7 +876,8 @@ export function createRuntimeSceneConfig(
     sceneData: SceneData | undefined,
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> & {
         /** Prepare document bytes and optionally install their companion world once the scene has published. */
-        prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void) => Promise<SceneData>;
+        prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void,
+            readPrefab: PrefabAssetResolver) => Promise<SceneData>;
     },
     scenePath?: string,
     /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
@@ -964,17 +968,31 @@ function createRuntimeSceneConfigWithData(
             config.onPhase?.('parse', performance.now() - parsed);
             document = 'owned';
         }
-        let publishDocument: (() => void) | undefined;
-        if (options.prepareDocument) {
-            data = await options.prepareDocument(data, assertActive, install => { publishDocument = install; });
-            assertActive();
-            document = 'borrowed';
+        let prefabSources: AssetScope | undefined;
+        try {
+            let publishDocument: (() => void) | undefined;
+            const prepareDocument = options.prepareDocument;
+            if (prepareDocument) {
+                const authored = data;
+                const readPrefab: PrefabAssetResolver = async ref => {
+                    assertActive();
+                    // Keep the typed asset alive until scene expansion acquires its own lease.
+                    const sources = prefabSources ??= new AssetScope();
+                    const assets = options.app.getResource(AssetsResource);
+                    return sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref)).value.data as PrefabData | null;
+                };
+                data = await attempt.waitForShared(() => prepareDocument(authored, assertActive,
+                    install => { publishDocument = install; }, readPrefab));
+                document = 'borrowed';
+            }
+            const ready = await prepareWithAttempt({
+                ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
+                onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
+            }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
+            return publishDocument ? { ...ready, publishDocument } : ready;
+        } finally {
+            prefabSources?.releaseAll();
         }
-        const ready = await prepareWithAttempt({
-            ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
-            onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
-        }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
-        return publishDocument ? { ...ready, publishDocument } : ready;
     };
     const discard = (pending: Preparation): number => {
         if (pending.cancel.signal.aborted) return 0;
@@ -1160,7 +1178,7 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
     /** Preloaded world manifests keyed by their persistent scene's registered name. */
     worlds?: WorldManifest[];
     /** Cut an authored scene on first use when the host serves source documents (editor Play). */
-    prepareWorld?: (scene: SceneData, name: string) => Promise<Pick<CutWorld, 'persistent' | 'manifest' | 'documents'> | null>;
+    prepareWorld?: (scene: SceneData, name: string, readPrefab?: PrefabAssetResolver) => Promise<Pick<CutWorld, 'persistent' | 'manifest' | 'documents'> | null>;
     /**
      * Cell name → its document, for a host that already holds them: an editor
      * Play session cuts the unsaved scene in memory and has nowhere to fetch a
@@ -1226,7 +1244,7 @@ function registerRuntimeScenes(
     for (const scene of config.scenes) {
         const { worldPath } = scene;
         const worldRef = packagedRef(worldPath);
-        const prepareDocument = async (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void): Promise<SceneData> => {
+        const prepareDocument: NonNullable<Parameters<typeof createRuntimeSceneConfig>[2]['prepareDocument']> = async (data, assertActive, onPublish, readPrefab) => {
             if (worldRef) {
                 const assets = app.getResource(AssetsResource);
                 const model = assets.getManifest();
@@ -1241,7 +1259,7 @@ function registerRuntimeScenes(
                     onPublish(() => { worlds.set(scene.name, { manifest, documents: config.cellDocuments, packageFile: { path, version } }); });
                 }
             } else if (config.prepareWorld) {
-                const cut = await config.prepareWorld(data, scene.name);
+                const cut = await config.prepareWorld(data, scene.name, readPrefab);
                 assertActive();
                 if (!cut) {
                     onPublish(() => { worlds.delete(scene.name); });

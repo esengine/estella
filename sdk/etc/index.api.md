@@ -10614,7 +10614,7 @@ physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined
-prepareWorld: ((scene: SceneData, name: string) => Promise<Pick<CutWorld, "documents" | "manifest" | "persistent"> | null>) | undefined
+prepareWorld: ((scene: SceneData, name: string, readPrefab?: PrefabAssetResolver) => Promise<Pick<CutWorld, "documents" | "manifest" | "persistent"> | null>) | undefined
 projectPlugin: Plugin | undefined
 remoteRoot: string | undefined
 runtime: RuntimeBuildConfig | undefined
@@ -17398,7 +17398,7 @@ Plugin
 
 ## createRuntimeSceneConfig — function @experimental
 ```
-(name: string, sceneData: SceneData | undefined, options: Omit<LoadRuntimeSceneOptions, "sceneData" | "sceneName"> & { prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void) => Promise<SceneData>; }, scenePath?: string, streamed?: StreamedSceneOptions): SceneConfig
+(name: string, sceneData: SceneData | undefined, options: Omit<LoadRuntimeSceneOptions, "sceneData" | "sceneName"> & { prepareDocument?: (data: SceneData, assertActive: () => void, onPublish: (install: () => void) => void, readPrefab: PrefabAssetResolver) => Promise<SceneData>; }, scenePath?: string, streamed?: StreamedSceneOptions): SceneConfig
 ```
 
 ## createScenePrefabIdAllocator — function @experimental
