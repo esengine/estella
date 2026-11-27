@@ -16,7 +16,7 @@ import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld, type EntityBoxOptions,
+    resolveEntityWorldBox, meshWorldBox, entityBoxRayHit, type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -74,7 +74,7 @@ export interface EntityPickOptions {
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
     ySortLayers?: number;
     depthLayers?: number;
-    /** Sorting layers drawn by the camera producing this ray. Defaults to all layers. */
+    /** Sorting layers drawn by the camera. Defaults to all layers. */
     cullingMask?: number;
 }
 
@@ -90,13 +90,51 @@ export interface EntityPickOptions {
 export function pickEntitiesByRay(
     world: PickWorld, ray: WorldRay, opts: EntityPickOptions = {},
 ): Entity[] {
-    const iconHalf = opts.iconHalf ?? 0;
-    const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
-    // Whether icons are pickable at all, which is the question here — how big one is
-    // where it stands is entityWorldBox's.
-    const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
+    visitPickHits(world, opts, box => entityBoxRayHit(box, ray.origin, ray.dir), (entity, distance, identity, opaque) => {
+        const t = world.get(entity, Transform);
+        const candidate: PickCandidate<Entity> = {
+            entity,
+            index: hits.length + opaqueHits.length,
+            rank: {
+                layer: identity.layer,
+                order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
+                orderInLayer: identity.orderInLayer,
+                groupInner: identity.groupInner,
+                opaque,
+                worldY: t.worldPosition.y,
+                worldZ: t.worldPosition.z ?? 0,
+            },
+        };
+        if (opaque) opaqueHits.push({ candidate, distance });
+        else hits.push(candidate);
+    });
+    if (!opaqueHits.length) return rankPickCandidates(hits);
+
+    // Depth-tested opaque meshes occlude one another even across sorting layers.
+    // Rank the nearest against the blended draws; keep the others for cycling.
+    opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
+    hits.push(opaqueHits[0].candidate);
+    return rankPickCandidates(hits).concat(opaqueHits.slice(1).map(hit => hit.candidate.entity));
+}
+
+/** Active, visible world entities whose pick bounds pass a spatial test, in storage order. @experimental */
+export function pickEntitiesByBounds(
+    world: PickWorld, intersects: (box: EntityBox, entity: Entity) => boolean, opts: EntityPickOptions = {},
+): Entity[] {
+    const hits: Entity[] = [];
+    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, entity => hits.push(entity));
+    return hits;
+}
+
+function visitPickHits(
+    world: PickWorld, opts: EntityPickOptions, intersect: (box: EntityBox, entity: Entity) => number | null,
+    visit: (entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean) => void,
+): void {
+    const iconHalf = opts.iconHalf ?? 0;
+    const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
+    const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const fastWorld = world as PickWorld & Partial<Pick<World, 'resolveGetter'>>;
     const meshGetter = fastWorld.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
     const readMesh = meshGetter ?? (entity => world.get(entity, MeshRenderer));
@@ -115,7 +153,7 @@ export function pickEntitiesByRay(
         const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts, { hiddenMesh, iconPickable: opts.iconPickable });
         const box = meshBox ?? fallback?.box;
         if (!box) continue;
-        const distance = entityBoxRayHit(box, ray.origin, ray.dir);
+        const distance = intersect(box, entity);
         if (distance === null) continue;
 
         const mesh = meshBox ? renderer : null;
@@ -128,28 +166,6 @@ export function pickEntitiesByRay(
             (sprite as { order?: number } | null)?.order ?? 0,
         );
         if (cullingMask !== 0xFFFFFFFF && (mesh || sprite) && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
-        const t = world.get(entity, Transform);
-        const candidate: PickCandidate<Entity> = {
-            entity,
-            index: hits.length + opaqueHits.length,
-            rank: {
-                layer: identity.layer,
-                order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
-                orderInLayer: identity.orderInLayer,
-                groupInner: identity.groupInner,
-                opaque: mesh?.opaque,
-                worldY: t.worldPosition.y,
-                worldZ: t.worldPosition.z ?? 0,
-            },
-        };
-        if (mesh?.opaque) opaqueHits.push({ candidate, distance });
-        else hits.push(candidate);
+        visit(entity, distance, identity, mesh?.opaque);
     }
-    if (!opaqueHits.length) return rankPickCandidates(hits);
-
-    // Depth-tested opaque meshes occlude one another even across sorting layers.
-    // Rank the nearest against the blended draws; keep the others for cycling.
-    opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
-    hits.push(opaqueHits[0].candidate);
-    return rankPickCandidates(hits).concat(opaqueHits.slice(1).map(hit => hit.candidate.entity));
 }
