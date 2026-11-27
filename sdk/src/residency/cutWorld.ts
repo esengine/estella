@@ -19,6 +19,7 @@ import type { SceneData } from '../scene/scene';
 import { flattenPrefab } from '../prefab/flatten';
 import { createPrefabSourceLoader } from '../prefab/source';
 import type { PrefabData, PrefabEntityData } from '../prefab/types';
+import { cloneComponentData } from '../prefab/clone';
 
 /** Where cooked world content goes, package-relative. */
 export const WORLD_DIR = 'world';
@@ -109,7 +110,9 @@ interface PrefabDocument {
 /** Where a prefab asset's root sits, from its document. Null if it has no root. */
 export function prefabRootOf(document: unknown): PrefabRoot | null {
     const root = authoredPrefabRoot(document as PrefabDocument | null);
-    return root ? rootPlacement(root.prefabEntityId, root.components) : null;
+    if (!root) return null;
+    const { rootId, position } = rootPlacement(root.prefabEntityId, root.components);
+    return { rootId, position };
 }
 
 function authoredPrefabRoot(prefab: PrefabDocument | null) {
@@ -119,8 +122,9 @@ function authoredPrefabRoot(prefab: PrefabDocument | null) {
 }
 
 function rootPlacement(rootId: string, components: PrefabEntityData['components'] | undefined): PrefabRoot {
-    const at = (components?.find((c) => c.type === 'Transform')?.data.position ?? {}) as Partial<PrefabRoot['position']>;
-    return { rootId, position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 } };
+    const data = components?.find((c) => c.type === 'Transform')?.data;
+    const at = (data?.position ?? {}) as Partial<PrefabRoot['position']>;
+    return { rootId, position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 }, transform: data ? cloneComponentData(data) : null };
 }
 
 /**

@@ -27,9 +27,11 @@
 import { isPrefabEntry } from '../scene/sceneEntry';
 import { cellAt, cellSquare, planeSecond } from './cells';
 import { StreamPlane } from './components';
+import { applyOverrides } from '../prefab/override';
 import type { SceneData, SceneEntityData, SceneComponentData } from '../scene/scene';
 import type { SceneEntry } from '../scene/sceneEntry';
 import type { PrefabInstanceEntry } from '../prefab/sceneInstance';
+import type { PrefabOverride } from '../prefab/types';
 
 interface Vec3 { x: number; y: number; z: number }
 
@@ -37,6 +39,8 @@ interface Vec3 { x: number; y: number; z: number }
 export interface PrefabRoot {
     rootId: string;
     position: Vec3;
+    /** Root component after asset-level overrides. Null means it has no Transform. */
+    transform?: Readonly<Record<string, unknown>> | null;
 }
 
 export interface PartitionOptions {
@@ -123,20 +127,10 @@ function vec3(value: unknown, fallback: Vec3): Vec3 {
     };
 }
 
-/**
- * The position an entry declares, in its parent's space.
- *
- * A prefab instance's is an override over the asset's root, which is why the
- * asset has to be resolvable: an instance placed at the origin and an instance
- * that never said where it goes are the same document without it.
- */
-function localPosition(
+function localTransform(
     entry: SceneEntry, options: PartitionOptions, problems: string[],
-): Vec3 {
-    if (!isPrefabEntry(entry)) {
-        const transform = componentData(entry, 'Transform');
-        return transform ? vec3(transform.position, ORIGIN) : ORIGIN;
-    }
+): Readonly<Record<string, unknown>> | null {
+    if (!isPrefabEntry(entry)) return componentData(entry, 'Transform');
     const instance = entry as PrefabInstanceEntry;
     const asset = options.resolvePrefab?.(instance.prefab) ?? null;
     if (asset === null) {
@@ -144,29 +138,40 @@ function localPosition(
             `entity ${instance.id} ("${nameOf(instance)}") instances a prefab this cook cannot read `
             + `(${instance.prefab}), so where it stands is unknown`,
         );
-        return ORIGIN;
+        return null;
     }
-    for (const override of instance.overrides) {
-        if (override.type !== 'property' || override.prefabEntityId !== asset.rootId) continue;
-        if (override.componentType === 'Transform' && override.propertyName === 'position') {
-            return vec3(override.value, asset.position);
-        }
+    const transform = asset.transform === undefined ? { position: asset.position } : asset.transform;
+    if (!instance.overrides?.length) return transform;
+    const overrides = instance.overrides.filter(override =>
+        override.prefabEntityId === asset.rootId && editsTransform(override));
+    if (overrides.length === 0) return transform;
+    const root = { prefabEntityId: asset.rootId, name: '', visible: true,
+        components: transform ? [{ type: 'Transform', data: { ...transform } }] : [] };
+    applyOverrides(root, overrides);
+    return root.components[0]?.data ?? null;
+}
+
+function editsTransform(override: PrefabOverride): boolean {
+    switch (override.type) {
+        case 'property':
+        case 'component_removed':
+            return override.componentType === 'Transform';
+        case 'component_added':
+        case 'component_replaced':
+            return override.componentData?.type === 'Transform';
+        default:
+            return false;
     }
-    return asset.position;
 }
 
 /** Rotation and scale, for composing where a CHILD ends up. Identity by default. */
-function localRotation(entry: SceneEntry): [number, number, number, number] {
-    const transform = isPrefabEntry(entry) ? null : componentData(entry, 'Transform');
+function localRotation(transform: Readonly<Record<string, unknown>> | null): [number, number, number, number] {
     const r = transform?.rotation as Partial<{ x: number; y: number; z: number; w: number }> | undefined;
     if (!r) return [0, 0, 0, 1];
     return [r.x ?? 0, r.y ?? 0, r.z ?? 0, r.w ?? 1];
 }
 
-function localScale(entry: SceneEntry): Vec3 {
-    const transform = isPrefabEntry(entry) ? null : componentData(entry, 'Transform');
-    return transform ? vec3(transform.scale, { x: 1, y: 1, z: 1 }) : { x: 1, y: 1, z: 1 };
-}
+const UNIT_SCALE: Vec3 = { x: 1, y: 1, z: 1 };
 
 /** Rotate `v` by the quaternion `q`. */
 function rotate(q: readonly [number, number, number, number], v: Vec3): Vec3 {
@@ -249,15 +254,16 @@ export function partitionWorld(
     const members = new Map<number, number[]>();
     for (const root of roots) {
         const entry = byId.get(root)!;
+        const transform = localTransform(entry, options, errors);
         const streamed = !hasComponent(entry, 'WorldPersistent')
             && !hasComponent(entry, 'StreamedWorld')
-            && (isPrefabEntry(entry) || componentData(entry, 'Transform') !== null);
-        const rootPosition = localPosition(entry, options, errors);
+            && (isPrefabEntry(entry) || transform !== null);
+        const rootPosition = vec3(transform?.position, ORIGIN);
         const cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
 
         const subtree: number[] = [];
         const stack: Array<{ id: number; position: Vec3; rotation: [number, number, number, number]; scale: Vec3 }> = [
-            { id: root, position: rootPosition, rotation: localRotation(entry), scale: localScale(entry) },
+            { id: root, position: rootPosition, rotation: localRotation(transform), scale: vec3(transform?.scale, UNIT_SCALE) },
         ];
         while (stack.length > 0) {
             const node = stack.pop()!;
@@ -265,18 +271,19 @@ export function partitionWorld(
             placement.set(node.id, { cell, root });
             worldPosition.set(node.id, node.position);
             for (const child of childrenOf.get(node.id) ?? []) {
-                const childEntry = byId.get(child)!;
-                const local = localPosition(childEntry, options, errors);
+                const childTransform = localTransform(byId.get(child)!, options, errors);
+                const local = vec3(childTransform?.position, ORIGIN);
+                const scale = vec3(childTransform?.scale, UNIT_SCALE);
                 const scaled = { x: local.x * node.scale.x, y: local.y * node.scale.y, z: local.z * node.scale.z };
                 const turned = rotate(node.rotation, scaled);
                 stack.push({
                     id: child,
                     position: { x: node.position.x + turned.x, y: node.position.y + turned.y, z: node.position.z + turned.z },
-                    rotation: multiplyQuat(node.rotation, localRotation(childEntry)),
+                    rotation: multiplyQuat(node.rotation, localRotation(childTransform)),
                     scale: {
-                        x: node.scale.x * localScale(childEntry).x,
-                        y: node.scale.y * localScale(childEntry).y,
-                        z: node.scale.z * localScale(childEntry).z,
+                        x: node.scale.x * scale.x,
+                        y: node.scale.y * scale.y,
+                        z: node.scale.z * scale.z,
                     },
                 });
             }

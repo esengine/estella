@@ -81,6 +81,28 @@ describe('cooking a world that instances a prefab', () => {
     });
 
     it.each([
+        { axes: 'XY', plane: StreamPlane.Screen, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }, edge: 'maxZ' as const, extent: 1300 },
+        { axes: 'XZ', plane: StreamPlane.Ground, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, edge: 'minZ' as const, extent: -1100 },
+    ])('places a replaced root Transform and composes child bounds in $axes', async ({ plane, rotation, edge, extent }) => {
+        const root = await projectWith([500, 0, 500], null);
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[0].components[0].data.plane = plane;
+        scene.entities[1].overrides = [{ prefabEntityId: 'r', type: 'component_replaced', componentData: {
+            type: 'Transform', data: { position: { x: 2500, y: 100, z: 100 }, rotation, scale: { x: 2, y: 1, z: 1 } },
+        } }];
+        scene.entities.push({ id: 2, parent: 1, name: 'Child', children: [], components: [
+            { type: 'Transform', data: { position: { x: 600, y: 0, z: 0 } } },
+        ] });
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_2_0']);
+        const manifest = JSON.parse(await readFile(path.join(root, 'world/main.world.json'), 'utf8')) as WorldManifest;
+        expect(manifest.cells[0][edge]).toBeCloseTo(extent);
+        expect(manifest.cells[0].entityCount).toBe(2);
+    });
+
+    it.each([
         { axes: 'XY', plane: StreamPlane.Screen, cell: 'main.cell_2_3' },
         { axes: 'XZ', plane: StreamPlane.Ground, cell: 'main.cell_2_4' },
     ])(

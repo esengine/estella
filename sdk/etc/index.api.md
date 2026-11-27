@@ -9236,6 +9236,7 @@ value: unknown
 ```
 position: Vec3
 rootId: string
+transform: Readonly<Record<string, unknown>> | null | undefined
 ```
 
 ## PrefabServer — class @beta

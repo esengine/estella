@@ -182,6 +182,18 @@ describe('partitionWorld', () => {
         expect(unread.errors.join('\n')).toContain('cannot read');
     });
 
+    it('uses the last root position override in authored order', () => {
+        const position = (x: number) => ({ prefabEntityId: 'root', type: 'property',
+            componentType: 'Transform', propertyName: 'position', value: { x, y: 0, z: 0 } });
+        const document = scene(entity(0, 'World', null, { components: [declaration] }), {
+            id: 1, name: 'Instance', parent: null, prefab: 'prefab', overrides: [position(1500), position(2500)],
+        });
+        const partition = partitionWorld(document, 'main', {
+            ...options, resolvePrefab: () => ({ rootId: 'root', position: { x: 0, y: 0, z: 0 } }),
+        })!;
+        expect(partition.cells.map(cell => cell.name)).toEqual(['main.cell_2_0']);
+    });
+
     it('names a declaration with no usable cell size instead of shipping it whole', () => {
         const partition = cut(scene(
             entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: 0 } }] }),
