@@ -137,6 +137,30 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 
 转换使用相机导演解析出的、未叠加震屏的主视图（见[相机导演](/docs/zh-cn/graphics/camera/blending/#相机导演)）。
 
+### 绘制这一帧所用的相机（beta）
+
+`CameraView` 回答的是当前正在解析的相机，这正是帧内系统需要的。相机在一帧之中会移动，因此在画布之上事后绘制的内容
+（钉在世界坐标上的 DOM 标签、编辑器叠加层）应改读 `PresentedCameraView`：方法完全相同，但针对的是上一帧实际绘制所用的相机。
+
+```typescript
+import { PresentedCameraView, CameraCommit, onCameraCommitChanged } from 'esengine';
+
+const view = app.getResource(PresentedCameraView);
+const off = onCameraCommitChanged(() => {
+  const at = view.worldToScreen(boss.x, boss.y);   // where the boss is in the picture on screen
+  if (at) placeLabel(at);
+});
+// …
+off();
+```
+
+| API | 说明 |
+|---|---|
+| `PresentedCameraView` | 资源；基于上一帧绘制所用相机的 `CameraView`。 |
+| `CameraCommit` | 资源；上一帧绘制所用相机的副本：`revision`、`viewProjection`（`Float32Array(16)`）、以窗口像素表示的视口（`vpX`、`vpY`、`vpW`、`vpH`），以及 `valid`（尚未用相机绘制过任何一帧时为 `false`）。 |
+| `onCameraCommitChanged(fn)` | 在某帧所用相机与上一帧不同时调用 `fn`，而不是每帧都调用。返回取消订阅的函数。 |
+| `cameraFrustumCorners(camera, transform, width, height, canvas, result?)` | 相机可见范围的八个世界空间角点，共 24 个浮点数：先近平面（左下、右下、右上、左上），再远平面。`camera` 为 `Camera` 组件数据，`transform` 为其 `worldPosition` 与 `worldRotation`，`width` / `height` 为它渲染到的帧尺寸，`canvas` 为设计分辨率适配结果或 `null`。 |
+
 ## 另请参阅
 
 - [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/overview/)：设计分辨率适配、缩放模式、`ScreenScaling` 与 `pixelPerfect`。

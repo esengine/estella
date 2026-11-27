@@ -161,6 +161,31 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 The conversions use the director's resolved main view before shake (see
 [The camera director](/docs/graphics/camera/blending/#the-camera-director)).
 
+### The camera a frame was drawn with (beta)
+
+`CameraView` answers for the camera being resolved now, which is what a system inside the frame wants. The camera moves
+during a frame, so anything drawn over the canvas afterwards (a DOM label pinned to a world point, an editor overlay)
+reads `PresentedCameraView` instead: the same methods, against the camera the last frame was actually drawn with.
+
+```typescript
+import { PresentedCameraView, CameraCommit, onCameraCommitChanged } from 'esengine';
+
+const view = app.getResource(PresentedCameraView);
+const off = onCameraCommitChanged(() => {
+  const at = view.worldToScreen(boss.x, boss.y);   // where the boss is in the picture on screen
+  if (at) placeLabel(at);
+});
+// …
+off();
+```
+
+| API | Description |
+|---|---|
+| `PresentedCameraView` | Resource; a `CameraView` over the last drawn camera. |
+| `CameraCommit` | Resource; a copy of the last drawn camera: `revision`, `viewProjection` (a `Float32Array(16)`), the viewport in window pixels (`vpX`, `vpY`, `vpW`, `vpH`) and `valid` (`false` until a frame has been drawn with a camera). |
+| `onCameraCommitChanged(fn)` | Calls `fn` after a frame whose camera differs from the previous one's, not after every frame. Returns an unsubscribe function. |
+| `cameraFrustumCorners(camera, transform, width, height, canvas, result?)` | The eight world-space corners of what a camera sees, as 24 floats: near face (bottom-left, bottom-right, top-right, top-left), then far. `camera` is the `Camera` component's data, `transform` its `worldPosition` and `worldRotation`, `width` / `height` the frame it renders into, `canvas` the design-resolution fit or `null`. |
+
 ## See also
 
 - [Screen & Design Resolution](/docs/core-concepts/screen/overview/): design-resolution fit, scale modes, `ScreenScaling` and

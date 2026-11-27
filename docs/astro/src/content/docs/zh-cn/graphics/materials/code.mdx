@@ -173,6 +173,32 @@ SDK 导出一组作用于图的纯函数；每个函数返回新图，不修改�
 | `moveNode(g, id, x, y)` | 仅用于画布布局；编译器忽略位置。 |
 | `removeNode(g, id)` | 移除节点及与其相连的所有边。`output` 节点不可移除。 |
 
+### 子图
+
+子图（`.esmatsub`，`kind: 'subgraph'`）是当作单个节点使用的图。其 `subInput` 节点是输入（`params: { name, type, default }`，
+`type` 为 `float`、`vec2`、`vec3`、`vec4` 之一），其 `output` 指向一个 `subOutput` 节点，该节点的 `value` 输入即结果。
+其他图中的 `subgraph` 节点用 `params.ref` 指定子图；它的输入槽即子图的输入名称，`params["in_<name>"]` 覆盖未连接输入的默认值。
+
+```typescript
+import { compileMaterialGraph, type MaterialGraph } from 'esengine';
+
+const library: Record<string, MaterialGraph> = { 'assets/shaders/rim.esmatsub': rim };
+const resolve = (ref: string) => library[ref] ?? null;
+const source = compileMaterialGraph(graph, resolve);   // compiles the subgraph nodes in place
+```
+
+| 函数 | 说明 |
+|---|---|
+| `newMaterialSubgraph()` | 起步用的子图：一个 `float` 输入直接作为结果。 |
+| `subgraphInputs(sub)` | 子图暴露的输入 `{ name, type, default }`，按节点顺序排列，即使用它的节点显示的端口。 |
+| `subgraphOutputType(sub)` | 不编译、直接从节点推断出的返回类型；无法判断时为 `float`。 |
+| `subgraphRefs(graph)` | 图直接引用的 `ref`，不包括嵌套子图引用的。 |
+| `flattenSubgraphs(graph, resolve)` | 把每个 `subgraph` 节点替换为它所指子图的节点。每次使用各得一份副本，id 与参数名加上使用节点的 id 作前缀。子图缺失、包含自身或嵌套超过 8 层时抛出错误。 |
+| `extractSubgraph(g, ids, ref, name?)` | 把选中的节点变成子图，返回 `{ sub, graph, nodeId }`：新子图、原位置换成一个 `subgraph` 节点后的图，以及该节点的 id。进入选区的连线成为输入；选区中只能有一个节点被外部读取，且不能包含 `output`。内部的参数名变为 `<nodeId>_<name>`。 |
+| `validateSubgraph(sub, resolve)` | 子图在使用处无法编译时抛出错误。 |
+
+`resolve` 是 `SubgraphResolver`，即 `(ref) => MaterialGraph | null`。
+
 ## 自定义几何
 
 **`Geometry`** API（`Geometry.create` 加 `GeometryOptions` 顶点布局，以及 `createQuad`、`createCircle`、`createPolygon` 辅助函数）构建基于句柄的网格，用 `Draw.drawMeshWithMaterial(geometry, material)` 立即绘制。见[自定义绘制](/docs/zh-cn/graphics/drawing/meshes/#自定义几何geometry-api)。

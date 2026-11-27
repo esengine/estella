@@ -186,6 +186,33 @@ The SDK exports pure operations on graphs; each returns a new graph and leaves t
 | `moveNode(g, id, x, y)` | Canvas layout only; the compiler ignores positions. |
 | `removeNode(g, id)` | Removes a node and every edge touching it. The `output` node cannot be removed. |
 
+### Subgraphs
+
+A subgraph (`.esmatsub`, `kind: 'subgraph'`) is a graph used as one node. Its `subInput` nodes are its inputs
+(`params: { name, type, default }`, `type` one of `float`, `vec2`, `vec3`, `vec4`) and its `output` names a `subOutput`
+node whose `value` input is the result. A `subgraph` node in another graph names it with `params.ref`; its input slots
+are the subgraph's input names, and `params["in_<name>"]` overrides an unconnected input's default.
+
+```typescript
+import { compileMaterialGraph, type MaterialGraph } from 'esengine';
+
+const library: Record<string, MaterialGraph> = { 'assets/shaders/rim.esmatsub': rim };
+const resolve = (ref: string) => library[ref] ?? null;
+const source = compileMaterialGraph(graph, resolve);   // compiles the subgraph nodes in place
+```
+
+| Function | Description |
+|---|---|
+| `newMaterialSubgraph()` | A starter subgraph: one `float` input passed straight to the result. |
+| `subgraphInputs(sub)` | The inputs it exposes, `{ name, type, default }`, in node order: the ports a node using it shows. |
+| `subgraphOutputType(sub)` | The type it returns, read from its nodes without compiling; `float` when it cannot tell. |
+| `subgraphRefs(graph)` | The `ref`s a graph names directly, not through nested subgraphs. |
+| `flattenSubgraphs(graph, resolve)` | Replaces every `subgraph` node with the nodes it names. Each use gets its own copy, ids and param names prefixed with the using node's id. Throws on a missing subgraph, one that contains itself, or nesting past 8 levels. |
+| `extractSubgraph(g, ids, ref, name?)` | Turns the selected nodes into a subgraph and returns `{ sub, graph, nodeId }`: the new subgraph, the graph with one `subgraph` node in their place, and that node's id. Wires entering the selection become inputs; exactly one selected node may be read from outside, and the selection cannot hold the `output`. Param names inside move to `<nodeId>_<name>`. |
+| `validateSubgraph(sub, resolve)` | Throws when the subgraph would not compile where it is used. |
+
+`resolve` is a `SubgraphResolver`, `(ref) => MaterialGraph | null`.
+
 ## Custom geometry
 
 The **`Geometry`** API (`Geometry.create` with a `GeometryOptions` vertex layout, plus the `createQuad`,

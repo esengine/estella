@@ -144,15 +144,18 @@ const { root } = bullet.spawn({ parent: gunEntity });   // synchronous
 bullet.release();                                         // a spawn after release throws
 ```
 
-`spawn` 接受 `parent` 与 `scene`，不接受覆盖。
+`spawn` 接受 `parent`、`owner` 与 `scene`，不接受覆盖。
 
 ## `instantiate` 参考
+
+`Res(Prefabs)` 是一个 `PrefabServer`（beta），由 `PrefabsPlugin` 安装。
 
 | 选项 | 类型 | 说明 |
 |---|---|---|
 | `parent` | Entity | 将实例放到该实体之下。 |
 | `overrides` | override[] | 逐实例修改。 |
 | `baseUrl` | string | 解析预制体资源所用的基础 URL。 |
+| `owner` | Entity | 生成完成时把实例交给该实体所在的场景；加载期间它换了场景时随之移动；所有者已销毁则取消生成。`scene: false` 时忽略。 |
 | `scene` | boolean | 默认 `true`：生成的实体由生成完成时的活动场景收养，并随该场景移除。`false` 使其不属于任何场景，用于需要比生成它的区域存活更久的实体。 |
 
 | 结果字段 | 说明 |

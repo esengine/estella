@@ -139,6 +139,29 @@ world.insert(entity, Sprite, { texture: canvas.texture, size: { x: 512, y: 512 }
   `TextureAtlas` 与 `TextureCanvas` 基于 `RenderTexture` 构建；每次绘制都在独立的通道中进行，因此二者都在 `Schedule.Update` 系统中调用，而不是在绘制回调中。
 </Aside>
 
+## 读回像素（beta）
+
+`captureFramePixels` 与 `captureTargetPixels` 返回引擎绘制的内容，在 GPU 一侧读取。改为读取页面（浏览器截图）得到的是显示器
+经过色彩管理的结果，在广色域屏幕上与实际渲染的内容不同。
+
+```typescript
+import { captureFramePixels, captureTargetPixels } from 'esengine';
+
+const module = app.wasmModule!;
+const frame = await captureFramePixels(module, canvas.width, canvas.height);
+const minimapPixels = await captureTargetPixels(module, minimap._handle, minimap.width, minimap.height);
+// { rgba: Uint8Array, width, height } | null, rows bottom-up
+```
+
+| 函数 | 说明 |
+|---|---|
+| `captureFramePixels(module, width, height, advance?)` | 下一个完成的帧。GL 立即读取画布；WebGPU 在自己的帧末尾复制，因此在没有其他东西推动帧时，需要传入 `advance`（运行一帧的函数）。 |
+| `captureTargetPixels(module, target, width, height)` | GPU 绘制完成后渲染目标中的内容。`target` 为渲染目标句柄（`rt._handle`）。 |
+| `canCaptureFramePixels(module)` / `canCaptureTargetPixels(module)` | 当前构建是否支持读回。 |
+
+以下情况两者都返回 `null`：构建不支持读回、目标已不存在、读回始终没有到达，或（仅限帧）WebGPU 表面配置时未开启读回。
+像素行自下而上排列；写入图片文件前需要翻转。
+
 ## 另请参阅
 
 - [自定义绘制](/docs/zh-cn/graphics/drawing/overview/) —— 绘制回调与 `Draw` API。

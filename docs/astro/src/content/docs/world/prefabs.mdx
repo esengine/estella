@@ -183,15 +183,18 @@ const { root } = bullet.spawn({ parent: gunEntity });   // synchronous
 bullet.release();                                         // a spawn after release throws
 ```
 
-`spawn` accepts `parent` and `scene`; it takes no overrides.
+`spawn` accepts `parent`, `owner` and `scene`; it takes no overrides.
 
 ## `instantiate` reference
+
+`Res(Prefabs)` is a `PrefabServer` (beta), installed by `PrefabsPlugin`.
 
 | Option | Type | Description |
 |---|---|---|
 | `parent` | Entity | Places the instance under this entity. |
 | `overrides` | override[] | Per-instance changes. |
 | `baseUrl` | string | Base URL for resolving the prefab's assets. |
+| `owner` | Entity | Gives the instance to this entity's scene at landing, following it if it moves scene while loading; a destroyed owner cancels the spawn. Ignored with `scene: false`. |
 | `scene` | boolean | Default `true`: the spawned entities are adopted by the scene active when the spawn completes and are removed with it. `false` keeps them out of any scene, for entities that must outlive the area that spawned them. |
 
 | Result field | Description |

@@ -153,6 +153,30 @@ from seven pastes.
   are called from `Schedule.Update` systems rather than from draw callbacks.
 </Aside>
 
+## Reading pixels back (beta)
+
+`captureFramePixels` and `captureTargetPixels` return what the engine drew, read on the GPU side. Reading the page
+instead (a browser screenshot) returns the display's colour-managed result, which on a wide-gamut screen differs from
+what was rendered.
+
+```typescript
+import { captureFramePixels, captureTargetPixels } from 'esengine';
+
+const module = app.wasmModule!;
+const frame = await captureFramePixels(module, canvas.width, canvas.height);
+const minimapPixels = await captureTargetPixels(module, minimap._handle, minimap.width, minimap.height);
+// { rgba: Uint8Array, width, height } | null, rows bottom-up
+```
+
+| Function | Description |
+|---|---|
+| `captureFramePixels(module, width, height, advance?)` | The next completed frame. GL reads the canvas at once; WebGPU copies at the end of its own frame, so pass `advance` (a function that runs one frame) when nothing else is driving frames. |
+| `captureTargetPixels(module, target, width, height)` | What a render target holds, after the GPU has drawn it. `target` is the render-target handle (`rt._handle`). |
+| `canCaptureFramePixels(module)` / `canCaptureTargetPixels(module)` | Whether this build supports the read. |
+
+Both return `null` when the build cannot capture, the target is gone, the readback never arrives, or (frames only) the
+WebGPU surface was configured without readback. The rows are bottom-up; flip them before writing an image file.
+
 ## See also
 
 - [Custom Drawing](/docs/graphics/drawing/overview/) — draw callbacks and the `Draw` API.

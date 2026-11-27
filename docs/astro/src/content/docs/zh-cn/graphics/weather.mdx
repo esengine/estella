@@ -67,6 +67,26 @@ const sandstorm = registerWeatherPreset('sandstorm', {
 });
 ```
 
+预设是部分的 `WeatherState`。标为 × 的字段乘以场景原本的值（`1` 保持不变）；其余为绝对量。
+
+| 字段 | 中性值 | 说明 |
+|---|---|---|
+| `sun` / `sky` | `1` | × 方向光强度 / × 环境光强度。 |
+| `sunTint` | `[1, 1, 1]` | × 方向光颜色。 |
+| `shadowSoftness` | `1` | 太阳作为阴影光源的宽度，以太阳为单位：`8` 使阴影柔和八倍。 |
+| `shadowStrength` | `1` | × 阴影的浓度。 |
+| `fogDensity` / `fogGlow` / `skyFog` | `1` | × 高度雾密度 / × 其太阳辉光与携带的光柱 / × 其天空雾霭（上限为 1）。 |
+| `fogTint`、`fogTintAmount` | `[0.7, 0.72, 0.76]`、`0` | 雾趋向的颜色及程度（`0` 保持雾自身的颜色）。 |
+| `saturation` / `contrast` | `1` | × 调色的饱和度 / 对比度。 |
+| `exposure` | `0` | 加到自动曝光补偿上的档数。 |
+| `rain`、`wetness`、`puddles` | `0` | 雨的强度，以及它留下的潮湿与水洼。 |
+| `snow` / `snowfall` | `0` | 积雪量 0..1 / 降雪量 0..2。 |
+| `ssr` | `1` | × 屏幕空间反射强度。 |
+| `reflection` / `reflectionSaturation` | `1` | × 烘焙反射探针显示的内容 / × 其颜色（`0` 为灰色）。 |
+| `overcast` | `0` | 天空云量，0 晴朗到 1 全灰，遮住太阳、月亮与星星。 |
+| `sound` | `0` | 雨声音量 0..2。 |
+| `wind` / `waves` | `1` | × 植物摆动与云的漂移 / × 所有水体的浪高。 |
+
 `registerWeatherPreset(name, preset)` 返回预设的 id。自定义预设在 `sequence` 中按名称引用，在 `preset` 和 `target` 中按返回的
 id 引用。再次注册内置名称会重新调整该预设。
 
@@ -100,6 +120,9 @@ weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 
 | `seekSceneClock(t)` | 将场景时钟移到 `t` 秒，从下一帧起生效。 |
 | `sceneClock()` | 时钟已运行的游玩秒数。 |
 | `weatherAt(start, t)` | 以 `start` 开始的天气在 `t` 秒后的 `{ preset, target, progress }`。 |
+| `blendWeather(from, to, progress)` | 从预设 `from` 过渡到预设 `to`、进度为 `progress`（0..1）时的 `WeatherState`，两端做了缓动。`to` 为 `WEATHER_NONE` 时返回 `from`。 |
+| `currentWeather()` | 当前帧所处的 `WeatherState`；没有 `Weather` 组件时为 `null`。 |
+| `weatherPresetId(name)` / `weatherPresetNames()` | 按名称查预设 id，以及按 id 顺序列出所有预设名称。 |
 
 直接写入组件（如[从代码过渡](#从代码过渡)）会从写入的值开始一次新的运行，因此脚本的过渡与时钟保持一致。云被放在天空的风
 （对天气强度变化积分）本应将其带到的位置。

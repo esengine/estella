@@ -75,6 +75,27 @@ const sandstorm = registerWeatherPreset('sandstorm', {
 });
 ```
 
+A preset is a partial `WeatherState`. Fields marked × multiply what the scene authored (`1` leaves it); the others are
+absolute levels.
+
+| Field | Neutral | Description |
+|---|---|---|
+| `sun` / `sky` | `1` | × directional lights' strength / × ambient light's strength. |
+| `sunTint` | `[1, 1, 1]` | × directional lights' colour. |
+| `shadowSoftness` | `1` | Width of the sun as a shadow source, in suns: `8` makes shadows eight times softer. |
+| `shadowStrength` | `1` | × how dark shadows are. |
+| `fogDensity` / `fogGlow` / `skyFog` | `1` | × Height Fog density / × its sun glow and the light shafts it carries / × its sky haze (capped at 1). |
+| `fogTint`, `fogTintAmount` | `[0.7, 0.72, 0.76]`, `0` | The colour fog moves toward, and how far (`0` keeps the fog's own). |
+| `saturation` / `contrast` | `1` | × Colour Grade saturation / contrast. |
+| `exposure` | `0` | Stops added to Auto Exposure compensation. |
+| `rain`, `wetness`, `puddles` | `0` | Rain strength and the wetness and puddles it leaves. |
+| `snow` / `snowfall` | `0` | Snow lying, 0..1 / snow falling, 0..2. |
+| `ssr` | `1` | × Screen Space Reflections strength. |
+| `reflection` / `reflectionSaturation` | `1` | × what baked reflection probes show / × their colour (`0` is grey). |
+| `overcast` | `0` | Sky cover, 0 clear to 1 grey, hiding sun, moon and stars. |
+| `sound` | `0` | Rain sound volume, 0..2. |
+| `wind` / `waves` | `1` | × plant sway and cloud drift / × wave height on every water body. |
+
 `registerWeatherPreset(name, preset)` returns the preset's id. A custom preset is referenced by name in `sequence`, and
 by the returned id in `preset` and `target`. Registering a built-in name again retunes that preset.
 
@@ -109,6 +130,9 @@ weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 
 | `seekSceneClock(t)` | Moves the scene clock to `t` seconds, effective from the next frame. |
 | `sceneClock()` | Seconds of play the clock has run. |
 | `weatherAt(start, t)` | `{ preset, target, progress }` of a weather that began as `start`, `t` seconds later. |
+| `blendWeather(from, to, progress)` | The `WeatherState` a transition from preset `from` to preset `to` is under at `progress` (0..1), eased at both ends. `to` = `WEATHER_NONE` returns `from`. |
+| `currentWeather()` | The `WeatherState` the current frame is under, or `null` when no `Weather` component is. |
+| `weatherPresetId(name)` / `weatherPresetNames()` | A preset's id by name, and every preset name in id order. |
 
 Writing the component directly (as in [Transitions from code](#transitions-from-code)) starts a new run from the written
 values, so a script's transition and the clock agree. Clouds are placed where the sky's wind, integrated over the
