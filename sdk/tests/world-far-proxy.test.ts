@@ -99,6 +99,21 @@ describe('a far proxy', () => {
         expect(streamer.status().proxyCells).toEqual(['c_0_0', 'c_30_0']);
     });
 
+    it('rejects distant cells for both near and proxy residency in one bounds read', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        let reads = 0;
+        const distant = Array.from({ length: 1024 }, (_, i) => {
+            const entry = cell(i + 100);
+            const minX = entry.minX;
+            return { ...entry, get minX() { reads++; return minX; } };
+        });
+        await streamer.loadManifest(world(400, cell(0), ...distant));
+        streamer.update([at(500)]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual(['c_0_0']);
+        expect(reads).toBe(distant.length);
+    });
+
     it('leaves only once its cell is in, so walking into a place never shows a hole', async () => {
         const t = host();
         const streamer = new WorldStreamer(t.h);
