@@ -132,6 +132,16 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     expect(inc.index.deps[MAT]).toEqual([TEX2]); // the referrer's edge now resolves
   });
 
+  it('leaves the dependency graph unchanged when only the pixels of an indexed texture change', async () => {
+    const texture = 'assets/textures/player.png';
+    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({ properties: { mainTex: texture } }));
+    const { index: before } = await scanAssetDatabase(root, { write: false });
+    expect(before.deps[MAT]).toEqual([TEX]);
+
+    writeFileSync(path.join(root, texture), 'UPDATED PNG DATA');
+    await expectIncrementalEqualsFull(before, [texture]);
+  });
+
   it('DELETING an asset drops its entry (dep edges from @uuid: referrers persist, as in full)', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     rmSync(path.join(root, 'assets/fonts/ui.fnt'));

@@ -410,13 +410,16 @@ async function computeDeps(
   targets?: readonly AssetEntry[],
   onProgress?: (progress: ScanProgress) => void,
 ): Promise<{ deps: Record<string, string[]>; warnings: string[] }> {
-  const byPath = new Map(entries.map((e) => [e.path, e]));
-  const byKey = new Map(entries.map(e => [e.uuid, e]));
   const refEntries = (targets ?? entries).filter(
     // A texture that is a recipe names what it is drawn from: the pictures it lays in, its font files, the picture it is a map of.
     (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e) || isAudioRecipe(e)
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
+  // A content-only edit to an ordinary texture or audio file cannot introduce
+  // outbound references. A full scan still prunes cache entries for removed files.
+  if (targets && refEntries.length === 0) return { deps: {}, warnings: [] };
+  const byPath = new Map(entries.map((e) => [e.path, e]));
+  const byKey = new Map(entries.map(e => [e.uuid, e]));
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
   const cache = await readCandidateCache(root);
   let cacheDirty = false;
