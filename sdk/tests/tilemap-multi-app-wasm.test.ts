@@ -151,6 +151,13 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
         const [imported] = loadTiledMap(main.app.world, map, new Map());
         const cells = data.map((_, i) => main.tiles.getTile(imported, i % width, Math.floor(i / width)));
         expect(cells).toEqual(data);
+        main.tiles.setTile(imported, -1, 0, 4);
+        main.tiles.setTile(imported, width, 0, 5);
+        main.tiles.setTile(imported, 0, height, 6);
+        expect(main.tiles.getTile(imported, -1, 0)).toBe(0);
+        expect(main.tiles.getTile(imported, width, 0)).toBe(0);
+        expect(main.tiles.getTile(imported, 0, height)).toBe(0);
+        expect(main.tiles.getTile(imported, width - 1, height - 1)).toBe(data.at(-1));
         expect(preview.tiles.hasLayer(imported)).toBe(false);
         const copy = loadSceneData(main.app.world, {
             version: '1.0', name: 'saved preview', entities: [{ id: 1, name: 'Ground', parent: null, children: [],

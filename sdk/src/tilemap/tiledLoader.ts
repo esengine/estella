@@ -5,31 +5,6 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
 import { Transform, Marker, RuntimeOnly, type TilemapLayerData } from '../ecs/component';
-
-function uploadTiledLayerTiles(toolkit: TilemapToolkit, entity: Entity, layer: TiledLayerData): void {
-    if (layer.infinite) {
-        for (const chunk of layer.chunks) {
-            toolkit.setChunkTiles(entity, chunk.x, chunk.y, chunk.tiles, chunk.width, chunk.height);
-        }
-        return;
-    }
-    const { width, height, tiles } = layer;
-    if (width <= 0 || height <= 0 || tiles.length === 0) return;
-    const scratch = new Uint16Array(CHUNK_SIZE * CHUNK_SIZE);
-    for (let y = 0; y < height; y += CHUNK_SIZE) {
-        const rows = Math.min(CHUNK_SIZE, height - y);
-        for (let x = 0; x < width; x += CHUNK_SIZE) {
-            const columns = Math.min(CHUNK_SIZE, width - x);
-            const chunk = scratch.subarray(0, rows * columns);
-            chunk.fill(0);
-            for (let row = 0; row < rows; row++) {
-                const start = (y + row) * width + x;
-                chunk.set(tiles.subarray(start, start + columns), row * columns);
-            }
-            toolkit.setChunkTiles(entity, x / CHUNK_SIZE, y / CHUNK_SIZE, chunk, columns, rows);
-        }
-    }
-}
 import { RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D, OneWayPlatform2D, BodyType } from '../physics/PhysicsComponents';
 import type { Collider2DShape } from '../physics/ColliderShape2D';
 import type { ResolvedTileCollision } from './tilesetResolve';
@@ -1198,6 +1173,21 @@ export function generateLayerTileShapes(
     return entities;
 }
 
+/** @internal Create the native store for either a bounded layer or a grid of sparse chunks. */
+export function initializeTiledLayer(
+    toolkit: TilemapToolkit, entity: Entity, layer: TiledLayerData, tileWidth: number, tileHeight: number,
+): void {
+    if (layer.infinite) {
+        toolkit.initInfiniteLayer(entity, tileWidth, tileHeight);
+        for (const chunk of layer.chunks) {
+            toolkit.setChunkTiles(entity, chunk.x, chunk.y, chunk.tiles, chunk.width, chunk.height);
+        }
+    } else {
+        toolkit.initLayer(entity, layer.width, layer.height, tileWidth, tileHeight);
+        if (layer.tiles.length > 0) toolkit.setTiles(entity, layer.tiles);
+    }
+}
+
 /** The TilemapLayer a Tiled layer becomes: its lattice, and what Tiled says about drawing it. */
 export function tiledLayerComponent(
     layer: TiledLayerData, tileWidth: number, tileHeight: number, renderLayer: number,
@@ -1245,11 +1235,10 @@ export function loadTiledMap(
             tilesetColumns: columns,
         });
 
-        toolkit.initInfiniteLayer(entity, mapData.tileWidth, mapData.tileHeight);
+        initializeTiledLayer(toolkit, entity, layer, mapData.tileWidth, mapData.tileHeight);
         toolkit.setOriginEntity(entity, entity);
         toolkit.setGridType(entity, layout.orientation);
         toolkit.setHexParams(entity, layout.hexSideLength ?? 0, !!layout.staggerAxisX, !!layout.staggerIndexEven);
-        uploadTiledLayerTiles(toolkit, entity, layer);
 
         entities.push(entity);
         layerIndex++;

@@ -18,7 +18,7 @@ import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery'
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
     chunkColliderPlan, exposedCollisionTiles,
-    spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, tiledLayerComponent, tiledGridLayout,
+    spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, initializeTiledLayer, tiledLayerComponent, tiledGridLayout,
 } from './tiledLoader';
 import { decodeTilemapChunks, type DecodedChunk } from './chunkCodec';
 import type { CollisionChunkSnapshot } from './nativeCollisionChunks';
@@ -447,25 +447,7 @@ export class TilemapRuntime {
                             world.insert(child, RuntimeOnly, {});
                             world.setParent(child, entity);
 
-                            if (layer.infinite) {
-                                TilemapAPI.initInfiniteLayer(
-                                    child, cached.tileWidth, cached.tileHeight,
-                                );
-                                for (const chunk of layer.chunks) {
-                                    TilemapAPI.setChunkTiles(
-                                        child, chunk.x, chunk.y,
-                                        chunk.tiles, chunk.width, chunk.height,
-                                    );
-                                }
-                            } else {
-                                TilemapAPI.initLayer(
-                                    child, layer.width, layer.height,
-                                    cached.tileWidth, cached.tileHeight,
-                                );
-                                if (layer.tiles.length > 0) {
-                                    TilemapAPI.setTiles(child, layer.tiles);
-                                }
-                            }
+                            initializeTiledLayer(TilemapAPI, child, layer, cached.tileWidth, cached.tileHeight);
                             TilemapAPI.setOriginEntity(child, child);
                             if (gridType !== 0) {
                                 TilemapAPI.setGridType(child, gridType);
