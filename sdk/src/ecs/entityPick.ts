@@ -66,6 +66,8 @@ export interface EntityPickOptions {
     extentOf?: EntityBoxOptions['extentOf'];
     /** Entities this realm refuses to select. Everything is selectable by default. */
     pickable?(entity: Entity): boolean;
+    /** Whether to try other bounds for a selectable entity without a mesh box. */
+    fallbackPickable?(entity: Entity): boolean;
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
     ySortLayers?: number;
     depthLayers?: number;
@@ -95,6 +97,7 @@ export function pickEntitiesByRay(
         // A mesh's extent is in its vertices, so it is asked for before the icon
         // fallback would answer with the size of a gizmo.
         const meshBox = meshWorldBox(world, entity);
+        if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
         const box = meshBox ?? entityWorldBox(world, entity, { iconHalf, extentOf: opts.extentOf });
         if (!box) continue;
         const distance = entityBoxRayHit(box, ray.origin, ray.dir);

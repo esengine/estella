@@ -7,7 +7,7 @@
  * boxes, and asked it twice: the answers had drifted to where a model was
  * clickable in one and a point in the other.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { pickEntitiesByRay } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, SortingGroup, Parent } from '../src/ecs/component';
@@ -154,6 +154,22 @@ describe('picking entities by ray', () => {
         });
         const only = pickEntitiesByRay(world, down(0, 0), { pickable: (e) => e === ent(1) });
         expect(only).toEqual([ent(1)]);
+    });
+
+    it('asks about fallback bounds only for selectable entities without a mesh box', () => {
+        const bounds = { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 };
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), MeshRenderer: {} },
+            2: { Transform: T(0, 0), MeshRenderer: {} },
+            3: { Transform: T(0, 0), Sprite: sprite(3) },
+            4: { Transform: T(0, 0), MeshRenderer: {} },
+        }, { 1: bounds, 4: bounds });
+        const fallbackPickable = vi.fn(entity => entity === ent(3));
+        const hits = pickEntitiesByRay(world, down(0, 0), {
+            iconHalf: 24, pickable: entity => entity !== ent(4), fallbackPickable,
+        });
+        expect(hits).toEqual([ent(3), ent(1)]);
+        expect(fallbackPickable.mock.calls).toEqual([[ent(2)], [ent(3)]]);
     });
 
     // Depth is the ray's, not the cursor's plane: a sprite well behind another is
