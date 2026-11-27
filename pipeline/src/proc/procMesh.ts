@@ -18,8 +18,10 @@ import { mergeMeshes, worldMatrix } from '../../../sdk/src/render/staticBatch';
 import type { Part, ProcResult } from './procEval';
 
 export interface ProcCell {
-    /** A name for the cell's file and entity: its column and row, and whether it casts shadows. */
+    /** A name for the cell's file and entity: its column and row, whether it casts shadows, and its surface. */
     key: string;
+    /** What the parts in it are made of ('' for nothing in particular): the source's `surfaces` say how it is drawn. */
+    surface: string;
     /** Where its entity stands, in the scene's units. */
     at: [number, number, number];
     shadows: boolean;
@@ -69,11 +71,30 @@ function shapeOf(name: Part['mesh']): MeshData {
     return m;
 }
 
-/** The same shape in one colour: the vertex colour carries the part's colour into the packed mesh. */
-function painted(name: Part['mesh'], color: [number, number, number]): MeshData {
-    const base = shapeOf(name);
+/**
+ * The part's shape in its colour, with its texture laid on at its real size: the vertex colour carries the part's colour
+ * into the packed mesh, and each face's UV is where it lies on the part in the source's units over `tile`, taken in the
+ * part's own frame, so the rows of a roof run down its slope and the grain of a column runs up it whichever way they turn.
+ */
+function painted(part: Part, tile: number): MeshData {
+    const base = shapeOf(part.mesh);
+    const color = part.color;
     const vertices = base.vertices.slice(), dv = new DataView(vertices.buffer);
     const off = base.channels.find((c) => c.semantic === MeshChannel.Color)!.offset;
+    const po = base.channels.find((c) => c.semantic === MeshChannel.Position)!.offset;
+    const no = base.channels.find((c) => c.semantic === MeshChannel.Normal)!.offset;
+    const uo = base.channels.find((c) => c.semantic === MeshChannel.TexCoord0)!.offset;
+    // a builtin shape is 100 units across: its position over 100 is a share of the part's size
+    const size = [part.sx / 100, part.sy / 100, part.sz / 100];
+    for (let k = 0; k < base.vertexCount; k++) {
+        const at = k * base.vertexStride;
+        const lx = dv.getFloat32(at + po, true) * size[0]!, ly = dv.getFloat32(at + po + 4, true) * size[1]!, lz = dv.getFloat32(at + po + 8, true) * size[2]!;
+        const nx = Math.abs(dv.getFloat32(at + no, true)), ny = Math.abs(dv.getFloat32(at + no + 4, true)), nz = Math.abs(dv.getFloat32(at + no + 8, true));
+        // the face is laid on the plane it faces: a top on x and z, a side on its run and its height
+        const [u, v] = ny >= nx && ny >= nz ? [lx, lz] : nx >= nz ? [lz, -ly] : [lx, -ly];
+        dv.setFloat32(at + uo, u / tile, true);
+        dv.setFloat32(at + uo + 4, v / tile, true);
+    }
     const byte = (v: number): number => Math.round(Math.min(1, Math.max(0, v)) * 255);
     const rgba = byte(color[0]) | (byte(color[1]) << 8) | (byte(color[2]) << 16) | (255 << 24);
     for (let k = 0; k < base.vertexCount; k++) dv.setUint32(k * base.vertexStride + off, rgba >>> 0, true);
@@ -84,14 +105,16 @@ function painted(name: Part['mesh'], color: [number, number, number]): MeshData 
  * Packs the parts of @p result into meshes, one or more per `cell` of ground (the source's units) and per whether they
  * cast shadows. `unit` is world units to one of the source's, as the source says.
  */
-export function packProcParts(result: ProcResult, options: { unit: number; cell?: number }): ProcCell[] {
+export function packProcParts(result: ProcResult, options: { unit: number; cell?: number; tiles?: Record<string, number> }): ProcCell[] {
     const unit = options.unit, cell = options.cell ?? 300, k = unit / 100;
-    const buckets = new Map<string, { cx: number; cz: number; shadows: boolean; parts: Part[] }>();
+    const tileOf = (surface: string): number => options.tiles?.[surface] ?? 2;
+    const buckets = new Map<string, { cx: number; cz: number; shadows: boolean; surface: string; parts: Part[] }>();
     for (const g of result.groups) for (const p of g.parts) {
         const cx = Math.floor(p.x / cell), cz = Math.floor(p.z / cell);
-        const key = `${cx}_${cz}_${p.shadows ? 's' : 'n'}`;
+        const surface = p.surface ?? '';
+        const key = `${cx}_${cz}_${p.shadows ? 's' : 'n'}${surface ? `_${surface}` : ''}`;
         let b = buckets.get(key);
-        if (!b) buckets.set(key, (b = { cx, cz, shadows: p.shadows, parts: [] }));
+        if (!b) buckets.set(key, (b = { cx, cz, shadows: p.shadows, surface, parts: [] }));
         b.parts.push(p);
     }
     const cells: ProcCell[] = [];
@@ -101,10 +124,10 @@ export function packProcParts(result: ProcResult, options: { unit: number; cell?
         const flush = (): void => {
             if (chunk.length === 0) return;
             const mesh = mergeMeshes(chunk.map((p) => ({
-                mesh: painted(p.mesh, p.color),
+                mesh: painted(p, tileOf(b.surface)),
                 world: worldMatrix({ x: p.x * unit - centre[0], y: p.y * unit, z: p.z * unit - centre[2] }, { x: p.q[0], y: p.q[1], z: p.q[2], w: p.q[3] }, { x: p.sx * k, y: p.sy * k, z: p.sz * k }),
             })));
-            cells.push({ key: n === 0 ? key : `${key}_${n}`, at: centre, shadows: b.shadows, parts: chunk.length, mesh });
+            cells.push({ key: n === 0 ? key : `${key}_${n}`, surface: b.surface, at: centre, shadows: b.shadows, parts: chunk.length, mesh });
             n++; chunk = []; verts = 0;
         };
         for (const p of b.parts) {

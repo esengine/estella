@@ -64,12 +64,21 @@ export interface ProcSource {
     land?: string;
     /** Seed for every rand() in the graph. */
     seed?: number;
+    /**
+     * What each `surface` a part names is drawn with: a material (its normal and roughness), the texture in its base slot,
+     * and how many of the source's units one repeat of the texture covers. A part's own colour still tints it, so one grey
+     * tile texture serves a grey roof and a green-glazed one.
+     */
+    surfaces?: Record<string, ProcSurface>;
     /** Names every sum may read: numbers, or lists of numbers (a colour [r, g, b], 0..1). */
     params?: Record<string, number | number[]>;
     components?: Record<string, ProcComponent>;
     nodes: ProcNode[];
     note?: string;
 }
+
+/** How a surface is drawn: project paths (or @uuid refs) to its material and texture, and its repeat in the source's units. */
+export interface ProcSurface { material?: string; texture?: string; tile?: number }
 
 /** A source that cannot be built: what is wrong and where. */
 export class ProcBuildError extends Error {
@@ -115,10 +124,10 @@ export const PROC_OPS: Record<string, OpSpec> = {
     merge: { many: true, fields: [], help: 'merge(inputs [...]): every item of several nodes' },
     repeat: { fields: ['count', 'chain'], help: 'repeat(count, chain [nodes]): run the chain count times over its own output; `k` is the round, 0 first' },
     use: { fields: ['component', 'params'], help: 'use(component, params?): run a component on each plot, the plot at its origin; its output is turned and moved onto the plot' },
-    box: { fields: ['height', 'mesh', 'color', 'jitter', 'fill', 'lift', 'keep', 'tumble', 'shadows', 'name'], help: 'box(height, color, mesh?, fill? [x, z], lift?, jitter?, keep? "top"|"plot", tumble?, shadows?, name?): a shape standing on each plot; keep "top" passes the plot on lifted to its top' },
-    roof: { fields: ['pitch', 'overhang', 'thick', 'color', 'jitter', 'along', 'lift', 'name', 'shadows'], help: 'roof(pitch? 28, overhang? 1, thick? 0.4, color, along? "long"|"x"|"z", lift?): a pitched roof of two slabs on each plot, its ridge along the longer side at the height the pitch gives, starting at the floor of the plot (stand it on a body with keep "top")' },
-    part: { fields: ['at', 'size', 'mesh', 'color', 'jitter', 'yaw', 'tilt', 'tumble', 'shadows', 'keep', 'name', 'flip'], help: 'part(at [x, y, z] in the plot\'s frame, size [x, y, z], color, mesh?, yaw?, tilt? [about x, about z] degrees, flip?, keep?): one shape placed on each plot' },
-    beam: { fields: ['from', 'to', 'thick', 'color', 'mesh', 'space', 'jitter', 'shadows', 'name'], help: 'beam(from [x, y, z], to [x, y, z], thick, color, space? "plot"|"world"): a rod between two points, once per plot; in the plot frame (y from its floor) unless space is "world"' },
+    box: { fields: ['height', 'mesh', 'color', 'jitter', 'fill', 'lift', 'keep', 'tumble', 'shadows', 'name', 'surface'], help: 'box(height, color, surface?, mesh?, fill? [x, z], lift?, jitter?, keep? "top"|"plot", tumble?, shadows?, name?): a shape standing on each plot; keep "top" passes the plot on lifted to its top' },
+    roof: { fields: ['pitch', 'overhang', 'thick', 'color', 'jitter', 'along', 'lift', 'name', 'shadows', 'surface'], help: 'roof(pitch? 28, overhang? 1, thick? 0.4, color, surface?, along? "long"|"x"|"z", lift?): a pitched roof of two slabs on each plot, its ridge along the longer side at the height the pitch gives, starting at the floor of the plot (stand it on a body with keep "top")' },
+    part: { fields: ['at', 'size', 'mesh', 'color', 'jitter', 'yaw', 'tilt', 'tumble', 'shadows', 'keep', 'name', 'flip', 'surface'], help: 'part(at [x, y, z] in the plot\'s frame, size [x, y, z], color, surface?, mesh?, yaw?, tilt? [about x, about z] degrees, flip?, keep?): one shape placed on each plot' },
+    beam: { fields: ['from', 'to', 'thick', 'color', 'mesh', 'space', 'jitter', 'shadows', 'name', 'surface'], help: 'beam(from [x, y, z], to [x, y, z], thick, color, surface?, space? "plot"|"world"): a rod between two points, once per plot; in the plot frame (y from its floor) unless space is "world"' },
     output: { many: true, fields: [], help: 'output(inputs [...]): the parts the graph is; each input becomes its own group in the scene' },
 };
 
@@ -171,10 +180,19 @@ function checkNodes(nodes: unknown, where: string, components: ReadonlySet<strin
 export function validateProcSource(raw: unknown): ProcSource {
     if (!isObj(raw)) throw new ProcBuildError('a rules graph is an object { version: 1, nodes: [...] }');
     if (raw.version !== 1) throw new ProcBuildError('`version` must be 1');
-    const known = ['version', 'unit', 'land', 'seed', 'params', 'components', 'nodes', 'note'];
+    const known = ['version', 'unit', 'land', 'seed', 'params', 'components', 'nodes', 'note', 'surfaces'];
     for (const key of Object.keys(raw)) if (!known.includes(key)) throw new ProcBuildError(`a rules graph has no field "${key}"; it has ${known.join(', ')}`);
     if (raw.unit !== undefined && !(typeof raw.unit === 'number' && raw.unit > 0)) throw new ProcBuildError('`unit` must be a positive number');
     if (raw.land !== undefined && typeof raw.land !== 'string') throw new ProcBuildError('`land` is a project path to a .esland');
+    if (raw.surfaces !== undefined) {
+        if (!isObj(raw.surfaces)) throw new ProcBuildError('`surfaces` is { name: { material?, texture?, tile? } }');
+        for (const [k, v] of Object.entries(raw.surfaces)) {
+            if (!isObj(v)) throw new ProcBuildError(`surface "${k}" is { material?, texture?, tile? }`);
+            for (const f of Object.keys(v)) if (!['material', 'texture', 'tile'].includes(f)) throw new ProcBuildError(`surface "${k}" has no field "${f}"`);
+            if (v.tile !== undefined && !(typeof v.tile === 'number' && v.tile > 0)) throw new ProcBuildError(`surface "${k}": tile is a length above 0`);
+            if ((v.material !== undefined && typeof v.material !== 'string') || (v.texture !== undefined && typeof v.texture !== 'string')) throw new ProcBuildError(`surface "${k}": material and texture are project paths`);
+        }
+    }
     if (raw.params !== undefined) {
         if (!isObj(raw.params)) throw new ProcBuildError('`params` is { name: number or list of numbers }');
         for (const [k, v] of Object.entries(raw.params)) if (!isParam(v)) throw new ProcBuildError(`param "${k}" must be a number or a list of numbers`);

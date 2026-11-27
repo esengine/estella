@@ -344,4 +344,23 @@ describe('rules graph', () => {
         // the base box once, and the two posts
         expect(r.report.parts).toBe(3);
     });
+
+    it('packs each surface apart, its texture laid on at the size of the part', () => {
+        const r = runProc(validateProcSource({ version: 1, surfaces: { tile: { tile: 2 }, wood: { tile: 1 } }, nodes: [
+            { op: 'rect', size: [4, 6] },
+            { id: 'body', op: 'box', height: 3, surface: 'wood', keep: 'top' },
+            { id: 'top', op: 'box', height: 1, surface: 'tile' },
+            { op: 'output', inputs: ['body', 'top'] },
+        ] }));
+        expect(r.groups.flatMap((g) => g.parts).map((p) => p.surface).sort()).toEqual(['tile', 'wood']);
+        const cells = packProcParts(r, { unit: 100, tiles: { tile: 2, wood: 1 } });
+        expect(cells.map((c) => c.surface).sort()).toEqual(['tile', 'wood']);
+        // the tile box's top runs 4 units along x: two repeats of a 2-unit tile
+        const m = cells.find((c) => c.surface === 'tile')!.mesh;
+        const dv = new DataView(m.vertices.buffer, m.vertices.byteOffset);
+        const uo = m.channels.find((c) => c.semantic === MeshChannel.TexCoord0)!.offset;
+        const us = Array.from({ length: m.vertexCount }, (_, k) => dv.getFloat32(k * m.vertexStride + uo, true));
+        expect(Math.max(...us) - Math.min(...us)).toBeCloseTo(3);
+        expect(() => validateProcSource({ version: 1, surfaces: { x: { tile: 0 } }, nodes: [{ op: 'rect', size: [1, 1] }, { id: 'o', op: 'box', height: 1 }, { op: 'output', inputs: ['o'] }] })).toThrow(/tile is a length/);
+    });
 });

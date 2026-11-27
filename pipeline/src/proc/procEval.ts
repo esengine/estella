@@ -32,6 +32,8 @@ export interface Part {
     q: [number, number, number, number];
     /** Linear colour, 0..1. */
     color: [number, number, number];
+    /** What it is made of, as the source's `surfaces` name it ('' for nothing in particular). */
+    surface: string;
     shadows: boolean;
     id: number;
     tags: string[];
@@ -162,6 +164,8 @@ class Run {
     probeComponent: string | null = null;
     probeNode: string | null = null;
     probeUses = 0;
+    /** The surface the node being run names, for every part it makes. */
+    private surfaceNow = '';
     /** Where the frame the nodes are running in stands in the world: the origin at the top level, a plot inside a component. */
     private frame = { x: 0, z: 0, yaw: 0, y: 0 };
     /** The cache a top-level run reads and writes, the key every node's key starts from, and what it did. */
@@ -387,7 +391,10 @@ class Run {
             }
             if (!hit) { out.push(it); continue; }
             picked++;
-            const made = this.one(node, it, scope, salt, base);
+            const outerSurface = this.surfaceNow;
+            if (typeof node.surface === 'string') this.surfaceNow = node.surface;
+            let made: Item[];
+            try { made = this.one(node, it, scope, salt, base); } finally { this.surfaceNow = outerSurface; }
             if (made.length === 0) dropped++;
             for (const m of made) out.push(m);
         }
@@ -415,7 +422,7 @@ class Run {
     private part(name: string, mesh: unknown, c: [number, number, number], size: [number, number, number], q: Quat, color: [number, number, number], shadows: boolean, id: number, tags: string[]): Part {
         const m = (mesh ?? 'cube') as MeshName;
         if (!MESH_NAMES.includes(m)) throw new Error(`mesh "${String(mesh)}" is not one of ${MESH_NAMES.join(', ')}`);
-        return { kind: 'part', name, mesh: m, x: c[0], y: c[1], z: c[2], sx: size[0], sy: size[1], sz: size[2], q, color, shadows, id, tags: [...tags] };
+        return { kind: 'part', name, mesh: m, x: c[0], y: c[1], z: c[2], sx: size[0], sy: size[1], sz: size[2], q, color, surface: this.surfaceNow, shadows, id, tags: [...tags] };
     }
 
     private tumbled(q: Quat, tumble: number, key: number): Quat {
