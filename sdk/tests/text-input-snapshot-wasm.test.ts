@@ -17,6 +17,7 @@ import { UIMask } from '../src/ui/core/ui-mask';
 import { UINode } from '../src/ui/core/ui-node';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { Focusable, FocusManager } from '../src/ui/input/focusable';
+import { Interactable } from '../src/ui/input/interactable';
 import { UIControlPointers } from '../src/ui/input/control-pointers';
 import { MOUSE_POINTER } from '../src/ui/input/pointerBook';
 import { TextInput } from '../src/ui/text/text-input';
@@ -49,6 +50,28 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
     };
 
     const distance = 120, fov = Math.PI / 3;
+    it('repairs only missing text field input components and keeps authored settings', async () => {
+        const world = app.world, first = world.spawn();
+        world.insert(first, TextInput);
+        world.insert(first, Focusable, { tabIndex: 7 });
+        world.insert(first, Interactable, { enabled: false, blockRaycast: false });
+        await tick();
+        const next = world.spawn();
+        world.insert(next, TextInput);
+        world.remove(first, Focusable);
+        await tick();
+        expect(world.get(first, Focusable).tabIndex).toBe(0);
+        expect(world.get(first, Interactable)).toMatchObject({ enabled: false, blockRaycast: false });
+        expect(world.has(next, Focusable)).toBe(true);
+        expect(world.has(next, Interactable)).toBe(true);
+
+        world.update(first, Focusable, value => { value.tabIndex = 11; });
+        world.remove(first, Interactable);
+        await tick();
+        expect(world.get(first, Focusable).tabIndex).toBe(11);
+        expect(world.get(first, Interactable)).toMatchObject({ enabled: true, blockRaycast: true });
+    });
+
     const worldField = (tilt: number, value: string, cursorPos = 0) => {
         const { world } = app, field = world.spawn('field');
         world.insert(field, Transform, { position: { x: 0, y: 0, z: -distance },

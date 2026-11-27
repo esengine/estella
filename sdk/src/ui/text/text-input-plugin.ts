@@ -469,9 +469,12 @@ export class TextInputPlugin implements Plugin {
             [Res(FocusManager)],
             (focusManager: FocusManagerState) => {
                 if (!editor) return;
-                const textInputEntities = world.getEntitiesWithComponents([TextInput]);
-                for (const entity of textInputEntities) {
+                // Query the missing components so initialized fields stay out
+                // of this pass until their component membership changes.
+                for (const entity of world.getEntitiesWithComponents([TextInput], [], [Focusable])) {
                     ensureComponent(world, entity, Focusable, { tabIndex: 0, isFocused: false });
+                }
+                for (const entity of world.getEntitiesWithComponents([TextInput], [], [Interactable])) {
                     ensureComponent(world, entity, Interactable, { enabled: true, blockRaycast: true });
                 }
 
