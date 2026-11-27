@@ -17,6 +17,7 @@
 #include "../ecs/TransformSystem.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -201,31 +202,43 @@ std::string base64Encode(const u8* data, usize len) {
     return out;
 }
 
-i32 b64Value(char c) {
-    if (c >= 'A' && c <= 'Z') return c - 'A';
-    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
-    if (c >= '0' && c <= '9') return c - '0' + 52;
-    if (c == '-' || c == '+') return 62;
-    if (c == '_' || c == '/') return 63;
-    return -1;
-}
+constexpr u8 kBase64Ignored = 0xFE;
+constexpr u8 kBase64Invalid = 0xFF;
+constexpr auto kBase64Digits = [] {
+    std::array<u8, 256> digits{};
+    digits.fill(kBase64Invalid);
+    for (u8 i = 0; i < 64; ++i) digits[static_cast<u8>(kB64[i])] = i;
+    digits['+'] = 62;
+    digits['/'] = 63;
+    for (char c : {'=', '\n', '\r', ' '}) digits[static_cast<u8>(c)] = kBase64Ignored;
+    return digits;
+}();
 
 bool base64Decode(const std::string& in, std::vector<u8>& out) {
-    out.clear();
-    out.reserve(in.size() * 3 / 4);
-    i32 buf = 0;
-    i32 bits = 0;
+    // Ignored characters can make the decoded size smaller than this bound.
+    out.resize(in.size() / 4 * 3 + in.size() % 4 * 3 / 4);
+    usize written = 0;
+    u32 value = 0;
+    u32 digitCount = 0;
     for (char c : in) {
-        if (c == '=' || c == '\n' || c == '\r' || c == ' ') continue;
-        const i32 v = b64Value(c);
-        if (v < 0) return false;
-        buf = (buf << 6) | v;
-        bits += 6;
-        if (bits >= 8) {
-            bits -= 8;
-            out.push_back(static_cast<u8>((buf >> bits) & 0xFF));
+        const u8 digit = kBase64Digits[static_cast<u8>(c)];
+        if (digit == kBase64Ignored) continue;
+        if (digit == kBase64Invalid) return false;
+        value = (value << 6) | digit;
+        if (++digitCount == 4) {
+            out[written++] = static_cast<u8>(value >> 16);
+            out[written++] = static_cast<u8>(value >> 8);
+            out[written++] = static_cast<u8>(value);
+            digitCount = 0;
+            value = 0;
         }
     }
+    if (digitCount >= 2) {
+        const u32 tail = value << ((4 - digitCount) * 6);
+        out[written++] = static_cast<u8>(tail >> 16);
+        if (digitCount == 3) out[written++] = static_cast<u8>(tail >> 8);
+    }
+    out.resize(written);
     return true;
 }
 

@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Buffer } from 'node:buffer';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { createTilemapAPI } from '../src/tilemap/tilemapAPI';
@@ -177,6 +179,26 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
         expect(decoded).toHaveLength(count);
         for (const chunk of decoded) expect(chunk.tiles[(CHUNK_SIZE - 1) * CHUNK_SIZE]).toBe(0x6003);
       }
+    } finally { tiles.destroyLayer(10); }
+  });
+
+  it('imports legacy tile blobs with either Base64 alphabet and preserves the layer on decode failure', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    const fixture = readFileSync(resolve(__dirname, 'fixtures/tilemap-esscene-v1.blob.txt'), 'utf8').trim();
+    const standard = Buffer.from(fixture, 'base64url').toString('base64');
+    const wrapped = fixture.replace(/=+$/, '').match(/.{1,37}/g)!.join('\r\n ');
+    tiles.initInfiniteLayer(10, 16, 16);
+    try {
+      expect(tiles.importChunks(10, standard)).toBe(true);
+      const saved = tiles.exportChunks(10);
+      expect(decodeTilemapChunks(saved)).toEqual(decodeTilemapChunks(fixture).sort((a, b) => a.y - b.y || a.x - b.x));
+      expect(tiles.importChunks(10, wrapped)).toBe(true);
+      expect(tiles.exportChunks(10)).toBe(saved);
+      const revision = tiles.getEditRevision(10);
+      expect(tiles.importChunks(10, `${fixture}!`)).toBe(false);
+      expect(tiles.getEditRevision(10)).toBe(revision);
+      expect(tiles.exportChunks(10)).toBe(saved);
     } finally { tiles.destroyLayer(10); }
   });
 });
