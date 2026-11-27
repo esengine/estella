@@ -44,6 +44,18 @@ it('does not turn a cancelled quick touch into a UI click', () => {
     input.beginFixedStep(); expect(input.isMouseButtonPressed(0)).toBe(false); input.endFixedStep();
     adapter.unbindInputEvents();
 });
+it('keeps a cancelled primary touch out of the pointer release route', () => {
+    const { adapter, input, touch } = setup();
+    const onPointerUp = vi.fn();
+    const off = inputRouter.setUIHandler({ onPointerUp });
+    try {
+        touch('TouchStart', 1); touch('TouchCancel', 1);
+        expect(onPointerUp).not.toHaveBeenCalled();
+        expect(input.isMouseButtonDown(0)).toBe(false);
+        touch('TouchStart', 2); touch('TouchEnd', 2);
+        expect(onPointerUp).toHaveBeenCalledOnce();
+    } finally { off(); adapter.unbindInputEvents(); }
+});
 it('cancels a secondary finger without releasing the primary finger', () => {
     const { adapter, input, touch } = setup();
     touch('TouchStart', 1); touch('TouchStart', 2); touch('TouchCancel', 2);

@@ -26,7 +26,7 @@ import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { WebVideoBackend } from '../video/WebVideoBackend';
 import type { PlatformVideoBackend } from '../video/PlatformVideoBackend';
 import { GameSocket } from '../net/GameSocket';
-import { createPrimaryPointer } from './primaryPointer';
+import { cancelPointer, createPrimaryPointer } from './primaryPointer';
 import { createWebRecorder, defaultRecordingCanvas } from './webRecorder';
 import { WebDevice } from '../device/web';
 import { InputBinding, type ListenerScope } from './listeners';
@@ -265,7 +265,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onBlur = () => {
             for (const code of heldKeys) callbacks.onKeyUp(code);
             heldKeys.clear();
-            for (const button of heldButtons) callbacks.onPointerUp(button);
+            for (const button of heldButtons) cancelPointer(callbacks, button);
             heldButtons.clear();
             for (const id of heldTouches) pointer.cancel(id);
             heldTouches.clear();

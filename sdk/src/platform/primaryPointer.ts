@@ -5,8 +5,8 @@
  * @brief   The primary-pointer synthesis every touch host shares. The first
  *          active touch drives pointer 0 (down / move / up); a concurrent second
  *          touch is still forwarded as a raw touch but does not move the pointer.
- *          The primary touch's END or CANCEL both release the pointer, so a
- *          cancelled gesture never leaves it stuck down. Adapters (web / native /
+ *          The primary touch's end releases the pointer and a cancellation
+ *          ends it without a click. Adapters (web / native /
  *          mini-game) feed it already-extracted `(id, x, y)`; the state machine
  *          lives here once instead of being copied per adapter.
  */
@@ -17,6 +17,11 @@ export interface PrimaryPointer {
     move(id: number, x: number, y: number): void;
     end(id: number, x?: number, y?: number): void;
     cancel(id: number): void;
+}
+
+export function cancelPointer(callbacks: InputEventCallbacks, button: number): void {
+    if (callbacks.onPointerCancel) callbacks.onPointerCancel(button);
+    else callbacks.onPointerUp(button);
 }
 
 export function createPrimaryPointer(callbacks: InputEventCallbacks): PrimaryPointer {
@@ -47,7 +52,7 @@ export function createPrimaryPointer(callbacks: InputEventCallbacks): PrimaryPoi
             callbacks.onTouchCancel?.(id, id === primary);
             if (id === primary) {
                 primary = null;
-                callbacks.onPointerUp(0);
+                cancelPointer(callbacks, 0);
             }
         },
     };

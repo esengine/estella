@@ -645,6 +645,15 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         if (consumed) state.touches.delete(id);
         else if (state.touches.has(id)) state.endTouch(id);
     };
+    const discardMouse = (button: number): boolean => {
+        const held = state.mouseButtons.delete(button);
+        discardActionEdges(state, 'mouse', button);
+        state.mouseButtonsPressed.delete(button);
+        state.mouseButtonsReleased.delete(button);
+        state.mouseButtonsPressedFixed.delete(button);
+        state.mouseButtonsReleasedFixed.delete(button);
+        return held;
+    };
     return {
         onKeyDown(code) {
             if (executionOwners.has(state)) return claimsKeyDefault(state, code);
@@ -693,6 +702,9 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             }
             else if (state.mouseButtons.has(button)) state.noteMouseUp(button);
         },
+        onPointerCancel(button) {
+            if (discardMouse(button) && button === 0) cancelPrimaryPointer(state);
+        },
         onWheel(deltaX, deltaY) {
             if (executionOwners.has(state)) return;
             if (inputRouter.dispatchWheel(deltaX, deltaY)) return;
@@ -736,12 +748,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             state.touchesStarted.delete(id);
             state.touchesEnded.delete(id);
             if (primary === true || (primary === undefined && state.touches.size === 0)) {
-                discardActionEdges(state, 'mouse', 0);
-                state.mouseButtons.delete(0);
-                state.mouseButtonsPressed.delete(0);
-                state.mouseButtonsReleased.delete(0);
-                state.mouseButtonsPressedFixed.delete(0);
-                state.mouseButtonsReleasedFixed.delete(0);
+                discardMouse(0);
                 cancelPrimaryPointer(state);
             }
         },

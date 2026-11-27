@@ -20,6 +20,7 @@ import { UiPointerHitCache, MOUSE_POINTER } from '../src/ui/input/pointerBook';
 import { UIEvents } from '../src/ui/core/events';
 import { onGestureClick, fireGestureClick, takeGestureFired } from '../src/ui/input/gestureClick';
 import { inputRouter } from '../src/input/inputRouter';
+import { webAdapter } from '../src/platform/web';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 const hit = vi.hoisted(() => ({ entity: null as number | null }));
@@ -93,6 +94,35 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         expect(clicked).not.toHaveBeenCalled();
         expect(app.world.get(entity, UIInteraction)).toMatchObject({ pressed: false, justReleased: false });
     });
+    it('cancels a held web button on blur without invoking its gesture click', async () => {
+        const entity = app.world.spawn(); hit.entity = entity; app.world.insert(entity, Interactable);
+        const input = app.getResource(Input), gesture = vi.fn();
+        onGestureClick(app.world, entity, gesture);
+        const canvas = document.body.appendChild(document.createElement('canvas'));
+        const mouse = (type: string) => {
+            const event = new MouseEvent(type, { button: 0, bubbles: true });
+            Object.defineProperties(event, { offsetX: { value: 0 }, offsetY: { value: 0 } });
+            canvas.dispatchEvent(event);
+        };
+        webAdapter.bindInputEvents(inputEventCallbacks(input), canvas);
+        try {
+            mouse('mousedown');
+            await app.tick(1 / 60);
+            expect(app.world.get(entity, UIInteraction).pressed).toBe(true);
+            window.dispatchEvent(new Event('blur'));
+            expect(gesture).not.toHaveBeenCalled();
+            await app.tick(1 / 60);
+            expect(app.world.get(entity, UIInteraction)).toMatchObject({ pressed: false, justReleased: false });
+            mouse('mousedown');
+            await app.tick(1 / 60);
+            mouse('mouseup');
+            expect(gesture).toHaveBeenCalledOnce();
+        } finally {
+            webAdapter.unbindInputEvents();
+            canvas.remove();
+        }
+    });
+
     it('expires a cancelled gesture marker before a later quick click on real WASM', async () => {
         const entity = app.world.spawn(); hit.entity = entity; app.world.insert(entity, Interactable);
         const input = app.getResource(Input), clicked = vi.fn();

@@ -40,7 +40,7 @@ import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { WasmVideoBackend } from '../../video/WasmVideoBackend';
 import { setPlatform } from '../base';
-import { createPrimaryPointer } from '../primaryPointer';
+import { cancelPointer, createPrimaryPointer } from '../primaryPointer';
 import { InputBinding } from '../listeners';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import { createNativeTextEditor } from './textEditor';
@@ -196,6 +196,7 @@ export class NativePlatformAdapter implements PlatformAdapter {
             heldKeys.clear();
             for (const id of heldTouches) pointer.cancel(id);
             heldTouches.clear();
+            for (const button of heldButtons) cancelPointer(callbacks, button);
             heldButtons.clear();
             callbacks.onInputCancel?.();
         };

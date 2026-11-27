@@ -181,6 +181,33 @@ describe('input adapter parity (web vs native)', () => {
         ]);
     });
 
+    it('reports the same mouse cancellation on web blur and native hide', () => {
+        const web = recorder(), native = recorder();
+        web.callbacks.onPointerCancel = button => web.trace.push(`cancel ${button}`);
+        native.callbacks.onPointerCancel = button => native.trace.push(`cancel ${button}`);
+        const scope = hostScope();
+        const adapter = new NativePlatformAdapter(createHostBridge(scope));
+        webAdapter.bindInputEvents(web.callbacks, element);
+        adapter.bindInputEvents(native.callbacks);
+        try {
+            const down = new MouseEvent('mousedown', { button: 2, bubbles: true });
+            Object.defineProperties(down, { offsetX: { value: 0 }, offsetY: { value: 0 } });
+            element.dispatchEvent(down);
+            window.dispatchEvent(new Event('blur'));
+            element.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true }));
+
+            const pointer = scope.es_onNativePointer as (type: number, button: number, x: number, y: number) => void;
+            pointer(0, 2, 0, 0);
+            (scope.es_onNativeVisibility as (visible: boolean) => void)(false);
+            pointer(2, 2, 0, 0);
+            expect(native.trace).toEqual(web.trace);
+            expect(native.trace).toEqual(['pointerDown 2 0,0', 'cancel 2']);
+        } finally {
+            webAdapter.unbindInputEvents();
+            adapter.unbindInputEvents();
+        }
+    });
+
     it('accumulates native relative motion even when the cursor is stationary', () => {
         const scope = hostScope();
         const native = new NativePlatformAdapter(createHostBridge(scope));
