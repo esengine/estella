@@ -8,7 +8,6 @@ import { Input } from '../../input/input';
 import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
 import { Focusable, FocusManager, FocusManagerState } from './focusable';
-import type { FocusableData } from './focusable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
@@ -17,7 +16,7 @@ import { inspectFocusTraversal, isFocusEligible } from './focus-inspection';
 import { playModeOnly } from '../../ecs/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../ecs/systemLabels';
-import { moveUIFocus } from './focus-transition';
+import { clearUIFocus, moveUIFocus } from './focus-transition';
 import { UITabView, tabViewBindings } from '../behavior/tab-view';
 import { UITreeView } from '../behavior/tree-view';
 import { UIColorPicker } from '../behavior/color-picker';
@@ -75,8 +74,9 @@ export class FocusPlugin implements Plugin {
                 // Live eligibility also governs stale focus and pointer focus, so
                 // opening a dialog cannot leave activation on a background control.
                 // Asked of the one entity in question: the whole Tab ring is sorted only when Tab is pressed.
-                if (focusManager.focusedEntity !== null
-                    && !isFocusEligible(world, focusManager.focusedEntity)) clearFocus();
+                const lostFocus = focusManager.focusedEntity !== null
+                    && !isFocusEligible(world, focusManager.focusedEntity);
+                if (lostFocus) clearFocus();
 
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
 
@@ -116,7 +116,9 @@ export class FocusPlugin implements Plugin {
                 // Keyboard activation: Enter/Space on the focused control acts as
                 // a click. Text fields consume those keys for editing instead.
                 const focused = focusManager.focusedEntity;
-                if (focused !== null && world.valid(focused) && !world.has(focused, TextInput)
+                // A blur handler can move focus while retiring an invalid target.
+                // An activation in this frame must not transfer to that replacement.
+                if (!lostFocus && focused !== null && world.valid(focused) && !world.has(focused, TextInput)
                     && (input.isKeyPressed('Enter') || input.isKeyPressed('Space'))) {
                     // Focus/blur handlers can change dialog or enabled state synchronously.
                     if (isFocusEligible(world, focused)) {
@@ -155,16 +157,7 @@ export class FocusPlugin implements Plugin {
                 }
 
                 function clearFocus(): void {
-                    const previous = focusManager.blur();
-                    blurEntity(previous);
-                }
-
-                function blurEntity(entity: Entity | null): void {
-                    if (entity === null || !world.valid(entity) || !world.has(entity, Focusable)) return;
-                    const f = world.get(entity, Focusable) as FocusableData;
-                    f.isFocused = false;
-                    world.set(entity, Focusable, f);
-                    events.emit(entity, UIEventType.Blur);
+                    clearUIFocus(world, events, focusManager);
                 }
             },
             { name: 'FocusSystem' }
