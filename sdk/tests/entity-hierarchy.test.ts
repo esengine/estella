@@ -12,7 +12,8 @@ import { Transform, Sprite, Parent, Children, Disabled, Canvas, Camera } from '.
 import { setEntityActive, isEntityActive } from '../src/ecs/entityUtils';
 import { CommandsInstance } from '../src/ecs/commands';
 import { ResourceStorage } from '../src/ecs/resource';
-import type { Entity } from '../src/types';
+import { detachFromSceneParent, SceneEntityBatch } from '../src/scene/sceneHierarchy';
+import { INVALID_ENTITY, type Entity } from '../src/types';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -80,6 +81,50 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             setEntityActive(world, root, true);
             expect(module.registry_getCanvasEntities!(registry)).toEqual([child]);
             expect(module.registry_getCameraEntities(registry)).toEqual([child]);
+        } finally { disposeWorld(world, registry); }
+    });
+
+    it('reads both halves of native hierarchy edits after SDK parenting', () => {
+        const { world, registry } = createWorld();
+        try {
+            const first = world.spawn(), second = world.spawn(), a = world.spawn(), b = world.spawn();
+            world.setParent(a, first);
+            expect(registry.setParent(b, second)).toBe(true);
+            expect(world.has(b, Parent)).toBe(true);
+            expect(world.tryGet(b, Parent)?.entity).toBe(second);
+            expect(world.has(second, Children)).toBe(true);
+            expect(world.tryGet(second, Children)?.entities).toEqual([b]);
+
+            expect(registry.setParent(a, INVALID_ENTITY)).toBe(true);
+            expect(world.has(a, Parent)).toBe(false);
+            expect(world.tryGet(a, Parent)).toBeNull();
+            expect(world.has(first, Children)).toBe(registry.hasChildren(first));
+            expect(world.tryGet(first, Children)?.entities ?? []).toEqual([]);
+        } finally { disposeWorld(world, registry); }
+    });
+
+    it('uses native links when hiding a retiring scene and detaching a surviving entity', () => {
+        const { world, registry } = createWorld();
+        try {
+            const root = world.spawn(), joint = world.spawn(), survivor = world.spawn(), unrelated = world.spawn();
+            world.insert(root, Transform, { position: { x: 10, y: 2, z: 3 } });
+            world.insert(joint, Transform, { position: { x: 1, y: 5, z: 0 } });
+            world.insert(survivor, Transform, { position: { x: 2, y: 0, z: 7 } });
+            world.setParent(unrelated, root);
+            expect(registry.setParent(joint, root)).toBe(true);
+            expect(registry.setParent(survivor, joint)).toBe(true);
+            world.ensureTransformsComposed();
+            expect(world.get(survivor, Transform).worldPosition).toEqual({ x: 13, y: 7, z: 10 });
+            const retiring = new Set([root, joint]);
+            new SceneEntityBatch(world, retiring).hideRoots();
+            expect(world.has(root, Disabled)).toBe(true);
+            expect(world.has(joint, Disabled)).toBe(false);
+
+            detachFromSceneParent(world, survivor, retiring);
+            world.despawn(root);
+            expect(world.valid(survivor)).toBe(true);
+            expect(world.tryGet(survivor, Parent)).toBeNull();
+            expect(world.get(survivor, Transform).position).toEqual({ x: 13, y: 7, z: 10 });
         } finally { disposeWorld(world, registry); }
     });
 

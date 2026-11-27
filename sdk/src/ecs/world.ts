@@ -1053,8 +1053,8 @@ export class World {
         return component._id === Parent._id || component._id === Children._id;
     }
 
-    // The C++ side owns both halves of the link; these are the JS mirrors that
-    // has() and the query cache read, so they move with it or the two disagree.
+    // The C++ side owns both halves of the link. These mirrors track SDK
+    // writes for change filters and query candidates.
     private trackHierarchyWrite_(child: Entity, parent: Entity | null): void {
         const parents = this.builtin_.getOrCreateEntitySet(Parent._cppName);
         const children = this.builtin_.getOrCreateEntitySet(Children._cppName);
@@ -1349,7 +1349,8 @@ export class World {
         if (component._builtin) {
             if (!this.builtin_.hasCpp) return false;
             const cppName = (component as BuiltinComponentDef<any>)._cppName;
-            const bset = this.builtin_.getEntitySet(cppName);
+            // Native systems can change either end of a relationship directly.
+            const bset = this.isHierarchyComponent_(component) ? undefined : this.builtin_.getEntitySet(cppName);
             if (bset) return bset.has(entity);
             return this.builtin_.getBuiltinMethods(cppName).has(entity);
         }
@@ -1363,7 +1364,7 @@ export class World {
         this.speculation_?.record(this, entity, component);
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
-            const bset = this.builtin_.getEntitySet(component._cppName);
+            const bset = this.isHierarchyComponent_(component) ? undefined : this.builtin_.getEntitySet(component._cppName);
             if (bset && !bset.has(entity)) return null;
             try {
                 const fromHeap = this.builtin_.readHeap(entity, component._cppName);
