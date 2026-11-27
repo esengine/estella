@@ -11,7 +11,7 @@
  */
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from './world';
-import { Transform, Sprite, MeshRenderer, ShapeRenderer } from './component';
+import { Transform, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { worldEngineApi } from './bridge/engineApi';
@@ -79,13 +79,26 @@ function worldRot(t: { worldRotation: unknown }): Quat {
  * @experimental
  */
 export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: EntityBoxOptions): EntityBox | null {
+    return resolveEntityWorldBox(world, entity, opts)?.box ?? null;
+}
+
+/** @internal Resolve geometry and its draw order together for visibility-aware picking. */
+export function resolveEntityWorldBox(
+    world: ReadableWorld, entity: Entity, opts?: EntityBoxOptions,
+    picking?: { hiddenMesh: boolean; iconPickable?: (entity: Entity) => boolean },
+): { box: EntityBox; drawable: SpriteData | ShapeRendererData | null } | null {
     if (!world.valid(entity) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
 
     const t = world.get(entity, Transform);
     const rot = worldRot(t);
 
-    const spec = opts?.iconHalf ?? 0;
+    const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
+    const visibleSprite = sprite && (!picking || sprite.enabled !== false) ? sprite : null;
+    const shape = !visibleSprite && world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
+    const visibleShape = shape && (!picking || shape.enabled !== false) ? shape : null;
+    const hiddenRenderer = picking && (picking.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
+    const spec = hiddenRenderer && !picking.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
     const iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
     // An icon is a marker in space rather than a card, so it is a cube: it reads
     // and clicks the same from wherever the view has been turned to.
@@ -94,33 +107,32 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
     let d = iconHalf * 2;
     let px = 0.5;
     let py = 0.5;
-    if (world.has(entity, Sprite)) {
-        const sp = world.get(entity, Sprite);
+    if (visibleSprite) {
+        const sp = visibleSprite;
         w = sp.size.x * t.worldScale.x;
         h = sp.size.y * t.worldScale.y;
         d = 0;
         px = sp.pivot?.x ?? 0.5;
         py = sp.pivot?.y ?? 0.5;
-    } else if (world.has(entity, ShapeRenderer)) {
-        const shape = world.get(entity, ShapeRenderer);
-        w = Math.max(shape.size.x * t.worldScale.x, iconHalf * 2);
-        h = Math.max(shape.size.y * t.worldScale.y, iconHalf * 2);
+    } else if (visibleShape) {
+        w = Math.max(visibleShape.size.x * t.worldScale.x, iconHalf * 2);
+        h = Math.max(visibleShape.size.y * t.worldScale.y, iconHalf * 2);
         d = 0;
-    } else if (opts?.extentOf?.(entity)) {
-        const ext = opts.extentOf(entity)!;
-        w = Math.max(ext.width * t.worldScale.x, iconHalf * 2);
-        h = Math.max(ext.height * t.worldScale.y, iconHalf * 2);
-        d = 0;
-        px = 0.5 - ((ext.x + ext.width / 2) * t.worldScale.x) / (w || 1);
-        py = 0.5 - ((ext.y + ext.height / 2) * t.worldScale.y) / (h || 1);
-    } else if (iconHalf === 0) {
-        return null;
+    } else {
+        const ext = opts?.extentOf?.(entity);
+        if (ext) {
+            w = Math.max(ext.width * t.worldScale.x, iconHalf * 2);
+            h = Math.max(ext.height * t.worldScale.y, iconHalf * 2);
+            d = 0;
+            px = 0.5 - ((ext.x + ext.width / 2) * t.worldScale.x) / (w || 1);
+            py = 0.5 - ((ext.y + ext.height / 2) * t.worldScale.y) / (h || 1);
+        } else if (iconHalf === 0) return null;
     }
 
     // The centre orbits the transform position when the pivot is off-centre —
     // the position is what rotation turns around, not the middle of the sprite.
     const offset = q.rotate(rot, { x: w * (0.5 - px), y: h * (0.5 - py), z: 0 });
-    return {
+    const box: EntityBox = {
         cx: t.worldPosition.x + offset.x,
         cy: t.worldPosition.y + offset.y,
         cz: (t.worldPosition.z ?? 0) + offset.z,
@@ -129,6 +141,7 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
         hd: Math.abs(d) / 2,
         rot,
     };
+    return { box, drawable: visibleSprite ?? visibleShape };
 }
 
 /**

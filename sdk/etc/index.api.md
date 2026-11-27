@@ -4731,6 +4731,7 @@ depthLayers: number | undefined
 extentOf: ((entity: Entity) => { x: number; y: number; width: number; height: number; } | null) | undefined
 fallbackPickable: ((entity: Entity) => boolean) | undefined
 iconHalf: number | ((at: Vec3) => number) | undefined
+iconPickable: ((entity: Entity) => boolean) | undefined
 pickable: ((entity: Entity) => boolean) | undefined
 ySortLayers: number | undefined
 ```

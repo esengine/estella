@@ -11,12 +11,12 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, Sprite, ShapeRenderer, MeshRenderer, SortingGroup, Parent } from './component';
+import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData } from './component';
 import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    entityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld, type EntityBoxOptions,
+    resolveEntityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -69,6 +69,8 @@ export interface EntityPickOptions {
     pickable?(entity: Entity): boolean;
     /** Whether to try other bounds for a selectable entity without a mesh box. */
     fallbackPickable?(entity: Entity): boolean;
+    /** Whether an icon is drawn for an entity whose renderer is disabled. */
+    iconPickable?(entity: Entity): boolean;
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
     ySortLayers?: number;
     depthLayers?: number;
@@ -95,6 +97,9 @@ export function pickEntitiesByRay(
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
+    const fastWorld = world as PickWorld & Partial<Pick<World, 'resolveGetter'>>;
+    const meshGetter = fastWorld.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
+    const readMesh = meshGetter ?? (entity => world.get(entity, MeshRenderer));
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.
     const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
@@ -103,16 +108,18 @@ export function pickEntitiesByRay(
         if (opts.pickable && !opts.pickable(entity)) continue;
         // A mesh's extent is in its vertices, so it is asked for before the icon
         // fallback would answer with the size of a gizmo.
-        const meshBox = meshWorldBox(world, entity);
+        const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
+        const hiddenMesh = renderer?.enabled === false;
+        const meshBox = renderer && !hiddenMesh ? meshWorldBox(world, entity) : null;
         if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
-        const box = meshBox ?? entityWorldBox(world, entity, { iconHalf, extentOf: opts.extentOf });
+        const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts, { hiddenMesh, iconPickable: opts.iconPickable });
+        const box = meshBox ?? fallback?.box;
         if (!box) continue;
         const distance = entityBoxRayHit(box, ray.origin, ray.dir);
         if (distance === null) continue;
 
-        const mesh = meshBox ? world.get(entity, MeshRenderer) : null;
-        const sprite = mesh ? null : world.has(entity, Sprite) ? world.get(entity, Sprite)
-            : world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
+        const mesh = meshBox ? renderer : null;
+        const sprite = fallback?.drawable;
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
         const identity = sortingIdentity(

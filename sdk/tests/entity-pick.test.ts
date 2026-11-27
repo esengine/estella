@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { pickEntitiesByRay } from '../src/ecs/entityPick';
-import { Transform, Sprite, MeshRenderer, SortingGroup, Parent } from '../src/ecs/component';
+import { Transform, Sprite, MeshRenderer, ShapeRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import { q } from '../src/math/quat';
 import { MeshRenderers, meshRendererPlugin } from '../src/render/meshRenderer';
 import type { Entity } from '../src/types';
@@ -129,6 +129,22 @@ describe('picking entities by ray', () => {
         }, { 2: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 },
             3: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 } });
         expect(pickEntitiesByRay(world, down(0, 0), { iconHalf: 24 })).toEqual([ent(3), ent(1), ent(2)]);
+    });
+
+    it('skips disabled draws and uses the remaining visible renderer on the entity', () => {
+        const bounds = { minX: 40, minY: -2, minZ: -2, maxX: 42, maxY: 2, maxZ: 2 };
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), MeshRenderer: { enabled: false, opaque: true, layer: 12 }, Sprite: sprite(1) },
+            2: { Transform: T(0, 0), Sprite: { ...sprite(12), enabled: false },
+                ShapeRenderer: { size: { x: 8, y: 8 }, layer: 2, enabled: true } },
+            3: { Transform: T(0, 0), Sprite: { ...sprite(12), enabled: false } },
+            4: { Transform: T(0, 0), ShapeRenderer: { size: { x: 8, y: 8 }, layer: 12, enabled: false } },
+            5: { Transform: T(0, 0), MeshRenderer: { enabled: false, opaque: true, layer: 12 } },
+        }, { 1: bounds, 5: bounds });
+        expect(pickEntitiesByRay(world, down(0, 0), { iconHalf: 8 })).toEqual([ent(2), ent(1)]);
+        expect(pickEntitiesByRay(world, down(0, 0), { cullingMask: 1 << 1 })).toEqual([ent(1)]);
+        expect(pickEntitiesByRay(world, down(0, 0), { iconHalf: 8, iconPickable: id => id === ent(5) }))
+            .toEqual([ent(5), ent(2), ent(1)]);
     });
 
     it('ranks a blended sprite over the opaque mesh at the same draw order', () => {
