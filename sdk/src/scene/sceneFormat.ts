@@ -29,3 +29,12 @@ export function requireSupportedSceneVersion(version: unknown): number {
     }
     return fromVersion;
 }
+
+/** Check the shared scene envelope before interpreting its entity rows. */
+export function requireSupportedSceneDocument(input: unknown): number {
+    const scene = input as { entities?: unknown; version?: unknown } | null | undefined;
+    if (!scene || typeof scene !== 'object' || !Array.isArray(scene.entities)) {
+        throw new Error('Scene data must have an "entities" array');
+    }
+    return requireSupportedSceneVersion(scene.version);
+}

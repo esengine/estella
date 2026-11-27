@@ -110,6 +110,25 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (playable)', () => {
+  it('rejects a newer switchable scene only when the ad packages it', async () => {
+    const file = path.join(root, 'scenes', 'future.esscene');
+    writeFileSync(file, JSON.stringify({ version: 999, entities: [] }));
+    writeFileSync(`${file}.meta`, meta('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'scene'));
+    const opts = {
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), platform: 'playable' as const,
+    };
+    try {
+      expect((await exportGame({ ...opts, outDir: path.join(root, 'playable-entry-only') })).ok).toBe(true);
+      const result = await exportGame({ ...opts, outDir: path.join(root, 'playable-all-formats'), playableScenes: 'all' });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toContainEqual(expect.stringMatching(/scenes\/future\.esscene: Scene format version 999 is newer/i));
+    } finally {
+      rmSync(file, { force: true });
+      rmSync(`${file}.meta`, { force: true });
+    }
+  }, 60_000);
+
   it('honors image platform overrides, audio settings and the build opt-out without changing sources', async () => {
     const imageId = '11111111-1111-4111-8111-111111111111';
     const audioId = '22222222-2222-4222-8222-222222222222';

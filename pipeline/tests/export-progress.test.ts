@@ -42,6 +42,25 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('export progress', () => {
+  it.each(['web', 'desktop'] as const)('fails a %s export with an included newer switchable scene', async platform => {
+    const future = 'scenes/future.esscene';
+    const file = path.join(root, future);
+    writeFileSync(file, JSON.stringify({ version: 999, name: 'Future', entities: [] }));
+    writeFileSync(`${file}.meta`, meta('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'scene'));
+    try {
+      const result = await exportGame({
+        root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+        sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+        outDir: path.join(root, `out-format-${platform}`), platform,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toContainEqual(expect.stringMatching(/scenes\/future\.esscene: Scene format version 999 is newer/i));
+    } finally {
+      rmSync(file, { force: true });
+      rmSync(`${file}.meta`, { force: true });
+    }
+  }, 60_000);
+
   it('emits a phase per major step (web)', async () => {
     const phases: string[] = [];
     const res = await exportGame({

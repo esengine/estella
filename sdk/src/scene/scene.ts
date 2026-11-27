@@ -11,7 +11,7 @@ import { initializeSceneComponents, installWorldHook, shouldExportComponent, typ
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, visitSceneEntryEntityReferences, type SceneEntry } from './sceneEntry';
-import { requireSupportedSceneVersion, SCENE_FORMAT_VERSION } from './sceneFormat';
+import { requireSupportedSceneDocument, SCENE_FORMAT_VERSION } from './sceneFormat';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
@@ -339,7 +339,7 @@ export type PrefabAssetResolver = (ref: string) => Promise<PrefabData | null>;
 export async function expandScenePrefabAssets(
     scene: SceneData, assets: Pick<import('../asset/Assets').Assets, 'acquireTyped'>,
 ): Promise<SceneData> {
-    checkSceneFormat(scene);
+    requireSupportedSceneDocument(scene);
     const sources = new AssetScope();
     try {
         return await expandScenePrefabs(scene, async ref => {
@@ -503,7 +503,7 @@ export { RENAMED_COMPONENT_TYPES } from './legacyComponents';
  * loading never mutates the caller's object (snapshots can be reloaded).
  */
 export function migrateSceneData(raw: SceneData): SceneMigrationResult {
-    const fromVersion = checkSceneFormat(raw);
+    const fromVersion = requireSupportedSceneDocument(raw);
     // Public inputs remain caller-owned. Internal builders can hand over their
     // fresh private records to the same normalization without copying them twice.
     const data = JSON.parse(JSON.stringify(raw)) as SceneData;
@@ -531,13 +531,6 @@ export function recordUnresolvedSceneAsset(scene: SceneData, component: SceneCom
     let paths = unresolved.get(component);
     if (!paths) unresolved.set(component, paths = new Map());
     paths.set(field, path);
-}
-
-function checkSceneFormat(raw: SceneData): number {
-    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entities)) {
-        throw new Error('Scene data must have an "entities" array');
-    }
-    return requireSupportedSceneVersion(raw.version);
 }
 
 /**
@@ -570,7 +563,7 @@ export function renumberEntityZero(data: SceneData): boolean {
 }
 
 /** Normalize a document whose component records the loader owns. */
-export function migrateOwnedSceneData(data: SceneData, fromVersion = checkSceneFormat(data)): SceneMigrationResult {
+export function migrateOwnedSceneData(data: SceneData, fromVersion = requireSupportedSceneDocument(data)): SceneMigrationResult {
     let migrated = false;
     const retired = new Set<string>();
     for (const entity of data.entities) {

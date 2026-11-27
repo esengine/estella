@@ -64,6 +64,25 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('exportGame (wechat)', () => {
+  it('reports an unsupported entry scene instead of writing it into the package', async () => {
+    const entry = 'scenes/future.esscene';
+    const file = path.join(root, entry);
+    writeFileSync(file, JSON.stringify({ version: '999.0', entities: [] }));
+    writeFileSync(`${file}.meta`, meta('88888888-8888-4888-8888-888888888888', 'scene'));
+    const dir = path.join(root, 'dist-wechat-future');
+    try {
+      const result = await exportGame({ minifyScripts: false, root, entryScene: entry,
+        hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+        sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: dir, platform: 'wechat' });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toContainEqual(expect.stringMatching(/scenes\/future\.esscene: Scene format version 999 is newer/i));
+      expect(existsSync(path.join(dir, 'scenes', 'future.json'))).toBe(false);
+    } finally {
+      rmSync(file, { force: true });
+      rmSync(`${file}.meta`, { force: true });
+    }
+  }, 60_000);
+
   it('fails instead of shipping a video the WASM decoder cannot play', async () => {
     const video = '99999999-9999-4999-8999-999999999999';
     writeFileSync(path.join(root, 'assets/broken.mp4'), 'NOT A VIDEO');

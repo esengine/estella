@@ -79,6 +79,28 @@ function solidPng(width: number, height: number, rgba: [number, number, number, 
 }
 
 describe('cookAssets (A4)', () => {
+  it('rejects a scene in a newer format only when it is included in the cook', async () => {
+    const entry = 'assets/scenes/main.esscene';
+    const future = 'assets/scenes/orphan.esscene';
+    const file = path.join(root, future);
+    const original = readFileSync(file, 'utf8');
+    writeFileSync(file, JSON.stringify({ version: '999.0', name: 'Future', entities: [] }));
+    try {
+      const culled = await cookAssets(root, { entryScenes: [entry], outDir: 'build/format-culled' });
+      expect(culled.ok).toBe(true);
+      expect(culled.unused).toContain(ORPHAN_SCENE);
+
+      const included = await cookAssets(root, { entryScenes: [entry, future], outDir: 'build/format-included' });
+      expect(included.ok).toBe(false);
+      expect(included.failed).toEqual([expect.stringMatching(/orphan\.esscene: Scene format version 999 is newer/i)]);
+      expect(existsSync(path.join(included.outDir, future))).toBe(false);
+      const manifest = JSON.parse(readFileSync(included.manifestPath!, 'utf8')) as CookManifest;
+      expect(manifest.entries.some(e => e.uuid === ORPHAN_SCENE)).toBe(false);
+    } finally {
+      writeFileSync(file, original);
+    }
+  });
+
   it('includes assets reachable from the entry scene and culls the rest', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
