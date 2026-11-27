@@ -331,4 +331,17 @@ describe('rules graph', () => {
         const elsewhere = pasteProcNodes([], clip);
         expect(elsewhere.nodes.find((n) => n.op === 'grid')!.input).toBeNull();
     });
+
+    it('merges branches of one node without making copies of what they carry', () => {
+        const r = runProc(validateProcSource({ version: 1, nodes: [
+            { op: 'rect', size: [20, 20] },
+            { id: 'base', op: 'box', height: 1, keep: 'top' },
+            { id: 'left', input: 'base', op: 'part', at: [-5, 0, 0], size: [1, 3, 1] },
+            { id: 'right', input: 'base', op: 'part', at: [5, 0, 0], size: [1, 3, 1] },
+            { id: 'both', op: 'merge', inputs: ['left', 'right'] },
+            { op: 'output', inputs: ['both'] },
+        ] }));
+        // the base box once, and the two posts
+        expect(r.report.parts).toBe(3);
+    });
 });

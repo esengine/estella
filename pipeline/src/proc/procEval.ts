@@ -269,7 +269,10 @@ class Run {
                     outputs = node.inputs!.map((ref) => ({ name: ref, parts: byId.get(ref)!.filter((it): it is Part => it.kind === 'part' && !seen.has(it) && (seen.add(it), true)) }));
                     items = outputs.flatMap((g) => g.parts);
                 } else if (spec.many) {
-                    items = node.inputs!.flatMap((ref) => byId.get(ref)!);
+                    // Branches that grew from one node all carry what it made (a part goes on through every node after it):
+                    // merged, each item is kept once, as the output keeps each part once.
+                    const seen = new Set<Item>();
+                    items = node.inputs!.flatMap((ref) => byId.get(ref)!).filter((it) => !seen.has(it) && (seen.add(it), true));
                 } else if (spec.source) {
                     items = this.source1(node, base, hashText(name));
                 } else {
@@ -609,6 +612,11 @@ class Run {
                 const at = this.vec(node.at ?? [0, 0, 0], 3, s, 'at'), size = this.vec(node.size, 3, s, 'size');
                 const [x, z] = toWorld(p, at[0]!, at[2]!);
                 let q = qYaw(p.yaw + this.num(node.yaw ?? 0, s, 'yaw'));
+                if (node.tilt !== undefined) {
+                    // pitched about the plot's own x, then rolled about its z: an eave corner swept up, a leaning post
+                    const [tx, tz] = this.vec(node.tilt, 2, s, 'tilt');
+                    q = qMul(q, qMul(qAxis(1, 0, 0, tx!), qAxis(0, 0, 1, tz!)));
+                }
                 if (node.flip) q = qMul(q, [1, 0, 0, 0]);
                 const out: Item[] = [this.part((node.name as string | undefined) ?? node.id ?? 'Part', node.mesh, [x, p.y + at[1]!, z], size as [number, number, number],
                     this.tumbled(q, this.num(node.tumble ?? 0, s, 'tumble'), p.id), this.color(node.color, this.num(node.jitter ?? 0, s, 'jitter'), p.id, s), node.shadows !== false, p.id, p.tags)];
