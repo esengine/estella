@@ -93,7 +93,7 @@ describe('the snapshot Play boots', () => {
         expect(names(cut.documents.get('main.cell_1_0')!)).toEqual(['RockB']);
     });
 
-    it('places a prefab instance by the root it reads over the realm origin', async () => {
+    it.each([false, true])('places a fetched prefab root with WorldPersistent=%s', async persistent => {
         const fetched: string[] = [];
         vi.stubGlobal('fetch', (url: string) => {
             fetched.push(url);
@@ -110,12 +110,15 @@ describe('the snapshot Play boots', () => {
         });
         const cut = (await cutPlayWorld(scene(
             entity(0, 'World', null, { components: [declaration] }),
-            { id: 1, name: 'Hut', parent: null, prefab: PREFAB, overrides: [] },
+            { id: 1, name: 'Hut', parent: null, prefab: PREFAB, overrides: persistent ? [{
+                type: 'component_added', prefabEntityId: 'r', componentData: { type: 'WorldPersistent', data: {} },
+            }] : [] },
         ), 'main', resolveRef))!;
 
         expect(fetched).toEqual([`estella://project/${PREFAB}`]);
         expect(cut.errors).toEqual([]);
-        expect(cut.manifest.cells.map((c) => c.name)).toEqual(['main.cell_1_0']);
+        expect(cut.manifest.cells.map((c) => c.name)).toEqual(persistent ? [] : ['main.cell_1_0']);
+        expect(names(cut.persistent)).toEqual(persistent ? ['World', 'Hut'] : ['World']);
     });
 
     it('fetches an inherited root once and uses the variant position for all its instances', async () => {

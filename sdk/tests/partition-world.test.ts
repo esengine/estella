@@ -366,6 +366,39 @@ describe('partitionWorld', () => {
         expect(partition.cells.map(cell => cell.name)).toEqual(['main.cell_2_0']);
     });
 
+    it.each([StreamPlane.Screen, StreamPlane.Ground])('uses the effective prefab root persistence on plane %s', async plane => {
+        const marker = { type: 'WorldPersistent', data: {} };
+        const add = { type: 'component_added', prefabEntityId: 'r', componentData: marker };
+        const remove = { type: 'component_removed', prefabEntityId: 'r', componentType: marker.type };
+        const instance = (id: number, prefab: string, overrides: Array<Record<string, unknown>> = [], parent: number | null = null) =>
+            ({ id, name: `Instance ${id}`, prefab, overrides, parent, added: [], removed: [] });
+        const document = scene(
+            entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: SIZE, plane } }] }),
+            instance(1, 'variant'),
+            instance(2, 'variant', [remove]),
+            instance(3, 'base', [add]),
+            instance(4, 'base', [{ ...add, prefabEntityId: 'child' }]),
+            instance(5, 'base', [add, remove]),
+            instance(6, 'base', [{ ...add, type: 'component_replaced' }]),
+            entity(7, 'Camera', [2500, 0, 0], { components: [{ type: 'ThirdPersonCamera', data: { target: 3 } }] }),
+        );
+        const resolvePrefab = await resolvePrefabRoots(document, async ref => ref === 'variant'
+            ? { rootEntityId: 'r', basePrefab: 'base', overrides: [add], entities: [] }
+            : { rootEntityId: 'r', entities: [
+                { prefabEntityId: 'r', ...entity(0, 'Root', [1500, 0, 0]), children: ['child'] },
+                { prefabEntityId: 'child', ...entity(1, 'Child', null), parent: 'r' },
+            ] });
+        const result = partitionWorld(document, 'main', { ...options, resolvePrefab })!;
+        expect(result.errors).toEqual([]);
+        expect(names(result.persistent)).toEqual(['World', 'Instance 1', 'Instance 3', 'Instance 6']);
+        expect(result.cells.map(cell => names(cell.data))).toEqual([['Instance 2', 'Instance 4', 'Instance 5'], ['Camera']]);
+        expect(result.persistentRefs).toEqual([3]);
+
+        document.entities.push(instance(8, 'variant', [], 7) as unknown as SceneData['entities'][number]);
+        const nested = partitionWorld(document, 'main', { ...options, resolvePrefab })!;
+        expect(nested.errors).toEqual([expect.stringMatching(/entity 8 .*WorldPersistent but is not top-level/)]);
+    });
+
     it.each([0, -1, Infinity, NaN])('reports an unusable cell size (%s) before placing any cells', cellSize => {
         const partition = cut(scene(
             entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize } }] }),

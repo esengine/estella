@@ -37,12 +37,14 @@ import type { PrefabOverride } from '../prefab/types';
 
 interface Vec3 { x: number; y: number; z: number }
 
-/** Where a prefab asset's root sits, for an instance that does not override it. */
+/** Placement of a prefab asset's root before scene instance overrides. */
 export interface PrefabRoot {
     rootId: string;
     position: Vec3;
     /** Root component after asset-level overrides. Null means it has no Transform. */
     transform?: Readonly<Record<string, unknown>> | null;
+    /** Whether the asset root carries WorldPersistent after asset-level overrides. */
+    worldPersistent?: boolean;
 }
 
 export interface PartitionOptions {
@@ -129,10 +131,12 @@ function vec3(value: unknown, fallback: Vec3): Vec3 {
     };
 }
 
-function localTransform(
+function localPlacement(
     entry: SceneEntry, options: PartitionOptions, problems: string[],
-): Readonly<Record<string, unknown>> | null {
-    if (!isPrefabEntry(entry)) return componentData(entry, 'Transform');
+): { transform: Readonly<Record<string, unknown>> | null; worldPersistent: boolean } {
+    if (!isPrefabEntry(entry)) {
+        return { transform: componentData(entry, 'Transform'), worldPersistent: hasComponent(entry, 'WorldPersistent') };
+    }
     const instance = entry as PrefabInstanceEntry;
     const asset = options.resolvePrefab?.(instance.prefab) ?? null;
     if (asset === null) {
@@ -140,30 +144,38 @@ function localTransform(
             `entity ${instance.id} ("${nameOf(instance)}") instances a prefab this cook cannot read `
             + `(${instance.prefab}), so where it stands is unknown`,
         );
-        return null;
+        return { transform: null, worldPersistent: false };
     }
     const transform = asset.transform === undefined ? { position: asset.position } : asset.transform;
-    if (!instance.overrides?.length) return transform;
-    const overrides = instance.overrides.filter(override =>
-        override.prefabEntityId === asset.rootId && editsTransform(override));
-    if (overrides.length === 0) return transform;
+    const worldPersistent = asset.worldPersistent ?? false;
+    const overrides = instance.overrides?.filter(override =>
+        override.prefabEntityId === asset.rootId && editsPlacement(override));
+    if (!overrides?.length) return { transform, worldPersistent };
     const root = { prefabEntityId: asset.rootId, name: '', visible: true,
         components: transform ? [{ type: 'Transform', data: { ...transform } }] : [] };
+    if (worldPersistent) root.components.push({ type: 'WorldPersistent', data: {} });
     applyOverrides(root, overrides);
-    return root.components[0]?.data ?? null;
+    return {
+        transform: root.components.find(component => component.type === 'Transform')?.data ?? null,
+        worldPersistent: root.components.some(component => component.type === 'WorldPersistent'),
+    };
 }
 
-function editsTransform(override: PrefabOverride): boolean {
+function editsPlacement(override: PrefabOverride): boolean {
+    let type: string | undefined;
     switch (override.type) {
         case 'property':
         case 'component_removed':
-            return override.componentType === 'Transform';
+            type = override.componentType;
+            break;
         case 'component_added':
         case 'component_replaced':
-            return override.componentData?.type === 'Transform';
+            type = override.componentData?.type;
+            break;
         default:
             return false;
     }
+    return type === 'Transform' || type === 'WorldPersistent';
 }
 
 const UNIT_SCALE: Vec3 = { x: 1, y: 1, z: 1 };
@@ -242,8 +254,8 @@ export function partitionWorld(
     const worldPosition = new Map<number, Vec3>();
     for (const root of roots) {
         const entry = byId.get(root)!;
-        const transform = localTransform(entry, options, errors);
-        const streamed = !hasComponent(entry, 'WorldPersistent')
+        const { transform, worldPersistent } = localPlacement(entry, options, errors);
+        const streamed = !worldPersistent
             && !hasComponent(entry, 'StreamedWorld')
             && (isPrefabEntry(entry) || transform !== null);
         const rootPosition = vec3(transform?.position, ORIGIN);
@@ -263,7 +275,14 @@ export function partitionWorld(
             placement.set(node.id, where);
             worldPosition.set(node.id, node.position);
             for (const child of childrenOf.get(node.id) ?? []) {
-                const childTransform = localTransform(byId.get(child)!, options, errors);
+                const childEntry = byId.get(child)!;
+                const { transform: childTransform, worldPersistent: childPersistent } = localPlacement(childEntry, options, errors);
+                if (childPersistent) {
+                    errors.push(
+                        `entity ${child} ("${nameOf(childEntry)}") carries WorldPersistent but is not top-level — `
+                        + 'a subtree is the residency atom, so persistence is its root\'s answer',
+                    );
+                }
                 const local = vec3(childTransform?.position, ORIGIN);
                 const position = node.matrix ? transformPoint(node.matrix, local) : local;
                 // As in the runtime, a folder passes its parent's matrix on,
@@ -281,12 +300,6 @@ export function partitionWorld(
     const rootIds = new Set(roots);
     for (const entry of entries) {
         if (rootIds.has(entry.id)) continue;
-        if (hasComponent(entry, 'WorldPersistent')) {
-            errors.push(
-                `entity ${entry.id} ("${nameOf(entry)}") carries WorldPersistent but is not top-level — `
-                + 'a subtree is the residency atom, so persistence is its root\'s answer',
-            );
-        }
         if (hasComponent(entry, 'StreamedWorld')) {
             errors.push(`entity ${entry.id} ("${nameOf(entry)}") carries StreamedWorld but is not top-level`);
         }

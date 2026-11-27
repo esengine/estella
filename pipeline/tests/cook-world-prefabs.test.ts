@@ -149,6 +149,25 @@ describe('cooking a world that instances a prefab', () => {
         expect(manifest.persistentRefs).toEqual([2]);
     });
 
+    it('exports a prefab instance with a root persistence override in the persistent scene', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[1].overrides.push({ prefabEntityId: 'r', type: 'component_added',
+            componentData: { type: 'WorldPersistent', data: {} } });
+        scene.entities.push({ id: 2, name: 'Streamed mesh', parent: null, children: [], components: [
+            { type: 'Transform', data: { position: { x: 2500, y: 0, z: 500 } } },
+            { type: 'MeshSkin', data: { joints: [1] } },
+        ] });
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_2_0']);
+        const persistent = JSON.parse(await readFile(sceneFile, 'utf8'));
+        expect(persistent.entities.map((entity: { id: number }) => entity.id)).toEqual([0, 1]);
+        const manifest = JSON.parse(await readFile(path.join(root, 'world/main.world.json'), 'utf8')) as WorldManifest;
+        expect(manifest.persistentRefs).toEqual([1]);
+    });
+
     it.each([
         { axes: 'XY', plane: StreamPlane.Screen, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }, edge: 'maxZ' as const, extent: 1300 },
         { axes: 'XZ', plane: StreamPlane.Ground, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, edge: 'minZ' as const, extent: -1100 },
