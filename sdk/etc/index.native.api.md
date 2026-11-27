@@ -4341,6 +4341,7 @@ pass: DrawPass
 ```
 groupInner: number | null | undefined
 layer: number
+opaque: boolean | undefined
 order: LayerOrder
 orderInLayer: number
 worldY: number

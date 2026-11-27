@@ -98,6 +98,8 @@ export interface DrawRank {
      *  See {@link sortingIdentity} — with a group, `layer`/`orderInLayer` are the
      *  GROUP's and this is what separates the members. */
     groupInner?: number | null;
+    /** Opaque surfaces draw before blended content at the same layer and order. */
+    opaque?: boolean;
     worldY: number;
     worldZ: number;
 }
@@ -123,6 +125,7 @@ export function compareDrawRank(a: DrawRank, b: DrawRank): number {
     const ao = clampDrawOrder(a.orderInLayer);
     const bo = clampDrawOrder(b.orderInLayer);
     if (ao !== bo) return ao - bo;
+    if (!!a.opaque !== !!b.opaque) return a.opaque ? -1 : 1;
     // Above the rule, where the key spends those bits. Only when BOTH are grouped: a
     // group colliding with an ungrouped draw on layer AND order interleaves undefined —
     // that promise is about the group's own place.

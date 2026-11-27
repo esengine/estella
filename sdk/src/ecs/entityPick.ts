@@ -11,7 +11,7 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, Sprite, ShapeRenderer, SortingGroup, Parent } from './component';
+import { Transform, Sprite, ShapeRenderer, MeshRenderer, SortingGroup, Parent } from './component';
 import {
     layerOrderOf, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -88,36 +88,50 @@ export function pickEntitiesByRay(
     // where it stands is entityWorldBox's.
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const hits: PickCandidate<Entity>[] = [];
+    const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
     for (const entity of world.getAllEntities()) {
         if (!world.valid(entity) || !world.has(entity, Transform)) continue;
         if (opts.pickable && !opts.pickable(entity)) continue;
         // A mesh's extent is in its vertices, so it is asked for before the icon
         // fallback would answer with the size of a gizmo.
-        const box = meshWorldBox(world, entity) ?? entityWorldBox(world, entity, { iconHalf, extentOf: opts.extentOf });
-        if (!box || entityBoxRayHit(box, ray.origin, ray.dir) === null) continue;
+        const meshBox = meshWorldBox(world, entity);
+        const box = meshBox ?? entityWorldBox(world, entity, { iconHalf, extentOf: opts.extentOf });
+        if (!box) continue;
+        const distance = entityBoxRayHit(box, ray.origin, ray.dir);
+        if (distance === null) continue;
 
-        const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite)
+        const mesh = meshBox ? world.get(entity, MeshRenderer) : null;
+        const sprite = mesh ? null : world.has(entity, Sprite) ? world.get(entity, Sprite)
             : world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
         const identity = sortingIdentity(
             enclosingGroups(world, entity),
-            sprite ? sprite.layer : unlayered,
+            mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
             (sprite as { order?: number } | null)?.order ?? 0,
         );
         const t = world.get(entity, Transform);
-        hits.push({
+        const candidate: PickCandidate<Entity> = {
             entity,
-            index: hits.length,
+            index: hits.length + opaqueHits.length,
             rank: {
                 layer: identity.layer,
                 order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
                 orderInLayer: identity.orderInLayer,
                 groupInner: identity.groupInner,
+                opaque: mesh?.opaque,
                 worldY: t.worldPosition.y,
                 worldZ: t.worldPosition.z ?? 0,
             },
-        });
+        };
+        if (mesh?.opaque) opaqueHits.push({ candidate, distance });
+        else hits.push(candidate);
     }
-    return rankPickCandidates(hits);
+    if (!opaqueHits.length) return rankPickCandidates(hits);
+
+    // Depth-tested opaque meshes occlude one another even across sorting layers.
+    // Rank the nearest against the blended draws; keep the others for cycling.
+    opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
+    hits.push(opaqueHits[0].candidate);
+    return rankPickCandidates(hits).concat(opaqueHits.slice(1).map(hit => hit.candidate.entity));
 }

@@ -8,9 +8,13 @@
  * clickable in one and a point in the other.
  */
 import { describe, expect, it } from 'vitest';
+import { App } from '../src/app/app';
 import { pickEntitiesByRay } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, SortingGroup, Parent } from '../src/ecs/component';
+import { q } from '../src/math/quat';
+import { MeshRenderers, meshRendererPlugin } from '../src/render/meshRenderer';
 import type { Entity } from '../src/types';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
 const ent = (n: number) => n as unknown as Entity;
@@ -68,6 +72,63 @@ describe('picking entities by ray', () => {
         );
         expect(pickEntitiesByRay(world, down(150, 150))).toEqual([ent(1)]);
         expect(pickEntitiesByRay(world, down(250, 0))).toEqual([]);
+    });
+
+    it('picks the nearest opaque mesh when seen from the side of mirrored geometry', () => {
+        const bounds = { minX: 0, minY: -2, minZ: -2, maxX: 4, maxY: 2, maxZ: 2 };
+        const world = fakeWorld({
+            1: { Transform: { ...T(8, 0), worldScale: { x: -2, y: 1, z: 1 } }, MeshRenderer: { opaque: true, layer: 0 } },
+            2: { Transform: T(-8, 0), MeshRenderer: { opaque: true, layer: 9 } },
+        }, { 1: bounds, 2: bounds });
+        expect(pickEntitiesByRay(world, { origin: { x: 20, y: 0, z: 0 }, dir: { x: -1, y: 0, z: 0 } }))
+            .toEqual([ent(1), ent(2)]);
+        expect(pickEntitiesByRay(world, { origin: { x: -20, y: 0, z: 0 }, dir: { x: 1, y: 0, z: 0 } }))
+            .toEqual([ent(2), ent(1)]);
+    });
+
+    it.skipIf(!HAS_WASM)('orders meshes using bounds from the engine under a mirrored parent', async () => {
+        const core = await loadWasmModule();
+        const app = App.new();
+        const registry = new core.Registry();
+        app.connectCpp(registry, core, { ownedRegistry: true });
+        app.addPlugin(meshRendererPlugin);
+        const world = app.world;
+        try {
+            const parent = world.spawn();
+            world.insert(parent, Transform, { rotation: q.axis('y', Math.PI / 2), scale: { x: -2, y: 1, z: 1 } });
+            const mesh = (z: number, layer: number) => {
+                const entity = world.spawn();
+                world.insert(entity, Transform, { position: { x: 0, y: 0, z } });
+                world.insert(entity, MeshRenderer, { opaque: true, layer });
+                world.setParent(entity, parent);
+                app.getResource(MeshRenderers).setGeometry(entity, {
+                    positions: [0, -2, 4, -2, 0, 2], indices: [0, 1, 2],
+                });
+                return entity;
+            };
+            const near = mesh(8, 0), far = mesh(-8, 9);
+            core.transform_update(registry);
+            const hit = pickEntitiesByRay(world, { origin: { x: 20, y: -1, z: 2 }, dir: { x: -1, y: 0, z: 0 } });
+            expect(hit).toEqual([near, far]);
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
+    it('uses the mesh sorting layer rather than its icon fallback layer', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), Sprite: sprite(3) },
+            2: { Transform: T(0, 0), MeshRenderer: { layer: 2 } },
+            3: { Transform: T(0, 0), MeshRenderer: { layer: 4 } },
+        }, { 2: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 },
+            3: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 } });
+        expect(pickEntitiesByRay(world, down(0, 0), { iconHalf: 24 })).toEqual([ent(3), ent(1), ent(2)]);
+    });
+
+    it('ranks a blended sprite over the opaque mesh at the same draw order', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0, 20), MeshRenderer: { opaque: true, layer: 0 } },
+            2: { Transform: T(0, 0, 0), Sprite: sprite(0) },
+        }, { 1: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 } });
+        expect(pickEntitiesByRay(world, down(0, 0))).toEqual([ent(2), ent(1)]);
     });
 
     it('only boxes what draws nothing when the realm draws a gizmo for it', () => {
