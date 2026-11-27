@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
+import { createTilemapAPI } from '../src/tilemap/tilemapAPI';
 
 describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
   let core: ESEngineModule;
@@ -49,5 +50,26 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       expect(core.tilemap_readChunkTiles!(10, 0, 0, core.HEAPU8.length - 4, 256)).toBe(false);
       expect(core.tilemap_getTile!(10, 0, 0)).toBe(1);
     } finally { core.tilemap_destroyLayer!(10); }
+  });
+
+  it('keeps invalid SDK coordinates from aliasing valid cells at the integer boundaries', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    tiles.initInfiniteLayer(10, 16, 16);
+    const min = -0x80000000, max = 0x7fffffff;
+    try {
+      tiles.setTile(10, min, 0, 1);
+      tiles.setTile(10, max, 0, 2);
+      tiles.setTile(10, max + 1, 0, 3);
+      tiles.fillRect(10, min - 1, 0, 1, 1, 4);
+      tiles.flipTile(10, max + 1, 0, true, false, false);
+      tiles.rotateTile(10, min - 1, 0, 90);
+      tiles.setTile(10, 0.5, 0, 5);
+      expect(tiles.getTile(10, min, 0)).toBe(1);
+      expect(tiles.getTile(10, max, 0)).toBe(2);
+      expect(tiles.getTile(10, 0, 0)).toBe(0);
+      expect(tiles.getTile(10, max + 1, 0)).toBe(0);
+      expect(tiles.getTile(10, min - 1, 0)).toBe(0);
+    } finally { tiles.destroyLayer(10); }
   });
 });

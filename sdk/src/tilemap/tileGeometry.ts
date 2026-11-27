@@ -41,6 +41,11 @@ export interface Vec2Like {
     y: number;
 }
 
+/** Whether a cell coordinate can cross the tilemap bindings without coercion. */
+export function isTileCoordinate(value: number): boolean {
+    return Number.isInteger(value) && value >= -0x80000000 && value <= 0x7fffffff;
+}
+
 /** The grid origin and planar angle used by the tile renderer. The offset is layer-local. */
 export function tileWorldFrame(position: Vec3, q: Quat, offset?: Vec2Like): Vec3 & { rotation: number } {
     // Mirror TilemapRenderPlugin's projection of the full quaternion onto the XY plane.

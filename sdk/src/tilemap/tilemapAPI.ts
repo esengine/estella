@@ -6,7 +6,7 @@ import { worldEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import type { World } from '../ecs/world';
 import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollisionChunks';
 import { defineResource } from '../ecs/resource';
-import { tileWorldToLocal } from './tileGeometry';
+import { isTileCoordinate, tileWorldToLocal } from './tileGeometry';
 
 // The binding declarations supply the signatures on both hosts. Some older tilemap
 // cores only expose the original layer API and use a full chunk export for collision.
@@ -106,16 +106,19 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     },
 
     setTile(entity: number, x: number, y: number, tileId: number): void {
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return;
         moduleOf()?.tilemap_setTile(entity, x, y, tileId);
     },
 
     getTile(entity: number, x: number, y: number): number {
-        if (!moduleOf()) return 0;
-        return moduleOf()!.tilemap_getTile(entity, x, y);
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return 0;
+        return moduleOf()?.tilemap_getTile(entity, x, y) ?? 0;
     },
 
     fillRect(entity: number, x: number, y: number,
              w: number, h: number, tileId: number): void {
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return;
+        if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0 || w > 0xffffffff || h > 0xffffffff) return;
         moduleOf()?.tilemap_fillRect(entity, x, y, w, h, tileId);
     },
 
@@ -213,16 +216,18 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     },
 
     getTileProperty(entity: number, x: number, y: number, key: string): string {
-        if (!moduleOf()) return '';
-        return moduleOf()!.tilemap_getTileProperty(entity, x, y, key);
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return '';
+        return moduleOf()?.tilemap_getTileProperty(entity, x, y, key) ?? '';
     },
 
     flipTile(entity: number, x: number, y: number,
              flipH: boolean, flipV: boolean, flipD: boolean): void {
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return;
         moduleOf()?.tilemap_flipTile(entity, x, y, flipH, flipV, flipD);
     },
 
     rotateTile(entity: number, x: number, y: number, degrees: number): void {
+        if (!isTileCoordinate(x) || !isTileCoordinate(y)) return;
         moduleOf()?.tilemap_rotateTile(entity, x, y, degrees);
     },
 
@@ -268,6 +273,7 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     /** Grid anchor in world pixels; rotation is the layer's world Z angle in radians. */
     tileToWorld(entity: number, tx: number, ty: number,
                 originX: number, originY: number, rotation = 0): { x: number; y: number } {
+        if (!isTileCoordinate(tx) || !isTileCoordinate(ty)) return { x: 0, y: 0 };
         const module = moduleOf();
         if (!module) return { x: 0, y: 0 };
         const ptr = module.tilemap_tileToWorld(entity, tx, ty, 0, 0);

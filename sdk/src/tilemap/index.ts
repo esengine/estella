@@ -27,7 +27,7 @@ export {
     type CollisionBrush, type CollisionMaterial,
 } from './collisionPalette';
 export {
-    tileCellCenter, tileCellOutline, tileWorldFrame, isNonOrthogonal, usesStagger, isHexOrientation, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex,
+    tileCellCenter, tileCellOutline, tileWorldFrame, isTileCoordinate, isNonOrthogonal, usesStagger, isHexOrientation, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex,
     type TileGridParams, type TileGridLayout, type Vec2Like,
 } from './tileGeometry';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
