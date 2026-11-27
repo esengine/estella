@@ -70,6 +70,7 @@ export interface AnimatorParam {
  * trigger is set (and consumes it); `window` holds while the state being left
  * has the window `param` names open (a combo's input window: a custom event with
  * a duration on its clip), so a chain is taken only where the clip allows it.
+ * An empty name leaves the condition unbound and unable to pass.
  */
 export type AnimatorCondition =
     | { param: string; op: 'gt' | 'lt' | 'eq' | 'neq'; value: number }
@@ -315,6 +316,7 @@ function conditionHolds(
     triggers: ReadonlySet<string>,
     windows: ReadonlySet<string>,
 ): boolean {
+    if (!c.param) return false;
     switch (c.op) {
         case 'gt': return Number(params[c.param] ?? 0) > c.value;
         case 'lt': return Number(params[c.param] ?? 0) < c.value;

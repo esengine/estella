@@ -16,7 +16,7 @@ import {
     updateLayer as updateAnimatorLayer, moveLayer as moveAnimatorLayer,
     addIK as addAnimatorIK, removeIK as removeAnimatorIK, updateIK as updateAnimatorIK,
 } from '../src/animation/animatorGraph';
-import { animatorLayerCount, ANIMATOR_FORMAT_VERSION } from '../src/animation/Animator';
+import { animatorLayerCount, evaluateAnimatorPath, ANIMATOR_FORMAT_VERSION } from '../src/animation/Animator';
 import type { AnimatorControllerDef } from '../src/animation/Animator';
 
 describe('animatorGraph', () => {
@@ -110,6 +110,16 @@ describe('animatorGraph', () => {
         expect(def.parameters).toEqual([]);
     });
 
+    it('leaves a deleted parameter’s transition condition in place but inactive', () => {
+        let def = addParam(addState(emptyAnimatorController(), 'Run'), 'Speed', 'float');
+        def = addTransition(def, 'Idle', 'Run');
+        def = setConditions(def, 'Idle', 0, [{ op: 'lt', param: 'Speed', value: 1 }]);
+        const next = removeParam(def, 'Speed');
+        expect(next.states[0].transitions[0].conditions).toEqual([{ op: 'lt', param: '', value: 1 }]);
+        expect(evaluateAnimatorPath(next, 'Idle', {}, new Set()).nextPath).toBeNull();
+        expect(evaluateAnimatorPath(addParam(next, 'Speed', 'float'), 'Idle', { Speed: 0 }, new Set()).nextPath).toBeNull();
+    });
+
     it('renames controller parameter references through layers, sub-machines, and nested blends', () => {
         const condition = { param: 'speed', op: 'gt' as const, value: 0.5 };
         const window = { param: 'speed', op: 'window' as const };
@@ -141,6 +151,17 @@ describe('animatorGraph', () => {
         expect(def.states[0].speedParameter).toBe('speed');
         expect(updateParam(def, 'speed', { name: 'strafe' })).toBe(def);
         expect(updateParam(def, 'speed', { name: ' ' })).toBe(def);
+
+        const unbound = removeParam(def, 'speed');
+        const inactive = { ...transition, conditions: [{ ...condition, param: '' }, window] };
+        expect(unbound.anyStateTransitions).toEqual([inactive]);
+        expect(unbound.ik![0].parameter).toBeUndefined();
+        expect(unbound.states[0].speedParameter).toBeUndefined();
+        expect(unbound.states[0].distanceParameter).toBeUndefined();
+        expect(unbound.states[0].motion).toMatchObject({ parameterX: '', parameterY: 'strafe', points: [{ motion: { parameter: '' } }] });
+        expect(unbound.layers![0]).toMatchObject({ anyStateTransitions: [inactive], states: [{ stateMachine: {
+            anyStateTransitions: [inactive], states: [{ ...leaf, transitions: [inactive], blend: { parameter: '' } }],
+        } }] });
     });
 
     it('flattens transitions into addressable edges', () => {

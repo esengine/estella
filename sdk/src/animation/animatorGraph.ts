@@ -223,7 +223,9 @@ export function addParam(def: AnimatorControllerDef, name: string, type: Animato
 }
 
 export function removeParam(def: AnimatorControllerDef, name: string): AnimatorControllerDef {
-    return { ...def, parameters: def.parameters.filter((p) => p.name !== name) };
+    const parameters = def.parameters.filter(p => p.name !== name);
+    if (parameters.length === def.parameters.length) return def;
+    return changeParamReferences({ ...def, parameters }, name, undefined);
 }
 
 export function updateParam(def: AnimatorControllerDef, name: string, patch: Partial<AnimatorParam>): AnimatorControllerDef {
@@ -231,16 +233,18 @@ export function updateParam(def: AnimatorControllerDef, name: string, patch: Par
     const nextName = patch.name ?? name;
     if (nextName !== name && (!nextName.trim() || def.parameters.some(p => p.name === nextName))) return def;
     const next = { ...def, parameters: def.parameters.map(p => p.name === name ? { ...p, ...patch, name: nextName } : p) };
-    return nextName === name ? next : renameParamReferences(next, name, nextName);
+    return nextName === name ? next : changeParamReferences(next, name, nextName);
 }
 
-/** Clip windows have their own names, even when a parameter has the same spelling. */
-function renameParamReferences(def: AnimatorControllerDef, from: string, to: string): AnimatorControllerDef {
-    const rename = (name: string) => name === from ? to : name;
+/** An empty binding keeps the authored condition or blend available for repair. */
+function changeParamReferences(def: AnimatorControllerDef, from: string, to: string | undefined): AnimatorControllerDef {
+    const binding = to ?? '';
+    const rename = (name: string) => name === from ? binding : name;
+    // Clip window names belong to the clip, independently of controller parameters.
+    const refersToParam = (c: AnimatorCondition) => c.op !== 'window' && c.param === from;
     const transitions = (list: AnimatorTransition[]) => list.map(t => {
-        const refersToParam = (c: AnimatorCondition) => c.op !== 'window' && c.param === from;
         return t.conditions.some(refersToParam)
-            ? { ...t, conditions: t.conditions.map(c => refersToParam(c) ? { ...c, param: to } : c) }
+            ? { ...t, conditions: t.conditions.map(c => refersToParam(c) ? { ...c, param: binding } : c) }
             : t;
     });
 
@@ -265,7 +269,7 @@ function renameParamReferences(def: AnimatorControllerDef, from: string, to: str
                 transitions: transitions(state.transitions),
                 ...(state.speedParameter === from && { speedParameter: to }),
                 ...(state.distanceParameter === from && { distanceParameter: to }),
-                ...(state.blend?.parameter === from && { blend: { ...state.blend, parameter: to } }),
+                ...(state.blend?.parameter === from && { blend: { ...state.blend, parameter: binding } }),
                 ...(state.motion && { motion: motionTree(state.motion) }),
                 ...(state.stateMachine && { stateMachine: machine(state.stateMachine) }),
             })),
