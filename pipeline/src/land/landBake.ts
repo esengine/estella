@@ -240,9 +240,14 @@ function maskOf(g: Grid, where: Where | undefined, range: number, weights?: Read
         const by = where[key];
         if (by && !fieldOf(by.what)) throw new LandBuildError(`where.${key} asks for the nearest ${by.what}, and no step has made one`);
     }
+    const nots = (where.not === undefined ? [] : Array.isArray(where.not) ? where.not : [where.not as Where]).map((n) => maskOf(g, n, range, weights));
     return (i, j) => {
         const k = j * g.n + i, h = g.h[k]!;
         let m = 1;
+        for (const not of nots) {
+            m *= 1 - not(i, j);
+            if (m <= 0) return 0;
+        }
         if (where.above !== undefined) m *= smooth(where.above - feather, where.above + feather, h);
         if (where.below !== undefined) m *= smooth(where.below + feather, where.below - feather, h);
         if (m <= 0) return 0;

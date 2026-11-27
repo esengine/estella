@@ -40,6 +40,11 @@ export interface Where {
     far?: { what: 'river' | 'road' | 'lake' | 'coast'; within: number; fade?: number };
     /** By the weight an earlier layer has there (layers and maps only). */
     layer?: string;
+    /**
+     * None of it where this holds: a place to keep out (a town in a wood), or several, each a `where` of its own. Its edges fade as
+     * its own keys say, so a clearing has as soft a rim as the circle or outline that makes it.
+     */
+    not?: Where | readonly Where[];
 }
 
 interface StepBase { id?: string; where?: Where }
@@ -264,6 +269,7 @@ function whereInWorld(where: Where | undefined, k: number): Where | undefined {
         const by = where[key];
         if (by) w[key] = { ...by, within: scaled(by.within, k), ...(by.fade !== undefined ? { fade: scaled(by.fade, k) } : {}) };
     }
+    if (where.not) w.not = Array.isArray(where.not) ? where.not.map((n) => whereInWorld(n, k)) : whereInWorld(where.not as Where, k);
     return w as Where;
 }
 

@@ -87,6 +87,18 @@ describe('shaping ground', () => {
         expect(() => land([flat], { unit: 0 })).toThrow(/unit/);
     });
 
+    it('keeps places out of a map with `not`: one where or several, in the unit of the source', () => {
+        const maps = [{ name: 'wood', where: { not: [{ within: { at: [-2, 0] as const, radius: 1 } }, { outline: [[2, -1], [4, -1], [4, 1], [2, 1]] as const }] } }];
+        const l = land([flat], { unit: 100, size: [10, 10], resolution: 129, maps });
+        const values = l.maps.find((m) => m.name === 'wood')!.values, side = Math.round(Math.sqrt(values.length));
+        // The map's samples run across the land from its north-west corner; world (x, z) in metres here.
+        const at = (x: number, z: number) => values[Math.round((z / 10 + 0.5) * (side - 1)) * side + Math.round((x / 10 + 0.5) * (side - 1))]!;
+        expect(at(-2, 0)).toBe(0);
+        expect(at(3, 0)).toBe(0);
+        expect(at(0, 3)).toBe(255);
+        expect(at(-4.5, -4)).toBe(255);
+    });
+
     it('keeps what grows: a plant by one of its maps, its lengths in the unit of the source, and refuses one with no map or no shape', () => {
         const maps = [{ name: 'meadow' }];
         const l = land([flat], { unit: 100, size: [10, 10], maps, plants: [
