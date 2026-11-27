@@ -20,7 +20,7 @@ import type { InteractableData } from './interactable';
 import { screenToUiWorld, screenToUiLayout, uiHitAtScreen } from '../util/ui-pick';
 import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
-import { platformDevicePixelRatio } from '../../platform';
+import { renderSurfaceDevicePixelRatio } from '../../platform/base';
 import { ensureComponent, walkParentChain } from '../util/helpers';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
@@ -125,7 +125,7 @@ export class UIInteractionPlugin implements Plugin {
             if (position) {
                 const camera = app.getResource(UICameraInfo), overlay = app.getResource(ScreenOverlay);
                 if (!camera.valid && !overlay.active) return;
-                const screen = pointerToScreen(position.x, position.y, platformDevicePixelRatio(), overlay.active ? overlay.surfaceH : camera.screenH);
+                const screen = pointerToScreen(position.x, position.y, renderSurfaceDevicePixelRatio(app), overlay.active ? overlay.surfaceH : camera.screenH);
                 const previous = controlPointers.get(pointer);
                 if (!previous || previous.screenX !== screen.x || previous.screenY !== screen.y) {
                     under = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
@@ -184,7 +184,7 @@ export class UIInteractionPlugin implements Plugin {
                 // Either domain is enough to be pointing AT something: a scene
                 // with no camera still has a screen, and a HUD on it is still
                 // clickable.
-                const dpr = platformDevicePixelRatio();
+                const dpr = renderSurfaceDevicePixelRatio(app);
                 const surfaceH = overlay.active ? overlay.surfaceH : camera.screenH;
                 const pointers = uiPointersOf(input);
                 controlPointers.clear();

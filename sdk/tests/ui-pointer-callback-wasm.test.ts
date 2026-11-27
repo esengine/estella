@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App, flushPendingRegistrations } from '../src/app/app';
+import { bindRenderSurface } from '../src/app/surface';
+import { CameraViewAPI } from '../src/camera/Camera';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Input, InputState, inputEventCallbacks } from '../src/input/input';
@@ -98,6 +100,32 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         input.clearFrameState(); callbacks.onTouchEnd!(3); await app.tick(1 / 60);
         expect(clicks).toHaveBeenCalledTimes(2);
         expect(app.world.get(entity, UIInteraction).pressed).toBe(false);
+    });
+    it('projects UI and camera input using the window that owns the render canvas', async () => {
+        const frame = document.body.appendChild(document.createElement('iframe'));
+        const canvas = frame.contentDocument!.createElement('canvas');
+        Object.defineProperty(frame.contentWindow, 'devicePixelRatio', { value: 2 });
+        bindRenderSurface(app, { canvas }, { kind: 'gl-context', handle: 0 });
+        const camera = app.getResource(UICameraInfo);
+        Object.assign(camera, {
+            valid: true, screenW: 800, screenH: 600, vpX: 0, vpY: 0, vpW: 800, vpH: 600,
+            viewProjection: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+        });
+        const callbacks = inputEventCallbacks(app.getResource(Input));
+        try {
+            callbacks.onPointerMove(100, 50, 0, 0);
+            await app.tick(1 / 60);
+            expect(camera.worldMouseX).toBe(200);
+            expect(camera.worldMouseY).toBe(500);
+            expect(app.getResource(ScreenOverlay)).toMatchObject({ pointerX: 200, pointerY: 500 });
+            const point = new CameraViewAPI(app).pointerToWorld(100, 50);
+            expect(point?.x).toBeCloseTo(-0.5);
+            expect(point?.y).toBeCloseTo(2 / 3);
+            document.adoptNode(canvas);
+            await app.tick(1 / 60);
+            expect(camera.worldMouseX).toBe(100);
+            expect(camera.worldMouseY).toBe(550);
+        } finally { frame.remove(); }
     });
     it('a consumed primary release cancels the actual WASM control instead of clicking it', async () => {
         const entity = app.world.spawn(); hit.entity = entity; app.world.insert(entity, Interactable);

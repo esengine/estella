@@ -456,6 +456,14 @@ export function platformDevicePixelRatio(): number {
     return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 }
 
+/** Device scale of the window displaying an App's canvas. A dock can adopt the canvas into another window. */
+export function renderSurfaceDevicePixelRatio(app: App): number {
+    const canvas = renderCanvasOf(app);
+    const owner = canvas && 'ownerDocument' in canvas ? canvas.ownerDocument as Document | undefined : undefined;
+    const ratio = owner?.defaultView?.devicePixelRatio;
+    return ratio !== undefined && Number.isFinite(ratio) && ratio > 0 ? ratio : platformDevicePixelRatio();
+}
+
 /** The host's UI language as a BCP-47-ish tag ('zh-CN', 'en-US', …): the
  *  adapter's report (WeChat), else navigator.language (web), else 'en'.
  *  Underscore tags ('zh_CN') normalize to hyphens. Tolerates an
