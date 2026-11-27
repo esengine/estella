@@ -97,6 +97,22 @@ describe('cooking a world that instances a prefab', () => {
         await expect(readFile(path.join(root, 'world/main.world.json'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
+    it('writes persistent entity links from instance components into the world manifest', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[1].overrides.push({ prefabEntityId: 'r', type: 'component_added',
+            componentData: { type: 'MeshSkin', data: { joints: ['r', 2, 0] } } });
+        scene.entities[1].added = [];
+        scene.entities[1].removed = [];
+        scene.entities.push({ id: 2, name: 'Persistent joint', parent: null, children: [], components: [] });
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_1_0']);
+        const manifest = JSON.parse(await readFile(path.join(root, 'world/main.world.json'), 'utf8')) as WorldManifest;
+        expect(manifest.persistentRefs).toEqual([2]);
+    });
+
     it.each([
         { axes: 'XY', plane: StreamPlane.Screen, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }, edge: 'maxZ' as const, extent: 1300 },
         { axes: 'XZ', plane: StreamPlane.Ground, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, edge: 'minZ' as const, extent: -1100 },

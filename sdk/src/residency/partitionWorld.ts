@@ -24,11 +24,12 @@
  *          fields hold entity references, and where a prefab's root sits.
  */
 
-import { isPrefabEntry } from '../scene/sceneEntry';
+import { isPrefabEntry, visitSceneEntryEntityReferences } from '../scene/sceneEntry';
 import { cellAt, cellSquare, planeSecond } from './cells';
 import { StreamPlane } from './components';
 import { applyOverrides } from '../prefab/override';
 import { composeTRS, multiplyAffine } from '../math/mat4';
+import { INVALID_ENTITY } from '../types';
 import type { SceneData, SceneEntityData, SceneComponentData } from '../scene/scene';
 import type { SceneEntry } from '../scene/sceneEntry';
 import type { PrefabInstanceEntry } from '../prefab/sceneInstance';
@@ -381,12 +382,15 @@ function checkReferences(
             ? b.cell === null
             : b.cell !== null && a.cell.x === b.cell.x && a.cell.z === b.cell.z;
 
-    const check = (holder: SceneEntry, componentType: string, field: string, value: unknown): void => {
-        const one = (candidate: unknown): void => {
-            if (typeof candidate !== 'number' || !byId.has(candidate)) return;
-            const from = placement.get(holder.id);
+    for (const holder of entries) {
+        const from = placement.get(holder.id);
+        if (!from) continue;
+        visitSceneEntryEntityReferences(holder, options.entityFieldsOf, (componentType, field, candidate) => {
+            // Strings in a prefab delta refer to instance-local IDs. Zero and
+            // legacy negative values are empty references even in old scenes.
+            if (typeof candidate !== 'number' || candidate <= INVALID_ENTITY || !byId.has(candidate)) return;
             const to = placement.get(candidate);
-            if (!from || !to || from.root === to.root || sameDocument(from, to)) return;
+            if (!to || from.root === to.root || sameDocument(from, to)) return;
             if (from.cell !== null && to.cell === null) { persistentRefs.add(candidate); return; }
             const where = to.cell === null ? 'the persistent world' : `cell ${to.cell.x},${to.cell.z}`;
             errors.push(
@@ -394,26 +398,6 @@ function checkReferences(
                 + `entity ${candidate} ("${nameOf(byId.get(candidate)!)}") in ${where} — `
                 + 'residency may delete one without the other',
             );
-        };
-        if (Array.isArray(value)) value.forEach(one);
-        else one(value);
-    };
-
-    for (const entry of entries) {
-        if (!isPrefabEntry(entry)) {
-            for (const component of (entry as SceneEntityData).components ?? []) {
-                for (const field of options.entityFieldsOf(component.type)) {
-                    check(entry, component.type, field, (component.data as Record<string, unknown>)[field]);
-                }
-            }
-            continue;
-        }
-        // An instance's references live in its overrides; the asset's own are
-        // internal to the instance and cannot cross a cell.
-        for (const override of (entry as PrefabInstanceEntry).overrides) {
-            if (override.type !== 'property' || !override.componentType || !override.propertyName) continue;
-            if (!options.entityFieldsOf(override.componentType).includes(override.propertyName)) continue;
-            check(entry, override.componentType, override.propertyName, override.value);
-        }
+        });
     }
 }

@@ -220,6 +220,36 @@ describe('partitionWorld', () => {
         expect(partition.persistentRefs).toEqual([1]);
     });
 
+    it.each(['component_added', 'component_replaced', 'added member'])(
+        'checks scene links in prefab %s data, ignoring local ids and the empty reference', kind => {
+            const makeInstance = (target: number) => {
+                const component = { type: 'MeshSkin', data: { joints: ['2', 0, target, -1] } };
+                return {
+                    id: 1, prefab: 'rig.esprefab', parent: null, removed: [],
+                    overrides: kind === 'added member' ? [] : [{ prefabEntityId: 'root', type: kind, componentData: component }],
+                    added: kind === 'added member' ? [{ prefabEntityId: 'new', components: [component] }] : [],
+                };
+            };
+            // A legacy scene can have entity zero in a different cell. The
+            // sentinel in the joint list still denotes an empty field.
+            const declarationAndTargets = [
+                entity(9, 'World', null, { components: [declaration] }),
+                entity(0, 'Legacy', [2500, 0, 500]),
+                entity(2, 'Persistent joint', null),
+            ];
+            const opts: PartitionOptions = {
+                entityFieldsOf: type => type === 'MeshSkin' ? ['joints'] : [],
+                resolvePrefab: () => ({ rootId: 'root', position: { x: 500, y: 0, z: 500 } }),
+            };
+            const valid = partitionWorld(scene(...declarationAndTargets, makeInstance(2)), 'main', opts)!;
+            expect(valid.errors).toEqual([]);
+            expect(valid.persistentRefs).toEqual([2]);
+            const invalid = partitionWorld(scene(...declarationAndTargets, makeInstance(3),
+                entity(3, 'Other cell', [3500, 0, 500])), 'main', opts)!;
+            expect(invalid.errors.join('\n')).toMatch(/MeshSkin\.joints.*entity 3.*cell 3,0/);
+        },
+    );
+
     it('refuses a persistent entity holding a reference into a cell', () => {
         // The dangerous direction: the holder outlives what it points at.
         const partition = cut(scene(

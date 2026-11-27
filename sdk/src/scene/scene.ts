@@ -10,7 +10,7 @@ import { liveEntities } from '../ecs/liveEntityHandles';
 import { initializeSceneComponents, installWorldHook, shouldExportComponent, type WorldHooks } from './worldHooks';
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
-import { isPrefabEntry, type SceneEntry } from './sceneEntry';
+import { isPrefabEntry, visitSceneEntryEntityReferences, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
@@ -388,17 +388,34 @@ export async function expandScenePrefabSources(
     // file, so they never collide with non-prefab entities or instance roots
     // (which keep their stable scene id across save/load).
     let nextId = 0;
+    let hasInstances = false;
     const byId = new Map<number, SceneEntry>();
     const fatal: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
     for (const e of entries) {
         if (byId.has(e.id)) fatal.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
         byId.set(e.id, e);
         nextId = Math.max(nextId, e.id);
+        hasInstances ||= isPrefabEntry(e);
     }
     // Expansion can omit entries. Check authored identities and links before resolving any sources.
     if (fatal.length === 0) checkParentCycle(entries, byId, (code, _, message) => fatal.push({ code, message }));
     if (fatal.length) throw sceneLoadError(scene.name, fatal);
-    const allocateId = () => ++nextId;
+    if (!hasInstances) return { ...scene, entities: scene.entities.slice() };
+    // An absent ID can name a persistent row or a missing target. Expansion
+    // must not give it to a prefab member before the loader resolves the link.
+    const reserved = new Set<number>();
+    const reserve = (id: unknown) => {
+        if (typeof id === 'number' && id > nextId && Number.isSafeInteger(id)) reserved.add(id);
+    };
+    const entityFieldsOf = (type: string) => getComponent(type)?.entityFields ?? [];
+    for (const e of entries) {
+        reserve(e.parent);
+        visitSceneEntryEntityReferences(e, entityFieldsOf, (_type, _field, ref) => reserve(ref));
+    }
+    const allocateId = () => {
+        do { nextId++; } while (reserved.has(nextId));
+        return nextId;
+    };
 
     const out: SceneEntityData[] = [];
     const deferred: DeferredRecord[] = [];

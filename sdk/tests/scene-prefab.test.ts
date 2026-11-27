@@ -352,6 +352,25 @@ describe('Prefab scene loading (PF1)', () => {
         expect(world.findEntityByName('Scope')).toBeNull(); // removed
     });
 
+    it('does not allocate prefab members over IDs referenced outside the scene document', async () => {
+        createMockModule();
+        const world = new World();
+        const Links = defineComponent('StreamedPrefabLinks', { targets: [0] }, { entityFields: ['targets'] });
+        const first = world.spawn(), second = world.spawn();
+        const scene = { version: 4, name: 'cell', entities: [{
+            id: 1, prefab: REF, parent: null, added: [], removed: [], overrides: [{
+                prefabEntityId: 'root', type: 'component_added',
+                componentData: { type: 'StreamedPrefabLinks', data: { targets: [2, 3, 'barrel', 0] } },
+            }],
+        }] } as unknown as SceneData;
+        const instances = await loadSceneWithAssets(world, scene, {
+            assets: mockAssets({ [REF]: turretPrefab() }), externalEntities: new Map([[2, first], [3, second]]),
+        });
+        expect(world.get(instances.get(1)!, Links).targets).toEqual([first, second, world.findEntityByName('Barrel'), 0]);
+        expect(instances.has(2)).toBe(false);
+        expect(instances.has(3)).toBe(false);
+    });
+
     // ── extractPrefab: live subtree → a new prefab asset (the authoring path). ──
     it('extractPrefab builds a PrefabData from a subtree (root first, minted ids, detached, deep-cloned)', () => {
         const subtree: ExtractEntity[] = [
