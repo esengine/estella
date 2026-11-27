@@ -97,6 +97,23 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
 });
 
 describe('picking entities by ray', () => {
+    it('resolves masked mesh layers and fallback sprites through live sorting groups', () => {
+        const world: PickWorld = fakeWorld({
+            1: { Transform: T(0, 0), MeshRenderer: { layer: 1 } },
+            2: { Transform: T(0, 0), MeshRenderer: { layer: 1 }, Parent: { entity: ent(5) } },
+            3: { Transform: T(0, 0), MeshRenderer: { layer: 1 }, Sprite: sprite(2) },
+            4: { Transform: T(0, 0) },
+            5: { SortingGroup: { layer: 2, order: 2, enabled: true }, Parent: { entity: ent(2) } },
+        }, {
+            1: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 },
+            2: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 },
+        });
+        const opts = { cullingMask: 1 << 2, iconHalf: 8 };
+        const ray = down(0, 0);
+        expect(pickEntitiesByRay(world, ray, opts)).toEqual([ent(4), ent(2), ent(3)]);
+        expect(pickEntityByRay(world, ray, { ...opts, iconHalf: 0 })).toBe(ent(2));
+    });
+
     it('keeps the same first hit across opaque ties, group overrides and blended layer rules', () => {
         const bounds = { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 };
         const world: PickWorld = fakeWorld({
