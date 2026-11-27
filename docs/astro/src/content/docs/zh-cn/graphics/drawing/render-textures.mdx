@@ -33,7 +33,7 @@ sprite.texture = rt.texture;
 
 ### 把相机渲染到目标
 
-把 `Camera.renderTarget` 设为目标的渲染目标句柄（`rt._handle`，而不是 `rt.texture`）后，该相机渲染到目标而不是屏幕。
+把 `Camera.renderTarget` 设为目标的渲染目标句柄（`rt.target`，而不是 `rt.texture`）后，该相机渲染到目标而不是屏幕。
 
 - 目标相机在屏幕相机之前渲染，不参与主视图的竞争。
 - `Camera.cullingMask` 选择相机可见的排序层，因此小地图相机与玩家相机可以显示同一世界的不同部分。
@@ -52,7 +52,7 @@ sprite.texture = rt.texture;
 
 | 方法 | 作用 |
 |---|---|
-| `create(options)` | 分配目标。返回的句柄含 `texture`（供组件使用的资源表句柄）、`textureId`（底层路径使用的设备 id）、`width`、`height`。 |
+| `create(options)` | 分配目标。返回的句柄含 `target`（渲染目标本身，供 `Camera.renderTarget` 与 `captureTargetPixels` 使用）、`texture`（供组件使用的资源表句柄）、`textureId`（底层路径使用的设备 id）、`width`、`height`。 |
 | `begin(rt, viewProjection, { data? })` | 把后续绘制重定向到目标。`data: true` 把绘制内容作为数据存储，跳过项目的后期链（线性捕获、输出变换、曝光）。 |
 | `end()` | 结束离屏渲染。 |
 | `resize(rt, width, height)` | 释放并重建目标。返回新句柄；`texture` 句柄会改变。 |
@@ -149,14 +149,14 @@ import { captureFramePixels, captureTargetPixels } from 'esengine';
 
 const module = app.wasmModule!;
 const frame = await captureFramePixels(module, canvas.width, canvas.height);
-const minimapPixels = await captureTargetPixels(module, minimap._handle, minimap.width, minimap.height);
+const minimapPixels = await captureTargetPixels(module, minimap.target, minimap.width, minimap.height);
 // { rgba: Uint8Array, width, height } | null, rows bottom-up
 ```
 
 | 函数 | 说明 |
 |---|---|
 | `captureFramePixels(module, width, height, advance?)` | 下一个完成的帧。GL 立即读取画布；WebGPU 在自己的帧末尾复制，因此在没有其他东西推动帧时，需要传入 `advance`（运行一帧的函数）。 |
-| `captureTargetPixels(module, target, width, height)` | GPU 绘制完成后渲染目标中的内容。`target` 为渲染目标句柄（`rt._handle`）。 |
+| `captureTargetPixels(module, target, width, height)` | GPU 绘制完成后渲染目标中的内容。`target` 为渲染目标句柄（`rt.target`）。 |
 | `canCaptureFramePixels(module)` / `canCaptureTargetPixels(module)` | 当前构建是否支持读回。 |
 
 以下情况两者都返回 `null`：构建不支持读回、目标已不存在、读回始终没有到达，或（仅限帧）WebGPU 表面配置时未开启读回。

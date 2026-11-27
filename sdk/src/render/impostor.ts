@@ -168,7 +168,7 @@ export class ImpostorPlugin implements Plugin {
                     });
                     world.insert(cam, Camera, {
                         projectionType: ProjectionType.Orthographic, orthoSize: radius, nearPlane: radius, farPlane: radius * 5,
-                        isActive: true, priority: -100000, renderTarget: kind.target._handle,
+                        isActive: true, priority: -100000, renderTarget: kind.target.target,
                         // A viewport is placed from the top of its target and a texture is read from the bottom: row j of the
                         // atlas is the (n - 1 - j)th from the top.
                         viewport: { x: i / n, y: (n - 1 - j) / n, z: 1 / n, w: 1 / n },

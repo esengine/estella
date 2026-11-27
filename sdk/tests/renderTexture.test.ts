@@ -57,7 +57,7 @@ describe('RenderTexture', () => {
         it('returns a RenderTextureHandle with correct fields', () => {
             const rt = RenderTexture.create({ width: 512, height: 512 });
             expect(rt).toEqual({
-                _handle: 1,
+                target: 1, _handle: 1,
                 textureId: 100,
                 texture: 0,
                 width: 512,
@@ -108,7 +108,7 @@ describe('RenderTexture', () => {
                 return 2;
             });
 
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 1, _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.resize(rt, 512, 512);
 
             expect(callOrder).toEqual(['release', 'create']);
@@ -119,11 +119,11 @@ describe('RenderTexture', () => {
             (Renderer.createRenderTarget as ReturnType<typeof vi.fn>).mockReturnValue(5);
             (Renderer.getTargetTexture as ReturnType<typeof vi.fn>).mockReturnValue(500);
 
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 1, _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             const resized = RenderTexture.resize(rt, 1024, 768);
 
             expect(resized).toEqual({
-                _handle: 5,
+                target: 5, _handle: 5,
                 textureId: 500,
                 texture: 0,
                 width: 1024,
@@ -135,13 +135,13 @@ describe('RenderTexture', () => {
         });
 
         it('preserves depth=false and filter=linear through resize', () => {
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: false, _filter: 'linear' as const, _generation: generation };
+            const rt = { target: 1, _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: false, _filter: 'linear' as const, _generation: generation };
             RenderTexture.resize(rt, 128, 128);
             expect(Renderer.createRenderTarget).toHaveBeenCalledWith(128, 128, 2);
         });
 
         it('preserves depth=true and filter=nearest through resize', () => {
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 1, _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.resize(rt, 128, 128);
             expect(Renderer.createRenderTarget).toHaveBeenCalledWith(128, 128, 1);
         });
@@ -190,7 +190,7 @@ describe('RenderTexture', () => {
             ['a data pass', { data: true }, 4],
         ] as const)('forwards the projection, target and flags for %s', (_label, options, flags) => {
             const vp = new Float32Array(16);
-            const rt = { _handle: 7, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 7, _handle: 7, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.begin(rt, vp, options);
             expect(Renderer.begin).toHaveBeenCalledWith(vp, 7, flags);
         });
@@ -202,7 +202,7 @@ describe('RenderTexture', () => {
 
         it('passes arguments in correct order (viewProjection first, handle second)', () => {
             const vp = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-            const rt = { _handle: 3, textureId: 100, texture: 0, width: 128, height: 128, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 3, _handle: 3, textureId: 100, texture: 0, width: 128, height: 128, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.begin(rt, vp);
 
             const call = (Renderer.begin as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -213,14 +213,14 @@ describe('RenderTexture', () => {
 
     describe('getDepthTexture', () => {
         it('proxies to Renderer.getTargetDepthTexture with correct handle', () => {
-            const rt = { _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 9, _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.getDepthTexture(rt);
             expect(Renderer.getTargetDepthTexture).toHaveBeenCalledWith(9);
         });
 
         it('returns the value from Renderer', () => {
             (Renderer.getTargetDepthTexture as ReturnType<typeof vi.fn>).mockReturnValue(999);
-            const rt = { _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
+            const rt = { target: 9, _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             const result = RenderTexture.getDepthTexture(rt);
             expect(result).toBe(999);
         });

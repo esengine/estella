@@ -35,7 +35,7 @@ sprite.texture = rt.texture;
 
 ### Rendering a camera into a target
 
-Setting `Camera.renderTarget` to the target's render-target handle (`rt._handle`, not `rt.texture`) makes that camera
+Setting `Camera.renderTarget` to the target's render-target handle (`rt.target`, not `rt.texture`) makes that camera
 render into the target instead of the screen.
 
 - Target cameras render before the screen cameras and do not compete to be the main view.
@@ -57,7 +57,7 @@ render into the target instead of the screen.
 
 | Method | Effect |
 |---|---|
-| `create(options)` | Allocates the target. Returns a handle with `texture` (resource-table handle for components), `textureId` (raw device id for low-level paths), `width`, `height`. |
+| `create(options)` | Allocates the target. Returns a handle with `target` (the render target, for `Camera.renderTarget` and `captureTargetPixels`), `texture` (resource-table handle for components), `textureId` (raw device id for low-level paths), `width`, `height`. |
 | `begin(rt, viewProjection, { data? })` | Redirects subsequent draws into the target. `data: true` stores what is drawn as data, bypassing the project's post chain (linear capture, output transform, exposure). |
 | `end()` | Ends offscreen rendering. |
 | `resize(rt, width, height)` | Releases and re-creates the target. Returns a new handle; the `texture` handle changes. |
@@ -164,14 +164,14 @@ import { captureFramePixels, captureTargetPixels } from 'esengine';
 
 const module = app.wasmModule!;
 const frame = await captureFramePixels(module, canvas.width, canvas.height);
-const minimapPixels = await captureTargetPixels(module, minimap._handle, minimap.width, minimap.height);
+const minimapPixels = await captureTargetPixels(module, minimap.target, minimap.width, minimap.height);
 // { rgba: Uint8Array, width, height } | null, rows bottom-up
 ```
 
 | Function | Description |
 |---|---|
 | `captureFramePixels(module, width, height, advance?)` | The next completed frame. GL reads the canvas at once; WebGPU copies at the end of its own frame, so pass `advance` (a function that runs one frame) when nothing else is driving frames. |
-| `captureTargetPixels(module, target, width, height)` | What a render target holds, after the GPU has drawn it. `target` is the render-target handle (`rt._handle`). |
+| `captureTargetPixels(module, target, width, height)` | What a render target holds, after the GPU has drawn it. `target` is the render-target handle (`rt.target`). |
 | `canCaptureFramePixels(module)` / `canCaptureTargetPixels(module)` | Whether this build supports the read. |
 
 Both return `null` when the build cannot capture, the target is gone, the readback never arrives, or (frames only) the

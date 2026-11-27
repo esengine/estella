@@ -377,7 +377,7 @@ const UV_SPACE = new Float32Array([2, 0, 0, 0, 0, 2, 0, 0, 0, 0, -1, 0, -1, -1, 
 /** Opens a pass into `target` that writes data (no post chain, no colour encoding), cleared to `clear` as it is. */
 function openDataPass(target: RenderTextureHandle, clear: readonly [number, number, number, number]): void {
     // Bit 1 clears colour, 4 marks the pass as data: its clear is not decoded as a colour either.
-    Renderer.begin(UV_SPACE, target._handle, 1 | 4, { x: clear[0], y: clear[1], z: clear[2], w: clear[3] });
+    Renderer.begin(UV_SPACE, target.target, 1 | 4, { x: clear[0], y: clear[1], z: clear[2], w: clear[3] });
 }
 
 /** Segments a draw: the immediate draw copies each batch, and a head of hair is a million. */
@@ -428,7 +428,7 @@ function drawSegments(target: RenderTextureHandle, data: Float32Array, order: In
 
 /** What a target holds, rows from the top. */
 async function readTarget(module: ESEngineModule, target: RenderTextureHandle): Promise<BakedTexture> {
-    const px = await captureTargetPixels(module, target._handle, target.width, target.height);
+    const px = await captureTargetPixels(module, target.target, target.width, target.height);
     if (!px) throw new Error('the engine could not read the baked texture back');
     const w = px.width, h = px.height, rgba = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) rgba.set(px.rgba.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
@@ -442,7 +442,7 @@ export async function bakeStrandsTextures(module: ESEngineModule, projected: Pro
 Promise<{ depth: BakedTexture; coverage: BakedTexture; tangent: BakedTexture; attribute: BakedTexture }> {
     const size = pow2(resolution);
     const target = RenderTexture.create({ width: size, height: size, depth: false, filter: 'nearest' });
-    if (!target._handle) throw new Error('the engine could not make a render target to bake into');
+    if (!target.target) throw new Error('the engine could not make a render target to bake into');
     try {
         const d = projected.data;
         // Far strands first, so the one nearest the surface is what a texel keeps.
@@ -481,7 +481,7 @@ export interface FollicleGroom { curves: GroomCurves; channel: 0 | 1 | 2 | 3; gr
 export async function bakeFollicleMask(module: ESEngineModule, grooms: FollicleGroom[], resolution: number, rootRadius: number): Promise<BakedTexture> {
     const size = pow2(resolution);
     const target = RenderTexture.create({ width: size, height: size, depth: false, filter: 'nearest' });
-    if (!target._handle) throw new Error('the engine could not make a render target to bake into');
+    if (!target.target) throw new Error('the engine could not make a render target to bake into');
     const r = Math.max(0.5, rootRadius) / size;
     const SIDES = 8, RINGS = 4;
     const enc = asVertexColour();

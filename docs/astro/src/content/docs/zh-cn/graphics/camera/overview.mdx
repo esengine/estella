@@ -72,7 +72,7 @@ SDK 的创作默认值面向 2D：正交、活动、`orthoSize` 为 540。
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | 渲染前清除的缓冲：`Nothing` / `Color` / `Depth` / `ColorAndDepth`。 |
 | `pixelPerfect` | boolean | `false` | 将相机吸附到世界像素网格，使像素画渲染时没有亚像素闪烁（正交）。 |
 | `cullingMask` | number | 全部层 | 该相机渲染的排序层位掩码（第 *i* 位对应第 *i* 层）。 |
-| `renderTarget` | number | `0` | 相机绘制到的 `RenderTexture` 句柄，代替屏幕（`0` 为屏幕）；运行时由脚本设置。 |
+| `renderTarget` | number | `0` | 相机代替屏幕绘制到的 `RenderTexture`，填它的 `target`（`0` 为屏幕）；运行时由脚本设置。 |
 | `showFrustum` | boolean | `false` | 仅编辑器：绘制相机完整的视锥体，从近面到远面。关闭时，gizmo 仅勾勒相机在内容平面上的取景范围；相机背向该平面时该范围为空。 |
 
 ## 缩放与投影

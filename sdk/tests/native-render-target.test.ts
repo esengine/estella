@@ -27,7 +27,7 @@ describe('render targets on a native core', () => {
 
         const rt = RenderTexture.create({ width: 256, height: 128, filter: 'linear' });
         expect(api.renderer_createTarget).toHaveBeenCalledWith(256, 128, 3);
-        expect(rt).toMatchObject({ _handle: 5, textureId: 9, texture: 42 });
+        expect(rt).toMatchObject({ target: 5, _handle: 5, textureId: 9, texture: 42 });
         expect(wrap).toHaveBeenCalledWith(9, 256, 128);
         expect(RenderTexture.getDepthTexture(rt)).toBe(10);
 

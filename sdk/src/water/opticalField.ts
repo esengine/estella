@@ -90,7 +90,7 @@ export class WaterOpticalField {
         const volumeSize = size / CAUSTIC_ATLAS_SIDE;
         // One full-density beam per wave cell, a coarser volume, and one triangle copying receiver depths.
         const instances = size * size + volumeSize * volumeSize * CAUSTIC_SLICES + 1;
-        this.ticket = Renderer.bakeMaterial(surface, this.bake, this.source._handle, 0, 0, size, size,
+        this.ticket = Renderer.bakeMaterial(surface, this.bake, this.source.target, 0, 0, size, size,
             [x, z, span, time], [low, heightRange, level, depthStep * (CAUSTIC_SLICES - 1)]);
         if (!this.ticket || !Renderer.projectMaterialBake(this.ticket, this.material, this.target, instances)) {
             this.failed = true;

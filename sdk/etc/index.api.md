@@ -10321,6 +10321,7 @@ _floatColor: boolean | undefined
 _generation: number
 _handle: number
 height: number
+target: number
 texture: number
 textureId: number
 width: number

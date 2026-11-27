@@ -285,7 +285,7 @@ export class GpuRipples {
             { filterMode: 'nearest', wrapMode: 'clamp', srgb: false });
         const drops = this.dropTexture;
         if (drops) provideTextureContent(drops, () => { updateTextureSubregion(module, drops, 0, 0, MAX_RIPPLE_DROPS * DROP_TEXELS, 1, bytes); return true; });
-        if (!this.shader || !this.states[0]?.texture || !this.states[1]?.texture || !this.pack?._handle || !drops) {
+        if (!this.shader || !this.states[0]?.texture || !this.states[1]?.texture || !this.pack?.target || !drops) {
             this.failed = true;
             log.warn('water', 'ripples: this device cannot keep them on the GPU');
             return false;
@@ -345,7 +345,7 @@ export class GpuRipples {
     /** One pass from the current state into the other; the other is current after it. */
     private pass(a: [number, number, number, number], b: [number, number, number, number]): boolean {
         const from = this.current, to = 1 - this.current;
-        const ticket = Renderer.bakeMaterial(this.materials[from], this.shader, this.states[to]!._handle, 0, 0, this.n, this.n, a, b);
+        const ticket = Renderer.bakeMaterial(this.materials[from], this.shader, this.states[to]!.target, 0, 0, this.n, this.n, a, b);
         if (!ticket) return false;
         // Asked once so the renderer forgets it: the passes are fire and forget, and a failed one shows in the next frame's queue.
         void Renderer.bakeState(ticket);
@@ -355,7 +355,7 @@ export class GpuRipples {
 
     /** Packs the state for reading back, and reads back the last frame's pack when none is on its way. */
     private packAndRead(module: ESEngineModule | null, b: [number, number, number, number]): boolean {
-        const ticket = Renderer.bakeMaterial(this.materials[this.current], this.shader, this.pack!._handle, 0, 0, this.n, this.n, [0, 0, 0, MODE_PACK], b);
+        const ticket = Renderer.bakeMaterial(this.materials[this.current], this.shader, this.pack!.target, 0, 0, this.n, this.n, [0, 0, 0, MODE_PACK], b);
         if (!ticket) return false;
         void Renderer.bakeState(ticket);
         // The target holds what the passes queued LAST frame drew: read it with the window and limit it was packed with.
@@ -364,7 +364,7 @@ export class GpuRipples {
         if (!drawn || this.pending || !module || !canCaptureTargetPixels(module)) return true;
         this.pending = true;
         const n = this.n, generation = this.generation;
-        void captureTargetPixels(module, this.pack!._handle, n, n).then((pixels) => {
+        void captureTargetPixels(module, this.pack!.target, n, n).then((pixels) => {
             this.pending = false;
             if (!pixels || generation !== this.generation) return;
             const heights = new Float32Array(n * n);

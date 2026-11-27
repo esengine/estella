@@ -19,6 +19,13 @@ export interface RenderTextureOptions {
 }
 
 export interface RenderTextureHandle {
+    /**
+     * The render target itself — what `Camera.renderTarget` and
+     * `captureTargetPixels` take. Not `texture`, which names the colour texture
+     * for components to sample.
+     */
+    readonly target: RenderTargetHandle;
+    /** @deprecated The same value as {@link RenderTextureHandle.target}; read `target`. */
     _handle: RenderTargetHandle;
     /** Raw device texture id — for Draw.texture / low-level GL paths only. */
     textureId: number;
@@ -70,6 +77,7 @@ export const RenderTexture = {
 
         sizes.set(handle, { width: options.width, height: options.height });
         return {
+            target: handle,
             _handle: handle,
             textureId,
             texture,
@@ -84,8 +92,8 @@ export const RenderTexture = {
 
     release(rt: RenderTextureHandle): void {
         if (rt.texture !== 0) getResourceManager()?.releaseTexture(rt.texture);
-        sizes.delete(rt._handle);
-        Renderer.releaseRenderTarget(rt._handle);
+        sizes.delete(rt.target);
+        Renderer.releaseRenderTarget(rt.target);
     },
 
     resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle {
@@ -98,7 +106,7 @@ export const RenderTexture = {
      * project's post chain (its linear capture, output transform, exposure) sits the pass out, as it must for anything read as data.
      */
     begin(rt: RenderTextureHandle, viewProjection: Float32Array, options?: { data?: boolean }): void {
-        Renderer.begin(viewProjection, rt._handle, options?.data ? RENDER_PASS_DATA : 0);
+        Renderer.begin(viewProjection, rt.target, options?.data ? RENDER_PASS_DATA : 0);
     },
 
     end(): void {
@@ -106,7 +114,7 @@ export const RenderTexture = {
     },
 
     getDepthTexture(rt: RenderTextureHandle): number {
-        return Renderer.getTargetDepthTexture(rt._handle);
+        return Renderer.getTargetDepthTexture(rt.target);
     },
 
     /**

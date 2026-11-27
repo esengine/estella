@@ -82,7 +82,7 @@ The SDK authoring defaults target 2D: Orthographic, active, `orthoSize` 540.
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | Buffers cleared before rendering: `Nothing` / `Color` / `Depth` / `ColorAndDepth`. |
 | `pixelPerfect` | boolean | `false` | Snaps the camera to the world pixel grid so pixel art renders without sub-pixel shimmer (Orthographic). |
 | `cullingMask` | number | all layers | Bitmask of the sorting layers this camera renders (bit *i* = layer *i*). |
-| `renderTarget` | number | `0` | `RenderTexture` handle the camera draws into instead of the screen (`0` = screen); set from a script at run time. |
+| `renderTarget` | number | `0` | `RenderTexture` the camera draws into instead of the screen, as its `target` (`0` = screen); set from a script at run time. |
 | `showFrustum` | boolean | `false` | Editor only: draws the camera's whole view volume, near face to far. When off, the gizmo outlines what the camera frames on the content plane, which is empty for a camera aimed away from that plane. |
 
 ## Zoom & projection
