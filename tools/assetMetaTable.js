@@ -102,6 +102,9 @@ export const EXT_TO_TYPE = Object.freeze({
     // A piece of country as the steps that shape it. Never shipped, for the same reason: saving one bakes
     // the heightmap and the maps beside it, and a Terrain references those.
     '.esland': 'land',
+    // A place laid out by a rules graph. Never shipped: applying one packs the meshes beside it, and a scene
+    // references those.
+    '.esproc': 'proc',
     // A 2D character as it is authored. Never shipped, for the same reason: saving one bakes
     // the sibling `.esmesh`, and a scene references that.
     '.esrig': 'rig',

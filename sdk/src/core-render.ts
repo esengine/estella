@@ -201,6 +201,7 @@ export {
     registerEffect,
     getEffectDef,
     uniformInUnits,
+    uniformIsChoice,
     getEffectTypes,
     getAllEffectDefs,
     effectQualityGroup,

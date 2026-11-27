@@ -54,6 +54,15 @@ export interface EffectUniformDef {
  * (a length by the scale, a rate per length by its inverse), any other as declared. What the volume system fills an
  * unset uniform with, and what an inspector offers.
  */
+/**
+ * Whether a uniform is a CHOICE (a switch, a mode: a handful of whole values the effect reads by a threshold) rather than a
+ * dial. A choice takes only its own values; a dial takes any number, and its `min`/`max` are where an inspector's slider runs,
+ * not a wall: a fog's base height on a world whose plain is 400 m up is far outside a slider sized for a room, and still right.
+ */
+export function uniformIsChoice(u: Pick<EffectUniformDef, 'min' | 'max' | 'step'>): boolean {
+    return u.step >= 1 && Number.isInteger(u.step) && (u.max - u.min) / u.step <= 16;
+}
+
 export function uniformInUnits(u: EffectUniformDef): EffectUniformDef {
     if (!u.worldUnits) return u;
     const s = worldUnitScale();
@@ -692,7 +701,9 @@ registerEffect({
         { name: 'u_density', label: 'Density', min: 0, max: 0.05, step: 0.0001, defaultValue: 0.0015, neutralValue: 0, worldUnits: -1 },
         // How fast the fog thins with height; 0 is a fog of one density at every height.
         { name: 'u_heightFalloff', label: 'Height Falloff', min: 0, max: 0.1, step: 0.0005, defaultValue: 0.003, worldUnits: -1 },
-        { name: 'u_baseHeight', label: 'Base Height', min: -1000, max: 5000, step: 10, defaultValue: 0, worldUnits: 1 },
+        // Where the fog is thickest: the floor of the country it lies in. The slider spans a sea to a high plain; a dial takes
+        // any height typed, so a valley kilometres up is written as it is (uniformIsChoice).
+        { name: 'u_baseHeight', label: 'Base Height', min: -10000, max: 200000, step: 10, defaultValue: 0, worldUnits: 1 },
         // On a planet the fog's height is the height above the ground's sphere, not world Y: the radius, above 0, turns that on, and the centre is where the planet stands.
         { name: 'u_planetRadius', label: 'Planet Radius', min: 0, max: 100000000, step: 100, defaultValue: 0, neutralValue: 0 },
         { name: 'u_planetX', label: 'Planet Centre X', min: -100000000, max: 100000000, step: 100, defaultValue: 0 },
