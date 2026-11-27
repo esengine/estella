@@ -1152,7 +1152,10 @@ export function applyFixedTimestep(app: Pick<App, 'setFixedTimestep'>, physics: 
 }
 
 /** Prepare the persistent document and its world together, then hand its cells to the streamer only while it is active. */
-function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>): void {
+function registerRuntimeScenes(
+    config: RuntimeInitConfig, options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
+    shippedManifest: ManifestModel | null,
+): void {
     const { app } = config;
     const manager = app.getResource(SceneManager);
     const sceneNames = new Set(config.scenes.map(scene => scene.name));
@@ -1188,7 +1191,10 @@ function registerRuntimeScenes(config: RuntimeInitConfig, options: Omit<LoadRunt
             return data;
         };
         const sceneOptions = worldPath || config.prepareWorld ? { ...options, prepareDocument } : options;
-        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, scene.path);
+        // The packaged path can belong to the shipped revision. Keep the
+        // record key so Assets can resolve the active revision at load time.
+        const sceneRef = scene.path ? shippedManifest?.recordForRef(scene.path)?.key ?? scene.path : undefined;
+        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, sceneRef);
         if (config.prepareWorld && !worldPath) registration.cleanup = () => { worlds.delete(scene.name); };
         manager.register(registration);
     }
@@ -1262,6 +1268,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // return the existing instance).
     const assets = ensureRuntimeAssets(app, config.module, config.source, config.catalog);
     if (config.manifest) assets.setManifest(config.manifest);
+    const shippedManifest = config.manifest ? assets.getManifest() : null;
     if (config.remoteRoot) assets.setRemoteRoot(config.remoteRoot);
     // A persisted update (from a prior applyUpdate) supersedes the shipped manifest
     // + root, so a returning player boots straight onto the already-updated content.
@@ -1306,7 +1313,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsEnabled: config.physicsEnabled,
     };
 
-    registerRuntimeScenes(config, sceneOpts);
+    registerRuntimeScenes(config, sceneOpts, shippedManifest);
 
     if (firstScene) {
         const mgr = app.getResource(SceneManager);

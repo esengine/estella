@@ -95,6 +95,60 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
+    it.each(['live', 'restored'] as const)('loads a deferred scene through the %s manifest after its staged path changes', async timing => {
+        const ref = 'levels/Room.esscene';
+        const uuid = 'afbace01-1111-4111-8111-111111111111';
+        const shippedPath = 'cooked/room-v1.json', updatedPath = 'cooked/room-v2.json';
+        const updateRoot = 'https://cdn.invalid/v2';
+        const persistKey = 'hotupdate:scene';
+        const manifest = (revision: string, path: string, bundleMode: 'local' | 'remote') => ({
+            version: '2.0' as const, revision, groups: { main: { bundleMode, labels: [], assets: {
+                [uuid]: { address: ref, path, type: 'scene' as const, size: 32, labels: [] },
+            } } },
+        });
+        const shipped = manifest('v1', shippedPath, 'local');
+        const updated = manifest('v2', updatedPath, 'remote');
+        const config = {
+            entryScene: 'menu.json',
+            scenes: [{ name: 'menu', path: 'menu.json' }, { name: 'room', path: ref }],
+            hotUpdate: { persistUpdateKey: persistKey },
+        };
+        const encode = (data: unknown) => new TextEncoder().encode(JSON.stringify(data)).buffer;
+        const document = (name: string) => ({ version: 4, name, entities: [] });
+        const files = new Map<string, unknown>([
+            ['game.config.json', config], ['asset-manifest.json', shipped],
+            ['menu.json', document('menu')], [shippedPath, document('old room')],
+        ]);
+        const bridge = makeBridge({});
+        const read = vi.fn(async (path: string) => {
+            if (!files.has(path)) throw new Error(`missing ${path}`);
+            return encode(files.get(path));
+        });
+        const fetch = vi.fn(async (url: string) => ({
+            ok: url === `${updateRoot}/${updatedPath}`, status: url === `${updateRoot}/${updatedPath}` ? 200 : 404,
+            text: JSON.stringify(document('updated room')),
+        }));
+        bridge.readFile = read;
+        bridge.fetch = fetch;
+        bridge.getStorageItem = key => timing === 'restored' && key === persistKey
+            ? JSON.stringify({ base: 'v1', manifest: updated, remoteRoot: updateRoot }) : null;
+        const scope = withRegistryOps({ es_Camera_buffer: () => null, es_Camera_has: () => false, es_Camera_remove: () => {} });
+        const { app } = await initNativeGame({ bridge, scope, width: 32, height: 32 });
+        try {
+            const assets = app.getResource(Assets);
+            if (timing === 'live') {
+                assets.setManifest(updated);
+                assets.setRemoteRoot(updateRoot);
+            }
+            expect(assets.getManifest()?.revision()).toBe('v2');
+            expect(fetch).not.toHaveBeenCalled();
+            await app.getResource(SceneManager).switchTo('room');
+            expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${updateRoot}/${updatedPath}`]);
+            expect(read).not.toHaveBeenCalledWith(shippedPath);
+            expect(app.getResource(SceneManager).getActive()).toBe('room');
+        } finally { app.quit(); }
+    });
+
     it('starts the captured project repeatedly and leaves the next project queued', async () => {
         const bridge = makeBridge({});
         bridge.readFile = async path => {
