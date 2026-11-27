@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { discoverProjectScenes, exportGame } from '../src/export/exportGame';
+import { projectSceneEntries } from '../src/project/sceneNames';
 import { splashScript } from '../src/export/splash';
 import { runtimeHostPrebuild } from '../src/bundle/runtimeHosts';
 import { build } from 'esbuild';
@@ -316,6 +317,18 @@ describe('exportGame (playable)', () => {
       { name: 'intro', path: 'intro.esscene' },
       { name: 'campaign/next', path: 'campaign/next.esscene' },
     ]);
+  });
+
+  it('gives same-stem paths the same names when Play opens a different scene first', () => {
+    const dir = 'assets/scenes';
+    const startup = `${dir}/Menu.esscene`;
+    const alternate = `${dir}/Menu.ESSCENE`;
+    const exportEntries = projectSceneEntries([startup, alternate], dir, startup);
+    expect(exportEntries).toEqual([
+      { path: startup, name: 'Menu' },
+      { path: alternate, name: '@project/assets/scenes/Menu' },
+    ]);
+    expect(projectSceneEntries([alternate, startup], dir, startup)).toEqual([...exportEntries].reverse());
   });
 
   // How a texture is sampled is in its .meta, and the manifest is the only way that reaches a package. A playable was handed none:

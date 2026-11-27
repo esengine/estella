@@ -155,7 +155,7 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
     };
     await walk('');
   }
-  const [first, ...rest] = projectSceneEntries(paths, dir);
+  const [first, ...rest] = projectSceneEntries(paths, dir, pathOfEntry);
   return [first!, ...rest.filter(scene => !excluded.has(scene.path))];
 }
 
