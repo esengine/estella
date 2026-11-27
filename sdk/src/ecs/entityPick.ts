@@ -92,23 +92,25 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    visitPickHits(world, opts, box => entityBoxRayHit(box, ray.origin, ray.dir), (entity, distance, identity, opaque) => {
-        const t = world.get(entity, Transform);
-        const candidate: PickCandidate<Entity> = {
-            entity,
-            index: hits.length + opaqueHits.length,
-            rank: {
-                layer: identity.layer,
-                order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
-                orderInLayer: identity.orderInLayer,
-                groupInner: identity.groupInner,
-                opaque,
-                worldY: t.worldPosition.y,
-                worldZ: t.worldPosition.z ?? 0,
-            },
-        };
-        if (opaque) opaqueHits.push({ candidate, distance });
-        else hits.push(candidate);
+    visitPickHits(world, opts, box => entityBoxRayHit(box, ray.origin, ray.dir), {
+        ranked(entity, distance, identity, opaque) {
+            const t = world.get(entity, Transform);
+            const candidate: PickCandidate<Entity> = {
+                entity,
+                index: hits.length + opaqueHits.length,
+                rank: {
+                    layer: identity.layer,
+                    order: layerOrderOf(identity.layer, opts.ySortLayers ?? 0, opts.depthLayers ?? 0),
+                    orderInLayer: identity.orderInLayer,
+                    groupInner: identity.groupInner,
+                    opaque,
+                    worldY: t.worldPosition.y,
+                    worldZ: t.worldPosition.z ?? 0,
+                },
+            };
+            if (opaque) opaqueHits.push({ candidate, distance });
+            else hits.push(candidate);
+        },
     });
     if (!opaqueHits.length) return rankPickCandidates(hits);
 
@@ -124,13 +126,17 @@ export function pickEntitiesByBounds(
     world: PickWorld, intersects: (box: EntityBox, entity: Entity) => boolean, opts: EntityPickOptions = {},
 ): Entity[] {
     const hits: Entity[] = [];
-    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, entity => hits.push(entity));
+    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, { unranked: entity => hits.push(entity) });
     return hits;
 }
 
+type PickHitVisitor =
+    | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean): void }
+    | { unranked(entity: Entity): void };
+
 function visitPickHits(
     world: PickWorld, opts: EntityPickOptions, intersect: (box: EntityBox, entity: Entity) => number | null,
-    visit: (entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean) => void,
+    visit: PickHitVisitor,
 ): void {
     const iconHalf = opts.iconHalf ?? 0;
     const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
@@ -158,6 +164,13 @@ function visitPickHits(
 
         const mesh = meshBox ? renderer : null;
         const sprite = fallback?.drawable;
+        const needsLayer = cullingMask !== 0xFFFFFFFF && (mesh || sprite);
+        // Area picks already arrive in storage order. A group matters only
+        // when its layer determines whether the camera draws this hit.
+        if ('unranked' in visit && !needsLayer) {
+            visit.unranked(entity);
+            continue;
+        }
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
         const identity = sortingIdentity(
@@ -165,7 +178,8 @@ function visitPickHits(
             mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
             (sprite as { order?: number } | null)?.order ?? 0,
         );
-        if (cullingMask !== 0xFFFFFFFF && (mesh || sprite) && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
-        visit(entity, distance, identity, mesh?.opaque);
+        if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
+        if ('ranked' in visit) visit.ranked(entity, distance, identity, mesh?.opaque);
+        else visit.unranked(entity);
     }
 }

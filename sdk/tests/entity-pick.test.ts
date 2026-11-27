@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
-import { pickEntitiesByRay } from '../src/ecs/entityPick';
+import { pickEntitiesByBounds, pickEntitiesByRay, type PickWorld } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import { q } from '../src/math/quat';
 import { MeshRenderers, meshRendererPlugin } from '../src/render/meshRenderer';
@@ -45,6 +45,25 @@ const T = (x: number, y: number, z = 0) => ({
 const sprite = (layer: number) => ({ size: { x: 100, y: 100 }, pivot: { x: 0.5, y: 0.5 }, layer });
 
 const down = (x: number, y: number) => ({ origin: { x, y, z: 1000 }, dir: { x: 0, y: 0, z: -1 } });
+
+it('keeps area hits in storage order and reads sorting groups only for masked drawables', () => {
+    const world: PickWorld = fakeWorld({
+        1: { Transform: T(0, 0), Sprite: sprite(1), Parent: { entity: ent(5) } },
+        2: { Transform: T(0, 0), MeshRenderer: { layer: 1 } },
+        3: { Transform: T(0, 0), Parent: { entity: ent(5) } },
+        4: { Transform: T(200, 0), Sprite: sprite(1) },
+        5: { SortingGroup: { layer: 3, order: 2, enabled: true } },
+    }, { 2: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 } });
+    const read = vi.spyOn(world, 'get');
+    const pick = (cullingMask?: number) => pickEntitiesByBounds(world, box => box.cx < 100, {
+        cullingMask, iconHalf: 8,
+    });
+    expect(pick()).toEqual([ent(1), ent(2), ent(3)]);
+    expect(read.mock.calls.filter(([, component]) => component === SortingGroup)).toHaveLength(0);
+    expect(pick(1 << 1)).toEqual([ent(2), ent(3)]);
+    expect(pick(1 << 3)).toEqual([ent(1), ent(3)]);
+    expect(read.mock.calls.filter(([, component]) => component === SortingGroup)).toHaveLength(2);
+});
 
 describe('picking entities by ray', () => {
     it('returns what the ray meets, ranked the way the frame stacked it', () => {
