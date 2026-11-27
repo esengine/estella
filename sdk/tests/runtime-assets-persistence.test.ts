@@ -70,6 +70,25 @@ function loadScene(app: App, sceneData: SceneData): Promise<void> {
 }
 
 describe('per-App runtime Assets persistence', () => {
+    it('rejects circular prefab parenting before replacing the running scene', async () => {
+        const app = makeFakeApp();
+        const original = app.world.spawn();
+        const scene = {
+            version: 4, name: 'Broken scene', entities: [
+                { id: 1, prefab: 'assets/deleted.esprefab', parent: 2, overrides: [], added: [], removed: [] },
+                { id: 2, name: 'Mesh attachment', parent: 1, children: [1], components: [{ type: 'MeshRenderer', data: {} }] },
+            ],
+        } as unknown as SceneData;
+        const fetch = vi.spyOn(fakeBackend, 'fetchText');
+        try {
+            await expect(loadScene(app, scene)).rejects.toThrow(/parent-cycle: parent cycle detected: 1 → 2 → 1/);
+            expect(fetch).not.toHaveBeenCalled();
+            expect(app.world.getAllEntities()).toEqual([original]);
+        } finally {
+            fetch.mockRestore();
+        }
+    });
+
     it('preloads UUID audio components with their authored settings when the cook deduplicates the file', async ({ onTestFinished }) => {
         const app = makeFakeApp();
         const audio = new AudioAPI(new MiniGameAudioBackend({} as never));

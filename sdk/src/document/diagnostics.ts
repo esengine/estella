@@ -141,8 +141,8 @@ export function checkDocumentTopology(
  * entity on it, and the reader has to work out that it is one problem.
  */
 export function checkParentCycle(
-    nodes: readonly DocumentNode[],
-    byId: ReadonlyMap<DocumentEntityId, DocumentNode>,
+    nodes: readonly Pick<DocumentNode, 'id' | 'parent'>[],
+    byId: ReadonlyMap<DocumentEntityId, Pick<DocumentNode, 'parent'>>,
     push: DiagnosticSink,
 ): void {
     const WHITE = 0, GRAY = 1, BLACK = 2;

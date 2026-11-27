@@ -14,7 +14,7 @@ import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
-import { duplicateDocumentIdMessage, type DocumentDiagnostic } from '../document/diagnostics';
+import { checkParentCycle, duplicateDocumentIdMessage, type DocumentDiagnostic } from '../document/diagnostics';
 import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
 import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef, type AssetFieldMeta } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
@@ -383,15 +383,16 @@ export async function expandScenePrefabSources(
     // file, so they never collide with non-prefab entities or instance roots
     // (which keep their stable scene id across save/load).
     let nextId = 0;
-    const ids = new Set<number>();
-    const duplicates: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
+    const byId = new Map<number, SceneEntry>();
+    const fatal: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
     for (const e of entries) {
-        if (ids.has(e.id)) duplicates.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
-        ids.add(e.id);
+        if (byId.has(e.id)) fatal.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
+        byId.set(e.id, e);
         nextId = Math.max(nextId, e.id);
     }
-    // Expansion can skip a missing or deferred source, so check the authored IDs before reading any sources.
-    if (duplicates.length) throw sceneLoadError(scene.name, duplicates);
+    // Expansion can omit entries. Check authored identities and links before resolving any sources.
+    if (fatal.length === 0) checkParentCycle(entries, byId, (code, _, message) => fatal.push({ code, message }));
+    if (fatal.length) throw sceneLoadError(scene.name, fatal);
     const allocateId = () => ++nextId;
 
     const out: SceneEntityData[] = [];

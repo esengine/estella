@@ -221,6 +221,41 @@ describe('Prefab scene loading (PF1)', () => {
         expect(world.getAllEntities()).toEqual([original]);
     });
 
+    it('rejects an authored parent cycle even if a missing prefab would break the cycle', async () => {
+        const scene = {
+            version: 4,
+            name: 'Cyclic prefab parent',
+            entities: [
+                { id: 1, name: 'Sprite', parent: 2, children: [2], components: [{ type: 'Sprite', data: {} }] },
+                { id: 2, prefab: '@uuid:missing', parent: 1, overrides: [], added: [], removed: [] },
+            ],
+        } as unknown as SceneData;
+        const resolve = vi.fn(async () => null);
+        const assets = mockAssets({});
+        const world = new World();
+        const original = world.spawn();
+
+        await expect(expandScenePrefabs(scene, resolve)).rejects.toThrow(/parent-cycle: parent cycle detected: 1 → 2 → 1/);
+        expect(resolve).not.toHaveBeenCalled();
+        await expect(loadSceneWithAssets(world, scene, { assets })).rejects.toThrow(/parent-cycle/);
+        expect(assets.acquireTyped).not.toHaveBeenCalled();
+        expect(assets.preloadSceneAssets).not.toHaveBeenCalled();
+        expect(world.getAllEntities()).toEqual([original]);
+    });
+
+    it('rejects authored cycles even when virtual layout variants are omitted', async () => {
+        const scene = {
+            version: 4, name: 'Cyclic alternate layout', entities: [
+                { id: 1, prefab: REF, parent: 2, added: [], removed: [],
+                    overrides: [{ prefabEntityId: 'root', type: 'metadata_set', metadataKey: 'variant', value: true }] },
+                { id: 2, name: 'Layout owner', parent: 1, children: [1], components: [] },
+            ],
+        } as unknown as SceneData;
+        const resolve = vi.fn(async () => turretPrefab());
+        await expect(expandScenePrefabs(scene, resolve, { expandVirtual: true })).rejects.toThrow(/parent-cycle/);
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
     it('shares source reads across instances and keeps a failed dependency local to this scene read', async () => {
         const prefab = turretPrefab();
         const variant = { ...prefab, entities: [], basePrefab: 'assets/Base.esprefab' };
