@@ -392,24 +392,30 @@ function rewriteEnvironmentRefs(
 
 /**
  * A map owns its inline tilesets and references to external sources. A .tsj owns its
- * grid or collection images. Bake each path before its document moves into staging.
+ * grid or collection images. Use the same fields for staging and package validation.
  */
-function rewriteTilemapRefs(
-  bytes: Uint8Array,
+function mapTileDocumentRefs(
+  json: Record<string, unknown>,
   docPath: string,
-  byPath: Map<string, AssetEntry>,
-): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  const rewrite = (ref: string) => logicalRef(ref, docPath, byPath);
-  let staged = json;
+  map: (ref: string, kind: 'tile image' | 'tileset source', first: 'document' | 'project') => string,
+): Record<string, unknown> {
+  const image = (ref: string) => map(ref, 'tile image', 'document');
   if (docPath.toLowerCase().endsWith('.estileset')) {
-    if (typeof json.texture === 'string') json.texture = logicalRef(json.texture, docPath, byPath, 'project');
+    if (typeof json.texture === 'string' && json.texture) return { ...json, texture: map(json.texture, 'tile image', 'project') };
   } else if (docPath.toLowerCase().endsWith('.tsj')) {
-    staged = mapTilesetImages(json, rewrite);
+    return mapTilesetImages(json, image);
   } else if (Array.isArray(json.tilesets)) {
-    staged = { ...json, tilesets: json.tilesets.map(ts => typeof ts.source === 'string'
-      ? { ...ts, source: rewrite(ts.source) } : mapTilesetImages(ts, rewrite)) };
+    return { ...json, tilesets: json.tilesets.map(ts => typeof ts?.source === 'string'
+      ? { ...ts, source: map(ts.source, 'tileset source', 'document') } : mapTilesetImages(ts, image)) };
   }
+  return json;
+}
+
+const TILE_DOCUMENT = /\.(?:tmj|tsj|estileset)$/i;
+
+function rewriteTilemapRefs(bytes: Uint8Array, docPath: string, byPath: Map<string, AssetEntry>): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  const staged = mapTileDocumentRefs(json, docPath, (ref, _kind, first) => logicalRef(ref, docPath, byPath, first));
   return new TextEncoder().encode(JSON.stringify(staged, null, 2) + '\n');
 }
 
@@ -677,7 +683,7 @@ export async function cookAssets(
     if (!asset) continue;
     if (asset.type === 'terrain-tiles') {
       for (const dep of index.deps[uuid] ?? []) terrainImages.add(dep);
-    } else if (/\.(?:tmj|tsj|estileset)$/i.test(asset.path)) {
+    } else if (TILE_DOCUMENT.test(asset.path)) {
       for (const dep of index.deps[uuid] ?? []) if (byUuid.get(dep)?.type === 'texture') wholeTileImages.add(dep);
     }
   }
@@ -1194,6 +1200,23 @@ export async function cookAssets(
       } catch (error) {
         failed.push(`${entry.sourcePath}: ${error instanceof Error ? error.message : String(error)}`);
       }
+      continue;
+    }
+    if (TILE_DOCUMENT.test(entry.sourcePath)) {
+      const keys = shippedKeys ??= addressableKeys(manifestEntries);
+      const missing = new Set<string>();
+      try {
+        mapTileDocumentRefs(JSON.parse(text), entry.sourcePath, (ref, kind, first) => {
+          if (!ref || /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(ref)) return ref;
+          const id = assetRefId(ref);
+          const packaged = id ? keys.has(id) : findDocumentAsset(entry.sourcePath, ref, key => keys.get(key), first);
+          if (!packaged) missing.add(`${entry.sourcePath}: ${kind} '${ref}' is not packaged`);
+          return ref;
+        });
+      } catch (error) {
+        missing.add(`${entry.sourcePath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      failed.push(...missing);
       continue;
     }
     for (const ref of unresolvedDocumentRefs(entry.sourcePath, text, shipped)) {

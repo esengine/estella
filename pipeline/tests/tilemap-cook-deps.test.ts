@@ -134,4 +134,35 @@ describe('tilemap tileset images are cooked dependencies', () => {
       expect(readFileSync(path.join(cooked.outDir, entry.path))).toEqual(Buffer.from(bytes));
     }
   });
+
+  it('fails cooking when the staged map or tileset names a missing local input', async () => {
+    const mapPath = 'assets/maps/missing.tmj';
+    const collectionPath = 'assets/maps/missing.tsj';
+    const nativePath = 'assets/maps/missing.estileset';
+    const scenePath = 'assets/scenes/missing-tiles.esscene';
+    const missingAtlas = '@uuid:12345678-1234-4234-8234-123456789123';
+    writeAsset(mapPath, 'tilemap', '11111111-1111-4111-8111-111111111119', JSON.stringify({ ...JSON.parse(tmj), tilesets: [
+      { firstgid: 1, source: 'missing.tsj' }, { firstgid: 2, source: './gone.tsj' },
+      { firstgid: 3, image: 'https://example.invalid/tiles.png' },
+    ] }));
+    writeAsset(collectionPath, 'json', '22222222-2222-4222-8222-222222222229', JSON.stringify({
+      columns: 0, tiles: [{ id: 0, image: '../parts.atlas/gone.png?rev=2' }], note: 'unrelated.png',
+    }));
+    writeAsset(nativePath, 'tileset', '33333333-3333-4333-8333-333333333339', JSON.stringify({
+      version: '1', texture: missingAtlas, tileWidth: 16, tileHeight: 16, columns: 1, tiles: {},
+    }));
+    writeAsset(scenePath, 'scene', '44444444-4444-4444-8444-444444444449', JSON.stringify({
+      version: 4, name: 'Missing tiles', entities: [
+        { id: 1, parent: null, children: [], components: [{ type: 'Tilemap', data: { source: mapPath } }] },
+        { id: 2, parent: null, children: [], components: [{ type: 'TilemapLayer', data: { tilesetAsset: nativePath } }] },
+      ],
+    }));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build-missing', contentAddressed: true });
+    expect(result.ok).toBe(false);
+    expect(new Set(result.failed)).toEqual(new Set([
+      `${mapPath}: tileset source './gone.tsj' is not packaged`,
+      `${collectionPath}: tile image '../parts.atlas/gone.png?rev=2' is not packaged`,
+      `${nativePath}: tile image '${missingAtlas}' is not packaged`,
+    ]));
+  });
 });
