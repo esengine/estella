@@ -57,7 +57,14 @@ export function terrainPaintTargets(layers: readonly string[], bindings: readonl
 
 /** Convert stored independent opacity and base weights to contributions in material order. */
 export function materialPaintWeights(raw: readonly number[], targets: readonly TerrainPaintTarget[]): number[] {
-    const out = Array<number>(8).fill(0);
+    const out = Array<number>(8);
+    writeMaterialPaintWeights(raw, targets, out);
+    return out;
+}
+
+/** Compose into a reusable eight-channel buffer, replacing all previous contributions. */
+export function writeMaterialPaintWeights(raw: readonly number[], targets: readonly TerrainPaintTarget[], out: number[]): void {
+    for (let i = 0; i < out.length; i++) out[i] = 0;
     let sum = 0, background = -1;
     for (const t of targets) {
         if (t.materialIndex < 0 || t.slot < 0 || t.blend === 'alpha') continue;
@@ -72,7 +79,6 @@ export function materialPaintWeights(raw: readonly number[], targets: readonly T
         for (let i = 0; i < out.length; i++) out[i] = out[i]! * (1 - alpha);
         out[t.materialIndex] = alpha;
     }
-    return out;
 }
 
 /** Procedural height/slope paint seeds the base group. Independent overlays start empty. */

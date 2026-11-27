@@ -102,6 +102,25 @@ describe('ground kept as tiles', () => {
         expect((await makePage(source, x, z, 32)).paint2[0]).toBe(192);
     });
 
+    it('composites each overview sample like a point query across both paint banks', async () => {
+        const { source: base } = world();
+        const primary = { width: 2, height: 2, pixels: Uint8Array.of(0, 255, 0, 0, 0, 0, 0, 0, 0, 32, 128, 0, 255, 0, 0, 0) };
+        const secondary = { width: 2, height: 2, pixels: Uint8Array.of(128, 0, 0, 0, 0, 0, 0, 0, 64, 192, 0, 0, 0, 255, 0, 0) };
+        const source = new TiledSource(base.doc, params, base.overview, primary, secondary, async () => null);
+        const names = ['grass', 'dirt', 'snow', 'rock', 'mud', 'trail'];
+        source.paintLayout = terrainPaintTargets(names, names.slice(4).map((name, i) => ({
+            name, slot: 5 - i, blend: 'alpha', info: '', physicalMaterial: '', hardness: 0.5,
+        })));
+        const start = -SIZE / 2, spacing = source.overviewSpacing, count = base.overview.width;
+        const region = await source.region(start, start, spacing, count);
+        for (let z = 0; z < count; z++) for (let x = 0; x < count; x++) {
+            const at = (z * count + x) * 4;
+            const point = Float32Array.from(source.paint(start + x * spacing, start + z * spacing, 0, 1));
+            expect(region.paint?.slice(at, at + 4)).toEqual(point.slice(0, 4));
+            expect(region.paint2?.slice(at, at + 4)).toEqual(point.slice(4, 8));
+        }
+    });
+
     it.each([0, 255])('keeps procedural paint beside a tile whose authored snow weight is %i', async snow => {
         const { source: base, files } = world();
         base.doc.tiles[0].splat = 'paint.png';

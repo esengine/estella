@@ -11,7 +11,7 @@
  *          as with a provider: collision and queries try again once it is.
  */
 import { paintWeights } from './paint';
-import { initialPaintWeights, materialPaintWeights, writeWeightBytes, type TerrainPaintTarget } from './paintLayers';
+import { initialPaintWeights, materialPaintWeights, writeMaterialPaintWeights, writeWeightBytes, type TerrainPaintTarget } from './paintLayers';
 import { heightfieldFromPixels, type Heightfield } from './heightfield';
 import { terrainTileSizeError, type TerrainTileEntry, type TerrainTilesDocument } from './tileDocument';
 import type { TerrainData } from './terrainPlugin';
@@ -328,12 +328,13 @@ export class TiledSource implements TerrainSource {
     private materialRegion(heights: Float32Array, paint?: Float32Array, paint2?: Float32Array, paintMask?: Uint8Array): TerrainRegionSamples {
         if (this.paintLayout?.length && paint) {
             const raw = Array<number>(8).fill(0);
+            const weights = Array<number>(8);
             if (this.paintLayout.some(t => t.materialIndex >= 4)) paint2 ??= new Float32Array(paint.length);
             for (let at = 0; at < paint.length; at += 4) {
                 if (paintMask && !paintMask[at / 4]) continue;
                 for (let c = 0; c < 4; c++) { raw[c] = paint[at + c]!; raw[c + 4] = paint2?.[at + c] ?? 0; }
-                const w = materialPaintWeights(raw, this.paintLayout);
-                for (let c = 0; c < 4; c++) { paint[at + c] = w[c]!; if (paint2) paint2[at + c] = w[c + 4]!; }
+                writeMaterialPaintWeights(raw, this.paintLayout, weights);
+                for (let c = 0; c < 4; c++) { paint[at + c] = weights[c]!; if (paint2) paint2[at + c] = weights[c + 4]!; }
             }
         }
         return paintMask ? { heights, paint, paint2, paintMask } : { heights, paint, paint2 };
