@@ -34,6 +34,8 @@ export interface Part {
     color: [number, number, number];
     /** What it is made of, as the source's `surfaces` name it ('' for nothing in particular). */
     surface: string;
+    /** One of the source's `plants`, standing here at the scale of its sizes (all three alike), and not a shape at all. */
+    plant?: string;
     shadows: boolean;
     id: number;
     tags: string[];
@@ -99,6 +101,9 @@ export const PROC_ITEM_LIMIT = 400_000;
 const DEG = Math.PI / 180;
 
 /** A stable id from a parent id and an index: what rand(id) reads. */
+/** The green a plant is marked in on a plan: what stands there is its model, which the plan does not draw. */
+const PLANT_IN_PLAN: [number, number, number] = [0.22, 0.4, 0.2];
+
 function mix(a: number, b: number, salt: number): number {
     let h = (a ^ 0x9e3779b9) >>> 0;
     h = Math.imul(h ^ (b + 0x7f4a7c15), 0x85ebca6b) >>> 0;
@@ -613,6 +618,18 @@ class Run {
                 }
                 if (node.keep === 'top') out.push({ ...p, y: p.y + lift + Math.max(h, 0), attrs: { ...p.attrs }, tags: [...p.tags] });
                 else if (node.keep === 'plot') out.push(p);
+                return out;
+            }
+            case 'plant': {
+                const kind = node.kind as string;
+                if (typeof kind !== 'string' || !this.source.plants?.[kind]) throw new Error(`there is no plant "${String(kind)}" in the graph's plants (${Object.keys(this.source.plants ?? {}).join(', ') || 'none'})`);
+                const at = this.vec(node.at ?? [0, 0, 0], 3, s, 'at'), scale = this.num(node.scale ?? 1, s, 'scale');
+                if (!(scale > 0)) throw new Error('scale is above 0: 1 is the model as it was made');
+                const [x, z] = toWorld(p, at[0]!, at[2]!);
+                // Turned its own way unless told: a row of trees all facing one way is a row of copies.
+                const yaw = node.yaw === undefined ? (mix(p.id, 7, 13) >>> 0) % 3600 / 10 : this.num(node.yaw, s, 'yaw');
+                const out: Item[] = [{ ...this.part((node.name as string | undefined) ?? node.id ?? kind, 'cube', [x, p.y + at[1]!, z], [scale, scale, scale], qYaw(p.yaw + yaw), PLANT_IN_PLAN, true, p.id, p.tags), plant: kind }];
+                if (node.keep === 'plot') out.push(p);
                 return out;
             }
             case 'part': {

@@ -110,6 +110,8 @@ export function packProcParts(result: ProcResult, options: { unit: number; cell?
     const tileOf = (surface: string): number => options.tiles?.[surface] ?? 2;
     const buckets = new Map<string, { cx: number; cz: number; shadows: boolean; surface: string; parts: Part[] }>();
     for (const g of result.groups) for (const p of g.parts) {
+        // A plant is not a shape to merge: it is drawn shared, with its own detail by distance (procPlants).
+        if (p.plant) continue;
         const cx = Math.floor(p.x / cell), cz = Math.floor(p.z / cell);
         const surface = p.surface ?? '';
         const key = `${cx}_${cz}_${p.shadows ? 's' : 'n'}${surface ? `_${surface}` : ''}`;
@@ -138,4 +140,24 @@ export function packProcParts(result: ProcResult, options: { unit: number; cell?
         flush();
     }
     return cells;
+}
+
+/** The plants of a run, in world units: the names of the kinds in the order a record counts them, and six numbers a plant (kind, x, y, z, turn about the vertical in radians, scale), as a PlacedFoliage reads them. */
+export interface ProcPlants { kinds: string[]; records: number[]; min: [number, number]; max: [number, number] }
+
+/** Where the plant nodes of a run stand, ready for a PlacedFoliage; null where it stood none. */
+export function procPlants(result: ProcResult, unit: number): ProcPlants | null {
+    const kinds: string[] = [], records: number[] = [];
+    const min: [number, number] = [Infinity, Infinity], max: [number, number] = [-Infinity, -Infinity];
+    for (const g of result.groups) for (const p of g.parts) {
+        if (!p.plant) continue;
+        let kind = kinds.indexOf(p.plant);
+        if (kind < 0) kind = kinds.push(p.plant) - 1;
+        // A plant only turns about the vertical: its yaw is read back from the quaternion it was given.
+        const turn = 2 * Math.atan2(p.q[1], p.q[3]);
+        const x = p.x * unit, z = p.z * unit;
+        records.push(kind, +x.toFixed(1), +(p.y * unit).toFixed(1), +z.toFixed(1), +turn.toFixed(3), +p.sy.toFixed(3));
+        min[0] = Math.min(min[0], x); min[1] = Math.min(min[1], z); max[0] = Math.max(max[0], x); max[1] = Math.max(max[1], z);
+    }
+    return kinds.length > 0 ? { kinds, records, min, max } : null;
 }

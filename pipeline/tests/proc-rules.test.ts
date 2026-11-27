@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ProcCache, copyProcNodes, extractProcComponent, pasteProcNodes, addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
+import { ProcCache, copyProcNodes, extractProcComponent, pasteProcNodes, addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, procPlants, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
 import { MeshChannel, type MeshData } from '../../sdk/src/asset/meshFormat';
 import { evaluate } from '../src/modeling/modelExpr';
 
@@ -363,5 +363,28 @@ describe('rules graph', () => {
         const us = Array.from({ length: m.vertexCount }, (_, k) => dv.getFloat32(k * m.vertexStride + uo, true));
         expect(Math.max(...us) - Math.min(...us)).toBeCloseTo(3);
         expect(() => validateProcSource({ version: 1, surfaces: { x: { tile: 0 } }, nodes: [{ op: 'rect', size: [1, 1] }, { id: 'o', op: 'box', height: 1 }, { op: 'output', inputs: ['o'] }] })).toThrow(/tile is a length/);
+    });
+    it('stands plants: a component carries them onto its plot, packing leaves them out, and a PlacedFoliage reads them', () => {
+        const plants = { huai: { mesh: 'huai.esmesh', lods: ['huai1.esmesh', 'huai0.esmesh'], near: 40, reach: 600 } };
+        const r = runProc(src([
+            { id: 'yards', op: 'plots', items: [{ at: [10, 0], size: [8, 8] }, { at: [-10, 0], size: [8, 8], yaw: 90 }] },
+            { id: 'houses', input: 'yards', op: 'box', height: 4, color: '#aaaaaa' },
+            { id: 'trees', input: 'yards', op: 'use', component: 'yard' },
+            { op: 'output', inputs: ['houses', 'trees'] },
+        ], { unit: 100, plants, components: { yard: { nodes: [{ op: 'plant', kind: 'huai', at: [2, 0, 0], scale: 1.5, yaw: 0 }] } } }));
+        const got = procPlants(r, 100)!;
+        expect(got.kinds).toEqual(['huai']);
+        expect(got.records.length).toBe(12);
+        // the first yard is unturned: the tree stands 2 along its x; the second is turned a quarter, so 2 along its x is along z
+        expect(got.records.slice(0, 6)).toEqual([0, 1200, 0, 0, 0, 1.5]);
+        expect(got.records[7]).toBeCloseTo(-1000);
+        expect(Math.abs(got.records[9]!)).toBeCloseTo(200);
+        expect(Math.abs(got.records[10]!)).toBeCloseTo(Math.PI / 2, 2);
+        // the houses are packed; the trees are not shapes and are not in them
+        const cells = packProcParts(r, { unit: 100 });
+        expect(cells.reduce((a, c) => a + c.parts, 0)).toBe(2);
+        expect(procPlants(runProc(src([{ id: 'b', op: 'rect', size: [4, 4] }, { id: 'c', op: 'box', height: 1, color: '#ffffff' }, { op: 'output', inputs: ['c'] }])), 100)).toBeNull();
+        expect(() => runProc(src([{ op: 'rect', size: [4, 4] }, { id: 't', op: 'plant', kind: 'elm' }, { op: 'output', inputs: ['t'] }], { plants }))).toThrow(/no plant "elm"/);
+        expect(() => src([{ id: 'r', op: 'rect', size: [4, 4] }, { op: 'output', inputs: ['r'] }], { plants: { oak: { lods: [] } } })).toThrow(/mesh/);
     });
 });
