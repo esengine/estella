@@ -18,9 +18,8 @@ import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
 import { screenToUiWorld, screenToUiLayout, uiHitAtScreen } from '../util/ui-pick';
-import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
-import { renderSurfaceDevicePixelRatio } from '../../platform/base';
+import { pointerProjection } from '../../input/pointerProjection';
 import { ensureComponent, walkParentChain } from '../util/helpers';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
@@ -125,7 +124,9 @@ export class UIInteractionPlugin implements Plugin {
             if (position) {
                 const camera = app.getResource(UICameraInfo), overlay = app.getResource(ScreenOverlay);
                 if (!camera.valid && !overlay.active) return;
-                const screen = pointerToScreen(position.x, position.y, renderSurfaceDevicePixelRatio(app), overlay.active ? overlay.surfaceH : camera.screenH);
+                const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
+                    overlay.active ? overlay.surfaceH : camera.screenH);
+                const screen = project(position.x, position.y);
                 const previous = controlPointers.get(pointer);
                 if (!previous || previous.screenX !== screen.x || previous.screenY !== screen.y) {
                     under = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
@@ -184,8 +185,8 @@ export class UIInteractionPlugin implements Plugin {
                 // Either domain is enough to be pointing AT something: a scene
                 // with no camera still has a screen, and a HUD on it is still
                 // clickable.
-                const dpr = renderSurfaceDevicePixelRatio(app);
-                const surfaceH = overlay.active ? overlay.surfaceH : camera.screenH;
+                const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
+                    overlay.active ? overlay.surfaceH : camera.screenH);
                 const pointers = uiPointersOf(input);
                 controlPointers.clear();
                 lastHit.retain(pointers);
@@ -219,7 +220,7 @@ export class UIInteractionPlugin implements Plugin {
 
                 const hit = (pointer: UiPointerSample, pressOnly?: boolean): Entity | null => {
                     if (!camera.valid && !overlay.active) return null;
-                    const { x: glX, y: glY } = pointerToScreen(pointer.x, pointer.y, dpr, surfaceH);
+                    const { x: glX, y: glY } = project(pointer.x, pointer.y);
                     if (pressOnly) {
                         const entity = uiHitAtScreen(world, camera, overlay, glX, glY);
                         return entity !== null && eligible(entity) ? entity : null;
@@ -287,7 +288,7 @@ export class UIInteractionPlugin implements Plugin {
                             world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justPressed: true });
                             let data = dataFor(event.pointer);
                             if (event.pressAt) {
-                                const screen = pointerToScreen(event.pressAt.x, event.pressAt.y, dpr, surfaceH);
+                                const screen = project(event.pressAt.x, event.pressAt.y);
                                 const worldPoint = camera.valid ? screenToUiWorld(camera, screen.x, screen.y) : { x: 0, y: 0 };
                                 const layoutPoint = overlay.active ? screenToUiLayout(overlay, screen.x, screen.y) : worldPoint;
                                 data = { pointer: event.pointer, worldX: worldPoint.x, worldY: worldPoint.y,

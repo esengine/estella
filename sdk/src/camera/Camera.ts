@@ -3,10 +3,10 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
-import { renderSurfaceDevicePixelRatio } from '../platform/base';
+import { pointerProjection } from '../input/pointerProjection';
 import { CameraCommit } from './CameraCommit';
 import type { Vec3 } from '../types';
-import { pointerToScreen, cameraScreenToWorld, projectCameraPoint, projectDirectionAt, nearPlaneSide, isProjectable,
+import { cameraScreenToWorld, projectCameraPoint, projectDirectionAt, nearPlaneSide, isProjectable,
     createInvVPCache, cameraScreenRay, type WorldCameraProjection, type WorldRay } from '../ui/util/math';
 
 /**
@@ -115,7 +115,7 @@ export class CameraViewAPI {
     private pointerScreen(pointerX: number, pointerY: number): { x: number; y: number } | null {
         const surface = this.surface();
         if (!surface) return null;
-        return pointerToScreen(pointerX, pointerY, renderSurfaceDevicePixelRatio(this.app_), surface.screenH);
+        return pointerProjection(this.app_, surface.screenW, surface.screenH)(pointerX, pointerY);
     }
 
     /**

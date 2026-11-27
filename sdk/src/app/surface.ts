@@ -10,6 +10,11 @@ interface AppSurface {
     graphics?: GraphicsPath | null;
     canvas?: PlatformCanvas;
     size?: ViewportSize;
+    layout?: {
+        owner: Window;
+        observer?: ResizeObserver;
+        rect?: DOMRectReadOnly;
+    };
 }
 const surfaces = new WeakMap<App, AppSurface>();
 interface BoundSurface extends AppSurface { signal: AbortSignal }
@@ -53,11 +58,13 @@ function canvasForSurface(module: CanvasModule, surface: RenderSurfaceSource): P
 }
 
 export function bindRenderSurface(app: App, module: CanvasModule, surface: RenderSurfaceSource, size?: ViewportSize): void {
+    surfaces.get(app)?.layout?.observer?.disconnect();
     const bound: BoundSurface = { graphics: graphicsPathFor(surface), canvas: canvasForSurface(module, surface), size, signal: app.signal };
     surfaces.set(app, bound);
     const ref = WeakSurface ? new WeakSurface(bound) : { deref: () => bound };
     liveSurfaces.push(ref);
     bound.signal.addEventListener('abort', () => {
+        bound.layout?.observer?.disconnect();
         liveSurfaces.splice(liveSurfaces.indexOf(ref), 1);
         surfaces.delete(app);
     }, { once: true });
@@ -65,6 +72,29 @@ export function bindRenderSurface(app: App, module: CanvasModule, surface: Rende
 
 export function renderCanvasOf(app: App): PlatformCanvas | undefined {
     return surfaces.get(app)?.canvas;
+}
+
+/** The canvas content box in local CSS pixels, updated without reading layout on each input event. */
+export function renderSurfaceContentRect(app: App): DOMRectReadOnly | undefined {
+    const surface = surfaces.get(app);
+    const canvas = surface?.canvas;
+    if (!surface || !canvas || !('localName' in canvas) || canvas.localName !== 'canvas') return undefined;
+    const element = canvas as PlatformCanvas & HTMLCanvasElement;
+    const owner = element.ownerDocument.defaultView;
+    if (surface.layout?.owner === owner) return surface.layout.rect;
+
+    surface.layout?.observer?.disconnect();
+    surface.layout = undefined;
+    if (!owner) return undefined;
+    const layout: NonNullable<AppSurface['layout']> = { owner };
+    surface.layout = layout;
+    if (owner.ResizeObserver) {
+        layout.observer = new owner.ResizeObserver(entries => {
+            layout.rect = entries[0]?.contentRect;
+        });
+        layout.observer.observe(element);
+    }
+    return layout.rect;
 }
 
 /** Null when the module resolved its own graphics path. */

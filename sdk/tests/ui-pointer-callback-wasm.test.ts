@@ -127,6 +127,42 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
             expect(camera.worldMouseY).toBe(550);
         } finally { frame.remove(); }
     });
+    it('maps camera and UI pointers through the canvas content box and frame size', async () => {
+        const canvas = document.body.appendChild(document.createElement('canvas'));
+        canvas.width = 800;
+        canvas.height = 600;
+        let resize: ((rect: DOMRectReadOnly) => void) | undefined;
+        vi.spyOn(window, 'ResizeObserver').mockImplementation(function (callback: ResizeObserverCallback) {
+            const observer = { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
+            resize = contentRect => callback([{ target: canvas, contentRect } as ResizeObserverEntry], observer);
+            return observer;
+        });
+        bindRenderSurface(app, { canvas }, { kind: 'gl-context', handle: 0 });
+        const camera = app.getResource(UICameraInfo);
+        Object.assign(camera, {
+            valid: true, screenW: 800, screenH: 600, vpX: 0, vpY: 0, vpW: 800, vpH: 600,
+            viewProjection: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+        });
+        const overlay = app.getResource(ScreenOverlay);
+        overlay.surfaceW = 800;
+        const callbacks = inputEventCallbacks(app.getResource(Input));
+        try {
+            callbacks.onPointerMove(105.5, 54.25, 0, 0);
+            await app.tick(1 / 60);
+            resize?.(new DOMRect(5.25, 4.125, 401, 200.5));
+            await app.tick(1 / 60);
+            expect(camera.worldMouseX).toBeCloseTo(200);
+            expect(camera.worldMouseY).toBeCloseTo(450);
+            expect(overlay.pointerX).toBeCloseTo(200);
+            expect(overlay.pointerY).toBeCloseTo(450);
+            const view = new CameraViewAPI(app);
+            expect(view.pointerToWorld(105.5, 54.25)?.x).toBeCloseTo(-0.5);
+            resize?.(new DOMRect(5.25, 4.125, 200.5, 100.25));
+            await app.tick(1 / 60);
+            expect(overlay.pointerX).toBeCloseTo(400);
+            expect(overlay.pointerY).toBeCloseTo(300);
+        } finally { canvas.remove(); }
+    });
     it('a consumed primary release cancels the actual WASM control instead of clicking it', async () => {
         const entity = app.world.spawn(); hit.entity = entity; app.world.insert(entity, Interactable);
         const input = app.getResource(Input), callbacks = inputEventCallbacks(input), clicked = vi.fn();
