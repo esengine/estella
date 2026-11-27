@@ -124,7 +124,7 @@ export async function cookWorlds(
 
         await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
         const far = farProxySettings(document);
-        if (far !== null) {
+        if (far !== null && far.farDistance > 0) {
             const baked = await cookFarProxies(payloadDir, cut, far, assets);
             warnings.push(...baked.warnings.map((w) => `${scene.name}: ${w}`));
             farProxies.push({ scene: scene.name, ...baked });

@@ -534,7 +534,7 @@ export class WorldStreamer {
             if (!active && intersects && (reach === bounds.reach || !outsideSourceReach(cell, bounds, bounds.reach)) &&
                 (!individual || withinIndividualReach(cell, individual))) candidates.push(state);
             if (!proxy) continue;
-            const inRange = intersects && (reach === far || !outsideSourceReach(cell, bounds, far)) &&
+            const inRange = far > 0 && intersects && (reach === far || !outsideSourceReach(cell, bounds, far)) &&
                 (!individual || withinIndividualReach(cell, individual, far)) &&
                 sources.some(source => distanceToCell(cell, source.x, source.z) <= far);
             if (inRange || proxy.wanted || proxy.failed || proxy.residency !== 'unloaded') proxies.push({ state, proxy, inRange });
@@ -694,6 +694,7 @@ export class WorldStreamer {
         for (const { proxy } of this.cells_.values()) {
             if (!proxy) continue;
             proxy.wanted = false;
+            proxy.failed = false;
             if (proxy.residency === 'loading') this.host_.rush?.(proxy.scene);
             this.stepProxy_(proxy);
         }

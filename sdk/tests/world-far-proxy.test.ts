@@ -90,6 +90,25 @@ describe('a far proxy', () => {
         expect(t.loaded.size).toBe(0);
     });
 
+    it('does not prepare a zero-distance proxy even while the near cell is loading under the source', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        const prepare = vi.spyOn(t.h, 'prepare');
+        const manifest = world(0, cell(0));
+        await streamer.loadManifest(manifest);
+        streamer.update([at(50)]);
+        await t.settle();
+        expect(prepare.mock.calls).toEqual([['c_0_0']]);
+        expect(streamer.status().proxyCells).toEqual([]);
+        manifest.farDistance = 500;
+        streamer.update([at(320)]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual(['c_0_0']);
+        manifest.farDistance = 0;
+        streamer.update([at(320)]);
+        await t.settle();
+        expect(streamer.status().proxyCells).toEqual([]);
+    });
+
     it('uses the proxy radius around each of two separated sources', async () => {
         const t = host(), streamer = new WorldStreamer(t.h);
         await streamer.loadManifest(world(400, cell(0), cell(15), cell(30)));
@@ -261,6 +280,18 @@ describe('a far proxy', () => {
         streamer.update([at(500)]); await t.settle();
         expect(t.calls.filter(call => call === `load:${near}`)).toHaveLength(1);
         streamer.update([at(3000)]);
+        t.failing.delete(near);
+        streamer.update([at(500)]); await t.settle();
+        expect(t.loaded.has(near)).toBe(true);
+    });
+
+    it('retries a failed proxy when the same manifest is reused after clear', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        t.failing.add(near);
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(500)]); await t.settle();
+        expect(t.loaded.has(near)).toBe(false);
+        await streamer.clear();
         t.failing.delete(near);
         streamer.update([at(500)]); await t.settle();
         expect(t.loaded.has(near)).toBe(true);

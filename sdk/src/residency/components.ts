@@ -65,7 +65,7 @@ export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<St
             cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the plane.' },
             plane: { enum: [{ label: 'Ground (x, z)', value: StreamPlane.Ground }, { label: 'Screen (x, y)', value: StreamPlane.Screen }], tooltip: 'Which two world axes the cells are cut along: a 3D world is cut on the ground, a 2D world on the screen plane.' },
             farProxies: { tooltip: 'Bake each cell a merged, simplified stand-in of its static meshes, drawn while the cell is not loaded.' },
-            farDistance: { min: 0, unit: 'wu', tooltip: 'How far from a source an unloaded cell still shows its far proxy.' },
+            farDistance: { min: 0, unit: 'wu', tooltip: 'How far from a source an unloaded cell still shows its far proxy. Zero disables proxies in Play and exports.' },
             proxyError: { min: 0, unit: 'wu', tooltip: 'How far a far proxy surface may move from the original.' },
             proxyRatio: { min: 0.001, max: 1, tooltip: 'The fewest triangles a far proxy aims for, as a share of what the cell holds; proxyError keeps more where it must.' },
         },

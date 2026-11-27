@@ -286,7 +286,7 @@ export async function addPlayFarProxies(
     simplify?: FarProxyHost['simplify'],
 ): Promise<void> {
     const settings = farProxySettings(scene);
-    if (settings === null) return;
+    if (settings === null || settings.farDistance <= 0) return;
     const fetched = async (ref: string): Promise<Response | null> => {
         const response = await fetch(resolveRef(ref));
         return response.ok ? response : null;

@@ -139,11 +139,13 @@ describe('cooking a world with far proxies', () => {
         expect(result.farProxies[0]).toMatchObject({ cells: 1, surfaces: 2 });
     });
 
-    it('writes none for a world that does not tick far proxies', async () => {
-        const { result, manifest } = await cook(await world({}));
+    it.each([{}, { farProxies: true, farDistance: 0 }])('omits far files when proxies are off (%j)', async declaration => {
+        const root = await world(declaration);
+        const { result, manifest } = await cook(root);
         expect(manifest.farDistance).toBeUndefined();
         expect(manifest.cells.every((c) => c.proxy === undefined)).toBe(true);
         expect(result.farProxies).toEqual([]);
+        await expect(readFile(path.join(root, 'world/main.cell_0_0.far.json'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
     it('includes both an indexed mesh and its neighboring prefab with legacy references', async () => {

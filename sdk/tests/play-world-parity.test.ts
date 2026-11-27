@@ -242,4 +242,20 @@ describe('what Play hands the shipping runtime', () => {
         expect(await config.prepareWorld!(config.scenes[0].data!, 'main')).toBeNull();
         expect(names(config.scenes[0].data!)).toEqual(['Ground']);
     });
+
+    it('keeps near cells in Play and leaves out proxies at zero far distance', async () => {
+        const config = await boot(scene(
+            entity(0, 'World', null, { components: [{
+                type: 'StreamedWorld', data: { cellSize: SIZE, farProxies: true, farDistance: 0 },
+            }] }),
+            entity(2, 'Rock', [500, 0, 500], { components: [{
+                type: 'MeshRenderer', data: { mesh: 'builtin:cube', opaque: true },
+            }] }),
+        ));
+        const cut = (await config.prepareWorld!(config.scenes[0].data!, 'main'))!;
+        expect(cut.manifest.farDistance).toBeUndefined();
+        expect(cut.manifest.cells).toHaveLength(1);
+        expect(cut.manifest.cells[0].proxy).toBeUndefined();
+        expect(names(cut.documents.get('main.cell_0_0')!)).toEqual(['Rock']);
+    });
 });
