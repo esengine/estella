@@ -181,6 +181,24 @@ describe('a tilemap era owns the textures it resolved', () => {
         expect(pool.liveTextures(), 'the atlas outlived every holder').toBe(0);
     });
 
+    it('republishes native tile ranges when the atlas is resized on disk', async () => {
+        const assets = realm(TILESET_DOC);
+        const refs = ['tiles/ground.estileset', 'tiles/overlay.estileset'];
+        let height = 8;
+        assets.getTextureLoader().setPixelDecoder(async () => ({ width: 8, height, pixels: new Uint8Array(8 * height * 4) }));
+        const slots = () => resolveTilesetModel(refs.map(ref => assets.resolveRegistryAsset<PublishedTileset>('tileset', ref)!.resolved)).slots;
+        try {
+            const held = await Promise.all(refs.map(ref => assets.acquireTyped('tileset', ref)));
+            expect(slots().map(slot => slot.firstId)).toEqual([1, 5]);
+            height = 12;
+            expect(assets.invalidate('tiles/atlas.png')).toBe(true);
+            await assets.assetGraphSettled();
+            expect(slots().map(slot => slot.firstId)).toEqual([1, 7]);
+            for (const lease of held) lease.release();
+            expect(pool.liveTextures()).toBe(0);
+        } finally { assets.releaseAll(); }
+    });
+
     it('a tilemap gives back every tileset image it loaded', async () => {
         const assets = realm(GRID_MAP);
         const base = assets.sizes().refRows;
