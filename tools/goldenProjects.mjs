@@ -1711,6 +1711,8 @@ export const SHIPPED = {
     { notCertifiable: "Particle motion and a light's pulse are looks over time, not a game act. tests/particle/test_particle_orbit.cpp, test_particle_shapes.cpp and tests/renderer/test_light_pulse.cpp cover the arithmetic, and the pixel gates particle-orbit, particle-align-front, particle-align-top and light-pulse draw them on both backends." },
   "An AI agent can build visual effects through the editor's MCP tools and see them without Play.":
     { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. pipeline/tests/vfx-source.test.ts covers the description check, build and read-back, and the editor check vfx-tools writes, previews and reads effects through the tools." },
+  "An AI agent can lay out towns and cities by rules through the editor's MCP tools.":
+    { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. pipeline/tests/proc-rules.test.ts covers the graph (grids, picks by where and tag, building upward, components, repeat, walls with gates on the ground, refusals and the plan), and desktop/tests/rules-tools.test.ts runs the guide's worked example and pins the op list to the graph's." },
   "VR controllers work as input and can hold things.":
     { notCertifiable: "No CI host has a headset or controllers. sdk/tests/xr-controllers.test.ts covers the per-hand buttons and sticks, dead zones, the gamepad indices, bound actions, rebinds and controller entities placed through the rig, with a fake XR session; holding has no test of its own." },
   "Web builds can be played in a VR headset.":

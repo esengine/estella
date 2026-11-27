@@ -90,6 +90,28 @@ const FUNCTIONS: Record<string, Fn> = {
         const t = num(a[2]!, 'mix');
         return each(a[0]!, a[1]!, (x, y) => x + (y - x) * t, 'mix');
     },
+    /**
+     * A smooth field over the ground, 0..1: `noise(x, z, scale, seed?)` rises and falls over about `scale` units, so places
+     * near each other read near the same and places far apart differ. What makes a district richer, a quarter denser.
+     */
+    noise: (a) => {
+        takes('noise', a, 3, 4);
+        const [x, z, scale] = [num(a[0]!, 'noise x'), num(a[1]!, 'noise z'), num(a[2]!, 'noise scale')];
+        if (!(scale > 0)) throw new Error('noise scale must be positive');
+        const seed = a[3] === undefined ? 0 : num(a[3], 'noise seed');
+        let sum = 0, amp = 0.5, total = 0, f = 1 / scale;
+        for (let o = 0; o < 3; o++) {
+            const u = x * f, v = z * f, iu = Math.floor(u), iv = Math.floor(v);
+            const fu = u - iu, fv = v - iv, su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv);
+            const c = (i: number, j: number): number => hash3(i, j, o, seed) * 0.5 + 0.5;
+            const top = c(iu, iv) + (c(iu + 1, iv) - c(iu, iv)) * su, bottom = c(iu, iv + 1) + (c(iu + 1, iv + 1) - c(iu, iv + 1)) * su;
+            sum += (top + (bottom - top) * sv) * amp;
+            total += amp; amp *= 0.5; f *= 2;
+        }
+        return sum / total;
+    },
+    /** `if(test, then, else)`: `then` where the test is not 0. Both sides are worked out. */
+    if: (a) => { takes('if', a, 3); return num(a[0]!, 'if') !== 0 ? a[1]! : a[2]!; },
     smooth: unary('smooth', (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); }),
     /** The same number for the same key, 0..1 or between two given: a size that differs from copy to copy and not from build to build. */
     rand: (a) => {
@@ -172,8 +194,8 @@ const FUNCTIONS: Record<string, Fn> = {
 };
 
 /** One line for the tool text: what a sum may use. */
-export const EXPR_HELP = '+ - * / % ^ and ( ); points as [x, y, z], which add, and scale by a number; angles in degrees; pi; '
-    + 'sin cos tan asin acos atan atan2 sqrt abs floor ceil round min max clamp(v, lo, hi) mix(a, b, t) smooth(t) rand(key, lo?, hi?); '
+export const EXPR_HELP = '+ - * / % ^ and ( ); < <= > >= == != (1 or 0), && || !, if(test, a, b); points as [x, y, z], which add, and scale by a number; angles in degrees; pi; '
+    + 'sin cos tan asin acos atan atan2 sqrt abs floor ceil round min max clamp(v, lo, hi) mix(a, b, t) smooth(t) rand(key, lo?, hi?) noise(x, z, scale, seed?) a smooth 0..1 field; '
     + 'len norm dot cross; polar(angle, radius, y?) a point round the upright axis; '
     + 'arc(start, toward, length, from, to, power?, points?) a line that bends from one lean to another; '
     + 'part(line, from, to), along(line, t), heading(line, t); count(list); list[i]';
@@ -190,7 +212,9 @@ function tokens(source: string): Token[] {
         if (number) { out.push({ kind: 'num', text: number[0], at: i }); i += number[0].length; continue; }
         const name = /^[A-Za-z_][A-Za-z0-9_]*/.exec(source.slice(i));
         if (name) { out.push({ kind: 'name', text: name[0], at: i }); i += name[0].length; continue; }
-        if ('+-*/%^()[],'.includes(c)) { out.push({ kind: 'op', text: c, at: i }); i++; continue; }
+        const pair = source.slice(i, i + 2);
+        if (['<=', '>=', '==', '!=', '&&', '||'].includes(pair)) { out.push({ kind: 'op', text: pair, at: i }); i += 2; continue; }
+        if ('+-*/%^()[],<>!'.includes(c)) { out.push({ kind: 'op', text: c, at: i }); i++; continue; }
         throw new Error(`"${c}" at ${i} is not part of a sum`);
     }
     return out;
@@ -210,7 +234,7 @@ export function evaluate(source: string, scope: ExprScope): ExprValue {
     const listOf = (close: string): ExprValue[] => {
         const items: ExprValue[] = [];
         if (!is(close)) {
-            do items.push(sum()); while (is(',') && ++at);
+            do items.push(either()); while (is(',') && ++at);
         }
         take(close);
         return items;
@@ -233,7 +257,7 @@ export function evaluate(source: string, scope: ExprScope): ExprValue {
             if (value === undefined) throw new Error(`"${t.text}" is not a name here; there are ${[...scope.keys()].join(', ') || 'none'}`);
             return value;
         }
-        if (t.text === '(') { const v = sum(); take(')'); return v; }
+        if (t.text === '(') { const v = either(); take(')'); return v; }
         if (t.text === '[') return listOf(']');
         throw new Error(`"${t.text}" at ${t.at} is not where a value goes`);
     }
@@ -252,6 +276,7 @@ export function evaluate(source: string, scope: ExprScope): ExprValue {
     }
 
     function signed(): ExprValue {
+        if (is('!')) { at++; return num(signed(), 'what `!` turns over') === 0 ? 1 : 0; }
         if (is('-')) { at++; return each(0, signed(), (x, y) => x - y, '-'); }
         if (is('+')) { at++; return signed(); }
         const base = indexed();
@@ -290,7 +315,31 @@ export function evaluate(source: string, scope: ExprScope): ExprValue {
         }
     }
 
-    const value = sum();
+    // A comparison is 1 when it holds and 0 when it does not; `&&` and `||` read 0 as false and anything else as true.
+    const COMPARE: Record<string, (x: number, y: number) => boolean> = {
+        '<': (x, y) => x < y, '<=': (x, y) => x <= y, '>': (x, y) => x > y, '>=': (x, y) => x >= y,
+        '==': (x, y) => x === y, '!=': (x, y) => x !== y,
+    };
+    function compared(): ExprValue {
+        const v = sum();
+        const t = peek();
+        if (t?.kind === 'op' && COMPARE[t.text]) {
+            at++;
+            return COMPARE[t.text]!(num(v, `what \`${t.text}\` compares`), num(sum(), `what \`${t.text}\` compares`)) ? 1 : 0;
+        }
+        return v;
+    }
+    function both(): ExprValue {
+        let v = compared();
+        while (is('&&')) { at++; const r = compared(); v = num(v, '`&&`') !== 0 && num(r, '`&&`') !== 0 ? 1 : 0; }
+        return v;
+    }
+    function either(): ExprValue {
+        let v = both();
+        while (is('||')) { at++; const r = both(); v = num(v, '`||`') !== 0 || num(r, '`||`') !== 0 ? 1 : 0; }
+        return v;
+    }
+    const value = either();
     if (peek()) throw new Error(`"${peek()!.text}" at ${peek()!.at} is left over`);
     const finite = (v: ExprValue): boolean => (typeof v === 'number' ? Number.isFinite(v) : v.every(finite));
     if (!finite(value)) throw new Error('it comes to a value that is not a number');
