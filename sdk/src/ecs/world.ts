@@ -87,6 +87,14 @@ const _keyIds: number[] = [];
 const NO_COMPONENTS: AnyComponentDef[] = [];
 /** Membership of the committed world, for queries a bare entity can satisfy. */
 const ENTITY_POPULATION = Symbol('entity population');
+const PARENT_QUERY_DEP = 1;
+const CHILDREN_QUERY_DEP = 2;
+type QueryDependencyIds = symbol[] & { hierarchyMask?: number };
+
+function hierarchyQueryMask(ids: readonly symbol[]): number {
+    return (ids.includes(Parent._id) ? PARENT_QUERY_DEP : 0)
+        | (ids.includes(Children._id) ? CHILDREN_QUERY_DEP : 0);
+}
 
 /** The cache key and dependency ids of an unfiltered query with up to two components. */
 interface PlainQueryPlan {
@@ -193,12 +201,13 @@ export function queryDepIds(
     withoutFilters: readonly AnyComponentDef[],
     filterDeps: readonly AnyComponentDef[] = [],
 ): symbol[] {
-    const ids: symbol[] = [Disabled._id];
+    const ids: QueryDependencyIds = [Disabled._id];
     if (!components.length && !withFilters.length) ids.push(ENTITY_POPULATION);
     for (const c of components) ids.push(c._id);
     for (const c of withFilters) ids.push(c._id);
     for (const c of withoutFilters) ids.push(c._id);
     for (const c of filterDeps) ids.push(c._id);
+    ids.hierarchyMask = hierarchyQueryMask(ids);
     return ids;
 }
 
@@ -226,6 +235,7 @@ export class World {
     private inactive_: { set: Set<Entity> } | null = null;
     private inactiveVersion_ = -1;
     private coreActivityEpoch_ = -1;
+    private readonly hierarchyQueryStamps_ = new Map<symbol, { type: number; revision: number }>();
     private readonly coreDisconnect_ = new Set<() => void>();
     private entityLifetime_ = Symbol();
     private lifetimeRegistry_: CppRegistry | null = null;
@@ -276,6 +286,7 @@ export class World {
             this.builtin_.disconnect();
         }
         this.addressOf_.clear();
+        this.hierarchyQueryStamps_.clear();
         this.builtin_.connect(cppRegistry, module, options);
         for (const e of this.scripts_.getStorageById(Disabled._id)?.keys() ?? []) cppRegistry.setEntityEnabled?.(e, false);
         this.coreActivityEpoch_ = cppRegistry.activityEpoch?.() ?? -1;
@@ -382,6 +393,7 @@ export class World {
             this.engineTypeIds_.clear();
             this.addressOf_.clear();
             this.coreActivityEpoch_ = -1;
+            this.hierarchyQueryStamps_.clear();
             this.queries_.markComponentDirty(Disabled._id);
         }
     }
@@ -1054,7 +1066,7 @@ export class World {
     }
 
     // The C++ side owns both halves of the link. These mirrors track SDK
-    // writes for change filters and query candidates.
+    // writes for change filters and despawn bookkeeping.
     private trackHierarchyWrite_(child: Entity, parent: Entity | null): void {
         const parents = this.builtin_.getOrCreateEntitySet(Parent._cppName);
         const children = this.builtin_.getOrCreateEntitySet(Children._cppName);
@@ -1775,12 +1787,10 @@ export class World {
         }
         cacheKey ??= computeQueryCacheKey(components, withFilters, withoutFilters);
         if (includeInactive) cacheKey = 'stored|' + cacheKey;
-        if (!depIds) {
-            depIds = queryDepIds(components, withFilters, withoutFilters);
-            if (filter) {
-                for (const c of filter.deps) depIds.push(c._id);
-            }
-        }
+        depIds ??= queryDepIds(components, withFilters, withoutFilters, filter?.deps);
+        const hierarchyMask = (depIds as QueryDependencyIds).hierarchyMask ?? hierarchyQueryMask(depIds);
+        if (hierarchyMask & PARENT_QUERY_DEP) this.syncHierarchyQueryStamp_(Parent);
+        if (hierarchyMask & CHILDREN_QUERY_DEP) this.syncHierarchyQueryStamp_(Children);
         const standing = this.queries_.lookup(cacheKey, depIds);
         if (standing) return standing;
 
@@ -1816,7 +1826,8 @@ export class World {
                 }
             }
             for (const comp of components) {
-                if (isBuiltinComponent(comp)) {
+                // The SDK's relationship sets cannot enumerate entities linked by the core.
+                if (isBuiltinComponent(comp) && !this.isHierarchyComponent_(comp)) {
                     const bset = this.builtin_.getEntitySet(comp._cppName);
                     if (bset && bset.size < smallestSize) {
                         smallestSize = bset.size;
@@ -2215,6 +2226,23 @@ export class World {
         this.coreActivityEpoch_ = epoch;
         this.queries_.markComponentDirty(Disabled._id);
         this.queries_.markStructuralChange();
+    }
+
+    private syncHierarchyQueryStamp_(component: BuiltinComponentDef<any>): void {
+        const registry = this.builtin_.getCppRegistry();
+        if (!registry) return;
+        let stamp = this.hierarchyQueryStamps_.get(component._id);
+        if (!stamp) {
+            stamp = { type: registry.componentTypeId?.(component._cppName) ?? -1, revision: -1 };
+            this.hierarchyQueryStamps_.set(component._id, stamp);
+        }
+        // Use the write revision as predicates may read the parent's value. A core
+        // without a revision cannot certify that a cached answer still holds.
+        const revision = stamp.type < 0 ? -1
+            : worldEngineApi(this)?.registry_componentMutationRevision?.(registry, stamp.type, false) ?? -1;
+        if (revision >= 0 && revision === stamp.revision) return;
+        stamp.revision = revision;
+        this.queries_.markComponentDirty(component._id);
     }
 
     /** @internal Say composed world transforms are stale, for a producer that wrote the bytes without going through the

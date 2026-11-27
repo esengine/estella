@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { createNativeWorld } from '../src/ecs/bridge/nativeRuntime';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { installRegistryOpDefaults } from './helpers/nativeRegistryOps';
-import { Sprite, Transform } from '../src/ecs/component';
+import { Children, Parent, Sprite, Transform } from '../src/ecs/component';
 
 /** A self-contained fake native ECS + the host bindings createNativeWorld expects. */
 function mockNativeEcs() {
@@ -112,6 +112,22 @@ describe('createNativeWorld', () => {
         expect(world.valid(child)).toBe(false);       // child despawned with the subtree
         expect(alive.has(parent)).toBe(false);        // native destroy really ran
         expect(alive.has(child)).toBe(false);
+    });
+
+    it('reads live hierarchy query membership on hosts without mutation revisions', () => {
+        const { scope } = mockNativeEcs();
+        const world = createNativeWorld(scope);
+        const registry = world.getCppRegistry()!;
+
+        const first = world.spawn(), second = world.spawn(), a = world.spawn(), b = world.spawn();
+        world.setParent(a, first);
+        expect(world.queryEntities([Parent])).toEqual([a]);
+        expect(world.queryEntities([Children])).toEqual([first]);
+
+        registry.setParent(b, second);
+        registry.removeParent(a);
+        expect(world.queryEntities([Parent])).toEqual([b]);
+        expect(world.queryEntities([Children])).toEqual([second]);
     });
 
     it('keeps distinct entities independent', () => {

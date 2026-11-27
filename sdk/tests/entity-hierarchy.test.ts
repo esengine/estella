@@ -103,6 +103,31 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
         } finally { disposeWorld(world, registry); }
     });
 
+    it('updates cached hierarchy queries after engine edits without dropping unrelated results', () => {
+        const { world, registry } = createWorld();
+        try {
+            const first = world.spawn(), second = world.spawn(), a = world.spawn(), b = world.spawn();
+            world.insert(a, Sprite, {});
+            world.insert(b, Sprite, {});
+            world.setParent(a, first);
+            const sprites = world.queryEntities([Sprite]);
+            expect(world.queryEntities([Parent])).toEqual([a]);
+            expect(world.queryEntities([Children])).toEqual([first]);
+            expect(world.queryEntities([Sprite], [Parent])).toEqual([a]);
+            expect(world.queryEntities([Sprite], [], [Parent])).toEqual([b]);
+
+            expect(registry.setParent(b, second)).toBe(true);
+            expect(registry.setParent(a, INVALID_ENTITY)).toBe(true);
+            expect(world.queryEntities([Parent])).toEqual([b]);
+            expect(world.queryEntities([Children])).toContain(second);
+            expect(world.queryEntities([Sprite], [], [Parent])).toEqual([a]);
+            expect(world.queryEntities([Sprite], [Parent])).toEqual([b]);
+            expect([...world.getStoredComponentEntities(Parent)]).toEqual([b]);
+            expect(world.queryEntities([Sprite])).toBe(sprites);
+            expect(world.queryEntities([Parent])).toBe(world.queryEntities([Parent]));
+        } finally { disposeWorld(world, registry); }
+    });
+
     it('uses native links when hiding a retiring scene and detaching a surviving entity', () => {
         const { world, registry } = createWorld();
         try {
