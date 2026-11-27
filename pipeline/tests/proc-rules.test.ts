@@ -293,6 +293,7 @@ describe('rules graph', () => {
         expect(r.probe).toHaveLength(1);
         const plot = r.probe![0]!;
         expect(plot.kind).toBe('plot');
+        if (plot.kind !== 'plot') return;
         expect([plot.x, plot.z, plot.w, plot.d]).toEqual([0, 0, 16, 16]);
     });
 
