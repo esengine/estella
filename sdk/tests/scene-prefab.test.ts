@@ -27,6 +27,7 @@ import {
 } from '../src/scene/scene';
 import {
     migratePrefabData,
+    capturePrefabSource,
     flattenPrefab,
     expandInstance,
     collapseInstance,
@@ -273,6 +274,44 @@ describe('Prefab scene loading (PF1)', () => {
         expect(load.mock.calls.map(([ref]) => ref)).toEqual(['variant', 'assets/Base.esprefab', REF]);
         const restored = await expandScenePrefabs(scene, async ref => ref === 'variant' ? variant : prefab);
         expect(restored.entities.filter(e => e.parent === null).map(e => e.id)).toEqual([1, 2, 3, 4]);
+    });
+
+    it('loads inherited mounts after a deep variant chain without counting the inherited layers as mounts', async () => {
+        const base = turretPrefab();
+        base.entities[2].nestedPrefab = { prefabPath: 'optic', overrides: [] };
+        const optic = turretPrefab();
+        optic.entities[2].nestedPrefab = { prefabPath: 'lens', overrides: [] };
+        const lens = turretPrefab();
+        lens.entities[1].name = 'Lens housing';
+        const assets = new Map<string, PrefabData>([['base0', base], ['optic', optic], ['lens', lens]]);
+        for (let i = 1; i <= 10; i++) {
+            assets.set(`base${i}`, { ...base, entities: [], basePrefab: `base${i - 1}` });
+        }
+        const scene = { version: 4, name: 'Inherited mounts', entities: [
+            { id: 1, prefab: 'base10', parent: null, overrides: [], removed: [], added: [] },
+        ] } as unknown as SceneData;
+
+        const read = vi.fn(async (ref: string) => assets.get(ref) ?? null);
+        const expanded = await expandScenePrefabs(scene, read);
+        expect(expanded.entities.some(entity => entity.name === 'Lens housing')).toBe(true);
+        expect(read.mock.calls.filter(([ref]) => ref === 'lens')).toHaveLength(1);
+    });
+
+    it('ignores mounts replaced by a variant in both editor snapshots and runtime loads', async () => {
+        const base = turretPrefab();
+        base.entities[2].nestedPrefab = { prefabPath: 'removed-optic', overrides: [] };
+        const variant = { ...turretPrefab(), basePrefab: 'base' };
+        const assets = new Map([['base', base], ['variant', variant]]);
+        const read = vi.fn((ref: string) => assets.get(ref) ?? null);
+        const snapshot = capturePrefabSource(variant, read);
+        expect([...snapshot.dependencies.keys()]).toEqual(['base']);
+        const scene = { version: 4, name: 'Replaced mount', entities: [
+            { id: 1, prefab: 'variant', parent: null, overrides: [], removed: [], added: [] },
+        ] } as unknown as SceneData;
+
+        const expanded = await expandScenePrefabs(scene, async ref => read(ref));
+        expect(expanded.entities.map(entity => entity.name)).toEqual(['Turret', 'Barrel', 'Scope']);
+        expect(read).not.toHaveBeenCalledWith('removed-optic');
     });
 
     it('passes a scene with no prefab instances through unchanged', async () => {

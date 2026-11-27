@@ -29,6 +29,9 @@ export type PrefabEntityId = string;
  */
 export const PREFAB_ADDRESS_SEP = '/';
 
+/** Shared by dependency discovery and prefab assembly. */
+export const MAX_PREFAB_NESTING_DEPTH = 10;
+
 export interface PrefabData {
     version: string;
     name: string;

@@ -10,14 +10,12 @@ import type {
     FlattenContext,
     FlattenResult,
 } from './types';
-import { PREFAB_ADDRESS_SEP } from './types';
+import { MAX_PREFAB_NESTING_DEPTH, PREFAB_ADDRESS_SEP } from './types';
 import { cloneComponents, cloneMetadata } from './clone';
 import { mapOverrideRefs, prefabRef, remapComponentEntityRefs } from './entityRef';
 import { applyOverrides, bucketOverridesByEntity } from './override';
 import { createChildLookup, checkParentCycle } from '../document/diagnostics';
 import { INVALID_ENTITY } from '../types';
-
-const MAX_PREFAB_NESTING_DEPTH = 10;
 
 /** Prefix a nested entity's stable id with the slot it was mounted through. */
 function joinAddress(slotId: PrefabEntityId, localId: PrefabEntityId): PrefabEntityId {
