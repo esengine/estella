@@ -14,7 +14,10 @@ import { partitionWorld, type PartitionOptions } from '../src/residency/partitio
 import { cutWorld } from '../src/residency/cutWorld';
 import { StreamPlane } from '../src/residency/components';
 import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
-import type { SceneData } from '../src/scene/scene';
+import { loadSceneData, type SceneData } from '../src/scene/scene';
+import { Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { World } from '../src/ecs/world';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const SIZE = 1000;
 
@@ -95,6 +98,38 @@ describe('partitionWorld', () => {
         ))!;
         // Scaled to 200 along local X, then a quarter turn about Y sends it to -Z.
         expect(partition.cells[0].minZ).toBeCloseTo(-200, 4);
+    });
+
+    it.each([
+        { plane: StreamPlane.Screen, axis: 'y' as const, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 } },
+        { plane: StreamPlane.Ground, axis: 'z' as const, rotation: { x: 0, y: -Math.SQRT1_2, z: 0, w: Math.SQRT1_2 } },
+    ])('matches the composed runtime bounds in the $axis axis', async ({ plane, axis, rotation }) => {
+        const root = entity(1, 'Scaled root', [100, 100, 100]);
+        root.children = [2];
+        (root.components as Component[])[0].data.scale = { x: 1, y: 3, z: 3 };
+        const middle = entity(2, 'Rotated pivot', [0, 0, 0], { parent: 1 });
+        middle.children = [3];
+        (middle.components as Component[])[0].data.rotation = rotation;
+        const document = scene(
+            entity(0, 'World', null, { components: [{ ...declaration, data: { cellSize: SIZE, plane } }] }),
+            root, middle, { ...entity(3, 'Folder', null, { parent: 2 }), children: [4] },
+            entity(4, 'Leaf', [450, 0, 0], { parent: 3 }),
+        );
+
+        const bounds = cut(document)!.cells[0];
+        expect(bounds.maxZ).toBeCloseTo(1450, 4);
+        if (HAS_WASM) {
+            ensureBuiltinComponentsRegistered();
+            const module = await loadWasmModule();
+            const registry = new module.Registry();
+            const world = new World();
+            world.connectCpp(registry, module);
+            try {
+                const ids = loadSceneData(world, document);
+                world.ensureTransformsComposed();
+                expect(bounds.maxZ).toBeCloseTo(world.get(ids.get(4)!, Transform).worldPosition[axis], 2);
+            } finally { world.disconnectCpp(); registry.delete(); }
+        }
     });
 
     it('refuses WorldPersistent on anything but a root', () => {

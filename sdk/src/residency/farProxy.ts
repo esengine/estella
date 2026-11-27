@@ -11,7 +11,7 @@
  */
 
 import { expandScenePrefabs, type PrefabAssetResolver, type SceneData, type SceneEntityData } from '../scene/scene';
-import { composeTRS } from '../math/mat4';
+import { composeTRS, multiplyAffine } from '../math/mat4';
 import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat';
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
@@ -85,18 +85,6 @@ export function farProxySettings(scene: SceneData): FarProxySettings | null {
     return null;
 }
 
-function multiply(a: readonly number[], b: readonly number[]): number[] {
-    const out = new Array<number>(16);
-    for (let column = 0; column < 4; column++) {
-        for (let row = 0; row < 4; row++) {
-            let sum = 0;
-            for (let k = 0; k < 4; k++) sum += a[k * 4 + row]! * b[column * 4 + k]!;
-            out[column * 4 + row] = sum;
-        }
-    }
-    return out;
-}
-
 function localMatrix(entity: SceneEntityData): number[] {
     const transform = componentOf(entity, 'Transform') ?? {};
     const p = (transform.position ?? {}) as Partial<Vec3>;
@@ -151,7 +139,7 @@ export async function farProxySurfaces(
         const parent = entity.parent !== null && entity.parent !== undefined && byId.has(entity.parent) && !seen.has(entity.parent)
             ? entity.parent : null;
         seen.add(id);
-        const world = parent === null ? localMatrix(entity) : multiply(worldOf(parent, seen), localMatrix(entity));
+        const world = parent === null ? localMatrix(entity) : multiplyAffine(worldOf(parent, seen), localMatrix(entity));
         worlds.set(id, world);
         return world;
     };

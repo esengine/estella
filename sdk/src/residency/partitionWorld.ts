@@ -28,6 +28,7 @@ import { isPrefabEntry } from '../scene/sceneEntry';
 import { cellAt, cellSquare, planeSecond } from './cells';
 import { StreamPlane } from './components';
 import { applyOverrides } from '../prefab/override';
+import { composeTRS, multiplyAffine } from '../math/mat4';
 import type { SceneData, SceneEntityData, SceneComponentData } from '../scene/scene';
 import type { SceneEntry } from '../scene/sceneEntry';
 import type { PrefabInstanceEntry } from '../prefab/sceneInstance';
@@ -164,39 +165,20 @@ function editsTransform(override: PrefabOverride): boolean {
     }
 }
 
-/** Rotation and scale, for composing where a CHILD ends up. Identity by default. */
-function localRotation(transform: Readonly<Record<string, unknown>> | null): [number, number, number, number] {
-    const r = transform?.rotation as Partial<{ x: number; y: number; z: number; w: number }> | undefined;
-    if (!r) return [0, 0, 0, 1];
-    return [r.x ?? 0, r.y ?? 0, r.z ?? 0, r.w ?? 1];
-}
-
 const UNIT_SCALE: Vec3 = { x: 1, y: 1, z: 1 };
 
-/** Rotate `v` by the quaternion `q`. */
-function rotate(q: readonly [number, number, number, number], v: Vec3): Vec3 {
-    const [qx, qy, qz, qw] = q;
-    const tx = 2 * (qy * v.z - qz * v.y);
-    const ty = 2 * (qz * v.x - qx * v.z);
-    const tz = 2 * (qx * v.y - qy * v.x);
-    return {
-        x: v.x + qw * tx + (qy * tz - qz * ty),
-        y: v.y + qw * ty + (qz * tx - qx * tz),
-        z: v.z + qw * tz + (qx * ty - qy * tx),
-    };
+function localMatrix(transform: Readonly<Record<string, unknown>>, position: Vec3): number[] {
+    const r = transform.rotation as Partial<{ x: number; y: number; z: number; w: number }> | undefined;
+    return composeTRS(position, { x: r?.x ?? 0, y: r?.y ?? 0, z: r?.z ?? 0, w: r?.w ?? 1 },
+        vec3(transform.scale, UNIT_SCALE));
 }
 
-function multiplyQuat(
-    a: readonly [number, number, number, number], b: readonly [number, number, number, number],
-): [number, number, number, number] {
-    const [ax, ay, az, aw] = a;
-    const [bx, by, bz, bw] = b;
-    return [
-        aw * bx + ax * bw + ay * bz - az * by,
-        aw * by - ax * bz + ay * bw + az * bx,
-        aw * bz + ax * by - ay * bx + az * bw,
-        aw * bw - ax * bx - ay * by - az * bz,
-    ];
+function transformPoint(matrix: readonly number[], { x, y, z }: Vec3): Vec3 {
+    return {
+        x: matrix[0]! * x + matrix[4]! * y + matrix[8]! * z + matrix[12]!,
+        y: matrix[1]! * x + matrix[5]! * y + matrix[9]! * z + matrix[13]!,
+        z: matrix[2]! * x + matrix[6]! * y + matrix[10]! * z + matrix[14]!,
+    };
 }
 
 interface Placement {
@@ -262,8 +244,9 @@ export function partitionWorld(
         const cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
 
         const subtree: number[] = [];
-        const stack: Array<{ id: number; position: Vec3; rotation: [number, number, number, number]; scale: Vec3 }> = [
-            { id: root, position: rootPosition, rotation: localRotation(transform), scale: vec3(transform?.scale, UNIT_SCALE) },
+        const rootMatrix = transform && childrenOf.has(root) ? localMatrix(transform, rootPosition) : null;
+        const stack: Array<{ id: number; position: Vec3; matrix: readonly number[] | null }> = [
+            { id: root, position: rootPosition, matrix: rootMatrix },
         ];
         while (stack.length > 0) {
             const node = stack.pop()!;
@@ -273,26 +256,23 @@ export function partitionWorld(
             for (const child of childrenOf.get(node.id) ?? []) {
                 const childTransform = localTransform(byId.get(child)!, options, errors);
                 const local = vec3(childTransform?.position, ORIGIN);
-                const scale = vec3(childTransform?.scale, UNIT_SCALE);
-                const scaled = { x: local.x * node.scale.x, y: local.y * node.scale.y, z: local.z * node.scale.z };
-                const turned = rotate(node.rotation, scaled);
-                stack.push({
-                    id: child,
-                    position: { x: node.position.x + turned.x, y: node.position.y + turned.y, z: node.position.z + turned.z },
-                    rotation: multiplyQuat(node.rotation, localRotation(childTransform)),
-                    scale: {
-                        x: node.scale.x * scale.x,
-                        y: node.scale.y * scale.y,
-                        z: node.scale.z * scale.z,
-                    },
-                });
+                const position = node.matrix ? transformPoint(node.matrix, local) : local;
+                // As in the runtime, a folder passes its parent's matrix on,
+                // and a leaf never needs a matrix to hand to its children.
+                let matrix = node.matrix;
+                if (childTransform && childrenOf.has(child)) {
+                    const localChild = localMatrix(childTransform, local);
+                    matrix = matrix ? multiplyAffine(matrix, localChild) : localChild;
+                }
+                stack.push({ id: child, position, matrix });
             }
         }
         members.set(root, subtree);
     }
 
+    const rootIds = new Set(roots);
     for (const entry of entries) {
-        if (roots.includes(entry.id)) continue;
+        if (rootIds.has(entry.id)) continue;
         if (hasComponent(entry, 'WorldPersistent')) {
             errors.push(
                 `entity ${entry.id} ("${nameOf(entry)}") carries WorldPersistent but is not top-level — `

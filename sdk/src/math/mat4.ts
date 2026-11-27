@@ -180,6 +180,25 @@ export function composeTRS(p: { x: number; y: number; z: number },
     ];
 }
 
+/** Compose two column-major affine matrices without reducing the result to TRS. */
+export function multiplyAffine(parent: readonly number[], local: readonly number[]): number[] {
+    const world = new Array<number>(16);
+    for (let column = 0; column < 16; column += 4) {
+        const x = local[column]!;
+        const y = local[column + 1]!;
+        const z = local[column + 2]!;
+        for (let row = 0; row < 3; row++) {
+            world[column + row] = parent[row]! * x + parent[row + 4]! * y + parent[row + 8]! * z;
+        }
+        world[column + 3] = 0;
+    }
+    world[12] = world[12]! + parent[12]!;
+    world[13] = world[13]! + parent[13]!;
+    world[14] = world[14]! + parent[14]!;
+    world[15] = 1;
+    return world;
+}
+
 export function multiply(a: Float32Array, b: Float32Array): Float32Array {
     const m = _mulM;
     for (let i = 0; i < 4; i++) {
