@@ -87,13 +87,16 @@ const _keyIds: number[] = [];
 const NO_COMPONENTS: AnyComponentDef[] = [];
 /** Membership of the committed world, for queries a bare entity can satisfy. */
 const ENTITY_POPULATION = Symbol('entity population');
+const HIERARCHY_CONTENT = Symbol('hierarchy content');
 const PARENT_QUERY_DEP = 1;
 const CHILDREN_QUERY_DEP = 2;
+const HIERARCHY_CONTENT_QUERY_DEP = 4;
 type QueryDependencyIds = symbol[] & { hierarchyMask?: number };
 
 function hierarchyQueryMask(ids: readonly symbol[]): number {
     return (ids.includes(Parent._id) ? PARENT_QUERY_DEP : 0)
-        | (ids.includes(Children._id) ? CHILDREN_QUERY_DEP : 0);
+        | (ids.includes(Children._id) ? CHILDREN_QUERY_DEP : 0)
+        | (ids.includes(HIERARCHY_CONTENT) ? HIERARCHY_CONTENT_QUERY_DEP : 0);
 }
 
 /** The cache key and dependency ids of an unfiltered query with up to two components. */
@@ -151,8 +154,8 @@ export function computeQueryCacheKey(
 /**
  * Predicate-based filter applied after the positive/negative component
  * checks. Callers (typically `QueryInstance`) compile an expression tree
- * into a `match` closure plus a list of components the tree reads so the
- * query cache can invalidate on structural changes to any of them.
+ * into a `match` closure plus a list of components it reads. A custom
+ * predicate can also read the values of hierarchy components.
  */
 export interface QueryFilter {
     readonly match: (entity: Entity) => boolean;
@@ -200,6 +203,7 @@ export function queryDepIds(
     withFilters: readonly AnyComponentDef[],
     withoutFilters: readonly AnyComponentDef[],
     filterDeps: readonly AnyComponentDef[] = [],
+    filterSemantics: 'values' | 'membership' = 'values',
 ): symbol[] {
     const ids: QueryDependencyIds = [Disabled._id];
     if (!components.length && !withFilters.length) ids.push(ENTITY_POPULATION);
@@ -207,6 +211,9 @@ export function queryDepIds(
     for (const c of withFilters) ids.push(c._id);
     for (const c of withoutFilters) ids.push(c._id);
     for (const c of filterDeps) ids.push(c._id);
+    if (filterSemantics === 'values' && filterDeps.some(c => c._id === Parent._id || c._id === Children._id)) {
+        ids.push(HIERARCHY_CONTENT);
+    }
     ids.hierarchyMask = hierarchyQueryMask(ids);
     return ids;
 }
@@ -236,6 +243,7 @@ export class World {
     private inactiveVersion_ = -1;
     private coreActivityEpoch_ = -1;
     private readonly hierarchyQueryStamps_ = new Map<symbol, { type: number; revision: number }>();
+    private hierarchyContentStamp_ = -1;
     private readonly coreDisconnect_ = new Set<() => void>();
     private entityLifetime_ = Symbol();
     private lifetimeRegistry_: CppRegistry | null = null;
@@ -287,6 +295,7 @@ export class World {
         }
         this.addressOf_.clear();
         this.hierarchyQueryStamps_.clear();
+        this.hierarchyContentStamp_ = -1;
         this.builtin_.connect(cppRegistry, module, options);
         for (const e of this.scripts_.getStorageById(Disabled._id)?.keys() ?? []) cppRegistry.setEntityEnabled?.(e, false);
         this.coreActivityEpoch_ = cppRegistry.activityEpoch?.() ?? -1;
@@ -394,6 +403,7 @@ export class World {
             this.addressOf_.clear();
             this.coreActivityEpoch_ = -1;
             this.hierarchyQueryStamps_.clear();
+            this.hierarchyContentStamp_ = -1;
             this.queries_.markComponentDirty(Disabled._id);
         }
     }
@@ -1791,6 +1801,7 @@ export class World {
         const hierarchyMask = (depIds as QueryDependencyIds).hierarchyMask ?? hierarchyQueryMask(depIds);
         if (hierarchyMask & PARENT_QUERY_DEP) this.syncHierarchyQueryStamp_(Parent);
         if (hierarchyMask & CHILDREN_QUERY_DEP) this.syncHierarchyQueryStamp_(Children);
+        if (hierarchyMask & HIERARCHY_CONTENT_QUERY_DEP) this.syncHierarchyContentStamp_();
         const standing = this.queries_.lookup(cacheKey, depIds);
         if (standing) return standing;
 
@@ -2240,13 +2251,21 @@ export class World {
             stamp = { type: registry.componentTypeId?.(component._cppName) ?? -1, revision: -1 };
             this.hierarchyQueryStamps_.set(component._id, stamp);
         }
-        // Use the write revision as predicates may read the parent's value. A core
-        // without a revision cannot certify that a cached answer still holds.
+        // A core without a revision cannot certify that a cached answer still holds.
         const revision = stamp.type < 0 ? -1
-            : worldEngineApi(this)?.registry_componentMutationRevision?.(registry, stamp.type, false) ?? -1;
+            : worldEngineApi(this)?.registry_componentMutationRevision?.(registry, stamp.type, true) ?? -1;
         if (revision >= 0 && revision === stamp.revision) return;
         stamp.revision = revision;
         this.queries_.markComponentDirty(component._id);
+    }
+
+    private syncHierarchyContentStamp_(): void {
+        const registry = this.builtin_.getCppRegistry();
+        if (!registry) return;
+        const revision = worldEngineApi(this)?.registry_hierarchyRevision?.(registry) ?? -1;
+        if (revision >= 0 && revision === this.hierarchyContentStamp_) return;
+        this.hierarchyContentStamp_ = revision;
+        this.queries_.markComponentDirty(HIERARCHY_CONTENT);
     }
 
     private readHierarchyQueryCandidates_(children: boolean): Entity[] | null {

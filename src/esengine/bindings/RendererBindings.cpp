@@ -2021,6 +2021,7 @@ double registry_entityChangeResetEpoch(ecs::Registry& registry) { return registr
 double registry_componentMutationRevision(ecs::Registry& registry, u32 component, bool topology) {
     return registry.componentMutationRevision(component, topology);
 }
+u32 registry_hierarchyRevision(ecs::Registry& registry) { return registry.childOf().epoch(); }
 int registry_readHierarchyMembers(ecs::Registry& registry, bool children, uintptr_t outputPtr, int capacity) {
     const auto members = children ? registry.entitiesWith<ecs::Children>() : registry.entitiesWith<ecs::Parent>();
     if (capacity == 0 && outputPtr == 0) return static_cast<int>(members.size());

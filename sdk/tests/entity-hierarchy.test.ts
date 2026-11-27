@@ -11,6 +11,7 @@ import { World } from '../src/ecs/world';
 import { Transform, Sprite, Parent, Children, Disabled, Canvas, Camera } from '../src/ecs/component';
 import { setEntityActive, isEntityActive } from '../src/ecs/entityUtils';
 import { CommandsInstance } from '../src/ecs/commands';
+import { Query, QueryInstance, With } from '../src/ecs/query';
 import { ResourceStorage } from '../src/ecs/resource';
 import { detachFromSceneParent, SceneEntityBatch } from '../src/scene/sceneHierarchy';
 import { INVALID_ENTITY, type Entity } from '../src/types';
@@ -125,6 +126,39 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             expect([...world.getStoredComponentEntities(Parent)]).toEqual([b]);
             expect(world.queryEntities([Sprite])).toBe(sprites);
             expect(world.queryEntities([Parent])).toBe(world.queryEntities([Parent]));
+        } finally { disposeWorld(world, registry); }
+    });
+
+    it('refreshes value predicates after a native reparent without rebuilding membership queries', () => {
+        const { world, registry } = createWorld();
+        try {
+            const first = world.spawn(), second = world.spawn(), moving = world.spawn(), staying = world.spawn();
+            world.setParent(moving, first);
+            world.setParent(staying, second);
+            const attached = world.queryEntities([Parent]);
+            const parents = world.queryEntities([Children]);
+            const withParent = new QueryInstance(world, Query().filter(With(Parent)));
+            expect(withParent.toArray()).toEqual([[moving], [staying]]);
+            const childOfFirst = {
+                deps: [Parent], match: (entity: Entity) => world.tryGet(entity, Parent)?.entity === first,
+            };
+            const containsMoving = {
+                deps: [Children], match: (entity: Entity) => world.tryGet(entity, Children)?.entities.includes(moving) ?? false,
+            };
+            const readChildren = () => world.queryEntities([Parent], [], [], 'test:child-of-first', childOfFirst);
+            const readParents = () => world.queryEntities([Children], [], [], 'test:contains-moving', containsMoving);
+            expect(readChildren()).toEqual([moving]);
+            expect(readParents()).toEqual([first]);
+
+            expect(registry.setParent(moving, second)).toBe(true);
+            expect(readChildren()).toEqual([]);
+            expect(readParents()).toEqual([second]);
+            if (module.registry_hierarchyRevision) expect(readParents()).toBe(readParents());
+            expect(world.queryEntities([Parent])).toBe(attached);
+            expect(world.queryEntities([Children])).toBe(parents);
+            const { misses } = world.getQueryCacheStats();
+            expect(withParent.toArray()).toEqual([[moving], [staying]]);
+            expect(world.getQueryCacheStats().misses).toBe(misses);
         } finally { disposeWorld(world, registry); }
     });
 

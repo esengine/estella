@@ -462,7 +462,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         // otherwise build per call.
         this.depIds_ = queryDepIds(
             this.allRequired_, descriptor._with, descriptor._without,
-            this.compiledFilter_?.deps ?? [],
+            this.compiledFilter_?.deps ?? [], 'membership',
         );
         this.getters_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'borrowed', descriptor._mutIndices.includes(i)));
         this.gettersRetained_ = this.actualComponents_.map((comp, i) => world.resolveGetter(comp, 'retained', descriptor._mutIndices.includes(i)));
