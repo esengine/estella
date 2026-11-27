@@ -645,6 +645,43 @@ describe('exportGame (wechat)', () => {
     const pcfg = JSON.parse(readFileSync(path.join(outMulti, 'project.config.json'), 'utf8'));
     expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });
   }, 60_000);
+  it.each([false, true])('keeps logical scene names when JSON package paths collide (existing directory: %s)', async (existingDirectory) => {
+    const directory = `levels-with-json-folder-${existingDirectory}`;
+    const entry = `${directory}/chapter.esscene`;
+    const nested = `${directory}/chapter.json/room.esscene`;
+    const mainId = `12121212-1212-4212-8212-12121212121${Number(existingDirectory)}`;
+    const roomId = `13131313-1313-4313-8313-13131313131${Number(existingDirectory)}`;
+    mkdirSync(path.join(root, directory, 'chapter.json'), { recursive: true });
+    const writeScene = (file: string, id: string, name: string) => {
+      writeFileSync(path.join(root, file), JSON.stringify({ version: 4, name, entities: [] }));
+      writeFileSync(path.join(root, file + '.meta'), meta(id, 'scene'));
+    };
+    const outDir = path.join(root, `dist-scene-path-collision-${existingDirectory}`);
+    const exportWithEntry = (entryScene: string) => exportGame({
+      root, entryScene, scenesDir: directory, outDir, platform: 'wechat', minifyScripts: false,
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'),
+    });
+    writeScene(nested, roomId, 'Room');
+    if (existingDirectory) {
+      const initial = await exportWithEntry(nested);
+      expect(initial.ok, initial.errors.join('\n')).toBe(true);
+    }
+    writeScene(entry, mainId, 'Chapter');
+    const res = await exportWithEntry(entry);
+    expect(res.ok, res.errors.join('\n')).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(outDir, 'asset-manifest.json'), 'utf8'));
+    const assets = manifest.groups.main.assets;
+    expect(assets[mainId].path).toBe(existingDirectory ? 'scene-1.json' : 'scenes/chapter.json');
+    expect(assets[roomId].path).toBe(existingDirectory ? 'scenes/chapter.json/room.json' : 'scene-1.json');
+    expect(JSON.parse(readFileSync(path.join(outDir, assets[mainId].path), 'utf8')).name).toBe('Chapter');
+    expect(JSON.parse(readFileSync(path.join(outDir, assets[roomId].path), 'utf8')).name).toBe('Room');
+    const bundle = readFileSync(path.join(outDir, 'game-bundle.js'), 'utf8');
+    expect(bundle).toContain('firstScene: "chapter"');
+    expect(bundle).toContain(`"name": "chapter", "path": "${assets[mainId].path}"`);
+    expect(bundle).toContain(`"name": "chapter.json/room", "path": "${assets[roomId].path}"`);
+  }, 60_000);
+
   // The engine binary is the largest single file in a mini-game package and the
   // main-package limit is 4MB, so compressing it is worth a build-time cost —
   // but only where the host can load the result, and only when the project asked.

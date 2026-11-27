@@ -80,6 +80,8 @@ export interface MiniGameRuntimeConfig extends RenderOptions, RuntimeProjectSett
     engineWasmPath: string;
     ident?: boolean;
     sceneNames: string[];
+    /** Package-relative files indexed by logical scene name. */
+    sceneFiles?: readonly { name: string; path: string }[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
@@ -349,15 +351,16 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
     applyAssetRefResolvers(app, source.resolveRef!);
 
     // The first scene loads eagerly (the game boots into it); every other
-    // registers lazily by path — SceneManager fetches scenes/<name>.json
+    // registers lazily by path — SceneManager fetches the packaged scene
     // through the runtime Assets (host fs backend) on the first switchTo.
     const scenes: Array<{ name: string; data?: SceneData; path?: string }> = [];
-    for (const name of config.sceneNames) {
+    const sceneFiles = config.sceneFiles ?? config.sceneNames.map(name => ({ name, path: `scenes/${name}.json` }));
+    for (const { name, path } of sceneFiles) {
         if (name === config.firstScene) {
-            const sceneText = await platformReadTextFile(`scenes/${name}.json`);
+            const sceneText = await platformReadTextFile(path);
             scenes.push({ name, data: JSON.parse(sceneText) as SceneData });
         } else {
-            scenes.push({ name, path: `scenes/${name}.json` });
+            scenes.push({ name, path });
         }
     }
 

@@ -15622,6 +15622,7 @@ projectPlugin: Plugin | undefined
 quality: QualityConfig | undefined
 runtime: RuntimeBuildConfig | undefined
 runtimeConfig: RuntimeBuildConfig | undefined
+sceneFiles: readonly { name: string; path: string; }[] | undefined
 sceneNames: string[]
 screenFit: ScreenScalingData | undefined
 sideModuleBinaries: Readonly<Record<string, MiniGameSideModuleBinary>> | undefined

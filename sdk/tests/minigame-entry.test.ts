@@ -93,7 +93,7 @@ describe('esengine/minigame entry', () => {
         expect(platform.getPlatform().createAudioBackend().name).toBe('ACME Play');
     }, 30000);
 
-    it('boots with the packaged render settings and forwards the requested edge to its image decoder', async () => {
+    it.each([false, true])('boots with packaged render settings and registers scene paths (explicit paths: %s)', async (explicitPaths) => {
         const mg = await import('../src/index.minigame');
         const factory = await import('../src/runtime/webAppFactory');
         const runtime = await import('../src/runtime/runtimeLoader');
@@ -102,7 +102,7 @@ describe('esengine/minigame entry', () => {
         const gl = { getExtension: () => null };
         const host = { ...makeHost(), createCanvas: () => ({ width: 0, height: 0, getContext: () => gl }) };
         const adapter = mg.installMiniGamePlatform({ id: 'acme-play', hostLabel: 'ACME Play', global: host as unknown as MiniGameGlobal });
-        vi.spyOn(adapter, 'readTextFile').mockImplementation(async path => path === 'asset-manifest.json'
+        const readText = vi.spyOn(adapter, 'readTextFile').mockImplementation(async path => path === 'asset-manifest.json'
             ? JSON.stringify({ version: '2.0', groups: {} }) : JSON.stringify({ name: 'Main', entities: [] }));
         const fitted = { width: 2, height: 1, pixels: new Uint8Array(8), sourceWidth: 8, sourceHeight: 4 };
         const decode = vi.spyOn(adapter, 'loadImagePixels').mockResolvedValue(fitted);
@@ -119,11 +119,21 @@ describe('esengine/minigame entry', () => {
             achievements: ['FIRST_MAP'], physicsEnabled: false, physics3dWorld: { unitsPerMeter: 1 },
             uiTheme: 'dark' as const, uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } },
         };
+        const firstPath = explicitPaths ? 'scene-1.json' : 'scenes/Main.json';
+        const nextPath = explicitPaths ? 'scene-2.json' : 'scenes/chapter.json/room.json';
+        const sceneFiles = explicitPaths ? [
+            { name: 'Main', path: firstPath }, { name: 'chapter.json/room', path: nextPath },
+        ] : undefined;
         try {
             await mg.initMiniGameRuntime({ engineFactory: async () => module, engineWasmPath: 'wasm/core.wasm',
-                sceneNames: ['Main'], firstScene: 'Main', ...settings, ...project });
+                sceneNames: ['Main', 'chapter.json/room'], sceneFiles, firstScene: 'Main', ...settings, ...project });
             expect(create).toHaveBeenCalledWith(module, expect.objectContaining(settings));
             expect(boot.mock.calls[0]![0]).toMatchObject(project);
+            expect(readText).toHaveBeenCalledWith(firstPath);
+            expect(readText).not.toHaveBeenCalledWith(nextPath);
+            expect(boot.mock.calls[0]![0].scenes).toEqual([
+                { name: 'Main', data: { name: 'Main', entities: [] } }, { name: 'chapter.json/room', path: nextPath },
+            ]);
             expect(await boot.mock.calls[0]![0].source.decodePixels('mesh.png', true, 2)).toBe(fitted);
             expect(decode).toHaveBeenCalledWith('mesh.png', 2);
         } finally { vi.restoreAllMocks(); setPlatform(webAdapter); }

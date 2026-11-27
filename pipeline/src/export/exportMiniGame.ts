@@ -37,7 +37,7 @@ import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
-import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
+import { writeFile, mkdir, cp, readFile, rename, rm, lstat } from 'node:fs/promises';
 import { brotliCompress as brotliCompressCb, constants as zlibConstants } from 'node:zlib';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
@@ -402,7 +402,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
   }
 
-  await mkdir(absOut, { recursive: true });
+  const createdOutput = await mkdir(absOut, { recursive: true });
   const previousAssets = await exportedAssetFiles(absOut);
 
   // Every switchable scene ships; the exporter's caller (exportGame) discovers
@@ -432,16 +432,63 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   };
   const flatManifestPath = path.join(absOut, 'assets.manifest.json');
   let cookEntries: CookManifest['entries'] = [];
+  let sceneFileArg = '';
   const sceneRawByName = new Map<string, unknown>();
   /** Where a staged file went, so a second entry naming it does not move it again. */
   const restaged = new Map<string, string>();
   try {
     const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
+    const files = new Set<string>();
+    const directories = new Set<string>();
+    const packageKey = (file: string) => file.normalize('NFC').toLowerCase();
+    const rememberFile = (file: string) => {
+      files.add(file);
+      for (let dir = path.posix.dirname(file); dir !== '.' && dir !== '/'; dir = path.posix.dirname(dir)) {
+        directories.add(dir);
+      }
+    };
+    const canStage = async (file: string) => {
+      const key = packageKey(file);
+      if (files.has(key) || directories.has(key)) return false;
+      for (let dir = path.posix.dirname(key); dir !== '.' && dir !== '/'; dir = path.posix.dirname(dir)) {
+        if (files.has(dir)) return false;
+      }
+      // Re-exporting can leave a directory at a newly chosen file path.
+      const target = path.join(absOut, file);
+      if (!createdOutput) {
+        try {
+          return (await lstat(target)).isFile();
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code === 'ENOTDIR') return false;
+          if (code !== 'ENOENT') throw err;
+        }
+      }
+      // Some hosts report a missing file when an ancestor is a file.
+      try {
+        await mkdir(path.dirname(target), { recursive: true });
+        return true;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === 'EEXIST' || code === 'ENOTDIR') return false;
+        throw err;
+      }
+    };
+    for (const entry of flat.entries) rememberFile(packageKey(entry.path));
+    let fallbackIndex = 0;
+    const scenesBySource = new Map<string, { name: string; path: string }>();
+    for (const scene of scenes) {
+      let file = `scenes/${scene.name}.json`;
+      while (!await canStage(file)) file = `scene-${++fallbackIndex}.json`;
+      rememberFile(packageKey(file));
+      scenesBySource.set(scene.path, { name: scene.name, path: file });
+    }
+    if (fallbackIndex > 0) sceneFileArg = `, sceneFiles: ${JSON.stringify([...scenesBySource.values()])}`;
     for (const e of flat.entries) {
       // Scenes FIRST: they have a transform of their own below, which leaves a
       // `.json` the packer takes. Restaging one would ship the authored file
       // beside the transformed one, under a name nothing reads.
-      const scene = scenes.find((s) => s.path === e.path);
+      const scene = scenesBySource.get(e.path);
       if (!scene && needsRestage(e.path)) {
         // Assets share an output freely — every sprite packed into an atlas
         // names the same page — so the file moves once and the rest follow it.
@@ -458,8 +505,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         const staged = path.join(absOut, e.path);
         const raw = JSON.parse(await readFile(staged, 'utf8'));
         sceneRawByName.set(scene.name, raw);
-        const outPath = `scenes/${scene.name}.json`;
-        await mkdir(path.dirname(path.join(absOut, outPath)), { recursive: true });
+        const outPath = scene.path;
         await writeFile(path.join(absOut, outPath), JSON.stringify(raw) + '\n');
         await rm(staged, { force: true });
         e.path = outPath;
@@ -645,7 +691,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `}\n` +
     `export async function boot(engineFactory, sideModuleFactories) {\n` +
     `  const projectPlugin = await (projectReady ??= prepareProject());\n` +
-    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${sideModuleArgs}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${sideModuleArgs}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}${sceneFileArg}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */
