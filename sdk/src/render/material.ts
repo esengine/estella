@@ -181,7 +181,8 @@ let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
 type TextureLease = AssetLease<{ handle: number }>;
 const ownedTextures = new Map<MaterialHandle, Map<string, TextureLease>>();
-const releaseTextures = (leases: Iterable<TextureLease>): void => disposeAll([...new Set(leases)], lease => lease.release());
+const ownedPrograms = new Map<MaterialHandle, AssetLease>();
+const releaseReceipts = (leases: Iterable<AssetLease>): void => disposeAll([...new Set(leases)], lease => lease.release());
 function replaceTextureOwnership(handle: MaterialHandle, uniforms: ReadonlyMap<string, UniformValue>, incoming?: ReadonlyMap<string, TextureLease>): () => void {
     const old = ownedTextures.get(handle) ?? new Map<string, TextureLease>();
     const next = new Map(incoming ?? old);
@@ -192,7 +193,7 @@ function replaceTextureOwnership(handle: MaterialHandle, uniforms: ReadonlyMap<s
     if (next.size) ownedTextures.set(handle, next); else ownedTextures.delete(handle);
     const keep = new Set(next.values());
     const outgoing = [...old.values(), ...(incoming?.values() ?? [])].filter(lease => !keep.has(lease));
-    return () => releaseTextures(outgoing);
+    return () => releaseReceipts(outgoing);
 }
 // Reverse index parent -> instances, so editing a base material re-flushes its instances.
 const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
@@ -234,8 +235,10 @@ export function initMaterialAPI(engine: NonNullable<EngineApi>): void {
 
 export function shutdownMaterialAPI(): void {
     const textures = [...ownedTextures.values()].flatMap(held => [...held.values()]);
+    const programs = [...ownedPrograms.values()];
     ownedTextures.clear();
-    try { releaseTextures(textures); }
+    ownedPrograms.clear();
+    try { releaseReceipts([...textures, ...programs]); }
     finally {
         materials.clear(); childrenOf.clear(); declaredParams.clear(); programOrigins.clear(); warnedParams.clear();
         nextMaterialId = 1; bridge.disconnect(); module = null;
@@ -570,15 +573,18 @@ export const Material = {
     /**
      * Replace the complete local parameter/render-state snapshot and flush once.
      * Missing fields restore base defaults or remove an instance override, so
-     * future parent edits keep propagating. Shader and parent ownership stay with
-     * the asset loader; this operation never re-acquires a different generation.
+     * future parent edits keep propagating. If supplied, the program lease is
+     * transferred to the material and replaces its program in the same update.
      * When supplied, textureLeases transfers ownership of the complete edited
      * texture set. Receipts remain held until replacement, Reset or material release.
      */
-    applyState(material: MaterialHandle, state: Omit<MaterialOptions, 'shader'>,
+    applyState(material: MaterialHandle, state: Omit<MaterialOptions, 'shader'> & { program?: { handle: ShaderHandle; lease: AssetLease } },
                textureLeases?: ReadonlyMap<string, TextureLease>): void {
         const data = materials.get(material);
-        if (!data) { if (textureLeases) releaseTextures(textureLeases.values()); return; }
+        if (!data) {
+            releaseReceipts([...(textureLeases?.values() ?? []), ...(state.program ? [state.program.lease] : [])]);
+            return;
+        }
         const previous = new Map<MaterialHandle, ResolvedMaterial>();
         const collect = (handle: MaterialHandle): void => {
             if (previous.has(handle)) return;
@@ -587,6 +593,12 @@ export const Material = {
             for (const child of childrenOf.get(handle) ?? []) collect(child);
         };
         collect(material);
+        const previousProgram = state.program ? ownedPrograms.get(material) : undefined;
+        if (state.program) {
+            ownedPrograms.set(material, state.program.lease);
+            if (data.parent === undefined) data.shader = state.program.handle;
+            else data.ownShader = state.program.handle;
+        }
         data.uniforms.clear();
         for (const [name, value] of Object.entries(state.uniforms ?? {})) {
             warnUndeclared(shaderOf(material), name); data.uniforms.set(name, value);
@@ -604,7 +616,10 @@ export const Material = {
                 if (state[key] !== undefined) data.overrides.add(key);
         }
         try { flushMaterial(material, previous); }
-        finally { releasePrevious(); }
+        finally {
+            try { releasePrevious(); }
+            finally { if (previousProgram !== state.program?.lease) previousProgram?.release(); }
+        }
     },
 
     /**
@@ -739,8 +754,9 @@ export const Material = {
         childrenOf.delete(material);  // orphaned instances fall back to their own values (resolve is defensive)
         materials.delete(material);
         const textures = ownedTextures.get(material); ownedTextures.delete(material);
+        const program = ownedPrograms.get(material); ownedPrograms.delete(material);
         try { module?.material_undefine(material); }
-        finally { if (textures) releaseTextures(textures.values()); }
+        finally { releaseReceipts([...(textures?.values() ?? []), ...(program ? [program] : [])]); }
     },
 
     /**
@@ -764,7 +780,7 @@ export const Material = {
         const m = previewCore(connected);
         const data = materials.get(material);
         if (!m || !data) return null;
-        const held: TextureLease[] = [];
+        const held: AssetLease[] = [];
         try {
             return await drawPreview(m, () => {
                 // IDs can be reused after reconnect. Check both identities at
@@ -773,6 +789,8 @@ export const Material = {
                 const seen = new Set<number>(); let handle: number | undefined = material;
                 while (handle !== undefined && !seen.has(handle)) {
                     seen.add(handle);
+                    const program = ownedPrograms.get(handle)?.retain();
+                    if (program) held.push(program);
                     for (const lease of ownedTextures.get(handle)?.values() ?? []) {
                         const retained = lease.retain(); if (retained) held.push(retained);
                     }
@@ -781,7 +799,7 @@ export const Material = {
                 aimPreview(m, shape.orbit);
                 return m.renderer_renderMaterialPreview(material, w, h, shape.mesh ?? 0, shape.texture ?? 0);
             });
-        } finally { releaseTextures(held); }
+        } finally { releaseReceipts(held); }
     },
 
     releaseAll(): void {

@@ -24,20 +24,24 @@ describe('material-owned edited textures',()=>{
     expect(await queued).toBeNull();
     expect(core.renderer_renderMaterialPreview).toHaveBeenCalledTimes(1);
   });
-  it('keeps the submitted texture generation alive through pending preview readback',async()=>{
+  it('keeps submitted texture and shader generations alive through pending preview readback',async()=>{
     let ready=false;
     const core={HEAPU8:new Uint8Array(4),material_define:vi.fn(),material_setUniform:vi.fn(),material_setTexture:vi.fn(),material_undefine:vi.fn(),
       renderer_renderMaterialPreview:vi.fn(),renderer_pollPreviewReadback:()=>ready?1:0,renderer_getPreviewSize:()=>4,renderer_getPreviewWidth:()=>1,renderer_getPreviewHeight:()=>1,renderer_getPreviewPtr:()=>0};
     vi.stubGlobal('ImageData',class{constructor(public data:Uint8ClampedArray,public width:number,public height:number){}});
     initMaterialAPI(core as never);const m=Material.create({shader:1}),retained=lease(11),a={...lease(11),retain:()=>retained},b=lease(22);
-    Material.applyState(m,{uniforms:{u_albedo:Material.tex(11)}},new Map([['u_albedo',a]]));
+    const retainedProgram = lease(31), oldProgram = { ...lease(31), retain: () => retainedProgram };
+    Material.applyState(m,{uniforms:{u_albedo:Material.tex(11)}, program: { handle: 31, lease: oldProgram }},new Map([['u_albedo',a]]));
     const preview=Material.renderPreview(m,1,1);
     try{
       await vi.waitFor(()=>expect(core.renderer_renderMaterialPreview).toHaveBeenCalled());
-      Material.applyState(m,{uniforms:{u_albedo:Material.tex(22)}},new Map([['u_albedo',b]]));
+      Material.applyState(m,{uniforms:{u_albedo:Material.tex(22)}, program: { handle: 32, lease: lease(32) }},new Map([['u_albedo',b]]));
       expect(a.release).toHaveBeenCalledTimes(1);expect(retained.release).not.toHaveBeenCalled();
+      expect(oldProgram.release).toHaveBeenCalledTimes(1);
+      expect(retainedProgram.release).not.toHaveBeenCalled();
     }finally{ready=true;await preview;}
     expect(retained.release).toHaveBeenCalledTimes(1);
+    expect(retainedProgram.release).toHaveBeenCalledTimes(1);
   });
   it('holds transferred textures through scalar edits and releases replacements after the GPU update',()=>{
     const m=Material.create({shader:1}),a=lease(11),b=lease(22);

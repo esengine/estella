@@ -105,6 +105,17 @@ describe('material shaders use the asset ownership and source graph', () => {
         a.release(); b.release();
     });
 
+    it('recognizes the current shared shader receipt and rejects it after source invalidation', async () => {
+        const { assets, docs } = realm();
+        const held = await assets.acquireTyped('material-shader', 'fx.esshader');
+        expect(assets.isCurrentBindingLease('material-shader', 'fx.esshader', held)).toBe(true);
+        docs['fx.esshader'] = 'replacement';
+        assets.invalidate('fx.esshader');
+        await assets.assetGraphSettled();
+        expect(assets.isCurrentBindingLease('material-shader', 'fx.esshader', held)).toBe(false);
+        held.release();
+    });
+
     it('loads a material instance after its UUID-linked shader and parent move', async () => {
         const { assets, docs, acquire, fetchText, material } = realm();
         const shaderId = '@uuid:11111111-1111-4111-8111-111111111111';

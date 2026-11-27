@@ -34,7 +34,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             ? (await ctx.acquireAsset<MaterialResult>('material', resolve(data.instanceOf))).value
             : undefined;
         const shaderHandle = parent ? parent.shaderHandle
-            : (await ctx.acquireAsset<MaterialShaderSource>('material-shader', resolve(data.shader))).value.compile(enabledSwitches(data.switches));
+            : (await ctx.acquireAsset<MaterialShaderSource>('material-shader', resolve(data.shader))).value.compileDocument(data.switches);
         const textures: { name: string; path: string }[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string' || !value) continue;
@@ -71,12 +71,6 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         Material.release(asset.handle);
     }
 
-}
-
-// The enabled static switches, sorted for a stable permutation cache key.
-function enabledSwitches(switches: Record<string, boolean> | undefined): string[] {
-    if (!switches) return [];
-    return Object.entries(switches).filter(([, on]) => on).map(([name]) => name).sort();
 }
 
 

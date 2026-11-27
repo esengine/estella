@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Material, initMaterialAPI, shutdownMaterialAPI } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
+import { ownedAssetLease } from '../src/asset/AssetLease';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 function createMock() {
@@ -101,6 +102,25 @@ describe('writing one uniform of a material', () => {
         expect(Material.toAssetData(child, '', 'parent.esmaterial')?.properties).toEqual(generated.properties);
         Material.setUniform(parent, 'u_tex', Material.tex(10));
         expect(Material.getUniform(child, 'u_tex')).toEqual(Material.tex(0));
+    });
+
+    it('switches a live base and its instances before releasing the previous shader source', () => {
+        const base = Material.create({ shader: 1, uniforms: { u_gain: 0.25 } });
+        const child = Material.createInstance(base);
+        const dispose = vi.fn(() => {
+            expect(Material.getShader(base)).toBe(3);
+            expect(Material.getShader(child)).toBe(3);
+        });
+        const first = ownedAssetLease('first', 1, {}, dispose);
+        const second = ownedAssetLease('second', 2, {}, vi.fn());
+        Material.applyState(base, { uniforms: { u_gain: 0.5 }, program: { handle: 2, lease: first } });
+        expect(Material.getShader(child)).toBe(2);
+        Material.applyState(base, { uniforms: { u_gain: 0.75 }, program: { handle: 3, lease: second } });
+        expect(Material.getUniform(child, 'u_gain')).toBe(0.75);
+        expect(dispose).toHaveBeenCalledTimes(1);
+        Material.release(child);
+        Material.release(base);
+        expect(second.retain()).toBeNull();
     });
 
     it('leaves the engine holding exactly what a full flush would, after any sequence of writes', () => {

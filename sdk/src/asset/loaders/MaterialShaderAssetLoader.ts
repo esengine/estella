@@ -11,6 +11,11 @@ export class MaterialShaderSource {
     private programs_ = new Map<string, ShaderHandle>();
     constructor(private readonly path_: string, private readonly source_: string) {}
 
+    compileDocument(switches: Record<string, boolean> | undefined): ShaderHandle {
+        const features = Object.keys(switches ?? {}).filter(name => switches?.[name]).sort();
+        return this.compile(features);
+    }
+
     compile(features: string[]): ShaderHandle {
         const key = JSON.stringify(features);
         const cached = this.programs_.get(key);
