@@ -131,34 +131,31 @@ export function hostProgress(global: {
     hideLoading?: () => void;
 }) {
     const done: BootStage[] = [];
-    let unsettled = 0;
-    let hideWhenSettled = false;
+    let finished = false;
     const hide = (): void => {
         try { global.hideLoading?.(); } catch { /* as above */ }
     };
     const say = (): void => {
         try {
-            unsettled++;
             global.showLoading?.({
                 title: `${bootSays(done)} ${bootPercent(done)}%`,
                 mask: true,
-                complete: () => { if (--unsettled === 0 && hideWhenSettled) hide(); },
+                complete: () => { if (finished) hide(); },
             });
         } catch { /* an indicator must not take the boot down with it */ }
     };
     say();
     return {
         reach(stage: BootStage): void {
-            if (done.includes(stage)) return;
+            if (finished || done.includes(stage)) return;
             done.push(stage);
             say();
         },
-        /** vivo runs these calls asynchronously and out of order: a hide issued
-         *  right after a show landed first, leaving the show up for good. So the
-         *  hide goes once every show has landed, and once now for a host that
-         *  never reports one landing. */
+        /** Some hosts apply a queued show after the hide. Dismiss each show that
+         *  reports completion after boot ends, independently of earlier calls. */
         finish(): void {
-            hideWhenSettled = true;
+            if (finished) return;
+            finished = true;
             hide();
         },
     };

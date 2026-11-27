@@ -41,4 +41,39 @@ describe('the loading indicator', () => {
         progress.finish();
         expect(hidden).toBe(true);
     });
+
+    it.each(['throws', 'omits completion'] as const)('hides a late show even when an earlier show %s', mode => {
+        const h = deferredHost();
+        let first = true;
+        const progress = hostProgress({
+            ...h.host,
+            showLoading(options) {
+                if (first) {
+                    first = false;
+                    if (mode === 'throws') throw new Error('host UI unavailable');
+                    h.host.showLoading({ title: options.title });
+                    return;
+                }
+                h.host.showLoading(options);
+            },
+        });
+        progress.reach('config');
+        progress.finish();
+        const issued = h.queue.splice(0);
+        for (const c of issued.filter(c => c.kind === 'hide')) c.run();
+        for (const c of issued.filter(c => c.kind === 'show')) c.run();
+        for (const c of h.queue.splice(0)) c.run();
+        expect(h.showing()).toBeNull();
+    });
+
+    it('finishes once and ignores further progress', () => {
+        const h = deferredHost();
+        const progress = hostProgress(h.host);
+        progress.finish();
+        const issued = h.queue.splice(0);
+        progress.finish();
+        progress.reach('config');
+        expect(issued.map(c => c.kind)).toEqual(['show', 'hide']);
+        expect(h.queue).toEqual([]);
+    });
 });
