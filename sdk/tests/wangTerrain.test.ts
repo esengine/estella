@@ -60,6 +60,18 @@ describe('wang round-trip', () => {
 describe('buildWangIndices + resolveWang', () => {
     const asset = parseTileset(wangRaw);
 
+    it('ignores stored terrain rules outside the tileset or the caller’s atlas cells', () => {
+        const shrunk = { ...asset, tileCount: 4 };
+        expect(buildTerrainIndices(shrunk).tileTerrain.has(9)).toBe(false);
+        expect(buildWangIndices({ ...asset, tileCount: 2 }).tileTerrain.has(3)).toBe(false);
+
+        const index = buildWangIndices(shrunk, (id: number) => id !== 2);
+        expect(index.tileTerrain.has(2)).toBe(false);
+        expect(resolveWang(index.sets.get(0)!, [2, 2, 2, 2])).not.toBe(2);
+        expect(shrunk.tiles[2].terrain?.corners).toEqual([2, 2, 2, 2]);
+        expect(buildTerrainIndices(asset, (id: number) => id <= 4).tileTerrain.has(9)).toBe(false);
+    });
+
     it('indexes only wang tiles (peering tiles stay out)', () => {
         const wi = buildWangIndices(asset);
         expect(wi.sets.has(0)).toBe(true);

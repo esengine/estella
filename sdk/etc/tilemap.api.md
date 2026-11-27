@@ -678,12 +678,12 @@ tileTerrain: Map<number, number>
 
 ## buildTerrainIndices — function @experimental
 ```
-(asset: TilesetAsset): TerrainIndices
+(asset: TilesetAsset, available?: (id: number) => boolean): TerrainIndices
 ```
 
 ## buildWangIndices — function @experimental
 ```
-(asset: TilesetAsset): WangIndices
+(asset: TilesetAsset, available?: (id: number) => boolean): WangIndices
 ```
 
 ## canonicalMask — function @experimental

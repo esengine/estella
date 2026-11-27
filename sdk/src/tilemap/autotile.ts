@@ -70,13 +70,15 @@ export interface TerrainIndices {
     tileTerrain: Map<number, number>;
 }
 
-/** Build the terrain resolver tables for a tileset (first tile wins a duplicated mask). */
-export function buildTerrainIndices(asset: TilesetAsset): TerrainIndices {
+/** Build the terrain resolver tables (first tile wins a duplicated mask). The caller may further restrict available local IDs. */
+export function buildTerrainIndices(asset: TilesetAsset, available?: (id: number) => boolean): TerrainIndices {
     const sets = new Map<number, TerrainIndex>();
     const tileTerrain = new Map<number, number>();
     const terrains = asset.terrains ?? [];
+    const limit = asset.tileCount || Infinity;
     for (const key of Object.keys(asset.tiles)) {
         const id = Number(key);
+        if (!Number.isInteger(id) || id < 1 || id > limit || available?.(id) === false) continue;
         const t = asset.tiles[id].terrain;
         if (!t) continue;
         const mode: TerrainMode = terrains[t.set]?.mode ?? 'edge';
@@ -153,13 +155,15 @@ export interface WangIndices {
     tileTerrain: Map<number, number>;
 }
 
-/** Build the corner-match resolver tables for a tileset's `wang` sets (first tile wins a dup). */
-export function buildWangIndices(asset: TilesetAsset): WangIndices {
+/** Build the corner-match resolver tables (first tile wins a duplicate). The caller may further restrict available local IDs. */
+export function buildWangIndices(asset: TilesetAsset, available?: (id: number) => boolean): WangIndices {
     const sets = new Map<number, WangIndex>();
     const tileTerrain = new Map<number, number>();
     const terrains = asset.terrains ?? [];
+    const limit = asset.tileCount || Infinity;
     for (const key of Object.keys(asset.tiles)) {
         const id = Number(key);
+        if (!Number.isInteger(id) || id < 1 || id > limit || available?.(id) === false) continue;
         const t = asset.tiles[id].terrain;
         if (!t || !t.corners || (terrains[t.set]?.mode ?? 'edge') !== 'wang') continue;
         tileTerrain.set(id, t.set);
