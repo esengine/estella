@@ -162,6 +162,25 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
         } finally { disposeWorld(world, registry); }
     });
 
+    it('invalidates cached component membership when the core directly destroys an entity', () => {
+        const { world, registry } = createWorld();
+        try {
+            const root = world.spawn(), child = world.spawn();
+            world.setParent(child, root);
+            expect(world.queryEntities([Parent])).toEqual([child]);
+            const parents = world.queryEntities([Children]);
+            expect(parents).toEqual([root]);
+
+            registry.destroy(child);
+            expect(world.queryEntities([Parent])).toEqual([]);
+            expect(world.queryEntities([Children])).toBe(parents);
+            expect(world.tryGet(root, Children)).toEqual({ entities: [] });
+
+            registry.destroy(root);
+            expect(world.queryEntities([Children])).toEqual([]);
+        } finally { disposeWorld(world, registry); }
+    });
+
     it('keeps sparse hierarchy queries in world order and skips inactive or unowned rows', () => {
         const { world, registry } = createWorld();
         const read = module.registry_readHierarchyMembers ? vi.spyOn(module, 'registry_readHierarchyMembers') : null;

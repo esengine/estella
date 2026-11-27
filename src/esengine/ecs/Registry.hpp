@@ -489,6 +489,7 @@ public:
             if (bit < pools_.size() && pools_[bit]) {
                 pools_[bit]->remove(entity);
                 pools_[bit]->noteStructural(change_tick_);
+                entity_changes_.stampComponentRemoval(bit);
             }
         });
 

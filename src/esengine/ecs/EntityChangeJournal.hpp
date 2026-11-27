@@ -59,12 +59,12 @@ public:
     usize readerCount() const { return readers_.size(); }
     usize retainedRows() const { return rows_.empty() ? 0 : std::min<u64>(sequence_, ENTITY_CHANGE_CAPACITY); }
 
+    // Entity destruction already reports the entity to journal readers.
+    // Advance the removed component's revisions without appending another row.
+    void stampComponentRemoval(u32 component) { stampRevision(component, 0); }
+
     void record(u32 entity, u32 flags = 0, u32 component = ENTITY_CHANGE_NO_COMPONENT) {
-        if (revision_ < MAX_SEQUENCE) ++revision_;
-        if (component != ENTITY_CHANGE_NO_COMPONENT && component >= revisions_.size()) revisions_.resize(component + 1);
-        auto& revisions = component == ENTITY_CHANGE_NO_COMPONENT ? entity_revisions_ : revisions_[component];
-        revisions[0] = revision_;
-        if (!(flags & ENTITY_CHANGE_REPLACED)) revisions[1] = revision_;
+        stampRevision(component, flags);
         if ((flags & ENTITY_CHANGE_RESET) && reset_epoch_ < MAX_SEQUENCE) ++reset_epoch_;
         if (readers_.empty()) return;
         // Saturation preserves the JS number contract by requiring a rescan.
@@ -84,6 +84,14 @@ public:
     }
 
 private:
+    void stampRevision(u32 component, u32 flags) {
+        if (revision_ < MAX_SEQUENCE) ++revision_;
+        if (component != ENTITY_CHANGE_NO_COMPONENT && component >= revisions_.size()) revisions_.resize(component + 1);
+        auto& revisions = component == ENTITY_CHANGE_NO_COMPONENT ? entity_revisions_ : revisions_[component];
+        revisions[0] = revision_;
+        if (!(flags & ENTITY_CHANGE_REPLACED)) revisions[1] = revision_;
+    }
+
     static constexpr u64 MAX_SEQUENCE = (u64{1} << 53) - 1;
     std::vector<EntityChangeRow> rows_;
     std::unordered_set<u32> readers_;

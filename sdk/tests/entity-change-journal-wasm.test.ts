@@ -110,6 +110,27 @@ describe.skipIf(!HAS_WASM)('native registry entity change journal', () => {
         expect(result.components[0]).not.toBe(ENTITY_CHANGE_NO_COMPONENT);
         expect(new Set(result.components).size).toBe(1);
     });
+
+    it.each([false, true])('stamps every component removed by destroy with a journal watcher present: %s', observing => {
+        start();
+        const root = registry.create(), child = registry.create();
+        registry.setParent(child, root);
+        registry.addVelocity(child, { linear: { x: 1, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0 } });
+        const types = ['Parent', 'Velocity', 'Children'].map(name => registry.componentTypeId!(name));
+        const revisions = (topology: boolean) => types.map(type => api.registry_componentMutationRevision!(registry, type, topology));
+        const topology = revisions(true), values = revisions(false);
+        if (observing) watch();
+
+        registry.destroy(child);
+
+        for (const [before, after] of [[topology, revisions(true)], [values, revisions(false)]]) {
+            expect(after[0]).toBeGreaterThan(before[0]);
+            expect(after[1]).toBeGreaterThan(before[1]);
+            expect(after[2]).toBe(before[2]);
+        }
+        if (observing) expect(read(0).rows).toEqual([{ entity: child, flags: 0 }]);
+        else expect(read(0).count).toBe(-1);
+    });
 });
 
 it('routes the same journal API through the native host with its implicit registry', () => {
