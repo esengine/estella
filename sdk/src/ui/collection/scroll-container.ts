@@ -221,6 +221,13 @@ export class ScrollContainer {
         });
     }
 
+    /** @internal Detects an offset change even when a listener restores its previous value. */
+    scrollByAndReportChange(delta: Vec2): boolean {
+        const previous = this.offset_;
+        this.scrollBy(delta);
+        return this.offset_ !== previous;
+    }
+
     setViewportSize(size: Vec2): void {
         this.setSizes(size, this.contentSize_);
     }

@@ -258,12 +258,13 @@ export class UIBehaviorPlugin implements Plugin {
             }
             return hovered === null ? null : scrollTargetOf(hovered, dragOnly);
         };
-        const scrollByWheel = (target: Entity | null, dx: number, dy: number) => {
-            if (target === null) return;
+        const scrollByWheel = (target: Entity, dx: number, dy: number): boolean => {
             const container = scrollContainers.get(target)!;
             dynamics.get(target)?.motion.stop(); // wheel takes over from a fling
             const speed = container.getWheelSpeed();
-            container.scrollBy({ x: dx * speed, y: dy * speed });
+            const changed = container.scrollByAndReportChange({ x: dx * speed, y: dy * speed });
+            // Custom containers may affect the scene without changing their offset.
+            return changed || Object.getPrototypeOf(container) !== ScrollContainer.prototype;
         };
 
         app.addSystemToSchedule(
@@ -274,26 +275,29 @@ export class UIBehaviorPlugin implements Plugin {
                 if (frame?.samples.length) {
                     const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
                         overlay.active ? overlay.surfaceH : camera.screenH);
-                    let missedAt: Vec2 | undefined;
+                    let pickedAt: Vec2 | undefined;
+                    let target: Entity | null = null;
                     for (const sample of frame.samples) {
-                        if (sample.x === missedAt?.x && sample.y === missedAt.y) continue;
-                        missedAt = sample;
-                        const screen = project(sample.x, sample.y);
-                        const hit = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
-                        if (hit === null || !world.isEntityActive(hit)
-                            || (world.has(hit, Interactable) && !world.get(hit, Interactable).enabled)) continue;
-                        const target = scrollTargetOf(hit, false);
+                        if (sample.x !== pickedAt?.x || sample.y !== pickedAt.y) {
+                            pickedAt = sample;
+                            const screen = project(sample.x, sample.y);
+                            const hit = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
+                            target = hit !== null && world.isEntityActive(hit)
+                                && (!world.has(hit, Interactable) || world.get(hit, Interactable).enabled)
+                                ? scrollTargetOf(hit, false) : null;
+                        }
                         if (target === null) continue;
                         // A scroll listener can change which control is under the next sample.
-                        missedAt = undefined;
-                        scrollByWheel(target, sample.deltaX, sample.deltaY);
+                        if (scrollByWheel(target, sample.deltaX, sample.deltaY)) pickedAt = undefined;
                         // A listener can also pause execution or blur the input host.
                         if (wheelFrame(input) !== frame) return;
                     }
                 }
                 // Hosts and callers can still supply deltas with no event position.
                 const delta = unpositionedWheelDelta(input, frame);
-                if (delta) scrollByWheel(hoveredScrollTarget(false), delta.x, delta.y);
+                if (!delta) return;
+                const target = hoveredScrollTarget(false);
+                if (target !== null) scrollByWheel(target, delta.x, delta.y);
             }, { name: 'ScrollWheelSystem' }),
         );
 

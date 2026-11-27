@@ -89,15 +89,42 @@ describe.skipIf(!HAS_WASM)('the UI hit test on a frame where nothing changed (WA
             expect(hitTests()).toBe(2); // final cursor hover, then the wheel batch
             expect(container.getOffset().y).toBe(0);
             input.clearFrameState();
-            const stop = container.onScroll(() => {
+            const stop = container.onScroll(offset => {
+                if (offset.y === 0) return;
+                container.setOffset({ x: 0, y: 0 });
                 a.world.update(button, Interactable, component => { component.enabled = false; });
             });
             wheel(0, 10, 50, 50);
             wheel(0, 10, 50, 50);
             await frames(a, 1);
-            expect(container.getOffset().y).toBe(10);
+            expect(container.getOffset().y).toBe(0);
             stop();
         } finally { behavior.cleanup(a); }
+    });
+
+    it('still handles a wheel reversal at the scroll limit in the same frame', async () => {
+        const { a, input, button } = boot();
+        const behavior = new UIBehaviorPlugin();
+        behavior.build(a);
+        const container = new ScrollContainer({ viewportSize: { x: 100, y: 100 }, contentSize: { x: 100, y: 300 },
+            initialOffset: { x: 0, y: 200 } });
+        behavior.attachScrollContainer(button, container);
+        const wheel = inputEventCallbacks(input).onWheel;
+        const offsets: number[] = [];
+        const stop = container.onScroll(offset => offsets.push(offset.y));
+        try {
+            await frames(a, 2);
+            const hitTests = countHitTests();
+            for (let i = 0; i < 12; i++) wheel(0, 1, 50, 50);
+            wheel(0, -10, 50, 50);
+            wheel(0, -5, 50, 50);
+            await frames(a, 1);
+            expect(offsets).toEqual([190, 185]);
+            expect(hitTests()).toBe(2);
+        } finally {
+            stop();
+            behavior.cleanup(a);
+        }
     });
 
     it('keeps fractional positioned deltas out of the hovered wheel fallback', async () => {
