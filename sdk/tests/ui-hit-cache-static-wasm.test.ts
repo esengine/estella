@@ -5,7 +5,7 @@ import { App, flushPendingRegistrations } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Canvas, Transform, registerComponent } from '../src/ecs/component';
 import { ContentRect } from '../src/ui/core/content-rect';
-import { Input, InputState } from '../src/input/input';
+import { Input, InputState, inputEventCallbacks } from '../src/input/input';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { UINode } from '../src/ui/core/ui-node';
 import { spawnUIEntity } from '../src/ui/core/compose';
@@ -16,6 +16,8 @@ import { UILayoutGeneration } from '../src/ui/layout/ui-layout-generation';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { uiInteractionPlugin } from '../src/ui/input/interaction';
+import { UIBehaviorPlugin } from '../src/ui/behavior/plugin';
+import { ScrollContainer } from '../src/ui/collection/scroll-container';
 import type { Entity } from '../src/types';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -70,6 +72,32 @@ describe.skipIf(!HAS_WASM)('the UI hit test on a frame where nothing changed (WA
     async function frames(a: App, n: number): Promise<void> {
         for (let i = 0; i < n; i++) await a.tick(1 / 60);
     }
+
+    it('reuses consecutive wheel misses and tests again after a scroll callback changes the hit', async () => {
+        const { a, input, button } = boot();
+        const behavior = new UIBehaviorPlugin();
+        behavior.build(a);
+        const container = new ScrollContainer({ viewportSize: { x: 100, y: 100 }, contentSize: { x: 100, y: 300 } });
+        behavior.attachScrollContainer(button, container);
+        const wheel = inputEventCallbacks(input).onWheel;
+        await frames(a, 2);
+        const hitTests = countHitTests();
+        try {
+            for (let i = 0; i < 12; i++) wheel(0, 1, 125, 50);
+            await frames(a, 1);
+            expect(hitTests()).toBe(2); // final cursor hover, then the wheel batch
+            expect(container.getOffset().y).toBe(0);
+            input.clearFrameState();
+            const stop = container.onScroll(() => {
+                a.world.update(button, Interactable, component => { component.enabled = false; });
+            });
+            wheel(0, 10, 50, 50);
+            wheel(0, 10, 50, 50);
+            await frames(a, 1);
+            expect(container.getOffset().y).toBe(10);
+            stop();
+        } finally { behavior.cleanup(a); }
+    });
 
     it('skips the hit test while nothing moves, and runs it again once the layout changes', async () => {
         const { a, button } = boot();

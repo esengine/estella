@@ -275,14 +275,21 @@ export class UIBehaviorPlugin implements Plugin {
                 if (samples) {
                     const project = pointerProjection(app, overlay.active ? overlay.surfaceW : camera.screenW,
                         overlay.active ? overlay.surfaceH : camera.screenH);
+                    let missedAt: Vec2 | undefined;
                     for (const sample of samples) {
                         positionedX += sample.deltaX;
                         positionedY += sample.deltaY;
+                        if (sample.x === missedAt?.x && sample.y === missedAt.y) continue;
+                        missedAt = sample;
                         const screen = project(sample.x, sample.y);
                         const hit = uiHitAtScreen(world, camera, overlay, screen.x, screen.y);
                         if (hit === null || !world.isEntityActive(hit)
                             || (world.has(hit, Interactable) && !world.get(hit, Interactable).enabled)) continue;
-                        scrollByWheel(scrollTargetOf(hit, false), sample.deltaX, sample.deltaY);
+                        const target = scrollTargetOf(hit, false);
+                        if (target === null) continue;
+                        // A scroll listener can change which control is under the next sample.
+                        missedAt = undefined;
+                        scrollByWheel(target, sample.deltaX, sample.deltaY);
                     }
                 }
                 // Hosts and callers can still supply deltas with no event position.
