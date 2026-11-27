@@ -290,6 +290,8 @@ export class UIBehaviorPlugin implements Plugin {
                         // A scroll listener can change which control is under the next sample.
                         missedAt = undefined;
                         scrollByWheel(target, sample.deltaX, sample.deltaY);
+                        // A listener can also pause execution or blur the input host.
+                        if (positionedWheelSamples(input) !== samples) return;
                     }
                 }
                 // Hosts and callers can still supply deltas with no event position.

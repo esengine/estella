@@ -18,6 +18,7 @@ import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { uiInteractionPlugin } from '../src/ui/input/interaction';
 import { UIBehaviorPlugin } from '../src/ui/behavior/plugin';
 import { ScrollContainer } from '../src/ui/collection/scroll-container';
+import { webAdapter } from '../src/platform/web';
 import type { Entity } from '../src/types';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -97,6 +98,43 @@ describe.skipIf(!HAS_WASM)('the UI hit test on a frame where nothing changed (WA
             expect(container.getOffset().y).toBe(10);
             stop();
         } finally { behavior.cleanup(a); }
+    });
+
+    it.each(['blur', 'hold'])('drops the rest of a wheel batch when a scroll listener causes %s', async kind => {
+        const { a, input, button } = boot();
+        const behavior = new UIBehaviorPlugin();
+        behavior.build(a);
+        const container = new ScrollContainer({ viewportSize: { x: 100, y: 100 }, contentSize: { x: 100, y: 300 } });
+        behavior.attachScrollContainer(button, container);
+        const canvas = document.body.appendChild(document.createElement('canvas'));
+        const callbacks = inputEventCallbacks(input);
+        webAdapter.bindInputEvents(callbacks, canvas);
+        const offsets: number[] = [];
+        let release: (() => void) | undefined;
+        const stop = container.onScroll(offset => {
+            offsets.push(offset.y);
+            if (offsets.length !== 1) return;
+            if (kind === 'blur') window.dispatchEvent(new Event('blur'));
+            else release = a.holdExecution();
+        });
+        try {
+            await frames(a, 2);
+            callbacks.onWheel(0, 10, 50, 50);
+            callbacks.onWheel(0, 20, 50, 50);
+            await frames(a, 1);
+            expect(offsets).toEqual([10]);
+            expect(input.getScrollDelta()).toEqual({ x: 0, y: 0 });
+            release?.();
+            callbacks.onWheel(0, 7, 50, 50);
+            await frames(a, 1);
+            expect(offsets).toEqual([10, 17]);
+        } finally {
+            release?.();
+            stop();
+            webAdapter.unbindInputEvents();
+            canvas.remove();
+            behavior.cleanup(a);
+        }
     });
 
     it('skips the hit test while nothing moves, and runs it again once the layout changes', async () => {
