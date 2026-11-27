@@ -6,14 +6,9 @@
  *          rather than listed here.
  *
  * @details A table would answer for the components someone remembered. The
- *          registry answers for every one registered where the question is asked
- *          — and that is not the same set on both sides: a cook loads the
- *          engine's components, while a play realm has also drained the project's
- *          own bundle. Play's reference check is therefore a SUPERSET of the
- *          cook's, and a cross-cell reference held by a project component is
- *          found in the editor first. The runtime is the backstop for whatever
- *          neither saw: an id it cannot resolve is cleared, never left pointing
- *          at another entity.
+ *          registry answers for every component registered in the current realm.
+ *          A cook can supply project declarations extracted from its register
+ *          entry, while Play reads the registry populated by the project bundle.
  */
 
 import { getComponentRegistry } from '../ecs/component';

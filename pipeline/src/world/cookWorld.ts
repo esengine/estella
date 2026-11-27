@@ -16,7 +16,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { decodeMesh, type FarProxyHost, type PrefabData, type SceneData } from 'esengine';
+import { decodeMesh, getComponentRegistry, type FarProxyHost, type PrefabData, type SceneData } from 'esengine';
 import {
     assembleFarProxies, cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, farProxySettings, WORLD_DIR,
 } from 'esengine/node';
@@ -27,6 +27,9 @@ import { streamedWorldDeclaration } from '../../../sdk/src/residency/partitionWo
 import { simplifyFarProxyMesh } from '../assets/meshSimplify';
 import { resolveInside } from '../fs/pathSandbox';
 import { writeFarProxies, type FarProxyCookResult } from './farProxy';
+import { extractProjectSchemas } from '../project/extractSchemas';
+import { readManifest } from '../project/readProject';
+import { resolveScripts } from '../project/format';
 
 /** One streamed scene, as `game.config.json` names it. */
 export interface CookedWorld {
@@ -95,12 +98,15 @@ export async function streamedScenes(
  */
 export async function cookWorlds(
     root: string, payloadDir: string, scenes: ReadonlyArray<{ name: string; path: string }>,
+    declarations?: { sdkDir: string; packagesDir: string },
 ): Promise<CookWorldsResult> {
     const worlds: CookedWorld[] = [];
     const warnings: string[] = [];
     const farProxies: CookWorldsResult['farProxies'] = [];
     const sceneNames = new Set(scenes.map(scene => scene.name));
     const assets = lazyWorldAssets(root);
+    let entityFieldsOf = registryEntityFields();
+    let projectFieldsLoaded = false;
 
     for (const scene of scenes) {
         const staged = path.join(payloadDir, scene.path);
@@ -111,9 +117,23 @@ export async function cookWorlds(
             continue;  // not staged for this target
         }
         const document = JSON.parse(text) as SceneData;
+        const resolvePrefab = await resolvePrefabRoots(document, async ref => (await assets()).loadPrefab(ref));
+        if (declarations && !projectFieldsLoaded) {
+            if (!streamedWorldDeclaration(document, resolvePrefab)) continue;
+            const manifest = await readManifest(root);
+            const entry = resolveScripts(manifest).register;
+            const result = await extractProjectSchemas(root, {
+                ...declarations, entry, required: manifest.scripts?.register !== undefined, writeCache: false,
+            });
+            if (!result.ok) throw new Error(`Cannot validate streamed world component references from ${entry}:\n${result.errors.join('\n')}`);
+            warnings.push(...result.warnings);
+            const projectFields = new Map(result.schemas.map(schema => [schema.name, schema.entityFields]));
+            const registry = getComponentRegistry();
+            entityFieldsOf = type => registry.get(type)?.entityFields ?? projectFields.get(type) ?? [];
+            projectFieldsLoaded = true;
+        }
         const cut = cutWorld(document, scene.name, {
-            entityFieldsOf: registryEntityFields(),
-            resolvePrefab: await resolvePrefabRoots(document, async ref => (await assets()).loadPrefab(ref)),
+            entityFieldsOf, resolvePrefab,
         });
         if (cut === null) continue;
         if (cut.errors.length > 0) {

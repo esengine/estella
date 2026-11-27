@@ -27,9 +27,7 @@ import { decodeMesh, type MeshData } from '../src/asset/meshFormat';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';
 
-// A project's own component, which is the case only Play can catch: a cook loads
-// the engine's registry and never sees this one, so the cross-cell reference it
-// holds is refused HERE and nowhere earlier.
+// A project component registered in Play before the partition is built.
 defineComponent<{ watches: Entity }>('Watchtower', { watches: 0 as Entity },
     { entityFields: ['watches'] });
 

@@ -1061,7 +1061,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // and its references are in the form the runtime resolves. The entry scene it
   // leaves behind is the PERSISTENT world; the places arrive by residency.
   progress({ phase: 'Cutting worlds' });
-  const world = await cookWorlds(opts.root, payloadDir, scenes);
+  const world = await cookWorlds(opts.root, payloadDir, scenes, { sdkDir: opts.sdkDistDir, packagesDir: opts.packagesDir });
   warnings.push(...world.warnings);
   for (const far of world.farProxies) {
     progress({ phase: 'Cutting worlds', detail: `${far.scene}: far proxies for ${far.cells} cell(s), `

@@ -261,9 +261,7 @@ export async function cutPlayWorld(
 ): Promise<CutWorld | null> {
     const resolvePrefab = await resolvePrefabRoots(scene, readPrefab);
     const cut = cutWorld(scene, sceneName, {
-        // The realm's registry, which by now holds the project's own components
-        // as well as the engine's — so a cross-cell reference a cook could not
-        // see is found HERE, before it is packaged.
+        // The realm has registered the project's components alongside the engine's.
         entityFieldsOf: registryEntityFields(),
         resolvePrefab,
     });

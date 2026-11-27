@@ -8,12 +8,55 @@
  * itself is the runtime's, and pinned in sdk/tests/partition-world.test.ts.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
+import { scanAssetDatabase } from '../src/assets/assetDb';
+import { cookWorlds } from '../src/world/cookWorld';
 
 const SIZE = 1000;
+
+it('refuses a cross-cell reference from the current project declarations during web export', async () => {
+    const { exportGame } = await import('../src/export/exportGame');
+    const root = await mkdtemp(path.join(tmpdir(), 'streamed-refs-'));
+    const scene = 'assets/scenes/main.esscene';
+    const sdkDir = fileURLToPath(new URL('../../sdk/dist/', import.meta.url));
+    const cache = '.esengine/cache/schemas.json';
+    const stale = JSON.stringify({ components: [{ name: 'Watchtower', entityFields: [] }] });
+    try {
+        for (const dir of ['assets/scenes', 'game', '.esengine/cache']) await mkdir(path.join(root, dir), { recursive: true });
+        await writeFile(path.join(root, cache), stale);
+        await writeFile(path.join(root, 'game/register.ts'), `import { defineComponent } from 'esengine';
+          export const Watchtower = defineComponent('Watchtower', { target: 0 }, { entityFields: ['target'] });`);
+        await writeFile(path.join(root, 'project.esproject'), JSON.stringify({
+            formatVersion: '1', name: 'Streamed references', defaultScene: scene, scripts: { register: 'game/register.ts' },
+        }));
+        const row = (id: number, name: string, components: unknown[]) => ({ id, name, parent: null, children: [], components });
+        const at = (x: number) => ({ type: 'Transform', data: { position: { x, y: 0, z: 0 } } });
+        const writeScene = (target: number) => writeFile(path.join(root, scene), JSON.stringify({ version: 4, name: 'main', entities: [
+            row(1, 'World', [{ type: 'StreamedWorld', data: { cellSize: SIZE } }]),
+            row(2, 'Tower', [at(20), { type: 'Watchtower', data: { target } }]),
+            row(3, 'Quarry', [at(SIZE + 20)]),
+        ] }));
+        await writeScene(3);
+        await scanAssetDatabase(root);
+        await expect(exportGame({
+            root, entryScene: scene, platform: 'web', outDir: path.join(root, 'out'),
+            hostsDir: path.join(root, 'hosts'), packagesDir: OFFICIAL_PACKAGES,
+            sdkDistDir: sdkDir,
+            wasmDir: path.join(root, 'wasm'),
+        })).rejects.toThrow(/Watchtower\.target.*references entity 3.*cell 1,0/);
+        await writeScene(1);
+        await cookWorlds(root, root, [{ name: 'main', path: scene }], { sdkDir, packagesDir: OFFICIAL_PACKAGES });
+        const manifest = JSON.parse(await readFile(path.join(root, 'world/main.world.json'), 'utf8'));
+        expect(manifest.persistentRefs).toEqual([1]);
+        expect(await readFile(path.join(root, cache), 'utf8')).toBe(stale);
+    } finally {
+        await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+});
 
 describe('targets that cannot ship a cut world', () => {
     it.each([
