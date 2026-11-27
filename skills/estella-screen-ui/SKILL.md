@@ -72,7 +72,7 @@ saturated colours and heavy type are what reads as generated. Build it from a fe
   turns, so they sit under a `UIMask` (mode Scissor) with `softness: { x: 90, y: 0 }`: anything inside fades in over the
   outer 90 px instead of being cut at the edge. The hairline under them is one more child, or a Gradient with `u_fadeIn` and
   `u_fadeOut` 0.25. The goal is a small accent diamond on the line. The same soft mask fades a list or a ticker at its ends.
-  It fades what the batch draws (UIVisual, Sprite, Text); a visual wearing its own material is cut at the mask's box.
+  It fades everything inside: UIVisual, Sprite, Text, and a visual wearing a material of its own.
 - **Key hints** sit in a corner, small: a near-black keycap rect (`a` 0.72) with the key in 12 px at weight 600, the action
   beside it at the supporting white. Hide them once the player has used the key.
 

@@ -1357,7 +1357,56 @@ std::string withoutAttributes(const std::string& text) {
 }  // namespace
 
 std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderTargetLanguage target) {
+    return wrapFragmentOutput(fragment, target, /*premultiply=*/true, /*softClip=*/false);
+}
+
+namespace {
+
+/// What a wrapped entry reads to fade under a soft UI mask: the ClipConstants block (binding 6, the draw list's per-draw clip) and the
+/// fade at a framebuffer position, as the batch shader has them. A zero block, the draw's when no soft mask holds it, fades nothing.
+const char* kSoftClipGlsl =
+    "layout(std140) uniform ClipConstants {\n"
+    "    highp vec4 u_clipRect;\n"
+    "    highp vec4 u_clipEdge;\n"
+    "};\n"
+    "float es_softClip(highp vec2 p) {\n"
+    "    if (u_clipEdge.x + u_clipEdge.y + u_clipEdge.z + u_clipEdge.w <= 0.0) return 1.0;\n"
+    "    highp vec4 inside = vec4(p - u_clipRect.xy, u_clipRect.zw - p);\n"
+    "    highp vec4 fade = clamp(inside / max(u_clipEdge, vec4(1e-4)), 0.0, 1.0);\n"
+    "    fade = mix(vec4(1.0), fade, step(vec4(1e-4), u_clipEdge));\n"
+    "    return fade.x * fade.y * fade.z * fade.w;\n"
+    "}\n";
+const char* kSoftClipWgsl =
+    "struct ClipConstants { u_clipRect : vec4f, u_clipEdge : vec4f };\n"
+    "@group(0) @binding(6) var<uniform> es_clip : ClipConstants;\n"
+    "fn es_softClip(p : vec2f) -> f32 {\n"
+    "    let edge = es_clip.u_clipEdge;\n"
+    "    if (edge.x + edge.y + edge.z + edge.w <= 0.0) { return 1.0; }\n"
+    "    let inside = vec4f(p - es_clip.u_clipRect.xy, es_clip.u_clipRect.zw - p);\n"
+    "    let fade = mix(vec4f(1.0), clamp(inside / max(edge, vec4f(1e-4)), vec4f(0.0), vec4f(1.0)), step(vec4f(1e-4), edge));\n"
+    "    return fade.x * fade.y * fade.z * fade.w;\n"
+    "}\n";
+
+/// The field of struct @p type that carries `@builtin(position)`, or "" when it has none.
+std::string positionFieldOf(const std::string& fragment, const std::string& type) {
+    for (usize at = findWord(fragment, "struct"); at != std::string::npos; at = findWord(fragment, "struct", at + 6)) {
+        const usize open = fragment.find('{', at);
+        if (open == std::string::npos) return "";
+        if (trimmed(fragment.substr(at + 6, open - at - 6)) != type) continue;
+        const usize close = fragment.find('}', open);
+        const usize pos = fragment.find("@builtin(position)", open);
+        if (pos == std::string::npos || pos > close) return "";
+        const usize colon = fragment.find(':', pos);
+        return trimmed(withoutAttributes(fragment.substr(pos, colon - pos)));
+    }
+    return "";
+}
+
+}  // namespace
+
+std::string ShaderParser::wrapFragmentOutput(const std::string& fragment, ShaderTargetLanguage target, bool premultiply, bool softClip) {
     static const char* kAuthor = "es_author_fragment";
+    if (!premultiply && !softClip) return fragment;
     if (target != ShaderTargetLanguage::WGSL) {
         const std::string out = glslColourOutput(fragment);
         usize at = findWord(fragment, "main");
@@ -1370,7 +1419,15 @@ std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderT
         if (out.empty() || at == std::string::npos) return "";
         std::string src = fragment;
         src.replace(at, 4, kAuthor);
-        src += "\nvoid main() {\n    " + std::string(kAuthor) + "();\n    " + out + ".rgb *= " + out + ".a;\n}\n";
+        if (softClip) src += std::string("\n") + kSoftClipGlsl;
+        src += "\nvoid main() {\n    " + std::string(kAuthor) + "();\n";
+        if (premultiply) src += "    " + out + ".rgb *= " + out + ".a;\n";
+        // Premultiplied, the whole colour fades; straight, its coverage.
+        if (softClip) {
+            src += premultiply ? "    " + out + " *= es_softClip(gl_FragCoord.xy);\n"
+                               : "    " + out + ".a *= es_softClip(gl_FragCoord.xy);\n";
+        }
+        src += "}\n";
         return src;
     }
     // WGSL: `@fragment fn NAME(PARAMS) -> RET {`.
@@ -1390,8 +1447,10 @@ std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderT
     const std::string name = trimmed(fragment.substr(fn + 2, open - fn - 2));
     const std::string params = fragment.substr(open + 1, close - open - 1);
     const std::string ret = trimmed(fragment.substr(arrow + 2, body - arrow - 2));
-    // The arguments, by name: each parameter is `[@attrs] name : type`, split at the top level.
+    // The arguments, by name: each parameter is `[@attrs] name : type`, split at the top level. And where the fragment's position
+    // is: a parameter that is it, or the field of a parameter's struct that carries it (the engine's VSOut has `pos`).
     std::vector<std::string> args;
+    std::string position;
     {
         usize level = 0, from = 0;
         for (usize i = 0; i <= params.size(); ++i) {
@@ -1406,19 +1465,44 @@ std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderT
                 std::string head = trimmed(p.substr(0, colon));
                 usize s = head.size();
                 while (s > 0 && isIdent(head[s - 1])) --s;
-                if (s < head.size()) args.push_back(head.substr(s));
+                if (s >= head.size()) continue;
+                const std::string arg = head.substr(s);
+                args.push_back(arg);
+                if (!position.empty()) continue;
+                if (p.find("@builtin(position)") != std::string::npos) {
+                    position = arg;
+                } else if (const std::string field = positionFieldOf(fragment, trimmed(p.substr(colon + 1))); !field.empty()) {
+                    position = arg + "." + field;
+                }
             }
         }
     }
     std::string call = std::string(kAuthor) + "(";
     for (usize i = 0; i < args.size(); ++i) call += (i ? ", " : "") + args[i];
     call += ")";
+    std::string wrapperParams = params;
+    if (softClip && position.empty()) {
+        // No parameter of the author's carries the position: the wrapper takes it for itself.
+        wrapperParams = trimmed(params).empty() ? "@builtin(position) es_frag_pos : vec4f"
+                                                : params + ", @builtin(position) es_frag_pos : vec4f";
+        position = "es_frag_pos";
+    }
+    // What a colour becomes: premultiplied, then faded (the whole of a premultiplied one, the coverage of a straight one).
+    const auto finish = [&](const std::string& c) {
+        std::string lines;
+        if (premultiply) lines += "    " + c + " = vec4f(" + c + ".rgb * " + c + ".a, " + c + ".a);\n";
+        if (softClip) {
+            lines += premultiply ? "    " + c + " = " + c + " * es_softClip(" + position + ".xy);\n"
+                                 : "    " + c + " = vec4f(" + c + ".rgb, " + c + ".a * es_softClip(" + position + ".xy));\n";
+        }
+        return lines;
+    };
     // What it returns: a colour at location 0, or a struct with one there.
     std::string returnType = ret;
     if (const usize space = ret.rfind(' '); space != std::string::npos && ret[0] == '@') returnType = trimmed(ret.substr(space));
     std::string tail;
     if (returnType == "vec4f" || returnType == "vec4<f32>") {
-        tail = "    let c = " + call + ";\n    return vec4f(c.rgb * c.a, c.a);\n";
+        tail = "    var c = " + call + ";\n" + finish("c") + "    return c;\n";
     } else {
         const usize decl = fragment.find("struct " + returnType);
         const usize open2 = decl == std::string::npos ? std::string::npos : fragment.find('{', decl);
@@ -1428,14 +1512,15 @@ std::string ShaderParser::premultiplyOutput(const std::string& fragment, ShaderT
         const usize colon = fragment.find(':', loc);
         const std::string field = trimmed(fragment.substr(loc + 12, colon - loc - 12));
         if (field.empty()) return "";
-        tail = "    var o = " + call + ";\n    o." + field + " = vec4f(o." + field + ".rgb * o." + field + ".a, o." + field + ".a);\n    return o;\n";
+        tail = "    var o = " + call + ";\n" + finish("o." + field) + "    return o;\n";
     }
     std::string src = fragment;
     // The author's entry, renamed and no longer the stage's: an ordinary function, so its parameters and its result lose the
     // stage attributes only an entry point may carry.
     src.replace(attr, body - attr, "fn " + std::string(kAuthor) + "(" + withoutAttributes(params) + ") -> " +
                                        trimmed(withoutAttributes(ret)) + " ");
-    src += "\n@fragment fn " + name + "(" + params + ") -> " + ret + " {\n" + tail + "}\n";
+    if (softClip) src += std::string("\n") + kSoftClipWgsl;
+    src += "\n@fragment fn " + name + "(" + wrapperParams + ") -> " + ret + " {\n" + tail + "}\n";
     return src;
 }
 

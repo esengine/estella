@@ -298,12 +298,21 @@ public:
     /// material's own shader). The frame sets who answers; the draw list asks per command.
     u32 premultipliedOutputProgram(u32 programId) const {
         const u32 engine = premultiplied_output_ ? premultiplied_output_(programId) : programId;
-        // Not one of the engine's own: a material's, whose author's entry is wrapped to premultiply (see premultipliedMaterialProgram).
-        return engine != programId || !resources_ ? engine : premultipliedMaterialProgram(programId);
+        // Not one of the engine's own: a material's, whose author's entry is wrapped to premultiply (see wrappedMaterialProgram).
+        return engine != programId || !resources_ ? engine : wrappedMaterialProgram(programId, WRAP_PREMULTIPLY);
     }
-    /// A material program's twin with its output premultiplied: the same source and features, the author's fragment entry wrapped
-    /// (ShaderParser::premultiplyOutput). @p programId itself when it is no material's program or the wrap cannot be made.
-    u32 premultipliedMaterialProgram(u32 programId) const;
+    /// The program a draw is made with: @p programId, its premultiplying twin under Multiply or Screen, and for a MATERIAL's program
+    /// under a soft UI mask its twin that fades by the draw's ClipConstants (the engine's batch shader fades by itself).
+    u32 outputProgram(u32 programId, bool premultiply, bool softClip) const {
+        if (!softClip || !resources_) return premultiply ? premultipliedOutputProgram(programId) : programId;
+        const u32 wrapped = wrappedMaterialProgram(programId, WRAP_SOFT_CLIP | (premultiply ? WRAP_PREMULTIPLY : 0u));
+        return wrapped != programId ? wrapped : (premultiply ? premultipliedOutputProgram(programId) : programId);
+    }
+    /// What a wrapped twin does to the author's colour: premultiply it, fade it by the draw's soft clip, or both.
+    static constexpr u32 WRAP_PREMULTIPLY = 1, WRAP_SOFT_CLIP = 2;
+    /// A material program's twin with its fragment entry wrapped (ShaderParser::wrapFragmentOutput): the same source and features.
+    /// @p programId itself when it is no material's program or the wrap cannot be made.
+    u32 wrappedMaterialProgram(u32 programId, u32 wrap) const;
     void setPremultipliedOutputResolver(std::function<u32(u32)> resolver) { premultiplied_output_ = std::move(resolver); }
 
     /// The name of the shader @p materialId draws with, or "default" for the path's own batch shader.
@@ -688,14 +697,15 @@ private:
     u32 variantProgram(u32 materialId, resource::ResourceManager& resources,
                        u64 shape, std::vector<std::string> extraFeatures,
                        const char* what) const;
-    /// variantProgram for a shader by its handle id. @p premultiply wraps the fragment to put out a premultiplied colour, and
-    /// then a shader that writes its own vertex stage is accepted: nothing is retargeted, the stage is the one it always had.
+    /// variantProgram for a shader by its handle id. @p wrap (WRAP_*) wraps the fragment's colour output, and then a shader that
+    /// writes its own vertex stage is accepted: nothing is retargeted, the stage is the one it always had.
     u32 variantForShader(u32 shaderId, resource::ResourceManager& resources, u64 shape,
-                         std::vector<std::string> extraFeatures, const char* what, bool premultiply) const;
+                         std::vector<std::string> extraFeatures, const char* what, u32 wrap) const;
     /// Where each variant program came from: its shader, its shape and the features added to the shader's own.
     struct ProgramOrigin { u32 shaderId; u64 shape; std::vector<std::string> extra; };
     mutable std::unordered_map<u32, ProgramOrigin> program_origins_;
-    mutable std::unordered_map<u32, u32> premultiplied_programs_;
+    /// Wrapped twins by (program << 2 | wrap).
+    mutable std::unordered_map<u64, u32> wrapped_programs_;
     GfxDevice* device_ = nullptr;
     resource::ResourceManager* resources_ = nullptr;
     TextureHandle defaultWhite_ = TextureHandle::Invalid;

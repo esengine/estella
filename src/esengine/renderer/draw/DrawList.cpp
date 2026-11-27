@@ -636,8 +636,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         desc.blend = cmd.blend_mode;
         // Multiply and Screen take the source's colour as it is, which is right only for a premultiplied one: from the engine's
         // straight-alpha shaders a clear white texel would whiten what is behind it. Their programs' premultiplying twin draws it.
-        if (cmd.blend_mode == BlendMode::Multiply || cmd.blend_mode == BlendMode::Screen) {
-            desc.program = ShaderHandle{materials.premultipliedOutputProgram(cmd.shader_id)};
+        // A material's own shader under a soft UI mask is drawn by its twin that fades as the batch shader does.
+        const bool premultiply = cmd.blend_mode == BlendMode::Multiply || cmd.blend_mode == BlendMode::Screen;
+        const bool softClip = cmd.clip_index != 0 && cmd.material_id != 0;
+        if (premultiply || softClip) {
+            desc.program = ShaderHandle{materials.outputProgram(cmd.shader_id, premultiply, softClip)};
         }
         // Opaque is a blend mode, not a second switch beside one: a material that
         // says None is asking for the source to replace the destination, and any

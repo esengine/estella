@@ -290,12 +290,13 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
                                   const char* what) const {
     const MaterialRecord* rec = find(materialId);
     if (!rec || !rec->shaderRef.isValid()) return 0;
-    return variantForShader(rec->shaderRef.id(), resources, shape, std::move(extraFeatures), what, false);
+    return variantForShader(rec->shaderRef.id(), resources, shape, std::move(extraFeatures), what, 0);
 }
 
-u32 MaterialStore::premultipliedMaterialProgram(u32 programId) const {
-    if (programId == 0 || !resources_) return programId;
-    if (const auto hit = premultiplied_programs_.find(programId); hit != premultiplied_programs_.end()) return hit->second;
+u32 MaterialStore::wrappedMaterialProgram(u32 programId, u32 wrap) const {
+    if (programId == 0 || !resources_ || wrap == 0) return programId;
+    const u64 key = (static_cast<u64>(programId) << 2) | wrap;
+    if (const auto hit = wrapped_programs_.find(key); hit != wrapped_programs_.end()) return hit->second;
     // Which material shader it is: a variant this store made, or a shader's own program.
     ProgramOrigin origin{ 0, 0, {} };
     if (const auto known = program_origins_.find(programId); known != program_origins_.end()) {
@@ -308,15 +309,19 @@ u32 MaterialStore::premultipliedMaterialProgram(u32 programId) const {
     }
     u32 out = programId;
     if (origin.shaderId != 0) {
-        const u32 twin = variantForShader(origin.shaderId, *resources_, origin.shape | (1ull << 45), origin.extra, "premultiplied", true);
+        // Each wrap a shape of its own, so the twins are cached apart from the program they wrap and from each other.
+        const u64 shape = origin.shape | (static_cast<u64>(wrap) << 45);
+        const u32 twin = variantForShader(origin.shaderId, *resources_, shape, origin.extra,
+                                          wrap & WRAP_SOFT_CLIP ? "soft-clipped" : "premultiplied", wrap);
         if (twin != 0) out = twin;
     }
-    premultiplied_programs_[programId] = out;
+    wrapped_programs_[key] = out;
     return out;
 }
 
 u32 MaterialStore::variantForShader(u32 shaderId, resource::ResourceManager& resources, u64 shape,
-                                    std::vector<std::string> extraFeatures, const char* what, bool premultiply) const {
+                                    std::vector<std::string> extraFeatures, const char* what, u32 wrap) const {
+    const bool premultiply = wrap != 0;
     const std::vector<std::string> extraAsked = extraFeatures;
     auto& variants = mesh_programs_[shaderId];
     auto cached = variants.find(shape);
@@ -353,11 +358,16 @@ u32 MaterialStore::variantForShader(u32 shaderId, resource::ResourceManager& res
         parsed, resource::ShaderStage::Vertex, "", features, target);
     std::string frag = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Fragment, "", features, target);
-    if (premultiply && !frag.empty()) {
-        frag = resource::ShaderParser::premultiplyOutput(frag, target);
+    if (wrap != 0 && !frag.empty()) {
+        frag = resource::ShaderParser::wrapFragmentOutput(frag, target, (wrap & WRAP_PREMULTIPLY) != 0, (wrap & WRAP_SOFT_CLIP) != 0);
         if (frag.empty()) {
-            ES_LOG_WARN("MaterialStore: shader {} has no fragment entry and colour output to premultiply; drawn under Multiply or Screen "
-                        "it must put out rgb * a itself", shaderId);
+            if (wrap & WRAP_SOFT_CLIP) {
+                ES_LOG_WARN("MaterialStore: shader {} has no fragment entry and colour output to wrap; under a soft UI mask it is cut "
+                            "at the mask's box, not faded", shaderId);
+            } else {
+                ES_LOG_WARN("MaterialStore: shader {} has no fragment entry and colour output to premultiply; drawn under Multiply or "
+                            "Screen it must put out rgb * a itself", shaderId);
+            }
             variants[shape] = {};
             return 0;
         }

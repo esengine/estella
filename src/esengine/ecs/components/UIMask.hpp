@@ -33,7 +33,7 @@ struct UIMask {
     /**
      * Scissor only: how far in from its edges, in the mask's own units (UI pixels), what it holds fades in instead of being cut:
      * x the left and right edges, y the bottom and top. A compass or a ticker whose ends dissolve, a list that fades at its top.
-     * 0 (default) is the hard edge. Drawn by the batch (sprites, UI visuals, text); a material's own shader is cut, not faded.
+     * 0 (default) is the hard edge. Sprites, UI visuals and text fade, and so does a visual wearing a material of its own.
      */
     ES_PROPERTY(optional, min=0, tooltip="Scissor only: fade what the mask holds in from its edges over this many UI pixels (x: left and right, y: bottom and top) instead of cutting it. 0 is the hard edge.")
     glm::vec2 softness{0.0f, 0.0f};

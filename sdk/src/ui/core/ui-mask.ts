@@ -16,7 +16,7 @@ export interface UIMaskData {
      *  instead of to its box (0, the default, keeps the box). */
     alphaCutoff: number;
     /** Scissor mode only: how far in from its edges, in UI pixels, what the mask holds fades in instead of being cut (x left and
-     *  right, y bottom and top). Zero, the default, is the hard edge. Batch-drawn content fades; a material's own shader is cut. */
+     *  right, y bottom and top). Zero, the default, is the hard edge. Sprites, UI visuals and text fade, a material's own shader too. */
     softness?: Vec2;
 }
 

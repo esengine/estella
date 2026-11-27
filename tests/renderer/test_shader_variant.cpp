@@ -896,6 +896,32 @@ static void testFeaturesRead() {
     CHECK(has(ShaderParser::featuresRead(lit, resident), "ES_ENV_MAP"), "a lit surface reads the environment map and keeps it");
 }
 
+// A material's own fragment under a soft UI mask is wrapped to fade as the batch shader does: the ClipConstants block and the fade
+// at the fragment's framebuffer position, applied to the author's colour after any premultiply.
+static void testSoftClipWrap() {
+    const auto has = [](const std::string& s, const char* what) { return s.find(what) != std::string::npos; };
+    const std::string glsl = "out vec4 fragColor;\nvoid main() { fragColor = vec4(1.0); }\n";
+    const std::string soft = ShaderParser::wrapFragmentOutput(glsl, ShaderTargetLanguage::GLSL_ES300, false, true);
+    CHECK(has(soft, "void es_author_fragment()") && has(soft, "uniform ClipConstants"), "GLSL: the author's main is wrapped beside the clip block");
+    CHECK(has(soft, "fragColor.a *= es_softClip(gl_FragCoord.xy);") && !has(soft, "fragColor.rgb *= fragColor.a"),
+          "GLSL: a straight colour fades by its coverage alone");
+    const std::string both = ShaderParser::wrapFragmentOutput(glsl, ShaderTargetLanguage::GLSL_ES300, true, true);
+    CHECK(both.find("fragColor.rgb *= fragColor.a") < both.find("fragColor *= es_softClip"), "GLSL: premultiplied first, then all of it fades");
+    CHECK(!has(ShaderParser::premultiplyOutput(glsl, ShaderTargetLanguage::GLSL_ES300), "ClipConstants"), "GLSL: a premultiply alone declares no clip");
+
+    const std::string wgsl = "struct VSOut {\n    @builtin(position) pos : vec4f,\n    @location(0) v_color : vec4f,\n};\n"
+                             "@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {\n    return v.v_color;\n}\n";
+    const std::string w = ShaderParser::wrapFragmentOutput(wgsl, ShaderTargetLanguage::WGSL, false, true);
+    CHECK(has(w, "fn es_author_fragment(v : VSOut) -> vec4f") && has(w, "@group(0) @binding(6) var<uniform> es_clip"),
+          "WGSL: the author's entry becomes a function beside the clip binding");
+    CHECK(has(w, "@fragment fn fs_main(v : VSOut) -> @location(0) vec4f") && has(w, "es_softClip(v.pos.xy)"),
+          "WGSL: the fade reads the position the VSOut already carries");
+    const std::string bare = "@fragment fn fs_main(@location(0) c : vec4f) -> @location(0) vec4f {\n    return c;\n}\n";
+    const std::string b = ShaderParser::wrapFragmentOutput(bare, ShaderTargetLanguage::WGSL, false, true);
+    CHECK(has(b, "@builtin(position) es_frag_pos : vec4f") && has(b, "es_softClip(es_frag_pos.xy)") && has(b, "es_author_fragment(c)"),
+          "WGSL: an entry with no position is given one by its wrapper");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -925,6 +951,7 @@ int main() {
     testLightingDirect();
     testParamsTheEngineDeclares();
     testFeaturesRead();
+    testSoftClipWrap();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");

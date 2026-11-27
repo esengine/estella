@@ -354,6 +354,13 @@ public:
      */
     static std::string premultiplyOutput(const std::string& fragment, ShaderTargetLanguage target);
 
+    /**
+     * @brief An assembled fragment stage whose author's entry is wrapped: its colour output (location 0) premultiplied, and/or faded
+     *        by the soft UI clip a draw is under (ClipConstants, binding 6). premultiplyOutput is the first alone.
+     * @return The wrapped stage, or "" when no entry and colour output can be found.
+     */
+    static std::string wrapFragmentOutput(const std::string& fragment, ShaderTargetLanguage target, bool premultiply, bool softClip);
+
     static std::vector<std::string> featuresRead(const ParsedShader& parsed,
                                                  const std::vector<std::string>& features,
                                                  ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);
