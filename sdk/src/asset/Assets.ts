@@ -82,6 +82,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
+import { runWithConcurrency } from '../util/runWithConcurrency';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
 
 /**
@@ -187,41 +188,6 @@ interface TextureLoad extends LoadGeneration {
 /** A preload's timings are a report, so they need no platform: a realm without
  *  one (a test, a tool) still loads. */
 const preloadClock = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-
-/**
- * Run an array of lazy task thunks with at most `maxConcurrent` in
- * flight. Calls `onEach` once per task completion (success or failure)
- * so callers can drive a progress indicator. On error, active tasks settle
- * before their caller can roll back the batch.
- */
-async function runWithConcurrency(
-    tasks: ReadonlyArray<() => Promise<void>>,
-    maxConcurrent: number,
-    onEach: () => void,
-): Promise<void> {
-    if (tasks.length === 0) return;
-    let cursor = 0;
-    const workers: Promise<void>[] = [];
-    let failure: { error: unknown } | undefined;
-    const worker = async (): Promise<void> => {
-        try {
-            while (cursor < tasks.length) {
-                const task = tasks[cursor++]!;
-                try { await task(); }
-                finally { if (!failure) onEach(); }
-            }
-        } catch (error) {
-            failure ??= { error };
-            cursor = tasks.length;
-        }
-    };
-    const slots = Math.min(maxConcurrent, tasks.length);
-    for (let i = 0; i < slots; i++) {
-        workers.push(worker());
-    }
-    await Promise.all(workers);
-    if (failure) throw failure.error;
-}
 
 export interface AssetsOptions {
     backend: Backend;

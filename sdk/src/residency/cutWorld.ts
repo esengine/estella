@@ -20,6 +20,8 @@ import { flattenPrefab } from '../prefab/flatten';
 import { createPrefabSourceLoader } from '../prefab/source';
 import type { PrefabData, PrefabEntityData } from '../prefab/types';
 import { cloneComponentData } from '../prefab/clone';
+import { RuntimeConfig } from '../defaults';
+import { runWithConcurrency } from '../util/runWithConcurrency';
 
 /** Where cooked world content goes, package-relative. */
 export const WORLD_DIR = 'world';
@@ -148,9 +150,13 @@ export async function resolvePrefabRoots(
     };
     const readSource = createPrefabSourceLoader(readDocument);
     const roots = new Map<string, PrefabRoot | null>();
+    const refs = new Set<string>();
     for (const entry of (scene.entities ?? []) as unknown as Array<{ prefab?: string }>) {
-        if (typeof entry.prefab !== 'string' || roots.has(entry.prefab)) continue;
-        const ref = entry.prefab;
+        if (typeof entry.prefab === 'string') refs.add(entry.prefab);
+    }
+    // The cook and Play share the same preload limit and the same in-flight
+    // document cache, including reads started while expanding variants.
+    await runWithConcurrency(Array.from(refs, ref => async () => {
         const document = await readDocument(ref);
         const authoredRoot = authoredPrefabRoot(document);
         let placement: PrefabRoot | null;
@@ -172,6 +178,6 @@ export async function resolvePrefabRoots(
             placement = authoredRoot ? rootPlacement(authoredRoot.prefabEntityId, authoredRoot.components) : null;
         }
         roots.set(ref, placement);
-    }
+    }), RuntimeConfig.preloadConcurrency);
     return (ref) => roots.get(ref) ?? null;
 }

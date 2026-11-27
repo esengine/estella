@@ -11,7 +11,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { partitionWorld, type PartitionOptions } from '../src/residency/partitionWorld';
-import { cutWorld } from '../src/residency/cutWorld';
+import { cutWorld, resolvePrefabRoots } from '../src/residency/cutWorld';
+import { RuntimeConfig } from '../src/defaults';
 import { StreamPlane } from '../src/residency/components';
 import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
 import { loadSceneData, type SceneData } from '../src/scene/scene';
@@ -49,6 +50,47 @@ const cut = (data: SceneData): ReturnType<typeof partitionWorld> =>
 
 const names = (document: SceneData): string[] =>
     (document.entities as unknown as Array<{ name: string }>).map((e) => e.name);
+
+it('resolves repeated and inherited prefab roots from one read per document and isolates missing roots', async () => {
+    const refs = ['variant-a', 'unavailable', 'variant-b', 'variant-a', 'base'];
+    const data = scene(entity(0, 'World', null, { components: [declaration] }),
+        ...refs.map((prefab, index) => ({ id: index + 1, prefab, parent: null, overrides: [] })));
+    const reads: string[] = [];
+    const resolvePrefab = await resolvePrefabRoots(data, async ref => {
+        reads.push(ref);
+        if (ref === 'unavailable') throw new Error('asset missing');
+        if (ref === 'base') return {
+            rootEntityId: 'r', entities: [{ prefabEntityId: 'r', ...entity(0, 'Base', [500, 0, 500]) }],
+        };
+        return {
+            rootEntityId: 'r', basePrefab: 'base', entities: [],
+            overrides: [{ type: 'property', prefabEntityId: 'r', componentType: 'Transform',
+                propertyName: 'position', value: { x: ref === 'variant-a' ? 1500 : 2500, y: 0, z: 500 } }],
+        };
+    });
+    expect(reads.sort()).toEqual(['base', 'unavailable', 'variant-a', 'variant-b']);
+    expect(refs.map(ref => resolvePrefab(ref)?.position.x ?? null)).toEqual([1500, null, 2500, 1500, 500]);
+    const partition = cutWorld(data, 'main', { ...options, resolvePrefab })!;
+    expect(partition.manifest.cells.map(({ x, rootCount }) => [x, rootCount])).toEqual([[0, 2], [1, 2], [2, 1]]);
+    expect(partition.errors).toHaveLength(1);
+    expect(partition.errors[0]).toContain('(unavailable)');
+});
+
+it('overlaps prefab reads within the asset preload limit', async () => {
+    const limit = RuntimeConfig.preloadConcurrency;
+    const refs = Array.from({ length: limit + 3 }, (_, index) => `prefab-${index}`);
+    const data = scene(...refs.map((prefab, index) => ({ id: index + 1, prefab, overrides: [] })));
+    let active = 0;
+    let peak = 0;
+    const resolvePrefab = await resolvePrefabRoots(data, async ref => {
+        peak = Math.max(peak, ++active);
+        await Promise.resolve();
+        active--;
+        return { rootEntityId: ref, entities: [{ prefabEntityId: ref, components: [] }] };
+    });
+    expect(peak).toBe(limit);
+    expect(refs.map(ref => resolvePrefab(ref)?.rootId)).toEqual(refs);
+});
 
 describe('partitionWorld', () => {
     it('leaves a scene that never declared itself streamed alone', () => {
