@@ -93,7 +93,7 @@ describe('esengine/minigame entry', () => {
         expect(platform.getPlatform().createAudioBackend().name).toBe('ACME Play');
     }, 30000);
 
-    it.each([false, true])('boots with packaged render settings and registers scene paths (explicit paths: %s)', async (explicitPaths) => {
+    it.each(['legacy', 'explicit', 'aliased'] as const)('boots with packaged render settings and %s scene paths', async variant => {
         const mg = await import('../src/index.minigame');
         const factory = await import('../src/runtime/webAppFactory');
         const runtime = await import('../src/runtime/runtimeLoader');
@@ -102,8 +102,22 @@ describe('esengine/minigame entry', () => {
         const gl = { getExtension: () => null };
         const host = { ...makeHost(), createCanvas: () => ({ width: 0, height: 0, getContext: () => gl }) };
         const adapter = mg.installMiniGamePlatform({ id: 'acme-play', hostLabel: 'ACME Play', global: host as unknown as MiniGameGlobal });
-        const readText = vi.spyOn(adapter, 'readTextFile').mockImplementation(async path => path === 'asset-manifest.json'
-            ? JSON.stringify({ version: '2.0', groups: {} }) : JSON.stringify({ name: 'Main', entities: [] }));
+        const aliased = variant === 'aliased';
+        const firstPath = variant === 'legacy' ? 'scenes/Main.json' : 'scene-1.json';
+        const nextPath = variant === 'legacy' ? 'scenes/chapter.json/room.json' : 'scene-2.json';
+        const sceneFiles = variant !== 'legacy' ? [
+            { name: 'Main', path: aliased ? 'scenes/Main.esscene' : firstPath },
+            { name: 'chapter.json/room', path: aliased ? 'scenes/Chapter.esscene' : nextPath },
+        ] : undefined;
+        const groups = aliased ? { main: { bundleMode: 'local', labels: [], assets: {
+            '11111111-1111-4111-8111-111111111111': { path: firstPath, address: sceneFiles![0].path, type: 'scene', size: 10, labels: [] },
+            '22222222-2222-4222-8222-222222222222': { path: nextPath, address: sceneFiles![1].path, type: 'scene', size: 10, labels: [] },
+        } } } : {};
+        const readText = vi.spyOn(adapter, 'readTextFile').mockImplementation(async path => {
+            if (path === 'asset-manifest.json') return JSON.stringify({ version: '2.0', groups });
+            if (path === firstPath) return JSON.stringify({ name: 'Main', entities: [] });
+            throw new Error(`Unexpected package path ${path}`);
+        });
         const fitted = { width: 2, height: 1, pixels: new Uint8Array(8), sourceWidth: 8, sourceHeight: 4 };
         const decode = vi.spyOn(adapter, 'loadImagePixels').mockResolvedValue(fitted);
         const app = mg.App.new();
@@ -119,11 +133,6 @@ describe('esengine/minigame entry', () => {
             achievements: ['FIRST_MAP'], physicsEnabled: false, physics3dWorld: { unitsPerMeter: 1 },
             uiTheme: 'dark' as const, uiThemeOverrides: { colors: { primary: { r: 0, g: 1, b: 0, a: 1 } } },
         };
-        const firstPath = explicitPaths ? 'scene-1.json' : 'scenes/Main.json';
-        const nextPath = explicitPaths ? 'scene-2.json' : 'scenes/chapter.json/room.json';
-        const sceneFiles = explicitPaths ? [
-            { name: 'Main', path: firstPath }, { name: 'chapter.json/room', path: nextPath },
-        ] : undefined;
         try {
             await mg.initMiniGameRuntime({ engineFactory: async () => module, engineWasmPath: 'wasm/core.wasm',
                 sceneNames: ['Main', 'chapter.json/room'], sceneFiles, firstScene: 'Main', ...settings, ...project });

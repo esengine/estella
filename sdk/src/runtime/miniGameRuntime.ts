@@ -24,14 +24,13 @@ import { instantiateWasmModule } from '../wasm/instantiateModule';
 import { runGameStartup, type GameStartup } from './gameStartup';
 import { runtimeProjectSettings, type RuntimeProjectSettings } from './projectSettings';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
-import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../platform';
+import { getPlatform, platformInstantiateWasm } from '../platform';
 import { MiniGamePlatformAdapter } from '../platform/minigame';
 import {
     loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers,
-    registerPackagedSideModules, glContextAttributes, packagedAppOptions,
+    registerPackagedSideModules, glContextAttributes, packagedAppOptions, loadPackagedSceneList,
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories, type MiniGameSideModuleBinary } from '../sideModules';
-import type { SceneData } from '../scene/scene';
 import { startDebugChannel } from './debugChannelHook';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import type { PackagedGameConfig } from './packagedRuntime';
@@ -347,19 +346,8 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
     const source = createPackagedAssetSource(index);
     applyAssetRefResolvers(app, source.resolveRef!);
 
-    // The first scene loads eagerly (the game boots into it); every other
-    // registers lazily by path — SceneManager fetches the packaged scene
-    // through the runtime Assets (host fs backend) on the first switchTo.
-    const scenes: Array<{ name: string; data?: SceneData; path?: string }> = [];
     const sceneFiles = config.sceneFiles ?? config.sceneNames.map(name => ({ name, path: `scenes/${name}.json` }));
-    for (const { name, path } of sceneFiles) {
-        if (name === config.firstScene) {
-            const sceneText = await platformReadTextFile(path);
-            scenes.push({ name, data: JSON.parse(sceneText) as SceneData });
-        } else {
-            scenes.push({ name, path });
-        }
-    }
+    const selection = await loadPackagedSceneList(sceneFiles, index, config.firstScene);
 
     // The manifest rides into initRuntime, which sets it on the per-App runtime
     // Assets — so game code can `Assets.loadGroup(name)` on demand (a lazy
@@ -375,8 +363,7 @@ async function bootMiniGame(config: MiniGameRuntimeConfig, startup: GameStartup)
         source,
         manifest: manifestModel,
         catalog,
-        scenes,
-        firstScene: config.firstScene,
+        ...selection,
         ...runtimeProjectSettings(config),
         aspectRatio: canvas.width / canvas.height,
         ...(config.aot ? { aot: config.aot } : {}),

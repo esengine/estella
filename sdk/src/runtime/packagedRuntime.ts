@@ -300,10 +300,20 @@ export async function loadPackagedScenes(
     const declared = config.scenes ?? [];
     const entry = declared.find(scene => scene.path === config.entryScene) ?? { name: fallbackName, path: config.entryScene };
     const available = [entry, ...declared.filter(scene => scene.name !== entry.name)];
-    const selected = requested ? available.find(scene => scene.name === requested) : entry;
-    if (!selected) throw new Error(`[estella] no scene named "${requested}" in this package`);
+    return loadPackagedSceneList(available, index, requested || entry.name, config.worlds);
+}
+
+/** @internal Resolve scene files through the package index and read only the selected scene. */
+export async function loadPackagedSceneList(
+    available: readonly { name: string; path: string }[],
+    index: Pick<PackagedAssetIndex, 'resolvePath'>,
+    firstScene: string,
+    worldFiles?: PackagedGameConfig['worlds'],
+): Promise<Pick<RuntimeInitConfig, 'scenes' | 'firstScene'>> {
+    const selected = available.find(scene => scene.name === firstScene);
+    if (!selected) throw new Error(`[estella] no scene named "${firstScene}" in this package`);
     const data = JSON.parse(await platformReadTextFile(index.resolvePath(selected.path))) as SceneData;
-    const worlds = new Map(config.worlds?.map(world => [world.scene, world.manifest]));
+    const worlds = new Map(worldFiles?.map(world => [world.scene, world.manifest]));
     return {
         firstScene: selected.name,
         scenes: available.map(scene => ({
