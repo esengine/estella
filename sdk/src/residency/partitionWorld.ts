@@ -211,7 +211,13 @@ export function partitionWorld(
     const errors: string[] = [];
     const warnings: string[] = [];
     const byId = new Map<number, SceneEntry>();
-    for (const entry of entries) byId.set(entry.id, entry);
+    for (const entry of entries) {
+        if (byId.has(entry.id)) {
+            return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
+                errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
+        }
+        byId.set(entry.id, entry);
+    }
 
     const childrenOf = new Map<number, number[]>();
     const roots: number[] = [];
@@ -233,7 +239,6 @@ export function partitionWorld(
     // comes from the ROOT, and the positions are what the cell's box has to cover.
     const placement = new Map<number, Placement>();
     const worldPosition = new Map<number, Vec3>();
-    const members = new Map<number, number[]>();
     for (const root of roots) {
         const entry = byId.get(root)!;
         const transform = localTransform(entry, options, errors);
@@ -243,15 +248,14 @@ export function partitionWorld(
         const rootPosition = vec3(transform?.position, ORIGIN);
         const cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
 
-        const subtree: number[] = [];
+        const where = { cell, root };
         const rootMatrix = transform && childrenOf.has(root) ? localMatrix(transform, rootPosition) : null;
         const stack: Array<{ id: number; position: Vec3; matrix: readonly number[] | null }> = [
             { id: root, position: rootPosition, matrix: rootMatrix },
         ];
         while (stack.length > 0) {
             const node = stack.pop()!;
-            subtree.push(node.id);
-            placement.set(node.id, { cell, root });
+            placement.set(node.id, where);
             worldPosition.set(node.id, node.position);
             for (const child of childrenOf.get(node.id) ?? []) {
                 const childTransform = localTransform(byId.get(child)!, options, errors);
@@ -267,7 +271,6 @@ export function partitionWorld(
                 stack.push({ id: child, position, matrix });
             }
         }
-        members.set(root, subtree);
     }
 
     const rootIds = new Set(roots);
@@ -287,24 +290,33 @@ export function partitionWorld(
     const persistentRefs = new Set<number>();
     checkReferences(entries, byId, placement, options, persistentRefs, errors);
 
-    // Sorted, so two cooks of one world produce the same manifest.
-    const cellKeys = new Map<string, number[]>();
-    const persistentRoots: number[] = [];
-    for (const root of roots) {
-        const cell = placement.get(root)!.cell;
-        if (cell === null) { persistentRoots.push(root); continue; }
-        const key = `${cell.x}_${cell.z}`;
-        const bucket = cellKeys.get(key);
-        if (bucket) bucket.push(root);
-        else cellKeys.set(key, [root]);
+    // Fill the output buckets in authored order. A cell can now assemble its
+    // document directly from its own entries, even when roots are interleaved.
+    interface CellEntries { x: number; z: number; rootCount: number; entries: SceneEntry[] }
+    const cellEntries = new Map<string, CellEntries>();
+    const persistentEntries: SceneEntry[] = [];
+    let firstUnplaced: number | undefined;
+    for (const entry of entries) {
+        const where = placement.get(entry.id);
+        if (!where) { firstUnplaced ??= entry.id; continue; }
+        if (where.cell === null) { persistentEntries.push(entry); continue; }
+        const { x, z } = where.cell;
+        const key = `${x}_${z}`;
+        let bucket = cellEntries.get(key);
+        if (!bucket) {
+            bucket = { x, z, rootCount: 0, entries: [] };
+            cellEntries.set(key, bucket);
+        }
+        if (entry.id === where.root) bucket.rootCount++;
+        bucket.entries.push(entry);
+    }
+    if (firstUnplaced !== undefined) {
+        errors.push(`StreamedWorld in "${sceneName}" cannot place ${entries.length - placement.size} entities `
+            + `because of a parent cycle (first affected entity: ${firstUnplaced})`);
     }
 
-    const order = new Map<number, number>();
-    entries.forEach((entry, index) => order.set(entry.id, index));
-    const documentOf = (ids: number[], name: string): SceneData => {
-        const kept = new Set(ids);
-        const list = entries.filter((entry) => kept.has(entry.id))
-            .map((entry) => ({ ...entry, parent: byId.has(entry.parent as number) ? entry.parent : null }));
+    const documentOf = (members: readonly SceneEntry[], name: string): SceneData => {
+        const list = members.map((entry) => ({ ...entry, parent: byId.has(entry.parent as number) ? entry.parent : null }));
         return {
             version: scene.version,
             name,
@@ -314,27 +326,15 @@ export function partitionWorld(
         };
     };
 
-    const persistentIds: number[] = [];
-    for (const root of persistentRoots) persistentIds.push(...members.get(root)!);
-    persistentIds.sort((a, b) => order.get(a)! - order.get(b)!);
-
     const cells: PartitionedCell[] = [];
-    const keys = [...cellKeys.keys()].sort((a, b) => {
-        const [ax, az] = a.split('_').map(Number);
-        const [bx, bz] = b.split('_').map(Number);
-        return ax - bx || az - bz;
-    });
-    for (const key of keys) {
-        const [x, z] = key.split('_').map(Number);
-        const ids: number[] = [];
-        for (const root of cellKeys.get(key)!) ids.push(...members.get(root)!);
-        ids.sort((a, b) => order.get(a)! - order.get(b)!);
+    const orderedCells = [...cellEntries.values()].sort((a, b) => a.x - b.x || a.z - b.z);
+    for (const { x, z, entries: members, rootCount } of orderedCells) {
         let { minX, minZ, maxX, maxZ } = cellSquare(x, z, cellSize);
         // The grid square unioned with where the content actually is: a prop
         // hanging over the edge is part of the place the box stands for, and a
         // box that stops short of it pops the prop in at the boundary.
-        for (const id of ids) {
-            const at = worldPosition.get(id)!;
+        for (const entry of members) {
+            const at = worldPosition.get(entry.id)!;
             minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
             const second = planeSecond(at, plane);
             minZ = Math.min(minZ, second); maxZ = Math.max(maxZ, second);
@@ -342,16 +342,16 @@ export function partitionWorld(
         const name = `${sceneName}.cell_${x}_${z}`;
         cells.push({
             name, x, z, minX, minZ, maxX, maxZ,
-            entityCount: ids.length,
-            rootCount: cellKeys.get(key)!.length,
-            data: documentOf(ids, name),
+            entityCount: members.length,
+            rootCount,
+            data: documentOf(members, name),
         });
     }
 
     return {
         cellSize,
         plane,
-        persistent: documentOf(persistentIds, scene.name),
+        persistent: documentOf(persistentEntries, scene.name),
         cells,
         persistentRefs: [...persistentRefs].sort((a, b) => a - b),
         errors,

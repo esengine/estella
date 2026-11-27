@@ -80,6 +80,23 @@ describe('cooking a world that instances a prefab', () => {
             .toEqual(['main.cell_0_0']);
     });
 
+    it('refuses a cyclic source hierarchy before writing any world files', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const scenePath = 'assets/scenes/main.esscene';
+        const sceneFile = path.join(root, scenePath);
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities.push(
+            { id: 2, name: 'First', parent: 3, children: [], components: [] },
+            { id: 3, name: 'Second', parent: 2, children: [], components: [] },
+        );
+        const staged = JSON.stringify(scene);
+        await writeFile(sceneFile, staged);
+
+        await expect(cookWorlds(root, root, [{ name: 'main', path: scenePath }])).rejects.toThrow(/parent cycle/);
+        expect(await readFile(sceneFile, 'utf8')).toBe(staged);
+        await expect(readFile(path.join(root, 'world/main.world.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
     it.each([
         { axes: 'XY', plane: StreamPlane.Screen, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }, edge: 'maxZ' as const, extent: 1300 },
         { axes: 'XZ', plane: StreamPlane.Ground, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, edge: 'minZ' as const, extent: -1100 },

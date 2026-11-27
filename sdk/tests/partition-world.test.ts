@@ -87,6 +87,45 @@ describe('partitionWorld', () => {
         expect(partition.cells[0].maxX).toBe(1500);
     });
 
+    it('keeps authored order within each document when parents and cells are interleaved', () => {
+        const data = scene(
+            entity(14, 'Shop sign', [0, 2, 0], { parent: 4 }),
+            entity(0, 'World', null, { components: [declaration] }),
+            entity(3, 'Tree', [50, 0, 50]),
+            entity(4, 'Shop', [1500, 0, 500]),
+            entity(21, 'Services', null),
+            entity(1, 'Well', [60, 0, 60]),
+            entity(30, 'Tree branch', [0, 2, 0], { parent: 3 }),
+            entity(11, 'Counter', [1, 0, 0], { parent: 4 }),
+        );
+        const partition = cut(data)!;
+        expect(partition.errors).toEqual([]);
+        expect(names(partition.persistent)).toEqual(['World', 'Services']);
+        expect(partition.cells.map(cell => ({ roots: cell.rootCount, names: names(cell.data) }))).toEqual([
+            { roots: 2, names: ['Tree', 'Well', 'Tree branch'] },
+            { roots: 1, names: ['Shop sign', 'Shop', 'Counter'] },
+        ]);
+    });
+
+    it('reports entities stuck behind a cyclic parent chain', () => {
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            entity(1, 'A', [0, 0, 0], { parent: 2 }),
+            entity(2, 'B', [0, 0, 0], { parent: 1 }),
+            entity(3, 'Below the cycle', null, { parent: 2 }),
+        ))!;
+        expect(partition.errors.join('\n')).toMatch(/3 entities.*parent cycle.*1/);
+    });
+
+    it('rejects duplicate ids before building a hierarchy', () => {
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            entity(1, 'First', [0, 0, 0]),
+            entity(1, 'Duplicate', [1500, 0, 0]),
+        ))!;
+        expect(partition.errors.join('\n')).toMatch(/duplicate entity id 1/i);
+    });
+
     it('composes a child through its parent\'s rotation and scale', () => {
         const turned = entity(1, 'Rig', [0, 0, 0]);
         (turned.components as Component[])[0].data.rotation = { x: 0, y: 0.7071067811865476, z: 0, w: 0.7071067811865476 };
