@@ -71,6 +71,7 @@ import { SoundEventAssetLoader } from './loaders/SoundEventAssetLoader';
 import { getComponent, getComponentDefaults, type AnyComponentDef } from '../ecs/component';
 import { observesAssetReferences } from './assetReferenceTracking';
 import { getComponentAssetFieldDescriptors, recordUnresolvedSceneAsset } from '../scene/scene';
+import { canonicalComponentType } from '../scene/legacyComponents';
 import { indexSceneAssets, SceneAssetOwners, type SceneAssetRefs } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData, AssetFieldType } from '../scene/scene';
@@ -2057,7 +2058,8 @@ export class Assets {
             if (!Array.isArray(entity.components)) continue;
             for (const comp of entity.components) {
                 // A component can customize discovery and still declare which fields take handles.
-                const fields = getComponentAssetFieldDescriptors(comp.type);
+                const componentType = canonicalComponentType(comp.type);
+                const fields = getComponentAssetFieldDescriptors(componentType);
                 for (const { field, type, fileExtension } of fields) {
                     const ref = comp.data[field];
                     if (ref === 0 || ref === '' || ref === null) {
@@ -2070,8 +2072,8 @@ export class Assets {
                     // Use the name under which this preparation acquired the field, even after an update.
                     const path = result.resolveRef ? result.resolveRef(ref) : this.resolveRef(ref);
                     if (path == null) {
-                        comp.data[field] = getComponentDefaults(comp.type)?.[field] ?? emptySceneAssetValue(type);
-                        if (isSceneHandleType(type) && getComponent(comp.type)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
+                        comp.data[field] = getComponentDefaults(componentType)?.[field] ?? emptySceneAssetValue(type);
+                        if (isSceneHandleType(type) && getComponent(componentType)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
                         continue;
                     }
 
@@ -2083,7 +2085,7 @@ export class Assets {
                     const handle = result[`${type}Handles`].get(path) ?? 0;
                     comp.data[field] = handle;
                     if (!handle) {
-                        if (getComponent(comp.type)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
+                        if (getComponent(componentType)?._builtin) recordUnresolvedSceneAsset(sceneData, comp, field, ref);
                         continue;
                     }
                     if (!this.handlePaths_.get(type)?.has(handle)) this.recordHandlePath_(type, handle, path);
@@ -2122,7 +2124,7 @@ export class Assets {
             const entity = entities.get(source.id);
             if (entity === undefined || (world && !world.valid(entity)) || !Array.isArray(source.components)) continue;
             for (const comp of source.components) {
-                const component = getComponent(comp.type);
+                const component = getComponent(canonicalComponentType(comp.type));
                 if (!component?.assetFields.length) continue;
                 if (world) {
                     if (standalone) counter.observeEntity(world, entity, this.syncAssetFieldReferences);

@@ -27,6 +27,7 @@ import { probeRefs } from './AddressableManifest';
 import { hasAssetFileExtension } from './documentRef';
 import { assetPairKey } from './assetPairKey';
 import type { SceneData, AssetFieldType } from '../scene/scene';
+import { canonicalComponentType } from '../scene/legacyComponents';
 import type { SurfaceUse } from './surfaceTextureUses';
 
 export interface SpineAssetRef {
@@ -203,7 +204,7 @@ export function indexSceneAssets(
         // Prefab rows supply their components after expansion.
         if (entity.visible === false || !Array.isArray(entity.components)) continue;
         for (const component of entity.components) {
-            const definition = getComponent(component.type);
+            const definition = getComponent(canonicalComponentType(component.type));
             if (!definition) continue;
             const data = component.data as Record<string, unknown>;
 

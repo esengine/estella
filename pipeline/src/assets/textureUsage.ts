@@ -21,6 +21,7 @@ import { addrType } from './addressableRecord';
 import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
+import { canonicalComponentType } from '../../../sdk/src/scene/legacyComponents';
 import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
 import type { MaterialAssetData } from '../../../sdk/src/render/material';
 
@@ -109,7 +110,8 @@ export async function meshTextureRoles(
       return;
     }
     if (!parsed) return;
-    visitComponentFields(parsed, (type, data) => {
+    visitComponentFields(parsed, (authoredType, data) => {
+      const type = canonicalComponentType(authoredType);
       for (const field of COMPONENT_META[type]?.assetFields ?? []) {
         // Baked lighting participates in compression but the renderer does not stream it by texel density.
         const lightmap = type === 'MeshLightmap' && field.field === 'lightmap';

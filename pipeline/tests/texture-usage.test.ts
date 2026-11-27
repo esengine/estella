@@ -12,7 +12,7 @@ import type { AssetEntry } from '../src/assets/assetDb';
 const entry = (uuid: string, path: string, type: string): AssetEntry => ({ uuid, path, type });
 
 describe('texturesDrawnIn3D', () => {
-  it('finds a mesh\'s own textures and its material\'s, and not a sprite\'s', async () => {
+  it.each(['MeshRenderer', 'Mesh2D'])('finds textures drawn directly and through materials on %s', async type => {
     const entries = [
       entry('scene', 'assets/scenes/main.esscene', 'scene'),
       entry('prefab', 'assets/models/cafe/cafe.esprefab', 'prefab'),
@@ -26,14 +26,14 @@ describe('texturesDrawnIn3D', () => {
     ];
     const files: Record<string, unknown> = {
       'assets/scenes/main.esscene': { entities: [
-        { components: [{ type: 'MeshRenderer', data: { texture: '@uuid:floor' } }, { type: 'MeshLightmap', data: { lightmap: 'assets/scenes/main_lightmap.png' } }] },
+        { components: [{ type, data: { texture: '@uuid:floor' } }, { type: 'MeshLightmap', data: { lightmap: 'assets/scenes/main_lightmap.png' } }] },
         { components: [{ type: 'Sprite', data: { texture: '@uuid:hud' } }] },
         { components: [{ type: 'Sprite', data: { texture: '@uuid:both' } }] },
-        { components: [{ type: 'MeshRenderer', data: { texture: 'assets/textures/crate.png' } }] },
+        { components: [{ type, data: { texture: 'assets/textures/crate.png' } }] },
       ] },
       // A prefab from an import names its material beside it, relative to itself.
       'assets/models/cafe/cafe.esprefab': { entities: [
-        { components: [{ type: 'MeshRenderer', data: { material: 'wood.esmaterial' } }] },
+        { components: [{ type, data: { material: 'wood.esmaterial' } }] },
       ] },
       'assets/models/cafe/wood.esmaterial': { shader: 'builtin:model', properties: {
         u_albedoMap: 'wood_albedo.png', u_normalMap: '@uuid:normal', u_roughness: 0.5 } },

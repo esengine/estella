@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Assets } from '../src/asset/Assets';
+import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import { registerComponent } from '../src/ecs/component';
 import { Animator } from '../src/animation/Animator';
 import { SpriteAnimator } from '../src/animation/SpriteAnimator';
@@ -230,9 +231,11 @@ it('loads extensionless scene and controller files from a host project index', a
 });
 
 describe('Assets: mesh references in a scene', () => {
-    it('preloads an .esmesh and binds its handle onto the component', async () => {
+    it.each(['MeshRenderer', 'Mesh2D'])('preloads mesh and material refs from %s and binds their handles', async type => {
         const backend = createMockBackend();
         const assets = Assets.create({ backend, module: mockModule });
+        const counter = new AssetRefCounter();
+        assets.setRefCounter(counter);
 
         assets.register({
             type: 'mesh',
@@ -240,19 +243,24 @@ describe('Assets: mesh references in a scene', () => {
             load: async () => ({ handle: 77 }),
             unload: () => {},
         } as unknown as AssetLoader<{ handle: number }>);
+        assets.register({ type: 'material', extensions: ['.esmaterial'], load: async () => ({ handle: 91 }) });
 
         const scene = {
             version: '1.0', name: 'meshscene',
             entities: [{
                 id: 1, name: 'e1', parent: null, children: [],
-                components: [{ type: 'MeshRenderer', data: { mesh: 'ship.esmesh' } }],
+                components: [{ type, data: { mesh: 'ship.esmesh', material: 'hull.esmaterial' } }],
             }],
         } as unknown as SceneData;
 
         const result = await assets.preloadSceneAssets(scene);
-        expect(result.meshHandles.get('ship.esmesh')).toBe(77);
-
-        assets.resolveSceneAssetPaths(scene, result);
-        expect(scene.entities[0]!.components[0]!.data.mesh).toBe(77);
+        try {
+            expect(result.meshHandles.get('ship.esmesh')).toBe(77);
+            expect(result.materialHandles.get('hull.esmaterial')).toBe(91);
+            assets.resolveSceneAssetPaths(scene, result);
+            expect(scene.entities[0]!.components[0]).toEqual({ type, data: { mesh: 77, material: 91 } });
+            assets.trackSceneAssetReferences(scene, new Map([[1, 5]]));
+            expect(counter.getMaterialRefs('hull.esmaterial')).toEqual([5]);
+        } finally { result.scope.releaseAll(); }
     });
 });

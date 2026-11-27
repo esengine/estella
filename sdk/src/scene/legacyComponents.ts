@@ -71,6 +71,11 @@ export const RENAMED_COMPONENT_TYPES: ReadonlyMap<string, string> = new Map([
     ['WeldJoint2D', 'FixedJoint2D'],
 ]);
 
+/** The registry name for an authored component, including names in older documents. */
+export function canonicalComponentType(type: string): string {
+    return RENAMED_COMPONENT_TYPES.get(type) ?? type;
+}
+
 /** Light kinds that aim: Directional (1) and Spot (3). Point and Ambient never did. */
 const AIMED_LIGHT_TYPES = new Set([1, 3]);
 
@@ -138,8 +143,8 @@ function upgradeLightAim(entity: UpgradableEntity): boolean {
 /** Legacy spellings inside one component. */
 function upgradeComponent(component: UpgradableComponent): boolean {
     let changed = false;
-    const renamed = RENAMED_COMPONENT_TYPES.get(component.type);
-    if (renamed !== undefined) {
+    const renamed = canonicalComponentType(component.type);
+    if (renamed !== component.type) {
         component.type = renamed;
         changed = true;
     }

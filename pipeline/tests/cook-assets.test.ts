@@ -334,7 +334,7 @@ describe('cookAssets (A4)', () => {
     }
   });
 
-  it('on Auto, compresses what a mesh draws to KTX2 + records compressedFormats, and ships a sprite\'s image', async () => {
+  it.each(['MeshRenderer', 'Mesh2D'])('on Auto, writes KTX2 for %s and keeps the sprite image as PNG', async type => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-ktx2-'));
     try {
       const TEX = '77777777-7777-4777-8777-777777777777';
@@ -354,7 +354,7 @@ describe('cookAssets (A4)', () => {
       wa('t/sprite.png', 'texture', SPRITE, png);
       wa('s/main.esscene', 'scene', SC, JSON.stringify({
         version: '1.0', name: 's', entities: [
-          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture: `@uuid:${TEX}` } }] },
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type, data: { mesh: 'builtin:cube', texture: `@uuid:${TEX}` } }] },
           { id: 2, name: 'S', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${SPRITE}` } }] },
         ],
       }));
