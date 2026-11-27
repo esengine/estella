@@ -77,6 +77,12 @@ function encodePage(source: TerrainSource, x0: number, z0: number, step: number,
     return finishPage(encodePageJob(source, x0, z0, step, h, given, repaint));
 }
 
+function encodePaintBank(out: Uint8Array, at: number, weights: LayerWeights | Float32Array, start: number): void {
+    for (let c = 0; c < 4; c++) {
+        out[at + c] = Math.round(Math.min(Math.max(weights[start + c] ?? 0, 0), 1) * 255);
+    }
+}
+
 function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array, given?: TerrainRegionSamples, repaint?: Repaint): Generator<number, PageImage, void> {
     const n = PAGE_SIDE;
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
@@ -84,6 +90,8 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
     for (let j = 1; j <= n - 2; j++) for (let i = 1; i <= n - 2; i++) { const v = h[j * n + i]!; min = Math.min(min, v); max = Math.max(max, v); }
     const span = Math.max(source.maxHeight - source.minHeight, 1e-6);
     const heights = new Uint8Array(n * n * 4), paint = new Uint8Array(n * n * 4), paint2 = new Uint8Array(n * n * 4);
+    const p1 = given?.paint, p2 = given?.paint2;
+    const hasRegionPaint = !!(p1 || p2);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const k = j * n + i;
         const enc = Math.round(Math.min(Math.max((h[k]! - source.minHeight) / span, 0), 1) * 65535);
@@ -96,17 +104,19 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
         heights[k * 4 + 1] = enc & 255;
         heights[k * 4 + 2] = Math.round((nx * 0.5 + 0.5) * 255);
         heights[k * 4 + 3] = Math.round((nz * 0.5 + 0.5) * 255);
-        const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
-        const p1 = given?.paint, p2 = given?.paint2;
         const at = k * 4;
-        let w: LayerWeights = p1 || p2
-            ? [p1?.[at] ?? 0, p1?.[at + 1] ?? 0, p1?.[at + 2] ?? 0, p1?.[at + 3] ?? 0,
-                ...(p2 ? [p2[at]!, p2[at + 1]!, p2[at + 2]!, p2[at + 3]!] : [])]
-            : source.paint(x, z, h[k]!, ny);
-        if (repaint) w = repaint(x, z, h[k]!, ny, w);
-        for (let c = 0; c < 4; c++) {
-            paint[k * 4 + c] = Math.round(Math.min(Math.max(w[c] ?? 0, 0), 1) * 255);
-            paint2[k * 4 + c] = Math.round(Math.min(Math.max(w[c + 4] ?? 0, 0), 1) * 255);
+        if (hasRegionPaint && !repaint) {
+            if (p1) encodePaintBank(paint, at, p1, at);
+            if (p2) encodePaintBank(paint2, at, p2, at);
+        } else {
+            const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
+            let w: LayerWeights = hasRegionPaint
+                ? [p1?.[at] ?? 0, p1?.[at + 1] ?? 0, p1?.[at + 2] ?? 0, p1?.[at + 3] ?? 0,
+                    ...(p2 ? [p2[at]!, p2[at + 1]!, p2[at + 2]!, p2[at + 3]!] : [])]
+                : source.paint(x, z, h[k]!, ny);
+            if (repaint) w = repaint(x, z, h[k]!, ny, w);
+            encodePaintBank(paint, at, w, 0);
+            encodePaintBank(paint2, at, w, 4);
         }
         if ((k + 1) % 32 === 0) yield 0.4 + 0.6 * (k + 1) / (n * n);
     }

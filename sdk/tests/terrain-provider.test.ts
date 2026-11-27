@@ -99,6 +99,18 @@ describe('ground from a provider', () => {
         expect([...page.paint2.slice(0, 4)]).toEqual([191, 0, 0, 0]);
     });
 
+    it.each(['first', 'second', 'both'] as const)('encodes %s paint banks identically with or without a repaint', async banks => {
+        const source = ground({ ...terraced, sample({ count }) {
+            const heights = Float32Array.from({ length: count * count }, (_, i) => i % 100);
+            const paint = Float32Array.from({ length: heights.length * 4 }, (_, i) => (i % 9 - 1) / 6);
+            const paint2 = Float32Array.from({ length: heights.length * 4 }, (_, i) => (i % 7 - 1) / 4);
+            return { heights, paint: banks === 'second' ? undefined : paint, paint2: banks === 'first' ? undefined : paint2 };
+        } });
+        const direct = await makePage(source, 0, 0, 64);
+        const repainted = await makePage(source, 0, 0, 64, (_x, _z, _h, _ny, weights) => weights);
+        expect(direct).toEqual(repainted);
+    });
+
     it('takes a game\'s own provider, which may answer later, and keeps its versions apart', async () => {
         registerTerrainProvider(terraced);
         const v1 = new ProviderSource(terraced, 'planet-b', 1, 1, 0, 0, 1, paint);
