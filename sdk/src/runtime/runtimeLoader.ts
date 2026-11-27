@@ -11,7 +11,7 @@ import { SceneAssetProgress } from '../scene/sceneAssetProgress';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
          updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
-         type SceneLoadProgressCallback, applySceneTextureMetadata } from '../scene/scene';
+         type SceneLoadProgressCallback, publishSceneTextureMetadata } from '../scene/scene';
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
 import { runSceneLoad, scenePhaseRunner, SceneLoadAttempt } from '../scene/sceneLoadAttempt';
@@ -35,7 +35,8 @@ import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource, installRuntimeAssets } from '../asset/AssetPlugin';
 import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
-import { SceneLoadCancelled, SceneManager, type SceneConfig, type SceneContext, type SceneRetirement } from '../scene/sceneManager';
+import { SceneLoadCancelled, SceneManager, publishWhenSceneReady,
+         type SceneConfig, type SceneContext, type SceneRetirement } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
 import { shadersCompiled } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
@@ -682,7 +683,8 @@ export function publishRuntimeScene(
         : sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
     const attempt = sceneAttempt(app, prepared.name ?? prepared.sceneData.name, context);
     return runSceneLoad(attempt, () =>
-        publishPreparedScene(prepared, attempt, { ...now, context }, spread), prepared.assetResult);
+        publishPreparedScene(prepared, attempt, { ...now, context }, spread), prepared.assetResult, () =>
+        publishSceneTextureMetadata(prepared.sceneData, prepared.assetResult, publish => publishWhenSceneReady(context, publish)));
 }
 
 async function publishPreparedScene(
@@ -699,8 +701,6 @@ async function publishPreparedScene(
     const links = now.externalEntities;
     const externalEntities = (typeof links === 'function' ? links() : links) ?? prepared.options.externalEntities;
     attempt.assertCurrent();
-    // A scene's 9-slice can share its texture with the outgoing UI. Apply it when this scene publishes.
-    applySceneTextureMetadata(sceneData, assetResult);
     const timed = scenePhaseRunner(onPhase);
     const hasSceneManager = !!sceneName && app.hasResource(SceneManager);
     const ctx = now.context;

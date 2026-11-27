@@ -7,7 +7,7 @@
 
 import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
-import type { AssetFieldType, SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
+import type { AssetFieldType, SceneData, SceneLoadOptions, ManagedSceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import { recordSceneDependencies } from '../asset/entityAssetScopes';
 import type { SystemDef } from '../ecs/system';
@@ -207,6 +207,7 @@ class SceneInstance {
      */
     readonly assetScope = new AssetScope();
     readonly auxiliaryAssets = new Map<Entity, readonly AssetLease[]>();
+    readonly publications: Array<() => void> = [];
     /** Paths reported by a loader, and whether the live asset store supplied their receipts. */
     readonly loadedByType = new Map<string, Map<string, boolean>>();
     status: SceneStatus = 'loading';
@@ -257,6 +258,12 @@ class SceneContextImpl implements SceneContext {
 
     get entities(): ReadonlySet<Entity> {
         return this.instance_.entities;
+    }
+
+    publishWhenReady(publish: () => void): void {
+        this.assertCurrent_();
+        if (this.instance_.status === 'loading') this.instance_.publications.push(publish);
+        else publish();
     }
 
     spawn(): Entity {
@@ -341,6 +348,12 @@ class SceneContextImpl implements SceneContext {
 // =============================================================================
 // Scene Manager State
 // =============================================================================
+
+/** @internal Managed setup can still reject after its documents and assets finish loading. */
+export function publishWhenSceneReady(context: SceneContext | null | undefined, publish: () => void): void {
+    if (context instanceof SceneContextImpl) context.publishWhenReady(publish);
+    else publish();
+}
 
 /**
  * Scene loading and transitions, as `Res(SceneManager)` hands it over. A scene is
@@ -814,6 +827,8 @@ export class SceneManagerState {
                 await change;
                 this.assertSceneCanActivate_(instance);
             }
+            for (const publish of instance.publications) publish();
+            instance.publications.length = 0;
             instance.status = 'running';
             this.loadOrder_.push(name);
             return ctx;
@@ -875,6 +890,7 @@ export class SceneManagerState {
         instance: SceneInstance, survival: SceneSurvival, wasSleeping: boolean,
         retire?: SceneConfig['retire'],
     ): Promise<void> | void {
+        instance.publications.length = 0;
         const { survivors, doomed } = this.partitionOnUnload_(instance, survival);
         const batch = instance.retirement ??= new SceneEntityBatch(this.app_.world, doomed, instance.lifetime);
         if (!instance.cancellation.signal.aborted) instance.cancellation.abort(new SceneLoadCancelled(instance.config.name));
@@ -1130,10 +1146,11 @@ export class SceneManagerState {
                 spineKeys: new Set(),
             };
 
-            const loadOptions: SceneLoadOptions = {
+            const loadOptions: ManagedSceneLoadOptions = {
                 collectAssets,
                 onProgress: ctx.reportAssetProgress,
                 signal: instance.cancellation.signal,
+                publishWhenReady: publish => ctx.publishWhenReady(publish),
                 assertCurrent: () => {
                     if (!this.acceptsSceneWork_(instance)) throw new SceneLoadCancelled(name);
                 },

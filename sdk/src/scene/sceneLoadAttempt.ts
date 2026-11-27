@@ -108,7 +108,7 @@ export function discardSceneEntities(world: World, entities: Iterable<Entity>, l
 }
 
 export async function runSceneLoad<T>(
-    attempt: SceneLoadAttempt, work: () => Promise<T>, assets?: SceneAssetResult,
+    attempt: SceneLoadAttempt, work: () => Promise<T>, assets?: SceneAssetResult, publish?: () => void,
 ): Promise<T> {
     attempt.assets = assets;
     const release = attempt.watch();
@@ -116,6 +116,7 @@ export async function runSceneLoad<T>(
         attempt.assertCurrent();
         const value = await work();
         attempt.assertCurrent();
+        publish?.();
         return value;
     } catch (error) {
         attempt.discardEntities();

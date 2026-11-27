@@ -17,8 +17,9 @@ import { spawnPrepared } from '../src/prefab/preparedPrefab';
 import { defineComponent, Disabled, MeshRenderer, Parent, Sprite } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
 
+const setTextureMetadata = vi.hoisted(() => vi.fn());
 vi.mock('../src/wasm/resourceManager', () => ({
-    requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: () => false }),
+    requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: () => false, setTextureMetadata }),
     getResourceManager: () => null, evictTextureDimensions: vi.fn(),
 }));
 
@@ -914,6 +915,44 @@ describe('overlapping registered scene loads', () => {
 });
 
 describe('scene publication failures', () => {
+    it.each(['authored', 'packaged'])('leaves the running scene’s texture border intact when %s setup fails', async entry => {
+        const { app, options, assets } = await runtime();
+        const manager = new SceneManagerState(app);
+        app.insertResource(SceneManager, manager);
+        const data = (left: number): SceneData => ({ ...scene, textureMetadata: { shared: {
+            version: '1.0', type: 'texture', sliceBorder: { left, right: 2, top: 3, bottom: 4 },
+        } } });
+        const preload = assets.preloadSceneAssets.bind(assets);
+        vi.spyOn(assets, 'preloadSceneAssets').mockImplementation(async (...args) => {
+            const content = await preload(...args);
+            content.textureHandles.set('shared', 17);
+            return content;
+        });
+        manager.register({ name: 'home', data: data(1) });
+        const config: SceneConfig = entry === 'authored'
+            ? { name: 'next', data: data(9) }
+            : createRuntimeSceneConfig('next', data(9), options);
+        const setup = config.setup;
+        const failure = new Error('setup rejected');
+        let refuse = true;
+        config.setup = async ctx => {
+            await setup?.(ctx);
+            if (refuse) throw failure;
+        };
+        manager.register(config);
+        setTextureMetadata.mockClear();
+        try {
+            const home = await manager.load('home');
+            expect(setTextureMetadata.mock.calls).toEqual([[17, 1, 2, 3, 4]]);
+            await expect(manager.loadAdditive('next')).rejects.toBe(failure);
+            expect(manager.getScene('home')).toBe(home);
+            expect(setTextureMetadata.mock.calls).toEqual([[17, 1, 2, 3, 4]]);
+            refuse = false;
+            await manager.loadAdditive('next');
+            expect(setTextureMetadata.mock.calls).toEqual([[17, 1, 2, 3, 4], [17, 9, 2, 3, 4]]);
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['authoring', 'runtime'])('keeps another scene’s subtree through a failed %s spawn', async entry => {
         const { app, options, assets, unloaded } = await runtime();
         connectFakeCpp(app.world);

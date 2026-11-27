@@ -149,6 +149,11 @@ export interface SceneLoadOptions {
     onPhase?: ScenePhaseSink;
 }
 
+/** @internal A managed load hands shared-resource writes to the scene that owns it. */
+export interface ManagedSceneLoadOptions extends SceneLoadOptions {
+    publishWhenReady?: (publish: () => void) => void;
+}
+
 /**
  * Where a load's time went. Dotted names nest; see {@link SceneLoadOptions.onPhase}.
  *
@@ -862,7 +867,7 @@ export async function loadOwnedSceneWithAssets(
 }
 
 async function loadSceneDocument(
-    world: World, scene: SceneData, options: SceneLoadOptions | undefined, attempt: SceneLoadAttempt,
+    world: World, scene: SceneData, options: ManagedSceneLoadOptions | undefined, attempt: SceneLoadAttempt,
     ownership: 'borrowed' | 'owned',
 ): Promise<Map<number, Entity>> {
     if (options?.assets && sceneHasPrefabEntries(scene)) {
@@ -876,7 +881,7 @@ async function loadSceneDocument(
 }
 
 async function loadSceneAssetsAndSpawn(
-    world: World, data: SceneData, options: SceneLoadOptions | undefined,
+    world: World, data: SceneData, options: ManagedSceneLoadOptions | undefined,
     attempt: SceneLoadAttempt,
 ): Promise<Map<number, Entity>> {
     return runSceneLoad(attempt, async () => {
@@ -910,7 +915,6 @@ async function loadSceneAssetsAndSpawn(
                 await options.beforeSpawn();
                 assertCurrent();
             }
-            if (attempt.assets) applySceneTextureMetadata(data, attempt.assets);
             const entities = await timed('spawn', () =>
                 spawnAndLoadEntities(world, data, options?.externalEntities, onPhase, options?.assertCurrent, attempt));
             assertCurrent();
@@ -932,20 +936,31 @@ async function loadSceneAssetsAndSpawn(
         } finally {
             ownership?.release();
         }
+    }, undefined, () => {
+        if (attempt.assets) publishSceneTextureMetadata(data, attempt.assets, options?.publishWhenReady);
     });
 }
 
-/** @internal Apply authored borders through the same handle map that bound this scene. */
-export function applySceneTextureMetadata(sceneData: SceneData, result: Pick<SceneAssetResult, 'textureHandles' | 'resolveRef'>): void {
-    if (!sceneData.textureMetadata) return;
-    const rm = requireResourceManager();
-    for (const [path, metadata] of Object.entries(sceneData.textureMetadata)) {
-        const handle = result.textureHandles.get(result.resolveRef?.(path) ?? path);
-        if (handle && metadata?.sliceBorder) {
-            const b = metadata.sliceBorder;
-            rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
+/** @internal Apply authored borders through the handle map that bound the committed scene. */
+export function publishSceneTextureMetadata(
+    sceneData: SceneData, result: Pick<SceneAssetResult, 'textureHandles' | 'resolveRef'>,
+    publishWhenReady?: (publish: () => void) => void,
+): void {
+    const metadata = sceneData.textureMetadata;
+    if (!metadata) return;
+    const { textureHandles, resolveRef } = result;
+    const publish = () => {
+        const rm = requireResourceManager();
+        for (const [path, entry] of Object.entries(metadata)) {
+            const handle = textureHandles.get(resolveRef?.(path) ?? path);
+            if (handle && entry?.sliceBorder) {
+                const b = entry.sliceBorder;
+                rm.setTextureMetadata(handle, b.left, b.right, b.top, b.bottom);
+            }
         }
-    }
+    };
+    if (publishWhenReady) publishWhenReady(publish);
+    else publish();
 }
 
 export function loadComponent(world: World, entity: Entity, compData: SceneComponentData, entityName?: string): void {
