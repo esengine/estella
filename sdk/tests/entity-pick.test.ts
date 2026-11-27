@@ -65,6 +65,34 @@ it('keeps area hits in storage order and reads sorting groups only for masked dr
     expect(read.mock.calls.filter(([, component]) => component === SortingGroup)).toHaveLength(2);
 });
 
+it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without retained component snapshots', async () => {
+    const core = await loadWasmModule();
+    const app = App.new();
+    const registry = new core.Registry();
+    app.connectCpp(registry, core, { ownedRegistry: true });
+    const world = app.world;
+    try {
+        const outer = world.spawn(), inner = world.spawn();
+        world.insert(outer, SortingGroup, { layer: 4 });
+        world.insert(inner, SortingGroup, { layer: 2 });
+        world.setParent(inner, outer);
+        const a = world.spawn(), b = world.spawn();
+        for (const entity of [a, b]) {
+            world.insert(entity, Transform);
+            world.insert(entity, Sprite, { size: { x: 4, y: 4 }, layer: 1 });
+            world.setParent(entity, inner);
+        }
+        core.transform_update(registry);
+        const read = vi.spyOn(world, 'get');
+        const hits = pickEntitiesByBounds(world, (_box, entity) => {
+            if (entity === b) world.update(outer, SortingGroup, group => { group.enabled = false; });
+            return true;
+        }, { cullingMask: 1 << 2 });
+        expect(hits).toEqual([b]);
+        expect(read.mock.calls.filter(([, component]) => component === Parent || component === SortingGroup)).toHaveLength(0);
+    } finally { app.quit({ keepRenderer: true }); }
+});
+
 describe('picking entities by ray', () => {
     it('returns what the ray meets, ranked the way the frame stacked it', () => {
         const world = fakeWorld({

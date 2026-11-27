@@ -11,7 +11,7 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData } from './component';
+import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData, type SortingGroupData, type ParentData } from './component';
 import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -27,23 +27,29 @@ const GIZMO_PICK_LAYER = 1e6;
 /**
  * The groups enclosing @p entity, OUTERMOST first — what `sortingIdentity` needs.
  *
- * Walked per hit rather than resolved once for the world: a pick sees a handful of
- * candidates, and a table built for all of them would be the renderer's job done a
- * second time, on a different clock, to answer about the frame that was drawn.
+ * Resolve component readers once and walk live ancestry per hit. The bounds
+ * callback can change the world between hits, so parent and group values are
+ * read after each spatial test.
  */
-function enclosingGroups(world: PickWorld, entity: Entity): { layer: number; order: number }[] {
-    const chain: { layer: number; order: number }[] = [];
-    let current: Entity | undefined = entity;
-    const seen = new Set<Entity>();
-    while (current !== undefined && !seen.has(current)) {
-        seen.add(current);
-        if (world.has(current, SortingGroup)) {
-            const g = world.get(current, SortingGroup);
-            if (g.enabled) chain.push({ layer: g.layer, order: g.order });
+function createEnclosingGroupReader(world: PickWorld & Partial<Pick<World, 'resolveGetter'>>) {
+    const groupGetter = world.resolveGetter?.(SortingGroup) as ((entity: Entity) => SortingGroupData) | null | undefined;
+    const parentGetter = world.resolveGetter?.(Parent) as ((entity: Entity) => ParentData) | null | undefined;
+    const readGroup = groupGetter ?? (entity => world.get(entity, SortingGroup));
+    const readParent = parentGetter ?? (entity => world.get(entity, Parent));
+    return (entity: Entity): { layer: number; order: number }[] => {
+        const chain: { layer: number; order: number }[] = [];
+        let current: Entity | undefined = entity;
+        const seen = new Set<Entity>();
+        while (current !== undefined && !seen.has(current)) {
+            seen.add(current);
+            if (world.has(current, SortingGroup)) {
+                const g = readGroup(current);
+                if (g.enabled) chain.push({ layer: g.layer, order: g.order });
+            }
+            current = world.has(current, Parent) ? readParent(current).entity : undefined;
         }
-        current = world.has(current, Parent) ? world.get(current, Parent).entity : undefined;
-    }
-    return chain.reverse();
+        return chain.reverse();
+    };
 }
 
 /**
@@ -144,6 +150,7 @@ function visitPickHits(
     const fastWorld = world as PickWorld & Partial<Pick<World, 'resolveGetter'>>;
     const meshGetter = fastWorld.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
     const readMesh = meshGetter ?? (entity => world.get(entity, MeshRenderer));
+    let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.
     const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
@@ -173,8 +180,9 @@ function visitPickHits(
         }
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
+        groupsOf ??= createEnclosingGroupReader(fastWorld);
         const identity = sortingIdentity(
-            enclosingGroups(world, entity),
+            groupsOf(entity),
             mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
             (sprite as { order?: number } | null)?.order ?? 0,
         );
