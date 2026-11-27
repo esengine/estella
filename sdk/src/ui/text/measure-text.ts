@@ -24,6 +24,10 @@ export interface MeasureTextOptions {
     /** Display px. */
     fontSize: number;
     bold?: boolean;
+    /** Stroke weight 100..900 as `Text.fontWeight`; absent is what `bold` says. */
+    fontWeight?: number;
+    /** Every figure as wide as the widest, as `Text.tabularNumbers`. */
+    tabularNumbers?: boolean;
     italic?: boolean;
     /** Extra px between glyphs (mirrors the renderer's letterSpacing). */
     letterSpacing?: number;
@@ -109,11 +113,20 @@ function measurer(opts: MeasureTextOptions): Measurer {
     }
     if (ctx_) {
         const ctx = ctx_;
-        ctx.font = `${opts.italic ? 'italic ' : ''}${opts.bold ? 'bold ' : ''}${opts.fontSize}px ${family}`;
-        return (s) => ctx.measureText(s).width + [...s].length * spacing;
+        const weight = opts.fontWeight && opts.fontWeight > 0 ? `${Math.round(opts.fontWeight)} ` : opts.bold ? 'bold ' : '';
+        ctx.font = `${opts.italic ? 'italic ' : ''}${weight}${opts.fontSize}px ${family}`;
+        if (!opts.tabularNumbers) return (s) => ctx.measureText(s).width + [...s].length * spacing;
+        // Tabular figures: each one as wide as the widest, as the atlas lays them out.
+        let widest = 0;
+        for (let d = 0; d <= 9; d++) widest = Math.max(widest, ctx.measureText(String(d)).width);
+        return (s) => {
+            const figures = s.match(/[0-9]/g)?.length ?? 0;
+            return ctx.measureText(s.replace(/[0-9]/g, '')).width + figures * widest + [...s].length * spacing;
+        };
     }
     if (platformHasGlyphRasterizer()) {
-        const style = (opts.bold ? FONT_STYLE_BOLD : 0) | (opts.italic ? FONT_STYLE_ITALIC : 0);
+        const bold = opts.fontWeight && opts.fontWeight > 0 ? opts.fontWeight >= 600 : opts.bold;
+        const style = (bold ? FONT_STYLE_BOLD : 0) | (opts.italic ? FONT_STYLE_ITALIC : 0);
         const append = (width: number, suffix: string): number => {
             for (const ch of suffix) width += platformAdvance(ch.codePointAt(0)!, family, style, opts.fontSize) + spacing;
             return width;

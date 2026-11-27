@@ -44,6 +44,49 @@ UINode, placed by Transform. Do not mix the two.
   wires the entity already has.
 - A click that runs game code: a system that queries `UIInteraction` and reacts to `justPressed`.
 
+## A HUD that looks made, not generated
+
+A HUD reads as designed when it is restrained and precise, not when it is decorated. Panels with rounded corners, glows,
+saturated colours and heavy type are what reads as generated. Build it from a few decisions held everywhere:
+
+- **Tokens.** One accent (a muted gold `{ r: 0.906, g: 0.761, b: 0.49 }`, or the game's own), white at three strengths
+  (`a` 0.95 for what matters, 0.64 for what supports it, 0.38 for hints), a near-black (`{ r: 0.03, g: 0.04, b: 0.055 }`),
+  and nothing else. Colour means something: the accent marks the goal, the player's resource, the selected item.
+- **Type.** Two faces at most: a display face for titles at a LIGHT weight (`Text.fontWeight` 200 to 300, 80 to 110 px for a
+  title screen) and a text face for the rest (400, 15 to 20 px on a 1080-high canvas; 600 only for a heading). Titles a
+  little spaced (`letterSpacing` 1 to 2), small capitals wider (`letterSpacing` 1 to 3). A number that changes (a timer, a
+  count, a score) has `tabularNumbers: true`, so its neighbours do not shift. Ship the font: `Text.font` names a `.ttf`,
+  `.otf`, `.woff` or `.woff2` in the project; a variable font draws every weight on its axis, a family of one file per weight
+  needs a file per weight, and a system font (`fontFamily`) draws the nearest weight that machine has.
+- **No panels behind HUD text.** Words stand on the world with a soft shadow that keeps them legible over sky and snow:
+  `shadowColor { r: 0, g: 0, b: 0, a: 0.55 }`, `shadowBlur` 6, `shadowOffsetY` 1. A shaded block goes only behind a block
+  of words (a menu, a dialogue), and fades out rather than ending at an edge: a SolidColor `UIVisual` wearing a Gradient
+  material, near-black at `a` 0.7 at the side the words are on to clear at the other.
+- **Lines, not boxes.** Hairlines 1 px high, in the accent, fading out along their length (Gradient material). One small
+  motif repeated, such as a 7 to 8 px square turned 45 degrees (a diamond) at the start of a hairline or before the goal:
+  give its `Transform` `rotation: { w: 0.9238795, x: 0, y: 0, z: 0.3826834 }` when it is created; the layout keeps a turn.
+- **Meters are thin.** Health 3 px, stamina 2 px, 200 to 260 px long, on a track of black at `a` 0.45. A ghost behind the
+  fill in the accent that falls to the new value a quarter second later (two nodes; the game sets the ghost's width after a
+  delay) says how much a blow took.
+- **A compass** is a hairline 400 or so px wide whose two ends melt away (Gradient `u_fadeIn` and `u_fadeOut` 0.25), the
+  letters on it, the goal a small accent diamond on the line.
+- **Key hints** sit in a corner, small: a near-black keycap rect (`a` 0.72) with the key in 12 px at weight 600, the action
+  beside it at the supporting white. Hide them once the player has used the key.
+
+The **Gradient** material (`shader: "builtin:gradient"`) multiplies whatever the visual draws, a plain colour or a picture:
+
+```json
+{ "version": "1.0", "type": "material", "shader": "builtin:gradient", "blendMode": 0, "depthTest": false, "depthWrite": false,
+  "cull": 0, "properties": { "u_from": { "r": 1, "g": 1, "b": 1, "a": 1 }, "u_to": { "r": 1, "g": 1, "b": 1, "a": 0 },
+  "u_angle": 0, "u_middle": 0.5, "u_radial": 0, "u_fadeIn": 0, "u_fadeOut": 0 } }
+```
+
+The angle (u_angle) 0 runs from the rect's left edge to its right, 90 from its bottom to its top; u_radial 1 runs from its centre
+out (a vignette); u_middle moves where the colour is halfway; u_fadeIn and u_fadeOut melt the start and the end to
+clear over that share of the run. Write it with `write_project_file` (or `create_asset` type material) and set it as the
+`UIVisual.material` of a SolidColor or Image visual. Then look at the HUD over the brightest and the darkest place the game
+has (`screenshot { crop: "game" }`): a HUD that only works over one of them is not done.
+
 ## Changing UI from a script
 
 Write through the world or a `Mut(...)` query so the engine sees it:

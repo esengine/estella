@@ -149,6 +149,7 @@ export function textFrame(world: World, entity: Entity, t: TextData): TextFrame 
 /** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
 export interface TextSnapshot {
     content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean; renderMode: number;
+    fontWeight: number; tabular: boolean;
     align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; letterSpacing: number; layer: number; underline: boolean;
     boxW: number; boxH: number; boxPx: number; boxPy: number;
     cr: number; cg: number; cb: number; ca: number;
@@ -169,6 +170,7 @@ interface RetainedLabel {
 export function snapshotOf(t: TextData, family: string): TextSnapshot {
     return {
         content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText, renderMode: t.renderMode,
+        fontWeight: t.fontWeight || 0, tabular: !!t.tabularNumbers,
         align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, letterSpacing: t.letterSpacing || 0, layer: t.layer | 0, underline: !!t.underline,
         boxW: t.boxWidth || 0, boxH: t.boxHeight || 0, boxPx: t.boxPivot?.x ?? 0.5, boxPy: t.boxPivot?.y ?? 0.5,
         cr: t.color.r, cg: t.color.g, cb: t.color.b, ca: t.color.a,
@@ -181,6 +183,7 @@ export function snapshotOf(t: TextData, family: string): TextSnapshot {
 export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): boolean {
     return s.content === t.content && s.family === family && s.fontSize === t.fontSize
         && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText && s.renderMode === t.renderMode
+        && s.fontWeight === (t.fontWeight || 0) && s.tabular === !!t.tabularNumbers
         && s.align === t.align && s.verticalAlign === t.verticalAlign && s.wordWrap === !!t.wordWrap
         && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.letterSpacing === (t.letterSpacing || 0) && s.layer === (t.layer | 0) && s.underline === !!t.underline
         && s.boxW === (t.boxWidth || 0) && s.boxH === (t.boxHeight || 0) && s.boxPx === (t.boxPivot?.x ?? 0.5) && s.boxPy === (t.boxPivot?.y ?? 0.5)

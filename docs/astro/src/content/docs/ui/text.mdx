@@ -95,6 +95,8 @@ Defaults below are the component defaults (what the inspector shows).
 | `lineHeight` | number | `1.2` | Line spacing as a **ratio of `fontSize`** (baseline-to-baseline = `lineHeight × fontSize`). |
 | `letterSpacing` | number | `0` | Extra space after every glyph, in the same px as `fontSize`; negative draws the glyphs closer. Wrapping, alignment and overflow measure with it. It is CSS's `letter-spacing` and a Cocos Label's `spacingX`. |
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
+| `fontWeight` | number | `0` | Stroke weight, 100 (hairline) to 900 (black), as CSS `font-weight`: 300 light, 400 regular, 700 bold. `0` is what `bold` says. A shipped variable font draws every weight on its axis; a system font the nearest weight the machine has; a platform that knows only bold and not draws 600 and up as bold. |
+| `tabularNumbers` | boolean | `false` | Every figure as wide as the widest, each centred in its cell, so a timer, score or count does not shift as it changes (CSS `tabular-nums`). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
 | `strokeWidth` | number | `0` | Outline width in px; `0` disables. An SDF glyph's own edge is pushed outward and a bitmap glyph is grown, so it stays the glyph's shape at any width (see [below](#outlines)). |
 | `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. The shadow and the outline fade with the text's own `color` alpha, so a label faded out leaves neither behind. |

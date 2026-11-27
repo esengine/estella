@@ -7117,10 +7117,12 @@ uniforms: Record<string, UniformValue> | undefined
 bold: boolean | undefined
 fontFamily: string | undefined
 fontSize: number
+fontWeight: number | undefined
 italic: boolean | undefined
 letterSpacing: number | undefined
 lineHeight: number | undefined
 maxWidth: number | undefined
+tabularNumbers: boolean | undefined
 ```
 
 ## MeasuredLinearLayoutProvider — class @experimental
@@ -13425,6 +13427,7 @@ enabled: boolean
 font: number
 fontFamily: string
 fontSize: number
+fontWeight: number | undefined
 i18nKey: string
 italic: boolean
 layer: number
@@ -13439,6 +13442,7 @@ shadowOffsetX: number
 shadowOffsetY: number
 strokeColor: Color
 strokeWidth: number
+tabularNumbers: boolean | undefined
 underline: boolean | undefined
 verticalAlign: TextVerticalAlign
 wordWrap: boolean
@@ -13457,6 +13461,7 @@ enabled: boolean | undefined
 font: number | undefined
 fontFamily: string | undefined
 fontSize: number | undefined
+fontWeight: number | undefined
 i18nKey: string | undefined
 italic: boolean | undefined
 layer: number | undefined
@@ -13471,6 +13476,7 @@ shadowOffsetX: number | undefined
 shadowOffsetY: number | undefined
 strokeColor: Color | undefined
 strokeWidth: number | undefined
+tabularNumbers: boolean | undefined
 underline: boolean | undefined
 verticalAlign: TextVerticalAlign | undefined
 wordWrap: boolean | undefined
@@ -13567,12 +13573,14 @@ bold: boolean | undefined
 customFont: boolean | undefined
 fontFamily: string | undefined
 fontSize: number
+fontWeight: number | undefined
 height: number
 italic: boolean | undefined
 letterSpacing: number | undefined
 lineHeight: number | undefined
 maxWidth: number | undefined
 richText: boolean | undefined
+tabularNumbers: boolean | undefined
 width: number
 wordWrap: boolean | undefined
 ```

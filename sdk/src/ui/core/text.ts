@@ -104,6 +104,17 @@ export interface TextData {
      */
     letterSpacing?: number;
     bold: boolean;
+    /**
+     * How heavy the strokes are, 100 (hairline) to 900 (black), as CSS `font-weight`: 300 is light, 400 regular, 700 bold.
+     * A font drawn at the weights it has (a variable font, or a family with a file per weight); a system font at the nearest it
+     * has. Absent is what `bold` says, 700 or 400; a weight of 600 or more is bold where a platform knows only bold and not.
+     */
+    fontWeight?: number;
+    /**
+     * Every figure as wide as the widest, so a number that changes (a timer, a score, a count) does not shift its neighbours:
+     * CSS `font-variant-numeric: tabular-nums`. Each digit stays centred in its cell. Absent is off.
+     */
+    tabularNumbers?: boolean;
     italic: boolean;
     strokeColor: Color;
     strokeWidth: number;
@@ -169,6 +180,8 @@ export const Text = defineComponent<TextData>('Text', {
     lineHeight: 1.2,
     letterSpacing: 0,
     bold: false,
+    fontWeight: 0,
+    tabularNumbers: false,
     italic: false,
     strokeColor: { r: 0, g: 0, b: 0, a: 1 },
     strokeWidth: 0,
@@ -205,6 +218,8 @@ export const Text = defineComponent<TextData>('Text', {
         },
         letterSpacing: { tooltip: 'Extra space after every glyph, in the same px as Font Size. Negative draws the glyphs closer. Wrapping, alignment and overflow measure with it.' },
         underline: { tooltip: 'Draw a line under each line of text, using the underscore of the font.' },
+        fontWeight: { label: 'Weight', min: 0, max: 900, step: 100, tooltip: 'Stroke weight, 100 hairline to 900 black (300 light, 400 regular, 700 bold), as CSS font-weight. 0 = what Bold says. A variable font or a family with a file per weight draws the weight asked; a system font the nearest it has.' },
+        tabularNumbers: { label: 'Tabular Numbers', tooltip: 'Every figure as wide as the widest, so a timer, score or count does not shift as it changes (CSS tabular-nums).' },
         renderMode: { enum: enumOptions(TextRenderMode) },
         boxWidth: { tooltip: 'Layout box width for a text with no UINode (0 = no box: the origin is the box). Alignment, wrapping and overflow work inside it. A UINode, if present, decides the box instead.' },
         boxHeight: { tooltip: 'Layout box height (0 = none). Vertical alignment and Clip/Ellipsis need it.' },

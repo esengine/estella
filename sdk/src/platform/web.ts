@@ -33,6 +33,7 @@ import { InputBinding, type ListenerScope } from './listeners';
 import { cacheEntryName } from './cacheEntryName';
 import { imageSizeAtEdge, readCanvasPixels } from './imagePixels';
 import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCacheWrite } from './webCacheStore';
+import { fontWeightRange } from './fontWeights';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -212,7 +213,9 @@ class WebPlatformAdapter implements PlatformAdapter {
      *  FontFace for it is added to the document. */
     async registerFont(family: string, bytes: ArrayBuffer): Promise<void> {
         if (typeof FontFace === 'undefined' || typeof document === 'undefined') return;
-        const face = new FontFace(family, bytes);
+        // A variable font covers every weight on its axis: said so, a Text at weight 300 is drawn at 300 and not at the default.
+        const weights = fontWeightRange(bytes);
+        const face = new FontFace(family, bytes, weights ? { weight: `${weights[0]} ${weights[1]}` } : undefined);
         await face.load();
         // `FontFaceSet.add` predates the lib.dom typing we compile against.
         (document.fonts as unknown as { add(f: FontFace): void }).add(face);

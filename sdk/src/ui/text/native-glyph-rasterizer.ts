@@ -17,6 +17,7 @@
  */
 import { platformRasterizeGlyph } from '../../platform';
 import type { GlyphRasterizer, RasterGlyph } from './glyph-atlas';
+import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 
 export interface NativeGlyphRasterizerOptions {
     /** Size glyphs are rasterized at (an SDF is resolution-independent). Default 48. */
@@ -41,8 +42,9 @@ export class NativeGlyphRasterizer implements GlyphRasterizer {
     }
 
     rasterize(codepoint: number, fontFamily: string, style: number, pixelSize = this.renderSize): RasterGlyph | null {
+        // A host's text stack knows bold and italic, not a weight: a weight of 600 or more arrives as bold (textStyleBits set it).
         const glyph = platformRasterizeGlyph({
-            codepoint, fontFamily, style, pixelSize, sdf: this.sdf, padding: this.pad,
+            codepoint, fontFamily, style: style & (UI_TEXT_BOLD | UI_TEXT_ITALIC), pixelSize, sdf: this.sdf, padding: this.pad,
         });
         if (!glyph) return null;
         // A host may answer a whitespace glyph with advance only (no cell) — the

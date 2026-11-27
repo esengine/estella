@@ -12,7 +12,7 @@ import type { TextData } from '../core/text';
 import type { RGBA } from './layout';
 import type { DrawTextParams } from './text-renderer';
 import { fontAscent } from './bitmap-font';
-import { DEFAULT_ASCENT, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
+import { DEFAULT_ASCENT, rectTextBox, textWeightBits, UI_TEXT_BOLD, UI_TEXT_ITALIC, UI_TEXT_TABULAR } from './text-transform';
 
 /** The box a Text is laid out in, and where the entity origin sits in it (see `textFrame`). */
 export interface TextBoxFrame {
@@ -23,9 +23,15 @@ export interface TextBoxFrame {
     py: number;
 }
 
-/** Bold and italic as the style bits the glyph atlas keys on. */
-export function textStyleBits(t: Pick<TextData, 'bold' | 'italic'>): number {
-    return (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
+/**
+ * Weight, italic and tabular figures as the style bits the glyph atlas keys on. A weight of 600 or more also sets the bold bit,
+ * so a platform whose text stack knows only bold and not draws it bold.
+ */
+export function textStyleBits(t: Pick<TextData, 'bold' | 'italic' | 'fontWeight' | 'tabularNumbers'>): number {
+    const weight = typeof t.fontWeight === 'number' && Number.isFinite(t.fontWeight) && t.fontWeight > 0 ? t.fontWeight : 0;
+    const bold = weight > 0 ? weight >= 600 : !!t.bold;
+    return (bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0) | (t.tabularNumbers ? UI_TEXT_TABULAR : 0)
+        | (weight > 0 ? textWeightBits(weight) : 0);
 }
 
 /** `Text.lineHeight` is a ratio of the font size; layout wants px. Undefined leaves layout its default. */

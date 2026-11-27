@@ -171,7 +171,7 @@ describe('the built-in shaders written in GLSL alone', () => {
 
     it('are the ones whose twin was taken out', () => {
         expect(glslOnly.map(([n]) => n).sort()).toEqual(
-            ['Distortion', 'Eye', 'Foliage', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Strands', 'Terrain Layers', 'Toon', 'Voxel Ground', 'Water'].sort());
+            ['Distortion', 'Eye', 'Foliage', 'Gradient', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Strands', 'Terrain Layers', 'Toon', 'Voxel Ground', 'Water'].sort());
     });
 
     it.each(glslOnly)('%s transpiles', (_, source) => {
@@ -202,5 +202,14 @@ describe('why a shader would draw on WebGL alone', () => {
         expect(problem?.message).not.toMatch(/^line \d+/);
         // Asked again, it answers again: nothing is remembered between edits.
         expect(wgslTwinProblem(source)).toEqual(problem);
+    });
+});
+
+describe('the Gradient a screen is drawn with', () => {
+    it('is a built-in template WebGPU can be given', () => {
+        const gradient = BUILTIN_SHADER_TEMPLATES.find((t) => t.id === 'gradient');
+        expect(gradient).toBeDefined();
+        expect(wgslTwinProblem(gradient!.source)).toBeNull();
+        expect(Object.keys(gradient!.defaults)).toEqual(expect.arrayContaining(['u_from', 'u_to', 'u_angle', 'u_fadeIn', 'u_fadeOut']));
     });
 });

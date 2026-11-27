@@ -41,6 +41,8 @@ describe('which Text fields make a retained label laid out again', () => {
         ['letterSpacing', t => { t.letterSpacing = 2; }],
         ['underline', t => { t.underline = true; }],
         ['bold', t => { t.bold = true; }],
+        ['fontWeight', t => { t.fontWeight = 300; }],
+        ['tabularNumbers', t => { t.tabularNumbers = true; }],
         ['italic', t => { t.italic = true; }],
         ['strokeColor', t => { t.strokeColor = { r: 1, g: 0, b: 0, a: 1 }; }],
         ['strokeWidth', t => { t.strokeWidth = 2; }],

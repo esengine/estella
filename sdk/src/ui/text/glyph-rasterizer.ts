@@ -16,6 +16,7 @@ import { platformCreateCanvas } from '../../platform';
 import type { PlatformCanvas, PlatformCanvas2DContext } from '../../platform/types';
 import { sdfFromAlpha } from './sdf';
 import { TEXT_ASCENT_RATIO } from '../util/constants';
+import { textStyleWeight } from './text-transform';
 import type { GlyphRasterizer, RasterGlyph } from './glyph-atlas';
 
 /** Style bit flags (match the atlas cache-key style argument). */
@@ -130,7 +131,9 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         // All drawing happens at ss× the requested size; metrics divide back
         // down, gaining sub-px accuracy from the larger measurement.
         const ss = this.sdf ? SDF_SUPERSAMPLE : 1;
-        const weight = (style & FONT_STYLE_BOLD) ? 'bold ' : '';
+        // Regular and bold keep the words every font stack reads; a weight between or past them is its number.
+        const heavy = textStyleWeight(style);
+        const weight = heavy === 400 ? '' : heavy === 700 ? 'bold ' : `${heavy} `;
         const italic = (style & FONT_STYLE_ITALIC) ? 'italic ' : '';
         const font = `${italic}${weight}${pixelSize * ss}px ${fontFamily}`;
         ctx.font = font;

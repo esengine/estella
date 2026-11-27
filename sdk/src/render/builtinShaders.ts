@@ -206,6 +206,50 @@ void main() {
 
 `;
 
+// A colour run across the rect's uv, multiplying what the visual draws: a hairline that fades out, a shaded panel, a vignette, a strip
+// whose ends melt away (u_fadeIn, u_fadeOut). Angle 0 runs from the left edge to the right, 90 from the bottom to the top.
+const GRADIENT = `#pragma shader "Gradient"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_from color default(1,1,1,1)
+#pragma param u_to color default(1,1,1,0)
+// Degrees: 0 from the left edge to the right, 90 from the bottom to the top, 180 right to left.
+#pragma param u_angle float default(0) range(0,360)
+// Where along the run the colour is halfway from u_from to u_to: below 0.5 it turns early, above late.
+#pragma param u_middle float default(0.5) range(0.02,0.98) ui(slider)
+// 1: the run goes from the centre out to the corners (a vignette, a glow) and the angle is not used.
+#pragma param u_radial float default(0) range(0,1) ui(slider)
+// The share of the run over which it rises from clear at its start, and falls to clear at its end: a strip whose ends melt away.
+#pragma param u_fadeIn float default(0) range(0,1) ui(slider)
+#pragma param u_fadeOut float default(0) range(0,1) ui(slider)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[1];
+
+out vec4 fragColor;
+
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color;
+    float a = radians(u_angle);
+    vec2 dir = vec2(cos(a), sin(a));
+    vec2 c = v_texCoord - 0.5;
+    // Along the angle, scaled so the rect's two far corners are 0 and 1 whatever the angle.
+    float along = dot(c, dir) / max(abs(dir.x) + abs(dir.y), 1e-4) + 0.5;
+    float t = clamp(mix(along, length(c) * 2.0, u_radial), 0.0, 1.0);
+    float m = clamp(u_middle, 0.02, 0.98);
+    float k = t < m ? 0.5 * t / m : 0.5 + 0.5 * (t - m) / (1.0 - m);
+    vec4 tint = mix(u_from, u_to, k);
+    float edges = (u_fadeIn > 0.0 ? smoothstep(0.0, u_fadeIn, t) : 1.0) * (u_fadeOut > 0.0 ? smoothstep(0.0, u_fadeOut, 1.0 - t) : 1.0);
+    fragColor = vec4(base.rgb * tint.rgb, base.a * tint.a * edges);
+}
+#pragma end
+`;
+
 // Grass, reeds, hanging cloth: the sprite's top leans and returns, its foot stays. A sprite shader is a fragment shader, so the lean is a shift of where
 // the texture is read, growing from nothing at the bottom edge to u_swayStrength (a share of the sprite's width) at the top; the sprite's picture should
 // leave a margin at the sides for it to lean into. u_swayWind is the weather's wind, written by the engine each frame (1 with none).
@@ -1019,6 +1063,9 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('sprite-pixelate', 'Pixelate', 'Quantizes UVs to a coarse pixel grid.', SPRITE_PIXELATE),
     template('sprite-uv-scroll', 'UV Scroll',
         'Scrolls the texture over time (conveyors, water, clouds).', SPRITE_UV_SCROLL),
+    template('gradient', 'Gradient',
+        'A colour that runs across the rect at an angle or out from its centre, fading to clear at either end if asked: hairlines, shaded panels, vignettes, a strip whose ends melt away. Multiplies the picture or plain colour drawn.',
+        GRADIENT),
     template('model', 'Model',
         'What an imported model\'s material says: normal map, emission, occlusion, alpha cutoff.',
         MODEL),

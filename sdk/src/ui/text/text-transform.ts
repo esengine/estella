@@ -19,6 +19,23 @@ export const DEFAULT_ASCENT = 0.8;
 /** Style bit flags — bold | italic (the atlas cache-key + rasterizer style arg). */
 export const UI_TEXT_BOLD = 1;
 export const UI_TEXT_ITALIC = 2;
+/** Every figure as wide as the widest, so a number that changes does not shift (CSS `tabular-nums`). Laid out by the atlas. */
+export const UI_TEXT_TABULAR = 4;
+/** Where a weight is kept in the style bits: its hundreds (1..9), 0 for the weight bold or not says. */
+export const UI_TEXT_WEIGHT_SHIFT = 4;
+
+/** The weight a style asks for: its own hundreds, at least 700 where the bold bit is set (a bold run of rich text), else 400. */
+export function textStyleWeight(style: number): number {
+    const own = ((style >> UI_TEXT_WEIGHT_SHIFT) & 15) * 100;
+    if (style & UI_TEXT_BOLD) return Math.max(700, own);
+    return own || 400;
+}
+
+/** A weight as the style bits keep it: the nearest hundred from 100 to 900. */
+export function textWeightBits(weight: number): number {
+    const hundreds = Math.max(1, Math.min(9, Math.round(weight / 100)));
+    return hundreds << UI_TEXT_WEIGHT_SHIFT;
+}
 
 /**
  * Compose a column-major mat4 into `out` from translation, rotation quaternion,

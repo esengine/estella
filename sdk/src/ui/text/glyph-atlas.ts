@@ -19,6 +19,7 @@
 import { ShelfPacker, type Packer } from '../../util/shelfPack';
 import { log } from '../../util/logger';
 import { bitmapFontOf, bitmapGlyph } from './bitmap-font';
+import { UI_TEXT_TABULAR } from './text-transform';
 
 /** A glyph rendered to an upload-ready bitmap plus its layout metrics (in render-size px). */
 export interface RasterGlyph {
@@ -32,6 +33,13 @@ export interface RasterGlyph {
     /** Offset from the pen origin to the bitmap's left / top (top-left origin). */
     bearingX: number;
     bearingY: number;
+}
+
+/** A figure spaced as a tabular one: advanced by the widest figure's width and centred in that cell. Pure. */
+export function tabularFigure(glyph: RasterGlyph, widest: number): RasterGlyph {
+    if (!(widest > glyph.advance)) return glyph;
+    const shift = (widest - glyph.advance) / 2;
+    return { ...glyph, advance: widest, bearingX: glyph.bearingX + shift };
 }
 
 export interface GlyphRasterizer {
@@ -87,8 +95,6 @@ export interface GlyphAtlasOptions {
     /** Device pixel ratio for bitmap per-size rasterization. Default 1. */
     dpr?: number;
 }
-
-const STYLE_COUNT_HINT = 4;  // plain / bold / italic / bold-italic — for key spread only
 
 /** Numeric glyph/style/size suffixes leave the complete family prefix intact. */
 function familyFromKey(key: string): string {
@@ -428,9 +434,13 @@ export class GlyphAtlas {
     /** Reported families with non-drawable glyphs still in the bounded CPU cache. */
     private readonly mute_ = new Set<string>();
 
+    /** Widest figure advance by family, style and size: what tabular figures are spaced to. */
+    private readonly figureWidths_ = new Map<string, number>();
+
     private key(codepoint: number, fontFamily: string, style: number, pixelSize: number, outline = 0, shadow?: GlyphShadow): string {
         const size = shadow ? `${pixelSize}s${shadow.key}` : outline > 0 ? `${pixelSize}o${outline}` : `${pixelSize}`;
-        return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${size}`;
+        // The whole style: a weight or tabular figures are another glyph as much as bold is.
+        return `${fontFamily}|${codepoint}|${style}|${size}`;
     }
 
     /**
@@ -553,7 +563,13 @@ export class GlyphAtlas {
 
     private raster_(codepoint: number, fontFamily: string, style: number, pixelSize: number,
                     outline: number, shadow?: GlyphShadow): RasterGlyph | null {
-        const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
+        // Tabular figures are a spacing, not a shape: drawn as the plain glyph, then widened to the widest figure's advance and
+        // centred in it. Done here, every layout that measures advances gets it, and a rasterizer never sees the bit.
+        const drawn = style & ~UI_TEXT_TABULAR;
+        const plain = this.rasterizer.rasterize(codepoint, fontFamily, drawn, pixelSize);
+        const raster = plain && (style & UI_TEXT_TABULAR) && codepoint >= 0x30 && codepoint <= 0x39
+            ? tabularFigure(plain, this.widestFigure_(fontFamily, drawn, pixelSize))
+            : plain;
         if (!raster || raster.width <= 0 || raster.height <= 0) return raster;
         if (shadow) {
             return this.sdf && this.rasterizer.spread > 0
@@ -562,6 +578,18 @@ export class GlyphAtlas {
         }
         if (outline <= 0) return raster;
         return outlineRaster(raster, outline);
+    }
+
+    /** The advance of the widest of the ten figures at this family, style and size, measured once. */
+    private widestFigure_(fontFamily: string, style: number, pixelSize: number): number {
+        const key = `${fontFamily}|${style}|${pixelSize}`;
+        let widest = this.figureWidths_.get(key);
+        if (widest === undefined) {
+            widest = 0;
+            for (let cp = 0x30; cp <= 0x39; cp++) widest = Math.max(widest, this.rasterizer.rasterize(cp, fontFamily, style, pixelSize)?.advance ?? 0);
+            this.figureWidths_.set(key, widest);
+        }
+        return widest;
     }
 
     /** Page-free entries can be recreated without changing any live layout or UV. */

@@ -9728,6 +9728,19 @@
           "default": "false"
         },
         {
+          "key": "fontWeight",
+          "type": "number",
+          "default": "0",
+          "doc": "Stroke weight, 100 hairline to 900 black (300 light, 400 regular, 700 bold), as CSS font-weight. 0 = what Bold says. A variable font or a family with a file per weight draws the weight asked; a system font the nearest it has.",
+          "range": "0–900, step 100"
+        },
+        {
+          "key": "tabularNumbers",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Every figure as wide as the widest, so a timer, score or count does not shift as it changes (CSS tabular-nums)."
+        },
+        {
           "key": "italic",
           "type": "boolean",
           "default": "false"
@@ -9825,6 +9838,7 @@
         "overflow",
         "lineHeight",
         "letterSpacing",
+        "fontWeight",
         "strokeColor.r",
         "strokeColor.g",
         "strokeColor.b",
