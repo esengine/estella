@@ -9,9 +9,12 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { CameraViewAPI, presentedCameraView } from '../src/camera/Camera';
+import { CameraCommit } from '../src/camera/CameraCommit';
 import { pickEntitiesByBounds, pickEntitiesByRay, type PickWorld } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import { q } from '../src/math/quat';
+import { ortho, perspective } from '../src/math/mat4';
 import { MeshRenderers, meshRendererPlugin } from '../src/render/meshRenderer';
 import type { Entity } from '../src/types';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -94,6 +97,42 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
 });
 
 describe('picking entities by ray', () => {
+    it.each(['orthographic', 'perspective'] as const)('uses the drawn depth range for %s camera picks', projection => {
+        const origin = { x: 1e8, y: -1e8, z: 1e8 };
+        const matrix = projection === 'orthographic'
+            ? ortho(-4, 4, -4, 4, 1, 9).slice()
+            : perspective(Math.PI / 2, 1, 1, 9).slice();
+        const app = App.new();
+        Object.assign(app.getResource(CameraCommit), {
+            valid: true,
+            viewProjection: new Float32Array(16), rebasedProjection: { origin, viewProjection: matrix },
+            vpX: 0, vpY: 0, vpW: 200, vpH: 200,
+        });
+        const ray = presentedCameraView(app).screenRay(150, 100)!;
+        const xAt = (depth: number) => origin.x + (projection === 'orthographic' ? 2 : depth / 2);
+        expect(ray.maxDistance).toBeCloseTo(Math.hypot(xAt(9) - xAt(1), 8));
+        const meshBounds = { minX: -1, maxX: 1, minY: -1, maxY: 1, minZ: -1, maxZ: 1 };
+        const world = fakeWorld({
+            1: { Transform: T(xAt(6), origin.y, origin.z - 6), Sprite: sprite(0) },
+            2: { Transform: T(xAt(9.5), origin.y, origin.z - 9.5), MeshRenderer: { layer: 1 } },
+            3: { Transform: T(xAt(11), origin.y, origin.z - 11), Sprite: sprite(5) },
+            4: { Transform: T(xAt(0.5), origin.y, origin.z - 0.5), Sprite: sprite(5) },
+            5: { Transform: T(xAt(9), origin.y, origin.z - 9), Sprite: sprite(0) },
+        }, { 2: meshBounds });
+        expect(pickEntitiesByRay(world, ray)).toEqual([ent(2), ent(1), ent(5)]);
+        expect(pickEntitiesByRay(world, { origin: ray.origin, dir: ray.dir })).toEqual([ent(3), ent(2), ent(1), ent(5)]);
+    });
+
+    it('keeps the ray pointing into the scene when a distant far plane rounds to infinity', () => {
+        const camera = new CameraViewAPI(App.new(), () => ({
+            viewProjection: perspective(Math.PI / 2, 1, 1, 1e9),
+            vpX: 0, vpY: 0, vpW: 200, vpH: 200,
+        }));
+        const ray = camera.screenRay(150, 100)!;
+        const world = fakeWorld({ 1: { Transform: T(100, 0, -200), Sprite: sprite(0) } });
+        expect(pickEntitiesByRay(world, ray)).toEqual([ent(1)]);
+    });
+
     it('returns what the ray meets, ranked the way the frame stacked it', () => {
         const world = fakeWorld({
             1: { [name(Transform)]: T(0, 0), [name(Sprite)]: sprite(0) },

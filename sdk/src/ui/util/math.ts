@@ -67,6 +67,8 @@ function unproject(
 export interface WorldRay {
     origin: Vec3;
     dir: Vec3;
+    /** Distance from the origin to a camera's far plane, when finite. */
+    maxDistance?: number;
 }
 
 /**
@@ -92,10 +94,12 @@ export function screenRay(
     const ndcX = ((screenX - vpX) / vpW) * 2 - 1;
     const ndcY = ((screenY - vpY) / vpH) * 2 - 1;
     const near = unproject(ndcX, ndcY, -1, inverseVP);
-    const far = unproject(ndcX, ndcY, 1, inverseVP);
-    const dx = far.x - near.x;
-    const dy = far.y - near.y;
-    const dz = far.z - near.z;
+    // An interior point determines the same direction even when the far
+    // endpoint has zero homogeneous w and cannot be unprojected.
+    const inside = unproject(ndcX, ndcY, 0, inverseVP);
+    const dx = inside.x - near.x;
+    const dy = inside.y - near.y;
+    const dz = inside.z - near.z;
     const len = Math.hypot(dx, dy, dz) || 1;
     return { origin: near, dir: { x: dx / len, y: dy / len, z: dz / len } };
 }
@@ -292,6 +296,16 @@ function cameraInverse(camera: WorldCameraProjection, cache: ReturnType<typeof c
 
 export function cameraScreenRay(camera: WorldCameraProjection, cache: ReturnType<typeof createInvVPCache>, x: number, y: number): WorldRay {
     const ray = screenRay(x, y, cameraInverse(camera, cache), camera.vpX, camera.vpY, camera.vpW, camera.vpH);
+    const m = camera.rebasedProjection?.viewProjection ?? camera.viewProjection;
+    // Intersect the ray with clipW - clipZ = 0 using the matrix the frame
+    // actually drew with, before translating the origin back to world space.
+    const nx = m[3] - m[2], ny = m[7] - m[6], nz = m[11] - m[10];
+    const slope = nx * ray.dir.x + ny * ray.dir.y + nz * ray.dir.z;
+    if (slope < 0) {
+        const atOrigin = nx * ray.origin.x + ny * ray.origin.y + nz * ray.origin.z + (m[15] - m[14]);
+        const distance = -atOrigin / slope;
+        if (Number.isFinite(distance)) ray.maxDistance = Math.max(0, distance);
+    }
     const origin = camera.rebasedProjection?.origin;
     if (origin) {
         ray.origin.x += origin.x;

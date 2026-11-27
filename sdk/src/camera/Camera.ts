@@ -123,6 +123,8 @@ export class CameraViewAPI {
      * the z plane. Callers that drag along an arbitrary plane (an editor moving
      * along a world axis, a pick against the ground) need the ray itself: a
      * z-keyed answer cannot express a plane that is not z-keyed.
+     * The origin is on the near plane. A finite far plane supplies the maximum
+     * distance for visibility-sensitive queries such as entity picking.
      */
     screenRay(screenX: number, screenY: number): WorldRay | null {
         const cam = this.cam();

@@ -16143,6 +16143,7 @@ static prototype: WorldPlan
 ## WorldRay — interface @experimental
 ```
 dir: Vec3
+maxDistance: number | undefined
 origin: Vec3
 ```
 

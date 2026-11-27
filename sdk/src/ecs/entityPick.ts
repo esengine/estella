@@ -87,7 +87,7 @@ export interface EntityPickOptions {
 /**
  * Entities the ray meets, topmost first.
  *
- * The ray decides what is hit; the layer rules decide which of the hits is on
+ * A camera ray is bounded by its near and far planes. The layer rules decide which hit is on
  * top, because that is what the renderer stacked them by and a click that ranked
  * them any other way selects something the person cannot see.
  *
@@ -98,7 +98,11 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    visitPickHits(world, opts, box => entityBoxRayHit(box, ray.origin, ray.dir), {
+    const maxDistance = ray.maxDistance ?? Infinity;
+    visitPickHits(world, opts, box => {
+        const distance = entityBoxRayHit(box, ray.origin, ray.dir);
+        return distance !== null && distance <= maxDistance ? distance : null;
+    }, {
         ranked(entity, distance, identity, opaque) {
             const t = world.get(entity, Transform);
             const candidate: PickCandidate<Entity> = {
