@@ -13208,6 +13208,10 @@ lineHeight: number
 overflow: TextOverflow
 renderMode: TextRenderMode
 richText: boolean
+shadow2Blur: number | undefined
+shadow2Color: Color | undefined
+shadow2OffsetX: number | undefined
+shadow2OffsetY: number | undefined
 shadowBlur: number
 shadowColor: Color
 shadowOffsetX: number
@@ -13242,6 +13246,10 @@ lineHeight: number | undefined
 overflow: TextOverflow | undefined
 renderMode: TextRenderMode | undefined
 richText: boolean | undefined
+shadow2Blur: number | undefined
+shadow2Color: Color | undefined
+shadow2OffsetX: number | undefined
+shadow2OffsetY: number | undefined
 shadowBlur: number | undefined
 shadowColor: Color | undefined
 shadowOffsetX: number | undefined

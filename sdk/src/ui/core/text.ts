@@ -122,6 +122,14 @@ export interface TextData {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+    /**
+     * A second drop shadow, drawn behind the first: a wide soft one (blur 10 to 16) under a tight one (blur 2 to 4) keeps light
+     * words legible over any sky without a panel behind them, as CSS's two `text-shadow`s do. Absent, or a clear colour, is none.
+     */
+    shadow2Color?: Color;
+    shadow2Blur?: number;
+    shadow2OffsetX?: number;
+    shadow2OffsetY?: number;
     /** A line under each line of text, in the font's own underscore. Absent is off. */
     underline?: boolean;
     richText: boolean;
@@ -189,6 +197,10 @@ export const Text = defineComponent<TextData>('Text', {
     shadowBlur: 0,
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    shadow2Color: { r: 0, g: 0, b: 0, a: 0 },
+    shadow2Blur: 0,
+    shadow2OffsetX: 0,
+    shadow2OffsetY: 0,
     underline: false,
     richText: false,
     renderMode: TextRenderMode.Auto,
@@ -218,6 +230,10 @@ export const Text = defineComponent<TextData>('Text', {
         },
         letterSpacing: { tooltip: 'Extra space after every glyph, in the same px as Font Size. Negative draws the glyphs closer. Wrapping, alignment and overflow measure with it.' },
         underline: { tooltip: 'Draw a line under each line of text, using the underscore of the font.' },
+        shadow2Color: { label: 'Second Shadow Color', tooltip: 'A second drop shadow drawn behind the first: a wide soft one under a tight one keeps light words legible over any background (CSS: two text-shadows). Clear = none.' },
+        shadow2Blur: { label: 'Second Shadow Blur', min: 0, tooltip: 'How far the second shadow spreads, in px. A wide one (10 to 16) under a tight first one (2 to 4).' },
+        shadow2OffsetX: { label: 'Second Shadow Offset X' },
+        shadow2OffsetY: { label: 'Second Shadow Offset Y', tooltip: 'Down is positive, as for the first shadow.' },
         fontWeight: { label: 'Weight', min: 0, max: 900, step: 100, tooltip: 'Stroke weight, 100 hairline to 900 black (300 light, 400 regular, 700 bold), as CSS font-weight. 0 = what Bold says. A variable font or a family with a file per weight draws the weight asked; a system font the nearest it has.' },
         tabularNumbers: { label: 'Tabular Numbers', tooltip: 'Every figure as wide as the widest, so a timer, score or count does not shift as it changes (CSS tabular-nums).' },
         renderMode: { enum: enumOptions(TextRenderMode) },

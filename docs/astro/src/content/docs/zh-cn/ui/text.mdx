@@ -93,6 +93,7 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `shadowColor` | Color | `{0,0,0,1}` | 投影颜色。投影和描边会随文字自身 `color` 的 alpha 一起淡出,文字淡到透明时不会留下投影。 |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | 投影偏移(px)。 |
 | `shadowBlur` | number | `0` | 投影柔度(px)。`0` 是硬边偏移副本;大于 0 时投影摊成一圈,读起来是字下面一团柔和的暗,而不是又盖了一遍字。只给柔度不给偏移就是一圈光晕。 |
+| `shadow2Color` / `shadow2Blur` / `shadow2OffsetX` / `shadow2OffsetY` | Color / number | 透明 / `0` | 第二层投影,画在第一层后面:一层大范围柔光(柔度 10 到 16)垫在一层紧贴的投影(柔度 2 到 4)下面,浅色文字不加底板也能在任何背景上看清,相当于 CSS 写两个 `text-shadow`。颜色透明就是没有。 |
 | `richText` | boolean | `false` | 解析内联[富文本标记](#富文本)。 |
 | `renderMode` | `TextRenderMode` | `Auto` | 字形管线:`Auto` / `Bitmap` / `Sdf`(见上文)。 |
 | `layer` | number | `0` | **没有** `UINode` 的 `Text` 的绘制层,读法同 `Sprite.layer`,世界里的文字因此能排到周围内容的前面或后面。有 `UINode` 时忽略,由 UI 渲染顺序决定。 |

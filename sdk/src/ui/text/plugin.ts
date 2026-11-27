@@ -155,6 +155,14 @@ export interface TextSnapshot {
     cr: number; cg: number; cb: number; ca: number;
     strokeWidth: number; sr: number; sg: number; sb: number; sa: number;
     shadowBlur: number; shadowX: number; shadowY: number; hr: number; hg: number; hb: number; ha: number;
+    /** The second shadow, as one key: it changes rarely, and a field per number would be eight more to keep in step. */
+    shadow2: string;
+}
+
+/** The second shadow of a Text as one comparable key; '' for none (data saved before it, or a clear colour). */
+function shadow2Key(t: TextData): string {
+    const c = t.shadow2Color;
+    return c && c.a > 0 ? `${c.r},${c.g},${c.b},${c.a}:${t.shadow2Blur || 0}:${t.shadow2OffsetX || 0}:${t.shadow2OffsetY || 0}` : '';
 }
 
 /** A label whose glyph quads the engine holds (see RetainedText.hpp): what TS needs to know whether those quads are still the right ones. */
@@ -177,6 +185,7 @@ export function snapshotOf(t: TextData, family: string): TextSnapshot {
         strokeWidth: t.strokeWidth, sr: t.strokeColor.r, sg: t.strokeColor.g, sb: t.strokeColor.b, sa: t.strokeColor.a,
         shadowBlur: t.shadowBlur, shadowX: t.shadowOffsetX, shadowY: t.shadowOffsetY,
         hr: t.shadowColor.r, hg: t.shadowColor.g, hb: t.shadowColor.b, ha: t.shadowColor.a,
+        shadow2: shadow2Key(t),
     };
 }
 
@@ -191,7 +200,8 @@ export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): bool
         && s.strokeWidth === t.strokeWidth
         && s.sr === t.strokeColor.r && s.sg === t.strokeColor.g && s.sb === t.strokeColor.b && s.sa === t.strokeColor.a
         && s.shadowBlur === t.shadowBlur && s.shadowX === t.shadowOffsetX && s.shadowY === t.shadowOffsetY
-        && s.hr === t.shadowColor.r && s.hg === t.shadowColor.g && s.hb === t.shadowColor.b && s.ha === t.shadowColor.a;
+        && s.hr === t.shadowColor.r && s.hg === t.shadowColor.g && s.hb === t.shadowColor.b && s.ha === t.shadowColor.a
+        && s.shadow2 === shadow2Key(t);
 }
 
 /** How many frames a preload waits for the projection before it takes the size it can get. */

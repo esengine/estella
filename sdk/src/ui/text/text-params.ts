@@ -83,6 +83,11 @@ export function textDrawParams(t: TextData, family: string, frame: TextBoxFrame)
             blur: t.shadowBlur,
         }
         : undefined;
+    const second = t.shadow2Color;
+    const x2 = t.shadow2OffsetX || 0, y2 = t.shadow2OffsetY || 0, blur2 = t.shadow2Blur || 0;
+    const shadow2 = second && second.a > 0 && (x2 !== 0 || y2 !== 0 || blur2 > 0)
+        ? { color: [second.r, second.g, second.b, second.a] as RGBA, dx: x2, dy: y2, blur: blur2 }
+        : undefined;
     const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
         ? { color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA, width: t.strokeWidth }
         : undefined;
@@ -101,6 +106,7 @@ export function textDrawParams(t: TextData, family: string, frame: TextBoxFrame)
         underline: !!t.underline,
         ...textBoxPlacement(t, family, frame),
         shadow,
+        shadow2,
         outline,
     };
 }

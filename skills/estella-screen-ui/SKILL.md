@@ -58,8 +58,9 @@ saturated colours and heavy type are what reads as generated. Build it from a fe
   count, a score) has `tabularNumbers: true`, so its neighbours do not shift. Ship the font: `Text.font` names a `.ttf`,
   `.otf`, `.woff` or `.woff2` in the project; a variable font draws every weight on its axis, a family of one file per weight
   needs a file per weight, and a system font (`fontFamily`) draws the nearest weight that machine has.
-- **No panels behind HUD text.** Words stand on the world with a soft shadow that keeps them legible over sky and snow:
-  `shadowColor { r: 0, g: 0, b: 0, a: 0.55 }`, `shadowBlur` 6, `shadowOffsetY` 1. A shaded block goes only behind a block
+- **No panels behind HUD text.** Words stand on the world with two shadows that keep them legible over sky and snow: a
+  tight one, `shadowColor { r: 0, g: 0, b: 0, a: 0.5 }`, `shadowBlur` 3, `shadowOffsetY` 1, and a wide one under it,
+  `shadow2Color` the same, `shadow2Blur` 14, `shadow2OffsetY` 1. A shaded block goes only behind a block
   of words (a menu, a dialogue), and fades out rather than ending at an edge: a SolidColor `UIVisual` wearing a Gradient
   material, near-black at `a` 0.7 at the side the words are on to clear at the other.
 - **Lines, not boxes.** Hairlines 1 px high, in the accent, fading out along their length (Gradient material). One small

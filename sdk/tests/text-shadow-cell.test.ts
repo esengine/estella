@@ -201,3 +201,29 @@ describe('a blurred text shadow drawn once from a baked cell', () => {
         expect(worst).toBeLessThan(6 / 255);
     });
 });
+
+describe('a second text shadow', () => {
+    it('is drawn behind the first, each as one batch, and a clear one is not drawn', () => {
+        const atlas = coverageAtlas(ring(12));
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'A B', fontFamily: 'Arial', fontSizePx: 12, color: [1, 1, 1, 1],
+            shadow: { color: [0, 0, 0, 0.5], dx: 0, dy: 1, blur: 3 },
+            shadow2: { color: [0.1, 0, 0, 0.5], dx: 0, dy: 1, blur: 14 },
+        });
+        expect(sink).toHaveBeenCalledTimes(3);
+        const red = (call: number) => (sink.mock.calls[call][0] as Float32Array)[4];
+        expect(red(0)).toBeCloseTo(0.1, 5);
+        expect(red(1)).toBe(0);
+        // The wide one spreads further than the tight one.
+        const width = (call: number) => { const v = sink.mock.calls[call][0] as Float32Array; return v[TEXT_VERTEX_FLOATS] - v[0]; };
+        expect(width(0)).toBeGreaterThan(width(1));
+
+        const none = vi.fn();
+        drawTextWith(atlas, none, {
+            text: 'A B', fontFamily: 'Arial', fontSizePx: 12, color: [1, 1, 1, 1],
+            shadow2: { color: [0, 0, 0, 0], dx: 0, dy: 1, blur: 14 },
+        });
+        expect(none).toHaveBeenCalledTimes(1);
+    });
+});

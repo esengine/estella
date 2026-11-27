@@ -102,6 +102,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. The shadow and the outline fade with the text's own `color` alpha, so a label faded out leaves neither behind. |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. |
 | `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
+| `shadow2Color` / `shadow2Blur` / `shadow2OffsetX` / `shadow2OffsetY` | Color / number | clear / `0` | A second drop shadow, drawn behind the first: a wide soft one (blur 10 to 16) under a tight one (blur 2 to 4) keeps light words legible over any background without a panel, as CSS's two `text-shadow`s do. A clear colour is none. |
 | `richText` | boolean | `false` | Parse inline [rich-text markup](#rich-text). |
 | `renderMode` | `TextRenderMode` | `Auto` | Glyph pipeline: `Auto` / `Bitmap` / `Sdf` (see above). |
 | `layer` | number | `0` | Draw layer of a `Text` with **no** `UINode`, read like `Sprite.layer`, so a world label can sit in front of or behind the content around it. Ignored under a `UINode`, where the UI render order decides. |

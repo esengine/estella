@@ -65,10 +65,15 @@ export interface DrawTextParams {
      * `blur` (px, 0 = hard) spreads that copy into a ring so the shadow reads as
      * a soft mass rather than a second stamp of the text.
      */
-    shadow?: { color: RGBA; dx: number; dy: number; blur?: number };
+    shadow?: TextShadow;
+    /** A second shadow, drawn behind the first: the wide soft one under a tight one. */
+    shadow2?: TextShadow;
     /** Outline: recolored glyph copies fanned out by `width` px around the fill. */
     outline?: { color: RGBA; width: number };
 }
+
+/** One drop shadow of a label: its colour, its offset (screen px, down positive) and how far it spreads. */
+export interface TextShadow { color: RGBA; dx: number; dy: number; blur?: number }
 
 // 8-direction offsets (unit) for the outline fan — scaled by the outline width.
 // The bitmap atlas's only way to widen a glyph; see outlineBias.
@@ -398,10 +403,11 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
 
     // Shadow (offset drop copy). y-up local space: a positive screen-down offset
     // moves the copy toward -y.
-    if (p.shadow && p.shadow.color[3] * fillAlpha > 0) {
-        const { dx, dy } = p.shadow;
-        const color = decoration(p.shadow.color);
-        const blur = p.shadow.blur ?? 0;
+    const drawShadow = (shadow: TextShadow | undefined): void => {
+        if (!shadow || shadow.color[3] * fillAlpha <= 0) return;
+        const { dx, dy } = shadow;
+        const color = decoration(shadow.color);
+        const blur = shadow.blur ?? 0;
         if (blur > 0) {
             const taps = shadowTaps(blur, fontSizePx);
             const soft = baked ? null : shadowGlyphs(atlas, layout.glyphs, taps, color[3], `${blur}:${fontSizePx}`);
@@ -415,7 +421,10 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         } else {
             emitPass(color, dx, -dy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         }
-    }
+    };
+    // The second behind the first, as CSS draws the first-listed shadow on top.
+    drawShadow(p.shadow2);
+    drawShadow(p.shadow);
     // Outline: the glyphs grown by the width, drawn once behind the fill. On a
     // distance-field atlas the shader grows them (the edge it reads is moved), so
     // the shape survives any width. A coverage atlas has no distance to move, so
@@ -662,9 +671,8 @@ export function signatureOf(p: DrawTextParams): string {
 }
 
 function textSignature(p: DrawTextParams, opacity: number): string {
-    const shadow = p.shadow
-        ? `${p.shadow.color.join(',')}:${p.shadow.dx}:${p.shadow.dy}:${p.shadow.blur ?? 0}`
-        : '';
+    const shadowKey = (s: TextShadow | undefined): string => (s ? `${s.color.join(',')}:${s.dx}:${s.dy}:${s.blur ?? 0}` : '');
+    const shadow = shadowKey(p.shadow) + (p.shadow2 ? `|${shadowKey(p.shadow2)}` : '');
     const outline = p.outline ? `${p.outline.color.join(',')}:${p.outline.width}` : '';
     return JSON.stringify([
         p.text, p.fontFamily, p.fontSizePx, p.style ?? 0,

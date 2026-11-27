@@ -9776,6 +9776,30 @@
           "default": "0"
         },
         {
+          "key": "shadow2Color",
+          "type": "Color",
+          "default": "#00000000",
+          "doc": "A second drop shadow drawn behind the first: a wide soft one under a tight one keeps light words legible over any background (CSS: two text-shadows). Clear = none."
+        },
+        {
+          "key": "shadow2Blur",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the second shadow spreads, in px. A wide one (10 to 16) under a tight first one (2 to 4).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "shadow2OffsetX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "shadow2OffsetY",
+          "type": "number",
+          "default": "0",
+          "doc": "Down is positive, as for the first shadow."
+        },
+        {
           "key": "underline",
           "type": "boolean",
           "default": "false",
@@ -9851,6 +9875,13 @@
         "shadowBlur",
         "shadowOffsetX",
         "shadowOffsetY",
+        "shadow2Color.r",
+        "shadow2Color.g",
+        "shadow2Color.b",
+        "shadow2Color.a",
+        "shadow2Blur",
+        "shadow2OffsetX",
+        "shadow2OffsetY",
         "renderMode",
         "layer",
         "boxWidth",
