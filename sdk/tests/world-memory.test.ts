@@ -31,6 +31,45 @@ function remembered(entries: WorldMemoryData['entries'], world = 'w'): WorldMemo
 }
 
 describe('a cell brought back from memory', () => {
+    it('takes out a deep branch without a JavaScript call-stack limit', () => {
+        const depth = 20_000;
+        const rows = { ...document(), entities: [
+            entity(1, [], []),
+            ...Array.from({ length: depth }, (_, i) => entity(i + 2, i + 1 < depth ? [i + 3] : [], [], i === 0 ? null : i + 1)),
+        ] };
+        const memory = remembered({ [`${cell.name}:2`]: { gone: true } });
+        expect(memory.adapt(cell.name, rows).entities.map(row => row.id)).toEqual([1]);
+        expect(rows.entities).toHaveLength(depth + 1);
+    });
+
+    it('follows authored parent links instead of deleting siblings named in stale child lists', () => {
+        const rows = { ...document(), entities: [
+            entity(1, [2, 3], []),
+            entity(2, [3], [], 1),
+            entity(3, [], [], 1),
+            entity(4, [], [], 2),
+            entity(5, [], [], 4),
+        ] };
+        const memory = remembered({ [`${cell.name}:2`]: { gone: true } });
+        const adapted = memory.adapt(cell.name, rows);
+        expect(adapted.entities.map(row => row.id)).toEqual([1, 3]);
+        expect(adapted.entities[0].children).toEqual([3]);
+        expect(rows.entities[0].children).toEqual([2, 3]);
+        expect([...loadSceneData(App.new().world, adapted).keys()]).toEqual([1, 3]);
+    });
+
+    it('does not hide a duplicate ID by removing it from the document', () => {
+        const rows = { ...document(), entities: [entity(2, [], []), entity(2, [], [])] };
+        const memory = remembered({ [`${cell.name}:2`]: { gone: true } });
+        expect(() => memory.adapt(cell.name, rows)).toThrow(/duplicate-id/);
+    });
+
+    it('keeps a local entity whose parent is outside the cell', () => {
+        const rows = { ...document(), entities: [entity(3, [], [], 42)] };
+        const memory = remembered({ [`${cell.name}:42`]: { gone: true } });
+        expect(memory.adapt(cell.name, rows).entities).toEqual(rows.entities);
+    });
+
     it('can reuse the authored hierarchy after clearing a remembered deletion', () => {
         const rows = document(), memory = remembered({ 'w.cell_1_0:3': { gone: true } });
         const parent = (scene: SceneData) => scene.entities.find(e => e.id === 2)!;

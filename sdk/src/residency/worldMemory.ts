@@ -21,6 +21,7 @@ import type { Entity } from '../types';
 import { defineComponent, SceneOwner, type ComponentDef } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
 import { visitSerializedComponents, type SceneComponentData, type SceneData, type SceneEntityData } from '../scene/scene';
+import { requireUnambiguousSceneHierarchy } from '../scene/sceneFormat';
 import { SceneManager } from '../scene/sceneManager';
 import { sceneOriginOf } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
@@ -116,22 +117,35 @@ export class WorldMemory {
         if (!manifest || !manifest.cells.some((c) => c.name === sceneName)) return data;
         const entries = this.entries_();
         const entities = data.entities ?? [];
+        const doomed = new Set<number>();
+        if (entries.size > 0) {
+            for (const entity of entities) {
+                if (entries.get(`${sceneName}:${entity.id}`)?.gone) doomed.add(entity.id);
+            }
+        }
+        if (doomed.size > 0) {
+            // Validate before a deletion can hide an ambiguous authored hierarchy.
+            requireUnambiguousSceneHierarchy(data);
+            // The runtime attaches by parent. Older files can have stale children lists.
+            const byParent = new Map<number, number[]>();
+            for (const { id, parent } of entities) {
+                if (parent == null) continue;
+                const siblings = byParent.get(parent);
+                if (siblings) siblings.push(id);
+                else byParent.set(parent, [id]);
+            }
+            // Set iteration visits newly discovered descendants in the same pass.
+            for (const id of doomed) {
+                const children = byParent.get(id);
+                if (children) for (const child of children) doomed.add(child);
+            }
+        }
         for (const entity of entities) {
             let cells = this.cellsOf_.get(entity.id);
             if (!cells) this.cellsOf_.set(entity.id, cells = new Set());
             cells.add(sceneName);
         }
         if (entries.size === 0) return data;
-        const byId = new Map(entities.map((e) => [e.id, e]));
-        const doomed = new Set<number>();
-        const take = (id: number): void => {
-            if (doomed.has(id)) return;
-            doomed.add(id);
-            for (const child of byId.get(id)?.children ?? []) take(child);
-        };
-        for (const entity of entities) {
-            if (entries.get(`${sceneName}:${entity.id}`)?.gone) take(entity.id);
-        }
         const kept: SceneEntityData[] = [];
         for (const entity of entities) {
             if (doomed.has(entity.id)) continue;
