@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
 import type { MaterialResult } from '../src/asset/AssetLoader';
+import { Material } from '../src/render/material';
 import { ScriptGraphAssetLoader } from '../src/asset/loaders/ScriptGraphAssetLoader';
 import type { CompiledScriptGraph } from '../src/logic/ScriptGraphRunner';
 import { seedEngineComponents } from '../src/ecs/component';
@@ -40,6 +41,64 @@ describe('material shaders use the asset ownership and source graph', () => {
         expect(a.value.shaderHandle).toBe(b.value.shaderHandle); expect(gpu.compiled).toHaveLength(1);
         a.release(); expect(gpu.live.size).toBe(1); b.release(); expect(gpu.live.size).toBe(0);
         expect(gpu.released).toHaveLength(1); expect(assets.sizes().refRows).toBe(0);
+    });
+
+    it('draws an unsaved material with its own shader and values without reading or replacing the saved material', async () => {
+        const { assets, acquire, fetchText } = realm();
+        const saved = await acquire('a.esmaterial');
+        fetchText.mockClear();
+        const draft = { version: '1.0', type: 'material' as const, shader: 'other.esshader',
+            switches: { GLOW: true }, properties: { u_gain: 0.75 } };
+        const draw = vi.fn(async (handle: number) => {
+            expect(handle).not.toBe(saved.value.handle);
+            expect(Material.createFromAsset).toHaveBeenLastCalledWith(draft, expect.any(Number), undefined);
+            expect(gpu.compiled.at(-1)).toEqual({ source: 'other', features: ['GLOW'] });
+            return handle;
+        });
+        const rendered = await assets.withMaterialDraft('a.esmaterial', draft, draw);
+        expect(fetchText.mock.calls).toEqual([['other.esshader']]);
+        expect(Material.release).toHaveBeenCalledWith(rendered);
+        expect(Material.release).not.toHaveBeenCalledWith(saved.value.handle);
+        const current = await acquire('a.esmaterial');
+        expect(current.value.handle).toBe(saved.value.handle);
+        current.release();
+        saved.release();
+        expect(gpu.live.size).toBe(0);
+    });
+
+    it('releases an in-flight draft once when its asset realm resets', async () => {
+        const { assets } = realm();
+        const draft = { version: '1.0', type: 'material' as const, shader: 'fx.esshader', properties: {} };
+        let finish!: () => void;
+        const readback = new Promise<void>(resolve => { finish = resolve; });
+        const draw = vi.fn(() => readback);
+        const drawing = assets.withMaterialDraft('a.esmaterial', draft, draw);
+        try {
+            await vi.waitFor(() => expect(draw).toHaveBeenCalledTimes(1));
+            assets.releaseAll();
+            expect(Material.release).toHaveBeenCalledTimes(1);
+            expect(gpu.live.size).toBe(0);
+        } finally { finish(); }
+        expect(await drawing).toBeNull();
+        expect(Material.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns the acquired shader without building a superseded draft', async () => {
+        const { assets, fetchText } = realm();
+        let finish!: (source: string) => void;
+        fetchText.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+        const controller = new AbortController();
+        const draw = vi.fn(async () => 1);
+        const drawing = assets.withMaterialDraft('a.esmaterial', {
+            version: '1.0', type: 'material', shader: 'fx.esshader', properties: {},
+        }, draw, controller.signal);
+        await vi.waitFor(() => expect(fetchText).toHaveBeenCalledWith('fx.esshader'));
+        controller.abort();
+        finish('original');
+        expect(await drawing).toBeNull();
+        expect(Material.createFromAsset).not.toHaveBeenCalled();
+        expect(draw).not.toHaveBeenCalled();
+        expect(gpu.live.size).toBe(0);
     });
 
     it('the shared shader remains owned by every material, including a cache-hit preparation', async () => {

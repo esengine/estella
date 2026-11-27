@@ -1151,6 +1151,7 @@ ResourceDef<AssetsClass>
 @internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 @internal syncAssetFieldReferences: (world: World, entity: Entity, component: AnyComponentDef) => void
 @internal takeTrackedAsset: (type: string, ref: string, scope: AssetScope) => boolean
+@internal withMaterialDraft: <T>(path: string, data: MaterialAssetData, render: (handle: number) => Promise<T>, signal?: AbortSignal) => Promise<T | null>
 acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
 acquireTexture: (ref: string, flipY?: boolean, resolution?: "imported") => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>

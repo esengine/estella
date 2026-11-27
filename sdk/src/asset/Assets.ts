@@ -84,6 +84,7 @@ import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
 import { runWithConcurrency } from '../util/runWithConcurrency';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
+import type { MaterialAssetData } from '../render/material';
 
 /**
  * One asset generation ending: which ref, what kind of asset it was, and what
@@ -514,6 +515,7 @@ export class Assets {
     private invalidateListeners_ = new Set<InvalidateListener>();
     private sourceListeners_ = new Set<(path: string) => void>();
     private readonly appScope_ = new AssetScope();
+    private readonly materialLoader_ = new MaterialAssetLoader();
     private entityScopes_ = new EntityAssetScopes(this.leaseForBinding.bind(this));
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
@@ -2871,6 +2873,32 @@ export class Assets {
         } catch (error) { throw preparationFailureReason(error); }
     }
 
+    /** Render an unsaved document in isolation, retaining its dependencies for the draw. @internal */
+    async withMaterialDraft<T>(path: string, data: MaterialAssetData, render: (handle: number) => Promise<T>,
+        signal?: AbortSignal): Promise<T | null> {
+        if (signal?.aborted) return null;
+        const epoch = this.resetEpoch_;
+        const era = await this.prepared_(async ctx => ({
+            build: await this.materialLoader_.prepareDocument(data, path, ctx, false),
+        })).catch(error => { throw preparationFailureReason(error); });
+        let lease: AssetLease<MaterialResult> | undefined;
+        try {
+            if (signal?.aborted || epoch !== this.resetEpoch_) return null;
+            const material = era.build();
+            lease = this.appScope_.add(ownedAssetLease(path, epoch, material, value => {
+                try { this.materialLoader_.unload(value); }
+                finally { era.dependencies.releaseAll(); }
+            }));
+            const preview = await render(material.handle);
+            return signal?.aborted || epoch !== this.resetEpoch_ ? null : preview;
+        } finally {
+            if (lease) {
+                this.appScope_.forget(lease);
+                lease.release();
+            } else era.dependencies.releaseAll();
+        }
+    }
+
     releaseAll(): void {
         if (this.releasing_) return;
         this.releasing_ = true;
@@ -3104,7 +3132,7 @@ export class Assets {
         this.register(this.textureLoader_);
         this.register(this.spineLoader_);
         this.register(new MaterialShaderAssetLoader());
-        this.register(new MaterialAssetLoader());
+        this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
         // The engine core however it is embedded: the module on the web, the host's
         // bindings on a device. Taking only the module made these two web-only by
