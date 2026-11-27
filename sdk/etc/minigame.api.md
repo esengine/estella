@@ -13381,6 +13381,7 @@ z0: number
 heights: Float32Array<ArrayBufferLike>
 paint2: Float32Array<ArrayBufferLike> | undefined
 paint: Float32Array<ArrayBufferLike> | undefined
+paintMask: Uint8Array<ArrayBufferLike> | undefined
 ```
 
 ## TerrainSamples — interface @experimental
