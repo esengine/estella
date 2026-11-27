@@ -2021,6 +2021,15 @@ double registry_entityChangeResetEpoch(ecs::Registry& registry) { return registr
 double registry_componentMutationRevision(ecs::Registry& registry, u32 component, bool topology) {
     return registry.componentMutationRevision(component, topology);
 }
+int registry_readHierarchyMembers(ecs::Registry& registry, bool children, uintptr_t outputPtr, int capacity) {
+    const auto members = children ? registry.entitiesWith<ecs::Children>() : registry.entitiesWith<ecs::Parent>();
+    if (capacity == 0 && outputPtr == 0) return static_cast<int>(members.size());
+    if (capacity < 0 || static_cast<usize>(capacity) < members.size() || outputPtr % alignof(u32)) return -1;
+    auto* output = boundarySpanMut<u32>(outputPtr, static_cast<u64>(capacity), "registry_readHierarchyMembers");
+    if (!output) return -1;
+    for (usize i = 0; i < members.size(); ++i) output[i] = members[i].id();
+    return static_cast<int>(members.size());
+}
 int registry_readEntityChanges(ecs::Registry& registry, double after, uintptr_t outputPtr, int capacity) {
     if (capacity < 0 || capacity > static_cast<int>(ecs::ENTITY_CHANGE_CAPACITY)
         || outputPtr % alignof(ecs::EntityChangeRow)) return -1;

@@ -622,6 +622,9 @@ void registry_unwatchEntityChanges(ecs::Registry& registry, u32 reader);
 double registry_entityChangeSequence(ecs::Registry& registry);
 double registry_entityChangeResetEpoch(ecs::Registry& registry);
 double registry_componentMutationRevision(ecs::Registry& registry, u32 component, bool topology);
+// Query Parent or Children membership, including inactive entities. (0, 0)
+// returns the required capacity; a short or invalid destination returns -1.
+int registry_readHierarchyMembers(ecs::Registry& registry, bool children, uintptr_t outputPtr, int capacity);
 // Output contains entity/flags/component-type rows. Returns -1 when the cursor or capacity
 // cannot cover the retained history; the caller must perform a full refresh.
 int registry_readEntityChanges(ecs::Registry& registry, double after, uintptr_t outputPtr, int capacity);

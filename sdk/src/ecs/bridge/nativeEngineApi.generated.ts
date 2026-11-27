@@ -177,6 +177,7 @@ export interface NativeEngineApi {
     registry_getGeneration?(registry: unknown, entity: number): number;
     registry_markComponentsChanged?(registry: unknown, pairsPtr: number, count: number): void;
     registry_readEntityChanges?(registry: unknown, after: number, outputPtr: number, capacity: number): number;
+    registry_readHierarchyMembers?(registry: unknown, children: boolean, outputPtr: number, capacity: number): number;
     registry_readWorldPoses2D?(registry: unknown, entitiesPtr: number, count: number, outputPtr: number): number;
     registry_unwatchEntityChanges?(registry: unknown, reader: number): void;
     registry_watchEntityChanges?(registry: unknown): number;
@@ -646,6 +647,7 @@ export function createNativeEngineApi(
     bind('registry_getGeneration', 'es_registry_getGeneration', true);
     bind('registry_markComponentsChanged', 'es_registry_markComponentsChanged', true);
     bind('registry_readEntityChanges', 'es_registry_readEntityChanges', true);
+    bind('registry_readHierarchyMembers', 'es_registry_readHierarchyMembers', true);
     bind('registry_readWorldPoses2D', 'es_registry_readWorldPoses2D', true);
     bind('registry_unwatchEntityChanges', 'es_registry_unwatchEntityChanges', true);
     bind('registry_watchEntityChanges', 'es_registry_watchEntityChanges', true);

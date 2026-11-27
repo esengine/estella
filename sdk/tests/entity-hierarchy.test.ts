@@ -6,7 +6,7 @@
  * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform, Sprite, Parent, Children, Disabled, Canvas, Camera } from '../src/ecs/component';
 import { setEntityActive, isEntityActive } from '../src/ecs/entityUtils';
@@ -126,6 +126,39 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             expect(world.queryEntities([Sprite])).toBe(sprites);
             expect(world.queryEntities([Parent])).toBe(world.queryEntities([Parent]));
         } finally { disposeWorld(world, registry); }
+    });
+
+    it('keeps sparse hierarchy queries in world order and skips inactive or unowned rows', () => {
+        const { world, registry } = createWorld();
+        const read = module.registry_readHierarchyMembers ? vi.spyOn(module, 'registry_readHierarchyMembers') : null;
+        const unowned = registry.create();
+        try {
+            const root = world.spawn(), first = world.spawn(), second = world.spawn(), disabled = world.spawn();
+            for (let i = 0; i < 64; i++) world.spawn();
+            world.setParent(second, root);
+            world.setParent(disabled, root);
+            expect(registry.setParent(first, root)).toBe(true);
+            expect(registry.setParent(unowned, root)).toBe(true);
+            setEntityActive(world, disabled, false);
+
+            expect(world.queryEntities([Parent])).toEqual([first, second]);
+            expect(world.queryEntities([], [Parent])).toEqual([first, second]);
+            expect([...world.getStoredComponentEntities(Parent)]).toEqual([first, second, disabled]);
+            expect(world.queryEntities([Children])).toEqual([root]);
+            if (read) {
+                expect(read.mock.calls.some(([, children, pointer, capacity]) => !children && pointer > 0 && capacity === 4)).toBe(true);
+                expect(read.mock.calls.some(([, children, pointer, capacity]) => children && pointer > 0 && capacity === 1)).toBe(true);
+                expect(read(registry, false, 0, 3)).toBe(-1);
+                expect(read(registry, false, 1, 4)).toBe(-1);
+            }
+
+            world.applyEntityOrder([second, first]);
+            expect(world.queryEntities([Parent])).toEqual([second, first]);
+        } finally {
+            read?.mockRestore();
+            registry.destroy(unowned);
+            disposeWorld(world, registry);
+        }
     });
 
     it('uses native links when hiding a retiring scene and detaching a surviving entity', () => {

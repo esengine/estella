@@ -8,8 +8,10 @@
  *          get / has / remove / setParent / cascading despawn — drives the native
  *          registry + memory backend end-to-end, headless, no device.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createNativeWorld } from '../src/ecs/bridge/nativeRuntime';
+import { createNativeEngineApi } from '../src/ecs/bridge/nativeEngineApi.generated';
+import { nativeEngineApi, setNativeEngineApi } from '../src/ecs/bridge/engineApi';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { installRegistryOpDefaults } from './helpers/nativeRegistryOps';
 import { Children, Parent, Sprite, Transform } from '../src/ecs/component';
@@ -130,6 +132,33 @@ describe('createNativeWorld', () => {
         expect(world.has(first, Children)).toBe(true);
         expect(world.tryGet(first, Children)).toEqual({ entities: [] });
         expect(world.queryEntities([Children])).toEqual([first, second]);
+    });
+
+    it('reads sparse hierarchy members through the native bridge and frees the scratch buffer', () => {
+        const { scope } = mockNativeEcs();
+        const world = createNativeWorld(scope);
+        const previousApi = nativeEngineApi();
+        const heap = new Uint32Array(4);
+        const root = world.spawn(), first = world.spawn(), second = world.spawn();
+        for (let i = 0; i < 32; i++) world.spawn();
+        world.setParent(second, root);
+        world.getCppRegistry()!.setParent(first, root);
+        const read = vi.fn((_children: boolean, pointer: number, capacity: number) => {
+            if (capacity) heap.set([second, first], pointer >>> 2);
+            return 2;
+        });
+        const free = vi.fn();
+        scope.es_registry_readHierarchyMembers = read;
+        setNativeEngineApi({ ...createNativeEngineApi(scope), _malloc: () => 4, _free: free, HEAPU32: heap });
+
+        try {
+            expect(world.queryEntities([Parent])).toEqual([first, second]);
+            expect(read.mock.calls).toEqual([[false, 0, 0], [false, 4, 2]]);
+            expect(free.mock.calls).toEqual([[4]]);
+        } finally {
+            setNativeEngineApi(previousApi);
+            world.disconnectCpp();
+        }
     });
 
     it('keeps distinct entities independent', () => {

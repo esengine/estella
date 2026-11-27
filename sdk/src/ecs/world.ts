@@ -22,7 +22,7 @@ import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
 import { registerEngineStampFlush } from './engineStamps';
-import { withScratch } from '../wasm/wasmScratch';
+import { withMalloc, withScratch } from '../wasm/wasmScratch';
 import { disposeAll } from '../util/disposeAll';
 import { log } from '../util/logger';
 import { PendingAssetFields, assetEditsOf, finishAssetDraft, rememberAssetDraft, trackAssetEdits, type AssetFieldResolver } from './pendingAssetFields';
@@ -1845,7 +1845,11 @@ export class World {
                 this.resolveStorages_(withoutFilters, woScript, woBuiltin, false);
             }
             const sparse = !components.length && reqScript.length && !filter ? this.sparseWorldFilter_(reqScript) : null;
-            const candidates = (smallestSet ?? sparse ?? this.entities_).keys();
+            const hierarchy = hierarchyMask && !smallestSet && !sparse
+                ? (components.length ? components : withFilters).find(comp => this.isHierarchyComponent_(comp))
+                : undefined;
+            const candidates = (hierarchy && this.readHierarchyQueryCandidates_(hierarchy._id === Children._id))
+                || (smallestSet ?? sparse ?? this.entities_).keys();
 
             const entities: Entity[] = [];
             candidate: for (const entity of candidates) {
@@ -2243,6 +2247,27 @@ export class World {
         if (revision >= 0 && revision === stamp.revision) return;
         stamp.revision = revision;
         this.queries_.markComponentDirty(component._id);
+    }
+
+    private readHierarchyQueryCandidates_(children: boolean): Entity[] | null {
+        const registry = this.builtin_.getCppRegistry(), core = worldEngineApi(this);
+        if (!registry || !core?.registry_readHierarchyMembers || !core._malloc || !core._free || !core.HEAPU32) return null;
+        const count = core.registry_readHierarchyMembers(registry, children, 0, 0);
+        // A dense result is cheaper to walk in world order than to copy and sort.
+        if (!Number.isInteger(count) || count < 0 || count * 8 > this.entities_.size) return null;
+        if (count === 0) return [];
+        const allocator = { _malloc: core._malloc.bind(core), _free: core._free.bind(core) };
+        return withMalloc(allocator, count * Uint32Array.BYTES_PER_ELEMENT, ptr => {
+            if (!ptr || core.registry_readHierarchyMembers!(registry, children, ptr, count) !== count) return null;
+            const members = core.HEAPU32!.subarray(ptr >>> 2, (ptr >>> 2) + count);
+            const candidates: Entity[] = [];
+            for (const raw of members) {
+                const entity = raw as Entity;
+                if (this.entities_.has(entity)) candidates.push(entity);
+            }
+            candidates.sort((a, b) => this.entities_.get(a)! - this.entities_.get(b)!);
+            return candidates;
+        });
     }
 
     /** @internal Say composed world transforms are stale, for a producer that wrote the bytes without going through the
