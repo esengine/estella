@@ -548,6 +548,30 @@ describe('WorldStreamer', () => {
         expect(status.holding).toBe(true);
     });
 
+    it('does not clear a newer urgent demand for a cell from the earlier prefetch set', async () => {
+        const { host, defer, settle } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        const left = cell(0, 0), right = cell(3, 0);
+        const notifications: Array<[string, boolean]> = [];
+        host.urge = (name, urgent) => {
+            notifications.push([name, urgent]);
+            if (name === left.name && urgent) streamer.update([source(350, 50, 10, 20)]);
+        };
+        defer(true);
+        await streamer.loadManifest(manifest(left, right));
+        streamer.update([source(50, 50, 10, 20, 300)]);
+        const status = streamer.status();
+        const duringUpdate = [...notifications];
+        defer(false);
+        settle();
+        await streamer.clear();
+
+        expect(status.desiredCells).toEqual([right.name]);
+        expect(status.urgentCells).toEqual([right.name]);
+        expect(status.holding).toBe(true);
+        expect(duringUpdate).toEqual([[left.name, true], [left.name, false], [right.name, true]]);
+    });
+
     it('resolves an edited box name against the original scene registrations', async () => {
         const streamer = new WorldStreamer(recordingHost().host);
         const near = cell(0, 0), far = cell(50, 50);

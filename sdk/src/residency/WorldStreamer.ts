@@ -257,7 +257,7 @@ export class WorldStreamer {
     private clearing_ = false;
     private manifestRequest_ = 0;
     private policy_: StreamingPolicy = { ...DEFAULT_STREAMING_POLICY };
-    /** The cells the last reconciliation wants stepped, in the order it wants them: what a freed slot goes to next. */
+    /** The latest reconciliation's work order. Its identity also detects re-entry from host callbacks. */
     private order_: string[] = [];
     private holding_ = false;
     private holdStarted_ = 0;
@@ -465,23 +465,32 @@ export class WorldStreamer {
         }
         const order = [...decision.toLoad, ...decision.prefetch.filter((name) => !target.has(name))];
         this.order_ = order;
-        this.judgeUrgency_(sources, candidates);
+        this.judgeUrgency_(sources, candidates, order);
+        if (this.order_ !== order) return;
         // Which stand-ins are wanted is settled before any cell steps: a cell stepped on the way (a prefetch of one that is
         // leaving) reads its proxy's want to decide whether it may go.
         this.wantProxies_(sources, bounds);
         // Demanded first and nearest first: a place a player is walking into
         // outranks one they might. Then speculation, then what nobody needs.
-        for (const name of decision.toLoad) this.step_(name);
-        for (const name of decision.prefetch) if (!target.has(name)) this.step_(name);
-        for (const proxy of this.proxies_.values()) this.stepProxy_(proxy);
-        for (const name of decision.toUnload) this.step_(name);
+        for (const name of order) {
+            this.step_(name);
+            if (this.order_ !== order) return;
+        }
+        for (const proxy of this.proxies_.values()) {
+            this.stepProxy_(proxy);
+            if (this.order_ !== order) return;
+        }
+        for (const name of decision.toUnload) {
+            this.step_(name);
+            if (this.order_ !== order) return;
+        }
         for (const state of candidates) {
             if ((state.residency === 'prepared' || state.residency === 'preparing') && !state.desired && !state.speculated) {
                 this.step_(state.registeredName);
+                if (this.order_ !== order) return;
             }
         }
-        // A host callback can run a newer update with an urgent cell outside these candidates.
-        this.judgeHold_(this.order_ === order ? candidates : undefined);
+        this.judgeHold_(candidates);
     }
 
     private relevantCells_(bounds: SourceBounds): CellState[] {
@@ -503,7 +512,7 @@ export class WorldStreamer {
      * (distance to the cell over load radius). An urgent cell's work may take the budget's priority extra; under `wait` and `publish`
      * its publication is finished at once.
      */
-    private judgeUrgency_(sources: readonly ResidencySource[], candidates: readonly CellState[]): void {
+    private judgeUrgency_(sources: readonly ResidencySource[], candidates: readonly CellState[], order: readonly string[]): void {
         const ratio = this.policy_.slowStreamingRatio;
         for (const state of candidates) {
             const name = state.registeredName;
@@ -516,8 +525,12 @@ export class WorldStreamer {
             if (urgent !== state.urgent) {
                 state.urgent = urgent;
                 this.host_.urge?.(name, urgent);
+                if (this.order_ !== order) return;
             }
-            if (urgent && state.residency === 'publishing' && this.policy_.slowStreaming !== 'budget') this.rush_(name);
+            if (urgent && state.residency === 'publishing' && this.policy_.slowStreaming !== 'budget') {
+                this.rush_(name);
+                if (this.order_ !== order) return;
+            }
         }
     }
 
@@ -543,7 +556,11 @@ export class WorldStreamer {
         if (this.clearing_) return;
         // Not a cell that has just failed: it is asked for again by the next reconciliation, as it always was, rather
         // than at once and for ever.
-        for (const name of this.order_) if (!this.cells_.get(name)?.failed) this.step_(name);
+        const order = this.order_;
+        for (const name of order) {
+            if (!this.cells_.get(name)?.failed) this.step_(name);
+            if (this.order_ !== order) return;
+        }
         this.judgeHold_();
     }
 
@@ -609,6 +626,7 @@ export class WorldStreamer {
     private clearCells_(): Promise<void> {
         if (this.clearPromise_) return this.clearPromise_;
         this.clearing_ = true;
+        this.order_ = [];
         this.sourceCount_ = 0;
         this.setHolding_(false);
         for (const [name, state] of this.cells_) {
