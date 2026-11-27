@@ -11,6 +11,7 @@ import { initializeSceneComponents, installWorldHook, shouldExportComponent, typ
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, visitSceneEntryEntityReferences, type SceneEntry } from './sceneEntry';
+import { requireSupportedSceneVersion, SCENE_FORMAT_VERSION } from './sceneFormat';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
@@ -34,6 +35,8 @@ import {
     type PrefabData,
     type ProcessedEntity,
 } from '../prefab/index';
+
+export { parseSceneFormatVersion, SCENE_FORMAT_VERSION } from './sceneFormat';
 
 // =============================================================================
 // Types
@@ -462,26 +465,6 @@ export async function expandScenePrefabSources(
 // Scene Migration — versioned, idempotent, non-mutating (mirrors prefab/migrate)
 // =============================================================================
 
-/**
- * Current scene format version — bump by one per migration step below.
- *
- * An integer, not semver: this number only has to answer "older, current, or
- * newer", and dotted ones cannot. `parseFloat` sorts "1.10" below "1.2".
- *
- * 2: `Light2D` and `Mesh2D` renamed to `Light` and `MeshRenderer`. An engine
- *    from before the rename reads the new names as components it has never
- *    heard of and drops them, which is a scene that loads and has no lights —
- *    so it must refuse the file instead, and the version is what tells it to.
- * 3: the flat physics components took the `2D` suffix the 3D ones already had
- *    (`RigidBody` → `RigidBody2D`, the four colliders, `CharacterController`).
- *    Same reasoning as 2, and worse here: an older engine drops the bodies and
- *    loads a level whose floor nothing collides with.
- * 4: the flat joints took the 3D set's words, which are also the industry's
- *    (`RevoluteJoint2D` → `HingeJoint2D`, prismatic → slider, weld → fixed).
- *    Same reasoning again: dropped joints load a machine whose parts fall apart.
- */
-export const SCENE_FORMAT_VERSION = 4;
-
 export interface SceneMigrationResult {
     /** A migrated *copy* — the input is never mutated. */
     data: SceneData;
@@ -492,20 +475,6 @@ export interface SceneMigrationResult {
     retired: string[];
     fromVersion: number;
     toVersion: number;
-}
-
-/**
- * The format version of a scene, however it was written. Everything from before
- * the integer scheme is format 1, so its leading digits are the whole answer.
- * Unreadable reads as 1, not 0: a scene with no version predates having one.
- */
-export function parseSceneFormatVersion(v: unknown): number {
-    if (typeof v === 'number') return Number.isInteger(v) && v > 0 ? v : 1;
-    if (typeof v === 'string') {
-        const leading = /^\s*(\d+)/.exec(v);
-        if (leading) return Math.max(1, Number(leading[1]));
-    }
-    return 1;
 }
 
 /**
@@ -568,15 +537,7 @@ function checkSceneFormat(raw: SceneData): number {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.entities)) {
         throw new Error('Scene data must have an "entities" array');
     }
-    const fromVersion = parseSceneFormatVersion(raw.version);
-    if (fromVersion > SCENE_FORMAT_VERSION) {
-        throw new Error(
-            `Scene format version ${fromVersion} is newer than this engine supports ` +
-            `(${SCENE_FORMAT_VERSION}); upgrade the engine to load it.`,
-        );
-    }
-
-    return fromVersion;
+    return requireSupportedSceneVersion(raw.version);
 }
 
 /**
