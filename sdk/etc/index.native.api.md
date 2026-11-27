@@ -4534,6 +4534,7 @@ orthoSize: number
 parallaxPreview: boolean
 perspective: boolean
 pitch: number
+screenUi: boolean | undefined
 uiPreviewAspect: number
 x: number
 y: number

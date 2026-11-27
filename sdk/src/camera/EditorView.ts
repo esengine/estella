@@ -68,6 +68,12 @@ export interface EditorViewData {
    * where they were authored, as if that camera stood at the world origin. Either way the view's own eye has no say.
    */
   parallaxPreview: boolean;
+  /**
+   * `false` leaves the screen's UI out of this view. The editor shows a screen Canvas in the scene, at its design box, so
+   * it can be laid out over what it covers; a still of the world itself (a view from a place, a sheet of sides) is not
+   * that, and a HUD there is a board floating in the sky. Absent is shown.
+   */
+  screenUi?: boolean;
 }
 
 export const DEFAULT_EDITOR_VIEW: EditorViewData = {

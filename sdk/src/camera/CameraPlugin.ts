@@ -870,6 +870,11 @@ function publishScreenOverlay(
     overlay.layerMask = (hasScreenCamera ? mask : 0xFFFFFFFF) >>> 0;
     const primary = primaryScreenCamera(cameras);
 
+    if (primary?.entity === EDITOR_VIEW_ENTITY && app.hasResource(EditorView) && app.getResource(EditorView).screenUi === false) {
+        // A still of the world from the editor's eye: the screen's UI is no part of it (EditorView.screenUi).
+        overlay.active = false;
+        return;
+    }
     if (uiCam.valid && primary?.entity === EDITOR_VIEW_ENTITY) {
         overlay.projection.set(uiCam.viewProjection);
         overlay.vpX = uiCam.vpX;
