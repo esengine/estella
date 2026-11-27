@@ -147,9 +147,8 @@ function parseParam(arg: string): ShaderParam | null {
 }
 
 /**
- * A param's declared default in the shape a `.esmaterial`'s `properties` stores it: a number
- * for float/int, `{r,g,b,a}` for a color, `{x,y,…}` for a vector, and for a texture the
- * default's NAME (`"white"`, `"flatnormal"` — an engine-resolved stand-in, not an asset ref).
+ * A param's declared default as a number, color, vector or built-in texture name.
+ * Material files use numeric zero to select a texture's shader default explicitly.
  */
 export function paramDefaultValue(param: ShaderParam): unknown {
     if (param.type === 'texture') return param.defaultTexture ?? 0;

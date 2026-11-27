@@ -86,6 +86,23 @@ describe('writing one uniform of a material', () => {
         expect(mock.material_setTexture).toHaveBeenCalledWith(m, 'u_tex', 4);
     });
 
+    it('uses the shader texture default for a saved zero override while preserving scalar zero', () => {
+        const shader = Material.compileShader('#pragma domain Unlit\n#pragma param u_tex texture default(white)\n#pragma param u_gain float');
+        const parent = Material.create({ shader, uniforms: { u_tex: Material.tex(9), u_gain: 1 } });
+        const generated = {
+            version: '1.0', type: 'material' as const, shader: '', instanceOf: 'parent.esmaterial',
+            properties: { u_tex: 0, u_gain: 0 },
+        };
+        const child = Material.createFromAsset(generated, 0, parent);
+
+        expect(mock.material_setTexture).toHaveBeenLastCalledWith(child, 'u_tex', 0);
+        expect(Material.getUniform(child, 'u_tex')).toEqual(Material.tex(0));
+        expect(Material.getUniform(child, 'u_gain')).toBe(0);
+        expect(Material.toAssetData(child, '', 'parent.esmaterial')?.properties).toEqual(generated.properties);
+        Material.setUniform(parent, 'u_tex', Material.tex(10));
+        expect(Material.getUniform(child, 'u_tex')).toEqual(Material.tex(0));
+    });
+
     it('leaves the engine holding exactly what a full flush would, after any sequence of writes', () => {
         // The engine's store, as the mock sees it: the last value written per (material, name), forgotten on undefine.
         const engine = new Map<string, string>();

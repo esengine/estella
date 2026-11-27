@@ -12,7 +12,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { aimPreview, drawPreview, previewCore, type PreviewOrbit } from './assetPreview';
 import type { Vec2, Vec3, Vec4 } from '../types';
 import { BlendMode } from './blend';
-import { reflectEsshader } from './shaderReflect';
+import { reflectEsshader, type ShaderParam } from './shaderReflect';
 import { readMaterialProperty } from './materialProperty';
 import type { AssetLease } from '../asset/AssetLease';
 import { disposeAll } from '../util/disposeAll';
@@ -118,6 +118,7 @@ export interface MaterialAssetData {
     instanceOf?: string;
     /** Enabled static switches (#pragma switch) — selects the shader permutation at load. */
     switches?: Record<string, boolean>;
+    /** A declared texture's numeric 0 selects its shader default and overrides any inherited map. */
     properties: Record<string, unknown>;
 }
 
@@ -200,7 +201,7 @@ const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
 // template, a compiled material graph, a post-process effect — is covered by one door.
 // A shader built from raw GLSL (createShader) declares nothing and gets no entry: no
 // vocabulary, no verdict.
-const declaredParams = new Map<ShaderHandle, Set<string>>();
+const declaredParams = new Map<ShaderHandle, Map<string, ShaderParam['type']>>();
 /** What a compiled permutation was made from, so a material can ask for the same source under other switches. */
 interface ProgramOrigin { features: readonly string[]; declared: ReadonlySet<string>; compile(features: string[]): ShaderHandle }
 const programOrigins = new Map<ShaderHandle, ProgramOrigin>();
@@ -272,7 +273,7 @@ function warnUndeclared(shader: ShaderHandle | undefined, name: string): void {
     const key = `${shader}:${name}`;
     if (warnedParams.has(key)) return;
     warnedParams.add(key);
-    const known = [...declared].join(', ') || '(none)';
+    const known = [...declared.keys()].join(', ') || '(none)';
     console.warn(`[material] "${name}" is not a parameter of this shader — the value is ignored. It declares: ${known}`);
 }
 
@@ -399,11 +400,14 @@ function flushMaterial(handle: MaterialHandle, previous?: ReadonlyMap<MaterialHa
 
 // Convert a .esmaterial `properties` map (JSON numbers / colors / vectors) into typed
 // UniformValues. Keyed by the value's shape: {r,g,b,a} -> color vec4, {x,y,z,w}/{x,y,z}/{x,y}.
-function parseAssetProperties(properties: Record<string, unknown>): Record<string, UniformValue> {
+function parseAssetProperties(properties: Record<string, unknown>, shader: ShaderHandle | undefined): Record<string, UniformValue> {
     const uniforms: Record<string, UniformValue> = {};
+    const params = shader === undefined ? undefined : declaredParams.get(shader);
     for (const [key, value] of Object.entries(properties)) {
         const uniform = readMaterialProperty(value);
-        if (uniform !== undefined && typeof uniform !== 'string') uniforms[key] = uniform;
+        if (uniform !== undefined && typeof uniform !== 'string') {
+            uniforms[key] = uniform === 0 && params?.get(key) === 'texture' ? Material.tex(0) : uniform;
+        }
     }
     return uniforms;
 }
@@ -483,7 +487,7 @@ export const Material = {
         // The same `#pragma param` lines the engine reflected into the layout, kept on this
         // side so a write to a name that is not among them can be reported (warnUndeclared).
         if (handle > 0) {
-            declaredParams.set(handle, new Set(reflectEsshader(esshaderSource).params.map((p) => p.name)));
+            declaredParams.set(handle, new Map(reflectEsshader(esshaderSource).params.map(p => [p.name, p.type])));
         }
         return handle;
     },
@@ -792,9 +796,10 @@ export const Material = {
      * base material on @p shaderHandle.
      */
     createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle, parentHandle?: MaterialHandle): MaterialHandle {
-        const uniforms = parseAssetProperties(data.properties);
+        const parent = parentHandle !== undefined && parentHandle !== 0;
+        const uniforms = parseAssetProperties(data.properties, parent ? shaderOf(parentHandle) : shaderHandle);
 
-        if (parentHandle !== undefined && parentHandle !== 0) {
+        if (parent) {
             const handle = this.createInstance(parentHandle);
             for (const [key, value] of Object.entries(uniforms)) this.setUniform(handle, key, value);
             // Present render-state fields are the instance's overrides (absent = inherited).
@@ -873,7 +878,9 @@ export const Material = {
 
         const properties: Record<string, unknown> = {};
         const localUniforms = isInstance ? data.uniforms : resolveMaterial(material)?.uniforms ?? data.uniforms;
-        for (const [key, value] of localUniforms) properties[key] = value;
+        for (const [key, value] of localUniforms) {
+            properties[key] = isTextureRef(value) && value.textureId === 0 ? 0 : value;
+        }
 
         if (isInstance) {
             const asset: MaterialAssetData = {
