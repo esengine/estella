@@ -82,6 +82,23 @@ describe('ground from a provider', () => {
         for (let k = 0; k <= PAGE_TEXELS; k += 2) expect(heightOf(fine, 1 + k, 1)).toBe(heightOf(coarse, 1 + k / 2, 1));
     });
 
+    it('encodes upper layers from a provider that supplies only the second paint bank', async () => {
+        const source = ground({ ...terraced, async sample({ count }) {
+            const heights = new Float32Array(count * count).fill(50);
+            const paint2 = new Float32Array(count * count * 4);
+            for (let i = 0; i < paint2.length; i += 4) paint2[i] = 0.75;
+            return { heights, paint2 };
+        } });
+        const seen: number[][] = [];
+        const page = await makePage(source, 0, 0, 64, (_x, _z, _h, _ny, weights) => {
+            if (seen.length === 0) seen.push([...weights]);
+            return weights;
+        });
+        expect(seen[0]).toEqual([0, 0, 0, 0, 0.75, 0, 0, 0]);
+        expect([...page.paint.slice(0, 4)]).toEqual([0, 0, 0, 0]);
+        expect([...page.paint2.slice(0, 4)]).toEqual([191, 0, 0, 0]);
+    });
+
     it('takes a game\'s own provider, which may answer later, and keeps its versions apart', async () => {
         registerTerrainProvider(terraced);
         const v1 = new ProviderSource(terraced, 'planet-b', 1, 1, 0, 0, 1, paint);

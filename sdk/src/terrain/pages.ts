@@ -98,8 +98,10 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
         heights[k * 4 + 3] = Math.round((nz * 0.5 + 0.5) * 255);
         const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
         const p1 = given?.paint, p2 = given?.paint2;
-        let w: LayerWeights = p1
-            ? [p1[k * 4]!, p1[k * 4 + 1]!, p1[k * 4 + 2]!, p1[k * 4 + 3]!, ...(p2 ? [p2[k * 4]!, p2[k * 4 + 1]!, p2[k * 4 + 2]!, p2[k * 4 + 3]!] : [])]
+        const at = k * 4;
+        let w: LayerWeights = p1 || p2
+            ? [p1?.[at] ?? 0, p1?.[at + 1] ?? 0, p1?.[at + 2] ?? 0, p1?.[at + 3] ?? 0,
+                ...(p2 ? [p2[at]!, p2[at + 1]!, p2[at + 2]!, p2[at + 3]!] : [])]
             : source.paint(x, z, h[k]!, ny);
         if (repaint) w = repaint(x, z, h[k]!, ny, w);
         for (let c = 0; c < 4; c++) {

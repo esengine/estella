@@ -40,7 +40,11 @@ export interface TerrainSource {
     region?(x0: number, z0: number, spacing: number, count: number): TerrainRegionSamples | Promise<TerrainRegionSamples>;
 }
 
-/** A region's samples: heights, and the weights of layers 1 to 4 (`paint`) and 5 to 8 (`paint2`), four a sample. */
+/**
+ * Region samples: heights and optional banks of four weights per sample. `paint`
+ * covers layers 1–4 and `paint2` covers 5–8. When either is supplied, an omitted
+ * bank contributes zero. When both are omitted, pages sample the source's paint.
+ */
 export interface TerrainRegionSamples { heights: Float32Array; paint?: Float32Array; paint2?: Float32Array }
 
 /** The weights of a terrain's layers at a point, in order: four or eight of them (a missing one weighs nothing). */
