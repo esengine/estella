@@ -325,6 +325,7 @@ used: number
 
 ## PageImage — interface @experimental
 ```
+heightRange: readonly [min: number, span: number] | undefined
 heights: Uint8Array<ArrayBufferLike>
 max: number
 min: number

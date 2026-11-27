@@ -45,7 +45,8 @@ import type { LandscapeSpline } from './landscapeSpline';
 import { terrainPaintTargets, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
-import { makePage, makePageJob, pageSampleStep, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
+import { makePage, makePageJob, packPageHeightRange, pageHeightRange, pageRangesFit, pageSampleStep, PageTable,
+    PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
 import { buildPatchMesh } from './patch';
 import { TerrainSurface, TILE_CELLS, type SurfaceTile } from './surface';
@@ -310,6 +311,7 @@ interface Built {
     /** The atlas of layers 5 to 8's paint, with layers. */
     paint2: number;
     pairedPaint: boolean;
+    pageRanges?: boolean;
     /** The layers packed (albedo, normal and mask arrays), what they were packed from, and whether a packing is in hand. */
     arrays: number[];
     packed: string;
@@ -698,9 +700,9 @@ export class Terrains {
             const source = built.source;
             if (!(source instanceof ModifiedSource)) continue;
             const cell = Math.max(built.data.cellSize, 1e-3);
-            // A page holds its heights against the range they span: where a modifier widens it, every page is made again, not only those it reaches.
+            // Authored shaders using a shared height range need every page rebuilt when it changes.
             const range = `${source.minHeight}:${source.maxHeight}`;
-            if (built.range !== undefined && built.range !== range) {
+            if (!built.pageRanges && built.range !== undefined && built.range !== range) {
                 built.table.markStale(() => true);
             } else {
                 const o = source.origin, leaf = PATCH_CELLS * cell;
@@ -913,6 +915,7 @@ export class TerrainPlugin implements Plugin {
                     terrains.built_.set(entity, built);
                     if (keepSource) {
                         built.source = keepSource; built.surface = keepSurface; built.loading = false;
+                        built.range = `${keepSource.minHeight}:${keepSource.maxHeight}`;
                         this.updatePaintLayers(app, built);
                     } else void this.load(app, entity, built);
                     continue;
@@ -1030,6 +1033,7 @@ export class TerrainPlugin implements Plugin {
             // The modifiers set on the ground (a plot levelled, a bed cut) are laid over it, for the pages, the queries and collision alike.
             const terrains = app.getResource(TerrainsRes);
             built.source = new ModifiedSource(built.source, () => terrains.modifiers_.values(), t.worldPosition, Math.max(data.cellSize, 1e-3));
+            built.range = `${built.source.minHeight}:${built.source.maxHeight}`;
             this.updatePaintLayers(app, built);
             built.surface = new TerrainSurface(built.source, Math.max(data.cellSize, 1e-3));
             app.getResource(TerrainsRes).revision_++;
@@ -1174,6 +1178,8 @@ export class TerrainPlugin implements Plugin {
             }
             const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
             set('u_heightPages', Material.tex(built.heights));
+            built.pageRanges = pageRangesFit(built.table) && Material.materialsDeclaring('u_terrainPageRanges').includes(built.instance);
+            if (built.pageRanges) set('u_terrainPageRanges', 1);
             set('u_paintPages', Material.tex(built.paint));
             if (layered) {
                 if (built.pairedPaint) set('u_pairedPaint', 1);
@@ -1462,8 +1468,7 @@ export class TerrainPlugin implements Plugin {
                     const page = built.table.claim(key, img.min, img.max);
                     if (!page) return;
                     built.pageMade.set(key, ++built.pageSerial);
-                    const [ox, oy] = built.table.origin(page.slot);
-                    this.uploadPage(app, built, ox, oy, img);
+                    this.uploadPage(app, built, page.slot, img);
                 }, (e) => {
                     built.asked.delete(key);
                     // A worker that cannot make this ground's pages will not make the next one either: the terrain makes its own from here.
@@ -1485,8 +1490,7 @@ export class TerrainPlugin implements Plugin {
             const page = built.table.claim(key, image.min, image.max);
             if (!page) return false;
             built.pageMade.set(key, ++built.pageSerial);
-            const [ox, oy] = built.table.origin(page.slot);
-            this.uploadPage(app, built, ox, oy, image);
+            this.uploadPage(app, built, page.slot, image);
             return true;
         };
         const epoch = built.epoch, edits = built.edits;
@@ -1539,10 +1543,15 @@ export class TerrainPlugin implements Plugin {
         bakes.mark(built, 'Building the terrain', progress());
     }
 
-    private uploadPage(app: App, built: Built, x: number, y: number, image: PageImage): void {
+    private uploadPage(app: App, built: Built, slot: number, image: PageImage): void {
+        const [x, y] = built.table.origin(slot);
         const put = (handle: number, row: number, bytes: Uint8Array) =>
             updateTextureSubregion(app.wasmModule, handle, x, row, PAGE_SIDE, PAGE_SIDE, bytes);
         put(built.heights, y, image.heights);
+        if (built.pageRanges) {
+            const range = image.heightRange ?? pageHeightRange(built.source!);
+            updateTextureSubregion(app.wasmModule, built.heights, slot * 2, built.table.atlasSize - 1, 2, 1, packPageHeightRange(range));
+        }
         put(built.paint, y, image.paint);
         if (built.pairedPaint) put(built.paint, y + built.table.atlasSize, image.paint2);
         else if (built.paint2) put(built.paint2, y, image.paint2);

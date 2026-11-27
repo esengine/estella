@@ -210,6 +210,7 @@ describe("a terrain's pages made in a worker", () => {
                 const mine = here(x0, z0, size, paint);
                 expect(away.result.min).toBe(mine.min);
                 expect(away.result.max).toBe(mine.max);
+                expect(away.result.heightRange).toEqual(mine.heightRange);
                 expect(Buffer.from(away.result.heights).equals(Buffer.from(mine.heights))).toBe(true);
                 expect(Buffer.from(away.result.paint).equals(Buffer.from(mine.paint))).toBe(true);
                 expect(Buffer.from(away.result.paint2).equals(Buffer.from(mine.paint2))).toBe(true);

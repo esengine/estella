@@ -38,12 +38,34 @@ export interface Page {
 }
 
 /** The pixels of one page. */
-export interface PageImage { heights: Uint8Array; paint: Uint8Array; paint2: Uint8Array; min: number; max: number }
+export interface PageImage {
+    heights: Uint8Array;
+    paint: Uint8Array;
+    paint2: Uint8Array;
+    min: number;
+    max: number;
+    /** The origin and span of the encoded heights. A legacy pager uses the current terrain range. */
+    heightRange?: readonly [min: number, span: number];
+}
 
 /** Snapshot the source's encoding range for the whole page, including any missing samples. */
-function pageHeightRange(source: TerrainSource): { min: number; span: number } {
+export function pageHeightRange(source: TerrainSource): readonly [min: number, span: number] {
     const min = source.minHeight;
-    return { min, span: Math.max(source.maxHeight - min, 1e-6) };
+    return [min, Math.max(source.maxHeight - min, 1e-6)];
+}
+
+/** The atlas's last row has room for two RGBA8 texels per resident page at stock sizes. */
+export function pageRangesFit(table: PageTable): boolean {
+    return table.perRow * PAGE_SIDE < table.atlasSize && table.capacity * 2 <= table.atlasSize;
+}
+
+/** Store the two floats little-endian, one in each RGBA8 texel. */
+export function packPageHeightRange([min, span]: readonly [number, number]): Uint8Array {
+    const bytes = new Uint8Array(8);
+    const view = new DataView(bytes.buffer);
+    view.setFloat32(0, min, true);
+    view.setFloat32(4, span, true);
+    return bytes;
 }
 
 /**
@@ -70,7 +92,7 @@ export function* makePageJob(source: TerrainSource, x0: number, z0: number, size
     for (let k = 0; k < h.length; k++) {
         const i = k % n, j = Math.floor(k / n);
         const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
-        h[k] = source.height(x, z) ?? range.min;
+        h[k] = source.height(x, z) ?? range[0];
         if ((k + 1) % 32 === 0) yield 0.4 * (k + 1) / h.length;
     }
     yield 0.4;
@@ -96,7 +118,7 @@ function encodePaintBank(out: Uint8Array, at: number, weights: LayerWeights | Fl
 }
 
 function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array,
-    range: { min: number; span: number }, given?: TerrainRegionSamples, repaint?: Repaint,
+    range: readonly [min: number, span: number], given?: TerrainRegionSamples, repaint?: Repaint,
 ): Generator<number, PageImage, void> {
     const n = PAGE_SIDE;
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
@@ -106,9 +128,10 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
     const p1 = given?.paint, p2 = given?.paint2;
     const hasRegionPaint = !!(p1 || p2);
     const paintMask = given?.paintMask;
+    const [low, span] = range;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         const k = j * n + i;
-        const enc = Math.round(Math.min(Math.max((h[k]! - range.min) / range.span, 0), 1) * 65535);
+        const enc = Math.round(Math.min(Math.max((h[k]! - low) / span, 0), 1) * 65535);
         const hl = h[j * n + Math.max(i - 1, 0)]!, hr = h[j * n + Math.min(i + 1, n - 1)]!;
         const hd = h[Math.max(j - 1, 0) * n + i]!, hu = h[Math.min(j + 1, n - 1) * n + i]!;
         const sx = (hr - hl) / (2 * step), sz = (hu - hd) / (2 * step);
@@ -135,7 +158,7 @@ function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: num
         }
         if ((k + 1) % 32 === 0) yield 0.4 + 0.6 * (k + 1) / (n * n);
     }
-    return { heights, paint, paint2, min: Number.isFinite(min) ? min : source.minHeight, max: Number.isFinite(max) ? max : source.maxHeight };
+    return { heights, paint, paint2, min: Number.isFinite(min) ? min : source.minHeight, max: Number.isFinite(max) ? max : source.maxHeight, heightRange: range };
 }
 
 /** Where the pages live: slots in a square atlas, given out and taken back by key. */

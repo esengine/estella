@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
 import { fitRange, levelRange, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from '../src/terrain/quadtree';
-import { makePage, PageTable, PAGE_SIDE } from '../src/terrain/pages';
+import { makePage, packPageHeightRange, pageRangesFit, PageTable, PAGE_SIDE } from '../src/terrain/pages';
 import { NoiseSource, noised, type TerrainSource } from '../src/terrain/source';
 
 const area: QuadtreeParams = { leafSize: 32, levels: 5, range0: 80, bounds: [-256, -256, 256, 256], minHeight: 0, maxHeight: 50 };
@@ -95,6 +95,28 @@ describe('the pages', () => {
         expect([...page.heights.slice(0, 2)]).toEqual([0, 0]);
         expect([...page.heights.slice(4, 6)]).toEqual([128, 0]);
         expect([lowerReads, upperReads]).toEqual([1, 1]);
+    });
+
+    it('keeps page heights decodable after the source range expands and contracts', async () => {
+        let minHeight = -20, maxHeight = 60;
+        const source: TerrainSource = {
+            infinite: true, bounds: null, get minHeight() { return minHeight; }, get maxHeight() { return maxHeight; },
+            height: () => 20, normal: () => [0, 1, 0], paint: () => [1, 0, 0, 0],
+        };
+        const before = await makePage(source, 0, 0, 64);
+        minHeight = -40; maxHeight = 160;
+        const after = await makePage(source, 64, 0, 64);
+        minHeight = -20; maxHeight = 60;
+        expect(before.heightRange).toEqual([-20, 80]);
+        expect(after.heightRange).toEqual([-40, 200]);
+        for (const page of [before, after]) {
+            const bytes = packPageHeightRange(page.heightRange!);
+            const packed = new DataView(bytes.buffer);
+            const min = packed.getFloat32(0, true), span = packed.getFloat32(4, true);
+            const actual = min + span * (page.heights[0]! * 256 + page.heights[1]!) / 65535;
+            expect(Math.abs(actual - 20)).toBeLessThan(span / 65535);
+        }
+        for (const atlasSize of [512, 1024, 2048]) expect(pageRangesFit(new PageTable(atlasSize))).toBe(true);
     });
 
     it('give a full atlas\'s oldest page up for a new one, but not one drawn this frame', () => {

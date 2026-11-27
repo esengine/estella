@@ -12,20 +12,36 @@ import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
 import { BRUSH_PARAMS, BRUSH_GLSL, BRUSH_WGSL } from './brushPreview';
 
 
-// The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
-// heights read from the atlas, and each vertex slid onto the coarser level's grid toward the end of its range.
-const terrainVertex = (surface: boolean): string => `#pragma depthinput u_heightPages
-#pragma vertexoffset
+const TERRAIN_PAGE_HEIGHT_GLSL = `
+float tnRangeFloat(ivec2 at) {
+    highp uvec4 b = uvec4(round(texelFetch(u_heightPages, at, 0) * 255.0));
+    return uintBitsToFloat(b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u));
+}
+vec2 tnPageRange(vec2 page) {
+    if (u_terrainPageRanges < 0.5) return u_heightRange;
+    float side = u_pageTexels + 3.0;
+    ivec2 cell = ivec2(floor(page / side));
+    int slot = cell.x + cell.y * int(floor(u_atlasTexels / side));
+    ivec2 at = ivec2(2 * slot, int(u_atlasTexels) - 1);
+    return vec2(tnRangeFloat(at), tnRangeFloat(at + ivec2(1, 0)));
+}
 // The node's page (pages.ts): its height decoded texel by texel and blended (a filtered pair of bytes is no number).
-float tnPageHeight(vec2 texel) {
+float tnPageHeight(vec2 texel, vec2 heights) {
     vec2 f = texel - 0.5;
     ivec2 i = ivec2(floor(f));
     vec2 t = f - vec2(i);
     vec4 a = texelFetch(u_heightPages, i, 0), b = texelFetch(u_heightPages, i + ivec2(1, 0), 0);
     vec4 c = texelFetch(u_heightPages, i + ivec2(0, 1), 0), d = texelFetch(u_heightPages, i + ivec2(1, 1), 0);
     vec4 hs = vec4(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    return u_terrainOrigin.y + u_heightRange.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * u_heightRange.y;
+    return u_terrainOrigin.y + heights.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * heights.y;
 }
+`;
+
+// The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
+// heights read from the atlas, and each vertex slid onto the coarser level's grid toward the end of its range.
+const terrainVertex = (surface: boolean): string => `#pragma depthinput u_heightPages
+#pragma vertexoffset
+${TERRAIN_PAGE_HEIGHT_GLSL}
 // A node is the shared patch (0 to 1 in x and z) placed and sized by its instance: its model is its square (x and z) and its box
 // (y, from its page's least height to its most), and its tint names its page (x and y, the page's corner in the atlas) and level (z).
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
@@ -37,16 +53,17 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     float level = floor(tint.z * 64.0 + 0.5) - 1.0;
     // The tint holds the page's corner plus half a texel (so it is never zero); its first sample is one texel in, past the border.
     vec2 page = tint.xy * u_atlasTexels + 0.5;
+    vec2 heights = tnPageRange(page);
     // Toward the end of its level's range a vertex slides onto the grid of the level above, so where two levels meet they share an edge.
     vec2 g = uv * u_patchCells;
-    float h0 = tnPageHeight(page + uv * u_pageTexels + 0.5);
+    float h0 = tnPageHeight(page + uv * u_pageTexels + 0.5, heights);
     float range = u_lodRange0 * exp2(level);
     float dist = distance(u_terrainEye.xyz, vec3(corner.x + uv.x * size, h0, corner.z + uv.y * size));
     float k = clamp((dist - range * 0.7) / (range * 0.3), 0.0, 1.0);
     g -= fract(g * 0.5) * 2.0 * k;
     vec2 at = g / u_patchCells;
     vec2 texel = page + at * u_pageTexels + 0.5;
-    float h = tnPageHeight(texel);
+    float h = tnPageHeight(texel, heights);
     local = vec3(at.x, (h - corner.y) / rise, at.y);
     vec2 nxz = textureLod(u_heightPages, texel / u_atlasTexels, 0.0).ba * 2.0 - 1.0;
     vec3 n = vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y);
@@ -66,7 +83,19 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
 #pragma end
 
 #pragma vertexoffset wgsl
-fn tnPageHeight(texel : vec2f) -> f32 {
+fn tnRangeFloat(at : vec2i) -> f32 {
+    let b = vec4u(round(textureLoad(u_heightPages, at, 0) * 255.0));
+    return bitcast<f32>(b.x | (b.y << 8u) | (b.z << 16u) | (b.w << 24u));
+}
+fn tnPageRange(page : vec2f) -> vec2f {
+    if (mc.u_terrainPageRanges < 0.5) { return mc.u_heightRange; }
+    let side = mc.u_pageTexels + 3.0;
+    let cell = vec2i(floor(page / side));
+    let slot = cell.x + cell.y * i32(floor(mc.u_atlasTexels / side));
+    let at = vec2i(2 * slot, i32(mc.u_atlasTexels) - 1);
+    return vec2f(tnRangeFloat(at), tnRangeFloat(at + vec2i(1, 0)));
+}
+fn tnPageHeight(texel : vec2f, heights : vec2f) -> f32 {
     let f = texel - vec2f(0.5);
     let i = vec2i(floor(f));
     let t = f - vec2f(i);
@@ -75,7 +104,7 @@ fn tnPageHeight(texel : vec2f) -> f32 {
     let c = textureLoad(u_heightPages, i + vec2i(0, 1), 0);
     let d = textureLoad(u_heightPages, i + vec2i(1, 1), 0);
     let hs = vec4f(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    return mc.u_terrainOrigin.y + mc.u_heightRange.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * mc.u_heightRange.y;
+    return mc.u_terrainOrigin.y + heights.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * heights.y;
 }
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
     if (mc.u_terrainPages < 0.5) { return; }
@@ -86,15 +115,16 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
     let corner = model[3].xyz;
     let level = floor(tint.z * 64.0 + 0.5) - 1.0;
     let page = tint.xy * mc.u_atlasTexels + vec2f(0.5);
+    let heights = tnPageRange(page);
     var g = uv * mc.u_patchCells;
-    let h0 = tnPageHeight(page + uv * mc.u_pageTexels + vec2f(0.5));
+    let h0 = tnPageHeight(page + uv * mc.u_pageTexels + vec2f(0.5), heights);
     let range = mc.u_lodRange0 * exp2(level);
     let dist = distance(mc.u_terrainEye.xyz, vec3f(corner.x + uv.x * size, h0, corner.z + uv.y * size));
     let k = clamp((dist - range * 0.7) / (range * 0.3), 0.0, 1.0);
     g = g - fract(g * 0.5) * 2.0 * k;
     let at = g / mc.u_patchCells;
     let texel = page + at * mc.u_pageTexels + vec2f(0.5);
-    let h = tnPageHeight(texel);
+    let h = tnPageHeight(texel, heights);
     *local = vec3f(at.x, (h - corner.y) / rise, at.y);
     let nxz = textureSampleLevel(u_heightPages, u_heightPages_s, texel / mc.u_atlasTexels, 0.0).ba * 2.0 - vec2f(1.0);
     let n = vec3f(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y);
@@ -173,6 +203,7 @@ const TERRAIN = `#pragma shader "Terrain"
 #pragma param u_pageTexels float default(64) range(1,1024) ui(slider)
 #pragma param u_patchCells float default(32) range(1,512) ui(slider)
 #pragma param u_heightRange vec2 default(0,1)
+#pragma param u_terrainPageRanges float default(0)
 #pragma param u_lodRange0 float default(100) range(0,1000000) ui(slider)
 #pragma param u_terrainOrigin vec4 default(0,0,0,0)
 #pragma param u_terrainEye vec4 default(0,0,0,0)
@@ -546,6 +577,7 @@ const TERRAIN_LAYERS_PARAMS = `${layerParams({ sharpness: 1.6, heightBlend: 0.8,
 #pragma param u_pageTexels float default(64) range(1,1024) ui(slider)
 #pragma param u_patchCells float default(32) range(1,512) ui(slider)
 #pragma param u_heightRange vec2 default(0,1)
+#pragma param u_terrainPageRanges float default(0)
 #pragma param u_lodRange0 float default(100) range(0,1000000) ui(slider)
 #pragma param u_terrainOrigin vec4 default(0,0,0,0)
 #pragma param u_terrainEye vec4 default(0,0,0,0)
@@ -726,16 +758,7 @@ out vec4 fragColor;
 
 ${LAYER_SURFACE_GLSL}
 ${TERRAIN_GROUND_GLSL}
-// The page's height at a texel, decoded texel by texel and blended (as the vertex hook reads it).
-float tnBakeHeight(vec2 texel) {
-    vec2 f = texel - 0.5;
-    ivec2 i = ivec2(floor(f));
-    vec2 t = f - vec2(i);
-    vec4 a = texelFetch(u_heightPages, i, 0), b = texelFetch(u_heightPages, i + ivec2(1, 0), 0);
-    vec4 c = texelFetch(u_heightPages, i + ivec2(0, 1), 0), d = texelFetch(u_heightPages, i + ivec2(1, 1), 0);
-    vec4 hs = vec4(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    return u_terrainOrigin.y + u_heightRange.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * u_heightRange.y;
-}
+${TERRAIN_PAGE_HEIGHT_GLSL}
 void main() {
     float side = u_bakeB.w;
     // Where in the node this texel is, 0 to 1 across it: the first and last texels are the border, half a texel past each edge.
@@ -743,7 +766,7 @@ void main() {
     vec2 texel = u_bakeB.xy + 1.5 + t * u_pageTexels;
     vec2 uv = texel / u_atlasTexels;
     vec2 lp = u_bakeA.xy + t * u_bakeA.z;
-    vec3 Pw = vec3(lp.x + u_terrainOrigin.x, tnBakeHeight(texel), lp.y + u_terrainOrigin.z);
+    vec3 Pw = vec3(lp.x + u_terrainOrigin.x, tnPageHeight(texel, tnPageRange(u_bakeB.xy)), lp.y + u_terrainOrigin.z);
     vec2 nxz = textureLod(u_heightPages, uv, 0.0).ba * 2.0 - 1.0;
     vec3 N = normalize(vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y));
     vec2 paintUV = uv;

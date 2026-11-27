@@ -42,6 +42,20 @@ describe('the ground\'s layers are one piece of shader code', () => {
         }
     });
 
+    it('decodes a resident render page and its surface bake against the same stored height range', () => {
+        const ground = TERRAIN_SHADER_TEMPLATE.source;
+        const layers = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
+        const bake = TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE.source;
+        const decoder = ground.match(/float tnRangeFloat[\s\S]+?float tnPageHeight[\s\S]+?\n\}/)![0];
+        expect(decoder).toContain('uintBitsToFloat');
+        expect(layers).toContain(decoder);
+        expect(bake).toContain(decoder);
+        expect(bake).toContain('tnPageHeight(texel, tnPageRange(u_bakeB.xy))');
+        const wgsl = withWgslTwin(bake);
+        expect(wgsl).toContain('bitcast<f32>');
+        expect(wgsl).toContain('tnPageRange(mc.u_bakeB.xy)');
+    });
+
     it('the Planet keeps its own look by default: no height blend, blend noise or hex tiling', () => {
         const source = PLANET_SHADER_TEMPLATE.source;
         expect(source).toContain('#pragma param u_heightBlend float default(0)');
