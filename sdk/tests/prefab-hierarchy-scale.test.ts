@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { flattenPrefab, validatePrefab, type PrefabData, type PrefabEntityData } from '../src/prefab/index';
+import { flattenPrefab, validatePrefab, type PrefabData, type PrefabEntityData, type PrefabOverride } from '../src/prefab/index';
 
 const entity = (id: string, parent: string | null, children: string[] = []): PrefabEntityData => ({
     prefabEntityId: id, name: id, parent, children, visible: true, components: [],
@@ -87,5 +87,27 @@ describe('hierarchy authoring remains bounded by nodes and links', () => {
         expect(byId.get('left/0')!.children).toEqual([byId.get('left/1')!.id, byId.get('extra')!.id]);
         expect(byId.get('extra')!.parent).toBe(byId.get('left/0')!.id);
         expect(JSON.stringify({ p, leaf })).toBe(original);
+    });
+
+    it('routes overrides across wide nested slots with bounded address reads', () => {
+        const ids = Array.from({ length: 256 }, (_, i) => `mount${i}`);
+        const p: PrefabData = { version: '2', name: 'mounts', rootEntityId: 'root', entities: [
+            entity('root', null, ids),
+            ...ids.map(id => ({ ...entity(id, 'root'), nestedPrefab: { prefabPath: 'leaf', overrides: [] } })),
+        ] };
+        const leaf: PrefabData = { version: '2', name: 'leaf', rootEntityId: 'root', entities: [
+            entity('root', null, ['child']), entity('child', 'root'),
+        ] };
+        let reads = 0, next = 1;
+        const overrides: PrefabOverride[] = ids.flatMap(id => ['preview', id].map(name => ({
+            get prefabEntityId() { reads++; return `${id}/child`; },
+            type: 'name' as const, value: name,
+        })));
+        overrides.push({ prefabEntityId: 'mount0/missing', type: 'name', value: 'unresolved' });
+        const result = flattenPrefab(p, overrides, { allocateId: () => next++, loadPrefab: () => leaf });
+        const byAddress = new Map(result.entities.map(e => [e.prefabEntityId, e]));
+        expect(ids.map(id => byAddress.get(`${id}/child`)!.name)).toEqual(ids);
+        expect(result.unresolved.map(patch => patch.prefabEntityId)).toEqual(['mount0/missing']);
+        expect(reads).toBeLessThan(overrides.length * 12);
     });
 });

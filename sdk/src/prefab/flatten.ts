@@ -117,18 +117,37 @@ function assemblePrefab(prefab: PrefabData, overrides: PrefabOverride[], ctx: As
     // Stable identity → runtime entity id allocated by ctx.
     const idMapping = new Map<PrefabEntityId, number>();
     const local: ReferenceScope = { ids: idMapping, prefix: ctx.prefix };
+    let slotOverrides: Map<PrefabEntityId, PrefabOverride[] | undefined> | undefined;
 
     for (const pe of prefab.entities) {
-        if (!pe.nestedPrefab) {
+        if (pe.nestedPrefab) {
+            if (overrides.length) (slotOverrides ??= new Map()).set(pe.prefabEntityId, undefined);
+        } else {
             const reserved = pe.prefabEntityId === prefab.rootEntityId ? ctx.rootId : undefined;
             idMapping.set(pe.prefabEntityId, reserved ?? ctx.allocateId());
+        }
+    }
+    // Each address visits only its own prefixes. Preserve override order and
+    // every matching authored slot, including a slot with a composed id.
+    const routedPatches = slotOverrides ? new Set<PrefabOverride>() : undefined;
+    if (slotOverrides && routedPatches) {
+        for (const patch of overrides) {
+            const address = patch.prefabEntityId;
+            for (let i = address.indexOf(PREFAB_ADDRESS_SEP); i !== -1;
+                i = address.indexOf(PREFAB_ADDRESS_SEP, i + PREFAB_ADDRESS_SEP.length)) {
+                const slot = address.slice(0, i);
+                if (!slotOverrides.has(slot)) continue;
+                const patches = slotOverrides.get(slot);
+                if (patches) patches.push(patch);
+                else slotOverrides.set(slot, [patch]);
+                routedPatches.add(patch);
+            }
         }
     }
 
     const result: ProcessedEntity[] = [];
     const overrideBuckets = bucketOverridesByEntity(overrides);
     const unresolved: PrefabOverride[] = [];
-    const slotPrefixes: string[] = [];
 
     for (const pe of prefab.entities) {
         if (pe.nestedPrefab) {
@@ -156,14 +175,15 @@ function assemblePrefab(prefab: PrefabData, overrides: PrefabOverride[], ctx: As
             // on a nested entity survive the collapse→expand round trip.
             const slotPrefix = pe.prefabEntityId + PREFAB_ADDRESS_SEP;
             const prefix = ctx.prefix + slotPrefix;
-            slotPrefixes.push(slotPrefix);
             const origins = new Map<PrefabOverride, ReferenceScope>();
             const routed: PrefabOverride[] = [];
-            for (const patch of overrides) {
-                if (!patch.prefabEntityId.startsWith(slotPrefix)) continue;
-                const childPatch = { ...patch, prefabEntityId: patch.prefabEntityId.slice(slotPrefix.length) };
-                origins.set(childPatch, ctx.origins.get(patch) ?? local);
-                routed.push(childPatch);
+            const slotPatches = slotOverrides?.get(pe.prefabEntityId);
+            if (slotPatches) {
+                for (const patch of slotPatches) {
+                    const childPatch = { ...patch, prefabEntityId: patch.prefabEntityId.slice(slotPrefix.length) };
+                    origins.set(childPatch, ctx.origins.get(patch) ?? local);
+                    routed.push(childPatch);
+                }
             }
             const nestedOverrides = routed.length
                 ? [...pe.nestedPrefab.overrides, ...routed]
@@ -242,7 +262,7 @@ function assemblePrefab(prefab: PrefabData, overrides: PrefabOverride[], ctx: As
 
     for (const o of overrides) {
         if (idMapping.has(o.prefabEntityId)) continue;
-        if (slotPrefixes.some((p) => o.prefabEntityId.startsWith(p))) continue;
+        if (routedPatches?.has(o)) continue;
         unresolved.push(o);
     }
 
