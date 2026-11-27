@@ -23,6 +23,7 @@ import {
   TILEMAP_V1_FLIP_H, TILEMAP_V1_FLIP_V, TILEMAP_V1_FLIP_D,
 } from '../wasm/constants.generated';
 import { isTileCoordinate } from './tileGeometry';
+import { decodeBase64Bytes } from '../util/base64';
 
 /**
  * Tiles per chunk side, from the C++ `CHUNK_SIZE` that owns it. Generated, so
@@ -65,37 +66,12 @@ export interface DecodedChunk {
   tiles: Uint16Array;
 }
 
-// Self-contained base64 decode (no `atob` — it's absent on some targets, e.g. wechat).
-// Accepts both the url-safe (-_) and standard (+/) alphabets; ignores padding/whitespace.
-const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const B64_LOOKUP = (() => {
-  const t = new Int16Array(128).fill(-1);
-  for (let i = 0; i < B64_ALPHABET.length; i++) t[B64_ALPHABET.charCodeAt(i)] = i;
-  t[43] = 62; t[45] = 62; // '+' '-'
-  t[47] = 63; t[95] = 63; // '/' '_'
-  return t;
-})();
-
-function base64UrlToBytes(s: string): Uint8Array {
-  const out = new Uint8Array(Math.floor(s.length * 3 / 4));
-  let bits = 0, acc = 0, o = 0;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    const v = c < 128 ? B64_LOOKUP[c] : -1;
-    if (v < 0) continue;
-    acc = (acc << 6) | v;
-    bits += 6;
-    if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 0xff; }
-  }
-  return out.subarray(0, o);
-}
-
 /** Decode a `tilemap_exportChunks` blob into its non-empty chunks (empty/invalid → []). */
 export function decodeTilemapChunks(blob: string): DecodedChunk[] {
   if (!blob) return [];
   let bytes: Uint8Array;
   try {
-    bytes = base64UrlToBytes(blob);
+    bytes = decodeBase64Bytes(blob);
   } catch {
     return [];
   }

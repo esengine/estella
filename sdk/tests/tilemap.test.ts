@@ -317,6 +317,40 @@ describe('TilemapAssetLoader — .tmx fails loud with the fix', () => {
 });
 
 describe('parseTmjJson', () => {
+    const encodedGids = (gids: number[]): string => {
+        const bytes = Buffer.alloc(gids.length * 4);
+        gids.forEach((gid, i) => bytes.writeUInt32LE(gid, i * 4));
+        return bytes.toString('base64');
+    };
+    const encodedMap = (layer: Record<string, unknown>) => ({
+        width: 2, height: 1, tilewidth: 16, tileheight: 16,
+        layers: [{ type: 'group', layers: [{ type: 'tilelayer', name: 'Floor', encoding: 'base64', ...layer }] }],
+    });
+
+    it('reads uncompressed Base64 Tiled IDs and flags like numeric layer data', () => {
+        const gids = [0, 0xa0000003];
+        const encoded = parseTmjJson(encodedMap({ data: encodedGids(gids) }))!;
+        const numeric = parseTmjJson(encodedMap({ data: gids, encoding: 'csv' }))!;
+        expect(encoded.layers[0].tiles).toEqual(numeric.layers[0].tiles);
+        expect(encoded.layers[0].tiles[1]).not.toBe(0);
+    });
+
+    it('keeps Base64 GIDs in their own chunks across the origin', () => {
+        const gids = [0x40000002, 3];
+        const make = (data: string | number[]) => parseTmjJson(encodedMap({
+            chunks: [{ x: -1, y: 0, width: 2, height: 1, data }],
+        }))!.layers[0].chunks;
+        const chunks = make(encodedGids(gids));
+        expect(chunks).toEqual(make(gids));
+        expect(chunks.map(chunk => chunk.x)).toEqual([-1, 0]);
+    });
+
+    it('reports the layer or chunk when its encoded data is unsupported or truncated', () => {
+        expect(() => parseTmjJson(encodedMap({ data: encodedGids([1, 2]), compression: 'zstd' })))
+            .toThrow(/Floor.*zstd.*CSV/);
+        expect(() => parseTmjJson(encodedMap({ chunks: [{ x: -1, y: 2, width: 2, height: 1, data: encodedGids([1]) }] })))
+            .toThrow(/Floor.*-1, 2.*8 bytes/);
+    });
     it('should parse a valid tmj json', () => {
         const json = {
             width: 20,

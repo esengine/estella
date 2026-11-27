@@ -52,6 +52,7 @@ import { addressableKeys } from './addressableRecord';
 import { visitAnimatorClips } from './animatorRefs';
 import { mapMaterialRefs } from './materialRefs';
 import { mapTilesetImages } from '../../../sdk/src/tilemap/tiledRefs';
+import { parseTiledMapDocument, validateTiledTileData } from '../../../sdk/src/tilemap/tiledData';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
@@ -411,10 +412,12 @@ function mapTileDocumentRefs(
   return json;
 }
 
-const TILE_DOCUMENT = /\.(?:tmj|tsj|estileset)$/i;
+const TILED_MAP = /\.(?:tmj|tmx)$/i;
+const TILE_DOCUMENT = /\.(?:tmj|tmx|tsj|estileset)$/i;
 
 function rewriteTilemapRefs(bytes: Uint8Array, docPath: string, byPath: Map<string, AssetEntry>): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  const text = Buffer.from(bytes).toString('utf8');
+  const json = TILED_MAP.test(docPath) ? parseTiledMapDocument(text) : JSON.parse(text) as Record<string, unknown>;
   const staged = mapTileDocumentRefs(json, docPath, (ref, _kind, first) => logicalRef(ref, docPath, byPath, first));
   return new TextEncoder().encode(JSON.stringify(staged, null, 2) + '\n');
 }
@@ -1031,7 +1034,7 @@ export async function cookAssets(
       }
       // Tilemaps: relative tileset image/source refs → logical project paths, so the
       // @uuid-loaded map resolves them to the embedded assets (see rewriteTilemapRefs).
-      if (/^\.(?:tmj|tmx|tsj|estileset)$/i.test(ext)) {
+      if (TILE_DOCUMENT.test(entry.path)) {
         try {
           data = rewriteTilemapRefs(data, entry.path, byPath);
         } catch (err) {
@@ -1170,7 +1173,7 @@ export async function cookAssets(
   let shippedKeys: ReturnType<typeof addressableKeys> | undefined;
   for (const entry of manifestEntries) {
     const type = getAssetTypeEntry(entry.sourcePath);
-    if (type?.contentType !== 'json' && type?.contentType !== 'text') continue;
+    if (type?.contentType !== 'json' && type?.contentType !== 'text' && !TILE_DOCUMENT.test(entry.sourcePath)) continue;
     let text: string;
     try {
       text = (await readFile(path.join(absOut, entry.path))).toString('utf8');
@@ -1206,7 +1209,10 @@ export async function cookAssets(
       const keys = shippedKeys ??= addressableKeys(manifestEntries);
       const missing = new Set<string>();
       try {
-        mapTileDocumentRefs(JSON.parse(text), entry.sourcePath, (ref, kind, first) => {
+        const map = TILED_MAP.test(entry.sourcePath);
+        const doc = map ? parseTiledMapDocument(text) : JSON.parse(text) as Record<string, unknown>;
+        if (map) validateTiledTileData(doc);
+        mapTileDocumentRefs(doc, entry.sourcePath, (ref, kind, first) => {
           if (!ref || /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(ref)) return ref;
           const id = assetRefId(ref);
           const packaged = id ? keys.has(id) : findDocumentAsset(entry.sourcePath, ref, key => keys.get(key), first);

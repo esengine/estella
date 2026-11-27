@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
 import { encodeRgbaPng } from '../src/assets/png';
+import { parseTmjJson } from '../../sdk/src/tilemap/tiledLoader';
 
 let root: string;
 
@@ -105,6 +106,40 @@ describe('tilemap tileset images are cooked dependencies', () => {
     // so the @uuid-loaded map resolves it to the embedded asset in the single-file playable.
     expect(cooked.tilesets[0].image).toBe('assets/textures/tiles.png');
     expect(cooked.tilesets[1].image).toBe('assets/textures/props.png');
+  });
+
+  it.each(['', 'zstd'])('validates a map with Base64 layers before shipping it (compression=%j)', async compression => {
+    const mapPath = `assets/maps/base64-${compression || 'raw'}.tmj`;
+    const scenePath = `assets/scenes/base64-${compression || 'raw'}.esscene`;
+    const id = compression ? '55555555-5555-4555-8555-555555555555' : '66666666-6666-4666-8666-666666666666';
+    const map = JSON.parse(tmj);
+    const layer = map.layers[0];
+    const bytes = Buffer.alloc(layer.data.length * 4);
+    layer.data.forEach((gid: number, i: number) => bytes.writeUInt32LE(gid, i * 4));
+    map.layers = [{ type: 'group', layers: [{ ...layer, data: bytes.toString('base64'), encoding: 'base64', compression }] }];
+    writeAsset(mapPath, 'tilemap', id, JSON.stringify(map));
+    writeAsset(scenePath, 'scene', id.replace(/.$/, '0'), scene.replace(TILEMAP, id));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: `build-encoded-${compression || 'raw'}`, contentAddressed: true });
+    if (compression) {
+      expect(result.ok).toBe(false);
+      expect(result.failed).toEqual([expect.stringMatching(/base64-zstd\.tmj:.*L.*zstd.*CSV/)]);
+    } else {
+      expect(result.ok, result.failed.join('\n')).toBe(true);
+      const { entries } = JSON.parse(readFileSync(result.manifestPath!, 'utf8')) as CookManifest;
+      const staged = JSON.parse(readFileSync(path.join(result.outDir, entries.find(e => e.uuid === id)!.path), 'utf8'));
+      expect([...parseTmjJson(staged)!.layers[0].tiles]).toEqual(layer.data);
+      expect(result.included).toEqual(expect.arrayContaining([TILES_TEX, PROPS_TEX]));
+    }
+  });
+
+  it('reports the same JSON export guidance as the loader for a Tiled XML map', async () => {
+    const id = '12121212-1212-4212-8212-121212121212';
+    const scenePath = 'assets/scenes/xml-tilemap.esscene';
+    writeAsset('assets/maps/xml.tmx', 'tilemap', id, '<?xml version="1.0"?><map version="1.10"/>');
+    writeAsset(scenePath, 'scene', id.replace(/.$/, '0'), scene.replace(TILEMAP, id));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build-xml' });
+    expect(result.ok).toBe(false);
+    expect(result.failed).toEqual([expect.stringMatching(/assets\/maps\/xml\.tmx:.*JSON map files \(\*\.tmj\)/)]);
   });
 
   it('keeps a relative native tileset atlas with a query suffix through content-addressed staging', async () => {

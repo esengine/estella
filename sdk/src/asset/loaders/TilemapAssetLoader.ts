@@ -8,6 +8,7 @@ import {
 } from '../../tilemap/tiledLoader';
 import type { LoadedTilemapTileset, PublishedTilemap } from '../../tilemap/tilesetCache';
 import { log } from '../../util/logger';
+import { parseTiledMapDocument } from '../../tilemap/tiledData';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     readonly type = 'tilemap';
@@ -20,15 +21,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
 
     private async prepare_(path: string, ctx: LoadContext): Promise<RegistryEra<TilemapResult>> {
         const buildPath = ctx.catalog.getBuildPath(path);
-        const text = await ctx.loadText(buildPath);
-        // The engine has ONE Tiled parser and it speaks the JSON format. A
-        // .tmx (XML) map fails loud with the fix, not with a JSON syntax error
-        // — Tiled exports .tmj natively (File → Export As → JSON map files).
-        if (text.trimStart().startsWith('<')) {
-            throw new Error(
-                `[tilemap] "${path}" is a Tiled XML map — the engine parses the JSON format only. ` +
-                'In Tiled: File → Export As → "JSON map files (*.tmj)", then reference the .tmj.');
-        }
+        const json = parseTiledMapDocument(await ctx.loadText(buildPath), path);
         // External .tsj tilesets resolve relative to the map, through the same
         // text channel as the map itself.
         // An external `.tsj` is not something this map holds — no runtime object
@@ -41,7 +34,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'external .tsj could be folded in with nothing recording that the map '
                 + 'depends on it — load it through the app Assets channel.');
         }
-        const mapData = await parseTmjWithExternals(JSON.parse(text), readSource, {
+        const mapData = await parseTmjWithExternals(json, readSource, {
             document: ctx.sourceAddressOf?.(path) ?? path,
             sourceAddressOf: ctx.sourceAddressOf,
             isKnownPath: candidate => ctx.assetTypeOf?.(candidate) !== undefined,

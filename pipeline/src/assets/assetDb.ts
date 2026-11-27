@@ -473,7 +473,7 @@ async function computeDeps(
     const isSpineAtlas = editorType === 'spine-atlas';
     const isBitmapFont = entry.type === BITMAP_FONT;
     const preferSibling = isBitmapFont || SKELETAL_ATLAS_TYPES.has(editorType)
-      || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tsj)$/i.test(entry.path);
+      || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tmx|tsj)$/i.test(entry.path);
     const lookup = (ref: string, slot?: RegisteredSlot) => {
       const explicit = slot && isFileAssetRef(ref, slot.fileExtension);
       return findDocumentAsset(entry.path, ref, file => {

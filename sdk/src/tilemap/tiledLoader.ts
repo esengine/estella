@@ -15,6 +15,7 @@ import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../util/logger';
 import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
+import { flattenTmjLayers, readTiledGids } from './tiledData';
 
 export interface TiledChunkData {
     x: number;
@@ -189,36 +190,19 @@ export function decodeTiledGid(gid: number): { globalId: number; flipH: boolean;
 }
 
 /**
- * Flatten Tiled `group` layers (which nest child layers) into one list, in
- * document order — matching how tile/object layers are consumed.
- */
-function flattenTmjLayers(rawLayers: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
-    const out: Array<Record<string, unknown>> = [];
-    for (const layer of rawLayers) {
-        if (layer.type === 'group') {
-            const children = layer.layers as Array<Record<string, unknown>> | undefined;
-            if (children) out.push(...flattenTmjLayers(children));
-        } else {
-            out.push(layer);
-        }
-    }
-    return out;
-}
-
-/**
  * Re-chunk a Tiled infinite-layer chunk (tile-coordinate anchored, arbitrary
  * size) into the engine's CHUNK_SIZE grid, keyed by CHUNK INDICES — the
  * coordinate space `TilemapAPI.setChunkTiles` expects. Handles negative tile
  * coordinates (infinite maps grow in all directions) via floor division.
  */
-function rechunkTiledLayer(rawChunks: Array<Record<string, unknown>>): TiledChunkData[] {
+function rechunkTiledLayer(layer: Record<string, unknown>, rawChunks: Array<Record<string, unknown>>): TiledChunkData[] {
     const engine = new Map<string, TiledChunkData>();
     for (const chunk of rawChunks) {
         const baseX = (chunk.x as number) ?? 0;
         const baseY = (chunk.y as number) ?? 0;
         const w = (chunk.width as number) ?? 0;
         const h = (chunk.height as number) ?? 0;
-        const data = chunk.data as number[] | undefined;
+        const data = readTiledGids(layer, chunk, w * h);
         if (!data) continue;
         for (let ty = 0; ty < h; ty++) {
             for (let tx = 0; tx < w; tx++) {
@@ -293,11 +277,11 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
             const lw = (layer.width as number) ?? width;
             const lh = (layer.height as number) ?? height;
             const visible = layer.visible !== false;
-            const rawData = layer.data as number[] | undefined;
             const rawChunks = layer.chunks as Array<Record<string, unknown>> | undefined;
 
             const infinite = !!rawChunks && rawChunks.length > 0;
-            const chunks = infinite ? rechunkTiledLayer(rawChunks!) : [];
+            const chunks = infinite ? rechunkTiledLayer(layer, rawChunks!) : [];
+            const rawData = infinite ? undefined : readTiledGids(layer, layer, lw * lh);
             const tiles = new Uint16Array(infinite ? 0 : lw * lh);
             if (!infinite && rawData) {
                 for (let i = 0; i < rawData.length && i < tiles.length; i++) {
