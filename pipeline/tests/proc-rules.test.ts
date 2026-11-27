@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyProcEdits, packProcParts, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
+import { addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
 import { MeshChannel, type MeshData } from '../../sdk/src/asset/meshFormat';
 import { evaluate } from '../src/modeling/modelExpr';
 
@@ -204,5 +204,40 @@ describe('rules graph', () => {
         const co = boxes.channels.find((c) => c.semantic === MeshChannel.Color)!.offset;
         expect(boxes.vertices[co]).toBe(255);
         expect(boxes.vertices[co + 1]).toBe(0);
+    });
+
+    it('gives a canvas ids and wires, keeps every node after what it reads, and refuses a loop', () => {
+        const nodes = explicitProc(validateProcSource({ version: 1, nodes: [
+            { op: 'rect', size: [40, 40] }, { op: 'grid', cols: 2, rows: 2 }, { op: 'box', height: 3 }, { op: 'output', inputs: ['__'] },
+        ].map((n) => (n.op === 'output' ? { ...n, inputs: ['box1'] } : n)).map((n, i) => (i === 2 ? { ...n, id: 'box1' } : n)) }).nodes);
+        expect(nodes.map((n) => n.id)).toEqual(['rect1', 'grid1', 'box1', 'output1']);
+        expect(nodes.map((n) => n.input)).toEqual([undefined, 'rect1', 'grid1', undefined]);
+        // a node added later and wired in front comes before what reads it
+        const added = addProcNode(nodes, 'inset', 0, 0);
+        expect(added.nodes.at(-1)!.input).toBeNull();
+        let next = connectProc(added.nodes, 'grid1', added.id);
+        next = connectProc(next, added.id, 'box1');
+        expect(next.map((n) => n.id)).toEqual(['rect1', 'grid1', 'inset1', 'box1', 'output1']);
+        const r = runProc(validateProcSource({ version: 1, nodes: next }));
+        expect(r.report.parts).toBe(4);
+        expect(() => connectProc(next, 'box1', 'grid1')).toThrow(/loop/);
+        // an unwired node does not run, and says so
+        expect(() => validateProcSource({ version: 1, nodes: disconnectProc(next, 'box1') })).toThrow(/nothing is wired into it/);
+        // removing a node takes its wires off what it fed
+        const gone = removeProcNode(next, 'inset1');
+        expect(gone.find((n) => n.id === 'box1')!.input).toBeNull();
+    });
+
+    it('keeps what one node made for a preview, plots and parts', () => {
+        const s = validateProcSource({ version: 1, nodes: [
+            { op: 'rect', size: [40, 20] }, { id: 'g', op: 'grid', cols: 4, rows: 1 }, { id: 'b', op: 'box', height: 3, color: '#ff0000' }, { op: 'output', inputs: ['b'] },
+        ] });
+        const r = runProc(s, {}, { probe: 'g' });
+        expect(r.probe!.map((it) => it.kind)).toEqual(['plot', 'plot', 'plot', 'plot']);
+        const plan = renderProcItems(r.probe!, { size: 200 });
+        // a plot's outline is drawn in blue somewhere
+        let blue = 0;
+        for (let i = 0; i < plan.rgba.length; i += 4) if (plan.rgba[i + 2]! > 200 && plan.rgba[i]! < 80) blue++;
+        expect(blue).toBeGreaterThan(50);
     });
 });

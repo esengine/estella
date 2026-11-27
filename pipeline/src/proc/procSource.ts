@@ -29,8 +29,8 @@ export const MESH_NAMES: readonly MeshName[] = ['cube', 'cylinder', 'cone', 'sph
 export interface ProcNodeBase {
     id?: string;
     op: string;
-    /** The node whose output this one works on; left out, the node before it (in a component, first, its plot "in"). */
-    input?: string;
+    /** The node whose output this one works on; left out, the node before it (in a component, first, its plot "in"); null, nothing (an editor's unwired node, which does not run). */
+    input?: string | null;
     /** Several inputs, for `merge` and `output`. */
     inputs?: string[];
     /** Only plots this test passes are worked on; the rest go through as they came. */
@@ -73,8 +73,8 @@ export interface ProcSource {
 
 /** A source that cannot be built: what is wrong and where. */
 export class ProcBuildError extends Error {
-    constructor(message: string, readonly node: string | null = null, readonly op: string | null = null) {
-        super(message);
+    constructor(message: string, readonly node: string | null = null, readonly op: string | null = null, options?: { cause?: unknown }) {
+        super(message, options);
         this.name = 'ProcBuildError';
     }
 }
@@ -149,6 +149,7 @@ function checkNodes(nodes: unknown, where: string, components: ReadonlySet<strin
         if (!spec.source && !spec.many && node.input === undefined && i === 0 && !inComponent) {
             throw new ProcBuildError(`${label}: ${node.op} works on what comes before it, and it is first: start with a source (${Object.entries(PROC_OPS).filter(([, s]) => s.source).map(([k]) => k).join(', ')})`, node.id ?? null, node.op);
         }
+        if (!spec.many && !spec.source && node.input === null) throw new ProcBuildError(`${label}: nothing is wired into it`, node.id ?? null, node.op);
         const refs = spec.many ? node.inputs : node.input !== undefined ? [node.input] : [];
         if (spec.many && (!Array.isArray(node.inputs) || node.inputs.length === 0)) throw new ProcBuildError(`${label}: ${node.op} takes \`inputs\`, a list of node ids`, node.id ?? null, node.op);
         for (const ref of refs ?? []) {

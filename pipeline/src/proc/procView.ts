@@ -5,7 +5,7 @@
  *        stand, so a layout can be read without a scene. +x is right and +z (south) is down, with grid lines a round
  *        number of the source's units apart and the darker pair through 0.
  */
-import { qRotate, type Part, type ProcResult } from './procEval';
+import { qRotate, type Item, type Part, type Plot, type ProcResult } from './procEval';
 
 export interface ProcPlan { width: number; height: number; rgba: Uint8Array; grid: number; region: { at: [number, number]; size: [number, number] } }
 
@@ -31,11 +31,31 @@ function footprint(p: Part): [number, number][] {
  * the whole of what stands. `size` is pixels along the longer side.
  */
 export function renderProcPlan(result: ProcResult, options: { size?: number; region?: { at: [number, number]; size: [number, number] } | null } = {}): ProcPlan {
-    const parts = result.groups.flatMap((g) => g.parts);
-    const b = result.report.bounds;
+    return renderProcItems(result.groups.flatMap((g) => g.parts), options);
+}
+
+/** The corners of a plot on the ground. */
+function plotCorners(p: Plot): [number, number][] {
+    const c = Math.cos(p.yaw * Math.PI / 180), s = Math.sin(p.yaw * Math.PI / 180);
+    return [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([a, b]) => {
+        const lx = a! * p.w, lz = b! * p.d;
+        return [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+    });
+}
+
+/**
+ * Draws plots and parts from above: parts filled as {@link renderProcPlan} does, plots as outlines over them (blue), so a
+ * node that only cuts ground shows what it cut. What an editor previews of one node.
+ */
+export function renderProcItems(items: readonly Item[], options: { size?: number; region?: { at: [number, number]; size: [number, number] } | null } = {}): ProcPlan {
+    const parts = items.filter((it): it is Part => it.kind === 'part');
+    const plots = items.filter((it): it is Plot => it.kind === 'plot');
     let region = options.region ?? null;
     if (!region) {
-        const lo = b ? [b.min[0], b.min[2]] : [-50, -50], hi = b ? [b.max[0], b.max[2]] : [50, 50];
+        let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+        for (const p of parts) for (const [x, z] of footprint(p)) { lo = [Math.min(lo[0]!, x), Math.min(lo[1]!, z)]; hi = [Math.max(hi[0]!, x), Math.max(hi[1]!, z)]; }
+        for (const p of plots) for (const [x, z] of plotCorners(p)) { lo = [Math.min(lo[0]!, x), Math.min(lo[1]!, z)]; hi = [Math.max(hi[0]!, x), Math.max(hi[1]!, z)]; }
+        if (!Number.isFinite(lo[0]!)) { lo = [-50, -50]; hi = [50, 50]; }
         const pad = Math.max(hi[0]! - lo[0]!, hi[1]! - lo[1]!, 1) * 0.04;
         region = { at: [(lo[0]! + hi[0]!) / 2, (lo[1]! + hi[1]!) / 2], size: [hi[0]! - lo[0]! + pad * 2, hi[1]! - lo[1]! + pad * 2] };
     }
@@ -92,6 +112,20 @@ export function renderProcPlan(result: ProcResult, options: { size?: number; reg
                 // a part too thin to fill a pixel still shows as one
                 if (to < from && from < width) { const i = (y * width + from) * 4; rgba[i] = col[0]!; rgba[i + 1] = col[1]!; rgba[i + 2] = col[2]!; }
             }
+        }
+    }
+    // plots last, as outlines, so what a cutting node made reads over what stands
+    const dot = (x: number, y: number): void => {
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        const i = (y * width + x) * 4;
+        rgba[i] = 40; rgba[i + 1] = 110; rgba[i + 2] = 220;
+    };
+    for (const p of plots) {
+        const poly = plotCorners(p).map(([x, z]) => [(x - x0) * scale, (z - z0) * scale] as [number, number]);
+        for (let k = 0; k < 4; k++) {
+            const [a, b] = [poly[k]!, poly[(k + 1) % 4]!];
+            const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+            for (let t = 0; t <= steps; t++) dot(Math.round(a[0] + (b[0] - a[0]) * t / steps), Math.round(a[1] + (b[1] - a[1]) * t / steps));
         }
     }
     return { width, height, rgba, grid, region };

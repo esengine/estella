@@ -55,7 +55,12 @@ export interface ProcReport {
     bounds: { min: [number, number, number]; max: [number, number, number] } | null;
     warnings: string[];
 }
-export interface ProcResult { groups: { name: string; parts: Part[] }[]; report: ProcReport }
+export interface ProcResult {
+    groups: { name: string; parts: Part[] }[];
+    report: ProcReport;
+    /** What the node named by `probe` made, plots and parts, when one was asked for: what an editor previews. */
+    probe?: Item[] | null;
+}
 
 /** More than this many plots and parts at once is a mistake in a count, not a place. */
 export const PROC_ITEM_LIMIT = 400_000;
@@ -121,6 +126,9 @@ class Run {
     private count = 0;
     /** Inside a component or a repeat: what its nodes do is the calling node's, and is not reported once per call. */
     private nested = 0;
+    /** The top-level node whose output is kept for a preview, and what it made. */
+    probeId: string | null = null;
+    probed: Item[] | null = null;
     constructor(readonly source: ProcSource, readonly env: ProcEnv) {}
 
     // ------------------------------------------------------------------ values
@@ -188,12 +196,13 @@ class Run {
                 } else if (spec.source) {
                     items = this.source1(node, base, hashText(name));
                 } else {
-                    const from = node.input !== undefined ? byId.get(node.input)! : last;
+                    const from = typeof node.input === 'string' ? byId.get(node.input)! : last;
                     items = this.apply(node, from, base, hashText(name), name);
                 }
                 this.count += items.length;
                 if (items.length > PROC_ITEM_LIMIT) throw new Error(`it makes ${items.length} plots and parts, past the ${PROC_ITEM_LIMIT} a graph may: a count or a size is wrong`);
                 if (node.id) byId.set(node.id, items);
+                if (this.nested === 0 && this.probeId !== null && node.id === this.probeId) this.probed = items;
                 last = items;
                 const plots = items.filter((it) => it.kind === 'plot').length;
                 if (this.nested === 0) {
@@ -202,7 +211,7 @@ class Run {
                 }
             } catch (e) {
                 if (e instanceof ProcBuildError) throw e;
-                throw new ProcBuildError(`${name} (${node.op}): ${(e as Error).message}`, node.id ?? null, node.op);
+                throw new ProcBuildError(`${name} (${node.op}): ${(e as Error).message}`, node.id ?? null, node.op, { cause: e });
             }
         });
         return { byId, last, outputs };
@@ -586,8 +595,9 @@ class Run {
 }
 
 /** Runs a validated source. Throws a {@link ProcBuildError} naming the node that could not run. */
-export function runProc(source: ProcSource, env: ProcEnv = {}): ProcResult {
+export function runProc(source: ProcSource, env: ProcEnv = {}, options: { probe?: string | null } = {}): ProcResult {
     const run = new Run(source, env);
+    run.probeId = options.probe ?? null;
     const base = new Map<string, ExprValue>();
     base.set('seed', source.seed ?? 0);
     for (const [k, v] of Object.entries(source.params ?? {})) base.set(k, v);
@@ -604,5 +614,6 @@ export function runProc(source: ProcSource, env: ProcEnv = {}): ProcResult {
     return {
         groups,
         report: { nodes: run.reports, groups: groups.map((g) => ({ name: g.name, parts: g.parts.length })), parts: parts.length, bounds, warnings: run.warnings },
+        ...(options.probe ? { probe: run.probed } : {}),
     };
 }
