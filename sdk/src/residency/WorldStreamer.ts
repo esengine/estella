@@ -240,6 +240,7 @@ export class WorldStreamer {
     private readonly registrations_: SceneConfig[] = [];
     /** In manifest order, so every list this produces is stable. */
     private readonly cells_ = new Map<string, CellState>();
+    private readonly occupiedSlots_ = { preparing: 0, publishing: 0 };
     /** Cell name → its far proxy, for cells the cook baked one. */
     private readonly proxies_ = new Map<string, ProxyState>();
     private sourceCount_ = 0;
@@ -564,10 +565,11 @@ export class WorldStreamer {
         this.judgeHold_();
     }
 
-    private count_(residency: CellResidency): number {
-        let n = 0;
-        for (const state of this.cells_.values()) if (state.residency === residency) n++;
-        return n;
+    private setResidency_(state: CellState, next: CellResidency): void {
+        const previous = state.residency;
+        if (previous === 'preparing' || previous === 'publishing') this.occupiedSlots_[previous]--;
+        state.residency = next;
+        if (next === 'preparing' || next === 'publishing') this.occupiedSlots_[next]++;
     }
 
     /**
@@ -756,11 +758,11 @@ export class WorldStreamer {
         if (state.residency === 'unloaded' && (state.desired || state.speculated)) {
             // Past the cap it waits its turn; a freed slot steps the cells in priority order (`pump_`). An urgent cell does
             // not wait: queued behind cells only prefetched, the one under a player was missing for seconds.
-            if (!state.urgent && this.count_('preparing') >= this.policy_.maxLoadingCells) return;
+            if (!state.urgent && this.occupiedSlots_.preparing >= this.policy_.maxLoadingCells) return;
             this.beginPrepare_(name, state);
         } else if (state.residency === 'prepared' && state.desired) {
             // One cell made visible at a time; an urgent cell does not wait behind one that is not.
-            if (!state.urgent && this.count_('publishing') >= this.policy_.maxPublishingCells) return;
+            if (!state.urgent && this.occupiedSlots_.publishing >= this.policy_.maxPublishingCells) return;
             this.publishWhenReady_(name, state);
         } else if (state.residency === 'prepared' && !state.speculated) {
             // Speculation is not authority. A cell nobody is near any more goes
@@ -778,7 +780,7 @@ export class WorldStreamer {
     private discardPrepared_(name: string, state: CellState): void {
         const wasPreparing = state.residency === 'preparing';
         this.cancelledRefs_ += this.host_.discardPrepared(name);
-        state.residency = 'unloaded';
+        this.setResidency_(state, 'unloaded');
         state.assetsReady = false;
         state.renderReadiness = null;
         this.cancelCount_++;
@@ -786,7 +788,7 @@ export class WorldStreamer {
     }
 
     private beginPrepare_(name: string, state: CellState): void {
-        state.residency = 'preparing';
+        this.setResidency_(state, 'preparing');
         state.phases = {};
         state.issuedAt = performance.now();
         state.prepareMs = 0;
@@ -811,7 +813,7 @@ export class WorldStreamer {
                 this.step_(name);
             },
             (err) => {
-                state.residency = 'unloaded';
+                this.setResidency_(state, 'unloaded');
                 state.assetsReady = false;
                 state.failed = true;
                 log.error('residency', `cell "${name}" did not prepare`, err);
@@ -880,7 +882,7 @@ export class WorldStreamer {
 
     /** Every obligation is satisfied: only now is the cell prepared. */
     private markPrepared_(name: string, state: CellState): void {
-        state.residency = 'prepared';
+        this.setResidency_(state, 'prepared');
         state.preparedAt = performance.now();
         state.prepareMs = state.preparedAt - state.issuedAt;
         // What finished was begun against a world that has moved. Whether this
@@ -935,7 +937,7 @@ export class WorldStreamer {
     }
 
     private beginLoad_(name: string, state: CellState): void {
-        state.residency = 'publishing';
+        this.setResidency_(state, 'publishing');
         state.publishedAt = performance.now();
         this.loadCount_++;
         this.run_(() => {
@@ -947,7 +949,7 @@ export class WorldStreamer {
         },
             () => {
                 const now = performance.now();
-                state.residency = 'resident';
+                this.setResidency_(state, 'resident');
                 state.failed = false;
                 // Said even when it was not urgent: it also forgets a rush that found no work spread over frames.
                 state.urgent = false;
@@ -966,7 +968,7 @@ export class WorldStreamer {
                 // A cell that failed to come up owns nothing (the scene load is a
                 // transaction), so it goes back to being absent and may be asked
                 // for again rather than being stuck half-present.
-                state.residency = 'unloaded';
+                this.setResidency_(state, 'unloaded');
                 state.failed = true;
                 log.error('residency', `cell "${name}" did not load`, err);
                 this.pump_();
@@ -975,7 +977,7 @@ export class WorldStreamer {
     }
 
     private beginUnload_(name: string, state: CellState): void {
-        state.residency = 'unloading';
+        this.setResidency_(state, 'unloading');
         this.unloadCount_++;
         // `keepPersistent: false` is the contract: a cell's unload takes everything
         // the cell brought. Scene persistence answers a different question, and
@@ -983,14 +985,14 @@ export class WorldStreamer {
         // Spread over frames, hidden at once (`retire`), unless the world is being cleared and may have no frames left.
         this.run_(() => this.host_.unload(name, { keepPersistent: false, staggered: !this.clearing_ }),
             () => {
-                state.residency = 'unloaded';
+                this.setResidency_(state, 'unloaded');
                 this.residencyEpoch_++;
                 // A rush said while it left (the world cleared) is not carried to its next arrival.
                 this.host_.urge?.(name, false);
                 this.step_(name);
             },
             (err) => {
-                state.residency = this.host_.isLoaded(name) ? 'resident' : 'unloaded';
+                this.setResidency_(state, this.host_.isLoaded(name) ? 'resident' : 'unloaded');
                 this.residencyEpoch_++;
                 log.error('residency', `cell "${name}" did not unload`, err);
             },

@@ -125,6 +125,37 @@ describe('streaming policy', () => {
         expect(h.calls.filter((c) => c.startsWith('load:'))).toEqual(['load:c_4_0', 'load:c_5_0']);
     });
 
+    it('hands the next cell a budget slot after either preparation or publication fails', async () => {
+        const h = heldHost();
+        const first = cell(1, 0), second = cell(2, 0), third = cell(3, 0);
+        const prepare = h.host.prepare.bind(h.host);
+        const load = h.host.loadAdditive.bind(h.host);
+        let rejectPublication: (reason: Error) => void = () => {};
+        h.host.prepare = name => name === first.name ? Promise.reject(new Error('prepare failed')) : prepare(name);
+        h.host.loadAdditive = name => name === second.name
+            ? new Promise((_, reject) => { rejectPublication = reject; }) : load(name);
+        const streamer = new WorldStreamer(h.host);
+        streamer.setPolicy({ maxLoadingCells: 1, maxPublishingCells: 1, slowStreamingRatio: 0 });
+        await streamer.loadManifest(manifest(first, second, third));
+        streamer.update([source(0, 50, 1000)]);
+        await flush();
+        expect([...h.prepares.keys()]).toEqual([second.name]);
+        h.prepared(second.name);
+        await flush();
+        expect([...h.prepares.keys()]).toEqual([third.name]);
+        h.prepared(third.name);
+        await flush();
+        expect(streamer.residencyOf(third.name)).toBe('prepared');
+        expect(h.loads.size).toBe(0);
+
+        rejectPublication(new Error('publish failed'));
+        await flush();
+        expect([...h.loads.keys()]).toEqual([third.name]);
+        h.published(third.name);
+        await flush();
+        expect(streamer.status().residentCells).toEqual([third.name]);
+    });
+
     it('calls a cell urgent within slowStreamingRatio of the load radius, and says so to the host', async () => {
         const h = heldHost();
         const s = new WorldStreamer(h.host);
