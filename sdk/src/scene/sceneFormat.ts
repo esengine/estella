@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { DocumentDiagnostic } from '../document/diagnostics';
+import { checkParentCycle, duplicateDocumentIdMessage } from '../document/topology';
+import type { SceneData } from './scene';
 
 /**
  * Current scene format version, incremented for incompatible migrations.
@@ -97,4 +100,27 @@ export function requireSupportedSceneDocument(input: unknown): number {
     const issue = sceneRowsIssue(input.entities);
     if (issue) throw new Error(issue.message);
     return version;
+}
+
+type SceneLoadFinding = Pick<DocumentDiagnostic, 'code' | 'message'>;
+
+export function sceneLoadError(name: string, findings: readonly SceneLoadFinding[]): Error {
+    return new Error(
+        `Scene "${name}" cannot be loaded as written:\n`
+        + findings.map(({ code, message }) => `  ${code}: ${message}`).join('\n'),
+    );
+}
+
+/** Check authored IDs and parent links before any filtering or prefab expansion. */
+export function requireUnambiguousSceneHierarchy(scene: SceneData): void {
+    const byId = new Map<number, SceneData['entities'][number]>();
+    const findings: SceneLoadFinding[] = [];
+    for (const row of scene.entities) {
+        if (byId.has(row.id)) findings.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(row.id) });
+        else byId.set(row.id, row);
+    }
+    if (findings.length === 0) {
+        checkParentCycle(scene.entities, byId, (code, _, message) => findings.push({ code, message }));
+    }
+    if (findings.length > 0) throw sceneLoadError(scene.name, findings);
 }

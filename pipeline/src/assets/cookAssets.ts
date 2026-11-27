@@ -46,7 +46,8 @@ import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { parseTerrainTiles } from '../../../sdk/src/terrain/tiles';
-import { requireSupportedSceneDocument } from '../../../sdk/src/scene/sceneFormat';
+import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
+import type { SceneData } from '../../../sdk/src/scene/scene';
 import { addressableKeys } from './addressableRecord';
 import { visitAnimatorClips } from './animatorRefs';
 import { mapMaterialRefs } from './materialRefs';
@@ -870,7 +871,11 @@ export async function cookAssets(
         videoEnc != null && entry.type === 'video' && path.extname(entry.path).toLowerCase() !== '.esv';
       const source = willTranscodeVideo ? Buffer.alloc(0) : await readFile(path.join(root, entry.path));
       // Validate the same bytes this cook will package, after reachability selects the scenes.
-      if (entry.type === 'scene') requireSupportedSceneDocument(JSON.parse(source.toString('utf8')));
+      if (entry.type === 'scene') {
+        const scene = JSON.parse(source.toString('utf8')) as SceneData;
+        requireSupportedSceneDocument(scene);
+        requireUnambiguousSceneHierarchy(scene);
+      }
       let data: Uint8Array = source;
       let ext = path.extname(entry.path);
       let tail: StreamTail | null = null;

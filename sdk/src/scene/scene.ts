@@ -11,11 +11,10 @@ import { initializeSceneComponents, installWorldHook, shouldExportComponent, typ
 import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, visitSceneEntryEntityReferences, type SceneEntry } from './sceneEntry';
-import { requireSupportedSceneDocument, SCENE_FORMAT_VERSION } from './sceneFormat';
+import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy, sceneLoadError, SCENE_FORMAT_VERSION } from './sceneFormat';
 import { canDefer, cutToRoot, deferredBindings, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
-import { checkParentCycle, duplicateDocumentIdMessage, type DocumentDiagnostic } from '../document/diagnostics';
 import { runSceneLoad, SceneLoadAttempt, scenePhaseRunner } from './sceneLoadAttempt';
 import { getComponent, Name, Camera, RuntimeOnly, Disabled, type AnyComponentDef, type AssetFieldMeta } from '../ecs/component';
 import { mapEntityRefField } from '../ecs/entityRefField';
@@ -408,20 +407,10 @@ export async function expandScenePrefabSources(
     options?: { expandVirtual?: boolean },
 ): Promise<SceneData> {
     requireSupportedSceneDocument(scene);
+    requireUnambiguousSceneHierarchy(scene);
     const expandVirtual = options?.expandVirtual ?? expandVirtualRequested();
     const entries = scene.entities as SceneEntry[];
-    let hasInstances = false;
-    const byId = new Map<number, SceneEntry>();
-    const fatal: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
-    for (const e of entries) {
-        if (byId.has(e.id)) fatal.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
-        byId.set(e.id, e);
-        hasInstances ||= isPrefabEntry(e);
-    }
-    // Expansion can omit entries. Check authored identities and links before resolving any sources.
-    if (fatal.length === 0) checkParentCycle(entries, byId, (code, _, message) => fatal.push({ code, message }));
-    if (fatal.length) throw sceneLoadError(scene.name, fatal);
-    if (!hasInstances) return { ...scene, entities: scene.entities.slice() };
+    if (!entries.some(isPrefabEntry)) return { ...scene, entities: scene.entities.slice() };
     const allocateId = createScenePrefabIdAllocator(scene);
 
     const out: SceneEntityData[] = [];
@@ -591,13 +580,6 @@ export function migrateOwnedSceneData(data: SceneData, fromVersion = requireSupp
 const UNLOADABLE_SCENE: ReadonlySet<string> = new Set([
     'duplicate-id', 'parent-cycle', 'malformed', 'malformed-entity', 'malformed-component',
 ]);
-
-function sceneLoadError(name: string, fatal: readonly Pick<DocumentDiagnostic, 'code' | 'message'>[]): Error {
-    return new Error(
-        `Scene "${name}" cannot be loaded as written:\n`
-        + fatal.map((d) => `  ${d.code}: ${d.message}`).join('\n'),
-    );
-}
 
 /** Refuse a scene the loader cannot honour; report the rest and carry on. */
 function checkLoadable(sceneData: SceneData): void {

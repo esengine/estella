@@ -79,6 +79,25 @@ function solidPng(width: number, height: number, rgba: [number, number, number, 
 }
 
 describe('cookAssets (A4)', () => {
+  it.each([
+    ['duplicate-id', [null, null], [1, 1]],
+    ['parent-cycle', [2, 1], [1, 2]],
+  ] as const)('reports %s before staging a selected scene', async (code, parents, ids) => {
+    const scenePath = 'assets/scenes/orphan.esscene';
+    const file = path.join(root, scenePath);
+    const previous = readFileSync(file, 'utf8');
+    const entities = ids.map((id, index) => ({ id, parent: parents[index], children: [], components: [] }));
+    writeFileSync(file, JSON.stringify({ version: 4, name: 'Ambiguous', entities }));
+    try {
+      const result = await cookAssets(root, { entryScenes: [scenePath], outDir: `build/${code}` });
+      expect(result.ok).toBe(false);
+      expect(result.failed).toEqual([expect.stringMatching(new RegExp(`orphan\\.esscene:[\\s\\S]*${code}`))]);
+      expect(existsSync(path.join(result.outDir, scenePath))).toBe(false);
+    } finally {
+      writeFileSync(file, previous);
+    }
+  });
+
   it('reports a malformed component in a scene before staging it', async () => {
     const scenePath = 'assets/scenes/orphan.esscene';
     const file = path.join(root, scenePath);

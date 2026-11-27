@@ -15,6 +15,8 @@
  *        costs.
  */
 import { getComponent } from '../ecs/component';
+import { duplicateDocumentIdMessage, quoteDocumentId as quote } from './topology';
+export { checkParentCycle } from './topology';
 
 /** An id as an authored document spells it. Scenes count; prefabs name. */
 export type DocumentEntityId = string | number;
@@ -50,12 +52,6 @@ export interface DocumentNode {
     children: readonly DocumentEntityId[];
     components: readonly { type: string; data: Record<string, unknown> }[];
 }
-
-/** Whether a document names its entities by string or by number, for messages. */
-const quote = (id: DocumentEntityId): string => (typeof id === 'string' ? `"${id}"` : String(id));
-
-export const duplicateDocumentIdMessage = (id: DocumentEntityId): string =>
-    `entity id ${quote(id)} appears more than once`;
 
 /** @internal Index wide immutable link lists once; tiny lists need no index. */
 export function createChildLookup<Id extends DocumentEntityId>(): (children: readonly Id[], id: Id) => boolean {
@@ -135,49 +131,6 @@ export function checkDocumentTopology(
                 push('inconsistent-topology', 'error',
                     `entity ${quote(node.id)} lists ${quote(childId)} as a child but its parent points elsewhere`, node.id, String(childId));
             }
-        }
-    }
-}
-
-/**
- * No entity is its own ancestor. Reported once: a cycle otherwise names every
- * entity on it, and the reader has to work out that it is one problem.
- */
-export function checkParentCycle(
-    nodes: readonly Pick<DocumentNode, 'id' | 'parent'>[],
-    byId: ReadonlyMap<DocumentEntityId, Pick<DocumentNode, 'parent'>>,
-    push: DiagnosticSink,
-): void {
-    const visitedOn = new Map<DocumentEntityId, number>();
-    let walk = 0;
-    // A repeated visit in the same walk is a cycle. A visit from an earlier
-    // walk has already been checked, so there is no second pass to mark it done.
-    for (const node of nodes) {
-        if (visitedOn.has(node.id)) continue;
-        walk++;
-        let id: DocumentEntityId | null = node.id;
-        while (id !== null) {
-            const previous = visitedOn.get(id);
-            if (previous === walk) {
-                // Reconstruct the path only on failure, starting at the repeated id.
-                const cycle = [String(id)];
-                const first = byId.get(id)!;
-                let link = first.parent!;
-                let entry = byId.get(link)!;
-                while (entry !== first) {
-                    cycle.push(String(link));
-                    link = entry.parent!;
-                    entry = byId.get(link)!;
-                }
-                cycle.push(String(id));
-                push('parent-cycle', 'error', `parent cycle detected: ${cycle.join(' → ')}`, id);
-                return;
-            }
-            if (previous !== undefined) break;
-            const entry = byId.get(id);
-            if (!entry) break;
-            visitedOn.set(id, walk);
-            id = entry.parent;
         }
     }
 }
