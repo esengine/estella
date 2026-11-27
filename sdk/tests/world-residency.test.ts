@@ -763,6 +763,54 @@ describe('WorldStreamer', () => {
         // would leak a cell's worth of assets per turn a player takes.
         expect(streamer.status().cancelledRefs).toBe(2);
     });
+
+    it('prepares again when a cell is demanded during its discard callback', async () => {
+        const { host, calls, loaded } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        const box = cell(3, 0);
+        const discard = host.discardPrepared.bind(host);
+        host.discardPrepared = name => {
+            const released = discard(name);
+            streamer.update([source(350, 50, 10, 20)]);
+            return released;
+        };
+        await streamer.loadManifest(manifest(box));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+        expect(streamer.residencyOf(box.name)).toBe('prepared');
+
+        streamer.update([]);
+        expect(loaded.has(box.name)).toBe(false);
+        await flush();
+        expect(calls.filter(call => /^(prepare|discard|load):/.test(call))).toEqual([
+            `prepare:${box.name}`, `discard:${box.name}`, `prepare:${box.name}`, `load:${box.name}`,
+        ]);
+        expect(streamer.residencyOf(box.name)).toBe('resident');
+    });
+
+    it.each([false, true])('shares a clear requested during a discard (already clearing: %s)', async alreadyClearing => {
+        const { host, calls } = recordingHost();
+        const streamer = new WorldStreamer(host);
+        const box = cell(3, 0);
+        const discard = host.discardPrepared.bind(host);
+        let cleared: Promise<void> | undefined;
+        host.discardPrepared = name => {
+            const released = discard(name);
+            if (calls.filter(call => call === `discard:${name}`).length === 1) cleared = streamer.clear();
+            return released;
+        };
+        await streamer.loadManifest(manifest(box));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+
+        const original = alreadyClearing ? streamer.clear() : undefined;
+        if (!alreadyClearing) streamer.update([]);
+        expect(cleared).toBeDefined();
+        if (alreadyClearing) expect(cleared).toBe(original);
+        await cleared;
+        expect(calls.filter(call => call === `discard:${box.name}`)).toHaveLength(1);
+        expect(streamer.residencyOf(box.name)).toBe('unloaded');
+    });
 });
 
 describe('world residency teardown and replacement', () => {

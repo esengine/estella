@@ -172,6 +172,7 @@ interface CellState {
     renderReadiness: RenderReadinessStamp | null;
     /** Whether a readying attempt is in flight, so a retry does not stack. */
     readinessInFlight: boolean;
+    discarding: boolean;
     /** How often publication found the claim stale and replaced it. Zero over a
      *  dwell in which nothing moved is the whole point of preparing early. */
     restamps: number;
@@ -302,7 +303,7 @@ export class WorldStreamer {
             }
             this.cells_.set(cell.name, {
                 registeredName: cell.name, cell, residency: 'unloaded', desired: false, speculated: false,
-                assetsReady: false, renderReadiness: null, readinessInFlight: false,
+                assetsReady: false, renderReadiness: null, readinessInFlight: false, discarding: false,
                 restamps: 0,
                 phases: {}, issuedAt: 0, delivery: 0,
                 demandedAt: 0, preparedAt: 0, publishedAt: 0,
@@ -630,6 +631,19 @@ export class WorldStreamer {
         this.clearing_ = true;
         this.order_ = [];
         this.sourceCount_ = 0;
+        let resolveDrain!: (drain: Promise<void>) => void;
+        const pending = new Promise<void>(resolve => { resolveDrain = resolve; });
+        const clear = pending.finally(() => {
+            this.clearing_ = false;
+            this.clearPromise_ = null;
+        });
+        // Install the shared drain before any synchronous host notification.
+        this.clearPromise_ = clear;
+        resolveDrain(this.drainCells_());
+        return clear;
+    }
+
+    private async drainCells_(): Promise<void> {
         this.setHolding_(false);
         for (const [name, state] of this.cells_) {
             state.desired = false;
@@ -640,20 +654,17 @@ export class WorldStreamer {
                 this.host_.rush?.(name);
             }
         }
-        this.clearPromise_ = (async () => {
-            for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
-            for (const name of this.cells_.keys()) this.step_(name);
-            // Publication may finish by starting an unload, so drain the entire chain; a proxy still loading when the drain
-            // began lands and unloads itself inside it.
-            while (this.operations_.size > 0) await Promise.allSettled([...this.operations_]);
-            const remaining = [...this.cells_].filter(([, state]) => state.residency !== 'unloaded').map(([name]) => name);
-            for (const proxy of this.proxies_.values()) if (proxy.residency !== 'unloaded') remaining.push(proxy.scene);
-            if (remaining.length > 0) throw new Error(`World residency could not release: ${remaining.join(', ')}`);
-        })().finally(() => {
-            this.clearing_ = false;
-            this.clearPromise_ = null;
-        });
-        return this.clearPromise_;
+        for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
+        for (const name of this.cells_.keys()) this.step_(name);
+        // Clearing can begin inside a synchronous host callback. Let that
+        // transition finish and register any operation before checking the drain.
+        await Promise.resolve();
+        // Publication may finish by starting an unload, so drain the entire chain; a proxy still loading when the drain
+        // began lands and unloads itself inside it.
+        while (this.operations_.size > 0) await Promise.allSettled([...this.operations_]);
+        const remaining = [...this.cells_].filter(([, state]) => state.residency !== 'unloaded').map(([name]) => name);
+        for (const proxy of this.proxies_.values()) if (proxy.residency !== 'unloaded') remaining.push(proxy.scene);
+        if (remaining.length > 0) throw new Error(`World residency could not release: ${remaining.join(', ')}`);
     }
 
     /** Track host operations through their completion handlers so replacement cannot reuse a live scene name. */
@@ -743,7 +754,7 @@ export class WorldStreamer {
     private step_(name: string): void {
         const state = this.cells_.get(name);
         if (!state) return;
-        if (state.readinessInFlight) return;
+        if (state.readinessInFlight || state.discarding) return;
         if (state.residency === 'preparing') {
             // Assets are in and only the program obligation is left. Retried
             // here, because a claim refused once (a device that rebuilt mid-
@@ -779,12 +790,19 @@ export class WorldStreamer {
 
     private discardPrepared_(name: string, state: CellState): void {
         const wasPreparing = state.residency === 'preparing';
-        this.cancelledRefs_ += this.host_.discardPrepared(name);
+        // A nested update may request this cell again while the host releases
+        // its receipts. Keep it out of publication until the discard commits.
+        state.discarding = true;
+        try {
+            this.cancelledRefs_ += this.host_.discardPrepared(name);
+        } finally {
+            state.discarding = false;
+        }
         this.setResidency_(state, 'unloaded');
         state.assetsReady = false;
         state.renderReadiness = null;
         this.cancelCount_++;
-        if (wasPreparing) this.pump_();
+        if (wasPreparing || state.desired || state.speculated) this.pump_();
     }
 
     private beginPrepare_(name: string, state: CellState): void {
