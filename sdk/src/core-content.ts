@@ -248,6 +248,7 @@ export {
     loadSceneData,
     loadSceneWithAssets,
     expandScenePrefabSources,
+    createScenePrefabIdAllocator,
     resetWorldTo,
     loadComponent,
     remapEntityFields,

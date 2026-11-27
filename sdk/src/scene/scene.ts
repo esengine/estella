@@ -376,6 +376,29 @@ export function expandScenePrefabs(
     return expandScenePrefabSources(scene, createPrefabSourceLoader(loadPrefab), options);
 }
 
+/** Allocate scene IDs for prefab members without taking IDs already named by the document. @experimental */
+export function createScenePrefabIdAllocator(
+    scene: SceneData,
+    entityFieldsOf: (type: string) => readonly string[] = type => getComponent(type)?.entityFields ?? [],
+): () => number {
+    let nextId = 0;
+    for (const entry of scene.entities) nextId = Math.max(nextId, entry.id);
+
+    // An absent ID can name a persistent row or a missing target.
+    const reserved = new Set<number>();
+    const reserve = (id: unknown) => {
+        if (typeof id === 'number' && id > nextId && Number.isSafeInteger(id)) reserved.add(id);
+    };
+    for (const entry of scene.entities) {
+        reserve(entry.parent);
+        visitSceneEntryEntityReferences(entry, entityFieldsOf, (_type, _field, ref) => reserve(ref));
+    }
+    return () => {
+        do { nextId++; } while (reserved.has(nextId));
+        return nextId;
+    };
+}
+
 /** Expand using the same asset versions a caller has already checked for this scene. */
 export async function expandScenePrefabSources(
     scene: SceneData,
@@ -384,38 +407,19 @@ export async function expandScenePrefabSources(
 ): Promise<SceneData> {
     const expandVirtual = options?.expandVirtual ?? expandVirtualRequested();
     const entries = scene.entities as SceneEntry[];
-    // Allocate fresh ids for expanded internals above every id already in the
-    // file, so they never collide with non-prefab entities or instance roots
-    // (which keep their stable scene id across save/load).
-    let nextId = 0;
     let hasInstances = false;
     const byId = new Map<number, SceneEntry>();
     const fatal: Pick<DocumentDiagnostic, 'code' | 'message'>[] = [];
     for (const e of entries) {
         if (byId.has(e.id)) fatal.push({ code: 'duplicate-id', message: duplicateDocumentIdMessage(e.id) });
         byId.set(e.id, e);
-        nextId = Math.max(nextId, e.id);
         hasInstances ||= isPrefabEntry(e);
     }
     // Expansion can omit entries. Check authored identities and links before resolving any sources.
     if (fatal.length === 0) checkParentCycle(entries, byId, (code, _, message) => fatal.push({ code, message }));
     if (fatal.length) throw sceneLoadError(scene.name, fatal);
     if (!hasInstances) return { ...scene, entities: scene.entities.slice() };
-    // An absent ID can name a persistent row or a missing target. Expansion
-    // must not give it to a prefab member before the loader resolves the link.
-    const reserved = new Set<number>();
-    const reserve = (id: unknown) => {
-        if (typeof id === 'number' && id > nextId && Number.isSafeInteger(id)) reserved.add(id);
-    };
-    const entityFieldsOf = (type: string) => getComponent(type)?.entityFields ?? [];
-    for (const e of entries) {
-        reserve(e.parent);
-        visitSceneEntryEntityReferences(e, entityFieldsOf, (_type, _field, ref) => reserve(ref));
-    }
-    const allocateId = () => {
-        do { nextId++; } while (reserved.has(nextId));
-        return nextId;
-    };
+    const allocateId = createScenePrefabIdAllocator(scene);
 
     const out: SceneEntityData[] = [];
     const deferred: DeferredRecord[] = [];
