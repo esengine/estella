@@ -48,4 +48,43 @@ describe('textures read as data but marked colour', () => {
         // `flatnormal` is an engine stand-in, not a file, so the parent binds no data texture.
         expect(found).toEqual([{ texture: 'assets/s/b.png', readBy: [{ material: 'assets/s/child.esmaterial', param: 'u_bump' }] }]);
     });
+
+    it('reads the root shader from its own folder and each override from the material that authored it', async () => {
+        const found = await dataTexturesMarkedColour(project({
+            'assets/base/bump.esshader': '#pragma param u_bump texture default(flatnormal) texel(data)\n',
+            'assets/child/bump.esshader': '#pragma param u_bump texture default(white)\n',
+            'assets/base/root.esmaterial': { shader: './bump.esshader', properties: {} },
+            'assets/mid/mid.esmaterial': { instanceOf: '../base/root.esmaterial', properties: { u_bump: './bump.png' } },
+            'assets/child/child.esmaterial': { instanceOf: '../mid/mid.esmaterial', shader: './bump.esshader', properties: { u_bump: './bump.png' } },
+            'assets/child/derived.esmaterial': { instanceOf: '../mid/mid.esmaterial', properties: { u_bump: './derived.png' } },
+        }, { 'assets/mid/bump.png': {}, 'assets/child/bump.png': {}, 'assets/child/derived.png': {} }));
+        expect(found).toEqual([
+            { texture: 'assets/child/bump.png', readBy: [{ material: 'assets/child/child.esmaterial', param: 'u_bump' }] },
+            { texture: 'assets/child/derived.png', readBy: [{ material: 'assets/child/derived.esmaterial', param: 'u_bump' }] },
+            { texture: 'assets/mid/bump.png', readBy: [{ material: 'assets/mid/mid.esmaterial', param: 'u_bump' }] },
+        ]);
+    });
+
+    it('prefers siblings and recognizes the same legacy project paths as the runtime', async () => {
+        const shader = '#pragma param u_bump texture default(flatnormal) texel(data)\n';
+        const found = await dataTexturesMarkedColour(project({
+            'fx/data.esshader': shader,
+            'assets/m/root.esmaterial': { shader: 'fx/data.esshader', properties: { u_bump: 'normals/shared.png' } },
+            'assets/m/child.esmaterial': { instanceOf: './root.esmaterial', properties: { u_bump: 'normals/other.png' } },
+            'assets/m/explicit.esmaterial': { shader: './fx/data.esshader', properties: { u_bump: 'normals/shared.png' } },
+        }, { 'normals/shared.png': {}, 'assets/m/normals/shared.png': {}, 'normals/other.png': {} }));
+        expect(found).toEqual([
+            { texture: 'assets/m/normals/shared.png', readBy: [{ material: 'assets/m/root.esmaterial', param: 'u_bump' }] },
+            { texture: 'normals/other.png', readBy: [{ material: 'assets/m/child.esmaterial', param: 'u_bump' }] },
+        ]);
+    });
+
+    it('finishes on broken or cyclic parent chains without trusting unused instance shader fields', async () => {
+        const found = await dataTexturesMarkedColour(project({
+            'assets/m/a.esmaterial': { instanceOf: './b.esmaterial', shader: 'builtin:model', properties: { u_normalMap: './n.png' } },
+            'assets/m/b.esmaterial': { instanceOf: './a.esmaterial' },
+            'assets/m/c.esmaterial': { instanceOf: './missing.esmaterial', shader: 'builtin:model', properties: { u_normalMap: './n.png' } },
+        }, { 'assets/m/n.png': {} }));
+        expect(found).toEqual([]);
+    });
 });

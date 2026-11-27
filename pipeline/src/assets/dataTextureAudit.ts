@@ -11,7 +11,7 @@
  */
 import { reflectEsshader } from '../../../sdk/src/render/shaderReflect';
 import { builtinShaderTemplate } from '../../../sdk/src/render/builtinShaders';
-import { builtinRefId, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { builtinRefId, resolveDocumentRef, resolveIndexedSiblingRef } from '../../../sdk/src/asset/documentRef';
 import { DATA_TEXTURE_FIELDS } from '../../../sdk/src/asset/textureUse';
 import { textureUse } from '../project/importSettings';
 
@@ -43,11 +43,14 @@ function refFrom(src: DataTextureAuditSource, documentPath: string, ref: string)
 
 /** Every texture read as data by some material and still marked sRGB, in path order. */
 export async function dataTexturesMarkedColour(src: DataTextureAuditSource): Promise<DataTextureFinding[]> {
+    const materialRef = (owner: string, ref: string): string | null => {
+        const resolved = resolveIndexedSiblingRef(owner, ref, candidate => src.resolveRef(candidate) !== null);
+        const path = src.resolveRef(resolved);
+        return path === null ? null : withoutLeadingSlash(path);
+    };
     const dataParams = new Map<string, string[]>();
-    const paramsOf = async (materialPath: string, shaderRef: string): Promise<string[]> => {
-        const builtin = builtinRefId(shaderRef);
-        const key = builtin !== null ? shaderRef : refFrom(src, materialPath, shaderRef);
-        if (key === null) return [];
+    const paramsOf = async (key: string): Promise<string[]> => {
+        const builtin = builtinRefId(key);
         let params = dataParams.get(key);
         if (!params) {
             const source = builtin !== null
@@ -63,23 +66,43 @@ export async function dataTexturesMarkedColour(src: DataTextureAuditSource): Pro
         if (!text) return null;
         try { return JSON.parse(text) as MaterialDoc; } catch { return null; }
     };
+    const shaders = new Map<string, string | null>();
+    const shaderOf = async (path: string, initial: MaterialDoc): Promise<string | null> => {
+        const visited = new Set<string>();
+        let owner = path;
+        let shader: string | null = null;
+        while (!visited.has(owner)) {
+            const known = shaders.get(owner);
+            if (known !== undefined) { shader = known; break; }
+            visited.add(owner);
+            const doc = owner === path ? initial : await readDoc(owner);
+            if (!doc) break;
+            // Instances ignore their own shader field and inherit the root's.
+            if (typeof doc.instanceOf === 'string' && doc.instanceOf) {
+                const parent = materialRef(owner, doc.instanceOf);
+                if (parent === null) break;
+                owner = parent;
+                continue;
+            }
+            if (typeof doc.shader === 'string' && doc.shader) {
+                shader = builtinRefId(doc.shader) !== null ? doc.shader : materialRef(owner, doc.shader);
+            }
+            break;
+        }
+        for (const material of visited) shaders.set(material, shader);
+        return shader;
+    };
 
     const found = new Map<string, DataTextureFinding>();
     for (const materialPath of src.materials) {
         const doc = await readDoc(materialPath);
         if (!doc) continue;
-        // An instance takes its parent's shader; its own properties are what it binds.
-        let shader = typeof doc.shader === 'string' ? doc.shader : null;
-        if (!shader && typeof doc.instanceOf === 'string') {
-            const parentPath = refFrom(src, materialPath, doc.instanceOf);
-            const parent = parentPath ? await readDoc(parentPath) : null;
-            shader = typeof parent?.shader === 'string' ? parent.shader : null;
-        }
+        const shader = await shaderOf(materialPath, doc);
         if (!shader) continue;
-        for (const param of await paramsOf(materialPath, shader)) {
+        for (const param of await paramsOf(shader)) {
             const value = doc.properties?.[param];
             if (typeof value !== 'string') continue;
-            const path = refFrom(src, materialPath, value);
+            const path = materialRef(materialPath, value);
             if (!path) continue;
             if (src.importer(path)?.sRGB === false) continue;
             const finding = found.get(path) ?? { texture: path, readBy: [] };
