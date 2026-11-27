@@ -442,6 +442,7 @@ export {
     collapseInstance,
     expandEntry,
     collapseEntry,
+    preparePrefabEntryCollapse,
     rebuildChildren,
     extractPrefab,
     applyDeltaToSource,

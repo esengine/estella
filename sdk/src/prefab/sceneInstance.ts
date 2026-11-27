@@ -32,6 +32,7 @@ import { isSceneTarget, sharedPrefabEdits } from './publishBindings';
 import { diffEntities } from './diff';
 import type { DeferredRecord } from './deferred';
 import type { DiffBaselineEntity } from './diff';
+import type { PrefabSource } from './source';
 import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../ecs/component';
@@ -249,7 +250,14 @@ export function collapseInstance(
     expanded: readonly ProcessedEntity[],
     loadPrefab: SyncPrefabResolver = NO_NESTED,
 ): PrefabInstanceDelta {
-    const { entities: baseline, parentOf } = collapseBaseline(prefab, loadPrefab);
+    return collapseAgainstBaseline(collapseBaseline(prefab, loadPrefab), prefabRef, expanded);
+}
+
+function collapseAgainstBaseline(
+    { entities: baseline, parentOf }: ReturnType<typeof collapseBaseline>,
+    prefabRef: string,
+    expanded: readonly ProcessedEntity[],
+): PrefabInstanceDelta {
     const { overrides, untracked, orphanedSourceIds } = diffEntities(baseline, expanded);
     const byId = new Map(expanded.map(e => [e.id, e.prefabEntityId]));
     const added: AddedEntity[] = untracked.map((u) => ({
@@ -334,6 +342,14 @@ export function collapseEntry(
     loadPrefab: SyncPrefabResolver = NO_NESTED,
 ): PrefabInstanceEntry {
     return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded, loadPrefab) };
+}
+
+/** Prepare one read-only prefab source snapshot for collapsing multiple scene instances. */
+export function preparePrefabEntryCollapse(source: PrefabSource): (
+    prefabRef: string, expanded: readonly ProcessedEntity[], rootId: number, sceneParent: number | null,
+) => PrefabInstanceEntry {
+    const baseline = collapseBaseline(source.prefab, ref => source.dependencies.get(ref) ?? null);
+    return (prefabRef, expanded, id, parent) => ({ id, parent, ...collapseAgainstBaseline(baseline, prefabRef, expanded) });
 }
 
 // ── Apply-to-Prefab: fold a whole instance delta back into the asset ─────────
