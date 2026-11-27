@@ -264,25 +264,29 @@ function diffComponents(
         // Per-property diff keeps override list small and human-readable,
         // and lets Inspector "revert this field" work without dragging the
         // whole component along.
-        const entityFields = new Set(getComponent(type)?.entityFields ?? []);
-        const keys = new Set<string>([
-            ...Object.keys(baseComp.data),
-            ...Object.keys(instComp.data),
-        ]);
-        for (const key of keys) {
-            // A key only the BASE carries is INHERITED — a component's schema owns
-            // which keys exist, hence `metadata_removed` and no `property_removed`.
-            // Diffing one clones an `undefined` that no save can write.
-            if (!(key in instComp.data)) continue;
+        const entityFields = getComponent(type)?.entityFields;
+        const baseData = baseComp.data;
+        const instData = instComp.data;
+        // Preserve source field order before appending instance-only fields.
+        const keys = Object.keys(baseData);
+        const baseKeyCount = keys.length;
+        for (const key of Object.keys(instData)) {
+            if (!hasOwn(baseData, key)) keys.push(key);
+        }
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i]!;
+            const fromBase = i < baseKeyCount;
+            // Absent instance fields keep their source values, even when the
+            // field name also exists on Object.prototype.
+            if (fromBase && !hasOwn(instData, key)) continue;
             // Entity refs diff (and store) in stable-id space so an unchanged
             // cross-reference isn't logged as a dangling numeric override — both
             // sides normalise through their own runtime-id→stable-id map.
-            const a = entityFields.has(key)
-                ? normalizeEntityRef(baseComp.data[key], baseRefMap)
-                : baseComp.data[key];
-            const b = entityFields.has(key)
-                ? normalizeEntityRef(instComp.data[key], instRefMap)
-                : instComp.data[key];
+            const baseValue = fromBase ? baseData[key] : undefined;
+            const instanceValue = instData[key];
+            const isEntityRef = entityFields?.includes(key);
+            const a = isEntityRef ? normalizeEntityRef(baseValue, baseRefMap) : baseValue;
+            const b = isEntityRef ? normalizeEntityRef(instanceValue, instRefMap) : instanceValue;
             if (!deepEqual(a, b, eps)) {
                 out.push({
                     prefabEntityId: entityId,

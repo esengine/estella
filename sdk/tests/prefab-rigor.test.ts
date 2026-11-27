@@ -486,6 +486,17 @@ describe('diffAgainstSource', () => {
         });
     });
 
+    it('compares own JSON fields and keeps baseline order before instance additions', () => {
+        const prefab = uuidPrefab();
+        const instance = cloneForInstance(prefab);
+        prefab.entities[0].components[0].data = JSON.parse('{"y":1,"x":2,"constructor":"kept"}');
+        instance[0].components[0].data = JSON.parse('{"extra":true,"x":5,"y":3,"__proto__":{"label":"own data"}}');
+        const { overrides } = diffAgainstSource(prefab, instance);
+        expect(overrides.map(override => [override.propertyName, override.value])).toEqual([
+            ['y', 3], ['x', 5], ['extra', true], ['__proto__', { label: 'own data' }],
+        ]);
+    });
+
     it('emits component_added for new component and component_removed for missing one', () => {
         const prefab = uuidPrefab();
         const instance = cloneForInstance(prefab);
