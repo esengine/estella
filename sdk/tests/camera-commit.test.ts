@@ -246,6 +246,7 @@ describe('the camera a frame was drawn with', () => {
         const ui = app.getResource(UICameraInfo);
         expect(ui.viewProjection[12]).toBeCloseTo(0);
         expect(app.getResource(CameraCommit).viewProjection[12]).toBeCloseTo(0);
+        expect(app.getResource(CameraCommit).cullingMask).toBe(1);
         expect(app.getResource(ScreenOverlay).layerMask).toBe(1);
         RenderTexture.release(target);
         draws.mockClear();
@@ -434,6 +435,21 @@ describe('the camera a frame was drawn with', () => {
             expect(setAnchor).toHaveBeenLastCalledWith(true, 0, 0);
             expect(commit.parallaxAnchor).toEqual({ x: 0, y: 0 });
             expect(callback).toHaveBeenCalledTimes(2);
+        } finally { off(); }
+    });
+
+    it('publishes a changed mask only after the screen camera is drawn', async () => {
+        const { app, cam } = bootWithCamera();
+        await app.tick(1 / 60);
+        const commit = app.getResource(CameraCommit);
+        expect(commit.cullingMask).toBe(0xFFFFFFFF);
+        const callback = vi.fn(), off = onCameraCommitChanged(callback);
+        try {
+            app.world.update(cam, Camera, data => { data.cullingMask = 0x80000000; });
+            expect(commit.cullingMask).toBe(0xFFFFFFFF);
+            await app.tick(1 / 60);
+            expect(commit.cullingMask).toBe(0x80000000);
+            expect(callback).toHaveBeenCalledOnce();
         } finally { off(); }
     });
 

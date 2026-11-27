@@ -2370,6 +2370,7 @@ ResourceDef<CameraCommitData>
 
 ## CameraCommitData — interface @beta
 ```
+cullingMask: number | undefined
 parallaxAnchor: Readonly<Vec2> | undefined
 rebasedProjection: RebasedProjection | undefined
 revision: number
@@ -4728,6 +4729,7 @@ ResourceDef<EntityEventQueue>
 
 ## EntityPickOptions — interface @experimental
 ```
+cullingMask: number | undefined
 depthLayers: number | undefined
 extentOf: ((entity: Entity) => { x: number; y: number; width: number; height: number; } | null) | undefined
 fallbackPickable: ((entity: Entity) => boolean) | undefined

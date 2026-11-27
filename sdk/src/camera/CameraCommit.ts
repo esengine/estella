@@ -31,6 +31,8 @@ export interface CameraCommitData {
     rebasedProjection?: RebasedProjection;
     /** World-space parallax override used by the editor view for this frame. */
     parallaxAnchor?: Readonly<Vec2>;
+    /** Sorting-layer mask used to draw the committed screen camera. */
+    cullingMask?: number;
     /** Where the picture landed, in window pixels. */
     vpX: number;
     vpY: number;

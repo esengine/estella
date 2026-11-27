@@ -13,7 +13,7 @@ import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
 import { Transform, Sprite, ShapeRenderer, MeshRenderer, SortingGroup, Parent } from './component';
 import {
-    layerOrderOf, rankPickCandidates, sortingIdentity, type PickCandidate,
+    layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
     entityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld, type EntityBoxOptions,
@@ -72,6 +72,8 @@ export interface EntityPickOptions {
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
     ySortLayers?: number;
     depthLayers?: number;
+    /** Sorting layers drawn by the camera producing this ray. Defaults to all layers. */
+    cullingMask?: number;
 }
 
 /**
@@ -87,6 +89,7 @@ export function pickEntitiesByRay(
     world: PickWorld, ray: WorldRay, opts: EntityPickOptions = {},
 ): Entity[] {
     const iconHalf = opts.iconHalf ?? 0;
+    const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
     // Whether icons are pickable at all, which is the question here — how big one is
     // where it stands is entityWorldBox's.
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
@@ -117,6 +120,7 @@ export function pickEntitiesByRay(
             mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
             (sprite as { order?: number } | null)?.order ?? 0,
         );
+        if (cullingMask !== 0xFFFFFFFF && (mesh || sprite) && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
         const t = world.get(entity, Transform);
         const candidate: PickCandidate<Entity> = {
             entity,

@@ -180,6 +180,23 @@ describe('picking entities by ray', () => {
         expect(fallbackPickable.mock.calls).toEqual([[ent(2)], [ent(3)]]);
     });
 
+    it('keeps only layers visible to the camera, including group overrides and layerless draws', () => {
+        const bounds = { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 };
+        const world = fakeWorld({
+            1: { Transform: T(0, 0, 8), MeshRenderer: { opaque: true, layer: 3 }, Parent: { entity: ent(5) } },
+            2: { Transform: T(0, 0), Sprite: sprite(31) },
+            3: { Transform: T(0, 0), Sprite: sprite(32) },
+            4: { Transform: T(0, 0), Sprite: sprite(3), Parent: { entity: ent(5) } },
+            5: { SortingGroup: { layer: 1, enabled: true, order: 0 } },
+            6: { Transform: T(0, 0) },
+            7: { Transform: T(0, 0, -8), MeshRenderer: { opaque: true, layer: 31 } },
+        }, { 1: bounds, 7: bounds });
+        expect(pickEntitiesByRay(world, down(0, 0), { cullingMask: 0x80000000, iconHalf: 8 }))
+            .toEqual([ent(6), ent(3), ent(2), ent(7)]);
+        expect(pickEntitiesByRay(world, down(0, 0), { cullingMask: 0 }))
+            .toEqual([ent(3)]);
+    });
+
     // Depth is the ray's, not the cursor's plane: a sprite well behind another is
     // still under the same pixel, and both were always meant to be reachable.
     it('meets everything along the ray, at whatever depth', () => {

@@ -22,6 +22,16 @@ export enum LayerOrder {
     Depth = 2,
 }
 
+function layerBit(layer: number): number {
+    return Number.isInteger(layer) && layer >= 0 && layer < 32 ? 1 << layer : 0;
+}
+
+/** World draws outside the camera's 32 layer bits remain visible. */
+export function layerVisibleToCamera(layer: number, mask: number): boolean {
+    const bit = layerBit(layer);
+    return bit === 0 || (bit & mask) !== 0;
+}
+
 /**
  * The one answer for @p layer, from two masks that are two spellings of the same
  * question. Y-sort is a depth PROJECTED from world Y and depth is the real thing,
@@ -30,8 +40,7 @@ export enum LayerOrder {
  * outside 0..31 have no bit and are therefore painter-ordered.
  */
 export function layerOrderOf(layer: number, ySortMask: number, depthMask: number): LayerOrder {
-    if (!Number.isInteger(layer) || layer < 0 || layer >= 32) return LayerOrder.Painter;
-    const bit = 1 << layer;
+    const bit = layerBit(layer);
     if ((ySortMask & bit) !== 0) return LayerOrder.YSort;
     if ((depthMask & bit) !== 0) return LayerOrder.Depth;
     return LayerOrder.Painter;

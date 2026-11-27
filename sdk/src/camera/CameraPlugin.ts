@@ -732,11 +732,14 @@ function commitCamera(
     }
     const rebasedMoved = copyRebasedProjection(commit, cam);
     const parallaxMoved = commit.parallaxAnchor?.x !== anchor?.x || commit.parallaxAnchor?.y !== anchor?.y;
+    const cullingMask = cam.cullingMask >>> 0;
     const moved = !commit.valid || rebasedMoved || parallaxMoved
+        || commit.cullingMask !== cullingMask
         || commit.vpX !== uiCam.vpX || commit.vpY !== uiCam.vpY
         || commit.vpW !== uiCam.vpW || commit.vpH !== uiCam.vpH
         || !sameMatrix(commit.viewProjection, cam.viewProjection);
     commit.viewProjection.set(cam.viewProjection);
+    commit.cullingMask = cullingMask;
     if (parallaxMoved) commit.parallaxAnchor = anchor;
     commit.vpX = uiCam.vpX;
     commit.vpY = uiCam.vpY;
