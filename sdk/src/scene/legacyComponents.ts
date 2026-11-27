@@ -88,6 +88,15 @@ export function needsComponentUpgrade(entity: UpgradableEntity): boolean {
         || (c.type === 'Light' && ('direction' in c.data || 'directionZ' in c.data)));
 }
 
+/** Component records for a read-only projection, cloning only when a migration writes to them. */
+export function upgradedComponentRecords(components: UpgradableComponent[]): UpgradableComponent[] {
+    if (!needsComponentUpgrade({ components })) return components;
+    // Migrations write to a component's type and top-level data fields.
+    const copy = { components: components.map(component => ({ ...component, data: { ...component.data } })) };
+    upgradeEntityComponents(copy);
+    return copy.components;
+}
+
 /**
  * Move a light's aim onto the entity carrying it: `direction`/`directionZ` become
  * the rotation whose forward they are, replacing whatever rotation the file

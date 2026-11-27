@@ -80,6 +80,26 @@ describe('cooking a world that instances a prefab', () => {
             .toEqual(['main.cell_0_0']);
     });
 
+    it('writes legacy scene entities and prefab instances into their authored cells', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const prefabFile = path.join(root, 'assets/prefabs/Hut.esprefab');
+        const prefab = JSON.parse(await readFile(prefabFile, 'utf8'));
+        prefab.entities[0].components[0].type = 'WorldTransform';
+        await writeFile(prefabFile, JSON.stringify(prefab));
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities.push({ id: 2, parent: null, children: [], name: 'Tower', components: [
+            { type: 'LocalTransform', data: { position: { x: 2500, y: 0, z: 500 } } },
+        ] });
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_1_0', 'main.cell_2_0']);
+        const tower = JSON.parse(await readFile(path.join(root, 'world/main.cell_2_0.json'), 'utf8'));
+        expect(tower.entities[0].components[0]).toEqual({
+            type: 'Transform', data: { position: { x: 2500, y: 0, z: 500 } },
+        });
+    });
+
     it('writes canonical child lists and texture settings into streamed output files', async () => {
         const root = await projectWith([1500, 0, 500], null);
         const sceneFile = path.join(root, 'assets/scenes/main.esscene');

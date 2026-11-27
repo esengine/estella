@@ -16,7 +16,7 @@ import { farProxySettings } from '../src/residency/farProxy';
 import { RuntimeConfig } from '../src/defaults';
 import { StreamPlane } from '../src/residency/components';
 import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
-import { loadSceneData, type SceneData } from '../src/scene/scene';
+import { loadSceneData, migrateSceneData, type SceneData } from '../src/scene/scene';
 import { validateScene } from '../src/scene/validateScene';
 import { Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { World } from '../src/ecs/world';
@@ -95,6 +95,35 @@ it('overlaps prefab reads within the asset preload limit', async () => {
 });
 
 describe('partitionWorld', () => {
+    it.each([StreamPlane.Screen, StreamPlane.Ground])('cuts legacy scene components the same way as project open (plane %s)', plane => {
+        const root = entity(1, 'Old rig', null, { components: [
+            { type: 'LocalTransform', data: { position: { x: 1200, y: 2200, z: 3200 } } },
+            { type: 'Light2D', data: { type: 1, direction: { x: 1, y: 0 }, directionZ: 0 } },
+        ] });
+        const authored = { ...scene(
+            entity(0, 'World', null, { components: [{ ...declaration, data: { cellSize: SIZE, plane } }] }),
+            root, entity(2, 'Child', [0, 0, -2200], { parent: 1 }),
+        ), version: '1.0' as const };
+        const before = JSON.stringify(authored);
+        const expected = cut(migrateSceneData(authored).data)!;
+        const actual = cut(authored)!;
+        expect(actual.errors).toEqual([]);
+        expect(actual.cells.map(cell => [cell.x, cell.z, names(cell.data)]))
+            .toEqual([[1, plane === StreamPlane.Screen ? 2 : 3, ['Old rig', 'Child']]]);
+        expect(actual.cells.map(({ data: _, ...cell }) => cell)).toEqual(expected.cells.map(({ data: _, ...cell }) => cell));
+        expect(actual.cells[0].data.entities).toEqual(expected.cells[0].data.entities);
+        expect(JSON.stringify(authored)).toBe(before);
+    });
+
+    it('places a plain legacy prefab from the transform its runtime will use', async () => {
+        const authored = scene(entity(0, 'World', null, { components: [declaration] }), { id: 1, prefab: 'old', parent: null, overrides: [] });
+        const resolvePrefab = await resolvePrefabRoots(authored, async () => ({ version: '1.0', rootEntityId: 'r', entities: [
+            { prefabEntityId: 'r', components: [{ type: 'WorldTransform', data: { position: { x: 1700, y: 0, z: -500 } } }] },
+        ] }));
+        expect(cutWorld(authored, 'main', { ...options, resolvePrefab })!.manifest.cells.map(cell => cell.name))
+            .toEqual(['main.cell_1_-1']);
+    });
+
     it('leaves a scene that never declared itself streamed alone', () => {
         expect(cut(scene(entity(0, 'Ground', [0, 0, 0])))).toBeNull();
     });

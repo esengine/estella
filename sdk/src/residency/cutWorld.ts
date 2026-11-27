@@ -16,6 +16,7 @@
 import { partitionWorld, type PartitionOptions, type PrefabRoot } from './partitionWorld';
 import type { WorldCell, WorldManifest } from './cells';
 import type { SceneData } from '../scene/scene';
+import { upgradedComponentRecords } from '../scene/legacyComponents';
 import { flattenPrefab } from '../prefab/flatten';
 import { createPrefabSourceLoader } from '../prefab/source';
 import type { PrefabData, PrefabEntityData } from '../prefab/types';
@@ -126,7 +127,8 @@ function authoredPrefabRoot(prefab: PrefabDocument | null) {
     return prefab.entities.find(entity => entity?.prefabEntityId === rootId);
 }
 
-function rootPlacement(rootId: string, components: PrefabEntityData['components'] | undefined): PrefabRoot {
+function rootPlacement(rootId: string, authored: PrefabEntityData['components'] | undefined): PrefabRoot {
+    const components = authored && upgradedComponentRecords(authored);
     const data = components?.find((c) => c.type === 'Transform')?.data;
     const declaration = components?.find((c) => c.type === 'StreamedWorld');
     const at = (data?.position ?? {}) as Partial<PrefabRoot['position']>;

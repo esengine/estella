@@ -25,6 +25,7 @@
  */
 
 import { isPrefabEntry, visitSceneEntryEntityReferences } from '../scene/sceneEntry';
+import { upgradedComponentRecords } from '../scene/legacyComponents';
 import { cellAt, cellSquare, planeSecond } from './cells';
 import { StreamPlane } from './components';
 import { applyOverrides } from '../prefab/override';
@@ -274,15 +275,20 @@ export function partitionWorld(
     const warnings: string[] = [];
     const byId = new Map<number, IndexedEntry>();
     let otherDeclaration: SceneEntry | undefined;
-    for (const entry of entries) {
-        if (byId.has(entry.id)) {
+    for (const source of entries) {
+        if (byId.has(source.id)) {
             return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
-                errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
+                errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${source.id}`] };
+        }
+        let entry = source;
+        if (!isPrefabEntry(source) && source.components) {
+            const components = upgradedComponentRecords(source.components);
+            if (components !== source.components) entry = { ...source, components };
         }
         byId.set(entry.id, { entry, parentId: null, children: undefined, bucket: undefined });
         if (!otherDeclaration) {
-            const asset = isPrefabEntry(entry) ? options.resolvePrefab?.(entry.prefab) : undefined;
-            if (declarationsOn(entry, asset)?.[entry === declared ? 1 : 0]) otherDeclaration = entry;
+            const asset = isPrefabEntry(source) ? options.resolvePrefab?.(source.prefab) : undefined;
+            if (declarationsOn(source, asset)?.[source === declared ? 1 : 0]) otherDeclaration = source;
         }
     }
     if (otherDeclaration) {
@@ -320,7 +326,7 @@ export function partitionWorld(
         const { entry } = root;
         const { transform, worldPersistent } = localPlacement(entry, options, errors);
         const streamed = !worldPersistent
-            && entry !== declared
+            && entry.id !== declared.id
             && (isPrefabEntry(entry) || transform !== null);
         const rootPosition = vec3(transform?.position, ORIGIN);
         let cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
