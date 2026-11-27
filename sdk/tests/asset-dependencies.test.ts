@@ -667,6 +667,47 @@ describe('a handle-bound loader owns nothing of its own', () => {
         expect(pool.liveTextures()).toBe(0);
     });
 
+    it('owns every successful map when independent material textures finish out of order', async () => {
+        materialFake.Material.setUniform.mockClear();
+        const ref = 'materials/hero.esmaterial';
+        const assets = realm({ 'hero.esmaterial': JSON.stringify({
+            type: 'material', shader: 'builtin:sprite-unlit',
+            properties: { albedo: 'wall.png', missing: 'missing.png', detail: 'detail.png' },
+        }) });
+        const pixel = { width: 4, height: 4, pixels: new Uint8Array(64) };
+        let finishAlbedo!: () => void;
+        const albedo = new Promise<typeof pixel>(resolve => { finishAlbedo = () => resolve(pixel); });
+        const decode = vi.fn(async (path: string) => {
+            if (path.endsWith('/wall.png')) return albedo;
+            if (path.endsWith('/missing.png')) throw new Error('missing map');
+            return pixel;
+        });
+        assets.getTextureLoader().setPixelDecoder(decode);
+        const pending = assets.acquireTyped('material', ref);
+        try {
+            await vi.waitFor(() => {
+                expect(decode).toHaveBeenCalledTimes(3);
+                expect(pool.liveTextures()).toBe(1);
+            });
+        } finally {
+            finishAlbedo();
+            const held = await pending;
+            try {
+                expect(pool.liveTextures()).toBe(2);
+                expect(assets.dependenciesOf('material', ref)).toEqual(expect.arrayContaining([
+                    { kind: 'owned', type: 'texture', path: 'materials/wall.png' },
+                    { kind: 'owned', type: 'texture', path: 'materials/detail.png' },
+                    { kind: 'source', path: 'materials/missing.png' },
+                ]));
+            } finally { held.release(); }
+        }
+        expect(materialFake.Material.setUniform).toHaveBeenCalledWith(expect.any(Number), 'albedo', expect.anything());
+        expect(materialFake.Material.setUniform).toHaveBeenCalledWith(expect.any(Number), 'detail', expect.anything());
+        expect(materialFake.Material.setUniform).not.toHaveBeenCalledWith(expect.any(Number), 'missing', expect.anything());
+        expect(assets.getAssetProblems(ref)).toEqual([expect.stringContaining('missing map')]);
+        expect(pool.liveTextures()).toBe(0);
+    });
+
     it('invalidates a material when a newly indexed sibling takes precedence over its fallback texture', async () => {
         const assets = realm({ 'hero.esmaterial': MATERIAL });
         const ref = 'materials/hero.esmaterial', sibling = 'materials/wall.png';

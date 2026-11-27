@@ -78,6 +78,20 @@ describe('MaterialAssetLoader texture failure', () => {
         ]);
     });
 
+    it('treats an empty texture property as unassigned, as the editor does', async () => {
+        const ctx = makeCtx();
+        ctx.noteAssetProblems = vi.fn();
+        vi.mocked(ctx.loadText).mockResolvedValueOnce(JSON.stringify({
+            type: 'material', shader: 'fx.esshader', properties: { mainTex: '' },
+        }));
+
+        await new MaterialAssetLoader().load(MAT_PATH, ctx);
+
+        expect(ctx.acquireTexture).not.toHaveBeenCalled();
+        expect(ctx.noteAssetProblems).toHaveBeenCalledWith(MAT_PATH, []);
+        expect(Material.setUniform).not.toHaveBeenCalled();
+    });
+
     it('warns with the material path and the texture path', async () => {
         const loader = new MaterialAssetLoader();
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

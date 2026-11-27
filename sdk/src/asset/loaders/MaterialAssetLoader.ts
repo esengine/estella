@@ -60,14 +60,23 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         ctx: LoadContext,
         resolve: (ref: string) => string,
     ): Promise<string[]> {
-        const problems: string[] = [];
+        const textures: { name: string; path: string }[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
-            if (typeof value !== 'string') continue;
+            if (typeof value !== 'string' || !value) continue;
             const texPath = resolve(value);
             ctx.noteMaterialTexture?.(matPath, texPath);
+            textures.push({ name, path: texPath });
+        }
+        if (!textures.length) return [];
+
+        // The preparation owns these acquisitions. Let every map settle before committing it.
+        const results = await Promise.allSettled(textures.map(async ({ path }) => ctx.acquireTexture(path)));
+        const problems: string[] = [];
+        for (const [index, result] of results.entries()) {
+            const { name, path: texPath } = textures[index];
             try {
-                const tex = await ctx.acquireTexture(texPath);
-                Material.setUniform(handle, name, Material.tex(tex.value.handle));
+                if (result.status === 'rejected') throw result.reason;
+                Material.setUniform(handle, name, Material.tex(result.value.value.handle));
             } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
                 log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
