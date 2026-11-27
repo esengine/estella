@@ -10,8 +10,10 @@
  *          document that draws them. A host brings the bytes (how a mesh reference is read) and the simplifier, if it has one.
  */
 
-import { expandScenePrefabs, type PrefabAssetResolver, type SceneData, type SceneEntityData } from '../scene/scene';
-import { composeTRS, multiplyAffine } from '../math/mat4';
+import { expandScenePrefabs, migrateSceneData, parseSceneFormatVersion, SCENE_FORMAT_VERSION,
+    type PrefabAssetResolver, type SceneData, type SceneEntityData } from '../scene/scene';
+import { needsComponentUpgrade } from '../scene/legacyComponents';
+import { composeTRS, IDENTITY, multiplyAffine } from '../math/mat4';
 import { MeshChannel, MeshChannelType, type MeshData } from '../asset/meshFormat';
 import { channelSignature, mergeMeshes, planStaticBatches, staticBatchKey, type StaticBatchState } from '../render/staticBatch';
 import { builtinMeshTemplate } from '../asset/builtinMeshes';
@@ -85,8 +87,7 @@ export function farProxySettings(scene: SceneData): FarProxySettings | null {
     return null;
 }
 
-function localMatrix(entity: SceneEntityData): number[] {
-    const transform = componentOf(entity, 'Transform') ?? {};
+function localMatrix(transform: Record<string, unknown>): number[] {
     const p = (transform.position ?? {}) as Partial<Vec3>;
     const q = (transform.rotation ?? {}) as Partial<Quat>;
     const s = (transform.scale ?? {}) as Partial<Vec3>;
@@ -99,13 +100,60 @@ function localMatrix(entity: SceneEntityData): number[] {
 
 /** Whether an entity moves on its own: a character, a body that is not static, or an animated rig. */
 function moves(entity: SceneEntityData): boolean {
-    if (componentOf(entity, 'CharacterController3D') || componentOf(entity, 'Animator')) return true;
-    for (const type of ['RigidBody3D', 'RigidBody']) {
+    if (componentOf(entity, 'CharacterController2D') || componentOf(entity, 'CharacterController3D')
+        || componentOf(entity, 'Animator')) return true;
+    for (const type of ['RigidBody3D', 'RigidBody2D']) {
         const body = componentOf(entity, type);
         // A body that does not say is the component's default, which is dynamic.
         if (body && finite(body.bodyType, 2) !== 0) return true;
     }
     return false;
+}
+
+interface ProxyHierarchy {
+    disabled: boolean;
+    excluded: boolean;
+    moving: boolean;
+    matrix?: number[];
+}
+
+/** Memoize the inherited state of the requested surfaces, visiting ancestors without recursion. */
+function proxyHierarchy(entities: readonly SceneEntityData[], scene: string): (id: number) => ProxyHierarchy {
+    const byId = new Map<number, SceneEntityData>();
+    // The scene loader does not spawn these rows. Their children can still be
+    // present, in which case their parent link stops here.
+    for (const entity of entities) if (entity.visible !== false) byId.set(entity.id, entity);
+    const memo = new Map<number, ProxyHierarchy>();
+    return (id: number) => {
+        const path: SceneEntityData[] = [];
+        const seen = new Set<number>();
+        let inherited: ProxyHierarchy | undefined;
+        for (let row = byId.get(id); row; row = row.parent == null ? undefined : byId.get(row.parent)) {
+            inherited = memo.get(row.id);
+            if (inherited) break;
+            if (seen.has(row.id)) throw new Error(`Scene "${scene}" has a parent cycle at entity ${row.id}`);
+            seen.add(row.id);
+            path.push(row);
+        }
+        for (let i = path.length - 1; i >= 0; i--) {
+            const row = path[i]!;
+            const disabled = inherited?.disabled || componentOf(row, 'Disabled') !== null;
+            const excluded = inherited?.excluded || componentOf(row, 'ExcludeFromFarProxy') !== null;
+            const moving = inherited?.moving || moves(row);
+            let matrix: number[] | undefined;
+            if (!disabled && !excluded && !moving) {
+                matrix = inherited?.matrix;
+                const transform = componentOf(row, 'Transform');
+                if (transform) {
+                    const local = localMatrix(transform);
+                    matrix = matrix ? multiplyAffine(matrix, local) : local;
+                }
+            }
+            inherited = { disabled, excluded, moving, matrix };
+            memo.set(row.id, inherited);
+        }
+        return inherited!;
+    };
 }
 
 /**
@@ -128,41 +176,13 @@ export async function farProxySurfaces(
             : entry;
     }) as SceneData['entities'];
     const expanded = await expandScenePrefabs({ ...cell, entities: entries }, loadPrefab, { expandVirtual: true });
-    const byId = new Map<number, SceneEntityData>();
-    for (const entity of expanded.entities ?? []) byId.set(entity.id, entity);
-    const worlds = new Map<number, number[]>();
-    const moving = new Map<number, boolean>();
-    const worldOf = (id: number, seen: Set<number> = new Set()): number[] => {
-        const known = worlds.get(id);
-        if (known) return known;
-        const entity = byId.get(id)!;
-        const parent = entity.parent !== null && entity.parent !== undefined && byId.has(entity.parent) && !seen.has(entity.parent)
-            ? entity.parent : null;
-        seen.add(id);
-        const world = parent === null ? localMatrix(entity) : multiplyAffine(worldOf(parent, seen), localMatrix(entity));
-        worlds.set(id, world);
-        return world;
-    };
-    /** Whether `test` holds of the entity or of any ancestor, remembered in `known`. */
-    const inherited = (known: Map<number, boolean>, test: (entity: SceneEntityData) => boolean) => {
-        const of = (id: number, seen: Set<number> = new Set()): boolean => {
-            const remembered = known.get(id);
-            if (remembered !== undefined) return remembered;
-            const entity = byId.get(id)!;
-            seen.add(id);
-            const parent = entity.parent ?? null;
-            const result = test(entity) || (parent !== null && byId.has(parent) && !seen.has(parent) && of(parent, seen));
-            known.set(id, result);
-            return result;
-        };
-        return of;
-    };
-    const movesOf = inherited(moving, moves);
-    const excludedOf = inherited(new Map(), (entity) => componentOf(entity, 'ExcludeFromFarProxy') !== null);
+    const normalized = parseSceneFormatVersion(expanded.version) > SCENE_FORMAT_VERSION
+        || expanded.entities.some(needsComponentUpgrade) ? migrateSceneData(expanded).data : expanded;
+    const hierarchyOf = proxyHierarchy(normalized.entities, cell.name);
 
     const surfaces: FarProxySurface[] = [];
     const skipped: Array<{ entity: number; reason: FarProxySkip }> = [];
-    for (const entity of expanded.entities ?? []) {
+    for (const entity of normalized.entities) {
         const renderer = componentOf(entity, 'MeshRenderer');
         if (!renderer) continue;
         const skip = (reason: FarProxySkip): void => { skipped.push({ entity: entity.id, reason }); };
@@ -172,9 +192,11 @@ export async function farProxySurfaces(
         if (componentOf(entity, 'MeshSkin')) { skip('skinned'); continue; }
         const billboard = componentOf(entity, 'Billboard');
         if (billboard && billboard.enabled !== false) { skip('billboard'); continue; }
-        if (excludedOf(entity.id)) { skip('excluded'); continue; }
-        if (movesOf(entity.id)) { skip('moves'); continue; }
-        surfaces.push({ entity: entity.id, mesh: renderer.mesh, world: worldOf(entity.id), renderer: { ...renderer } });
+        const { disabled, excluded, moving, matrix } = hierarchyOf(entity.id);
+        if (disabled) { skip('disabled'); continue; }
+        if (excluded) { skip('excluded'); continue; }
+        if (moving) { skip('moves'); continue; }
+        surfaces.push({ entity: entity.id, mesh: renderer.mesh, world: matrix?.slice() ?? Array.from(IDENTITY), renderer: { ...renderer } });
     }
     return { surfaces, skipped };
 }

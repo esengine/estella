@@ -125,6 +125,20 @@ describe('cooking a world with far proxies', () => {
         expect(stats.trianglesAfter).toBeLessThanOrEqual(stats.trianglesBefore);
     });
 
+    it('omits an inactive prefab and a moving 2D mesh from the baked proxies', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const file = path.join(root, 'assets/scenes/main.esscene');
+        const document = JSON.parse(await readFile(file, 'utf8'));
+        document.entities[1].overrides.push({ prefabEntityId: 'r', type: 'component_added',
+            componentData: { type: 'Disabled', data: {} } });
+        document.entities[4].components[2].type = 'RigidBody2D';
+        await writeFile(file, JSON.stringify(document));
+
+        const { result, manifest } = await cook(root);
+        expect(manifest.cells.map(cell => !!cell.proxy)).toEqual([true, false]);
+        expect(result.farProxies[0]).toMatchObject({ cells: 1, surfaces: 2 });
+    });
+
     it('writes none for a world that does not tick far proxies', async () => {
         const { result, manifest } = await cook(await world({}));
         expect(manifest.farDistance).toBeUndefined();

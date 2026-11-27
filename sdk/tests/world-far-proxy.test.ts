@@ -9,7 +9,10 @@ import type { WorldCell, WorldManifest, ResidencySource } from '../src/residency
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
 import { farProxySettings, farProxySurfaces, farProxySceneName, assembleFarProxies } from '../src/residency/farProxy';
 import { MeshChannel } from '../src/asset/meshFormat';
-import type { SceneData } from '../src/scene/scene';
+import { loadSceneData, type SceneData } from '../src/scene/scene';
+import { Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { World } from '../src/ecs/world';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
 
@@ -228,6 +231,58 @@ describe('what a far proxy is made of', () => {
         const { surfaces, skipped } = await farProxySurfaces(scene, async () => null);
         expect(surfaces.map((s) => s.entity)).toEqual([1]);
         expect(skipped).toEqual([{ entity: 3, reason: 'excluded' }, { entity: 4, reason: 'excluded' }]);
+    });
+
+    it('matches the loaded world when an absent parent differs from an inactive parent', async () => {
+        const scene = {
+            version: 4, name: 'cell', entities: [
+                { ...entity(1, null, [place(30), { type: 'ExcludeFromFarProxy', data: {} }]), visible: false },
+                entity(2, 1, [place(8), renderer()]),
+                entity(3, null, [place(20), { type: 'Disabled', data: {} }]),
+                entity(4, 3, [place(5), renderer()]),
+            ],
+        } as unknown as SceneData;
+        const { surfaces, skipped } = await farProxySurfaces(scene, async () => null);
+        expect(surfaces.map(s => [s.entity, s.world[12]])).toEqual([[2, 8]]);
+        expect(skipped).toEqual([{ entity: 4, reason: 'disabled' }]);
+        if (!HAS_WASM) return;
+        ensureBuiltinComponentsRegistered();
+        const module = await loadWasmModule();
+        const registry = new module.Registry();
+        const world = new World();
+        world.connectCpp(registry, module);
+        try {
+            const ids = loadSceneData(world, scene);
+            world.ensureTransformsComposed();
+            expect(ids.has(1)).toBe(false);
+            expect(world.get(ids.get(2)!, Transform).worldPosition.x).toBe(surfaces[0].world[12]);
+            expect(world.isEntityActive(ids.get(4)!)).toBe(false);
+        } finally { world.disconnectCpp(); registry.delete(); }
+    });
+
+    it.each(['RigidBody2D', 'RigidBody', 'CharacterController2D'])(
+        'keeps a mesh on a moving %s ancestry out of the far proxy', async type => {
+            const scene = {
+                version: 4, name: 'cell', entities: [
+                    entity(1, null, [place(30), { type, data: {} }]),
+                    entity(2, 1, [place(2), renderer()]),
+                    entity(3, null, [place(12), renderer(), { type: 'RigidBody2D', data: { bodyType: 0 } }]),
+                ],
+            } as unknown as SceneData;
+            const { surfaces, skipped } = await farProxySurfaces(scene, async () => null);
+            expect(surfaces.map(s => s.entity)).toEqual([3]);
+            expect(skipped).toEqual([{ entity: 2, reason: 'moves' }]);
+        },
+    );
+
+    it('composes a deep authored hierarchy without exhausting the call stack', async () => {
+        const depth = 12000;
+        const entities = Array.from({ length: depth }, (_, index) =>
+            entity(index + 1, index || null, index === 0 ? [place(30)] : []));
+        entities.push(entity(depth + 1, depth, [place(8), renderer()]));
+        const scene = { version: 4, name: 'cell', entities } as unknown as SceneData;
+        const { surfaces } = await farProxySurfaces(scene, async () => null);
+        expect(surfaces.map(s => [s.entity, s.world[12]])).toEqual([[depth + 1, 38]]);
     });
 
     it('is asked for only by a world that ticks it', () => {
