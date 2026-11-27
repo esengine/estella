@@ -11,6 +11,11 @@ const MANIFEST = { 'aaaa': 'estella://project/assets/textures/hero.png' };
 const BASE = 'estella://project';
 
 describe('resolvePlayAssetRef', () => {
+    it('maps a suffixed project path to its staged web file', () => {
+        const map = { 'assets/hero.png': 'assets/123.png' };
+        expect(resolvePlayAssetRef('/assets/hero.png?v=2#map', {}, undefined, map)).toBe('assets/123.png');
+        expect(resolvePlayAssetRef('https://art.test/assets/hero.png?v=2', {}, undefined, map)).toBe('https://art.test/assets/hero.png?v=2');
+    });
     it('resolves a uuid ref through the manifest', () => {
         expect(resolvePlayAssetRef('@uuid:AAAA', MANIFEST, BASE)).toBe('estella://project/assets/textures/hero.png');
     });

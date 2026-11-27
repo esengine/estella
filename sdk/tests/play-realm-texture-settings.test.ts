@@ -25,6 +25,14 @@ describe('texture settings in a Play realm', () => {
         expect(settings('@uuid:u1')).toEqual(DATA);
     });
 
+    it('keeps texture settings for suffixed local references and realm URLs', () => {
+        const settings = playRealmTextureSettings(lookup, manifest, 'estella://project/');
+        for (const ref of ['assets/models/rock_surface.png?v=2', 'estella://project/assets/models/rock_surface.png?v=2#map']) {
+            expect(settings(ref)).toEqual(DATA);
+        }
+        expect(settings('https://elsewhere/assets/models/rock_surface.png?v=2')).toBeUndefined();
+    });
+
     it('are nothing for a texture nobody said anything about', () => {
         expect(playRealmTextureSettings(lookup, manifest, 'estella://project')('estella://project/assets/other.png')).toBeUndefined();
         expect(playRealmTextureSettings(lookup, manifest)('https://elsewhere/assets/models/rock_surface.png')).toBeUndefined();

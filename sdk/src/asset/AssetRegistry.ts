@@ -99,10 +99,18 @@ export function localAssetPathWithoutSuffix(ref: string): string {
     return ref.slice(0, suffix);
 }
 
-/** Resolve against lower-case index keys. Unknown IDs return null. */
-export function resolveIndexedAssetRef(ref: string, paths: ReadonlyMap<string, string>): string | null {
+function indexedLocalAssetPath(ref: string, indexedPaths?: Pick<ReadonlySet<string>, 'has'>): string {
+    const portable = normalizeAssetPathSeparators(ref);
+    if (!indexedPaths) return portable;
+    const local = localAssetPathWithoutSuffix(portable);
+    return local !== portable && !indexedPaths.has(portable.replace(/^\//, '')) && indexedPaths.has(local.replace(/^\//, ''))
+        ? local : portable;
+}
+
+/** Resolve against lower-case index keys and, when supplied, registered filenames. */
+export function resolveIndexedAssetRef(ref: string, paths: ReadonlyMap<string, string>, indexedPaths?: Pick<ReadonlySet<string>, 'has'>): string | null {
     const id = assetRefId(ref);
-    return id === null ? normalizeAssetPathSeparators(ref) : paths.get(id) ?? null;
+    return id === null ? indexedLocalAssetPath(ref, indexedPaths) : paths.get(id) ?? null;
 }
 
 /** Build a `"@uuid:..."` serialized ref. Validates the UUID shape. */
@@ -227,7 +235,7 @@ export class AssetRegistry {
     /** Resolve a prefixed or bare UUID to its registered path. Unknown IDs return null. */
     resolveRef(ref: string): string | null {
         const id = assetRefId(ref);
-        return id === null ? normalizeAssetPathSeparators(ref) : this.byUuid_.get(id)?.path ?? null;
+        return id === null ? indexedLocalAssetPath(ref, this.byPath_) : this.byUuid_.get(id)?.path ?? null;
     }
 
     /** Iterate all entries. Stable across consecutive calls with no mutations. */

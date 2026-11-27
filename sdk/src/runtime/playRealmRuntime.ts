@@ -32,7 +32,7 @@ import type { AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers, indexPackagedManifest } from './packagedRuntime';
-import { assetRefId, normalizeAssetPathSeparators } from '../asset/AssetRegistry';
+import { assetRefId, localAssetPathWithoutSuffix, normalizeAssetPathSeparators } from '../asset/AssetRegistry';
 
 export interface PlayRealmRuntimeConfig extends RuntimeProjectSettings {
     app: App;
@@ -124,7 +124,10 @@ export function resolvePlayAssetRef(
     // rename + possible extension swap) — resolved here so the result is the
     // extension-bearing physical path, same contract as the uuid branch.
     if (pathMap) {
-        const staged = pathMap[ref] ?? pathMap[portable.replace(/^\.?\//, '')];
+        const file = portable.replace(/^\.?\//, '');
+        const local = localAssetPathWithoutSuffix(portable);
+        const staged = pathMap[ref] ?? pathMap[file]
+            ?? (local === portable ? undefined : pathMap[local.replace(/^\.?\//, '')]);
         if (staged) return staged;
     }
     const base = (assetBaseUrl ?? '').replace(/\/$/, '');
@@ -168,7 +171,10 @@ export function playRealmTextureSettings(
         if (direct) return direct;
         const key = keyOf.get(ref);
         if (key !== undefined) return lookup(key);
-        return base && ref.startsWith(`${base}/`) ? lookup(ref.slice(base.length + 1)) : undefined;
+        const path = base && ref.startsWith(`${base}/`) ? ref.slice(base.length + 1) : ref;
+        const local = localAssetPathWithoutSuffix(path);
+        return (path !== ref ? lookup(path) : undefined)
+            ?? (local !== path ? lookup(normalizeAssetPathSeparators(local).replace(/^\//, '')) : undefined);
     };
 }
 
