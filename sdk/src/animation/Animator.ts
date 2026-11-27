@@ -327,15 +327,15 @@ function conditionHolds(
     }
 }
 
-/** First transition in `list` that is ready (conditions hold; exit time met if
- *  required), with the triggers it used. */
+/** First ready transition with a valid destination, and the triggers it used. */
 function firstReady(
+    scope: AnimatorScope,
     list: readonly AnimatorTransition[],
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
-    windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
-): { to: string; usedTriggers: string[]; fadeDuration: number; blend?: AnimatorTransitionBlend } | null {
+    windows: ReadonlySet<string>,
+): { targetPath: string[]; usedTriggers: string[]; fadeDuration: number; blend?: AnimatorTransitionBlend } | null {
     for (const t of list) {
         if (t.hasExitTime && !clipFinished) continue;
         const used: string[] = [];
@@ -344,7 +344,9 @@ function firstReady(
             if (!conditionHolds(c, params, triggers, windows)) { ok = false; break; }
             if (c.op === 'trigger') used.push(c.param);
         }
-        if (ok) return { to: t.to, usedTriggers: used, fadeDuration: t.duration ?? 0, blend: t.blend };
+        if (!ok) continue;
+        const entry = stateEntry(scope, t.to);
+        if (entry.hasLeaf) return { targetPath: entry.path, usedTriggers: used, fadeDuration: t.duration ?? 0, blend: t.blend };
     }
     return null;
 }
@@ -364,11 +366,11 @@ export function evaluateAnimatorTransitions(
     clipFinished: boolean = true,
     windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): AnimatorEvalResult {
-    const fromAny = firstReady(def.anyStateTransitions ?? [], params, triggers, clipFinished, windows);
+    const fromAny = firstReady(def, def.anyStateTransitions ?? [], params, triggers, clipFinished, windows);
     const current = def.states.find((s) => s.name === currentState);
-    const fired = fromAny ?? firstReady(current?.transitions ?? [], params, triggers, clipFinished, windows);
+    const fired = fromAny ?? firstReady(def, current?.transitions ?? [], params, triggers, clipFinished, windows);
     return fired
-        ? { next: fired.to, consumedTriggers: fired.usedTriggers }
+        ? { next: fired.targetPath[0], consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
 }
 
@@ -385,9 +387,18 @@ export const STATE_PATH_SEP = '/';
  * `initialState`; a normal state ends the path.
  */
 export function enterStatePath(scope: AnimatorScope, name: string): string[] {
-    const st = scope.states.find((s) => s.name === name);
-    if (!st || !st.stateMachine) return [name];
-    return [name, ...enterStatePath(st.stateMachine, st.stateMachine.initialState)];
+    return stateEntry(scope, name).path;
+}
+
+function stateEntry(scope: AnimatorScope, name: string): { path: string[]; hasLeaf: boolean } {
+    const path = [name];
+    let state = scope.states.find(s => s.name === name);
+    while (state?.stateMachine) {
+        const machine = state.stateMachine;
+        path.push(machine.initialState);
+        state = machine.states.find(s => s.name === machine.initialState);
+    }
+    return { path, hasLeaf: state !== undefined };
 }
 
 interface ResolvedPath {
@@ -459,9 +470,9 @@ export function evaluateAnimatorPath(
     }
 
     for (const entry of lists) {
-        const fired = firstReady(entry.list, params, triggers, clipFinished, windows);
+        const fired = firstReady(entry.scope, entry.list, params, triggers, clipFinished, windows);
         if (fired) {
-            const next = [...entry.base, ...enterStatePath(entry.scope, fired.to)];
+            const next = [...entry.base, ...fired.targetPath];
             return {
                 nextPath: next.join(STATE_PATH_SEP),
                 consumedTriggers: fired.usedTriggers,

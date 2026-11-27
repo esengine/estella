@@ -148,6 +148,24 @@ describe('editing a controller with layers', () => {
         expect(def.initialState).toBe('Idle');
     });
 
+    it('removes Any State targets only from the machine whose state was deleted', () => {
+        const idle = { to: 'Idle', conditions: [] };
+        const wave = { to: 'Wave', conditions: [] };
+        const controller = { ...base(), anyStateTransitions: [idle] };
+        const withLayer = addState(addAnimatorLayer(controller, 'arms'), 'Wave', 0, 0, 1);
+        const def = { ...withLayer, layers: [{ ...withLayer.layers![0], anyStateTransitions: [idle, wave] }] };
+
+        const layered = removeState(def, 'Idle', 1);
+        expect(layered.layers![0].initialState).toBe('Wave');
+        expect(layered.layers![0].anyStateTransitions).toEqual([wave]);
+        expect(layered.anyStateTransitions).toBe(controller.anyStateTransitions);
+        expect(def.layers[0].anyStateTransitions).toEqual([idle, wave]);
+
+        const root = removeState(def, 'Idle');
+        expect(root.anyStateTransitions).toEqual([]);
+        expect(root.layers).toBe(def.layers);
+    });
+
     it('sets what a layer IS, and refuses to on the base', () => {
         let def = addAnimatorLayer(base(), 'arms');
         def = updateAnimatorLayer(def, 1, { weight: 0.4, blend: 'additive', mask: { paths: ['chest'] } });

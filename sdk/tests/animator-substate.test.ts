@@ -5,6 +5,7 @@ import {
     Animator,
     AnimatorControllerAPI,
     evaluateAnimatorPath,
+    evaluateAnimatorTransitions,
     enterStatePath,
     leafStateOf,
     type AnimatorControllerDef,
@@ -80,6 +81,34 @@ describe('leafStateOf', () => {
 
 describe('evaluateAnimatorPath', () => {
     const def = nestedController();
+
+    it('skips a ready Any State transition to a missing state without consuming its trigger', () => {
+        const stale = { ...def, anyStateTransitions: [{ to: 'Deleted', conditions: [{ param: 'stale', op: 'trigger' as const }] }] };
+        const triggers = new Set(['stale', 'attack']);
+        expect(evaluateAnimatorPath(stale, 'Locomotion', {}, triggers)).toMatchObject({
+            nextPath: 'Combat/Swing', consumedTriggers: ['attack'],
+        });
+        expect(evaluateAnimatorTransitions(stale, 'Locomotion', {}, triggers)).toEqual({
+            next: 'Combat', consumedTriggers: ['attack'],
+        });
+    });
+
+    it('continues through the same priority list when a destination has no valid nested entry', () => {
+        const empty = { name: 'Empty', transitions: [], stateMachine: { states: [], initialState: '' } };
+        const stale = {
+            ...def, states: [...def.states, empty], anyStateTransitions: [
+                { to: 'Empty', conditions: [{ param: 'stale', op: 'trigger' as const }] },
+                { to: 'Dead', conditions: [{ param: 'dead', op: 'trigger' as const }], duration: 0.25 },
+            ],
+        };
+        const triggers = new Set(['stale', 'dead']);
+        expect(evaluateAnimatorPath(stale, 'Combat/Swing', {}, triggers)).toMatchObject({
+            nextPath: 'Dead', consumedTriggers: ['dead'], fadeDuration: 0.25,
+        });
+        expect(evaluateAnimatorTransitions(stale, 'Combat', {}, triggers)).toEqual({
+            next: 'Dead', consumedTriggers: ['dead'],
+        });
+    });
 
     it('entering a container descends to its initial sub-state', () => {
         const r = evaluateAnimatorPath(def, 'Locomotion', {}, new Set(['attack']));

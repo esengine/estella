@@ -99,7 +99,10 @@ export function addState(def: AnimatorControllerDef, name: string, x = 0, y = 0,
 }
 
 export function removeState(def: AnimatorControllerDef, name: string, layer = 0): AnimatorControllerDef {
-    return removeGraphState(specFor(layer), def, name);
+    const next = removeGraphState(specFor(layer), def, name);
+    const anyState = scopeAt(def, layer).anyStateTransitions;
+    if (!anyState?.some(t => t.to === name)) return next;
+    return withLayer(next, layer, { anyStateTransitions: anyState.filter(t => t.to !== name) });
 }
 
 export function moveState(def: AnimatorControllerDef, name: string, x: number, y: number, layer = 0): AnimatorControllerDef {
