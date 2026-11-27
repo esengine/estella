@@ -874,6 +874,16 @@ export function createRuntimeSceneConfig(
     /** Present for a streamed cell: its publication and its unload are spread over frames (see {@link StreamedSceneOptions}). */
     streamed?: StreamedSceneOptions,
 ): SceneConfig {
+    return createRuntimeSceneConfigWithData(name, () => sceneData, options, scenePath, streamed);
+}
+
+function createRuntimeSceneConfigWithData(
+    name: string,
+    preloadedData: () => SceneData | undefined,
+    options: Parameters<typeof createRuntimeSceneConfig>[2],
+    scenePath?: string,
+    streamed?: StreamedSceneOptions,
+): SceneConfig {
     // Built first and closed over, so whoever sets `externalEntities` / `onPhase`
     // on the CONFIG is honoured here too: declared in one place and read in
     // another, a cell's reference to the persistent world resolved to nothing.
@@ -923,7 +933,7 @@ export function createRuntimeSceneConfig(
         const assertActive = () => attempt.assertCurrent();
         assertActive();
         const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
-        let data = sceneData;
+        let data = preloadedData();
         let document: SceneDocumentOwnership = 'borrowed';
         if (!data) {
             // Lazy scene: fetched by path through the per-App runtime Assets, so
@@ -1103,9 +1113,9 @@ export interface RuntimeInitConfig extends RuntimeProjectSettings {
      * without one. Applied when the per-App runtime Assets is first created.
      */
     catalog?: Catalog;
-    /** Every scene the game can switch to. `data` loads eagerly at register
-     *  time; `path` registers a lazy scene fetched through the runtime Assets
-     *  on first {@link SceneManagerState.switchTo}/load. One of the two. */
+    /** Every scene the game can switch to. `data` is a preloaded document.
+     *  `path` is fetched by runtime Assets on load when no document is supplied
+     *  or the active manifest has replaced the preloaded file. */
     scenes: Array<{ name: string; data?: SceneData; path?: string; worldPath?: string }>;
     /** Preloaded world manifests keyed by their persistent scene's registered name. */
     worlds?: WorldManifest[];
@@ -1206,7 +1216,14 @@ function registerRuntimeScenes(
             return data;
         };
         const sceneOptions = worldPath || config.prepareWorld ? { ...options, prepareDocument } : options;
-        const registration = createRuntimeSceneConfig(scene.name, scene.data, sceneOptions, packagedRef(scene.path));
+        const sceneRef = packagedRef(scene.path);
+        const shipped = scene.data && sceneRef ? shippedManifest?.recordForRef(sceneRef)?.asset : undefined;
+        const preloadedData = (): SceneData | undefined => {
+            if (!shipped || !sceneRef) return scene.data;
+            const current = app.getResource(AssetsResource).getManifest()?.recordForRef(sceneRef)?.asset;
+            return current?.path === shipped.path && current.contentHash === shipped.contentHash ? scene.data : undefined;
+        };
+        const registration = createRuntimeSceneConfigWithData(scene.name, preloadedData, sceneOptions, sceneRef);
         if (config.prepareWorld && !worldPath) registration.cleanup = () => { worlds.delete(scene.name); };
         manager.register(registration);
     }

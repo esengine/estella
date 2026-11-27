@@ -312,13 +312,15 @@ export async function loadPackagedSceneList(
 ): Promise<Pick<RuntimeInitConfig, 'scenes' | 'firstScene'>> {
     const selected = available.find(scene => scene.name === firstScene);
     if (!selected) throw new Error(`[estella] no scene named "${firstScene}" in this package`);
-    const data = JSON.parse(await platformReadTextFile(index.resolvePath(selected.path))) as SceneData;
+    const selectedPath = index.resolvePath(selected.path);
+    const data = JSON.parse(await platformReadTextFile(selectedPath)) as SceneData;
     const worlds = new Map(worldFiles?.map(world => [world.scene, world.manifest]));
     return {
         firstScene: selected.name,
         scenes: available.map(scene => ({
             name: scene.name,
-            ...(scene === selected ? { data } : { path: index.resolvePath(scene.path) }),
+            path: scene === selected ? selectedPath : index.resolvePath(scene.path),
+            ...(scene === selected ? { data } : {}),
             ...(worlds.has(scene.name) ? { worldPath: worlds.get(scene.name) } : {}),
         })),
     };

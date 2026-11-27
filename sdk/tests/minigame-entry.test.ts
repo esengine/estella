@@ -141,7 +141,7 @@ describe('esengine/minigame entry', () => {
             expect(readText).toHaveBeenCalledWith(firstPath);
             expect(readText).not.toHaveBeenCalledWith(nextPath);
             expect(boot.mock.calls[0]![0].scenes).toEqual([
-                { name: 'Main', data: { name: 'Main', entities: [] } }, { name: 'chapter.json/room', path: nextPath },
+                { name: 'Main', path: firstPath, data: { name: 'Main', entities: [] } }, { name: 'chapter.json/room', path: nextPath },
             ]);
             expect(await boot.mock.calls[0]![0].source.decodePixels('mesh.png', true, 2)).toBe(fitted);
             expect(decode).toHaveBeenCalledWith('mesh.png', 2);

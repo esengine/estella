@@ -95,21 +95,24 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
-    it.each(['live', 'restored'] as const)('loads a deferred scene through the %s manifest after its staged path changes', async timing => {
+    it.each(['live', 'restored', 'entry', 'entry-hash', 'reload'] as const)('uses the updated scene document on %s', async timing => {
         const ref = 'levels/Room.esscene';
         const uuid = 'afbace01-1111-4111-8111-111111111111';
-        const shippedPath = 'cooked/room-v1.json', updatedPath = 'cooked/room-v2.json';
+        const shippedPath = 'cooked/room-v1.json';
+        const updatedPath = timing === 'entry-hash' ? shippedPath : 'cooked/room-v2.json';
         const updateRoot = 'https://cdn.invalid/v2';
         const persistKey = 'hotupdate:scene';
         const manifest = (revision: string, path: string, bundleMode: 'local' | 'remote') => ({
             version: '2.0' as const, revision, groups: { main: { bundleMode, labels: [], assets: {
-                [uuid]: { address: ref, path, type: 'scene' as const, size: 32, labels: [] },
+                [uuid]: { address: ref, path, type: 'scene' as const, size: 32, labels: [], contentHash: revision === 'v1' ? 'a'.repeat(32) : 'b'.repeat(32) },
             } } },
         });
         const shipped = manifest('v1', shippedPath, 'local');
         const updated = manifest('v2', updatedPath, 'remote');
+        const restoredEntry = timing === 'entry' || timing === 'entry-hash';
+        const entry = restoredEntry || timing === 'reload';
         const config = {
-            entryScene: 'menu.json',
+            entryScene: entry ? ref : 'menu.json',
             scenes: [{ name: 'menu', path: 'menu.json' }, { name: 'room', path: ref }],
             hotUpdate: { persistUpdateKey: persistKey },
         };
@@ -130,22 +133,26 @@ describe('packaged scene files', () => {
         }));
         bridge.readFile = read;
         bridge.fetch = fetch;
-        bridge.getStorageItem = key => timing === 'restored' && key === persistKey
+        bridge.getStorageItem = key => (timing === 'restored' || restoredEntry) && key === persistKey
             ? JSON.stringify({ base: 'v1', manifest: updated, remoteRoot: updateRoot }) : null;
         const scope = withRegistryOps({ es_Camera_buffer: () => null, es_Camera_has: () => false, es_Camera_remove: () => {} });
         const { app } = await initNativeGame({ bridge, scope, width: 32, height: 32 });
         try {
             const assets = app.getResource(Assets);
-            if (timing === 'live') {
+            const manager = app.getResource(SceneManager);
+            if (timing === 'live' || timing === 'reload') {
                 assets.setManifest(updated);
                 assets.setRemoteRoot(updateRoot);
             }
             expect(assets.getManifest()?.revision()).toBe('v2');
-            expect(fetch).not.toHaveBeenCalled();
-            await app.getResource(SceneManager).switchTo('room');
+            if (!restoredEntry) {
+                expect(fetch).not.toHaveBeenCalled();
+                if (timing === 'reload') await manager.reload();
+                else await manager.switchTo('room');
+            }
             expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${updateRoot}/${updatedPath}`]);
-            expect(read).not.toHaveBeenCalledWith(shippedPath);
-            expect(app.getResource(SceneManager).getActive()).toBe('room');
+            expect(read.mock.calls.filter(([path]) => path === shippedPath)).toHaveLength(entry ? 1 : 0);
+            expect(manager.getActive()).toBe('room');
         } finally { app.quit(); }
     });
 
