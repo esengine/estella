@@ -9,7 +9,10 @@ import type { CompiledScriptGraph } from '../src/logic/ScriptGraphRunner';
 import { seedEngineComponents } from '../src/ecs/component';
 import '../src/logic';
 
-const gpu = vi.hoisted(() => ({ next: 1, live: new Set<number>(), compiled: [] as Array<{ source: string; features: string[] }>, released: [] as number[] }));
+const gpu = vi.hoisted(() => ({
+    next: 1, live: new Set<number>(), programs: new Map<number, number>(),
+    compiled: [] as Array<{ source: string; features: string[] }>, released: [] as number[],
+}));
 vi.mock('../src/wasm/resourceManager', () => ({ requireResourceManager: () => ({}), getResourceManager: () => null }));
 vi.mock('../src/render/material', () => ({ Material: {
     compileShader: vi.fn((source: string, features: string[]) => {
@@ -19,7 +22,14 @@ vi.mock('../src/render/material', () => ({ Material: {
     }),
     noteProgram: vi.fn(),
     releaseShader: vi.fn((handle: number) => { gpu.live.delete(handle); gpu.released.push(handle); }),
-    createFromAsset: vi.fn(() => gpu.next++), release: vi.fn(), setUniform: vi.fn(), tex: vi.fn(),
+    createFromAsset: vi.fn((_doc, shader: number, parent?: number) => {
+        const handle = gpu.next++;
+        gpu.programs.set(handle, parent === undefined ? shader : gpu.programs.get(parent) ?? 0);
+        return handle;
+    }),
+    getShader: vi.fn((handle: number) => gpu.programs.get(handle) ?? 0),
+    release: vi.fn((handle: number) => { gpu.programs.delete(handle); }),
+    setUniform: vi.fn(), tex: vi.fn(),
 } }));
 
 function realm() {
@@ -34,7 +44,9 @@ function realm() {
 }
 
 describe('material shaders use the asset ownership and source graph', () => {
-    beforeEach(() => { gpu.next = 1; gpu.live.clear(); gpu.compiled.length = 0; gpu.released.length = 0; vi.clearAllMocks(); });
+    beforeEach(() => {
+        gpu.next = 1; gpu.live.clear(); gpu.programs.clear(); gpu.compiled.length = 0; gpu.released.length = 0; vi.clearAllMocks();
+    });
 
     it('shared materials retain one compiled program until their final receipt retires', async () => {
         const { assets, acquire } = realm(); const a = await acquire('a.esmaterial'), b = await acquire('b.esmaterial');

@@ -33,7 +33,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         const parent = data.instanceOf
             ? (await ctx.acquireAsset<MaterialResult>('material', resolve(data.instanceOf))).value
             : undefined;
-        const shaderHandle = parent ? parent.shaderHandle
+        const shaderHandle = parent ? 0
             : (await ctx.acquireAsset<MaterialShaderSource>('material-shader', resolve(data.shader))).value.compileDocument(data.switches);
         const textures: { name: string; path: string }[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
@@ -45,7 +45,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         // The preparation owns these acquisitions. Let every map settle before committing it.
         const results = textures.length ? await Promise.allSettled(textures.map(async ({ path }) => ctx.acquireTexture(path))) : [];
         return () => {
-            const handle = Material.createFromAsset(data, parent ? 0 : shaderHandle, parent?.handle);
+            const handle = Material.createFromAsset(data, shaderHandle, parent?.handle);
             try {
                 const problems: string[] = [];
                 for (const [index, result] of results.entries()) {
@@ -59,7 +59,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
                     }
                 }
                 if (reportProblems) ctx.noteAssetProblems?.(path, [...assetPropertyProblems(data.properties), ...problems]);
-                return { handle, shaderHandle };
+                return { handle, get shaderHandle() { return Material.getShader(handle); } };
             } catch (error) {
                 Material.release(handle);
                 throw error;

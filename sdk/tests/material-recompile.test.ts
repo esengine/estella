@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Material, initMaterialAPI, shutdownMaterialAPI } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
+import { ownedAssetLease } from '../src/asset/AssetLease';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 const SOURCE = `#pragma switch USE_FOG
@@ -92,6 +93,31 @@ describe('a material switching to another permutation of its shader', () => {
         expect(Material.get(parent)!.shader).toBe(base);
         expect(Material.getRenderState(mine)!.shader).not.toBe(base);
         expect(Material.getRenderState(sibling)!.shader).toBe(base);
+    });
+
+    it('builds a descendant permutation on the nearest override across a deep chain', () => {
+        const root = Material.create({ shader: program([]) });
+        const variant = Material.createInstance(root);
+        expect(Material.recompile(variant, { USE_FOG: true })).toBe(true);
+        let descendent = variant;
+        for (let i = 0; i < 20; i++) descendent = Material.createInstance(descendent);
+        expect(Material.getShader(descendent)).toBe(Material.getShader(variant));
+        expect(Material.recompile(descendent, { USE_RIM: true })).toBe(true);
+        expect(compiled.at(-1)).toEqual(['USE_FOG', 'USE_RIM']);
+    });
+
+    it('keeps an inherited program source alive when a local permutation outlives the parent program', () => {
+        const parent = Material.create({ shader: 1 });
+        const dispose = vi.fn();
+        Material.applyState(parent, { program: { handle: program([]), lease: ownedAssetLease('first', 1, {}, dispose) } });
+        const child = Material.createInstance(parent);
+        expect(Material.recompile(child, { USE_FOG: true })).toBe(true);
+        const childProgram = Material.getShader(child);
+        Material.applyState(parent, { program: { handle: 2, lease: ownedAssetLease('second', 2, {}, vi.fn()) } });
+        expect(Material.getShader(child)).toBe(childProgram);
+        expect(dispose).not.toHaveBeenCalled();
+        Material.release(child);
+        expect(dispose).toHaveBeenCalledTimes(1);
     });
 
     it('answers false for a material whose shader was not compiled from a source', () => {

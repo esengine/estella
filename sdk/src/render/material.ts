@@ -251,13 +251,24 @@ export function materialDeclaresUniform(material: MaterialHandle, name: string):
     return shader !== undefined && declaredParams.get(shader)?.has(name) === true;
 }
 
-/** The shader a material draws with — its own, or the one it inherits as an instance. */
-function shaderOf(handle: MaterialHandle): ShaderHandle | undefined {
+/** The closest material that supplies the effective program. */
+function shaderOwnerOf(handle: MaterialHandle): MaterialHandle | undefined {
     let data = materials.get(handle);
-    // Bounded: a cycle in the parent chain would otherwise hang a per-write check.
-    const own = data?.ownShader;
-    for (let depth = 0; data?.parent !== undefined && depth < 16; depth++) data = materials.get(data.parent);
-    return own ?? data?.shader;
+    if (!data) return;
+    // There are at most this many distinct handles in a valid chain.
+    for (let remaining = materials.size; remaining > 0 && data.ownShader === undefined && data.parent !== undefined; remaining--) {
+        const parent = materials.get(data.parent);
+        if (!parent) break;
+        handle = data.parent;
+        data = parent;
+    }
+    return handle;
+}
+
+function shaderOf(handle: MaterialHandle): ShaderHandle | undefined {
+    const owner = shaderOwnerOf(handle);
+    const data = owner === undefined ? undefined : materials.get(owner);
+    return data?.ownShader ?? data?.shader;
 }
 
 /**
@@ -358,7 +369,7 @@ function resolveMaterial(handle: MaterialHandle, includeUniforms = true): Resolv
     const parent = data.parent !== undefined ? resolveMaterial(data.parent, includeUniforms) : null;
     if (!parent) {
         return {
-            shader: data.shader, blendMode: data.blendMode, depthTest: data.depthTest,
+            shader: data.ownShader ?? data.shader, blendMode: data.blendMode, depthTest: data.depthTest,
             depthWrite: data.depthWrite, cull: data.cull, depthBias: data.depthBias,
             uniforms: includeUniforms ? new Map(data.uniforms) : NO_UNIFORMS,
         };
@@ -501,8 +512,8 @@ export const Material = {
      */
     materialsDeclaring(param: string): MaterialHandle[] {
         const found: MaterialHandle[] = [];
-        for (const [handle, data] of materials) {
-            if (declaredParams.get(data.shader)?.has(param)) found.push(handle);
+        for (const handle of materials.keys()) {
+            if (materialDeclaresUniform(handle, param)) found.push(handle);
         }
         return found;
     },
@@ -524,7 +535,9 @@ export const Material = {
      */
     recompile(material: MaterialHandle, changes: Record<string, boolean>): boolean {
         const data = materials.get(material);
-        const current = shaderOf(material);
+        const owner = shaderOwnerOf(material);
+        const source = owner === undefined ? undefined : materials.get(owner);
+        const current = source?.ownShader ?? source?.shader;
         const origin = current !== undefined ? programOrigins.get(current) : undefined;
         if (!data || !origin) return false;
         const on = new Set(origin.features);
@@ -535,6 +548,14 @@ export const Material = {
         const features = [...on].filter(name => origin.declared.has(name)).sort();
         const next = origin.compile(features);
         if (next === current || next <= 0) return false;
+        if (owner !== undefined && owner !== material) {
+            const program = ownedPrograms.get(owner);
+            if (program) {
+                const held = program.retain();
+                if (!held) return false;
+                ownedPrograms.set(material, held);
+            }
+        }
         if (data.parent === undefined) data.shader = next; else data.ownShader = next;
         flushMaterial(material);
         return true;
@@ -741,7 +762,7 @@ export const Material = {
      * @returns Shader handle
      */
     getShader(material: MaterialHandle): ShaderHandle {
-        return resolveMaterial(material, false)?.shader ?? 0;
+        return shaderOf(material) ?? 0;
     },
 
     /**

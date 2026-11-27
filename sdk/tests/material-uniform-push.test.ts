@@ -4,6 +4,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Material, initMaterialAPI, shutdownMaterialAPI } from '../src/render/material';
 import type { ESEngineModule } from '../src/wasm';
 import { ownedAssetLease } from '../src/asset/AssetLease';
+import { MaterialAssetLoader } from '../src/asset/loaders/MaterialAssetLoader';
+import type { LoadContext } from '../src/asset/AssetLoader';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 
 function createMock() {
@@ -121,6 +123,27 @@ describe('writing one uniform of a material', () => {
         Material.release(child);
         Material.release(base);
         expect(second.retain()).toBeNull();
+    });
+
+    it('reports the current inherited shader and declarations when the parent file has an older program', async () => {
+        mock.material_compileEsshader.mockReturnValueOnce(7).mockReturnValueOnce(8);
+        const old = Material.compileShader('#pragma param u_old float');
+        const next = Material.compileShader('#pragma param u_current float');
+        const parent = Material.create({ shader: old });
+        const existing = Material.createInstance(parent);
+        Material.applyState(parent, { program: { handle: next, lease: ownedAssetLease('updated', 1, {}, vi.fn()) } });
+        const loader = new MaterialAssetLoader();
+        const ctx = {
+            loadText: async () => JSON.stringify({ type: 'material', instanceOf: 'parent.esmaterial', properties: {} }),
+            catalog: { getBuildPath: (path: string) => path },
+            acquireAsset: async () => ({ value: { handle: parent, shaderHandle: old } }),
+        } as unknown as LoadContext;
+        const loaded = await loader.load('child.esmaterial', ctx);
+        expect(loaded.shaderHandle).toBe(next);
+        expect(Material.materialsDeclaring('u_current')).toEqual([parent, existing, loaded.handle]);
+        expect(Material.materialsDeclaring('u_old')).toEqual([]);
+        Material.applyState(parent, { program: { handle: old, lease: ownedAssetLease('restored', 2, {}, vi.fn()) } });
+        expect(loaded.shaderHandle).toBe(old);
     });
 
     it('leaves the engine holding exactly what a full flush would, after any sequence of writes', () => {

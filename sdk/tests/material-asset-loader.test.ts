@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../src/render/material', () => ({
     Material: {
         createFromAsset: vi.fn().mockReturnValue(11),
+        getShader: vi.fn().mockReturnValue(7),
         setUniform: vi.fn(),
         tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
         compileShader: vi.fn().mockReturnValue(7),
