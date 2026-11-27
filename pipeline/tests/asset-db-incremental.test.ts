@@ -122,7 +122,9 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     // A material references a sibling texture by relative path; the texture is
     // added AFTER the material — the edge must appear once both exist, exactly as a
     // full rescan resolves it.
-    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({ texture: 'wall.png' }));
+    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({
+      type: 'material', shader: 'builtin:sprite-unlit', properties: { mainTex: 'wall.png' },
+    }));
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     expect(prev.deps[MAT]).toBeUndefined(); // wall.png doesn't exist yet → no edge
 
@@ -157,7 +159,9 @@ describe('updateAssetIndex — incremental == full rescan', () => {
   // an `@uuid:` one, which a full scan keeps dangling).
   it('DELETING a path-ref target re-resolves its referrer, matching full', async () => {
     writeAsset('assets/materials/wall.png', 'texture', TEX2, 'WALL');
-    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({ texture: 'wall.png' }));
+    writeAsset('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({
+      type: 'material', shader: 'builtin:sprite-unlit', properties: { mainTex: 'wall.png' },
+    }));
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     expect(prev.deps[MAT]).toEqual([TEX2]);
 

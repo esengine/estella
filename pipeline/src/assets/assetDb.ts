@@ -349,7 +349,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-const CANDIDATE_CACHE_VERSION = 6;
+const CANDIDATE_CACHE_VERSION = 7;
 interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
@@ -447,11 +447,14 @@ async function computeDeps(
     if (type === 'animatorcontroller') visitAnimatorClips(json, (kind, holder) => {
       if (kind === 'sprite' || kind === 'timeline') takeNamedCandidate(holder, 'clip', kind === 'sprite' ? 'SpriteAnimator' : 'TimelinePlayer', named);
     });
-    if (type === 'material') mapMaterialRefs(json, ref => {
-      if (assetRefId(ref) || !/^[a-z][a-z0-9+.-]*:/i.test(ref)) found.add(ref);
-      return ref;
-    });
-    collectCandidates(json, found, type, named);
+    if (type === 'material') {
+      mapMaterialRefs(json, ref => {
+        if (assetRefId(ref) || !/^[a-z][a-z0-9+.-]*:/i.test(ref)) found.add(ref);
+        return ref;
+      });
+    } else {
+      collectCandidates(json, found, type, named);
+    }
     cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, type, c: [...found, ...named] };
     cacheDirty = true;
     return cache.files[rel]!.c;

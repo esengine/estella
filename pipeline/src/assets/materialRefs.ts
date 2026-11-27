@@ -5,10 +5,10 @@
 export function mapMaterialRefs(document: unknown, map: (ref: string) => string): void {
   if (!document || typeof document !== 'object') return;
   const material = document as Record<string, unknown>;
-  for (const field of ['shader', 'instanceOf']) {
-    const ref = material[field];
-    if (typeof ref === 'string' && ref) material[field] = map(ref);
-  }
+  // An instance uses its parent's shader, even if its document still carries a shader ref.
+  const parent = material.instanceOf;
+  if (typeof parent === 'string' && parent) material.instanceOf = map(parent);
+  else if (typeof material.shader === 'string' && material.shader) material.shader = map(material.shader);
   if (material.properties && typeof material.properties === 'object') {
     const props = material.properties as Record<string, unknown>;
     for (const [name, ref] of Object.entries(props)) {

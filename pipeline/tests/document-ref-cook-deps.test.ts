@@ -173,7 +173,7 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[CONTROLLER]).toContain(CLIP);
   });
 
-  it('includes and rewrites indexed material dependencies without filename extensions', async () => {
+  it.each(['Sprite', 'MeshRenderer'])('cooks only material dependency fields for %s, including extensionless paths', async (type) => {
     const projectRoot = mkdtempSync(path.join(tmpdir(), 'estella-material-refs-'));
     const scene = 'assets/main.esscene';
     const child = 'assets/mats/child.esmaterial', base = 'assets/mats/base';
@@ -181,21 +181,30 @@ describe('assets named only inside another document are cooked', () => {
     const put = (rel: string, type: string, uuid: string, body: string | Uint8Array) => writeAsset(rel, type, uuid, body, projectRoot);
     try {
       put(scene, 'scene', SCENE, JSON.stringify({ version: 4, entities: [{ id: 1, parent: null, children: [],
-        components: [{ type: 'MeshRenderer', data: { mesh: 'builtin:cube', material: child } }],
+        components: [{ type, data: { material: child } }],
       }] }));
-      put(child, 'material', 'child', JSON.stringify({ type: 'material', instanceOf: './base', properties: {} }));
-      put(base, 'material', 'base', JSON.stringify({ type: 'material', shader: '../shaders/model', properties: { mainTex: 'detail' } }));
+      put(child, 'material', 'child', JSON.stringify({
+        type: 'material', instanceOf: './base', shader: '../shaders/old.esshader', properties: {},
+      }));
+      put(base, 'material', 'base', JSON.stringify({
+        type: 'material', shader: '../shaders/model', name: 'unused.png',
+        properties: { mainTex: 'detail', tint: { r: 1, description: 'unused.png' } },
+      }));
       put(shader, 'shader', 'shader', '#pragma shader "Model"');
+      put('assets/shaders/old.esshader', 'shader', 'old-shader', '#pragma shader "Old"');
       const image = encodeRgbaPng(1, 1, new Uint8Array([128, 128, 255, 255]));
       put(detail, 'texture', 'detail', image);
+      put('assets/mats/unused.png', 'texture', 'unused', image);
       put('detail', 'texture', 'unrelated', image);
 
-      await scanAssetDatabase(projectRoot, { write: false });
+      const fresh = (await scanAssetDatabase(projectRoot, { write: false })).index;
+      expect(fresh.deps.child).toEqual(['base']);
+      expect(fresh.deps.base).toEqual(['detail', 'shader']);
       const cachePath = path.join(projectRoot, '.esengine/cache/ref-candidates.json');
       const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
-      cache.files[child].c = [];
-      cache.files[base].c = [];
-      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 4 }));
+      cache.files[child].c.push('../shaders/old.esshader');
+      cache.files[base].c.push('unused.png');
+      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 6 }));
       const { index } = await scanAssetDatabase(projectRoot, { write: false });
       expect(index.deps.child).toEqual(['base']);
       expect(index.deps.base).toEqual(['detail', 'shader']);
@@ -205,7 +214,9 @@ describe('assets named only inside another document are cooked', () => {
       expect(cooked.included.sort()).toEqual([SCENE, 'base', 'child', 'detail', 'shader'].sort());
       const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as { entries: { uuid: string; path: string }[] };
       const stored = (id: string) => readFileSync(path.join(cooked.outDir, manifest.entries.find(e => e.uuid === id)!.path));
-      expect(JSON.parse(stored('child').toString()).instanceOf).toBe(base);
+      expect(JSON.parse(stored('child').toString())).toMatchObject({
+        instanceOf: base, shader: '../shaders/old.esshader',
+      });
       expect(JSON.parse(stored('base').toString())).toMatchObject({ shader, properties: { mainTex: detail } });
       expect(stored('detail')).toEqual(Buffer.from(image));
     } finally {
