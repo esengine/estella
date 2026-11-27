@@ -895,7 +895,7 @@ prepareImageImport: (field: Heightfield, mode: "all" | "loaded") => { images: Ti
 sameSource: (other: TiledGroundEdit) => boolean
 samplesX: number
 samplesZ: number
-saveImages: () => { images: TiledGroundImage[]; document: TerrainTilesDocument | null; }
+saveImages: (resolveHeightPath?: (ref: string) => string) => { images: TiledGroundImage[]; document: TerrainTilesDocument | null; }
 saved: () => void
 sculpt: (mode: number, x: number, z: number, radius: number, falloff: number, amount: number, target?: number, profile?: BrushProfile) => void
 tiled: true

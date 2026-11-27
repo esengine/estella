@@ -198,19 +198,23 @@ export class TiledGroundEdit {
     /**
      * What a save writes: every changed tile's images, and the overview's, at the paths the document names. A splatmap the document did not
      * name before is given a path beside its tile's heights, and `document` is then the document to write as well (null when unchanged).
+     * An authoring host can resolve height references to file paths when naming these new images.
      */
-    saveImages(): { images: TiledGroundImage[]; document: TerrainTilesDocument | null } {
+    saveImages(resolveHeightPath: (ref: string) => string = ref => ref): { images: TiledGroundImage[]; document: TerrainTilesDocument | null } {
         const doc = this.source.doc, images: TiledGroundImage[] = [];
-        let named = false;
-        const beside = (path: string, suffix: string): string => path.replace(/(\.[^./]+)?$/, `${suffix}.png`);
+        const beside = (ref: string, suffix: string): string => {
+            const path = resolveHeightPath(ref).replace(/(\.[^./]+)?$/, `${suffix}.png`);
+            this.source.documentDirty = true;
+            return path;
+        };
         for (const { tile, entry } of this.source.residentDirtyTiles()) {
             images.push(heightImage(entry.height, tile.field, doc.format));
             if (tile.splat) {
-                if (!entry.splat) { entry.splat = beside(entry.height, '_splat'); named = true; }
+                if (!entry.splat) entry.splat = beside(entry.height, '_splat');
                 images.push({ path: entry.splat, ...tile.splat });
             }
             if (tile.splat2) {
-                if (!entry.splat2) { entry.splat2 = beside(entry.height, '_splat2'); named = true; }
+                if (!entry.splat2) entry.splat2 = beside(entry.height, '_splat2');
                 images.push({ path: entry.splat2, ...tile.splat2 });
             }
         }
@@ -218,15 +222,14 @@ export class TiledGroundEdit {
             images.push(heightImage(doc.overview, this.source.overview, doc.format));
             const { a, b } = this.source.overviewSplats(false, false);
             if (a) {
-                if (!doc.overviewSplat) { doc.overviewSplat = beside(doc.overview, '_splat'); named = true; }
+                if (!doc.overviewSplat) doc.overviewSplat = beside(doc.overview, '_splat');
                 images.push({ path: doc.overviewSplat, ...a });
             }
             if (b) {
-                if (!doc.overviewSplat2) { doc.overviewSplat2 = beside(doc.overview, '_splat2'); named = true; }
+                if (!doc.overviewSplat2) doc.overviewSplat2 = beside(doc.overview, '_splat2');
                 images.push({ path: doc.overviewSplat2, ...b });
             }
         }
-        this.source.documentDirty ||= named;
         return { images, document: this.source.documentDirty ? doc : null };
     }
 
