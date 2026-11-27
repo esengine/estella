@@ -163,8 +163,10 @@ export class UIInteractionPlugin implements Plugin {
                 const structure = world.getWorldVersion();
                 if (structure !== ensuredAtVersion) {
                     ensuredAtVersion = structure;
-                    for (const entity of world.getEntitiesWithComponents([Interactable])) {
-                        if (!world.has(entity, UIInteraction)) ensureComponent(world, entity, UIInteraction);
+                    // Cache the missing set by component membership. Unrelated
+                    // spawns can change the world version without adding any work here.
+                    for (const entity of world.getEntitiesWithComponents([Interactable], [], [UIInteraction])) {
+                        ensureComponent(world, entity, UIInteraction);
                     }
                 }
 

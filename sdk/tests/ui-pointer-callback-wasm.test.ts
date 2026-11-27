@@ -52,6 +52,22 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         for (const entity of app.world.getAllEntities()) app.world.despawn(entity);
         app.world.disconnectCpp(); registry.delete();
     });
+    it('initializes new controls and repairs removed interaction state without a pointer hit', async () => {
+        hit.entity = null;
+        const original = app.world.spawn();
+        app.world.insert(original, Interactable);
+        await app.tick(1 / 60);
+        expect(app.world.has(original, UIInteraction)).toBe(true);
+
+        app.world.remove(original, UIInteraction);
+        const added = app.world.spawn();
+        app.world.insert(added, Interactable);
+        const unrelated = app.world.spawn();
+        await app.tick(1 / 60);
+        expect(app.world.has(original, UIInteraction)).toBe(true);
+        expect(app.world.has(added, UIInteraction)).toBe(true);
+        expect(app.world.has(unrelated, UIInteraction)).toBe(false);
+    });
     it('evaluates a registered InputMap after virtual controls in the same frame', async () => {
         const map = defineInputMap({ Move: Axis2D(Virtual('move')) });
         flushPendingRegistrations(app);
