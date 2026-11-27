@@ -5,7 +5,7 @@ import type { ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
 import { resolveMeshGI, type MeshGIRefs } from '../gi/meshGIAssets';
-import { assetRefId, normalizeAssetPathSeparators, UUID_REF_PREFIX } from './AssetRegistry';
+import { assetRefId, localAssetPathWithoutSuffix, normalizeAssetPathSeparators, UUID_REF_PREFIX } from './AssetRegistry';
 import { log } from '../util/logger';
 
 interface ManifestRecord {
@@ -405,7 +405,12 @@ export class ManifestModel {
         const portable = normalizeAssetPathSeparators(ref);
         const bare = portable.startsWith('/') ? portable.slice(1) : portable;
         const name = bare.startsWith(UUID_REF_PREFIX) ? bare.slice(UUID_REF_PREFIX.length) : bare;
-        return names.get(name) ?? names.get(assetRefId(bare) ?? bare) ?? files.get(bare);
+        const indexed = names.get(name) ?? names.get(assetRefId(bare) ?? bare) ?? files.get(bare);
+        if (indexed) return indexed;
+        const local = localAssetPathWithoutSuffix(portable);
+        if (local === portable) return undefined;
+        const file = local.startsWith('/') ? local.slice(1) : local;
+        return names.get(file) ?? files.get(file);
     }
 
     /** @internal Scene and group results need record names when the staged filename alone is ambiguous. */

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { assetRefId, normalizeAssetPathSeparators } from './AssetRegistry';
+import { assetRefId, localAssetPathWithoutSuffix, normalizeAssetPathSeparators } from './AssetRegistry';
 import { registeredAssetFields } from './registeredAssetFields';
 
 /**
@@ -124,8 +124,8 @@ export function findDocumentAsset<T>(
     const exact = lookupDocumentPath(document, normalized, lookup, first);
     if (exact !== undefined) return exact;
     // Honor literal indexed names before treating a query or fragment as URL metadata.
-    const suffix = normalized.search(/[?#]/);
-    return suffix > 0 ? lookupDocumentPath(document, normalized.slice(0, suffix), lookup, first) : undefined;
+    const path = localAssetPathWithoutSuffix(normalized);
+    return path !== normalized ? lookupDocumentPath(document, path, lookup, first) : undefined;
 }
 
 function lookupDocumentPath<T>(document: string, ref: string, lookup: (path: string) => T | undefined, first: 'project' | 'document'): T | undefined {

@@ -92,6 +92,13 @@ export function normalizeAssetPathSeparators(ref: string): string {
     return ref.slice(0, suffix).replace(/\\/g, '/') + ref.slice(suffix);
 }
 
+/** The candidate indexed filename behind a local URL spelling. Keep locators intact. */
+export function localAssetPathWithoutSuffix(ref: string): string {
+    const suffix = ref.search(/[?#]/);
+    if (suffix <= 0 || /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(ref)) return ref;
+    return ref.slice(0, suffix);
+}
+
 /** Resolve against lower-case index keys. Unknown IDs return null. */
 export function resolveIndexedAssetRef(ref: string, paths: ReadonlyMap<string, string>): string | null {
     const id = assetRefId(ref);

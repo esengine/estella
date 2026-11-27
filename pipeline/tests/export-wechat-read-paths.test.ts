@@ -137,6 +137,25 @@ describe('exportGame (wechat) — every asset resolves to a file the package car
     expect(prefab.name).toBe('Hero');
   }, 60_000);
 
+  it('resolves a scene texture with a URL suffix to the mini-game file', async () => {
+    const { root, out } = scaffold();
+    const entryScene = 'scenes/main.esscene', texture = 'assets/hero.png?v=2#sheet';
+    writeFileSync(path.join(root, entryScene), JSON.stringify({ version: 4, name: 'Main', entities: [{ id: 1,
+      parent: null, children: [], components: [{ type: 'Sprite', data: { texture } }],
+    }] }));
+    const result = await exportGame({
+      root, entryScene, outDir: out, platform: 'wechat', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'),
+    });
+    expect(result.ok, result.errors.join('\n')).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8')) as AddressableManifest;
+    const model = ManifestModel.fromJson(manifest);
+    const staged = model.assetByKey(TEX)!;
+    expect(staged).toBeTruthy();
+    expect(model.resolvePath(texture)).toBe(staged.path);
+    expect(readFileSync(path.join(out, staged.path), 'utf8')).toBe('PNGDATA');
+  }, 30_000);
+
   it('expands a packaged scene with Windows separators in its nested prefab reference', async () => {
     const { root, out } = scaffold();
     const asset = (file: string) => path.join(root, 'assets', file);

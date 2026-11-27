@@ -45,6 +45,25 @@ describe('packaged addressOf / resolveAddress', () => {
         expect(index.addressOf('assets/nope.atlas')).toBeNull();
     });
 
+    it('resolves suffixed scene refs and keeps frames distinct on the same packed page', () => {
+        const data = manifest();
+        const entries = data.groups.main.assets;
+        const image = entries['22222222-2222-4222-8222-222222222222'];
+        image.metadata = { atlasFrame: { x: 0, y: 0, width: 2, height: 4 }, atlasPageWidth: 4, atlasPageHeight: 4 };
+        entries.second = { ...image, address: 'assets/spine/other.png', metadata: {
+            atlasFrame: { x: 2, y: 0, width: 2, height: 4 }, atlasPageWidth: 4, atlasPageHeight: 4,
+        } };
+        const index = indexPackagedManifest(data);
+        const source = createPackagedAssetSource(index);
+        for (const ref of ['assets/spine/other.png?v=2', '/assets/spine/other.png#detail', 'assets\\spine\\other.png?v=2']) {
+            expect(source.resolveRef!(ref)).toBe(image.path);
+            expect(source.resolveAddress!(ref)).toBe('assets/spine/other.png');
+            expect(index.catalog?.getAtlasFrame(ref)?.uvOffset).toEqual([0.5, 0]);
+        }
+        const url = 'https://cdn.test/assets/spine/other.png?v=2';
+        expect(source.resolveRef!(url)).toBe(url);
+    });
+
     it('switches all lookups together and keeps separate sources independent', () => {
         const index = indexPackagedManifest(manifest());
         const first = createPackagedAssetSource(index);
