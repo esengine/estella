@@ -98,8 +98,8 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             expect(registry.setParent(a, INVALID_ENTITY)).toBe(true);
             expect(world.has(a, Parent)).toBe(false);
             expect(world.tryGet(a, Parent)).toBeNull();
-            expect(world.has(first, Children)).toBe(registry.hasChildren(first));
-            expect(world.tryGet(first, Children)?.entities ?? []).toEqual([]);
+            expect(world.has(first, Children)).toBe(true);
+            expect(world.tryGet(first, Children)).toEqual({ entities: [] });
         } finally { disposeWorld(world, registry); }
     });
 
@@ -119,7 +119,7 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             expect(registry.setParent(b, second)).toBe(true);
             expect(registry.setParent(a, INVALID_ENTITY)).toBe(true);
             expect(world.queryEntities([Parent])).toEqual([b]);
-            expect(world.queryEntities([Children])).toContain(second);
+            expect(world.queryEntities([Children])).toEqual([first, second]);
             expect(world.queryEntities([Sprite], [], [Parent])).toEqual([a]);
             expect(world.queryEntities([Sprite], [Parent])).toEqual([b]);
             expect([...world.getStoredComponentEntities(Parent)]).toEqual([b]);

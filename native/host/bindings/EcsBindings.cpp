@@ -54,8 +54,7 @@ esjs::Val js_removeParent(const esjs::Args& a) {
     return esjs::undefined();
 }
 esjs::Val js_hasChildren(const esjs::Args& a) {
-    auto* c = host().registry->tryGet<ecs::Children>(esn_entity(a[0]));
-    return esjs::boolean(c && !c->entities.empty());
+    return esjs::boolean(host().registry->has<ecs::Children>(esn_entity(a[0])));
 }
 esjs::Val js_getChildren(const esjs::Args& a) {
     esjs::Val arr = esjs::array();

@@ -49,7 +49,7 @@ function mockNativeEcs() {
             if (p !== undefined) children.get(p)?.delete(e);
             parents.delete(e);
         },
-        es_hasChildren: (e: number) => (children.get(e)?.size ?? 0) > 0,
+        es_hasChildren: (e: number) => children.has(e),
         es_getChildren: (e: number) => [...(children.get(e) ?? [])],
     };
     installRegistryOpDefaults(scope, alive);
@@ -127,7 +127,9 @@ describe('createNativeWorld', () => {
         registry.setParent(b, second);
         registry.removeParent(a);
         expect(world.queryEntities([Parent])).toEqual([b]);
-        expect(world.queryEntities([Children])).toEqual([second]);
+        expect(world.has(first, Children)).toBe(true);
+        expect(world.tryGet(first, Children)).toEqual({ entities: [] });
+        expect(world.queryEntities([Children])).toEqual([first, second]);
     });
 
     it('keeps distinct entities independent', () => {
