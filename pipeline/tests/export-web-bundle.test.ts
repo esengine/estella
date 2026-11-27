@@ -32,7 +32,7 @@ function project(): string {
   mkdirSync(path.join(root, 'scenes'), { recursive: true });
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'scenes', 'main.esscene'), JSON.stringify({
-    version: '1.0', entities: [{ name: 'Root', components: [{ type: 'Transform' }] }],
+    version: '1.0', entities: [{ id: 1, name: 'Root', components: [{ type: 'Transform', data: {} }] }],
   }));
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'),
     JSON.stringify({ uuid: SCN, version: '2.0', type: 'scene', importer: {} }));

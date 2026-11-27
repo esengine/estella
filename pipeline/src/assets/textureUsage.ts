@@ -38,20 +38,26 @@ interface Documented {
 }
 
 function visitComponentFields(doc: Documented, visit: (type: string, fields: Record<string, unknown>) => void): void {
-  const overrides = (items: readonly PrefabOverride[] = []) => {
+  const component = (value: ComponentData | null | undefined) => {
+    if (typeof value?.type === 'string') visit(value.type, value.data);
+  };
+  const overrides = (items?: readonly PrefabOverride[]) => {
+    if (!Array.isArray(items)) return;
     for (const edit of items) {
-      if (edit.type === 'property' && edit.componentType && edit.propertyName) {
+      if (edit?.type === 'property' && edit.componentType && edit.propertyName) {
         visit(edit.componentType, { [edit.propertyName]: edit.value });
-      } else if ((edit.type === 'component_added' || edit.type === 'component_replaced') && edit.componentData) {
-        visit(edit.componentData.type, edit.componentData.data);
+      } else if (edit?.type === 'component_added' || edit?.type === 'component_replaced') {
+        component(edit.componentData);
       }
     }
   };
   overrides(doc.overrides);
-  for (const entity of doc.entities ?? []) {
-    for (const component of entity.components ?? []) visit(component.type, component.data);
-    for (const added of entity.added ?? []) {
-      for (const component of added.components ?? []) visit(component.type, component.data);
+  if (!Array.isArray(doc.entities)) return;
+  for (const entity of doc.entities) {
+    if (!entity) continue;
+    if (Array.isArray(entity.components)) entity.components.forEach(component);
+    if (Array.isArray(entity.added)) for (const added of entity.added) {
+      if (Array.isArray(added?.components)) added.components.forEach(component);
     }
     overrides(entity.overrides);
     overrides(entity.nestedPrefab?.overrides);

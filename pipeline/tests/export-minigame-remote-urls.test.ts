@@ -33,7 +33,7 @@ async function exportWith(art: string): Promise<{ path: string; bytes: string }>
         mkdirSync(path.join(root, 'scenes'), { recursive: true });
         writeFileSync(path.join(root, 'scenes', 'main.esscene'), JSON.stringify({
             version: '1.0', name: 'Main',
-            entities: [{ name: 'Art', components: [{ type: 'Sprite', data: { texture: `@uuid:${ART}` } }] }],
+            entities: [{ id: 1, name: 'Art', components: [{ type: 'Sprite', data: { texture: `@uuid:${ART}` } }] }],
         }));
         writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
         mkdirSync(path.join(root, '_sdk'), { recursive: true });

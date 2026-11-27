@@ -23,18 +23,18 @@ import {
 import { INVALID_ENTITY } from '../types';
 import type { SceneData, SceneEntityData } from './scene';
 import { isPrefabEntry } from './sceneEntry';
+import { sceneDocumentShapeIssue } from './sceneFormat';
 
 /** A scene entity as the shared checks read it. */
 const sceneNode = (e: SceneEntityData): DocumentNode => ({
     id: e.id,
     parent: e.parent ?? null,
     children: e.children ?? [],
-    components: e.components ?? [],
+    components: isPrefabEntry(e) ? [] : e.components,
 });
 
 /**
- * Validate a scene and return every problem found. Errors mean the scene cannot
- * be loaded into a world that means what the file says; warnings are loadable.
+ * Validate a scene's record shapes before checking its IDs, topology, and references.
  * Pure + total — nothing here throws, and the caller decides what a finding
  * costs.
  */
@@ -50,8 +50,9 @@ export function validateScene(scene: SceneData): DocumentDiagnostic[] {
         });
     };
 
-    if (!Array.isArray(scene?.entities)) {
-        push('malformed', 'error', 'scene has no "entities" array');
+    const issue = sceneDocumentShapeIssue(scene);
+    if (issue) {
+        push(issue.code, 'error', issue.message, issue.entityId);
         return diags;
     }
 
@@ -61,15 +62,6 @@ export function validateScene(scene: SceneData): DocumentDiagnostic[] {
     checkParentCycle(nodes, byId, push);
     // A scene's ids are numbers, and 0 is how an unset reference is written.
     checkEntityRefs(nodes, byId, push, (v) => v === INVALID_ENTITY || typeof v !== 'number');
-
-    for (const e of scene.entities) {
-        if (isPrefabEntry(e) || !Array.isArray(e.components)) continue;
-        for (const c of e.components) {
-            if (typeof c?.type !== 'string' || c.type.length === 0) {
-                push('malformed-component', 'error', `entity ${e.id} has a component with no type`, e.id);
-            }
-        }
-    }
 
     return diags;
 }

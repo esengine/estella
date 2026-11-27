@@ -8,6 +8,7 @@
 import { SceneOwner } from '../ecs/component';
 import { SceneEntityBatch } from '../scene/sceneHierarchy';
 import { SceneAssetProgress } from '../scene/sceneAssetProgress';
+import { requireSupportedSceneDocument } from '../scene/sceneFormat';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
          updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
@@ -408,12 +409,16 @@ async function readRuntimeScene(
     }
     // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything
     // of it spawns.
-    if (app.hasResource(WorldMemoryRes)) sceneData = app.getResource(WorldMemoryRes).adapt(sceneName ?? '', sceneData);
+    let fromVersion: number | undefined;
+    if (app.hasResource(WorldMemoryRes)) {
+        fromVersion = requireSupportedSceneDocument(sceneData);
+        sceneData = app.getResource(WorldMemoryRes).adapt(sceneName ?? '', sceneData);
+    }
 
     // Prefabs and remembered components can also carry older names. Discovery,
     // subsystem selection and spawn all consume the same normalized document.
     const migrationBegan = onPhase ? performance.now() : 0;
-    migrateOwnedSceneData(sceneData);
+    migrateOwnedSceneData(sceneData, fromVersion);
     if (onPhase) onPhase('migrate', copyMs + performance.now() - migrationBegan);
 
     await turn();

@@ -339,7 +339,6 @@ export type PrefabAssetResolver = (ref: string) => Promise<PrefabData | null>;
 export async function expandScenePrefabAssets(
     scene: SceneData, assets: Pick<import('../asset/Assets').Assets, 'acquireTyped'>,
 ): Promise<SceneData> {
-    requireSupportedSceneDocument(scene);
     const sources = new AssetScope();
     try {
         return await expandScenePrefabs(scene, async ref => {
@@ -408,6 +407,7 @@ export async function expandScenePrefabSources(
     readSource: (ref: string) => Promise<PrefabSource>,
     options?: { expandVirtual?: boolean },
 ): Promise<SceneData> {
+    requireSupportedSceneDocument(scene);
     const expandVirtual = options?.expandVirtual ?? expandVirtualRequested();
     const entries = scene.entities as SceneEntry[];
     let hasInstances = false;
@@ -588,7 +588,9 @@ export function migrateOwnedSceneData(data: SceneData, fromVersion = requireSupp
  * whichever entity came last, and a parent cycle has no hierarchy to build.
  * Everything else still loads — a lost parent leaves an entity at the root.
  */
-const UNLOADABLE_SCENE: ReadonlySet<string> = new Set(['duplicate-id', 'parent-cycle']);
+const UNLOADABLE_SCENE: ReadonlySet<string> = new Set([
+    'duplicate-id', 'parent-cycle', 'malformed', 'malformed-entity', 'malformed-component',
+]);
 
 function sceneLoadError(name: string, fatal: readonly Pick<DocumentDiagnostic, 'code' | 'message'>[]): Error {
     return new Error(

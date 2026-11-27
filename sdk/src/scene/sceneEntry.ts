@@ -18,7 +18,7 @@ export type SceneEntry = SceneEntityData | PrefabInstanceEntry;
 
 /** True for a prefab-instance entry (carries a `prefab` asset ref). */
 export function isPrefabEntry(e: SceneEntry): e is PrefabInstanceEntry {
-    return typeof (e as PrefabInstanceEntry).prefab === 'string';
+    return typeof (e as PrefabInstanceEntry | null)?.prefab === 'string';
 }
 
 /** Visit references authored in one scene row, including the scene-side parts of a prefab instance. */

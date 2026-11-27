@@ -79,6 +79,23 @@ function solidPng(width: number, height: number, rgba: [number, number, number, 
 }
 
 describe('cookAssets (A4)', () => {
+  it('reports a malformed component in a scene before staging it', async () => {
+    const scenePath = 'assets/scenes/orphan.esscene';
+    const file = path.join(root, scenePath);
+    const previous = readFileSync(file, 'utf8');
+    writeFileSync(file, JSON.stringify({ version: 4, name: 'Broken', entities: [{ id: 1, components: [null] }] }));
+    try {
+      const other = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build/unused-broken-record' });
+      expect(other.ok).toBe(true);
+      const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build/broken-record' });
+      expect(result.ok).toBe(false);
+      expect(result.failed).toEqual([expect.stringMatching(/orphan\.esscene:.*entities\[0\]\.components\[0\]/i)]);
+      expect(existsSync(path.join(result.outDir, scenePath))).toBe(false);
+    } finally {
+      writeFileSync(file, previous);
+    }
+  });
+
   it('records the shortest dependency route and breaks equal routes by entry scene order', async () => {
     const first = 'assets/scenes/main.esscene', second = 'assets/scenes/orphan.esscene';
     const prefab = 'assets/prefabs/linked.esprefab';
@@ -595,7 +612,7 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       }] }));
       writeFileSync(path.join(r, prefab + '.meta'), JSON.stringify({ uuid: id, version: '2.0', type: 'prefab', importer: {} }));
       const override = (propertyName: string, value: unknown) => ({ type: 'property', prefabEntityId: 'root', componentType: 'Text', propertyName, value });
-      const instance = (id: number, overrides: unknown[]) => ({ id, name: 'Label', parent: null, prefab, overrides });
+      const instance = (id: number, overrides: unknown[]) => ({ id, name: 'Label', parent: null, prefab, overrides, added: [], removed: [] });
       const scene = 'assets/scenes/main.esscene';
       writeFileSync(path.join(r, scene), JSON.stringify({ version: 4, name: 'main', entities: [
         instance(1, [override('richText', true)]),

@@ -24,6 +24,21 @@ function clean(): SceneData {
 const codes = (d: DocumentDiagnostic[]): string[] => d.map((x) => x.code);
 
 describe('validateScene', () => {
+    it.each([
+        [null, 'malformed-entity', /entities\[0\]/],
+        [{ id: 1, components: [null] }, 'malformed-component', /components\[0\]/],
+        [{ id: 1, children: [{ toString: null }], components: [] }, 'malformed-entity', /children/],
+        [{ id: 1, prefab: 'assets/widget.esprefab' }, 'malformed-entity', /overrides/],
+        [{ id: 1, prefab: 'assets/widget.esprefab', overrides: [], added: [null], removed: [] }, 'malformed-entity', /added\[0\]/],
+    ] as const)('reports a malformed scene record (%j) before replacing a world', (entry, code, message) => {
+        const scene = { ...clean(), entities: [entry] } as unknown as SceneData;
+        expect(validateScene(scene)).toEqual([expect.objectContaining({ code, severity: 'error', message: expect.stringMatching(message) })]);
+        const world = new World();
+        const entity = world.spawn();
+        expect(() => resetWorldTo(world, scene)).toThrow(message);
+        expect(world.getAllEntities()).toEqual([entity]);
+    });
+
     it('returns no diagnostics for a well-formed scene', () => {
         expect(validateScene(clean())).toEqual([]);
     });

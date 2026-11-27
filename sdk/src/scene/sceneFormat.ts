@@ -30,11 +30,71 @@ export function requireSupportedSceneVersion(version: unknown): number {
     return fromVersion;
 }
 
-/** Check the shared scene envelope before interpreting its entity rows. */
-export function requireSupportedSceneDocument(input: unknown): number {
-    const scene = input as { entities?: unknown; version?: unknown } | null | undefined;
-    if (!scene || typeof scene !== 'object' || !Array.isArray(scene.entities)) {
-        throw new Error('Scene data must have an "entities" array');
+type SceneShapeIssue = { code: string; message: string; entityId?: number };
+const missingEntities = { code: 'malformed', message: 'Scene data must have an "entities" array' };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isComponentRecord(value: unknown): boolean {
+    return isRecord(value) && typeof value.type === 'string' && value.type.length > 0 && isRecord(value.data);
+}
+
+function sceneRowsIssue(rows: readonly unknown[]): SceneShapeIssue | undefined {
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!isRecord(row) || typeof row.id !== 'number' || !Number.isSafeInteger(row.id)) {
+            return { code: 'malformed-entity', message: `entities[${i}] must be an entity record with an integer ID` };
+        }
+        const entityId = row.id;
+        if (row.parent != null && !Number.isSafeInteger(row.parent)) {
+            return { code: 'malformed-entity', entityId, message: `entities[${i}].parent must be an integer ID or null` };
+        }
+        if (row.children != null && (!Array.isArray(row.children) || !row.children.every(Number.isSafeInteger))) {
+            return { code: 'malformed-entity', entityId, message: `entities[${i}].children must be an array of integer IDs` };
+        }
+        if (typeof row.prefab === 'string') {
+            if (!Array.isArray(row.overrides) || !Array.isArray(row.added) || !Array.isArray(row.removed)) {
+                return { code: 'malformed-entity', entityId, message: `entities[${i}] must have overrides, added, and removed arrays for a prefab instance` };
+            }
+            for (let j = 0; j < row.overrides.length; j++) {
+                const edit = row.overrides[j];
+                if (!isRecord(edit) || typeof edit.type !== 'string' || (edit.componentData != null && !isComponentRecord(edit.componentData))) {
+                    return { code: 'malformed-entity', entityId, message: `entities[${i}].overrides[${j}] must be a prefab override record` };
+                }
+            }
+            for (let j = 0; j < row.added.length; j++) {
+                const added = row.added[j];
+                if (!isRecord(added) || !Array.isArray(added.components) || !added.components.every(isComponentRecord)) {
+                    return { code: 'malformed-entity', entityId, message: `entities[${i}].added[${j}] must be a prefab member with valid components` };
+                }
+            }
+            continue;
+        }
+        if (!Array.isArray(row.components)) {
+            return { code: 'malformed-entity', entityId, message: `entities[${i}].components must be an array` };
+        }
+        for (let j = 0; j < row.components.length; j++) {
+            if (!isComponentRecord(row.components[j])) return {
+                code: 'malformed-component', entityId,
+                message: `entities[${i}].components[${j}] must contain a component type and a data object`,
+            };
+        }
     }
-    return requireSupportedSceneVersion(scene.version);
+    return undefined;
+}
+
+/** Report the first record that cannot be interpreted by scene readers. */
+export function sceneDocumentShapeIssue(input: unknown): SceneShapeIssue | undefined {
+    return isRecord(input) && Array.isArray(input.entities) ? sceneRowsIssue(input.entities) : missingEntities;
+}
+
+/** Check the shared scene format before interpreting its records. */
+export function requireSupportedSceneDocument(input: unknown): number {
+    if (!isRecord(input) || !Array.isArray(input.entities)) throw new Error(missingEntities.message);
+    const version = requireSupportedSceneVersion(input.version);
+    const issue = sceneRowsIssue(input.entities);
+    if (issue) throw new Error(issue.message);
+    return version;
 }
