@@ -38,7 +38,7 @@ import { tileCellCenter, TilemapOrientation, type TileGridLayout, type TileGridP
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../util/logger';
-import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef } from '../asset/documentRef';
+import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
 
 export interface TiledChunkData {
@@ -566,25 +566,33 @@ export function tiledCollisionMods(
  * inline (a .tsj carries the same tileset fields, minus firstgid) with its
  * image paths made relative to the map. Passing its authored location resolves
  * all images in project space and lets an indexed tileset supply its own address.
+ * The project index can also recognize legacy project paths when no sibling matches.
  * Maps with only inline tilesets never invoke the resolver.
  */
 export async function parseTmjWithExternals(
     json: Record<string, unknown>,
     resolveExternal: (source: string) => Promise<string>,
-    owner?: { document: string; sourceAddressOf?: (source: string) => string },
+    owner?: { document: string; sourceAddressOf?: (source: string) => string; isKnownPath?: (path: string) => boolean },
 ): Promise<TiledMapData | null> {
     const rawTilesets = json.tilesets as Array<Record<string, unknown>> | undefined;
+    const isKnownPath = owner?.isKnownPath;
+    const resolve = isKnownPath
+        ? (document: string, ref: string) => resolveIndexedSiblingRef(document, ref, isKnownPath)
+        : resolveDocumentRef;
     if (rawTilesets && (owner || rawTilesets.some(ts => typeof ts.source === 'string'))) {
         const merged = await Promise.all(rawTilesets.map(async (ts) => {
             if (typeof ts.source !== 'string') {
-                return owner ? mapTilesetImages(ts, ref => resolveDocumentRef(owner.document, ref)) : ts;
+                return owner ? mapTilesetImages(ts, ref => resolve(owner.document, ref)) : ts;
             }
-            const source = owner ? resolveDocumentRef(owner.document, ts.source) : ts.source;
+            const source = owner ? resolve(owner.document, ts.source) : ts.source;
             const external = JSON.parse(await resolveExternal(source)) as Record<string, unknown>;
             const location = owner?.sourceAddressOf?.(source) ?? source;
             // Standalone callers get map-relative images. A loader supplies the authored location
             // so each page can be resolved against its own document even when loaded by UUID.
-            return { ...mapTilesetImages(external, ref => rebaseDocumentRef(location, ref, owner ? 'project' : 'relative')), firstgid: ts.firstgid };
+            return {
+                ...mapTilesetImages(external, ref => owner ? resolve(location, ref) : rebaseDocumentRef(location, ref, 'relative')),
+                firstgid: ts.firstgid,
+            };
         }));
         json = { ...json, tilesets: merged };
     }

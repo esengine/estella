@@ -9,6 +9,7 @@ import { cookAssets } from '../src/assets/cookAssets';
 
 let root: string;
 const map = 'assets/world/maps/cave.tmj', tileset = 'assets/world/sets/cave.tsj';
+const legacySet = 'old-props.tsj', legacyImage = 'old-sign.png';
 const local = 'assets/world/sets/stone.png', shared = 'assets/world/props/sign.png';
 const material = 'assets/world/sets/stone.esmaterial', scene = 'assets/main.esscene';
 const tileImage = '11111111-1111-4111-8111-111111111111';
@@ -25,10 +26,13 @@ async function file(relative: string, content: string, uuid?: string, type?: str
 beforeAll(async () => {
   root = await mkdtemp(path.join(tmpdir(), 'estella-tiled-documents-'));
   await file(map, JSON.stringify({ width: 1, height: 1, tilewidth: 16, tileheight: 16,
-    tilesets: [{ firstgid: 1, source: '../sets/cave.tsj' }], layers: [] }), grid, 'tilemap');
+    tilesets: [{ firstgid: 1, source: '../sets/cave.tsj' }, { firstgid: 2, source: legacySet }], layers: [] }), grid, 'tilemap');
   // Untyped on disk, as with an artist's first import from Tiled.
   await file(tileset, JSON.stringify({ type: 'tileset', name: 'Cave', image: 'stone.png',
     tiles: [{ id: 1, image: '../props/sign.png' }] }));
+  await file(legacySet, JSON.stringify({ type: 'tileset', name: 'Old props',
+    tiles: [{ id: 0, image: legacyImage }] }));
+  await file(legacyImage, 'old sign');
   await file(local, 'stone', tileImage, 'texture');
   await file(shared, 'sign');
   await file('stone.png', 'unrelated root texture');
@@ -50,7 +54,9 @@ it('adopts an external tileset and discovers the pages in its own directory for 
   const { index } = await scanAssetDatabase(root, { write: false });
   const set = index.entries.find(entry => entry.path === tileset);
   expect(set?.type).toBe('json');
-  expect(index.deps[grid]).toEqual([set!.uuid]);
+  const old = index.entries.find(entry => entry.path === legacySet)!;
+  expect(index.deps[grid].sort()).toEqual([set!.uuid, old.uuid].sort());
+  expect(index.deps[old.uuid]).toEqual([index.entries.find(entry => entry.path === legacyImage)!.uuid]);
   const sign = index.entries.find(entry => entry.path === shared)!;
   expect(index.deps[set!.uuid].sort()).toEqual([tileImage, sign.uuid].sort());
 });
@@ -73,8 +79,9 @@ it('ships the referenced pages and writes the same project paths into the staged
   };
   const unrelated = index.entries.find(entry => entry.path === 'stone.png')!;
   expect(result.included).not.toContain(unrelated.uuid);
-  expect((await staged(map)).tilesets[0].source).toBe(tileset);
+  expect((await staged(map)).tilesets.map((set: { source: string }) => set.source)).toEqual([tileset, '/' + legacySet]);
   expect(await staged(tileset)).toMatchObject({ image: local, tiles: [{ id: 1, image: shared }] });
+  expect(await staged(legacySet)).toMatchObject({ tiles: [{ id: 0, image: '/' + legacyImage }] });
   expect((await staged(material)).properties.albedo).toBe(local);
   expect(JSON.parse(await readFile(path.join(root, tileset), 'utf8')).image).toBe('stone.png');
 });

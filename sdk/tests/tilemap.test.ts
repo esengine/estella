@@ -139,6 +139,40 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         expect(grid.pixels[(0 * 4 + 2) * 4 + 3]).toBe(0);         // id 1 hole: transparent
     });
 
+    it('loads indexed sibling images before legacy project paths and finds project-root tilesets', async () => {
+        const loader = new TilemapAssetLoader();
+        const readSource = vi.fn(async (ref: string) => {
+            if (ref !== 'props.tsj') throw new Error('Unknown tileset: ' + ref);
+            return JSON.stringify({
+                name: 'Props', tiles: [{ id: 0, image: 'rock.png' }],
+            });
+        });
+        const decodePixels = vi.fn(async () => ({ width: 2, height: 2, pixels: tilePixels(10) }));
+        const acquireTexture = vi.fn(async () => ({ value: { handle: 14 } }));
+        const indexed = new Set(['props.tsj', 'rock.png', 'wall.png', 'assets/maps/wall.png']);
+        const ctx = {
+            catalog: { getBuildPath: (ref: string) => ref },
+            loadText: async () => JSON.stringify({
+                width: 1, height: 1, tilewidth: 2, tileheight: 2, layers: [],
+                tilesets: [
+                    { firstgid: 1, name: 'Walls', image: 'wall.png', columns: 1, tilecount: 1 },
+                    { firstgid: 2, source: 'props.tsj' },
+                ],
+            }),
+            sourceAddressOf: (ref: string) => ref === 'stage/map.tmj' ? 'assets/maps/level.tmj' : ref,
+            assetTypeOf: (ref: string) => indexed.has(ref) ? 'indexed' : undefined,
+            readSource,
+            acquireTexture,
+            decodePixels,
+            createOwnedTexture: async () => ({ value: { handle: 27 } }),
+        } as unknown as LoadContext;
+        const era = await loader.registry.prepare('stage/map.tmj', ctx);
+        expect(readSource.mock.calls).toEqual([['props.tsj']]);
+        expect(decodePixels.mock.calls).toEqual([['rock.png']]);
+        expect(acquireTexture.mock.calls).toEqual([['assets/maps/wall.png', true, 'imported']]);
+        expect((era.published as { source: LoadedTilemapSource }).source.tilesets.map(slot => slot.textureHandle)).toEqual([14, 27]);
+    });
+
     it('the loader folds a collection into one uploaded grid tileset', async () => {
         const loader = new TilemapAssetLoader();
         const uploads: Array<{ width: number; height: number }> = [];

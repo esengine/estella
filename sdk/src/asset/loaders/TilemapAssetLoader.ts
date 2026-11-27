@@ -42,7 +42,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'depends on it — load it through the app Assets channel.');
         }
         const mapData = await parseTmjWithExternals(JSON.parse(text), readSource, {
-            document: ctx.sourceAddressOf?.(path) ?? path, sourceAddressOf: ctx.sourceAddressOf,
+            document: ctx.sourceAddressOf?.(path) ?? path,
+            sourceAddressOf: ctx.sourceAddressOf,
+            isKnownPath: candidate => ctx.assetTypeOf?.(candidate) !== undefined,
         });
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
