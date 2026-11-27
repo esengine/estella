@@ -81,6 +81,21 @@ describe('writing one uniform of a material', () => {
         expect(Material.getUniform(inheriting, 'u_a')).toBe(3);
     });
 
+    it('reads the nearest uniform override through deep inheritance and falls back after Reset', () => {
+        const root = Material.create({ shader: 1, uniforms: { u_gain: 0.5, u_map: Material.tex(12) } });
+        const variant = Material.createInstance(root);
+        Material.setUniform(variant, 'u_gain', 0);
+        let leaf = variant;
+        for (let i = 0; i < 20; i++) leaf = Material.createInstance(leaf);
+        expect(Material.getUniform(leaf, 'u_gain')).toBe(0);
+        expect(Material.getUniform(leaf, 'u_map')).toEqual(Material.tex(12));
+        expect(Material.getUniform(leaf, 'u_unset')).toBeUndefined();
+        Material.applyState(variant, {});
+        expect(Material.getUniform(leaf, 'u_gain')).toBe(0.5);
+        Material.release(root);
+        expect(Material.getUniform(leaf, 'u_map')).toBeUndefined();
+    });
+
     it('still takes the whole flush for a texture', () => {
         const m = made();
         mock.material_define.mockClear();

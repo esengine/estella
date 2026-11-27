@@ -682,7 +682,15 @@ export const Material = {
      * @returns Uniform value or undefined
      */
     getUniform(material: MaterialHandle, name: string): UniformValue | undefined {
-        return resolveMaterial(material)?.uniforms.get(name);
+        // A single value only needs the nearest definition. Read the chain
+        // directly so unrelated uniforms and render state need no snapshot.
+        let data = materials.get(material);
+        for (let remaining = materials.size; data && remaining > 0; remaining--) {
+            const value = data.uniforms.get(name);
+            if (value !== undefined) return value;
+            data = data.parent === undefined ? undefined : materials.get(data.parent);
+        }
+        return undefined;
     },
 
     /**
