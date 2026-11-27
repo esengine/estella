@@ -265,15 +265,20 @@ describe('partitionWorld', () => {
         expect(partition.persistentRefs).toEqual([]);
     });
 
-    it('refuses a hard reference from one cell into another', () => {
+    it('allows references across subtrees in one cell but rejects references into another cell', () => {
         const partition = cut(scene(
             entity(0, 'World', null, { components: [declaration] }),
             entity(1, 'Watcher', [500, 0, 500], {
                 components: [{ type: 'ThirdPersonCamera', data: { target: 2 } }],
             }),
-            entity(2, 'Watched', [1500, 0, 500]),
+            entity(2, 'Nearby', [750, 0, 500]),
+            entity(3, 'Distant', [1500, 0, 500]),
+            entity(4, 'Other Watcher', [600, 0, 500], {
+                components: [{ type: 'ThirdPersonCamera', data: { target: 3 } }],
+            }),
         ))!;
-        expect(partition.errors.join('\n')).toContain('residency may delete one without the other');
+        expect(partition.errors).toEqual([expect.stringMatching(/entity 3 .*residency may delete one without the other/)]);
+        expect(partition.persistentRefs).toEqual([]);
     });
 
     it('allows a cell to reference the persistent world, and records which rows', () => {

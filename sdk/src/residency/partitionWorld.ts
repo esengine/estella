@@ -194,10 +194,15 @@ function transformPoint(matrix: readonly number[], { x, y, z }: Vec3): Vec3 {
     };
 }
 
-interface Placement {
-    /** Grid coordinate, or null for the persistent world. */
-    cell: { x: number; z: number } | null;
-    root: number;
+interface CellEntries {
+    x: number;
+    z: number;
+    minX: number;
+    minZ: number;
+    maxX: number;
+    maxZ: number;
+    rootCount: number;
+    entries: SceneEntry[];
 }
 
 /**
@@ -248,10 +253,10 @@ export function partitionWorld(
         else childrenOf.set(parent, [entry.id]);
     }
 
-    // Subtree membership and composed world positions in one walk: the placement
-    // comes from the ROOT, and the positions are what the cell's box has to cover.
-    const placement = new Map<number, Placement>();
-    const worldPosition = new Map<number, Vec3>();
+    // Assign whole subtrees to shared cell buckets and expand their bounds in
+    // the same walk. Null identifies the persistent document.
+    const placement = new Map<number, CellEntries | null>();
+    const cellEntries = new Map<string, CellEntries>();
     for (const root of roots) {
         const entry = byId.get(root)!;
         const { transform, worldPersistent } = localPlacement(entry, options, errors);
@@ -265,15 +270,32 @@ export function partitionWorld(
             cell = null;
         }
 
-        const where = { cell, root };
+        let bucket: CellEntries | null = null;
+        if (cell) {
+            const { x, z } = cell;
+            const key = `${x}_${z}`;
+            bucket = cellEntries.get(key) ?? null;
+            if (!bucket) {
+                bucket = { x, z, ...cellSquare(x, z, cellSize), rootCount: 0, entries: [] };
+                cellEntries.set(key, bucket);
+            }
+            bucket.rootCount++;
+        }
         const rootMatrix = transform && childrenOf.has(root) ? localMatrix(transform, rootPosition) : null;
         const stack: Array<{ id: number; position: Vec3; matrix: readonly number[] | null }> = [
             { id: root, position: rootPosition, matrix: rootMatrix },
         ];
         while (stack.length > 0) {
             const node = stack.pop()!;
-            placement.set(node.id, where);
-            worldPosition.set(node.id, node.position);
+            placement.set(node.id, bucket);
+            if (bucket) {
+                const { x } = node.position;
+                const second = planeSecond(node.position, plane);
+                bucket.minX = Math.min(bucket.minX, x);
+                bucket.maxX = Math.max(bucket.maxX, x);
+                bucket.minZ = Math.min(bucket.minZ, second);
+                bucket.maxZ = Math.max(bucket.maxZ, second);
+            }
             for (const child of childrenOf.get(node.id) ?? []) {
                 const childEntry = byId.get(child)!;
                 const { transform: childTransform, worldPersistent: childPersistent } = localPlacement(childEntry, options, errors);
@@ -310,23 +332,12 @@ export function partitionWorld(
 
     // Fill the output buckets in authored order. A cell can now assemble its
     // document directly from its own entries, even when roots are interleaved.
-    interface CellEntries { x: number; z: number; rootCount: number; entries: SceneEntry[] }
-    const cellEntries = new Map<string, CellEntries>();
     const persistentEntries: SceneEntry[] = [];
     let firstUnplaced: number | undefined;
     for (const entry of entries) {
-        const where = placement.get(entry.id);
-        if (!where) { firstUnplaced ??= entry.id; continue; }
-        if (where.cell === null) { persistentEntries.push(entry); continue; }
-        const { x, z } = where.cell;
-        const key = `${x}_${z}`;
-        let bucket = cellEntries.get(key);
-        if (!bucket) {
-            bucket = { x, z, rootCount: 0, entries: [] };
-            cellEntries.set(key, bucket);
-        }
-        if (entry.id === where.root) bucket.rootCount++;
-        bucket.entries.push(entry);
+        const bucket = placement.get(entry.id);
+        if (bucket === undefined) { firstUnplaced ??= entry.id; continue; }
+        (bucket === null ? persistentEntries : bucket.entries).push(entry);
     }
     if (firstUnplaced !== undefined) {
         errors.push(`StreamedWorld in "${sceneName}" cannot place ${entries.length - placement.size} entities `
@@ -352,17 +363,7 @@ export function partitionWorld(
 
     const cells: PartitionedCell[] = [];
     const orderedCells = [...cellEntries.values()].sort((a, b) => a.x - b.x || a.z - b.z);
-    for (const { x, z, entries: members, rootCount } of orderedCells) {
-        let { minX, minZ, maxX, maxZ } = cellSquare(x, z, cellSize);
-        // The grid square unioned with where the content actually is: a prop
-        // hanging over the edge is part of the place the box stands for, and a
-        // box that stops short of it pops the prop in at the boundary.
-        for (const entry of members) {
-            const at = worldPosition.get(entry.id)!;
-            minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
-            const second = planeSecond(at, plane);
-            minZ = Math.min(minZ, second); maxZ = Math.max(maxZ, second);
-        }
+    for (const { x, z, minX, minZ, maxX, maxZ, entries: members, rootCount } of orderedCells) {
         if (!Number.isFinite(minX) || !Number.isFinite(minZ) || !Number.isFinite(maxX) || !Number.isFinite(maxZ)) {
             errors.push(`cell (${x}, ${z}) in "${sceneName}" has non-finite bounds`);
             continue;
@@ -397,29 +398,22 @@ export function partitionWorld(
 function checkReferences(
     entries: readonly SceneEntry[],
     byId: ReadonlyMap<number, SceneEntry>,
-    placement: ReadonlyMap<number, Placement>,
+    placement: ReadonlyMap<number, CellEntries | null>,
     options: PartitionOptions,
     persistentRefs: Set<number>,
     errors: string[],
 ): void {
-    // One document, whether that is the persistent scene or one cell: everything
-    // in it comes and goes together, so a reference inside it can never dangle.
-    const sameDocument = (a: Placement, b: Placement): boolean =>
-        a.cell === null
-            ? b.cell === null
-            : b.cell !== null && a.cell.x === b.cell.x && a.cell.z === b.cell.z;
-
     for (const holder of entries) {
         const from = placement.get(holder.id);
-        if (!from) continue;
+        if (from === undefined) continue;
         visitSceneEntryEntityReferences(holder, options.entityFieldsOf, (componentType, field, candidate) => {
             // Strings in a prefab delta refer to instance-local IDs. Zero and
             // legacy negative values are empty references even in old scenes.
             if (typeof candidate !== 'number' || candidate <= INVALID_ENTITY || !byId.has(candidate)) return;
             const to = placement.get(candidate);
-            if (!to || from.root === to.root || sameDocument(from, to)) return;
-            if (from.cell !== null && to.cell === null) { persistentRefs.add(candidate); return; }
-            const where = to.cell === null ? 'the persistent world' : `cell ${to.cell.x},${to.cell.z}`;
+            if (to === undefined || from === to) return;
+            if (from !== null && to === null) { persistentRefs.add(candidate); return; }
+            const where = to === null ? 'the persistent world' : `cell ${to.x},${to.z}`;
             errors.push(
                 `${componentType}.${field} on entity ${holder.id} ("${nameOf(holder)}") references `
                 + `entity ${candidate} ("${nameOf(byId.get(candidate)!)}") in ${where} — `
