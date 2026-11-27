@@ -136,6 +136,7 @@ export const PROC_NODE_DEFAULTS: Record<string, Record<string, unknown>> = {
     part: { at: [0, 0, 0], size: [1, 1, 1], color: '#cccccc' },
     beam: { from: [0, 0, 0], to: [0, 10, 0], thick: 1, color: '#cccccc' },
     plant: { kind: '' },
+    model: { kind: '' },
     output: { inputs: [] },
 };
 

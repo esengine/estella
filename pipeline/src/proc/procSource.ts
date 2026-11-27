@@ -75,6 +75,11 @@ export interface ProcSource {
      * drawn shared and each choosing its detail by how far off it is, as a land's plants are. `near` and `reach` are lengths.
      */
     plants?: Record<string, ProcPlant>;
+    /**
+     * The models a `model` node stands, by name: a mesh made elsewhere (model_write) with its material and texture, each one its
+     * own entity in the scene. For the few large things a place is built round (a floating island, a crag, a wreck), not a crowd.
+     */
+    models?: Record<string, ProcModel>;
     /** Names every sum may read: numbers, or lists of numbers (a colour [r, g, b], 0..1). */
     params?: Record<string, number | number[]>;
     components?: Record<string, ProcComponent>;
@@ -84,6 +89,9 @@ export interface ProcSource {
 
 /** How a surface is drawn: project paths (or @uuid refs) to its material and texture, and its repeat in the source's units. */
 export interface ProcSurface { material?: string; texture?: string; tile?: number }
+
+/** A model a graph stands: its mesh, and the material and texture it is drawn with; it casts shadows unless told not to. */
+export interface ProcModel { mesh: string; material?: string; texture?: string; shadows?: boolean }
 
 /** A plant a graph stands: its mesh, its cheaper meshes nearest first, the material and texture they share, whole to `near` and drawn to `reach`. */
 export interface ProcPlant { mesh: string; lods?: string[]; material?: string; texture?: string; near?: number; reach?: number; shadows?: boolean }
@@ -134,6 +142,7 @@ export const PROC_OPS: Record<string, OpSpec> = {
     use: { fields: ['component', 'params'], help: 'use(component, params?): run a component on each plot, the plot at its origin; its output is turned and moved onto the plot' },
     box: { fields: ['height', 'mesh', 'color', 'jitter', 'fill', 'lift', 'keep', 'tumble', 'shadows', 'name', 'surface'], help: 'box(height, color, surface?, mesh?, fill? [x, z], lift?, jitter?, keep? "top"|"plot", tumble?, shadows?, name?): a shape standing on each plot; keep "top" passes the plot on lifted to its top' },
     roof: { fields: ['pitch', 'overhang', 'thick', 'color', 'jitter', 'along', 'lift', 'name', 'shadows', 'surface'], help: 'roof(pitch? 28, overhang? 1, thick? 0.4, color, surface?, along? "long"|"x"|"z", lift?): a pitched roof of two slabs on each plot, its ridge along the longer side at the height the pitch gives, starting at the floor of the plot (stand it on a body with keep "top")' },
+    model: { fields: ['kind', 'at', 'scale', 'yaw', 'tilt', 'keep', 'name'], help: 'model(kind, at? [x, y, z] in the plot frame, scale? n | [x, y, z], yaw?, tilt? [about x, about z], keep?): one of the `models` of the graph on each plot, its own entity at the size it was made times scale; for a few large things, not a crowd' },
     plant: { fields: ['kind', 'at', 'scale', 'yaw', 'keep', 'name'], help: 'plant(kind, at? [x, y, z] in the plot frame, scale?, yaw?, keep?): one of the `plants` of the graph on each plot, drawn shared with the detail its distance wants (a tree, not a ball on a post); yaw is random unless given' },
     part: { fields: ['at', 'size', 'mesh', 'color', 'jitter', 'yaw', 'tilt', 'tumble', 'shadows', 'keep', 'name', 'flip', 'surface'], help: 'part(at [x, y, z] in the plot\'s frame, size [x, y, z], color, surface?, mesh?, yaw?, tilt? [about x, about z] degrees, flip?, keep?): one shape placed on each plot' },
     beam: { fields: ['from', 'to', 'thick', 'color', 'mesh', 'space', 'jitter', 'shadows', 'name', 'surface'], help: 'beam(from [x, y, z], to [x, y, z], thick, color, surface?, space? "plot"|"world"): a rod between two points, once per plot; in the plot frame (y from its floor) unless space is "world"' },
@@ -189,7 +198,7 @@ function checkNodes(nodes: unknown, where: string, components: ReadonlySet<strin
 export function validateProcSource(raw: unknown): ProcSource {
     if (!isObj(raw)) throw new ProcBuildError('a rules graph is an object { version: 1, nodes: [...] }');
     if (raw.version !== 1) throw new ProcBuildError('`version` must be 1');
-    const known = ['version', 'unit', 'land', 'seed', 'params', 'components', 'nodes', 'note', 'surfaces', 'plants'];
+    const known = ['version', 'unit', 'land', 'seed', 'params', 'components', 'nodes', 'note', 'surfaces', 'plants', 'models'];
     for (const key of Object.keys(raw)) if (!known.includes(key)) throw new ProcBuildError(`a rules graph has no field "${key}"; it has ${known.join(', ')}`);
     if (raw.unit !== undefined && !(typeof raw.unit === 'number' && raw.unit > 0)) throw new ProcBuildError('`unit` must be a positive number');
     if (raw.land !== undefined && typeof raw.land !== 'string') throw new ProcBuildError('`land` is a project path to a .esland');
@@ -200,6 +209,13 @@ export function validateProcSource(raw: unknown): ProcSource {
             for (const f of Object.keys(v)) if (!['mesh', 'lods', 'material', 'texture', 'near', 'reach', 'shadows'].includes(f)) throw new ProcBuildError(`plant "${k}" has no field "${f}"`);
             if (v.lods !== undefined && !(Array.isArray(v.lods) && v.lods.every((l) => typeof l === 'string'))) throw new ProcBuildError(`plant "${k}": lods is a list of mesh paths, nearest first`);
             for (const f of ['near', 'reach'] as const) if (v[f] !== undefined && !(typeof v[f] === 'number' && (v[f] as number) > 0)) throw new ProcBuildError(`plant "${k}": ${f} is a length above 0`);
+        }
+    }
+    if (raw.models !== undefined) {
+        if (!isObj(raw.models)) throw new ProcBuildError('`models` is { name: { mesh, material?, texture?, shadows? } }');
+        for (const [k, v] of Object.entries(raw.models)) {
+            if (!isObj(v) || typeof v.mesh !== 'string') throw new ProcBuildError(`model "${k}" wants a \`mesh\`: a project path to its .esmesh`);
+            for (const f of Object.keys(v)) if (!['mesh', 'material', 'texture', 'shadows'].includes(f)) throw new ProcBuildError(`model "${k}" has no field "${f}"`);
         }
     }
     if (raw.surfaces !== undefined) {

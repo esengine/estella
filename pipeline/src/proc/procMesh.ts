@@ -111,7 +111,7 @@ export function packProcParts(result: ProcResult, options: { unit: number; cell?
     const buckets = new Map<string, { cx: number; cz: number; shadows: boolean; surface: string; parts: Part[] }>();
     for (const g of result.groups) for (const p of g.parts) {
         // A plant is not a shape to merge: it is drawn shared, with its own detail by distance (procPlants).
-        if (p.plant) continue;
+        if (p.plant || p.model) continue;
         const cx = Math.floor(p.x / cell), cz = Math.floor(p.z / cell);
         const surface = p.surface ?? '';
         const key = `${cx}_${cz}_${p.shadows ? 's' : 'n'}${surface ? `_${surface}` : ''}`;
@@ -160,4 +160,17 @@ export function procPlants(result: ProcResult, unit: number): ProcPlants | null 
         min[0] = Math.min(min[0], x); min[1] = Math.min(min[1], z); max[0] = Math.max(max[0], x); max[1] = Math.max(max[1], z);
     }
     return kinds.length > 0 ? { kinds, records, min, max } : null;
+}
+
+/** One model a run stands, in world units: where, turned how, and at what scale on each axis. */
+export interface ProcModelPlace { kind: string; name: string; at: [number, number, number]; q: [number, number, number, number]; scale: [number, number, number]; shadows: boolean }
+
+/** The model nodes of a run, each to be its own entity. */
+export function procModels(result: ProcResult, unit: number): ProcModelPlace[] {
+    const out: ProcModelPlace[] = [];
+    for (const g of result.groups) for (const p of g.parts) {
+        if (!p.model) continue;
+        out.push({ kind: p.model, name: p.name, at: [p.x * unit, p.y * unit, p.z * unit], q: [p.q[0], p.q[1], p.q[2], p.q[3]], scale: [p.sx, p.sy, p.sz], shadows: p.shadows });
+    }
+    return out;
 }

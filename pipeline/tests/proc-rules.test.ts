@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ProcCache, copyProcNodes, extractProcComponent, pasteProcNodes, addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, procPlants, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
+import { ProcCache, copyProcNodes, extractProcComponent, pasteProcNodes, addProcNode, applyProcEdits, connectProc, disconnectProc, explicitProc, removeProcNode, renderProcItems, packProcParts, procPlants, procModels, ProcBuildError, qRotate, renderProcPlan, runProc, validateProcSource, type Part, type ProcSource } from '../src/proc';
 import { MeshChannel, type MeshData } from '../../sdk/src/asset/meshFormat';
 import { evaluate } from '../src/modeling/modelExpr';
 
@@ -386,5 +386,21 @@ describe('rules graph', () => {
         expect(procPlants(runProc(src([{ id: 'b', op: 'rect', size: [4, 4] }, { id: 'c', op: 'box', height: 1, color: '#ffffff' }, { op: 'output', inputs: ['c'] }])), 100)).toBeNull();
         expect(() => runProc(src([{ op: 'rect', size: [4, 4] }, { id: 't', op: 'plant', kind: 'elm' }, { op: 'output', inputs: ['t'] }], { plants }))).toThrow(/no plant "elm"/);
         expect(() => src([{ id: 'r', op: 'rect', size: [4, 4] }, { op: 'output', inputs: ['r'] }], { plants: { oak: { lods: [] } } })).toThrow(/mesh/);
+    });
+    it('stands models: each its own entity at its scale, lifted and tilted with its plot, and left out of the packed meshes', () => {
+        const models = { isle: { mesh: 'isle.esmesh', material: 'isle.esmaterial', shadows: false } };
+        const r = runProc(src([
+            { id: 'site', op: 'rect', at: [100, 0], size: [40, 40] },
+            { op: 'lift', by: 2000 },
+            { id: 'isle', op: 'model', kind: 'isle', scale: [2, 1, 3], yaw: 90, tilt: [0, 10] },
+            { id: 'hall', input: 'site', op: 'box', height: 10, color: '#ffffff' },
+            { op: 'output', inputs: ['isle', 'hall'] },
+        ], { unit: 100, models }));
+        const got = procModels(r, 100);
+        expect(got).toHaveLength(1);
+        expect(got[0]).toMatchObject({ kind: 'isle', at: [10000, 200000, 0], scale: [2, 1, 3], shadows: false });
+        expect(packProcParts(r, { unit: 100 }).reduce((a, c) => a + c.parts, 0)).toBe(1);
+        expect(() => runProc(src([{ op: 'rect', size: [4, 4] }, { id: 'm', op: 'model', kind: 'rock' }, { op: 'output', inputs: ['m'] }], { models }))).toThrow(/no model "rock"/);
+        expect(() => runProc(src([{ op: 'rect', size: [4, 4] }, { id: 'm', op: 'model', kind: 'isle', scale: [1, 0, 1] }, { op: 'output', inputs: ['m'] }], { models }))).toThrow(/scale/);
     });
 });

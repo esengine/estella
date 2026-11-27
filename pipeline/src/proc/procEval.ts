@@ -36,6 +36,8 @@ export interface Part {
     surface: string;
     /** One of the source's `plants`, standing here at the scale of its sizes (all three alike), and not a shape at all. */
     plant?: string;
+    /** One of the source's `models`, drawn as its own entity: its sizes are the scale it is drawn at on each axis. */
+    model?: string;
     shadows: boolean;
     id: number;
     tags: string[];
@@ -103,6 +105,8 @@ const DEG = Math.PI / 180;
 /** A stable id from a parent id and an index: what rand(id) reads. */
 /** The green a plant is marked in on a plan: what stands there is its model, which the plan does not draw. */
 const PLANT_IN_PLAN: [number, number, number] = [0.22, 0.4, 0.2];
+/** The grey a model is marked in on a plan, at the spot it stands. */
+const MODEL_IN_PLAN: [number, number, number] = [0.5, 0.5, 0.55];
 
 function mix(a: number, b: number, salt: number): number {
     let h = (a ^ 0x9e3779b9) >>> 0;
@@ -618,6 +622,23 @@ class Run {
                 }
                 if (node.keep === 'top') out.push({ ...p, y: p.y + lift + Math.max(h, 0), attrs: { ...p.attrs }, tags: [...p.tags] });
                 else if (node.keep === 'plot') out.push(p);
+                return out;
+            }
+            case 'model': {
+                const kind = node.kind as string;
+                if (typeof kind !== 'string' || !this.source.models?.[kind]) throw new Error(`there is no model "${String(kind)}" in the graph's models (${Object.keys(this.source.models ?? {}).join(', ') || 'none'})`);
+                const at = this.vec(node.at ?? [0, 0, 0], 3, s, 'at');
+                const scale = Array.isArray(node.scale) ? this.vec(node.scale, 3, s, 'scale') : (() => { const n = this.num(node.scale ?? 1, s, 'scale'); return [n, n, n]; })();
+                if (!scale.every((v) => v > 0)) throw new Error('scale is above 0 on every axis: 1 is the model as it was made');
+                const [x, z] = toWorld(p, at[0]!, at[2]!);
+                let q = qYaw(p.yaw + this.num(node.yaw ?? 0, s, 'yaw'));
+                if (node.tilt !== undefined) {
+                    const [tx, tz] = this.vec(node.tilt, 2, s, 'tilt');
+                    q = qMul(q, qMul(qAxis(1, 0, 0, tx!), qAxis(0, 0, 1, tz!)));
+                }
+                const shadows = this.source.models![kind]!.shadows !== false;
+                const out: Item[] = [{ ...this.part((node.name as string | undefined) ?? node.id ?? kind, 'cube', [x, p.y + at[1]!, z], scale as [number, number, number], q, MODEL_IN_PLAN, shadows, p.id, p.tags), model: kind }];
+                if (node.keep === 'plot') out.push(p);
                 return out;
             }
             case 'plant': {
