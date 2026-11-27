@@ -516,6 +516,7 @@ export class Assets {
     private sourceListeners_ = new Set<(path: string) => void>();
     private readonly appScope_ = new AssetScope();
     private readonly materialLoader_ = new MaterialAssetLoader();
+    private materialDraftGeneration_ = 0;
     private entityScopes_ = new EntityAssetScopes(this.leaseForBinding.bind(this));
     private readonly registrySlots_ = new RegistryAssetSlots();
     /** Resolved load paths by asset type and native handle, for {@link pathForHandle}. */
@@ -2873,29 +2874,39 @@ export class Assets {
         } catch (error) { throw preparationFailureReason(error); }
     }
 
-    /** Render an unsaved document in isolation, retaining its dependencies for the draw. @internal */
-    async withMaterialDraft<T>(path: string, data: MaterialAssetData, render: (handle: number) => Promise<T>,
-        signal?: AbortSignal): Promise<T | null> {
+    /** Acquire a private material for an unsaved document. Realm teardown invalidates all its receipts. @internal */
+    async acquireMaterialDraft(path: string, data: MaterialAssetData, signal?: AbortSignal): Promise<AssetLease<MaterialResult> | null> {
         if (signal?.aborted) return null;
         const epoch = this.resetEpoch_;
         const era = await this.prepared_(async ctx => ({
             build: await this.materialLoader_.prepareDocument(data, path, ctx, false),
         })).catch(error => { throw preparationFailureReason(error); });
-        let lease: AssetLease<MaterialResult> | undefined;
+        let resetLease: AssetLease<MaterialResult> | undefined;
         try {
             if (signal?.aborted || epoch !== this.resetEpoch_) return null;
             const material = era.build();
-            lease = this.appScope_.add(ownedAssetLease(path, epoch, material, value => {
+            const key = `material-draft:${path}`, generation = ++this.materialDraftGeneration_;
+            let disposed = false;
+            const owner = ownedAssetLease(key, generation, material, value => {
+                disposed = true;
                 try { this.materialLoader_.unload(value); }
                 finally { era.dependencies.releaseAll(); }
+            });
+            resetLease = this.appScope_.add(owner);
+            const guard = (receipt: AssetLease<MaterialResult>): AssetLease<MaterialResult> => ({
+                ...receipt,
+                retain: () => {
+                    const next = disposed ? null : receipt.retain();
+                    return next ? guard(next) : null;
+                },
+            });
+            // The app scope can retire the draft even if a draw still holds a receipt.
+            return guard(ownedAssetLease(key, generation, material, () => {
+                this.appScope_.forget(owner);
+                owner.release();
             }));
-            const preview = await render(material.handle);
-            return signal?.aborted || epoch !== this.resetEpoch_ ? null : preview;
         } finally {
-            if (lease) {
-                this.appScope_.forget(lease);
-                lease.release();
-            } else era.dependencies.releaseAll();
+            if (!resetLease) era.dependencies.releaseAll();
         }
     }
 
