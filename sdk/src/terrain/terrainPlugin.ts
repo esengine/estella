@@ -45,7 +45,7 @@ import type { LandscapeSpline } from './landscapeSpline';
 import { terrainPaintTargets, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
-import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
+import { makePage, makePageJob, pageSampleStep, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
 import { buildPatchMesh } from './patch';
 import { TerrainSurface, TILE_CELLS, type SurfaceTile } from './surface';
@@ -707,7 +707,10 @@ export class Terrains {
                 built.table.markStale((key) => {
                     const [level, ix, iz] = key.split(':').map(Number) as [number, number, number];
                     const size = leaf * 2 ** level, x0 = ix * size + o.x, z0 = iz * size + o.z;
-                    return x0 <= b[2] && x0 + size >= b[0] && z0 <= b[3] && z0 + size >= b[1];
+                    // The edge normals depend on the sample just outside the patch.
+                    const border = pageSampleStep(size);
+                    return x0 - border <= b[2] && x0 + size + border >= b[0]
+                        && z0 - border <= b[3] && z0 + size + border >= b[1];
                 });
             }
             built.range = range;

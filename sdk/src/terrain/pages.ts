@@ -20,6 +20,11 @@ export const PAGE_TEXELS = PATCH_CELLS * 2;
 /** A page's side in the atlas: its samples, the one on its far edge, and one past each edge. */
 export const PAGE_SIDE = PAGE_TEXELS + 3;
 
+/** The terrain-space distance between samples, also the width of a page's one-sample border. */
+export function pageSampleStep(size: number): number {
+    return size / PAGE_TEXELS;
+}
+
 /** A page's place and what it found. */
 export interface Page {
     slot: number;
@@ -42,7 +47,7 @@ export interface PageImage { heights: Uint8Array; paint: Uint8Array; paint2: Uin
  * paint (a world's biomes), from the paint the source gave it.
  */
 export function makePage(source: TerrainSource, x0: number, z0: number, size: number, repaint?: Repaint): PageImage | Promise<PageImage> {
-    const n = PAGE_SIDE, step = size / PAGE_TEXELS;
+    const n = PAGE_SIDE, step = pageSampleStep(size);
     if (source.region) {
         const got = source.region(x0 - step, z0 - step, step, n);
         return got instanceof Promise ? got.then((r) => encodePage(source, x0, z0, step, r.heights, r, repaint))
@@ -53,7 +58,7 @@ export function makePage(source: TerrainSource, x0: number, z0: number, size: nu
 
 /** A page made in bounded sample batches. Use only when height() is ready and synchronous; region-only providers keep their async path. */
 export function* makePageJob(source: TerrainSource, x0: number, z0: number, size: number, repaint?: Repaint): Generator<number, PageImage, void> {
-    const n = PAGE_SIDE, step = size / PAGE_TEXELS, h = new Float32Array(n * n);
+    const n = PAGE_SIDE, step = pageSampleStep(size), h = new Float32Array(n * n);
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
     for (let k = 0; k < h.length; k++) {
         const i = k % n, j = Math.floor(k / n);

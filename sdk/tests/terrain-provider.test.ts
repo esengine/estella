@@ -11,7 +11,7 @@ import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes, paintWeights } from
 import {
     noiseProvider, ProviderSource, registerTerrainProvider, TerrainUnavailable, type TerrainProvider, type TerrainRegion,
 } from '../src/terrain/provider';
-import { makePage, PAGE_SIDE, PAGE_TEXELS, type PageImage } from '../src/terrain/pages';
+import { makePage, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from '../src/terrain/pages';
 import { flattenModifier, type NoiseParams } from '../src/terrain/source';
 
 // These scenes are written in metres: a project of one unit a metre, so the Terrain's own defaults are metres beside them.
@@ -263,6 +263,32 @@ describe('modifiers on the ground', () => {
         return app;
     };
     const settle = async (app: App) => { for (let i = 0; i < 4; i++) { app.tick(1 / 60); await new Promise((r) => setTimeout(r, 0)); } };
+
+    it.each([0, 1])('refreshes the level %i page when a modifier touches its edge sample outside the patch', async level => {
+        const app = boot();
+        const entity = app.world.spawn();
+        const origin = { x: 200, y: 0, z: -37 };
+        app.world.insert(entity, Transform, { position: origin, worldPosition: origin });
+        app.world.insert(entity, Terrain, { ...Terrain._default, ...params, extent: TerrainExtent.Infinite, cellSize: 2 });
+        await settle(app);
+        const terrains = app.getResource(TerrainsRes);
+        const { source, table } = terrains.built_.get(entity)!;
+        const key = `${level}:-1:0`, far = `${level}:-2:0`;
+        const size = PATCH_CELLS * 2 * 2 ** level, step = size / PAGE_TEXELS;
+        const before = await makePage(source!, -size, 0, size);
+        table.claim(key, before.min, before.max);
+        table.claim(far, before.min, before.max);
+        if (level === 1) table.claim('0:-1:0', before.min, before.max);
+        const z = step * 10;
+        const xWorld = origin.x + step, zWorld = origin.z + z;
+        terrains.setModifier({ id: 'berm', bounds: [xWorld, zWorld, xWorld, zWorld], apply: () => 280 });
+        const after = await makePage(source!, -size, 0, size);
+        const seam = (11 * PAGE_SIDE + PAGE_TEXELS + 1) * 4;
+        expect(after.heights[seam + 2]).not.toBe(before.heights[seam + 2]);
+        expect(table.isStale(key)).toBe(true);
+        expect(table.isStale(far)).toBe(false);
+        if (level === 1) expect(table.isStale('0:-1:0')).toBe(false);
+    });
 
     it('level a plot for every reader, blend back at its edge, and leave the ground as it was when taken off', async () => {
         const app = boot();
