@@ -96,22 +96,48 @@ function componentsOf(entry: SceneEntry): SceneComponentData[] {
     return isPrefabEntry(entry) ? [] : (entry as SceneEntityData).components ?? [];
 }
 
-/**
- * Whether an entry carries a component, counting the one a prefab instance ADDS
- * — the only way to mark an instance, since its own list is the delta.
- */
-function hasComponent(entry: SceneEntry, type: string): boolean {
-    if (!isPrefabEntry(entry)) {
-        return componentsOf(entry).some((component) => component.type === type);
-    }
-    return (entry as PrefabInstanceEntry).overrides.some(
-        (override) => override.type === 'component_added' && override.componentType === type,
-    );
+interface WorldDeclaration {
+    entry: SceneEntry;
+    data: Record<string, unknown>;
+    prefabEntityId?: string;
 }
 
-/** Includes declarations added as prefab overrides. A plain scene can skip resolving prefab assets for a world cut. */
-export function streamedWorldDeclaration(scene: SceneData): SceneEntry | undefined {
-    return ((scene.entities ?? []) as unknown as SceneEntry[]).find(entry => hasComponent(entry, 'StreamedWorld'));
+function declarationsOn(entry: SceneEntry): WorldDeclaration[] | undefined {
+    let declarations: WorldDeclaration[] | undefined;
+    if (!isPrefabEntry(entry)) {
+        for (const component of componentsOf(entry)) {
+            if (component.type === 'StreamedWorld') (declarations ??= []).push({ entry, data: component.data ?? {} });
+        }
+        return declarations;
+    }
+
+    // A scene can declare streaming on the instance itself. Replay only its
+    // authored StreamedWorld edits, in the same order as prefab expansion.
+    let byTarget: Map<string, PrefabOverride[]> | undefined;
+    for (const override of entry.overrides ?? []) {
+        if (overriddenComponentType(override) !== 'StreamedWorld') continue;
+        byTarget ??= new Map();
+        const target = byTarget.get(override.prefabEntityId);
+        if (target) target.push(override);
+        else byTarget.set(override.prefabEntityId, [override]);
+    }
+    for (const [prefabEntityId, overrides] of byTarget ?? []) {
+        if (entry.removed?.includes(prefabEntityId)) continue;
+        const target = { prefabEntityId, name: '', visible: true, components: [] as SceneComponentData[] };
+        applyOverrides(target, overrides);
+        const component = target.components[0];
+        if (component) (declarations ??= []).push({ entry, data: component.data ?? {}, prefabEntityId });
+    }
+    return declarations;
+}
+
+/** Scene-authored settings, including overrides. Ordinary scenes need no prefab reads to opt out. */
+export function streamedWorldDeclaration(scene: SceneData): WorldDeclaration | undefined {
+    for (const entry of scene.entities ?? []) {
+        const declaration = declarationsOn(entry)?.[0];
+        if (declaration) return declaration;
+    }
+    return undefined;
 }
 
 function componentData(entry: SceneEntry, type: string): Record<string, unknown> | null {
@@ -123,8 +149,7 @@ function componentData(entry: SceneEntry, type: string): Record<string, unknown>
 
 /** Read the settings from the same authored declaration used to select a streamed scene. */
 export function streamedWorldData(scene: SceneData): Record<string, unknown> | null {
-    const declared = streamedWorldDeclaration(scene);
-    return declared ? componentData(declared, 'StreamedWorld') : null;
+    return streamedWorldDeclaration(scene)?.data ?? null;
 }
 
 function vec3(value: unknown, fallback: Vec3): Vec3 {
@@ -141,7 +166,8 @@ function localPlacement(
     entry: SceneEntry, options: PartitionOptions, problems: string[],
 ): { transform: Readonly<Record<string, unknown>> | null; worldPersistent: boolean } {
     if (!isPrefabEntry(entry)) {
-        return { transform: componentData(entry, 'Transform'), worldPersistent: hasComponent(entry, 'WorldPersistent') };
+        return { transform: componentData(entry, 'Transform'),
+            worldPersistent: componentsOf(entry).some(component => component.type === 'WorldPersistent') };
     }
     const instance = entry as PrefabInstanceEntry;
     const asset = options.resolvePrefab?.(instance.prefab) ?? null;
@@ -154,8 +180,11 @@ function localPlacement(
     }
     const transform = asset.transform === undefined ? { position: asset.position } : asset.transform;
     const worldPersistent = asset.worldPersistent ?? false;
-    const overrides = instance.overrides?.filter(override =>
-        override.prefabEntityId === asset.rootId && editsPlacement(override));
+    const overrides = instance.overrides?.filter(override => {
+        if (override.prefabEntityId !== asset.rootId) return false;
+        const type = overriddenComponentType(override);
+        return type === 'Transform' || type === 'WorldPersistent';
+    });
     if (!overrides?.length) return { transform, worldPersistent };
     const root = { prefabEntityId: asset.rootId, name: '', visible: true,
         components: transform ? [{ type: 'Transform', data: { ...transform } }] : [] };
@@ -167,21 +196,17 @@ function localPlacement(
     };
 }
 
-function editsPlacement(override: PrefabOverride): boolean {
-    let type: string | undefined;
+function overriddenComponentType(override: PrefabOverride): string | undefined {
     switch (override.type) {
         case 'property':
         case 'component_removed':
-            type = override.componentType;
-            break;
+            return override.componentType;
         case 'component_added':
         case 'component_replaced':
-            type = override.componentData?.type;
-            break;
+            return override.componentData?.type;
         default:
-            return false;
+            return undefined;
     }
-    return type === 'Transform' || type === 'WorldPersistent';
 }
 
 const UNIT_SCALE: Vec3 = { x: 1, y: 1, z: 1 };
@@ -220,9 +245,9 @@ export function partitionWorld(
     scene: SceneData, sceneName: string, options: PartitionOptions,
 ): WorldPartition | null {
     const entries = (scene.entities ?? []) as unknown as SceneEntry[];
-    const declared = streamedWorldDeclaration(scene);
-    if (!declared) return null;
-    const declaration = componentData(declared, 'StreamedWorld');
+    const found = streamedWorldDeclaration(scene);
+    if (!found) return null;
+    const { entry: declared, data: declaration, prefabEntityId } = found;
     const cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
     const plane = declaration?.plane === StreamPlane.Screen ? 'xy' : 'xz';
     if (!Number.isFinite(cellSize) || cellSize <= 0) {
@@ -242,16 +267,20 @@ export function partitionWorld(
                 errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
         }
         byId.set(entry.id, entry);
-        if (!otherDeclaration && entry !== declared && hasComponent(entry, 'StreamedWorld')) otherDeclaration = entry;
+        if (!otherDeclaration && declarationsOn(entry)?.[entry === declared ? 1 : 0]) otherDeclaration = entry;
     }
-    const duplicateComponent = componentsOf(declared).filter(component => component.type === 'StreamedWorld').length > 1;
-    if (otherDeclaration || duplicateComponent) {
+    if (otherDeclaration) {
         const first = `entity ${declared.id} ("${nameOf(declared)}")`;
-        const locations = otherDeclaration
+        const locations = otherDeclaration !== declared
             ? `${first} and entity ${otherDeclaration.id} ("${nameOf(otherDeclaration)}")`
             : first;
         return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
             errors: [`Scene "${sceneName}" can have only one StreamedWorld declaration; found multiple on ${locations}`] };
+    }
+    if (prefabEntityId !== undefined && isPrefabEntry(declared)
+        && options.resolvePrefab?.(declared.prefab)?.rootId !== prefabEntityId) {
+        return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
+            errors: [`StreamedWorld on entity ${declared.id} ("${nameOf(declared)}") must target its prefab root; cannot match "${prefabEntityId}"`] };
     }
 
     const childrenOf = new Map<number, number[]>();

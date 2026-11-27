@@ -161,6 +161,17 @@ describe('the snapshot Play boots', () => {
         ), 'main', resolveRef)).rejects.toThrow(/only one StreamedWorld.*Landscape.*Overlay/);
     });
 
+    it('cuts Play when the world declaration is an explicit prefab root override', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({
+            rootEntityId: 'r', entities: [{ prefabEntityId: 'r', ...entity(0, 'Settings', [0, 0, 0]) }],
+        }) })));
+        const cut = (await cutPlayWorld(scene({ id: 1, name: 'Settings', parent: null, prefab: PREFAB, added: [], removed: [],
+            overrides: [{ type: 'component_added', prefabEntityId: 'r', componentData: declaration }],
+        }, entity(2, 'Rock', [1500, 0, 0])), 'main', resolveRef))!;
+        expect(names(cut.persistent)).toEqual(['Settings']);
+        expect(cut.manifest.cells.map(cell => cell.name)).toEqual(['main.cell_1_0']);
+    });
+
     it('refuses a world a build would refuse, rather than playing it whole', async () => {
         vi.stubGlobal('fetch', refuseFetch);
         await expect(cutPlayWorld(scene(

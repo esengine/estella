@@ -16,17 +16,24 @@ import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 const SIZE = 1000;
 
 describe('targets that cannot ship a cut world', () => {
-    it.each(['StreamedWorld', String.raw`\u0053treamedWorld`])('refuses a streamed world with the component type %s', async componentName => {
+    it.each([
+        ['plain', 'StreamedWorld', false],
+        ['escaped', String.raw`\u0053treamedWorld`, false],
+        ['prefab instance override', 'StreamedWorld', true],
+    ] as const)('refuses a streamed world declared by a %s component', async (_kind, componentName, instance) => {
         const { exportGame } = await import('../src/export/exportGame');
         const project = await mkdtemp(path.join(tmpdir(), 'streamed-'));
         try {
             await mkdir(path.join(project, 'assets', 'scenes'), { recursive: true });
+            const declaration = { type: 'StreamedWorld', data: { cellSize: SIZE } };
             await writeFile(path.join(project, 'assets', 'scenes', 'main.esscene'),
                 JSON.stringify({
                     version: 4, name: 'main',
                     entities: [
-                        { id: 0, name: 'World', parent: null, children: [], visible: true,
-                          components: [{ type: 'StreamedWorld', data: { cellSize: SIZE } }] },
+                        instance
+                            ? { id: 0, prefab: 'assets/Settings.esprefab', parent: null, added: [], removed: [],
+                                overrides: [{ prefabEntityId: 'r', type: 'component_added', componentData: declaration }] }
+                            : { id: 0, name: 'World', parent: null, children: [], visible: true, components: [declaration] },
                         { id: 1, name: 'RockA', parent: null, children: [], visible: true,
                           components: [{ type: 'Transform', data: { position: { x: 500, y: 0, z: 500 } } }] },
                     ],

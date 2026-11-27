@@ -184,6 +184,26 @@ describe('cooking a world that instances a prefab', () => {
         expect(manifest.persistentRefs).toEqual([1]);
     });
 
+    it('cooks a world declared by a prefab instance root override', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[1].overrides.push({ prefabEntityId: 'r', type: 'component_added',
+            componentData: { type: 'StreamedWorld', data: { cellSize: 1000, plane: StreamPlane.Screen } } });
+        scene.entities[1].added = [];
+        scene.entities[1].removed = [];
+        scene.entities.splice(0, 1, { id: 2, name: 'Streamed sprite', parent: null, children: [], components: [
+            { type: 'Transform', data: { position: { x: 2500, y: 1500, z: 500 } } },
+        ] });
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_2_1']);
+        const persistent = JSON.parse(await readFile(sceneFile, 'utf8'));
+        expect(persistent.entities.map((entity: { id: number }) => entity.id)).toEqual([1]);
+        const manifest = JSON.parse(await readFile(path.join(root, 'world/main.world.json'), 'utf8')) as WorldManifest;
+        expect(manifest.plane).toBe('xy');
+    });
+
     it.each([
         { axes: 'XY', plane: StreamPlane.Screen, rotation: { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 }, edge: 'maxZ' as const, extent: 1300 },
         { axes: 'XZ', plane: StreamPlane.Ground, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 }, edge: 'minZ' as const, extent: -1100 },

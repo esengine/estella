@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { partitionWorld, type PartitionOptions } from '../src/residency/partitionWorld';
 import { cutWorld, resolvePrefabRoots } from '../src/residency/cutWorld';
+import { farProxySettings } from '../src/residency/farProxy';
 import { RuntimeConfig } from '../src/defaults';
 import { StreamPlane } from '../src/residency/components';
 import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
@@ -113,6 +114,30 @@ describe('partitionWorld', () => {
         const duplicate = cut(scene(entity(1, 'World settings', null, { components: [declaration, competing] }), prop))!;
         expect(duplicate.errors.join('\n')).toMatch(/only one StreamedWorld.*World settings/);
         expect(duplicate.cells).toEqual([]);
+    });
+
+    it('uses the effective StreamedWorld component added to a prefab instance root', () => {
+        const add = { prefabEntityId: 'r', type: 'component_added', componentData: {
+            type: 'StreamedWorld', data: { cellSize: 100, plane: StreamPlane.Screen, farProxies: true },
+        } };
+        const resize = { prefabEntityId: 'r', type: 'property', componentType: 'StreamedWorld', propertyName: 'cellSize', value: 200 };
+        const settings = { id: 1, name: 'Settings', prefab: 'settings.esprefab', parent: null, added: [], removed: [], overrides: [add, resize] };
+        const prop = entity(2, 'Sprite', [250, 450, 0]);
+        const opts = { ...options, resolvePrefab: () => ({ rootId: 'r', position: { x: 700, y: 0, z: 0 } }) };
+        const document = scene(settings, prop);
+        const partition = partitionWorld(document, 'main', opts)!;
+        expect(partition.errors).toEqual([]);
+        expect(partition.cellSize).toBe(200);
+        expect(partition.plane).toBe('xy');
+        expect(partition.cells.map(cell => cell.name)).toEqual(['main.cell_1_2']);
+        expect(names(partition.persistent)).toEqual(['Settings']);
+        expect(farProxySettings(document)?.farDistance).toBe(8000);
+
+        const child = { ...settings, overrides: [{ ...add, prefabEntityId: 'child' }] };
+        expect(partitionWorld(scene(child, prop), 'main', opts)?.errors.join('\n')).toMatch(/StreamedWorld.*prefab root/);
+        const removed = { ...settings, overrides: [...settings.overrides,
+            { prefabEntityId: 'r', type: 'component_removed', componentType: 'StreamedWorld' }] };
+        expect(partitionWorld(scene(removed, prop), 'main', opts)).toBeNull();
     });
 
     it('places top-level entities by their own position, and keeps the rest persistent', () => {
