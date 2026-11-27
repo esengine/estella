@@ -180,28 +180,25 @@ void setOriginEntity(tilemap::TilemapSystem& map, u32 layerKey, u32 originEntity
 // also survive a ?query= parameter if anyone ever serves scenes over HTTP.
 constexpr const char* kB64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-void base64Encode(const u8* data, usize len, std::string& out) {
-    out.reserve(out.size() + ((len + 2) / 3) * 4);
+std::string base64Encode(const u8* data, usize len) {
+    std::string out((len / 3 + (len % 3 != 0)) * 4, '=');
+    char* dest = out.data();
     usize i = 0;
-    while (i + 3 <= len) {
+    for (; i + 3 <= len; i += 3, dest += 4) {
         const u32 v = (u32(data[i]) << 16) | (u32(data[i + 1]) << 8) | u32(data[i + 2]);
-        out.push_back(kB64[(v >> 18) & 0x3F]);
-        out.push_back(kB64[(v >> 12) & 0x3F]);
-        out.push_back(kB64[(v >> 6) & 0x3F]);
-        out.push_back(kB64[v & 0x3F]);
-        i += 3;
+        dest[0] = kB64[(v >> 18) & 0x3F];
+        dest[1] = kB64[(v >> 12) & 0x3F];
+        dest[2] = kB64[(v >> 6) & 0x3F];
+        dest[3] = kB64[v & 0x3F];
     }
     if (i < len) {
-        const u32 v = (u32(data[i]) << 16) | (i + 1 < len ? (u32(data[i + 1]) << 8) : 0);
-        out.push_back(kB64[(v >> 18) & 0x3F]);
-        out.push_back(kB64[(v >> 12) & 0x3F]);
-        if (i + 1 < len) {
-            out.push_back(kB64[(v >> 6) & 0x3F]);
-        } else {
-            out.push_back('=');
-        }
-        out.push_back('=');
+        const bool hasSecond = i + 1 < len;
+        const u32 v = (u32(data[i]) << 16) | (hasSecond ? (u32(data[i + 1]) << 8) : 0);
+        dest[0] = kB64[(v >> 18) & 0x3F];
+        dest[1] = kB64[(v >> 12) & 0x3F];
+        if (hasSecond) dest[2] = kB64[(v >> 6) & 0x3F];
     }
+    return out;
 }
 
 i32 b64Value(char c) {
@@ -276,9 +273,7 @@ std::string exportChunks(tilemap::TilemapSystem& map, u32 entity) {
         append(chunk->tiles, sizeof(chunk->tiles));
     }
 
-    std::string out;
-    base64Encode(raw.data(), raw.size(), out);
-    return out;
+    return base64Encode(raw.data(), raw.size());
 }
 
 bool importChunks(tilemap::TilemapSystem& map, u32 entity, const std::string& encoded) {

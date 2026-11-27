@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { beforeAll, describe, expect, it } from 'vitest';
+import { Buffer } from 'node:buffer';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { createTilemapAPI } from '../src/tilemap/tilemapAPI';
-import { decodeTilemapChunks } from '../src/tilemap/chunkCodec';
+import { CHUNK_SIZE, decodeTilemapChunks } from '../src/tilemap/chunkCodec';
 
 describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
   let core: ESEngineModule;
@@ -159,5 +160,23 @@ describe.skipIf(!HAS_WASM)('bounded tile chunk readback', () => {
       tiles.destroyLayer(10);
       tiles.destroyLayer(11);
     }
+  });
+
+  it('keeps canonical Base64url padding for empty, one-chunk, and two-chunk maps', () => {
+    core.setActiveContext(null);
+    const tiles = createTilemapAPI(core);
+    tiles.initInfiniteLayer(10, 16, 16);
+    try {
+      for (const [count, padding] of [[0, 1], [1, 0], [2, 2]] as const) {
+        if (count > 0) tiles.setTile(10, -CHUNK_SIZE * count, -1, 0x6003);
+        const blob = tiles.exportChunks(10);
+        const bytes = Buffer.from(blob, 'base64url');
+        expect(blob).toBe(bytes.toString('base64').replaceAll('+', '-').replaceAll('/', '_'));
+        expect(blob.match(/=+$/)?.[0].length ?? 0).toBe(padding);
+        const decoded = decodeTilemapChunks(blob);
+        expect(decoded).toHaveLength(count);
+        for (const chunk of decoded) expect(chunk.tiles[(CHUNK_SIZE - 1) * CHUNK_SIZE]).toBe(0x6003);
+      }
+    } finally { tiles.destroyLayer(10); }
   });
 });
