@@ -86,13 +86,16 @@ export function checkDocumentIds(
         } else {
             byId.set(node.id, node);
         }
+        const components = node.components;
+        // Most small component lists can be cleared without allocating a set.
+        if (components.length < 2 || (components.length === 2 && components[0].type !== components[1].type)) continue;
         const types = new Set<string>();
-        for (const c of node.components) {
-            if (types.has(c.type)) {
+        for (const { type } of components) {
+            if (types.has(type)) {
                 push('duplicate-component', 'error',
-                    `entity ${quote(node.id)} has more than one "${c.type}" component`, node.id, c.type);
+                    `entity ${quote(node.id)} has more than one "${type}" component`, node.id, type);
             } else {
-                types.add(c.type);
+                types.add(type);
             }
         }
     }
@@ -145,27 +148,37 @@ export function checkParentCycle(
     byId: ReadonlyMap<DocumentEntityId, Pick<DocumentNode, 'parent'>>,
     push: DiagnosticSink,
 ): void {
-    const WHITE = 0, GRAY = 1, BLACK = 2;
-    const color = new Map<DocumentEntityId, number>();
-    for (const node of nodes) color.set(node.id, WHITE);
-    // A document has at most one parent per node. Walk each unvisited chain
-    // iteratively: no call-stack ceiling and no copying the ancestor path at
-    // every depth. Each link is examined once, regardless of serialized order.
+    const visitedOn = new Map<DocumentEntityId, number>();
+    let walk = 0;
+    // A repeated visit in the same walk is a cycle. A visit from an earlier
+    // walk has already been checked, so there is no second pass to mark it done.
     for (const node of nodes) {
-        if (color.get(node.id) === BLACK) continue;
-        const path: DocumentEntityId[] = [];
+        if (visitedOn.has(node.id)) continue;
+        walk++;
         let id: DocumentEntityId | null = node.id;
-        while (id !== null && byId.has(id) && color.get(id) !== BLACK) {
-            if (color.get(id) === GRAY) {
-                const cycle = path.slice(path.indexOf(id)).concat(id).map(String).join(' → ');
-                push('parent-cycle', 'error', `parent cycle detected: ${cycle}`, id);
+        while (id !== null) {
+            const previous = visitedOn.get(id);
+            if (previous === walk) {
+                // Reconstruct the path only on failure, starting at the repeated id.
+                const cycle = [String(id)];
+                const first = byId.get(id)!;
+                let link = first.parent!;
+                let entry = byId.get(link)!;
+                while (entry !== first) {
+                    cycle.push(String(link));
+                    link = entry.parent!;
+                    entry = byId.get(link)!;
+                }
+                cycle.push(String(id));
+                push('parent-cycle', 'error', `parent cycle detected: ${cycle.join(' → ')}`, id);
                 return;
             }
-            color.set(id, GRAY);
-            path.push(id);
-            id = byId.get(id)!.parent;
+            if (previous !== undefined) break;
+            const entry = byId.get(id);
+            if (!entry) break;
+            visitedOn.set(id, walk);
+            id = entry.parent;
         }
-        for (const visited of path) color.set(visited, BLACK);
     }
 }
 

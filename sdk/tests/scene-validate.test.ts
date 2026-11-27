@@ -40,6 +40,19 @@ describe('validateScene', () => {
         expect(codes(validateScene(s))).toContain('duplicate-component');
     });
 
+    it('reports repeated component types separately for each entity in document order', () => {
+        const s = clean();
+        s.entities[0].components.push({ type: 'Sprite', data: {} }, { type: 'Transform', data: {} },
+            { type: 'MeshRenderer', data: {} }, { type: 'Transform', data: {} });
+        s.entities[1].components.push({ type: 'Transform', data: {} }, { type: 'Sprite', data: {} },
+            { type: 'Sprite', data: {} });
+        expect(validateScene(s).map(d => [d.code, d.entityId, d.field])).toEqual([
+            ['duplicate-component', 1, 'Transform'],
+            ['duplicate-component', 1, 'Transform'],
+            ['duplicate-component', 2, 'Sprite'],
+        ]);
+    });
+
     it('flags a parent that does not exist', () => {
         const s = clean();
         s.entities[1].parent = 99;
@@ -56,7 +69,11 @@ describe('validateScene', () => {
         const s = clean();
         s.entities[0].parent = 2;
         s.entities[1].children = [1];
-        expect(codes(validateScene(s))).toContain('parent-cycle');
+        s.entities[1].children.push(3);
+        s.entities.unshift({ id: 3, name: 'Branch', parent: 2, children: [], components: [] });
+        expect(validateScene(s)).toEqual([{
+            code: 'parent-cycle', severity: 'error', entityId: 2, message: 'parent cycle detected: 2 → 1 → 2',
+        }]);
     });
 
     it('accepts a forest — a scene has no single root', () => {
