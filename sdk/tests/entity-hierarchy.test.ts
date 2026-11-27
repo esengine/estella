@@ -183,7 +183,7 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
 
     it('keeps sparse hierarchy queries in world order and skips inactive or unowned rows', () => {
         const { world, registry } = createWorld();
-        const read = module.registry_readHierarchyMembers ? vi.spyOn(module, 'registry_readHierarchyMembers') : null;
+        const read = module.registry_readHierarchyMembers ? vi.spyOn(module as { registry_readHierarchyMembers: NonNullable<typeof module.registry_readHierarchyMembers> }, 'registry_readHierarchyMembers') : null;
         const unowned = registry.create();
         try {
             const root = world.spawn(), first = world.spawn(), second = world.spawn(), disabled = world.spawn();
@@ -201,8 +201,8 @@ describe.skipIf(!HAS_WASM)('Entity Hierarchy (WASM integration)', () => {
             if (read) {
                 expect(read.mock.calls.some(([, children, pointer, capacity]) => !children && pointer > 0 && capacity === 4)).toBe(true);
                 expect(read.mock.calls.some(([, children, pointer, capacity]) => children && pointer > 0 && capacity === 1)).toBe(true);
-                expect(read(registry, false, 0, 3)).toBe(-1);
-                expect(read(registry, false, 1, 4)).toBe(-1);
+                expect(module.registry_readHierarchyMembers!(registry, false, 0, 3)).toBe(-1);
+                expect(module.registry_readHierarchyMembers!(registry, false, 1, 4)).toBe(-1);
             }
 
             world.applyEntityOrder([second, first]);
