@@ -29,6 +29,24 @@ candidate clips. Candidate UUID references count as export dependencies, includi
 - An empty or entirely disabled pool returns `empty` or `zero-weight` without a selection. A pool with one enabled clip
   may repeat.
 
+### Fields
+
+`parseSoundEvent(json)` validates a document and returns a `SoundEventAsset`. It throws on the first invalid field,
+naming its path (for example `soundEvent.clips[2].weight`), and never drops a broken slot.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `version` | `1` | required | Format version. |
+| `clips` | `{ clip, weight }[]` | required | Variants: an audio reference and a relative weight (default `1`, `0` disables the slot). |
+| `mode` | `'random' \| 'sequence' \| 'no-repeat'` | `'no-repeat'` | How the next clip is chosen (table above). |
+| `volume` | `[min, max]` | `[1, 1]` | Volume sampled per trigger. |
+| `playbackRate` | `[min, max]` | `[1, 1]` | Rate sampled per trigger; must be above `0`. Changes pitch and duration. |
+| `bus` | `string` | `'sfx'` | [Mixer](/docs/assets/audio/mixer/#buses) bus the voices play on. |
+| `priority` | `number` | `0` | Priority in the global [voice limit](/docs/assets/audio/mixer/#voice-limit). |
+| `maxInstances` | integer | `0` | Voices of this event at once, across all its emitters; `0` is unlimited. Loading and paused voices count. |
+| `cooldown` | seconds | `0` | Minimum simulation time between two admitted triggers. |
+| `spatial` | `SpatialAudioConfig` | absent | `model`, `refDistance`, `maxDistance`, `rolloff` ([Spatial audio](/docs/assets/audio/sources/#spatial-audio)). Absent: the event is not spatial. |
+
 ## Selection
 
 `SoundEventSelector` chooses clips and parameters only; it plays nothing:
@@ -54,6 +72,9 @@ if (result.selection) {
 - The seed determines clip and parameter choices independently of the playback backend. Changing parameter ranges does
   not change the clip order.
 - Playback rate changes pitch **and** duration.
+- `selector.getVariantShares()` returns, per authored slot, the chance of drawing it next (`share`, `null` for a
+  disabled slot) and whether its weight was merged into an earlier slot with the same clip (`merged`). The editor's
+  share column reads it.
 
 ## Managed playback
 
@@ -92,6 +113,57 @@ history.
 **Spatial events** use `AudioSource` attenuation and panning ([Spatial audio](/docs/assets/audio/sources/#spatial-audio)).
 Provide an owner with a world transform, or a position to `trigger()`; without a listener the origin is used. Mini-game
 hosts without stereo panning report that limitation and still apply distance attenuation.
+
+### Reference
+
+`SoundEvents` (a `SoundEventPlayback`) is the resource the Audio plugin installs.
+
+| Method | Description |
+|---|---|
+| `load(ref, { owner?, seed?, alive? })` | Loads the definition and returns a `SoundEventEmitter`. `owner` binds the emitter to an entity: it gives a spatial event its position and is disposed with it. `seed` fixes the choice stream (random when omitted). `alive` is a predicate checked after the load and on every update; `false` disposes the emitter. Resolves to `null` when the owner is gone, `alive` returns `false` or the playback is disposed before the load finishes; throws when the definition fails to load or parse. |
+| `stopOwner(entity)` | Cancels the entity's pending loads and disposes its emitters, stopping their voices. |
+| `stopAll()` | Stops every event voice. Emitters stay loaded. |
+| `getStats()` | Counters, below. |
+
+| `SoundEventEmitter` | Description |
+|---|---|
+| `ref` | The asset reference it was loaded from. |
+| `disposed` | Whether it has been released. |
+| `trigger(position?)` | Starts one admission and returns a `SoundEventHandle` at once, even when rejected. A spatial event needs `position` or a live owner transform. |
+| `getVariantShares()` | The selector's shares for the next admitted trigger. |
+| `dispose()` | Stops its voices and releases the definition. |
+
+`SoundEventHandle` extends `AudioHandle`: `stop`, `pause`, `resume`, `setVolume`, `setPan`, `setLoop` and
+`setPlaybackRate` work while the clip is still loading and apply when it starts. `setVolume` and `setPlaybackRate`
+replace the values sampled for this trigger; spatial attenuation and panning still apply on top. It adds:
+
+| Member | Description |
+|---|---|
+| `status` | `'loading'`, `'playing'`, `'paused'`, `'ended'`, `'stopped'` or `'rejected'`. |
+| `reason` | Why it was rejected (below), else `null`. |
+| `error` | The load error message for `'load-failed'`, else `null`. |
+| `selection` | The chosen `{ clip, slot, volume, playbackRate }`, or `null` when rejected before selection. |
+| `ready` | Resolves with the status reached once loading finishes or is cancelled. |
+
+| `reason` | Rejected because |
+|---|---|
+| `cooldown` | The event's `cooldown` has not elapsed since its last admitted trigger. |
+| `event-limit` | `maxInstances` voices of the event are already active. |
+| `empty` / `zero-weight` | The pool has no clips, or every weight is `0`. |
+| `missing-position` | A spatial event has neither a `position` nor an owner with a transform. |
+| `load-failed` | The selected clip failed to load (`error` has the message). |
+| `global-limit` | The mixer's voice limit refused it on priority. |
+| `backend-refused` | The platform audio backend ended the voice as it started. |
+| `owner-gone` | The owner was despawned or `alive` returned `false`. |
+| `disposed` | The emitter or the playback was disposed. |
+
+| `SoundEventStats` field | Counts |
+|---|---|
+| `definitions` / `emitters` | Loaded event definitions, and live emitters. |
+| `pendingDefinitions` / `pendingClips` | Definitions still loading, and admitted voices whose clip is still loading. |
+| `active` | Voices loading, playing or paused. |
+| `admitted` / `played` / `ended` / `stopped` / `rejected` | Totals since the playback started. |
+| `reasons` | Rejections by `reason`. |
 
 ## Sound event editor
 

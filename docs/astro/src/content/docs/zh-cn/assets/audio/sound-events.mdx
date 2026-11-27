@@ -25,6 +25,24 @@ import { Aside } from '@astrojs/starlight/components';
 - 在随机模式中，引用同一片段的槽位合并权重，并报告第一个槽位。
 - 空池或全部禁用的池返回 `empty` 或 `zero-weight`，不产生选择。只有一个启用片段的池可能重复。
 
+### 字段
+
+`parseSoundEvent(json)` 校验文档并返回 `SoundEventAsset`。遇到第一个无效字段即抛出错误，并指出其路径（例如
+`soundEvent.clips[2].weight`）；不会丢弃有问题的槽位。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `version` | `1` | 必需 | 格式版本。 |
+| `clips` | `{ clip, weight }[]` | 必需 | 变体：音频引用与相对权重（默认 `1`，`0` 禁用该槽位）。 |
+| `mode` | `'random' \| 'sequence' \| 'no-repeat'` | `'no-repeat'` | 下一个片段的选择方式（见上表）。 |
+| `volume` | `[min, max]` | `[1, 1]` | 每次触发时采样的音量。 |
+| `playbackRate` | `[min, max]` | `[1, 1]` | 每次触发时采样的速率，必须大于 `0`；同时改变音高与时长。 |
+| `bus` | `string` | `'sfx'` | 发声所在的[混音器](/docs/zh-cn/assets/audio/mixer/#总线)总线。 |
+| `priority` | `number` | `0` | 在全局[发声数上限](/docs/zh-cn/assets/audio/mixer/#发声数上限)中的优先级。 |
+| `maxInstances` | 整数 | `0` | 该事件同时发声的上限，跨它的所有发射器计算；`0` 为不限。加载中与暂停的发声也计入。 |
+| `cooldown` | 秒 | `0` | 两次被准入的触发之间的最短模拟时间。 |
+| `spatial` | `SpatialAudioConfig` | 无 | `model`、`refDistance`、`maxDistance`、`rolloff`（[空间音频](/docs/zh-cn/assets/audio/sources/#空间音频)）。省略时事件不是空间音效。 |
+
 ## 选择
 
 `SoundEventSelector` 只选择片段与参数，不播放任何声音：
@@ -49,6 +67,8 @@ if (result.selection) {
 
 - 种子决定片段与参数的选择，与播放后端无关。修改参数范围不会改变片段顺序。
 - 播放速率同时改变音高**与**时长。
+- `selector.getVariantShares()` 按制作的槽位顺序返回下一次抽中各槽位的概率（`share`，禁用的槽位为 `null`），以及该槽位的权重
+  是否已并入前面引用同一片段的槽位（`merged`）。编辑器的占比列读取的就是它。
 
 ## 托管播放
 
@@ -75,6 +95,57 @@ if (voice) {
 **统计。** `events.getStats()` 报告已准入、已开始、已结束、已停止与被拒绝的数量，不保存触发历史。
 
 **空间事件**使用 `AudioSource` 的衰减与声像（[空间音频](/docs/zh-cn/assets/audio/sources/#空间音频)）。应提供带世界变换的所有者，或向 `trigger()` 传入位置；没有听者时以原点为参照。不支持立体声声像的小游戏宿主会报告这一限制，并仍应用距离衰减。
+
+### 参考
+
+`SoundEvents`（一个 `SoundEventPlayback`）是 Audio 插件安装的资源。
+
+| 方法 | 说明 |
+|---|---|
+| `load(ref, { owner?, seed?, alive? })` | 加载定义并返回 `SoundEventEmitter`。`owner` 把发射器绑定到实体：空间事件从它取位置，实体销毁时发射器随之释放。`seed` 固定选择流（省略时随机）。`alive` 是一个判断函数，在加载完成后和每次更新时检查，返回 `false` 即释放发射器。加载完成前所有者已不存在、`alive` 返回 `false` 或播放器已释放时 resolve 为 `null`；定义加载或解析失败时抛出错误。 |
+| `stopOwner(entity)` | 取消该实体挂起的加载并释放其发射器，同时停止它们的发声。 |
+| `stopAll()` | 停止所有事件发声。发射器保持已加载。 |
+| `getStats()` | 计数，见下文。 |
+
+| `SoundEventEmitter` | 说明 |
+|---|---|
+| `ref` | 加载时使用的资源引用。 |
+| `disposed` | 是否已释放。 |
+| `trigger(position?)` | 发起一次准入，并立即返回 `SoundEventHandle`，被拒绝时也一样。空间事件需要 `position` 或带变换的存活所有者。 |
+| `getVariantShares()` | 选择器为下一次被准入的触发给出的各槽位概率。 |
+| `dispose()` | 停止其发声并释放定义。 |
+
+`SoundEventHandle` 扩展自 `AudioHandle`：`stop`、`pause`、`resume`、`setVolume`、`setPan`、`setLoop` 与
+`setPlaybackRate` 在片段仍在加载时就可调用，开始播放时生效。`setVolume` 与 `setPlaybackRate` 替换本次触发采样得到的值；
+空间衰减与声像仍在其上叠加。它另外提供：
+
+| 成员 | 说明 |
+|---|---|
+| `status` | `'loading'`、`'playing'`、`'paused'`、`'ended'`、`'stopped'` 或 `'rejected'`。 |
+| `reason` | 被拒绝的原因（见下表），否则为 `null`。 |
+| `error` | `'load-failed'` 时的加载错误信息，否则为 `null`。 |
+| `selection` | 选中的 `{ clip, slot, volume, playbackRate }`；在选择前就被拒绝时为 `null`。 |
+| `ready` | 加载完成或被取消后，以届时的状态 resolve。 |
+
+| `reason` | 被拒绝是因为 |
+|---|---|
+| `cooldown` | 距该事件上一次被准入的触发还不到 `cooldown`。 |
+| `event-limit` | 该事件已有 `maxInstances` 个活动发声。 |
+| `empty` / `zero-weight` | 池中没有片段，或所有权重都为 `0`。 |
+| `missing-position` | 空间事件既没有 `position`，也没有带变换的所有者。 |
+| `load-failed` | 选中的片段加载失败（信息在 `error` 中）。 |
+| `global-limit` | 混音器的发声数上限按优先级拒绝了它。 |
+| `backend-refused` | 平台音频后端在开始时就结束了该发声。 |
+| `owner-gone` | 所有者已被销毁，或 `alive` 返回 `false`。 |
+| `disposed` | 发射器或播放器已释放。 |
+
+| `SoundEventStats` 字段 | 计数 |
+|---|---|
+| `definitions` / `emitters` | 已加载的事件定义数，以及存活的发射器数。 |
+| `pendingDefinitions` / `pendingClips` | 仍在加载的定义数，以及已准入但片段仍在加载的发声数。 |
+| `active` | 加载中、播放中或暂停的发声数。 |
+| `admitted` / `played` / `ended` / `stopped` / `rejected` | 播放器启动以来的累计数。 |
+| `reasons` | 按 `reason` 统计的拒绝次数。 |
 
 ## 音效事件编辑器
 
