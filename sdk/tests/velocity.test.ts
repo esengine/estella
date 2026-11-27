@@ -52,16 +52,33 @@ describe('VelocitySystem', () => {
         expect(q.y).toBeCloseTo(0);
     });
 
-    it('skips entities owned by the physics solver', () => {
-        const RigidBody2D = defineComponent('RigidBody2D', { bodyType: 0 });
+    // Resolved by name, as the system does: the physics modules register them.
+    const RigidBody2D = defineComponent('RigidBody2D', { bodyType: 2, enabled: true });
+    const RigidBody3D = defineComponent('RigidBody3D', { bodyType: 2, enabled: true });
+    const moved = (body: typeof RigidBody2D, data: { bodyType: number; enabled?: boolean }): number => {
         const e = world.spawn();
         world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
         world.insert(e, Velocity, { linear: { x: 100, y: 0, z: 0 } });
-        world.insert(e, RigidBody2D, {});
-
+        world.insert(e, body, data);
         runner.run(velocitySystem);
+        return world.get(e, Transform)!.position.x;
+    };
 
-        expect(world.get(e, Transform)!.position.x).toBe(0);
+    it('leaves a dynamic body, 2D or 3D, to its solver', () => {
+        // The solver writes a dynamic body's pose back each step: a move made here would be undone there.
+        expect(moved(RigidBody2D, { bodyType: 2 })).toBe(0);
+        expect(moved(RigidBody3D, { bodyType: 2 })).toBe(0);
+    });
+
+    it('moves a kinematic or static body, 2D or 3D, whose physics follows its Transform', () => {
+        // A platform on Velocity: 2D drives a kinematic body toward its Transform, 3D sets the body to it.
+        expect(moved(RigidBody2D, { bodyType: 1 })).toBeCloseTo(50);
+        expect(moved(RigidBody3D, { bodyType: 1 })).toBeCloseTo(50);
+        expect(moved(RigidBody3D, { bodyType: 0 })).toBeCloseTo(50);
+    });
+
+    it('moves a dynamic body that is switched off, which no solver is moving', () => {
+        expect(moved(RigidBody3D, { bodyType: 2, enabled: false })).toBeCloseTo(50);
     });
 
     it('leaves entities without Velocity untouched', () => {

@@ -13,6 +13,7 @@ import { Transform, Velocity, getComponentRegistry } from './ecs/component';
 import type { TransformData, VelocityData } from './ecs/component';
 import type { Entity } from './types';
 import type { World } from './ecs/world';
+import { BodyType } from './wasm/wasm.generated';
 
 export const velocitySystem = defineSystem(
     [Query(Mut(Transform), Velocity), Res(Time), GetWorld()],
@@ -23,13 +24,18 @@ export const velocitySystem = defineSystem(
     ) => {
         const dt = time.delta;
         if (dt <= 0) return;
-        // Physics-owned bodies get their transform from the solver; integrating
-        // Velocity on top would double-move them. RigidBody2D lives in the physics
-        // subpath, so it is resolved by name — absent registry entry means the
-        // physics module was never loaded and no entity can carry it.
-        const rigidBody = getComponentRegistry().get('RigidBody2D');
+        // A dynamic body is the solver's: it writes the pose back each step, undoing a move made here. A static or
+        // kinematic body follows its Transform, so Velocity moving it is how a platform moves. Resolved by name: no
+        // registry entry means that physics module was never loaded.
+        const registry = getComponentRegistry();
+        const bodies = [registry.get('RigidBody2D'), registry.get('RigidBody3D')].filter((def) => def !== undefined);
+        const solverOwned = (entity: Entity): boolean => bodies.some((def) => {
+            if (!world.has(entity, def)) return false;
+            const body = world.get(entity, def) as { bodyType?: number; enabled?: boolean };
+            return body.bodyType === BodyType.Dynamic && body.enabled !== false;
+        });
         for (const [entity, transform, velocity] of query) {
-            if (rigidBody && world.has(entity, rigidBody)) continue;
+            if (bodies.length > 0 && solverOwned(entity)) continue;
 
             const lin = velocity.linear;
             if (lin.x !== 0 || lin.y !== 0 || lin.z !== 0) {
@@ -62,10 +68,10 @@ export const velocitySystem = defineSystem(
     },
     {
         name: 'VelocitySystem',
-        // The World is here for one question — does this entity have a physics
-        // body — and RigidBody2D cannot be named as a query filter because the
-        // physics module may never have registered it.
-        touches: { reads: ['RigidBody2D'] },
+        // The World is here for one question — is this entity a dynamic physics
+        // body — and the bodies cannot be named as query filters because their
+        // physics modules may never have registered them.
+        touches: { reads: ['RigidBody2D', 'RigidBody3D'] },
     }
 );
 
