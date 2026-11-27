@@ -58,6 +58,32 @@ it('rejects old surface input while a new field is awaiting activation', async (
     expect(app.world.get(second, TextInput).value).toBe('second');
 });
 
+it.each([
+    ['input', false], ['compositionend', false], ['input', true], ['compositionend', true],
+] as const)('discards stale %s across focus sessions (already refocused: %s)', async (kind, refocused) => {
+    const { app, first, second, textarea } = build();
+    const fm = app.getResource(FocusManager), changed = vi.fn();
+    app.getResource(UIEvents).on(first, 'change', changed);
+    fm.focus(first);
+    await app.tick(1 / 60);
+    if (kind === 'compositionend') textarea.dispatchEvent(new CompositionEvent('compositionstart'));
+    fm.focus(second);
+    if (refocused) fm.focus(first);
+    textarea.value = 'stale text';
+    textarea.dispatchEvent(new Event(kind));
+    expect(fm.focusedEntity).toBe(refocused ? first : second);
+    expect(app.world.get(first, TextInput).value).toBe('first');
+    fm.focus(first);
+    await app.tick(1 / 60);
+    expect(textarea.value).toBe('first');
+    expect(app.world.get(second, TextInput).value).toBe('second');
+    expect(changed).not.toHaveBeenCalled();
+    textarea.value = 'fresh text';
+    textarea.dispatchEvent(new Event('input'));
+    expect(app.world.get(first, TextInput).value).toBe('fresh text');
+    expect(changed).toHaveBeenCalledOnce();
+});
+
 it('accepts normal input after an interrupted composition loses and regains focus', async () => {
     const { app, first, textarea } = build();
     const fm = app.getResource(FocusManager);

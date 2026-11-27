@@ -20,6 +20,13 @@ export const Focusable = defineComponent<FocusableData>('Focusable', {
     isFocused: false,
 });
 
+const revisions = new WeakMap<FocusManagerState, number>();
+
+/** Identify the focus session even if the same entity regains focus between frames. */
+export function focusRevisionOf(manager: FocusManagerState): number {
+    return revisions.get(manager) ?? 0;
+}
+
 export class FocusManagerState {
     focusedEntity: Entity | null = null;
 
@@ -41,6 +48,7 @@ export class FocusManagerState {
     /** `visible` = acquired by keyboard. Pointer presses pass false. */
     focus(entity: Entity, visible = false): Entity | null {
         const prev = this.focusedEntity;
+        if (prev !== entity) revisions.set(this, focusRevisionOf(this) + 1);
         this.focusedEntity = entity;
         this.focusVisible = visible;
         return prev;
@@ -48,6 +56,7 @@ export class FocusManagerState {
 
     blur(): Entity | null {
         const prev = this.focusedEntity;
+        if (prev !== null) revisions.set(this, focusRevisionOf(this) + 1);
         this.focusedEntity = null;
         this.focusVisible = false;
         return prev;

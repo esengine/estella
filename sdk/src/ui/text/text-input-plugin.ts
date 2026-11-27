@@ -13,7 +13,7 @@ import { UIMask, MaskMode } from '../core/ui-mask';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
 import { UIControlPointers } from '../input/control-pointers';
-import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
+import { Focusable, FocusManager, FocusManagerState, focusRevisionOf } from '../input/focusable';
 import type { FocusableData } from '../input/focusable';
 import { isFocusEligible } from '../input/focus-inspection';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
@@ -157,7 +157,7 @@ export class TextInputPlugin implements Plugin {
 
         let composing = false;
         let editingEntity: Entity | null = null;
-        let prevFocusedTextInput: Entity | null = null;
+        let editingFocusRevision = -1;
         let nativeEvents: UIEvent[] = [];
         let cursorVisible = true;
         let cursorTimer = 0;
@@ -173,7 +173,9 @@ export class TextInputPlugin implements Plugin {
         }
 
         function getEditingTextInput(): Entity | null {
-            return editingEntity !== null && getFocusedTextInput() === editingEntity ? editingEntity : null;
+            return editingEntity !== null
+                && editingFocusRevision === focusRevisionOf(app.getResource(FocusManager))
+                && getFocusedTextInput() === editingEntity ? editingEntity : null;
         }
 
         function detachEditor(): void {
@@ -191,13 +193,9 @@ export class TextInputPlugin implements Plugin {
             if (!playsInContext(context)) return;
             const focused = getEditingTextInput();
             if (focused === null) {
-                // A hidden field or an opened modal can invalidate the owner
-                // between frames. Retire its preedit even if eligibility returns
-                // before the next focus tick; never detach a newly assigned field.
-                if (editingEntity !== null
-                    && (app.getResource(FocusManager) as FocusManagerState).focusedEntity === editingEntity) {
-                    detachEditor();
-                }
+                // The surface still belongs to the old session. Retire its
+                // preedit before the next focus tick can attach another field.
+                detachEditor();
                 return;
             }
             switch (event.kind) {
@@ -264,7 +262,6 @@ export class TextInputPlugin implements Plugin {
             editor?.dispose();
             editor = playing ? platformCreateTextEditor() : null;
             unsubscribe = subscribeSurface();
-            prevFocusedTextInput = null;
             nativeEvents = [];
         }
 
@@ -390,6 +387,7 @@ export class TextInputPlugin implements Plugin {
 
             composing = false;
             editingEntity = entity;
+            editingFocusRevision = focusRevisionOf(app.getResource(FocusManager));
             world.update(entity, TextInput, (d) => { d.focused = true; });
 
             editor!.focus(
@@ -469,7 +467,7 @@ export class TextInputPlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(FocusManager)],
-            (_focusManager: FocusManagerState) => {
+            (focusManager: FocusManagerState) => {
                 if (!editor) return;
                 const textInputEntities = world.getEntitiesWithComponents([TextInput]);
                 for (const entity of textInputEntities) {
@@ -479,39 +477,11 @@ export class TextInputPlugin implements Plugin {
 
                 const currentFocused = getFocusedTextInput();
 
-                // `prevFocusedTextInput` shadows the focus manager, and the OS
-                // editing surface can blur out from under both of them — the
-                // browser moving DOM focus, a click that leaves the canvas — by
-                // writing straight to the manager, which this system never sees.
-                // Land that after this system has run for the frame and the shadow
-                // still names the field, so clicking THE SAME FIELD again read as
-                // "no change" and the editor was never re-attached: the field took
-                // focus, showed no caret, and swallowed every keystroke. Only
-                // clicking a different field first got it back.
-                //
-                // So the field's own `focused` flag decides whether its editor is
-                // live, and a focused field that says it has none gets one. One
-                // fact, asked of the thing that holds it, instead of a copy that
-                // can go stale.
-                const missingEditor = currentFocused !== null
-                    && !(world.get(currentFocused, TextInput) as TextInputData).focused;
-
-                if (currentFocused !== prevFocusedTextInput || missingEditor) {
-                    // Only a field that really lost focus is blurred. Re-attaching
-                    // an editor to the field that already has focus must not blur
-                    // the surface on its way in.
-                    if (prevFocusedTextInput !== null && prevFocusedTextInput !== currentFocused) {
-                        if (world.valid(prevFocusedTextInput) && world.has(prevFocusedTextInput, TextInput)) {
-                            world.update(prevFocusedTextInput, TextInput, (ti) => { ti.focused = false; });
-                        }
-                        detachEditor();
-                    }
-
-                    if (currentFocused !== null) {
-                        activateEditor(currentFocused);
-                    }
-
-                    prevFocusedTextInput = currentFocused;
+                const needsEditor = currentFocused !== null
+                    && (editingFocusRevision !== focusRevisionOf(focusManager) || !world.get(currentFocused, TextInput).focused);
+                if (currentFocused !== editingEntity || needsEditor) {
+                    detachEditor();
+                    if (currentFocused !== null) activateEditor(currentFocused);
                 }
 
                 // Click-to-caret: a pointer press inside the focused field moves
@@ -736,7 +706,6 @@ export class TextInputPlugin implements Plugin {
                 composing = false;
                 editor?.blur();
             }
-            prevFocusedTextInput = null;
             nativeEvents = [];
         }
 
