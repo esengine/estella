@@ -35,6 +35,7 @@ export {
 } from './worldMemory';
 export {
     farProxySettings, farProxySurfaces, farProxyPath, farProxyMeshPath, farProxySceneName, groupFarProxy, assembleFarProxies, deferFarProxies,
+    createFarProxyBuilder,
     type FarProxySettings, type FarProxySurface, type FarProxySkip, type FarProxyPart, type FarProxyGroup, type FarProxyHost,
     type AssembledFarProxy,
 } from './farProxy';

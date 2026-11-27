@@ -7,7 +7,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { WorldCell, WorldManifest, ResidencySource } from '../src/residency/cells';
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
-import { farProxySettings, farProxySurfaces, farProxySceneName, assembleFarProxies } from '../src/residency/farProxy';
+import { farProxySettings, farProxySurfaces, farProxySceneName, assembleFarProxies, createFarProxyBuilder, deferFarProxies } from '../src/residency/farProxy';
+import type { CutWorld } from '../src/residency/cutWorld';
+import type { PrefabData } from '../src/prefab/types';
 import { MeshChannel } from '../src/asset/meshFormat';
 import { loadSceneData, type SceneData } from '../src/scene/scene';
 import { Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
@@ -439,6 +441,33 @@ describe('what a far proxy is made of', () => {
         expect(farProxySettings(declared({ cellSize: 100 }))).toBeNull();
         expect(farProxySettings(declared({ cellSize: 100, farProxies: true, farDistance: 500 })))
             .toEqual({ farDistance: 500, ratio: 0.01, maxWorldError: 1 });
+    });
+
+    it('builds the same proxy for a requested cell without expanding other cells', async () => {
+        const cells = Array.from({ length: 128 }, (_, x) => cell(x, false));
+        const documents = new Map(cells.map(({ name }) => [name, { version: 4, name, entities: [
+            { id: 1, prefab: `${name}.esprefab`, parent: null, overrides: [], added: [], removed: [] },
+        ] } as unknown as SceneData]));
+        const cut: CutWorld = { manifest: world(undefined, ...cells), persistent: { version: 4, name: 'main', entities: [] },
+            documents, errors: [], warnings: [] };
+        const prefab: PrefabData = { version: '1.0', name: 'Prop', rootEntityId: 'r', entities: [{
+            prefabEntityId: 'r', name: 'Prop', parent: null, children: [], visible: true, components: [place(10), renderer()],
+        }] };
+        const host = { loadPrefab: vi.fn(async (_ref: string) => prefab), readMesh: async () => null };
+        const settings = { farDistance: 500, ratio: 1, maxWorldError: 0 };
+        const name = cells[64]!.name;
+        const build = createFarProxyBuilder(cut, settings, host);
+        const pending = build(name);
+        expect(build(name)).toBe(pending);
+        const proxy = await pending;
+        expect(proxy?.meshes).toHaveLength(1);
+        expect(host.loadPrefab.mock.calls).toEqual([[`${name}.esprefab`]]);
+        expect(cut.manifest.cells.every(cell => cell.proxy === undefined)).toBe(true);
+        expect(cut.manifest.farDistance).toBeUndefined();
+        await expect(build('unknown')).resolves.toBeNull();
+
+        const publish = await deferFarProxies(cut, settings, host);
+        expect(await publish(name)).toEqual(proxy);
     });
 
     it('draws surfaces that differ only in tint as one, the tint carried by the vertices, and drops the lightmap UV', async () => {

@@ -405,6 +405,32 @@ export async function assembleFarProxies(
     return out;
 }
 
+/** Build requested cells on demand, sharing mesh reads and leaving the manifest untouched. @experimental */
+export function createFarProxyBuilder(
+    cut: CutWorld, settings: FarProxySettings, host: FarProxyHost,
+): (cellName: string) => Promise<AssembledFarProxy | null> {
+    const cells = new Map(cut.manifest.cells.map(cell => [cell.name, cell]));
+    return buildFarProxyCells(cut, settings, host, cells);
+}
+
+function buildFarProxyCells(
+    cut: CutWorld, settings: FarProxySettings, host: FarProxyHost, cells: ReadonlyMap<string, WorldCell>,
+): (cellName: string) => Promise<AssembledFarProxy | null> {
+    const readMesh = meshCache(host);
+    const made = new Map<string, Promise<AssembledFarProxy | null>>();
+    return (cellName) => {
+        const cell = cells.get(cellName);
+        const document = cut.documents.get(cellName);
+        if (!cell || !document) return Promise.resolve(null);
+        let pending = made.get(cellName);
+        if (!pending) {
+            pending = assembleCell(cell, document, cut.manifest.plane ?? 'xz', settings, host, readMesh);
+            made.set(cellName, pending);
+        }
+        return pending;
+    };
+}
+
 /**
  * Name on `cut`'s manifest a proxy for every cell with a surface one could be made of, and answer how to make each when it is
  * first wanted, instead of making them all now: what a host that cannot wait for every cell to simplify (the editor's Play)
@@ -415,24 +441,13 @@ export async function assembleFarProxies(
 export async function deferFarProxies(
     cut: CutWorld, settings: FarProxySettings, host: FarProxyHost,
 ): Promise<(cellName: string) => Promise<AssembledFarProxy | null>> {
-    const named: WorldCell[] = [];
+    const named = new Map<string, WorldCell>();
     for (const cell of cut.manifest.cells) {
         const document = cut.documents.get(cell.name);
         if (!document || (await farProxySurfaces(document, host.loadPrefab)).surfaces.length === 0) continue;
         cell.proxy = farProxyPath(cell.name);
-        named.push(cell);
+        named.set(cell.name, cell);
     }
-    if (named.length > 0) cut.manifest.farDistance = settings.farDistance;
-    const readMesh = meshCache(host);
-    const made = new Map<string, Promise<AssembledFarProxy | null>>();
-    return (cellName) => {
-        let pending = made.get(cellName);
-        if (!pending) {
-            const cell = named.find((c) => c.name === cellName);
-            pending = cell ? assembleCell(cell, cut.documents.get(cellName)!, cut.manifest.plane ?? 'xz', settings, host, readMesh)
-                : Promise.resolve(null);
-            made.set(cellName, pending);
-        }
-        return pending;
-    };
+    if (named.size > 0) cut.manifest.farDistance = settings.farDistance;
+    return buildFarProxyCells(cut, settings, host, named);
 }
