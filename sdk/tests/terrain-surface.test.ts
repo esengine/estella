@@ -241,6 +241,41 @@ describe('collision tiles', () => {
         expect(pieces(app)).toHaveLength(0);
     });
 
+    it('refreshes both sides of an edited collision boundary and restores them when the height range shrinks', async () => {
+        const app = boot();
+        const origin = { x: 10, y: 7, z: 3 };
+        spawn(app, { collisionDistance: 150 }, origin);
+        const seam = origin.x + TILE_CELLS * 2;
+        mover(app, seam, 12);
+        await tick(app, 16);
+        const terrains = app.getResource(TerrainsRes);
+        const points = [seam - 0.5, seam + 0.5];
+        const z = 12;
+        const heights = () => points.map(x => terrains.heightAt(x, z)!);
+        const collision = () => points.map(x => pieces(app).map(([, piece]) => onPiece(piece, x, z)).find(h => h !== null));
+        const expectCollisionAt = (expected: number[]) => {
+            for (const [i, h] of collision().entries()) expect(h).toBeCloseTo(expected[i]!, 4);
+        };
+        const original = heights();
+        expectCollisionAt(original);
+        const distant = pieces(app).find(([, piece]) => piece.origin[0] >= seam + TILE_CELLS * 2)!;
+        expect(distant).toBeDefined();
+
+        const bounds = [seam, z - 4, seam + 8, z + 4] as const;
+        terrains.setModifier({ id: 'plot', bounds, heights: [123, 123], apply: () => 123 });
+        const edited = heights();
+        expect(edited[0]).toBeGreaterThan(original[0]! + 10);
+        expect(edited[1]).toBeCloseTo(123, 6);
+        await tick(app, 8);
+        expectCollisionAt(edited);
+
+        terrains.deleteModifier('plot');
+        expect(heights()).toEqual(original);
+        await tick(app, 8);
+        expectCollisionAt(original);
+        expect(new Map(pieces(app)).get(distant[0])).toBe(distant[1]);
+    });
+
     it('cover an area only where it is, including its last partial tile', async () => {
         const app = boot();
         spawn(app, { extent: TerrainExtent.Area, sizeX: 100, sizeZ: 100, resolution: 65 });

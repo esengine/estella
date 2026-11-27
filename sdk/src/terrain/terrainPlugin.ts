@@ -693,26 +693,27 @@ export class Terrains {
     /** @internal Makes again what the world square `b` reaches: its pages and its collision, and what stands on the ground. */
     remake_(b: readonly [number, number, number, number]): void {
         const app = this.app_;
+        const chunks = app?.hasResource(ProceduralChunksRes) ? app.getResource(ProceduralChunksRes) : undefined;
         for (const [entity, built] of this.built_) {
             const source = built.source;
             if (!(source instanceof ModifiedSource)) continue;
-            const o = source.origin, leaf = PATCH_CELLS * Math.max(built.data.cellSize, 1e-3);
+            const cell = Math.max(built.data.cellSize, 1e-3);
             // A page holds its heights against the range they span: where a modifier widens it, every page is made again, not only those it reaches.
             const range = `${source.minHeight}:${source.maxHeight}`;
             if (built.range !== undefined && built.range !== range) {
-                built.range = range;
                 built.table.markStale(() => true);
-                built.edits++;
-                continue;
+            } else {
+                const o = source.origin, leaf = PATCH_CELLS * cell;
+                built.table.markStale((key) => {
+                    const [level, ix, iz] = key.split(':').map(Number) as [number, number, number];
+                    const size = leaf * 2 ** level, x0 = ix * size + o.x, z0 = iz * size + o.z;
+                    return x0 <= b[2] && x0 + size >= b[0] && z0 <= b[3] && z0 + size >= b[1];
+                });
             }
             built.range = range;
-            built.table.markStale((key) => {
-                const [level, ix, iz] = key.split(':').map(Number) as [number, number, number];
-                const size = leaf * 2 ** level, x0 = ix * size + o.x, z0 = iz * size + o.z;
-                return x0 <= b[2] && x0 + size >= b[0] && z0 <= b[3] && z0 + size >= b[1];
-            });
             built.edits++;
-            if (app?.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).invalidate(collisionLayerOf(entity), b[0], b[1], b[2], b[3]);
+            // A changed vertex can also move the triangles of the neighboring chunk that shares it.
+            chunks?.invalidate(collisionLayerOf(entity), b[0] - cell, b[1] - cell, b[2] + cell, b[3] + cell);
         }
         this.revision_++;
     }
