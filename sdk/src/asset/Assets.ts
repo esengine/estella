@@ -3606,7 +3606,10 @@ export class Assets {
             recorder.read(ref);
             const record = this.manifestRecord_(ref);
             const resolved = record || assetRefId(ref) !== null ? this.resolveLoadPath_(ref) : ref;
-            const path = resolved === ref && record ? record.asset.path : resolved;
+            // A ref that resolves to itself is either unresolved (read the record's path) or already where the bytes are: a URL a
+            // loader was handed by resolveLoadPath_, which the record's project path would send to the page's own folder.
+            const located = /^[a-z][a-z0-9+.-]*:\/\//i.test(ref);
+            const path = resolved === ref && record && !located ? record.asset.path : resolved;
             return read(ref, () => fetch(base.catalog.getBuildPath(path)));
         };
         const take = async <T>(ref: string, work: () => Promise<AssetLease<T>>, type?: string): Promise<AssetLease<T>> => {
