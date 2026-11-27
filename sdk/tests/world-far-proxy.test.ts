@@ -4,7 +4,7 @@
  * @file    world-far-proxy.test.ts
  * @brief   Verify a cell's far proxy stands in for it with no gap, and which surfaces a proxy is made of.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { WorldCell, WorldManifest, ResidencySource } from '../src/residency/cells';
 import { WorldStreamer, type WorldStreamHost } from '../src/residency/WorldStreamer';
 import { farProxySettings, farProxySurfaces, farProxySceneName, assembleFarProxies } from '../src/residency/farProxy';
@@ -168,6 +168,87 @@ describe('a far proxy', () => {
         streamer.update([at(500)]);
         await t.settle();
         expect(t.loaded.has('c_0_0')).toBe(false);
+    });
+
+    it('keeps the cell until its proxy can prove render program readiness', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        let ready = false;
+        t.h.readyRenderPrograms = async name => name !== near ? { applicable: false } : {
+            applicable: true, stamp: ready ? { digestLo: 1, digestHi: 0, programEpoch: 1 } : null,
+        };
+        const prepare = vi.spyOn(t.h, 'prepare');
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(50)]); await t.settle();
+        expect(t.loaded.has('c_0_0')).toBe(true);
+
+        streamer.update([at(500)]); await t.settle();
+        streamer.update([at(500)]); await t.settle();
+        expect(t.calls).not.toContain(`load:${near}`);
+        expect(t.loaded.has('c_0_0')).toBe(true);
+        ready = true;
+        streamer.update([at(500)]); await t.settle();
+        expect(t.loaded.has(near)).toBe(true);
+        expect(prepare.mock.calls.filter(([name]) => name === near)).toHaveLength(1);
+        streamer.update([at(500)]); await t.settle();
+        expect(t.loaded.has('c_0_0')).toBe(false);
+    });
+
+    it.each(['assets', 'programs'])('discards a proxy whose %s finish after the source leaves range', async phase => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        let finishPreparation!: () => void;
+        const pending = () => new Promise<void>(resolve => { finishPreparation = resolve; });
+        if (phase === 'assets') t.h.prepare = pending;
+        else t.h.readyRenderPrograms = async () => { await pending(); return { applicable: false }; };
+        const discard = vi.spyOn(t.h, 'discardPrepared');
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(500)]);
+        await flush();
+        streamer.update([at(3000)]);
+        finishPreparation();
+        await t.settle();
+        expect(t.calls).not.toContain(`load:${near}`);
+        expect(discard).toHaveBeenCalledWith(near);
+        expect(streamer.status().proxyCells).toEqual([]);
+    });
+
+    it('releases a prepared proxy on clear if it is waiting for programs', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        t.h.readyRenderPrograms = async () => ({ applicable: true, stamp: null });
+        const discard = vi.spyOn(t.h, 'discardPrepared');
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(500)]); await t.settle();
+        await streamer.clear();
+        expect(t.calls).not.toContain(`load:${near}`);
+        expect(discard).toHaveBeenCalledTimes(1);
+        expect(discard).toHaveBeenCalledWith(near);
+    });
+
+    it('keeps a visible proxy until a failed near cell can finish retrying', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(500)]); await t.settle();
+        t.failing.add('c_0_0');
+        streamer.update([at(50)]); await t.settle();
+        expect(t.loaded.has(near)).toBe(true);
+        expect(t.loaded.has('c_0_0')).toBe(false);
+        t.failing.delete('c_0_0');
+        streamer.update([at(50)]); await t.settle();
+        streamer.update([at(50)]); await t.settle();
+        expect(t.loaded.has('c_0_0')).toBe(true);
+        expect(t.loaded.has(near)).toBe(false);
+    });
+
+    it('allows one fresh proxy attempt after a failed reach is left and entered again', async () => {
+        const t = host(), streamer = new WorldStreamer(t.h);
+        t.failing.add(near);
+        await streamer.loadManifest(world(1000, cell(0)));
+        streamer.update([at(500)]); await t.settle();
+        streamer.update([at(500)]); await t.settle();
+        expect(t.calls.filter(call => call === `load:${near}`)).toHaveLength(1);
+        streamer.update([at(3000)]);
+        t.failing.delete(near);
+        streamer.update([at(500)]); await t.settle();
+        expect(t.loaded.has(near)).toBe(true);
     });
 
     it('is released with the world', async () => {

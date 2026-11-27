@@ -211,7 +211,7 @@ interface CellState {
 /** A cell's far proxy: a scene of its merged static meshes, in the world while the cell is not. */
 interface ProxyState {
     scene: string;
-    residency: 'unloaded' | 'loading' | 'resident' | 'unloading';
+    residency: 'unloaded' | 'loading' | 'prepared' | 'resident' | 'unloading';
     /** Whether the last reconciliation wants it in the world. */
     wanted: boolean;
     /** A proxy that failed to load stops holding its cell's unload back. */
@@ -589,26 +589,40 @@ export class WorldStreamer {
                 }
             }
             proxy.wanted = !this.clearing_ && near && !(state.residency === 'resident' && state.desired);
+            if (!proxy.wanted) proxy.failed = false;
         }
     }
 
     private stepProxy_(proxy: ProxyState): void {
         if (proxy.residency === 'loading' || proxy.residency === 'unloading') return;
-        if (proxy.wanted && proxy.residency === 'unloaded' && !proxy.failed) {
+        if (proxy.wanted && (proxy.residency === 'unloaded' || proxy.residency === 'prepared') && !proxy.failed) {
+            const prepare = proxy.residency === 'unloaded';
             proxy.residency = 'loading';
-            // Prepared and its programs readied before it is published, as a cell is: a proxy counted in the world before it can
-            // draw is the gap it exists to close.
-            this.run_(async () => {
-                await this.host_.prepare(proxy.scene);
-                await this.host_.readyRenderPrograms?.(proxy.scene);
-                return this.host_.loadAdditive(proxy.scene);
+            this.run_(async (): Promise<'prepared' | 'resident'> => {
+                if (prepare) await this.host_.prepare(proxy.scene);
+                if (!proxy.wanted) return 'prepared';
+                const ready = this.host_.readyRenderPrograms;
+                if (ready) {
+                    const outcome = await this.askReadiness_(proxy.scene, ready);
+                    // A renderer that owes a stamp leaves the proxy prepared. A
+                    // later reconciliation retries without fetching its assets again.
+                    if (outcome.applicable && !outcome.stamp) return 'prepared';
+                }
+                if (!proxy.wanted) return 'prepared';
+                await this.host_.loadAdditive(proxy.scene);
+                return 'resident';
             },
-                () => { proxy.residency = 'resident'; this.stepProxy_(proxy); },
+                outcome => {
+                    proxy.residency = outcome;
+                    if (!proxy.wanted) this.stepProxy_(proxy);
+                },
                 (err) => {
-                    proxy.residency = 'unloaded';
-                    proxy.failed = true;
+                    proxy.failed = proxy.wanted;
                     log.error('residency', `far proxy "${proxy.scene}" did not load`, err);
+                    this.discardProxy_(proxy);
                 });
+        } else if (!proxy.wanted && proxy.residency === 'prepared') {
+            this.discardProxy_(proxy);
         } else if (!proxy.wanted && proxy.residency === 'resident') {
             proxy.residency = 'unloading';
             this.run_(() => this.host_.unload(proxy.scene, { keepPersistent: false }),
@@ -617,6 +631,15 @@ export class WorldStreamer {
                     proxy.residency = this.host_.isLoaded(proxy.scene) ? 'resident' : 'unloaded';
                     log.error('residency', `far proxy "${proxy.scene}" did not unload`, err);
                 });
+        }
+    }
+
+    private discardProxy_(proxy: ProxyState): void {
+        proxy.residency = 'loading';
+        try {
+            this.cancelledRefs_ += this.host_.discardPrepared(proxy.scene);
+        } finally {
+            proxy.residency = 'unloaded';
         }
     }
 
@@ -654,7 +677,11 @@ export class WorldStreamer {
                 this.host_.rush?.(name);
             }
         }
-        for (const proxy of this.proxies_.values()) { proxy.wanted = false; this.stepProxy_(proxy); }
+        for (const proxy of this.proxies_.values()) {
+            proxy.wanted = false;
+            if (proxy.residency === 'loading') this.host_.rush?.(proxy.scene);
+            this.stepProxy_(proxy);
+        }
         for (const name of this.cells_.keys()) this.step_(name);
         // Clearing can begin inside a synchronous host callback. Let that
         // transition finish and register any operation before checking the drain.
