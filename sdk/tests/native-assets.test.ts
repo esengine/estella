@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
-    it.each(['live', 'restored', 'entry', 'entry-hash', 'reload', 'prepared', 'preparing'] as const)('uses the updated scene document on %s', async timing => {
+    it.each(['live', 'restored', 'entry', 'entry-hash', 'reload', 'prepared', 'preparing', 'loading', 'loading-failure'] as const)('uses the updated scene document on %s', async timing => {
         const ref = 'levels/Room.esscene';
         const uuid = 'afbace01-1111-4111-8111-111111111111';
         const shippedPath = 'cooked/room-v1.json';
@@ -111,6 +111,7 @@ describe('packaged scene files', () => {
         const updated = manifest('v2', updatedPath, 'remote');
         const restoredEntry = timing === 'entry' || timing === 'entry-hash';
         const entry = restoredEntry || timing === 'reload';
+        const loading = timing === 'loading' || timing === 'loading-failure';
         const config = {
             entryScene: entry ? ref : 'menu.json',
             scenes: [{ name: 'menu', path: 'menu.json' }, { name: 'room', path: ref }],
@@ -128,9 +129,10 @@ describe('packaged scene files', () => {
         const holdOldRead = new Promise<void>(resolve => { release = resolve; });
         const read = vi.fn(async (path: string) => {
             if (!files.has(path)) throw new Error(`missing ${path}`);
-            if (timing === 'preparing' && path === shippedPath) {
+            if ((timing === 'preparing' || loading) && path === shippedPath) {
                 started();
                 await holdOldRead;
+                if (timing === 'loading-failure') throw new Error('retired scene file');
             }
             return encode(files.get(path));
         });
@@ -149,25 +151,30 @@ describe('packaged scene files', () => {
             const manager = app.getResource(SceneManager);
             const prewarming = timing === 'prepared' || timing === 'preparing';
             const oldPreparation = prewarming ? manager.prepare('room').then(() => null, error => error) : undefined;
-            if (prewarming) {
-                if (timing === 'preparing') await oldReadStarted;
+            const pendingLoad = loading ? manager.loadAdditive('room') : undefined;
+            if (prewarming || loading) {
+                if (timing === 'preparing' || loading) await oldReadStarted;
                 else expect(await oldPreparation).toBeNull();
                 expect(read).toHaveBeenCalledWith(shippedPath);
                 expect(manager.getActive()).toBe('menu');
             }
-            if (timing === 'live' || timing === 'reload' || prewarming) {
+            if (timing === 'live' || timing === 'reload' || prewarming || loading) {
                 assets.setManifest(updated);
                 assets.setRemoteRoot(updateRoot);
             }
             expect(assets.getManifest()?.revision()).toBe('v2');
             if (!restoredEntry) {
                 expect(fetch).not.toHaveBeenCalled();
-                if (timing === 'reload') await manager.reload();
+                if (pendingLoad) {
+                    release();
+                    await pendingLoad;
+                } else if (timing === 'reload') await manager.reload();
                 else await manager.switchTo('room');
             }
             expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${updateRoot}/${updatedPath}`]);
-            expect(read.mock.calls.filter(([path]) => path === shippedPath)).toHaveLength(entry || prewarming ? 1 : 0);
-            expect(manager.getActive()).toBe('room');
+            expect(read.mock.calls.filter(([path]) => path === shippedPath)).toHaveLength(entry || prewarming || loading ? 1 : 0);
+            expect(manager.getActive()).toBe(loading ? 'menu' : 'room');
+            expect(manager.isLoaded('room')).toBe(true);
             if (timing === 'preparing') {
                 release();
                 expect(await oldPreparation).toMatchObject({ name: 'SceneLoadCancelled' });

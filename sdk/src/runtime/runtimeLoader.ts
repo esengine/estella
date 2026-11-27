@@ -890,14 +890,16 @@ function createRuntimeSceneConfigWithData(
     // Held by the config, which IS the per-scene object: a prepared cell has one
     // place to live and one owner to release it.
     type ReadyScene = PreparedRuntimeScene & { publishDocument?: () => void };
-    interface Preparation {
+    interface ContentVersion {
+        manifest: ManifestModel | null;
+        remoteRoot: string | undefined;
+    }
+    interface Preparation extends ContentVersion {
         done: Promise<ReadyScene>;
         progress: SceneAssetProgress;
         ready?: PreparedRuntimeScene;
         cancel: AbortHandle;
         attempt: SceneLoadAttempt;
-        manifest: ManifestModel | null;
-        remoteRoot: string | undefined;
         assertOwner?: () => void;
     }
     let preparation: Preparation | undefined;
@@ -980,9 +982,13 @@ function createRuntimeSceneConfigWithData(
         return owed;
     };
     const activeAssets = () => options.app.hasResource(AssetsResource) ? options.app.getResource(AssetsResource) : undefined;
-    const matchesAssets = (pending: Preparation): boolean => {
+    const contentVersion = (): ContentVersion => {
         const assets = activeAssets();
-        return pending.manifest === (assets?.getManifest() ?? null) && pending.remoteRoot === assets?.remoteRoot;
+        return { manifest: assets?.getManifest() ?? null, remoteRoot: assets?.remoteRoot };
+    };
+    const matchesAssets = (version: ContentVersion): boolean => {
+        const assets = activeAssets();
+        return version.manifest === (assets?.getManifest() ?? null) && version.remoteRoot === assets?.remoteRoot;
     };
     const currentPreparation = (): Preparation | undefined => {
         if (preparation && !matchesAssets(preparation)) {
@@ -1000,13 +1006,11 @@ function createRuntimeSceneConfigWithData(
                 // Install the slot before a read or observer can reenter. Setup takes this
                 // same promise even when the assets it needs are still arriving.
                 const cancel = createAbort();
-                const assets = activeAssets();
                 const started: Preparation = {
                     cancel, attempt: new SceneLoadAttempt(options.app.world, name, {
                         signal: cancel.signal, check: () => started.assertOwner?.(),
                     }),
-                    manifest: assets?.getManifest() ?? null,
-                    remoteRoot: assets?.remoteRoot,
+                    ...contentVersion(),
                     progress: new SceneAssetProgress(),
                     done: Promise.resolve().then(async () => {
                         const ready = await readied(undefined, started.attempt, started.progress.report);
@@ -1072,7 +1076,18 @@ function createRuntimeSceneConfigWithData(
                     pending.progress.close();
                 }
             }
-            ready ??= await readied(!!context, sceneAttempt(options.app, name, context), options.onProgress, context?.reportAssetProgress);
+            while (!ready) {
+                const version = contentVersion();
+                const attempt = sceneAttempt(options.app, name, context);
+                try {
+                    const candidate = await readied(!!context, attempt, options.onProgress, context?.reportAssetProgress);
+                    if (matchesAssets(version)) ready = candidate;
+                    else attempt.discardAssets();
+                } catch (error) {
+                    if (matchesAssets(version)) throw error;
+                    attempt.assertCurrent();
+                }
+            }
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
             if (ready.publishDocument) {
