@@ -683,8 +683,37 @@ export function publishRuntimeScene(
         : sceneName && app.hasResource(SceneManager) ? app.getResource(SceneManager).getScene(sceneName) : null;
     const attempt = sceneAttempt(app, prepared.name ?? prepared.sceneData.name, context);
     return runSceneLoad(attempt, () =>
-        publishPreparedScene(prepared, attempt, { ...now, context }, spread), prepared.assetResult, () =>
-        publishSceneTextureMetadata(prepared.sceneData, prepared.assetResult, publish => publishWhenSceneReady(context, publish)));
+        publishPreparedScene(prepared, attempt, { ...now, context }, spread), prepared.assetResult, () => {
+        const { uiTheme, uiThemeOverrides } = prepared.options;
+        if (uiTheme || uiThemeOverrides || prepared.sceneData.textureMetadata) {
+            publishWhenSceneReady(context, () => publishRuntimeAppearance(prepared, attempt));
+        }
+    });
+}
+
+function publishRuntimeAppearance(prepared: PreparedRuntimeScene, attempt: SceneLoadAttempt): void {
+    const { sceneData, assetResult, options } = prepared;
+    const { app: { world }, uiTheme, uiThemeOverrides, onPhase } = options;
+    if (!uiTheme && !uiThemeOverrides) {
+        publishSceneTextureMetadata(sceneData, assetResult);
+        return;
+    }
+    const theme = resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides);
+    const previous = getTheme(world);
+    const report = attempt.observe(onPhase);
+    const began = report ? performance.now() : 0;
+    try {
+        switchTheme(world, theme);
+        report?.('theme', performance.now() - began);
+        publishSceneTextureMetadata(sceneData, assetResult);
+    } catch (error) {
+        // A synchronous observer can reject publication, reset the world, or choose a different palette.
+        if (world.entityLifetime === attempt.lifetime && getTheme(world) === theme) {
+            try { switchTheme(world, previous); }
+            catch (restoreError) { log.warn('scene', 'Could not restore the previous UI theme', restoreError); }
+        }
+        throw error;
+    }
 }
 
 async function publishPreparedScene(
@@ -693,7 +722,7 @@ async function publishPreparedScene(
 ): Promise<void> {
     const { sceneData, assetResult, spineManager, spineAssetInfo,
             dragonBonesManager, dragonBonesAssetInfo } = prepared;
-    const { app, module, uiTheme, uiThemeOverrides, sceneName } = prepared.options;
+    const { app, module, sceneName } = prepared.options;
     if (prepared.lifetime !== undefined && prepared.lifetime !== attempt.lifetime) {
         throw new SceneLoadCancelled(sceneName ?? sceneData.name);
     }
@@ -736,12 +765,6 @@ async function publishPreparedScene(
     // Which document row each entity came from, when someone is keeping track
     // (an editor inspecting its own running game). No-op otherwise.
     mark('origins', () => recordSceneOrigins(app, entityMap));
-
-    // A direct scene load can request a palette of its own. Managed scene switches
-    // inherit the world's current palette, including any in-game change.
-    if (uiTheme || uiThemeOverrides) {
-        mark('theme', () => switchTheme(app.world, resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides)));
-    }
 
     const cppRegistry = app.world.getCppRegistry();
     // Fold the loaded transforms into world matrices once, before the first frame.

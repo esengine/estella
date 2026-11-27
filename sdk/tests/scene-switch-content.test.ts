@@ -8,13 +8,15 @@ import { AssetPlugin, Assets } from '../src/asset/AssetPlugin';
 import { MeshRenderer, Sprite } from '../src/ecs/component';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { worldCellDocumentPath } from '../src/residency/report';
-import { initRuntime } from '../src/runtime/runtimeLoader';
+import { initRuntime, loadRuntimeScene } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
 import { SceneLoadCancelled, SceneManager, type SceneManagerState } from '../src/scene/sceneManager';
 import { sceneManagerPlugin } from '../src/scene/scenePlugin';
 import type { Entity } from '../src/types';
 import { switchTheme } from '../src/ui/behavior/theme-apply';
 import { themeColors, LIGHT_TOKENS, DARK_TOKENS, setTheme } from '../src/ui/theme/tokens';
+import { Text } from '../src/ui/core/text';
+import { ThemeStyle } from '../src/ui/theme/theme-style';
 import { reservePromise } from '../src/util/reservePromise';
 import * as resourceManager from '../src/wasm/resourceManager';
 
@@ -293,6 +295,48 @@ it('selects the project palette before plugins build and keeps an in-game choice
         await app.getResource(SceneManager).switchTo('next');
         expect(themeColors(app.world)).toEqual(DARK_TOKENS.colors);
     } finally { app.quit(); setTheme(DARK_TOKENS); }
+});
+
+it.each(['setup', 'adopt', 'theme', 'texture metadata'] as const)('keeps the running UI palette when an incoming load fails at %s', async phase => {
+    const app = App.new();
+    app.addPlugin(sceneManagerPlugin);
+    const scenes = app.getResource(SceneManager);
+    switchTheme(app.world, DARK_TOKENS);
+    scenes.register({ name: 'home' });
+    const home = await scenes.load('home');
+    const label = home.spawn();
+    app.world.insert(label, Text, { ...Text._default, color: { ...DARK_TOKENS.colors.text, a: 0.5 } });
+    app.world.insert(label, ThemeStyle, { text: 'text' });
+    const error = new Error('incoming scene refused');
+    let refuse = true;
+    const direct = phase === 'theme' || phase === 'texture metadata';
+    const data: SceneData = phase === 'texture metadata' ? { ...empty, textureMetadata: {} } : empty;
+    const rm = phase === 'texture metadata' ? vi.spyOn(resourceManager, 'requireResourceManager').mockImplementation(() => {
+        if (refuse) throw error;
+        return {} as ReturnType<typeof resourceManager.requireResourceManager>;
+    }) : undefined;
+    const load = () => loadRuntimeScene({
+        app, module: null, sceneData: data, sceneName: direct ? undefined : 'next', uiTheme: 'light',
+        source: { backend: new EmbeddedBackend({}), decodePixels: async () => { throw new Error('unexpected image'); } },
+        onPhase: name => {
+            if (refuse && name === phase) throw error;
+        },
+    });
+    scenes.register({ name: 'next', setup: async () => {
+        await load();
+        if (refuse) throw error;
+    } });
+    try {
+        const open = () => direct ? load() : scenes.loadAdditive('next');
+        await expect(open()).rejects.toBe(error);
+        expect(scenes.getScene('home')).toBe(home);
+        expect(themeColors(app.world)).toBe(DARK_TOKENS.colors);
+        expect(app.world.get(label, Text).color).toEqual({ ...DARK_TOKENS.colors.text, a: 0.5 });
+        refuse = false;
+        await open();
+        expect(themeColors(app.world)).toBe(LIGHT_TOKENS.colors);
+        expect(app.world.get(label, Text).color).toEqual({ ...LIGHT_TOKENS.colors.text, a: 0.5 });
+    } finally { rm?.mockRestore(); app.quit(); setTheme(DARK_TOKENS); }
 });
 
 it.each(['authored', 'packaged'])('applies the %s scene’s shared UI texture border only after handoff', async entry => {
