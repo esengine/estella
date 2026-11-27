@@ -321,13 +321,19 @@ export function partitionWorld(
     }
 
     const documentOf = (members: readonly SceneEntry[], name: string): SceneData => {
-        const list = members.map((entry) => ({ ...entry, parent: byId.has(entry.parent as number) ? entry.parent : null }));
+        const list = members.map(entry => {
+            const parent = entry.parent != null && byId.has(entry.parent) ? entry.parent : null;
+            // A compact prefab record need not carry a redundant child list.
+            if (isPrefabEntry(entry) && !('children' in entry)) return { ...entry, parent };
+            return { ...entry, parent, children: childrenOf.get(entry.id) ?? [] };
+        });
         return {
             version: scene.version,
             name,
             ...(scene.generator ? { generator: scene.generator } : {}),
             entities: list as unknown as SceneEntityData[],
             ...(scene.textureMetadata ? { textureMetadata: scene.textureMetadata } : {}),
+            ...(scene.textureImporterSettings ? { textureImporterSettings: scene.textureImporterSettings } : {}),
         };
     };
 

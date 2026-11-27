@@ -80,6 +80,28 @@ describe('cooking a world that instances a prefab', () => {
             .toEqual(['main.cell_0_0']);
     });
 
+    it('writes canonical child lists and texture settings into streamed output files', async () => {
+        const root = await projectWith([1500, 0, 500], null);
+        const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+        const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+        scene.entities[0].children = [1];
+        scene.entities.push(
+            { id: 2, parent: 1, name: 'Group', children: [0], components: [] },
+            { id: 3, parent: 2, name: 'Sign', children: [], components: [] },
+        );
+        scene.textureImporterSettings = { 'assets/sign.png': { sRGB: false } };
+        await writeFile(sceneFile, JSON.stringify(scene));
+
+        expect(await cellsOf(root)).toEqual(['main.cell_1_0']);
+        const persistent = JSON.parse(await readFile(sceneFile, 'utf8'));
+        const cell = JSON.parse(await readFile(path.join(root, 'world/main.cell_1_0.json'), 'utf8'));
+        expect(persistent.entities[0].children).toEqual([]);
+        expect(cell.entities.find((row: { id: number }) => row.id === 2).children).toEqual([3]);
+        expect(cell.entities.find((row: { id: number }) => row.id === 1)).not.toHaveProperty('children');
+        expect(persistent.textureImporterSettings).toEqual(scene.textureImporterSettings);
+        expect(cell.textureImporterSettings).toEqual(scene.textureImporterSettings);
+    });
+
     it('rejects overflowing cell bounds before replacing the staged scene or writing a manifest', async () => {
         const root = await projectWith([Number.MAX_VALUE, 0, 0], null);
         const scenePath = 'assets/scenes/main.esscene';

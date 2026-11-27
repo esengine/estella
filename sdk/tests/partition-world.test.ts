@@ -16,6 +16,7 @@ import { RuntimeConfig } from '../src/defaults';
 import { StreamPlane } from '../src/residency/components';
 import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
 import { loadSceneData, type SceneData } from '../src/scene/scene';
+import { validateScene } from '../src/scene/validateScene';
 import { Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { World } from '../src/ecs/world';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -127,6 +128,31 @@ describe('partitionWorld', () => {
         // …and the box grows to cover it, so the cell is asked for from where its
         // content actually is rather than from the grid square it was cut on.
         expect(partition.cells[0].maxX).toBe(1500);
+    });
+
+    it.each([StreamPlane.Screen, StreamPlane.Ground])('rebuilds child lists from authored parents for plane %s', plane => {
+        const data = scene(
+            { ...entity(0, 'World', null, { components: [{ ...declaration, data: { cellSize: SIZE, plane } }] }), children: [1] },
+            { ...entity(1, 'Root', [100, 100, 100]), children: [4, 2] },
+            entity(3, 'First child', [0, 0, 0], { parent: 1 }),
+            entity(2, 'Second child', [0, 0, 0], { parent: 1 }),
+            entity(4, 'Other root', [1500, 1500, 1500]),
+        );
+        const snapshot = JSON.stringify(data);
+        const partition = cut(data)!;
+        expect(partition.persistent.entities[0].children).toEqual([]);
+        expect(partition.cells.map(cell => cell.data.entities.map(row => row.id))).toEqual([[1, 3, 2], [4]]);
+        expect(partition.cells[0].data.entities[0].children).toEqual([3, 2]);
+        expect([partition.persistent, ...partition.cells.map(cell => cell.data)].flatMap(validateScene)).toEqual([]);
+        expect(JSON.stringify(data)).toBe(snapshot);
+    });
+
+    it('keeps embedded texture importer settings in the persistent scene and each cell', () => {
+        const data = scene(entity(0, 'World', null, { components: [declaration] }), entity(1, 'Sprite', [500, 0, 500]));
+        data.textureImporterSettings = { 'assets/art.png': { sRGB: false, maxSize: 128 } };
+        const partition = cut(data)!;
+        expect(partition.persistent.textureImporterSettings).toEqual(data.textureImporterSettings);
+        expect(partition.cells[0].data.textureImporterSettings).toEqual(data.textureImporterSettings);
     });
 
     it('keeps authored order within each document when parents and cells are interleaved', () => {
