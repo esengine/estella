@@ -32,6 +32,26 @@ describe('splitTerrain', () => {
         expect(o.data[8 * 17 + 8]).toBeCloseTo(sampleHeight(f, 0.5, 0.5), 4);
     });
 
+    it('preserves every quantized height in a rectangular, resampled terrain', () => {
+        const f = field(11, 7);
+        f.data[0] = -0.25;
+        f.data[f.data.length - 1] = 1.25;
+        const { document, images } = splitTerrain(f, null, null, { dir: 'g', name: 'x', tileSamples: 5, overviewSamples: 8 });
+        const check = (path: string, uAt: (x: number) => number, vAt: (y: number) => number) => {
+            const { rgba, width, height } = images.get(path)!;
+            for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+                const sample = sampleHeight(f, uAt(x), vAt(y));
+                const wanted = Math.round(Math.min(Math.max(sample, 0), 1) * 65535);
+                const i = (y * width + x) * 4;
+                expect([rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]]).toEqual([wanted >> 8, wanted & 255, 0, 255]);
+            }
+        };
+        const overview = images.get(document.overview)!;
+        expect([overview.width, overview.height]).toEqual([8, 6]);
+        check(document.overview, x => x / 7, y => y / 5);
+        for (const tile of document.tiles) check(tile.height, x => (tile.x * 4 + x) / 12, y => (tile.z * 4 + y) / 8);
+    });
+
     it('resamples both splatmaps byte-for-byte across tile edges and the overview', () => {
         const paint = (width: number, height: number, seed: number) => {
             const pixels = new Uint8Array(width * height * 4 + 1).subarray(1);

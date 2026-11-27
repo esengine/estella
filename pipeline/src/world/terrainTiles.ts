@@ -29,19 +29,29 @@ export interface SplitTerrain {
 
 const clamp = (v: number, a: number, b: number): number => Math.min(Math.max(v, a), b);
 
-function heightAt(f: Heightfield, u: number, v: number): number {
-    const x = clamp(u, 0, 1) * (f.width - 1), y = clamp(v, 0, 1) * (f.height - 1);
-    const i = Math.min(Math.floor(x), f.width - 2), j = Math.min(Math.floor(y), f.height - 2);
-    const fx = x - i, fy = y - j, d = f.data, w = f.width;
-    const a = d[j * w + i]!, b = d[j * w + i + 1]!, c = d[(j + 1) * w + i]!, e = d[(j + 1) * w + i + 1]!;
-    return a + (b - a) * fx + (c - a) * fy + (a - b - c + e) * fx * fy;
-}
-
-function heightsPng(width: number, height: number, sample: (i: number, j: number) => number): TerrainImageOut {
+function heightsPng(field: Heightfield, width: number, height: number, uAt: (i: number) => number, vAt: (j: number) => number): TerrainImageOut {
     const out = new Uint8Array(width * height * 4);
-    for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
-        const v = Math.round(clamp(sample(i, j), 0, 1) * 65535), k = (j * width + i) * 4;
-        out[k] = v >> 8; out[k + 1] = v & 255; out[k + 3] = 255;
+    const { data, width: sourceWidth, height: sourceHeight } = field;
+    const columns = new Array<number>(width);
+    const weights = new Float64Array(width);
+    for (let i = 0; i < width; i++) {
+        const x = clamp(uAt(i), 0, 1) * (sourceWidth - 1);
+        const left = Math.min(Math.floor(x), sourceWidth - 2);
+        columns[i] = left;
+        weights[i] = x - left;
+    }
+    for (let j = 0, at = 0; j < height; j++) {
+        const y = clamp(vAt(j), 0, 1) * (sourceHeight - 1);
+        const top = Math.min(Math.floor(y), sourceHeight - 2);
+        const fy = y - top;
+        const upper = top * sourceWidth, lower = (top + 1) * sourceWidth;
+        for (let i = 0; i < width; i++, at += 4) {
+            const x = columns[i]!, fx = weights[i]!;
+            const a = data[upper + x]!, b = data[upper + x + 1]!, c = data[lower + x]!, e = data[lower + x + 1]!;
+            const sample = a + (b - a) * fx + (c - a) * fy + (a - b - c + e) * fx * fy;
+            const v = Math.round(clamp(sample, 0, 1) * 65535);
+            out[at] = v >> 8; out[at + 1] = v & 255; out[at + 3] = 255;
+        }
     }
     return { width, height, rgba: out };
 }
@@ -77,14 +87,14 @@ export function splitTerrain(field: Heightfield, splat: TerrainSplat | null, spl
     const dir = options.dir.replace(/\/+$/, ''), stem = `${dir}/${options.name}`;
     const files = new Map<string, TerrainImageOut>();
     const overview = `${stem}_overview.png`;
-    files.set(overview, heightsPng(ow, oh, (i, j) => heightAt(field, i / (ow - 1), j / (oh - 1))));
+    files.set(overview, heightsPng(field, ow, oh, i => i / (ow - 1), j => j / (oh - 1)));
     const document: TerrainTilesDocument = { version: 1, tileSamples: t, tilesX, tilesZ, format: HeightmapFormat.RedGreen16, overview, tiles: [] };
     if (splat) files.set(document.overviewSplat = `${stem}_overview_splat.png`, splatPng(splat, ow, oh, 0, 0, 1 / (ow - 1), 1 / (oh - 1)));
     if (splat2) files.set(document.overviewSplat2 = `${stem}_overview_splat2.png`, splatPng(splat2, ow, oh, 0, 0, 1 / (ow - 1), 1 / (oh - 1)));
     for (let tz = 0; tz < tilesZ; tz++) for (let tx = 0; tx < tilesX; tx++) {
         const u0 = tx * n / (sx - 1), v0 = tz * n / (sz - 1), du = 1 / (sx - 1), dv = 1 / (sz - 1);
         const height = `${stem}_${tx}_${tz}.png`;
-        files.set(height, heightsPng(t, t, (i, j) => heightAt(field, u0 + i * du, v0 + j * dv)));
+        files.set(height, heightsPng(field, t, t, i => u0 + i * du, j => v0 + j * dv));
         const entry: TerrainTilesDocument['tiles'][number] = { x: tx, z: tz, height };
         if (splat) files.set(entry.splat = `${stem}_${tx}_${tz}_splat.png`, splatPng(splat, t, t, u0, v0, du, dv));
         if (splat2) files.set(entry.splat2 = `${stem}_${tx}_${tz}_splat2.png`, splatPng(splat2, t, t, u0, v0, du, dv));
