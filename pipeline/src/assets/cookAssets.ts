@@ -48,6 +48,7 @@ import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { parseTerrainTiles } from '../../../sdk/src/terrain/tiles';
 import { addressableKeys } from './addressableRecord';
 import { visitAnimatorClips } from './animatorRefs';
+import { mapMaterialRefs } from './materialRefs';
 import { mapTilesetImages } from '../../../sdk/src/tilemap/tiledRefs';
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
@@ -284,14 +285,8 @@ function rewriteMaterialRefs(
   matPath: string,
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  const rewrite = (ref: unknown): unknown => logicalRef(ref, matPath, byPath);
-  if (typeof json.shader === 'string') json.shader = rewrite(json.shader);
-  if (typeof json.instanceOf === 'string') json.instanceOf = rewrite(json.instanceOf);
-  if (json.properties && typeof json.properties === 'object') {
-    const props = json.properties as Record<string, unknown>;
-    for (const key of Object.keys(props)) props[key] = rewrite(props[key]);
-  }
+  const json: unknown = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  mapMaterialRefs(json, ref => logicalRef(ref, matPath, byPath));
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 
@@ -958,7 +953,7 @@ export async function cookAssets(
         }
       }
       // Materials: relative refs → logical project paths (see rewriteMaterialRefs).
-      if (ext.toLowerCase() === '.esmaterial') {
+      if (entry.type === 'material' || ext.toLowerCase() === '.esmaterial') {
         try {
           data = rewriteMaterialRefs(data, entry.path, byPath);
         } catch (err) {

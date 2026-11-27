@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase } from '../src/assets/assetDb';
 import { cookAssets } from '../src/assets/cookAssets';
+import { encodeRgbaPng } from '../src/assets/png';
 import { metaTypeForExt } from '../../tools/assetMetaTable.js';
 
 let root: string;
@@ -43,8 +44,8 @@ const groom = JSON.stringify({ version: 1, type: 'groom', curves: 'fur.escurves'
 const CARDS_MESH = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01';
 const CARDS_MATERIAL = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02';
 
-function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = ''): void {
-  const abs = path.join(root, rel);
+function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = '', projectRoot = root): void {
+  const abs = path.join(projectRoot, rel);
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, body);
   writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
@@ -170,6 +171,46 @@ describe('assets named only inside another document are cooked', () => {
   it('links animator controller → the clip its state plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(CLIP);
+  });
+
+  it('includes and rewrites indexed material dependencies without filename extensions', async () => {
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'estella-material-refs-'));
+    const scene = 'assets/main.esscene';
+    const child = 'assets/mats/child.esmaterial', base = 'assets/mats/base';
+    const detail = 'assets/mats/detail', shader = 'assets/shaders/model';
+    const put = (rel: string, type: string, uuid: string, body: string | Uint8Array) => writeAsset(rel, type, uuid, body, projectRoot);
+    try {
+      put(scene, 'scene', SCENE, JSON.stringify({ version: 4, entities: [{ id: 1, parent: null, children: [],
+        components: [{ type: 'MeshRenderer', data: { mesh: 'builtin:cube', material: child } }],
+      }] }));
+      put(child, 'material', 'child', JSON.stringify({ type: 'material', instanceOf: './base', properties: {} }));
+      put(base, 'material', 'base', JSON.stringify({ type: 'material', shader: '../shaders/model', properties: { mainTex: 'detail' } }));
+      put(shader, 'shader', 'shader', '#pragma shader "Model"');
+      const image = encodeRgbaPng(1, 1, new Uint8Array([128, 128, 255, 255]));
+      put(detail, 'texture', 'detail', image);
+      put('detail', 'texture', 'unrelated', image);
+
+      await scanAssetDatabase(projectRoot, { write: false });
+      const cachePath = path.join(projectRoot, '.esengine/cache/ref-candidates.json');
+      const cache = JSON.parse(readFileSync(cachePath, 'utf8'));
+      cache.files[child].c = [];
+      cache.files[base].c = [];
+      writeFileSync(cachePath, JSON.stringify({ ...cache, version: 4 }));
+      const { index } = await scanAssetDatabase(projectRoot, { write: false });
+      expect(index.deps.child).toEqual(['base']);
+      expect(index.deps.base).toEqual(['detail', 'shader']);
+
+      const cooked = await cookAssets(projectRoot, { entryScenes: [scene], outDir: 'output', contentAddressed: true });
+      expect(cooked.ok, cooked.warnings.join('\n')).toBe(true);
+      expect(cooked.included.sort()).toEqual([SCENE, 'base', 'child', 'detail', 'shader'].sort());
+      const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as { entries: { uuid: string; path: string }[] };
+      const stored = (id: string) => readFileSync(path.join(cooked.outDir, manifest.entries.find(e => e.uuid === id)!.path));
+      expect(JSON.parse(stored('child').toString()).instanceOf).toBe(base);
+      expect(JSON.parse(stored('base').toString())).toMatchObject({ shader, properties: { mainTex: detail } });
+      expect(stored('detail')).toEqual(Buffer.from(image));
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
   });
 
   it('ships a controller and nested clips selected by older explicit keys and mixed-case paths', async () => {

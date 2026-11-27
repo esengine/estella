@@ -31,6 +31,7 @@ import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable
 import { findDocumentAsset, isFileAssetRef, matchesAssetFieldType } from '../../../sdk/src/asset/documentRef';
 import { registeredAssetFields } from '../../../sdk/src/asset/registeredAssetFields';
 import { visitAnimatorClips } from './animatorRefs';
+import { mapMaterialRefs } from './materialRefs';
 import { assetRefId, UUID_REF_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
@@ -337,15 +338,16 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-interface CandidateCache { version: 4; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
+const CANDIDATE_CACHE_VERSION = 5;
+interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
 async function readCandidateCache(root: string): Promise<CandidateCache> {
   try {
     const parsed = JSON.parse(await readFile(path.join(root, CANDIDATE_CACHE_FILE), 'utf8')) as CandidateCache;
-    if (parsed.version === 4 && parsed.files) return parsed;
+    if (parsed.version === CANDIDATE_CACHE_VERSION && parsed.files) return parsed;
   } catch { /* none yet, or one that cannot be read: the documents are read */ }
-  return { version: 4, files: {} };
+  return { version: CANDIDATE_CACHE_VERSION, files: {} };
 }
 
 async function writeCandidateCache(root: string, cache: CandidateCache): Promise<void> {
@@ -431,6 +433,10 @@ async function computeDeps(
     if (type === 'animatorcontroller') visitAnimatorClips(json, (kind, holder) => {
       if (kind === 'sprite' || kind === 'timeline') takeNamedCandidate(holder, 'clip', kind === 'sprite' ? 'SpriteAnimator' : 'TimelinePlayer', named);
     });
+    if (type === 'material') mapMaterialRefs(json, ref => {
+      if (assetRefId(ref) || !/^[a-z][a-z0-9+.-]*:/i.test(ref)) found.add(ref);
+      return ref;
+    });
     collectCandidates(json, found, type, named);
     cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, type, c: [...found, ...named] };
     cacheDirty = true;
@@ -483,7 +489,7 @@ async function computeDeps(
       } else {
         const candidates = await candidatesOf(entry.path, entry.type);
         const resolvePath = (ref: string, slot?: RegisteredSlot): string | null => {
-          if (ref.includes('://') || (!slot && !PATH_LIKE.test(ref))) return null;
+          if (ref.includes('://')) return null;
           return lookup(ref, slot)?.uuid ?? null;
         };
         for (const candidate of candidates) {
