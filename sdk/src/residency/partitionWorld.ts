@@ -96,10 +96,6 @@ function nameOf(entry: SceneEntry): string {
     return (entry as { name?: string }).name ?? '';
 }
 
-function componentsOf(entry: SceneEntry): SceneComponentData[] {
-    return isPrefabEntry(entry) ? [] : (entry as SceneEntityData).components ?? [];
-}
-
 interface WorldDeclaration {
     entry: SceneEntry;
     data: Record<string, unknown>;
@@ -109,7 +105,7 @@ interface WorldDeclaration {
 function declarationsOn(entry: SceneEntry, asset?: PrefabRoot | null): WorldDeclaration[] | undefined {
     let declarations: WorldDeclaration[] | undefined;
     if (!isPrefabEntry(entry)) {
-        for (const component of componentsOf(entry)) {
+        for (const component of entry.components ?? []) {
             if (component.type === 'StreamedWorld') (declarations ??= []).push({ entry, data: component.data ?? {} });
         }
         return declarations;
@@ -150,13 +146,6 @@ export function streamedWorldDeclaration(scene: SceneData, resolvePrefab?: Parti
     return undefined;
 }
 
-function componentData(entry: SceneEntry, type: string): Record<string, unknown> | null {
-    for (const component of componentsOf(entry)) {
-        if (component.type === type) return component.data as Record<string, unknown>;
-    }
-    return null;
-}
-
 /** Read the settings from the same authored declaration used to select a streamed scene. */
 export function streamedWorldData(scene: SceneData): Record<string, unknown> | null {
     return streamedWorldDeclaration(scene)?.data ?? null;
@@ -176,8 +165,14 @@ function localPlacement(
     entry: SceneEntry, options: PartitionOptions, problems: string[],
 ): { transform: Readonly<Record<string, unknown>> | null; worldPersistent: boolean } {
     if (!isPrefabEntry(entry)) {
-        return { transform: componentData(entry, 'Transform'),
-            worldPersistent: componentsOf(entry).some(component => component.type === 'WorldPersistent') };
+        let transform: SceneComponentData | undefined;
+        let worldPersistent = false;
+        for (const component of entry.components ?? []) {
+            if (component.type === 'Transform') transform ??= component;
+            else if (component.type === 'WorldPersistent') worldPersistent = true;
+            if (transform && worldPersistent) break;
+        }
+        return { transform: transform ? transform.data : null, worldPersistent };
     }
     const instance = entry as PrefabInstanceEntry;
     const asset = options.resolvePrefab?.(instance.prefab) ?? null;
@@ -243,7 +238,15 @@ interface CellEntries {
     maxX: number;
     maxZ: number;
     rootCount: number;
-    entries: SceneEntry[];
+    entries: IndexedEntry[];
+}
+
+interface IndexedEntry {
+    entry: SceneEntry;
+    parentId: number | null;
+    children: IndexedEntry[] | undefined;
+    /** Undefined for an unvisited entity, null for the persistent scene. */
+    bucket: CellEntries | null | undefined;
 }
 
 /**
@@ -269,14 +272,14 @@ export function partitionWorld(
 
     const errors: string[] = [];
     const warnings: string[] = [];
-    const byId = new Map<number, SceneEntry>();
+    const byId = new Map<number, IndexedEntry>();
     let otherDeclaration: SceneEntry | undefined;
     for (const entry of entries) {
         if (byId.has(entry.id)) {
             return { cellSize, plane, persistent: scene, cells: [], persistentRefs: [], warnings,
                 errors: [`StreamedWorld in "${sceneName}" has duplicate entity id ${entry.id}`] };
         }
-        byId.set(entry.id, entry);
+        byId.set(entry.id, { entry, parentId: null, children: undefined, bucket: undefined });
         if (!otherDeclaration) {
             const asset = isPrefabEntry(entry) ? options.resolvePrefab?.(entry.prefab) : undefined;
             if (declarationsOn(entry, asset)?.[entry === declared ? 1 : 0]) otherDeclaration = entry;
@@ -296,28 +299,25 @@ export function partitionWorld(
             errors: [`StreamedWorld on entity ${declared.id} ("${nameOf(declared)}") must target its prefab root; cannot match "${prefabEntityId}"`] };
     }
 
-    const childrenOf = new Map<number, number[]>();
-    const roots: number[] = [];
-    for (const entry of entries) {
-        const parent = entry.parent;
-        if (parent === null || parent === undefined || !byId.has(parent)) {
-            if (parent !== null && parent !== undefined) {
-                warnings.push(`entity ${entry.id} names a parent (${parent}) the scene does not hold`);
-            }
-            roots.push(entry.id);
-            continue;
+    const roots: IndexedEntry[] = [];
+    for (const node of byId.values()) {
+        const parentId = node.entry.parent;
+        const parent = parentId == null ? undefined : byId.get(parentId);
+        if (parent) {
+            node.parentId = parentId!;
+            (parent.children ??= []).push(node);
+        } else {
+            if (parentId != null) warnings.push(`entity ${node.entry.id} names a parent (${parentId}) the scene does not hold`);
+            roots.push(node);
         }
-        const siblings = childrenOf.get(parent);
-        if (siblings) siblings.push(entry.id);
-        else childrenOf.set(parent, [entry.id]);
     }
 
     // Assign whole subtrees to shared cell buckets and expand their bounds in
     // the same walk. Null identifies the persistent document.
-    const placement = new Map<number, CellEntries | null>();
     const cellEntries = new Map<string, CellEntries>();
+    const stack: Array<{ node: IndexedEntry; position: Vec3; matrix: readonly number[] | null }> = [];
     for (const root of roots) {
-        const entry = byId.get(root)!;
+        const { entry } = root;
         const { transform, worldPersistent } = localPlacement(entry, options, errors);
         const streamed = !worldPersistent
             && entry !== declared
@@ -325,7 +325,7 @@ export function partitionWorld(
         const rootPosition = vec3(transform?.position, ORIGIN);
         let cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
         if (cell && (!Number.isSafeInteger(cell.x) || !Number.isSafeInteger(cell.z))) {
-            errors.push(`entity ${root} ("${nameOf(entry)}") is outside the representable cell grid`);
+            errors.push(`entity ${entry.id} ("${nameOf(entry)}") is outside the representable cell grid`);
             cell = null;
         }
 
@@ -340,40 +340,41 @@ export function partitionWorld(
             }
             bucket.rootCount++;
         }
-        const rootMatrix = transform && childrenOf.has(root) ? localMatrix(transform, rootPosition) : null;
-        const stack: Array<{ id: number; position: Vec3; matrix: readonly number[] | null }> = [
-            { id: root, position: rootPosition, matrix: rootMatrix },
-        ];
+        const rootMatrix = bucket && transform && root.children ? localMatrix(transform, rootPosition) : null;
+        stack.push({ node: root, position: rootPosition, matrix: rootMatrix });
         while (stack.length > 0) {
-            const node = stack.pop()!;
-            placement.set(node.id, bucket);
+            const { node, position, matrix } = stack.pop()!;
+            node.bucket = bucket;
             if (bucket) {
-                const { x } = node.position;
-                const second = planeSecond(node.position, plane);
+                const { x } = position;
+                const second = planeSecond(position, plane);
                 bucket.minX = Math.min(bucket.minX, x);
                 bucket.maxX = Math.max(bucket.maxX, x);
                 bucket.minZ = Math.min(bucket.minZ, second);
                 bucket.maxZ = Math.max(bucket.maxZ, second);
             }
-            for (const child of childrenOf.get(node.id) ?? []) {
-                const childEntry = byId.get(child)!;
+            const children = node.children;
+            if (!children) continue;
+            for (const child of children) {
+                const childEntry = child.entry;
                 const { transform: childTransform, worldPersistent: childPersistent } = localPlacement(childEntry, options, errors);
                 if (childPersistent) {
                     errors.push(
-                        `entity ${child} ("${nameOf(childEntry)}") carries WorldPersistent but is not top-level — `
+                        `entity ${childEntry.id} ("${nameOf(childEntry)}") carries WorldPersistent but is not top-level — `
                         + 'a subtree is the residency atom, so persistence is its root\'s answer',
                     );
                 }
-                const local = vec3(childTransform?.position, ORIGIN);
-                const position = node.matrix ? transformPoint(node.matrix, local) : local;
+                // Persistent subtrees have no cell bounds to expand.
+                const local = bucket ? vec3(childTransform?.position, ORIGIN) : ORIGIN;
+                const childPosition = matrix ? transformPoint(matrix, local) : local;
                 // As in the runtime, a folder passes its parent's matrix on,
                 // and a leaf never needs a matrix to hand to its children.
-                let matrix = node.matrix;
-                if (childTransform && childrenOf.has(child)) {
+                let childMatrix = matrix;
+                if (bucket && childTransform && child.children) {
                     const localChild = localMatrix(childTransform, local);
-                    matrix = matrix ? multiplyAffine(matrix, localChild) : localChild;
+                    childMatrix = matrix ? multiplyAffine(matrix, localChild) : localChild;
                 }
-                stack.push({ id: child, position, matrix });
+                stack.push({ node: child, position: childPosition, matrix: childMatrix });
             }
         }
     }
@@ -383,28 +384,28 @@ export function partitionWorld(
     }
 
     const persistentRefs = new Set<number>();
-    checkReferences(entries, byId, placement, options, persistentRefs, errors);
+    checkReferences(byId, options, persistentRefs, errors);
 
     // Fill the output buckets in authored order. A cell can now assemble its
     // document directly from its own entries, even when roots are interleaved.
-    const persistentEntries: SceneEntry[] = [];
+    const persistentEntries: IndexedEntry[] = [];
     let firstUnplaced: number | undefined;
-    for (const entry of entries) {
-        const bucket = placement.get(entry.id);
-        if (bucket === undefined) { firstUnplaced ??= entry.id; continue; }
-        (bucket === null ? persistentEntries : bucket.entries).push(entry);
+    let unplaced = 0;
+    for (const node of byId.values()) {
+        const { bucket } = node;
+        if (bucket === undefined) { firstUnplaced ??= node.entry.id; unplaced++; continue; }
+        (bucket === null ? persistentEntries : bucket.entries).push(node);
     }
     if (firstUnplaced !== undefined) {
-        errors.push(`StreamedWorld in "${sceneName}" cannot place ${entries.length - placement.size} entities `
+        errors.push(`StreamedWorld in "${sceneName}" cannot place ${unplaced} entities `
             + `because of a parent cycle (first affected entity: ${firstUnplaced})`);
     }
 
-    const documentOf = (members: readonly SceneEntry[], name: string): SceneData => {
-        const list = members.map(entry => {
-            const parent = entry.parent != null && byId.has(entry.parent) ? entry.parent : null;
+    const documentOf = (members: readonly IndexedEntry[], name: string): SceneData => {
+        const list = members.map(({ entry, parentId: parent, children }) => {
             // A compact prefab record need not carry a redundant child list.
             if (isPrefabEntry(entry) && !('children' in entry)) return { ...entry, parent };
-            return { ...entry, parent, children: childrenOf.get(entry.id) ?? [] };
+            return { ...entry, parent, children: children?.map(child => child.entry.id) ?? [] };
         });
         return {
             version: scene.version,
@@ -452,27 +453,26 @@ export function partitionWorld(
  * entitled to delete, and are refused.
  */
 function checkReferences(
-    entries: readonly SceneEntry[],
-    byId: ReadonlyMap<number, SceneEntry>,
-    placement: ReadonlyMap<number, CellEntries | null>,
+    byId: ReadonlyMap<number, IndexedEntry>,
     options: PartitionOptions,
     persistentRefs: Set<number>,
     errors: string[],
 ): void {
-    for (const holder of entries) {
-        const from = placement.get(holder.id);
+    for (const { entry: holder, bucket: from } of byId.values()) {
         if (from === undefined) continue;
         visitSceneEntryEntityReferences(holder, options.entityFieldsOf, (componentType, field, candidate) => {
             // Strings in a prefab delta refer to instance-local IDs. Zero and
             // legacy negative values are empty references even in old scenes.
-            if (typeof candidate !== 'number' || candidate <= INVALID_ENTITY || !byId.has(candidate)) return;
-            const to = placement.get(candidate);
+            if (typeof candidate !== 'number' || candidate <= INVALID_ENTITY) return;
+            const target = byId.get(candidate);
+            if (!target) return;
+            const to = target.bucket;
             if (to === undefined || from === to) return;
             if (from !== null && to === null) { persistentRefs.add(candidate); return; }
             const where = to === null ? 'the persistent world' : `cell ${to.x},${to.z}`;
             errors.push(
                 `${componentType}.${field} on entity ${holder.id} ("${nameOf(holder)}") references `
-                + `entity ${candidate} ("${nameOf(byId.get(candidate)!)}") in ${where} — `
+                + `entity ${candidate} ("${nameOf(target.entry)}") in ${where} — `
                 + 'residency may delete one without the other',
             );
         });
