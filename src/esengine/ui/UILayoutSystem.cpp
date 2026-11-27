@@ -22,6 +22,17 @@ namespace esengine::ecs {
 static std::vector<f32> inherited_alpha_stack_;
 static std::vector<u8> inherited_block_stack_;
 
+// A leaf that sizes to its content is measured by what the SDK reported for it, which its YGNode's context points at.
+static YGSize measureContent(YGNodeConstRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode) {
+    const auto* content = static_cast<const UIContentSize*>(YGNodeGetContext(node));
+    const auto fit = [](f32 wanted, float available, YGMeasureMode mode) {
+        if (mode == YGMeasureModeExactly) return available;
+        if (mode == YGMeasureModeAtMost) return std::min(wanted, available);
+        return wanted;
+    };
+    return { fit(content ? content->width : 0.0f, width, widthMode), fit(content ? content->height : 0.0f, height, heightMode) };
+}
+
 // Retained Yoga node cache: one YGNode per UI entity, kept alive across frames.
 // A stable UI tree reuses its allocations instead of YGNodeNew/FreeRecursive
 // every solve; entities that leave the tree are reaped. The hierarchy + style
@@ -29,6 +40,9 @@ static std::vector<u8> inherited_block_stack_;
 // rebuild/solve when nothing changed is layered on top separately.
 struct LayoutCache {
     std::unordered_map<Entity, YGNodeRef> nodes;
+    // The content size each measured leaf's YGNode was last solved with; its context points at the entry (a node's address in
+    // an unordered_map stays put while other entries come and go).
+    std::unordered_map<Entity, UIContentSize> measured;
 
     ~LayoutCache() {
         for (auto& [entity, node] : nodes) YGNodeFree(node);
@@ -49,10 +63,35 @@ struct LayoutCache {
         for (auto it = nodes.begin(); it != nodes.end();) {
             if (live.find(it->first) == live.end()) {
                 YGNodeFree(it->second);
+                measured.erase(it->first);
                 it = nodes.erase(it);
             } else {
                 ++it;
             }
+        }
+    }
+
+    /** Stop measuring @p entity's node: before it gains children (Yoga refuses a measured node any), or when its content went. */
+    void unmeasure(Entity entity, YGNodeRef node) {
+        auto it = measured.find(entity);
+        if (it == measured.end()) return;
+        YGNodeMarkDirty(node);  // while it still has a measure function: Yoga dirties only those by hand
+        YGNodeSetMeasureFunc(node, nullptr);
+        YGNodeSetContext(node, nullptr);
+        measured.erase(it);
+    }
+
+    /** Measure the leaf @p node by @p content, dirtying it only when the size it was solved with changed. */
+    void measure(Entity entity, YGNodeRef node, const UIContentSize& content) {
+        auto it = measured.find(entity);
+        if (it == measured.end()) {
+            it = measured.emplace(entity, content).first;
+            YGNodeSetContext(node, &it->second);
+            YGNodeSetMeasureFunc(node, measureContent);
+            YGNodeMarkDirty(node);
+        } else if (it->second.width != content.width || it->second.height != content.height) {
+            it->second = content;
+            YGNodeMarkDirty(node);
         }
     }
 };
@@ -246,7 +285,8 @@ void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
 void layoutUINodeSubtree(
     Registry& registry, UITree& tree, LayoutCache& cache, i32 rootIdx,
     f32 availW, f32 availH, f32 parentPivotX, f32 parentPivotY,
-    bool structureChanged, bool forceWriteback
+    bool structureChanged, bool forceWriteback,
+    const std::unordered_map<Entity, UIContentSize>& contents
 ) {
     i32 begin = rootIdx;
     i32 end = rootIdx + tree.nodes_[rootIdx].subtree_size;
@@ -276,7 +316,9 @@ void layoutUINodeSubtree(
     if (structureChanged) {
         for (i32 k = begin; k < end; ++k) {
             YGNodeRef node = yg[static_cast<usize>(k - begin)];
-            if (node) YGNodeRemoveAllChildren(node);
+            if (!node) continue;
+            YGNodeRemoveAllChildren(node);
+            if (tree.nodes_[k].subtree_size > 1) cache.unmeasure(tree.nodes_[k].entity, node);
         }
         for (i32 k = begin + 1; k < end; ++k) {
             YGNodeRef child = yg[static_cast<usize>(k - begin)];
@@ -286,6 +328,17 @@ void layoutUINodeSubtree(
             YGNodeRef parentYG = yg[static_cast<usize>(it->second)];
             YGNodeInsertChild(parentYG, child, YGNodeGetChildCount(parentYG));
         }
+    }
+
+    // A leaf with content takes that content's size on an axis it leaves auto (see UISystem::setContentSize). After the
+    // parenting above, so a node that just lost its children can be measured and one that gained them no longer is.
+    for (i32 k = begin; k < end; ++k) {
+        YGNodeRef node = yg[static_cast<usize>(k - begin)];
+        if (!node) continue;
+        const Entity e = tree.nodes_[k].entity;
+        auto found = tree.nodes_[k].subtree_size == 1 ? contents.find(e) : contents.end();
+        if (found != contents.end()) cache.measure(e, node, found->second);
+        else cache.unmeasure(e, node);
     }
 
     // The root fills the available box on axes it leaves auto.
@@ -527,7 +580,7 @@ void collectScreenDomain(Registry& registry, UIRenderData& tables, std::vector<u
 
 void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
                        const LayoutRect& box, bool structureChanged,
-                       bool forceWriteback) {
+                       bool forceWriteback, const std::unordered_map<Entity, UIContentSize>& contents) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
 
@@ -538,7 +591,7 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache,
         bool parentIsUINode = node.parent != INVALID_ENTITY && registry.has<UINode>(node.parent);
         if (!parentIsUINode) {
             layoutUINodeSubtree(registry, tree, cache, i, box.width(), box.height(), 0.5f, 0.5f,
-                                structureChanged, forceWriteback);
+                                structureChanged, forceWriteback, contents);
         }
         i += node.subtree_size;
     }
@@ -644,8 +697,9 @@ bool UISystem::layoutUpdate(
     // forces one more solve on the frame a tween just ended (see anyUIAnimActive).
     bool first = !layoutPrimed_;
     bool dirty = first || sigChanged || sizeChanged || tsPropertyDirty
-              || animNow || wasAnimActive;
+              || animNow || wasAnimActive || contentSizesChanged_;
     layoutPrimed_ = true;
+    contentSizesChanged_ = false;
     if (!dirty) {
         if (centerChanged) {
             invalidateTransformComposition();
@@ -673,7 +727,7 @@ bool UISystem::layoutUpdate(
         propagateHiddenInTree(registry, tree);
         propagateInheritedUIState(registry, tree);
     }
-    unifiedLayoutPass(registry, tree, *layoutCache_, box, structureChanged, forceWriteback);
+    unifiedLayoutPass(registry, tree, *layoutCache_, box, structureChanged, forceWriteback, contentSizes_);
     placeScreenRoots(registry, tree, *layoutCache_, box);
 
     // Reaping is likewise a structural concern: with the same set of entities in
@@ -686,6 +740,20 @@ bool UISystem::layoutUpdate(
         layoutCache_->reap(live);
     }
     return true;
+}
+
+void UISystem::setContentSize(Registry& registry, u32 entity, f32 width, f32 height) {
+    select(registry);
+    const Entity e = Entity::fromRaw(entity);
+    if (!(width >= 0.0f) || !registry.valid(e)) {
+        contentSizesChanged_ = contentSizes_.erase(e) > 0 || contentSizesChanged_;
+        return;
+    }
+    const UIContentSize next{ width, std::max(height, 0.0f) };
+    auto [it, added] = contentSizes_.try_emplace(e, next);
+    if (!added && it->second.width == next.width && it->second.height == next.height) return;
+    it->second = next;
+    contentSizesChanged_ = true;
 }
 
 // Out-of-line so LayoutCache is complete here (it holds Yoga types kept out of

@@ -36,6 +36,12 @@ struct LayoutCache;
 /**
  * @brief Result of the most recent hit-test pass
  */
+/** The natural size of a leaf node's content (a Text's lines), as the SDK measured it. */
+struct UIContentSize {
+    f32 width;
+    f32 height;
+};
+
 struct UIHitTestResult {
     Entity hit_entity{INVALID_ENTITY};
     Entity prev_hit_entity{INVALID_ENTITY};
@@ -89,6 +95,9 @@ private:
     std::vector<u32> screenMembers_, nextScreenMembers_;
     std::vector<Entity> screenPending_;
     Shared<UIRenderData> render_;
+    // What the SDK measured for leaves that size to their content (see setContentSize); a change re-solves the next pass.
+    std::unordered_map<Entity, UIContentSize> contentSizes_;
+    bool contentSizesChanged_{false};
 };
 
 /**
@@ -124,6 +133,11 @@ public:
     bool layoutUpdate(Registry& registry,
                       f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                       bool tsPropertyDirty);
+
+    /** @brief The natural size of @p entity's content: a Text's lines, measured by the SDK, which lays the glyphs out.
+     *  A UINode leaf whose width or height is auto takes it on that axis, as a CSS box takes its text's size, so a
+     *  label in a flex row or column holds its place instead of collapsing to nothing. A negative width forgets it. */
+    void setContentSize(Registry& registry, u32 entity, f32 width, f32 height);
 
     // ---- Hit test pass (defined in UISystem.cpp) ----
 

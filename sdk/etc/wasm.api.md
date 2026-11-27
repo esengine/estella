@@ -786,6 +786,7 @@ uiRenderOrder_update: (registry: CppRegistry) => void
 ui_getCullBit: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
 ui_isScreenDomain: ((registry: CppRegistry, entity: number) => boolean) | undefined
+ui_setContentSize: ((registry: CppRegistry, entity: number, width: number, height: number) => void) | undefined
 wasmMemory: WebAssembly.Memory | undefined
 ```
 

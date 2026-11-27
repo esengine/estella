@@ -23,6 +23,7 @@ struct UISystem::Slot : RegistrySystem {
         if (hit.prev_hit_entity == entity) hit.prev_hit_entity = INVALID_ENTITY;
         // Keep delayed pick indices stable for the surviving controls.
         std::replace(world.pickResults_.begin(), world.pickResults_.end(), entity, INVALID_ENTITY);
+        world.contentSizes_.erase(entity);
     }
 
     u32 picked(u32 index) {

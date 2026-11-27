@@ -80,6 +80,14 @@ u32 ui_getCullBit(ecs::Registry& registry, u32 entity);
  */
 bool ui_isScreenDomain(ecs::Registry& registry, u32 entity);
 
+/**
+ * @brief The natural size of @p entity's text, measured where the glyphs are laid out (the SDK), for layout.
+ *
+ * @details A UINode leaf left auto on an axis takes it there, so a label in a flex row or column holds its place. A
+ *          negative @p width forgets it.
+ */
+void ui_setContentSize(ecs::Registry& registry, u32 entity, f32 width, f32 height);
+
 
 /** UINode computed state that is not embind-readable off the component. */
 bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity);

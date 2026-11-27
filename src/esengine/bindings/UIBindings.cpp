@@ -141,6 +141,10 @@ f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity) {
     return (node ? node->alpha_in_tree_ : 1.0f) * ecs::GroupOpacityLookup(registry).of(Entity::fromRaw(entity));
 }
 
+void ui_setContentSize(ecs::Registry& registry, u32 entity, f32 width, f32 height) {
+    ctx().require<ecs::UISystem>().setContentSize(registry, entity, width, height);
+}
+
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
     if (!node) return 0.0f;

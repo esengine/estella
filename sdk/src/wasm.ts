@@ -440,6 +440,8 @@ export interface ESEngineModule extends TilemapBindings {
     /** Whether an entity belongs to the screen rather than the world — the same
      *  answer the renderer partitions its collects by (UISystem::screenDomain). */
     ui_isScreenDomain?(registry: CppRegistry, entity: number): boolean;
+    /** The natural size of an entity's text, which a UINode leaf left auto takes in layout; a negative width forgets it. */
+    ui_setContentSize?(registry: CppRegistry, entity: number, width: number, height: number): void;
 
     /**
      * Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per

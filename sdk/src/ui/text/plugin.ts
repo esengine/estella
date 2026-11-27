@@ -18,7 +18,9 @@ import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import { SdfTextRenderer } from './text-renderer';
 import { composeTRS } from './text-transform';
-import { textDrawParams, textStyleBits } from './text-params';
+import { textDrawParams, textLetterSpacingPx, textLineHeightPx, textStyleBits } from './text-params';
+import { measureText } from './measure-text';
+import { DimensionUnit } from '../core/dimension';
 import { Text, TextOverflow, TextRenderMode, type TextData } from '../core/text';
 import { ContentRect } from '../core/content-rect';
 import { bitmapFontOf } from './bitmap-font';
@@ -146,6 +148,34 @@ export function textFrame(world: World, entity: Entity, t: TextData): TextFrame 
     return { w: t.boxWidth || 0, h: t.boxHeight || 0, px: t.boxPivot?.x ?? 0.5, py: t.boxPivot?.y ?? 0.5, ui: false };
 }
 
+/** What a Text's natural size was measured from: the same key is the same size. */
+interface ReportedContent {
+    key: string;
+}
+
+/**
+ * The size a Text's lines take, for a UINode left auto on an axis: unwrapped wide, and as tall as its lines run, wrapped to the
+ * box it has when it wraps and that box is narrower. Null when its node fixes both axes, so layout needs nothing from it.
+ */
+function textContentSize(t: TextData, family: string, frame: TextFrame, widthAuto: boolean, heightAuto: boolean): { w: number; h: number; key: string } | null {
+    if (!(widthAuto || heightAuto) || !t.content || t.enabled === false) return null;
+    const text = t.richText ? t.content.replace(/<[^>]*>/g, '') : t.content;
+    const style = textStyleBits(t);
+    const base = {
+        fontFamily: family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic,
+        ...(t.fontWeight ? { fontWeight: t.fontWeight } : {}), ...(t.tabularNumbers ? { tabularNumbers: true } : {}),
+        ...(textLetterSpacingPx(t) !== undefined ? { letterSpacing: textLetterSpacingPx(t) } : {}),
+        ...(textLineHeightPx(t) !== undefined ? { lineHeight: textLineHeightPx(t) } : {}),
+    };
+    const natural = measureText(text, base);
+    const wrapAt = t.wordWrap && frame.w > 0 && frame.w < natural.width ? frame.w : 0;
+    const lines = wrapAt > 0 ? measureText(text, { ...base, maxWidth: wrapAt }) : natural;
+    return {
+        w: Math.ceil(natural.width), h: Math.ceil(lines.height),
+        key: `${text}|${family}|${t.fontSize}|${style}|${base.letterSpacing ?? 0}|${base.lineHeight ?? 0}|${wrapAt}`,
+    };
+}
+
 /** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
 export interface TextSnapshot {
     content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean; renderMode: number;
@@ -247,6 +277,8 @@ export class TextPlugin implements Plugin {
         matrix: Float32Array;
         matrixHeap: Float32Array | null;
         retained: Map<number, RetainedLabel>;
+        /** The natural size each UI Text last gave layout (ui_setContentSize), by entity. */
+        contentSizes: Map<number, ReportedContent>;
         entityLifetime: symbol | undefined;
         releaseDisconnect: () => void;
         preloads: PreloadRun[];
@@ -268,6 +300,7 @@ export class TextPlugin implements Plugin {
                 screen: { bitmap: null, sdf: null, large: null },
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
+                contentSizes: new Map(),
                 entityLifetime: undefined,
                 releaseDisconnect: app.world.onCoreDisconnect(() => this.cleanup(app)),
                 preloads: [],
@@ -605,6 +638,7 @@ export class TextPlugin implements Plugin {
                 const alive = world.valid(entity as Entity) && world.has(entity as Entity, Text);
                 const t = alive ? world.get(entity as Entity, Text) as TextData : null;
                 if (!t || !t.content || t.enabled === false) {
+                    this.forgetContentSize(app, api, entity);
                     api.renderer_retainedTextClearInWorld!(registry, entity);
                     label?.renderer.forget(entity);
                     appState.retained.delete(entity);
@@ -636,6 +670,7 @@ export class TextPlugin implements Plugin {
         if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
 
         const frame = textFrame(world, entity, t);
+        this.reportContentSize(app, api, entity, t, family, frame);
         const w = frame.w, h = frame.h;
         const hasBox = w > 0 || h > 0;
         const blockHeight = renderer.retain(
@@ -653,6 +688,30 @@ export class TextPlugin implements Plugin {
             const rect = world.tryGet(entity, ContentRect);
             if (rect && Math.abs(rect.size.y - blockHeight) > 0.5) world.set(entity, ContentRect, { ...rect, size: { x: rect.size.x, y: blockHeight } });
         }
+    }
+
+    /**
+     * Give layout the size @p entity's lines take, for a UINode leaf left auto on an axis (a label in a flex row): measured here, where
+     * the glyphs are laid out, and sent only when what it was measured from changed. The node takes it on the next layout pass.
+     */
+    private reportContentSize(app: App, api: EngineApi | null, entity: Entity, t: TextData, family: string, frame: TextFrame): void {
+        if (!api?.ui_setContentSize || !frame.ui) return;
+        const node = app.world.get(entity, UINode) as { width?: { unit: number }; height?: { unit: number } };
+        const size = textContentSize(t, family, frame, node.width?.unit === DimensionUnit.Auto, node.height?.unit === DimensionUnit.Auto);
+        const reported = this.stateFor(app).contentSizes;
+        if (!size) {
+            this.forgetContentSize(app, api, entity);
+            return;
+        }
+        if (reported.get(entity as number)?.key === size.key) return;
+        reported.set(entity as number, { key: size.key });
+        api.ui_setContentSize(app.world.getCppRegistry() as CppRegistry, entity as number, size.w, size.h);
+    }
+
+    private forgetContentSize(app: App, api: EngineApi | null, entity: Entity): void {
+        if (!this.stateFor(app).contentSizes.delete(entity as number)) return;
+        const registry = app.world.getCppRegistry() as CppRegistry | null;
+        if (registry && app.world.valid(entity)) api?.ui_setContentSize?.(registry, entity as number, -1, 0);
     }
 
     private drawDomainWithMatrix(app: App, screen: boolean, readMatrix?: (entity: number) => boolean, projection?: Float32Array): void {
@@ -701,6 +760,7 @@ export class TextPlugin implements Plugin {
             // a world label at the entity origin, sorted by Text.layer.
             let layer = t.layer | 0;
             const frame = textFrame(world, entity, t);
+            this.reportContentSize(app, api, entity, t, family, frame);
             if ((frame.w > 0 || frame.h > 0) && frame.ui) {
                 const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
                 layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;

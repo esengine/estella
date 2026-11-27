@@ -31,7 +31,9 @@ UINode, placed by Transform. Do not mix the two.
 - `UIVisual`: what the node draws behind its children. **`visualType` decides whether it draws at all, and it starts at
   None**: set SolidColor (1) for a coloured panel, Image (2) for a `texture`, NineSlice (3) with `sliceBorder` for a panel
   that stretches without smearing its corners. A `color` on a None visual draws nothing.
-- `Text`: `content`, `fontSize`, `color`, alignment. Inside a UINode it is laid out in the node's box.
+- `Text`: `content`, `fontSize`, `color`, alignment. Inside a UINode it is laid out in the node's box. A Text whose
+  `width` / `height` are left auto takes its text's size, so labels in a flex row or column stand apart by the `gap`
+  with no sizes on them; with `wordWrap` in a column of fixed width it grows as tall as its lines.
 - `Interactable` + `UIInteraction`: makes a node clickable; `UIInteraction` says `hovered`, `pressed`, `justPressed`.
 
 ## The fast ways
@@ -122,4 +124,5 @@ Read UI state from the running game in the acceptance:
 ```
 
 `play_input` coordinates are the game canvas in screen pixels, y down. Then `screenshot { crop: "game" }`: a HUD that
-passes every check but sits off the edge of the screen is still wrong.
+passes every check but sits off the edge of the screen is still wrong. A HUD is seen in Play: `view_from` and
+`scene_views` draw the world and leave the screen's UI out.

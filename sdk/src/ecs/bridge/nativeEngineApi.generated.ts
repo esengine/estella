@@ -469,6 +469,7 @@ export interface NativeEngineApi {
     ui_getCullBit?(registry: unknown, entity: number): number;
     ui_getRenderOrder?(registry: unknown, entity: number): number;
     ui_isScreenDomain?(registry: unknown, entity: number): boolean;
+    ui_setContentSize?(registry: unknown, entity: number, width: number, height: number): void;
 }
 
 /** Build the API over a host scope (the native host global object; a plain object
@@ -940,5 +941,6 @@ export function createNativeEngineApi(
     bind('ui_getCullBit', 'es_ui_getCullBit', true);
     bind('ui_getRenderOrder', 'es_ui_getRenderOrder', true);
     bind('ui_isScreenDomain', 'es_ui_isScreenDomain', true);
+    bind('ui_setContentSize', 'es_ui_setContentSize', true);
     return api as NativeEngineApi;
 }

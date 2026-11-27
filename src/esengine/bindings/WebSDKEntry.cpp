@@ -1114,6 +1114,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("ui_getCullBit", ES_RENDER_BIND(ui_getCullBit));
     emscripten::function("ui_isScreenDomain", ES_RENDER_BIND(ui_isScreenDomain));
     emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
+    emscripten::function("ui_setContentSize", &esengine::ui_setContentSize);
     emscripten::function("getUINodeAlphaInTree", &esengine::getUINodeAlphaInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
     emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
