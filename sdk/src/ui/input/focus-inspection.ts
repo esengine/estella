@@ -4,7 +4,7 @@ import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Focusable } from './focusable';
 import { Interactable } from './interactable';
-import { readDialogScope, type FocusInspectionWorld } from './modal-scope';
+import { isLiveUIEntity, readDialogScope, type FocusInspectionWorld } from './modal-scope';
 export type { FocusInspectionWorld } from './modal-scope';
 
 /** Why a focusable is absent from the current Tab ring. @experimental */
@@ -37,7 +37,7 @@ function skipReason(world: FocusInspectionWorld, entity: Entity,
 
 /** Check a single target without sorting the entire Tab ring. */
 export function isFocusEligible(world: FocusInspectionWorld & Partial<Pick<World, 'isEntityActive'>>, entity: Entity): boolean {
-    if (!world.valid(entity) || !world.has(entity, Focusable)) return false;
+    if (!isLiveUIEntity(world, entity) || !world.has(entity, Focusable)) return false;
     const active = world.isEntityActive
         ? world.isEntityActive(entity)
         : world.getEntitiesWithComponents([Focusable]).includes(entity);
@@ -49,7 +49,7 @@ export function inspectFocusTraversal(world: FocusInspectionWorld): FocusTravers
     const context = readDialogScope(world);
     const entries: FocusTraversalEntry[] = [];
     for (const entity of world.getEntitiesWithComponents([Focusable])) {
-        if (!world.valid(entity)) continue;
+        if (!isLiveUIEntity(world, entity)) continue;
         entries.push({ entity, tabIndex: world.get(entity, Focusable).tabIndex,
             skipped: skipReason(world, entity, context) });
     }

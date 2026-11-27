@@ -6,7 +6,7 @@ import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import { UIDropdown, openList } from '../core/dropdown-popup';
 import { Interactable } from './interactable';
 import { isPointerBlockedInTree } from '../util/helpers';
-import { readDialogScope } from './modal-scope';
+import { isLiveUIEntity, readDialogScope } from './modal-scope';
 
 export function dropdownAvailable(world: World, owner: Entity, scope = readDialogScope(world)): boolean {
     return world.isEntityActive(owner) && !world.isDestructionPending(owner) && world.has(owner, UIDropdown)
@@ -30,7 +30,7 @@ export function escapeLayer(world: World, focused?: Entity | null): DismissLayer
     if (popup && dropdownAvailable(world, popup.owner, scope)) {
         layer = { kind: 'dropdown', entity: popup.owner };
     } else if (scope.roots.size) {
-        let dialog = focused != null && world.isEntityActive(focused) && !scope.hiddenInTree(focused)
+        let dialog = focused != null && isLiveUIEntity(world, focused) && world.isEntityActive(focused) && !scope.hiddenInTree(focused)
             ? scope.dialogOf(focused) : null;
         if (dialog === null) {
             // With no focus to name a branch, prefer the scrim drawn last. For

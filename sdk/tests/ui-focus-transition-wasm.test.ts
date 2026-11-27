@@ -115,6 +115,41 @@ describe.skipIf(!HAS_WASM)('focus transitions on real WASM', () => {
         await app.tick(1 / 60);
         expect(clicked).toHaveBeenCalledOnce();
     });
+    it('drops a retiring nested dialog and its controls from keyboard eligibility before destruction', async () => {
+        const world = app.world;
+        const outer = world.spawn(), inner = world.spawn();
+        for (const dialog of [outer, inner]) {
+            world.insert(dialog, UINode);
+            world.insert(dialog, UIDialog);
+        }
+        world.setParent(inner, outer);
+        const outerControl = control(0), innerControl = control(1);
+        world.setParent(outerControl, outer);
+        world.setParent(innerControl, inner);
+        await tab();
+        const manager = app.getResource(FocusManager), input = app.getResource(Input);
+        expect(manager.focusedEntity).toBe(innerControl);
+        const click = vi.fn();
+        app.getResource(UIEvents).on(innerControl, 'click', click);
+        expect(registry.reserveDestruction!(inner)).toBe(true);
+        expect(registry.reserveDestruction!(innerControl)).toBe(true);
+        try {
+            expect(world.valid(innerControl)).toBe(true);
+            expect(isFocusEligible(world, innerControl)).toBe(false);
+            expect(isFocusEligible(world, outerControl)).toBe(true);
+            expect(inspectFocusTraversal(world).entries.map(entry => entry.entity)).toEqual([outerControl]);
+            input.keysPressed.add('Enter');
+            await app.tick(1 / 60);
+            input.keysPressed.clear();
+            expect(click).not.toHaveBeenCalled();
+            await tab();
+            expect(manager.focusedEntity).toBe(outerControl);
+        } finally {
+            registry.releaseDestruction!(innerControl);
+            registry.releaseDestruction!(inner);
+        }
+    });
+
     it('checks inherited inactivity without enumerating other focusables', () => {
         const parent = app.world.spawn(), entity = control(0);
         app.world.insert(entity, Parent, { entity: parent });

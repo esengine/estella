@@ -10,6 +10,10 @@ import { createLiveVisibilityQuery } from '../util/live-visibility';
 /** Read-only scene queries needed to inspect focus. @experimental */
 export type FocusInspectionWorld = Pick<World, 'getWasmModule' | 'getCppRegistry' | 'getEntitiesWithComponents' | 'valid' | 'has' | 'get'>;
 
+export function isLiveUIEntity(world: Pick<World, 'valid'> & Partial<Pick<World, 'isDestructionPending'>>, entity: Entity): boolean {
+    return world.valid(entity) && !world.isDestructionPending?.(entity);
+}
+
 /** Visible leaf dialogs own input. Independent branches each keep their own
  *  controls. Read live authored visibility so callbacks can change the scope
  *  between a pointer press and release without waiting for layout. */
@@ -19,7 +23,7 @@ export function readDialogScope(world: FocusInspectionWorld) {
     const hiddenInTree = createLiveVisibilityQuery(world, entity =>
         visibilityResolved && engine!.getUINodeHiddenInTree!(registry!, entity));
     const roots = new Set(world.getEntitiesWithComponents([UIDialog])
-        .filter(entity => isDialogOpen(world, entity) && !hiddenInTree(entity)));
+        .filter(entity => isLiveUIEntity(world, entity) && isDialogOpen(world, entity) && !hiddenInTree(entity)));
     if (roots.size > 1) for (const root of [...roots]) {
         walkParentChain(world, root, ancestor => { roots.delete(ancestor); return false; });
     }
