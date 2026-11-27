@@ -573,17 +573,13 @@ export async function cookAssets(
   const groupsConfig = await loadAssetGroups(root);
 
   // Seed reachability from the entry scenes (path → uuid)…
-  const reachable = new Set<string>();
-  const queue: string[] = [];
-  let rejectedSceneIds: Set<string> | undefined;
   // Kept as it is discovered, not derived afterwards: the FIRST way in is the
   // shortest one, and re-deriving it later would answer a different question.
-  const inclusionByUuid = new Map<string, Inclusion>();
+  const reachable = new Map<string, Inclusion>();
+  let rejectedSceneIds: Set<string> | undefined;
   const seed = (uuid: string, how: Inclusion): void => {
     if (!rejectedSceneIds?.has(uuid) && !reachable.has(uuid)) {
-      reachable.add(uuid);
-      inclusionByUuid.set(uuid, how);
-      queue.push(uuid);
+      reachable.set(uuid, how);
     }
   };
   for (const scenePath of opts.entryScenes) {
@@ -656,15 +652,16 @@ export async function cookAssets(
     }
   }
   // …then take the transitive closure over the dependency graph.
-  while (queue.length > 0) {
-    const uuid = queue.shift()!;
+  // Map keys iterate in insertion order and include discoveries appended during the walk.
+  for (const uuid of reachable.keys()) {
     const from = byUuid.get(uuid)?.path;
     for (const dep of index.deps[uuid] ?? []) seed(dep, { reason: 'dependency', via: from });
   }
 
   // The tile grid and its weights address individual source samples.
+  const included = [...reachable.keys()];
   const terrainImages = new Set<string>();
-  for (const uuid of reachable) {
+  for (const uuid of included) {
     if (byUuid.get(uuid)?.type !== 'terrain-tiles') continue;
     for (const dep of index.deps[uuid] ?? []) terrainImages.add(dep);
   }
@@ -686,7 +683,7 @@ export async function cookAssets(
   // Compressing cannot save more than the art weighs, and one KTX2 obliges the
   // package to carry the transcoder — so art lighter than it is answered before
   // the encoder loads. A project that authored a KTX2 pays either way.
-  const textureSources = [...reachable]
+  const textureSources = included
     .map((uuid) => byUuid.get(uuid))
     .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture' && !recipeProducts.has(e.path));
   const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
@@ -745,7 +742,7 @@ export async function cookAssets(
   }>();
   if (atlasTextures) {
     const groups = new Map<string, AssetEntry[]>();
-    for (const uuid of reachable) {
+    for (const uuid of included) {
       const entry = byUuid.get(uuid);
       // Mesh UVs, material samplers and baked lightmaps address the whole texture.
       if (!entry || entry.type === 'scene' || roles.has(uuid) || terrainImages.has(uuid)) continue;
@@ -1121,7 +1118,7 @@ export async function cookAssets(
       failed.push(`${entry.path}: ${why}`);
     }
   };
-  const sinks = await mapInOrder([...reachable], textureEnc?.ENCODER_PARALLELISM ?? 1, async (uuid) => {
+  const sinks = await mapInOrder(included, textureEnc?.ENCODER_PARALLELISM ?? 1, async (uuid) => {
     const sink: CookSink = { warnings: [], failed: [], defeatedByFormat: [], manifestEntries: [] };
     await cookOne(uuid, sink);
     return sink;
@@ -1182,10 +1179,10 @@ export async function cookAssets(
   );
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
-  const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
+  const includedPaths = included.map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
   // Said, not overridden: the author chose the file, and this is what it costs. A
   // lightmap is left out — the bake keeps it exact on purpose.
-  const drawnRaw = compressTextures ? [...reachable].map((uuid) => byUuid.get(uuid)!)
+  const drawnRaw = compressTextures ? included.map((uuid) => byUuid.get(uuid)!)
     .filter((e) => e.type === 'texture' && roles.get(e.uuid)?.has('surface') && !atlasPlan.has(e.path)
       && readTextureCookSettings(e.importer, platform).compress === 'off') : [];
   if (drawnRaw.length) {
@@ -1207,12 +1204,12 @@ export async function cookAssets(
   // Keyed by logical path: that is what a reference names and what a report can
   // show, while the uuid is an identity nobody reading the report has.
   const inclusion: Record<string, Inclusion> = {};
-  for (const [uuid, how] of inclusionByUuid) {
+  for (const [uuid, how] of reachable) {
     const logical = byUuid.get(uuid)?.path;
     if (logical) inclusion[logical] = how;
   }
   const audioLoadTypes: Record<string, 'streaming' | 'decompress'> = {};
-  for (const uuid of reachable) {
+  for (const uuid of included) {
     const e = byUuid.get(uuid);
     const type = e?.type === 'audio' ? audioLoadTypeOf(e.importer) : null;
     if (e && type) audioLoadTypes[e.path] = type;
@@ -1225,7 +1222,7 @@ export async function cookAssets(
   }
   return {
     ok: failed.length === 0,
-    outDir: absOut, manifestPath, included: [...reachable], includedPaths, audioLoadTypes, audioEncoded, unused, warnings, failed,
+    outDir: absOut, manifestPath, included, includedPaths, audioLoadTypes, audioEncoded, unused, warnings, failed,
     ...(modelBakes.size > 0 ? { modelBakes: MODEL_BAKES_FILE } : {}),
     inclusion,
   };

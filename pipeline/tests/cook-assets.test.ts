@@ -79,6 +79,34 @@ function solidPng(width: number, height: number, rgba: [number, number, number, 
 }
 
 describe('cookAssets (A4)', () => {
+  it('records the shortest dependency route and breaks equal routes by entry scene order', async () => {
+    const first = 'assets/scenes/main.esscene', second = 'assets/scenes/orphan.esscene';
+    const prefab = 'assets/prefabs/linked.esprefab';
+    const prefabId = '33333333-3333-4333-8333-333333333333';
+    const originals = [first, second].map(file => readFileSync(path.join(root, file), 'utf8'));
+    const primary = JSON.parse(sprite(USED_TEX));
+    const secondaryTexture = JSON.parse(sprite(ORPHAN_TEX)).entities[0];
+    writeFileSync(path.join(root, first), JSON.stringify({ ...primary,
+      entities: [...primary.entities, { id: 2, prefab: `@uuid:${prefabId}`, parent: null, added: [], removed: [], overrides: [] }],
+    }));
+    writeFileSync(path.join(root, second), JSON.stringify({ ...primary,
+      entities: [...primary.entities, { ...secondaryTexture, id: 2 }],
+    }));
+    writeAsset(prefab, 'prefab', prefabId, sprite(ORPHAN_TEX));
+    try {
+      const res = await cookAssets(root, { entryScenes: [first, second], outDir: 'build/route-order' });
+      expect(res.ok).toBe(true);
+      expect(res.included).toEqual([ENTRY_SCENE, ORPHAN_SCENE, LOCALE_TABLE, USED_TEX, prefabId, ORPHAN_TEX]);
+      expect(res.inclusion['assets/textures/used.png']).toEqual({ reason: 'dependency', via: first });
+      expect(res.inclusion['assets/textures/orphan.png']).toEqual({ reason: 'dependency', via: second });
+    } finally {
+      writeFileSync(path.join(root, first), originals[0]);
+      writeFileSync(path.join(root, second), originals[1]);
+      rmSync(path.join(root, prefab), { force: true });
+      rmSync(path.join(root, `${prefab}.meta`), { force: true });
+    }
+  });
+
   it('rejects a scene in a newer format only when it is included in the cook', async () => {
     const entry = 'assets/scenes/main.esscene';
     const future = 'assets/scenes/orphan.esscene';
