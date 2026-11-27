@@ -896,6 +896,8 @@ function createRuntimeSceneConfigWithData(
         ready?: PreparedRuntimeScene;
         cancel: AbortHandle;
         attempt: SceneLoadAttempt;
+        manifest: ManifestModel | null;
+        remoteRoot: string | undefined;
         assertOwner?: () => void;
     }
     let preparation: Preparation | undefined;
@@ -977,48 +979,65 @@ function createRuntimeSceneConfigWithData(
         finally { scope?.releaseAll(); }
         return owed;
     };
+    const activeAssets = () => options.app.hasResource(AssetsResource) ? options.app.getResource(AssetsResource) : undefined;
+    const matchesAssets = (pending: Preparation): boolean => {
+        const assets = activeAssets();
+        return pending.manifest === (assets?.getManifest() ?? null) && pending.remoteRoot === assets?.remoteRoot;
+    };
+    const currentPreparation = (): Preparation | undefined => {
+        if (preparation && !matchesAssets(preparation)) {
+            const stale = preparation;
+            preparation = undefined;
+            discard(stale);
+        }
+        return preparation;
+    };
     const config: SceneConfig = {
         name,
         async prepare(onProgress) {
-            if (!preparation) {
+            let pending = currentPreparation();
+            if (!pending) {
                 // Install the slot before a read or observer can reenter. Setup takes this
                 // same promise even when the assets it needs are still arriving.
                 const cancel = createAbort();
-                const pending: Preparation = {
+                const assets = activeAssets();
+                const started: Preparation = {
                     cancel, attempt: new SceneLoadAttempt(options.app.world, name, {
-                        signal: cancel.signal, check: () => pending.assertOwner?.(),
+                        signal: cancel.signal, check: () => started.assertOwner?.(),
                     }),
+                    manifest: assets?.getManifest() ?? null,
+                    remoteRoot: assets?.remoteRoot,
                     progress: new SceneAssetProgress(),
                     done: Promise.resolve().then(async () => {
-                        const ready = await readied(undefined, pending.attempt, pending.progress.report);
-                        pending.attempt.assertCurrent();
-                        pending.ready = ready;
+                        const ready = await readied(undefined, started.attempt, started.progress.report);
+                        started.attempt.assertCurrent();
+                        started.ready = ready;
                         return ready;
                     }).catch(error => {
-                        pending.progress.close();
-                        if (preparation === pending) preparation = undefined;
-                        pending.attempt.discardAssets();
+                        started.progress.close();
+                        if (preparation === started) preparation = undefined;
+                        started.attempt.discardAssets();
                         throw error;
                     }),
                 };
-                preparation = pending;
+                pending = preparation = started;
                 pending.progress.observe(options.onProgress);
             }
-            preparation.progress.observe(onProgress);
-            await preparation.done;
+            pending.progress.observe(onProgress);
+            await pending.done;
         },
         // The second obligation. It runs on what `prepare` decoded, so the mesh
         // references are already handles; readying from an unprepared scene would
         // describe requirements for geometry nothing has acquired.
         async readyRenderPrograms() {
-            const prepared = preparation?.ready;
+            const prepared = currentPreparation()?.ready;
             if (!prepared) return { applicable: false } as RenderReadiness;
             if (gate) await gate();
-            if (preparation?.ready !== prepared) return { applicable: false } as RenderReadiness;
+            if (currentPreparation()?.ready !== prepared) return { applicable: false } as RenderReadiness;
             const result = readyMeshPrograms(options.module, prepared.sceneData);
             // Queued compiles are not ready programs: where shaders compile in the background, the claim waits for them.
             if (result.applicable) await shadersCompiled(options.module);
-            return preparation?.ready === prepared ? result : { applicable: false };
+            return currentPreparation()?.ready === prepared ? result : { applicable: false };
         },
         discardPrepared() {
             // Speculation is not authority: what nobody asked for is given back,
@@ -1029,9 +1048,9 @@ function createRuntimeSceneConfigWithData(
             return pending ? discard(pending) : 0;
         },
         async setup(context) {
-            const pending = preparation;
+            const pending = currentPreparation();
             preparation = undefined;
-            let ready: ReadyScene;
+            let ready: ReadyScene | undefined;
             if (pending) {
                 pending.assertOwner = () => assertSceneContext(options.app, context);
                 const signal = context?.signal;
@@ -1045,14 +1064,15 @@ function createRuntimeSceneConfigWithData(
                         await pending.done.catch(() => undefined);
                         throw error;
                     }
-                    ready = await pending.done;
+                    const prepared = await pending.done;
+                    if (matchesAssets(pending)) ready = prepared;
+                    else discard(pending);
                 } finally {
                     signal?.removeEventListener('abort', retire);
                     pending.progress.close();
                 }
-            } else {
-                ready = await readied(!!context, sceneAttempt(options.app, name, context), options.onProgress, context?.reportAssetProgress);
             }
+            ready ??= await readied(!!context, sceneAttempt(options.app, name, context), options.onProgress, context?.reportAssetProgress);
             await publishRuntimeScene(ready, { externalEntities: () => config.externalEntities?.(), context },
                 streamed ? (job) => overFrames('Bringing in', job) : undefined);
             if (ready.publishDocument) {

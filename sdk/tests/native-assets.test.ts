@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe('packaged scene files', () => {
-    it.each(['live', 'restored', 'entry', 'entry-hash', 'reload'] as const)('uses the updated scene document on %s', async timing => {
+    it.each(['live', 'restored', 'entry', 'entry-hash', 'reload', 'prepared', 'preparing'] as const)('uses the updated scene document on %s', async timing => {
         const ref = 'levels/Room.esscene';
         const uuid = 'afbace01-1111-4111-8111-111111111111';
         const shippedPath = 'cooked/room-v1.json';
@@ -123,8 +123,15 @@ describe('packaged scene files', () => {
             ['menu.json', document('menu')], [shippedPath, document('old room')],
         ]);
         const bridge = makeBridge({});
+        let started!: () => void, release!: () => void;
+        const oldReadStarted = new Promise<void>(resolve => { started = resolve; });
+        const holdOldRead = new Promise<void>(resolve => { release = resolve; });
         const read = vi.fn(async (path: string) => {
             if (!files.has(path)) throw new Error(`missing ${path}`);
+            if (timing === 'preparing' && path === shippedPath) {
+                started();
+                await holdOldRead;
+            }
             return encode(files.get(path));
         });
         const fetch = vi.fn(async (url: string) => ({
@@ -140,7 +147,15 @@ describe('packaged scene files', () => {
         try {
             const assets = app.getResource(Assets);
             const manager = app.getResource(SceneManager);
-            if (timing === 'live' || timing === 'reload') {
+            const prewarming = timing === 'prepared' || timing === 'preparing';
+            const oldPreparation = prewarming ? manager.prepare('room').then(() => null, error => error) : undefined;
+            if (prewarming) {
+                if (timing === 'preparing') await oldReadStarted;
+                else expect(await oldPreparation).toBeNull();
+                expect(read).toHaveBeenCalledWith(shippedPath);
+                expect(manager.getActive()).toBe('menu');
+            }
+            if (timing === 'live' || timing === 'reload' || prewarming) {
                 assets.setManifest(updated);
                 assets.setRemoteRoot(updateRoot);
             }
@@ -151,9 +166,13 @@ describe('packaged scene files', () => {
                 else await manager.switchTo('room');
             }
             expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${updateRoot}/${updatedPath}`]);
-            expect(read.mock.calls.filter(([path]) => path === shippedPath)).toHaveLength(entry ? 1 : 0);
+            expect(read.mock.calls.filter(([path]) => path === shippedPath)).toHaveLength(entry || prewarming ? 1 : 0);
             expect(manager.getActive()).toBe('room');
-        } finally { app.quit(); }
+            if (timing === 'preparing') {
+                release();
+                expect(await oldPreparation).toMatchObject({ name: 'SceneLoadCancelled' });
+            }
+        } finally { release(); app.quit(); }
     });
 
     it('starts the captured project repeatedly and leaves the next project queued', async () => {
