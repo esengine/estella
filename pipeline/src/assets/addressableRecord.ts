@@ -27,7 +27,7 @@ export const UNLOADED_TYPE = 'binary';
 
 export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
   'video', 'dragonbones',
-  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'rig', 'curves',
+  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'proc', 'rig', 'curves',
 ]);
 
 export const addrType = (metaType: string): string =>

@@ -9046,7 +9046,7 @@
           "key": "farDistance",
           "type": "number",
           "default": "8000",
-          "doc": "How far from a source an unloaded cell still shows its far proxy.",
+          "doc": "How far from a source an unloaded cell still shows its far proxy. Zero disables proxies in Play and exports.",
           "range": "≥ 0"
         },
         {
