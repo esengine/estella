@@ -62,6 +62,15 @@ describe('D4 flag algebra', () => {
         expect(flipFlagsH(NO_FLAGS)).toEqual({ flipH: true, flipV: false, flipD: false });
         expect(flipFlagsV(NO_FLAGS)).toEqual({ flipH: false, flipV: true, flipD: false });
     });
+
+    it('transforms the displayed corners of an already oriented tile', () => {
+        for (const flags of ALL_FLAGS) {
+            const before = orientationPerm(flags);
+            expect(orientationPerm(flipFlagsH(flags))).toEqual([before[1], before[0], before[3], before[2]]);
+            expect(orientationPerm(flipFlagsV(flags))).toEqual([before[3], before[2], before[1], before[0]]);
+            expect(orientationPerm(rotateFlagsCW(flags))).toEqual([before[1], before[2], before[3], before[0]]);
+        }
+    });
 });
 
 describe('tile stamps', () => {

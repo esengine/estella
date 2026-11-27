@@ -101,9 +101,9 @@ function flagsForPerm(p: Perm): TileFlags {
     return PERM_TO_FLAGS.get(p.join(',')) ?? NO_FLAGS;
 }
 
-/** Apply a screen-space transform (pre-composed) to a cell's flags, returning new flags. */
+/** Find the old screen corner first, then the atlas corner it was sampling. */
 function transformFlags(screen: Perm, flags: TileFlags): TileFlags {
-    return flagsForPerm(compose(screen, orientationPerm(flags)));
+    return flagsForPerm(compose(orientationPerm(flags), screen));
 }
 
 export function flipFlagsH(flags: TileFlags): TileFlags {
