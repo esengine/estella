@@ -97,9 +97,12 @@ export function resolveEntityWorldBox(
     const visibleSprite = sprite && (!picking || sprite.enabled !== false) ? sprite : null;
     const shape = !visibleSprite && world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
     const visibleShape = shape && (!picking || shape.enabled !== false) ? shape : null;
-    const hiddenRenderer = picking && (picking.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
-    const spec = hiddenRenderer && !picking.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
-    const iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
+    let iconHalf = 0;
+    if (!visibleSprite) {
+        const hiddenRenderer = picking && (picking.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
+        const spec = hiddenRenderer && !picking.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
+        iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
+    }
     // An icon is a marker in space rather than a card, so it is a cube: it reads
     // and clicks the same from wherever the view has been turned to.
     let w = iconHalf * 2;
@@ -260,14 +263,23 @@ export function entityBoxCorners(b: EntityBox): Vec3[] {
  * @experimental
  */
 export function entityBoxRayHit(b: EntityBox, origin: Vec3, dir: Vec3): number | null {
-    const inv = q.conjugate(b.rot);
-    const o = q.rotate(inv, { x: origin.x - b.cx, y: origin.y - b.cy, z: origin.z - b.cz });
-    const d = q.rotate(inv, dir);
+    let o = { x: origin.x - b.cx, y: origin.y - b.cy, z: origin.z - b.cz };
+    let d = dir;
+    const { x, y, z, w } = b.rot;
+    // An unrotated box already shares the world's axes, including the -q
+    // identity a quaternion interpolation can produce.
+    if (x !== 0 || y !== 0 || z !== 0 || Math.abs(w) !== 1) {
+        const inv = q.conjugate(b.rot);
+        o = q.rotate(inv, o);
+        d = q.rotate(inv, dir);
+    }
     const at = [o.x, o.y, o.z];
     const along = [d.x, d.y, d.z];
     const half = [b.hw, b.hh, b.hd];
 
-    let enter = -Infinity;
+    // The ray only extends forward. Each slab can shrink the interval, so an
+    // empty interval cannot be recovered by the remaining axes.
+    let enter = 0;
     let exit = Infinity;
     for (let i = 0; i < 3; i++) {
         if (Math.abs(along[i]!) < 1e-9) {
@@ -278,9 +290,7 @@ export function entityBoxRayHit(b: EntityBox, origin: Vec3, dir: Vec3): number |
         const t2 = (half[i]! - at[i]!) / along[i]!;
         enter = Math.max(enter, Math.min(t1, t2));
         exit = Math.min(exit, Math.max(t1, t2));
+        if (exit < enter) return null;
     }
-    // A screen ray starts on the near plane, so everything drawn is ahead of it;
-    // a box the ray starts inside is entered at zero rather than behind.
-    if (exit < enter || exit < 0) return null;
-    return Math.max(enter, 0);
+    return enter;
 }

@@ -7,7 +7,7 @@
  * pivot or a parent scale is involved — which is the case a selection outline
  * sitting beside its sprite is made of. One definition, these claims.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { entityWorldBox, entityBoxCorners, entityBoxRayHit, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
@@ -56,6 +56,17 @@ const turn = (axis: 'x' | 'y' | 'z', rad: number) => ({
 });
 
 describe('an entity world box', () => {
+    it('derives a sprite box without sampling the icon scale and keeps the shape fallback size', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0, -2, 1), Sprite: { size: { x: 12, y: 8 } } },
+            2: { Transform: T(0, 0), ShapeRenderer: { size: { x: 4, y: 4 } } },
+        });
+        const iconHalf = vi.fn(() => 10);
+        expect(entityWorldBox(world, ent(1), { iconHalf })).toMatchObject({ hw: 12, hh: 4, hd: 0 });
+        expect(iconHalf).not.toHaveBeenCalled();
+        expect(entityWorldBox(world, ent(2), { iconHalf })).toMatchObject({ hw: 10, hh: 10, hd: 0 });
+        expect(iconHalf).toHaveBeenCalledTimes(1);
+    });
     it('is the sprite size taken through the WORLD scale', () => {
         // A parent scale reaches the drawn size, so it has to reach the box: this
         // is the case where "size alone" and "size × world scale" diverge.
@@ -181,6 +192,16 @@ const FLAT = { cx: 0, cy: 0, cz: 0, hw: 50, hh: 20, hd: 0, rot: IDENTITY };
 const DOWN_Z = { x: 0, y: 0, z: -1 };
 
 describe('a ray against an entity box', () => {
+    it('keeps touching edges for both identity quaternions and resolves a small real turn', () => {
+        const nearEdge = { x: 50, y: -20, z: 100 };
+        const negated = { ...FLAT, rot: { x: 0, y: 0, z: 0, w: -1 } };
+        expect(entityBoxRayHit(FLAT, nearEdge, DOWN_Z)).toBe(100);
+        expect(entityBoxRayHit(negated, nearEdge, DOWN_Z)).toBe(100);
+        const outside = { x: 50.001, y: -19, z: 100 };
+        expect(entityBoxRayHit(FLAT, outside, DOWN_Z)).toBeNull();
+        expect(entityBoxRayHit({ ...FLAT, rot: turn('z', 1e-4) }, outside, DOWN_Z)).toBe(100);
+    });
+
     it('hits a flat box through its face and misses beside it', () => {
         expect(entityBoxRayHit(FLAT, { x: 0, y: 0, z: 100 }, DOWN_Z)).toBeCloseTo(100, 6);
         expect(entityBoxRayHit(FLAT, { x: 49, y: 19, z: 100 }, DOWN_Z)).toBeCloseTo(100, 6);
