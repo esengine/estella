@@ -18,13 +18,15 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { decodeMesh, type FarProxyHost, type PrefabData, type SceneData } from 'esengine';
 import {
-    cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, farProxySettings, WORLD_DIR,
+    assembleFarProxies, cutWorld, resolvePrefabRoots, worldManifestPath, registryEntityFields, farProxySettings, WORLD_DIR,
 } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
 import { resolveIndexedAssetRef } from '../../../sdk/src/asset/AssetRegistry';
+import { assertWorldManifest } from '../../../sdk/src/residency/manifest';
 import { streamedWorldDeclaration } from '../../../sdk/src/residency/partitionWorld';
+import { simplifyFarProxyMesh } from '../assets/meshSimplify';
 import { resolveInside } from '../fs/pathSandbox';
-import { cookFarProxies, type FarProxyCookResult } from './farProxy';
+import { writeFarProxies, type FarProxyCookResult } from './farProxy';
 
 /** One streamed scene, as `game.config.json` names it. */
 export interface CookedWorld {
@@ -86,6 +88,7 @@ export async function cookWorlds(
     const worlds: CookedWorld[] = [];
     const warnings: string[] = [];
     const farProxies: CookWorldsResult['farProxies'] = [];
+    const sceneNames = new Set(scenes.map(scene => scene.name));
     let assets: FarProxyHost | undefined;
 
     for (const scene of scenes) {
@@ -117,10 +120,16 @@ export async function cookWorlds(
         }
         warnings.push(...cut.warnings.map((w) => `${scene.name}: ${w}`));
 
-        await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
         const far = farProxySettings(document);
-        if (far !== null && far.farDistance > 0) {
-            const baked = await cookFarProxies(payloadDir, cut, far, assets);
+        const proxies = far !== null && far.farDistance > 0
+            ? await assembleFarProxies(cut, far, { ...assets, simplify: simplifyFarProxyMesh })
+            : null;
+        const manifestPath = worldManifestPath(scene.name);
+        assertWorldManifest(cut.manifest, { scene: scene.name, path: manifestPath, sceneNames });
+
+        await mkdir(path.join(payloadDir, WORLD_DIR), { recursive: true });
+        if (proxies !== null) {
+            const baked = await writeFarProxies(payloadDir, proxies);
             warnings.push(...baked.warnings.map((w) => `${scene.name}: ${w}`));
             farProxies.push({ scene: scene.name, ...baked });
         }
@@ -130,7 +139,6 @@ export async function cookWorlds(
                 JSON.stringify(cut.documents.get(cell.name)) + '\n',
             );
         }
-        const manifestPath = worldManifestPath(scene.name);
         await writeFile(
             path.join(payloadDir, manifestPath), JSON.stringify(cut.manifest, null, 2) + '\n',
         );

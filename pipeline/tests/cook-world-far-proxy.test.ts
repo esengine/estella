@@ -8,7 +8,7 @@
  * material, and mesh files that decode.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { builtinMeshTemplate, decodeMesh, encodeMesh, type WorldManifest, type SceneData } from 'esengine';
@@ -68,6 +68,27 @@ async function cook(root: string) {
 }
 
 describe('cooking a world with far proxies', () => {
+    it.each(['main.cell_0_0', 'main.cell_0_0#far'])('refuses a conflict with the shipped scene %s before writing world files', async name => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const main = 'assets/scenes/main.esscene', other = 'assets/scenes/other.esscene';
+        const source = await readFile(path.join(root, main), 'utf8');
+        await writeFile(path.join(root, other), JSON.stringify({ version: 4, name, entities: [] }));
+        await expect(cookWorlds(root, root, [{ name: 'main', path: main }, { name, path: other }]))
+            .rejects.toThrow(`scene name "${name}" is already used`);
+        expect(await readFile(path.join(root, main), 'utf8')).toBe(source);
+        await expect(stat(path.join(root, 'world'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('allows a scene using a far name when the corresponding cell has no proxy', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const name = 'main.cell_1_0#far', other = 'assets/scenes/other.esscene';
+        await writeFile(path.join(root, other), JSON.stringify({ version: 4, name, entities: [] }));
+        const result = await cookWorlds(root, root, [
+            { name: 'main', path: 'assets/scenes/main.esscene' }, { name, path: other },
+        ]);
+        expect(result.farProxies[0]?.cells).toBe(1);
+    });
+
     it('cooks a staged declaration written with a JSON escape', async () => {
         const root = await world({ farProxies: true, farDistance: 5000 });
         const file = path.join(root, 'assets/scenes/main.esscene');
