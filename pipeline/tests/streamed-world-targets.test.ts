@@ -16,7 +16,7 @@ import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 const SIZE = 1000;
 
 describe('targets that cannot ship a cut world', () => {
-    it('is a decision the export makes, not a warning it prints', async () => {
+    it.each(['StreamedWorld', String.raw`\u0053treamedWorld`])('refuses a streamed world with the component type %s', async componentName => {
         const { exportGame } = await import('../src/export/exportGame');
         const project = await mkdtemp(path.join(tmpdir(), 'streamed-'));
         try {
@@ -30,7 +30,7 @@ describe('targets that cannot ship a cut world', () => {
                         { id: 1, name: 'RockA', parent: null, children: [], visible: true,
                           components: [{ type: 'Transform', data: { position: { x: 500, y: 0, z: 500 } } }] },
                     ],
-                }));
+                }).replace('"StreamedWorld"', '"' + componentName + '"'));
             await writeFile(path.join(project, 'project.esproject'), JSON.stringify({
                 formatVersion: '1', name: 'Streamed', defaultScene: 'assets/scenes/main.esscene',
             }));

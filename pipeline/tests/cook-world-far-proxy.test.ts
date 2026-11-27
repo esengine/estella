@@ -68,6 +68,15 @@ async function cook(root: string) {
 }
 
 describe('cooking a world with far proxies', () => {
+    it('cooks a staged declaration written with a JSON escape', async () => {
+        const root = await world({ farProxies: true, farDistance: 5000 });
+        const file = path.join(root, 'assets/scenes/main.esscene');
+        await writeFile(file, (await readFile(file, 'utf8')).replace('"StreamedWorld"', '"\\u0053treamedWorld"'));
+        const { manifest } = await cook(root);
+        expect(manifest.farDistance).toBe(5000);
+        expect(manifest.cells[0]?.proxy).toBe('world/main.cell_0_0.far.json');
+    });
+
     it('keeps manifests, cells, proxies and meshes distinct for nested names, literal escapes and Unicode', async () => {
         const root = await world({ farProxies: true, farDistance: 5000 });
         const names = ['levels/second', 'levels_second', 'levels~2f~second', '地图一', '地图二'];

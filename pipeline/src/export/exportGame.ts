@@ -796,14 +796,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
   const entryScene = scenes[0].path;
 
-  // Cutting a world is part of the common cook below, which the three pipelines
-  // that follow do not reach. Shipping an unstreamed world to them is a real
-  // difference in what the package IS, so it is said rather than discovered.
-  // The three pipelines below return before the common cook that cuts a world,
-  // so shipping one to them builds fine and delivers the whole thing — a
-  // declaration the runtime never receives. Refused rather than warned about.
-  const streamed = await streamedScenes(opts.root, scenes);
-  const refuseStreamedWorld = (target: string): never => {
+  // These targets return before the common cook, so check their selected scenes before staging.
+  const requireUnstreamedScenes = async (target: string, selected: typeof scenes): Promise<void> => {
+    const streamed = await streamedScenes(opts.root, selected);
+    if (streamed.length === 0) return;
     throw new Error(
       `${streamed.join(', ')} declares a streamed world, and ${target} cannot ship one: `
       + 'world cells are cooked for web, desktop, android and ios. Export one of those, '
@@ -816,7 +812,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // functions). It rides the same vendor-neutral mini-game pipeline WeChat does
   // — that pipeline taking a profile is exactly what makes this possible.
   if (opts.miniGameProfile) {
-    if (streamed.length > 0) refuseStreamedWorld('a mini-game package');
+    await requireUnstreamedScenes('a mini-game package', scenes);
     return await exportMiniGame(opts.miniGameProfile, {
       root: opts.root,
       entryScene,
@@ -861,7 +857,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // the promise miniGameExportProfile makes and a `platform === …` chain drops.
   const builtinMiniGame = BUILTIN_MINIGAME_PROFILES[platform];
   if (builtinMiniGame) {
-    if (streamed.length > 0) refuseStreamedWorld(`the ${builtinMiniGame.id} package`);
+    await requireUnstreamedScenes(`the ${builtinMiniGame.id} package`, scenes);
     return await exportMiniGame(builtinMiniGame, {
       root: opts.root,
       entryScene,
@@ -903,10 +899,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
 
   // Playable ads are a single inlined HTML (SINGLE_FILE glue + base64 assets).
   if (platform === 'playable') {
-    if (streamed.length > 0) refuseStreamedWorld('a playable ad (one inlined file)');
+    const playableScenes: typeof scenes = opts.playableScenes === 'all' ? scenes : [scenes[0]];
+    await requireUnstreamedScenes('a playable ad (one inlined file)', playableScenes);
     return await exportPlayable({
       root: opts.root,
-      scenes: opts.playableScenes === 'all' ? scenes : [scenes[0]],
+      scenes: playableScenes,
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,

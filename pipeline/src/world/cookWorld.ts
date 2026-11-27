@@ -22,6 +22,7 @@ import {
 } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
 import { resolveIndexedAssetRef } from '../../../sdk/src/asset/AssetRegistry';
+import { streamedWorldDeclaration } from '../../../sdk/src/residency/partitionWorld';
 import { resolveInside } from '../fs/pathSandbox';
 import { cookFarProxies, type FarProxyCookResult } from './farProxy';
 
@@ -56,22 +57,18 @@ function worldAssets(root: string, index: AssetIndex): FarProxyHost {
     };
 }
 
-/**
- * Which of `scenes` declare themselves streamed worlds.
- *
- * By the text, not by parsing: the answer decides whether a whole engine's
- * component registry gets loaded, and most scenes are not worlds.
- */
+/** Which of `scenes` have a streamed world declaration understood by Play and the world cooker. */
 export async function streamedScenes(
     root: string, scenes: ReadonlyArray<{ name: string; path: string }>,
 ): Promise<string[]> {
     const declared: string[] = [];
     for (const scene of scenes) {
         try {
-            if ((await readFile(path.join(root, scene.path), 'utf8')).includes('"StreamedWorld"')) {
+            const document = JSON.parse(await readFile(path.join(root, scene.path), 'utf8')) as SceneData;
+            if (streamedWorldDeclaration(document)) {
                 declared.push(scene.name);
             }
-        } catch { /* not a file this target has */ }
+        } catch { /* The scene loader handles unreadable documents. */ }
     }
     return declared;
 }
@@ -99,16 +96,14 @@ export async function cookWorlds(
         } catch {
             continue;  // not staged for this target
         }
-        // Cheap first: most scenes are not worlds, and the registry behind the
-        // reference check costs a whole engine to load.
-        if (!text.includes('"StreamedWorld"')) continue;
+        const document = JSON.parse(text) as SceneData;
+        if (!streamedWorldDeclaration(document)) continue;
 
         if (!assets) {
             const index = await readCachedAssetIndex(root)
                 ?? (await scanAssetDatabase(root, { write: false, adopt: false })).index;
             assets = worldAssets(root, index);
         }
-        const document = JSON.parse(text) as SceneData;
         const cut = cutWorld(document, scene.name, {
             entityFieldsOf: registryEntityFields(),
             resolvePrefab: await resolvePrefabRoots(document, assets.loadPrefab),

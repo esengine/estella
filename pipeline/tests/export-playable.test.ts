@@ -247,6 +247,29 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
+  it('only checks shipped scenes for an authored StreamedWorld component', async () => {
+    const entryScene = 'ad-scenes/intro.esscene';
+    mkdirSync(path.join(root, 'ad-scenes'), { recursive: true });
+    writeFileSync(path.join(root, entryScene), JSON.stringify({
+      version: 4, name: 'StreamedWorld', entities: [],
+    }));
+    writeFileSync(path.join(root, `${entryScene}.meta`), meta('5ab00000-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'scene'));
+    writeFileSync(path.join(root, 'ad-scenes/world.esscene'), JSON.stringify({
+      version: 4, name: 'World', entities: [
+        { id: 1, components: [{ type: 'StreamedWorld', data: { cellSize: 1000 } }] },
+      ],
+    }));
+    writeFileSync(path.join(root, 'ad-scenes/world.esscene.meta'), meta('5ab00001-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'scene'));
+    const options = {
+      root, entryScene, scenesDir: 'ad-scenes', platform: 'playable' as const,
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'), outDir: path.join(root, 'dist-playable-entry-world'),
+    };
+    const result = await exportGame(options);
+    expect(result.ok, result.errors.join('\n')).toBe(true);
+    await expect(exportGame({ ...options, playableScenes: 'all' })).rejects.toThrow(/^world declares a streamed world/);
+  }, 60_000);
+
   it.each([undefined, 'all'] as const)('keeps the nested startup scene name in Playable mode %s', async playableScenes => {
     const scenesDir = '.\\levels\\';
     const entryScene = 'levels/campaign/intro.esscene';
