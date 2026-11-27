@@ -77,7 +77,7 @@ export const DECISIONS = [
     id: 'light.cap',
     what: 'Which lights the loop reads (the sun, the shadow casters, then the brightest), which ride in the screen tiles, and which were turned away.',
     kind: 'contended-resource',
-    owner: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /std::stable_sort\(collected\.begin/ },
+    owner: { path: 'src/esengine/renderer/frame/RenderFrame.cpp', probe: /std::sort\(order\.begin\(\), order\.end\(\), \[\]\(const LightOrder&/ },
     runtime: { has: true, cite: { path: 'src/esengine/renderer/store/LightPlan.hpp', probe: /struct LightCapReport/ } },
     editor: { has: true, cite: { path: 'desktop/src/panels/inspector/componentDecorators.tsx', probe: /EditorControlSurface\.lightStatus\(/ } },
     agent: { has: true, cite: { path: 'desktop/shared/toolCatalog.mjs', probe: /'get_light_status'/ } },

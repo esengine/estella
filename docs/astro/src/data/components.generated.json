@@ -9259,8 +9259,8 @@
         },
         {
           "key": "tiles",
-          "type": "string",
-          "default": "empty",
+          "type": "Asset<terrain-tiles>",
+          "default": "none",
           "doc": "A .esterrain: the ground as tiles, read near where it is looked at and let go far from it, with a coarse overview for the rest. Takes the heightmap's place."
         },
         {

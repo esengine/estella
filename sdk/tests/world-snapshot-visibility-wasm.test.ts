@@ -24,7 +24,7 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
             world.setAssetFieldResolver(() => new Promise<void>(resolve => { completions.push(resolve); }));
             try {
                 const entity = world.spawn('Asset');
-                const read = () => world.get(entity, component) as Record<string, unknown>;
+                const read = () => world.get(entity, component) as unknown as Record<string, unknown>;
                 const inspect = () => worldSnapshot(app, entity, false).selected?.components.find(c => c.type === type)?.data[field];
                 const save = () => serializeScene(world).entities[0].components.find(c => c.type === type)?.data[field];
                 const before = `assets/old.${extension}`, after = `assets/new.${extension}`;
@@ -47,7 +47,7 @@ describe.skipIf(!HAS_WASM)('snapshot visibility with borrowed core values', () =
                 expect(inspect()).toBe(after);
                 expect(save()).toBe(after);
 
-                world.update(entity, component, data => { (data as Record<string, unknown>)[field] = 0; });
+                world.update(entity, component, data => { (data as unknown as Record<string, unknown>)[field] = 0; });
                 expect(inspect()).toBe(0);
                 expect(save()).toBe(0);
             } finally { world.disconnectCpp(); registry.delete(); }

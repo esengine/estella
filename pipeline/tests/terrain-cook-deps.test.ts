@@ -48,7 +48,7 @@ it('ships terrain tile and overview samples byte-for-byte through the asset cook
             expect(readFileSync(path.join(result.outDir, entry.path))).toEqual(Buffer.from(image.bytes));
         }
     } finally {
-        rmSync(root, { recursive: true, force: true });
+        rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 });
 
@@ -77,6 +77,6 @@ it('fails a cook when a reachable terrain names unavailable paths or UUIDs', asy
         expect(result.ok).toBe(false);
         expect(result.failed).toEqual([overview, height, weights].map(ref => `${terrain}: terrain image '${ref}' is not packaged`));
     } finally {
-        rmSync(root, { recursive: true, force: true });
+        rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 });

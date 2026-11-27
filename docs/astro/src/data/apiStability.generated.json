@@ -3,10 +3,10 @@
   "counts": {
     "public": 115,
     "beta": 182,
-    "experimental": 3641,
+    "experimental": 3644,
     "deprecated": 3
   },
-  "total": 3938,
+  "total": 3941,
   "subsystems": [
     {
       "id": "mobile-controls",
@@ -2135,7 +2135,7 @@
     },
     {
       "name": "CameraLens",
-      "kind": "interface",
+      "kind": "type",
       "deprecated": false,
       "entries": [
         "index",
