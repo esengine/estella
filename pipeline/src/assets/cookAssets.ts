@@ -45,7 +45,7 @@ import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
-import { parseTerrainTiles, terrainTileSizeError } from '../../../sdk/src/terrain/tiles';
+import { parseTerrainTiles, terrainTileImageRefs, terrainTileSizeError } from '../../../sdk/src/terrain/tileDocument';
 import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
 import type { SceneData } from '../../../sdk/src/scene/scene';
 import { addressableKeys } from './addressableRecord';
@@ -1169,12 +1169,8 @@ export async function cookAssets(
           const logical = ref.replace(/^\//, '');
           return keys.get(logical) ?? keys.get(assetRefId(logical) ?? logical);
         };
-        const refs = new Set([doc.overview, doc.overviewSplat, doc.overviewSplat2]);
-        for (const tile of doc.tiles) {
-          refs.add(tile.height).add(tile.splat).add(tile.splat2);
-        }
-        for (const ref of refs) {
-          if (typeof ref !== 'string' || !ref || /^(?:https?:)?\/\//i.test(ref)) continue;
+        for (const ref of terrainTileImageRefs(doc)) {
+          if (/^(?:https?:)?\/\//i.test(ref)) continue;
           // Terrain opens project paths and asset ids through the runtime catalog.
           if (resolveImage(ref)) continue;
           failed.push(`${entry.sourcePath}: terrain image '${ref}' is not packaged`);

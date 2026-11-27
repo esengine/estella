@@ -102,4 +102,12 @@ describe('ground kept as tiles', () => {
         expect(() => parseTerrainTiles({ ...doc, tiles: [doc.tiles[0], doc.tiles[0]] })).toThrow(/twice/);
         expect(() => parseTerrainTiles({ ...doc, tiles: [{ x: 0, z: 0, height: '' }] })).toThrow(/names no heights/);
     });
+
+    it('rejects invalid paint image references and unsupported height formats', () => {
+        const doc = { version: 1, tileSamples: 9, tilesX: 1, tilesZ: 1, overview: 'o.png', tiles: [{ x: 0, z: 0, height: 'a.png' }] };
+        expect(() => parseTerrainTiles({ ...doc, overviewSplat: 42 })).toThrow(/overviewSplat/);
+        expect(() => parseTerrainTiles({ ...doc, tiles: [{ ...doc.tiles[0], splat2: { path: 'paint.png' } }] })).toThrow(/tile 0:0.*splat2/);
+        expect(() => parseTerrainTiles({ ...doc, format: 2 })).toThrow(/heightmap format/);
+        expect(parseTerrainTiles({ ...doc, overviewSplat: null, overviewSplat2: '' }).format).toBe(HeightmapFormat.RedGreen16);
+    });
 });

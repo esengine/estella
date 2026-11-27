@@ -40,6 +40,7 @@ import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
 import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
+import { parseTerrainTiles, terrainTileImageRefs } from '../../../sdk/src/terrain/tileDocument';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -349,7 +350,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-const CANDIDATE_CACHE_VERSION = 7;
+const CANDIDATE_CACHE_VERSION = 8;
 interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
@@ -447,7 +448,9 @@ async function computeDeps(
     if (type === 'animatorcontroller') visitAnimatorClips(json, (kind, holder) => {
       if (kind === 'sprite' || kind === 'timeline') takeNamedCandidate(holder, 'clip', kind === 'sprite' ? 'SpriteAnimator' : 'TimelinePlayer', named);
     });
-    if (type === 'material') {
+    if (type === 'terrain-tiles') {
+      for (const ref of terrainTileImageRefs(parseTerrainTiles(json, rel))) found.add(ref);
+    } else if (type === 'material') {
       mapMaterialRefs(json, ref => {
         if (assetRefId(ref) || !/^[a-z][a-z0-9+.-]*:/i.test(ref)) found.add(ref);
         return ref;

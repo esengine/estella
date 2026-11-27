@@ -12,60 +12,18 @@
  */
 import { paintWeights } from './paint';
 import { initialPaintWeights, materialPaintWeights, writeWeightBytes, type TerrainPaintTarget } from './paintLayers';
-import { HeightmapFormat, heightfieldFromPixels, type Heightfield } from './heightfield';
+import { heightfieldFromPixels, type Heightfield } from './heightfield';
+import { terrainTileSizeError, type TerrainTileEntry, type TerrainTilesDocument } from './tileDocument';
 import type { TerrainData } from './terrainPlugin';
 import type { LayerWeights, Splat, TerrainRegionSamples, TerrainSource } from './source';
 
-/** One tile of a `.esterrain`, by its place in the grid and the project paths of its images. @experimental */
-export interface TerrainTileEntry { x: number; z: number; height: string; splat?: string; splat2?: string }
-
-/** A `.esterrain` document. @experimental */
-export interface TerrainTilesDocument {
-    version: 1;
-    /** Samples along a tile's side, its edges shared with its neighbours. */
-    tileSamples: number;
-    tilesX: number;
-    tilesZ: number;
-    /** How the tile and overview images hold their heights: a {@link HeightmapFormat}. */
-    format: number;
-    /** The whole area at low detail, always in memory: what distant ground is drawn from. */
-    overview: string;
-    overviewSplat?: string;
-    overviewSplat2?: string;
-    tiles: TerrainTileEntry[];
-}
+export { parseTerrainTiles, type TerrainTileEntry, type TerrainTilesDocument } from './tileDocument';
 
 /** An image's pixels as the terrain reads them. */
 export interface TerrainImage { width: number; height: number; pixels: Uint8Array; wide?: Uint16Array }
 
-/** @internal The size required of a full-detail height tile, in a diagnostic shared by loading and cooking. */
-export function terrainTileSizeError(key: string, path: string, side: number, image: Pick<TerrainImage, 'width' | 'height'>): string | null {
-    if (image.width === side && image.height === side) return null;
-    return `terrain tile ${key} (${path}) is ${image.width} by ${image.height}, not ${side} a side`;
-}
-
 /** What a tiled ground holds in memory and is reading. @experimental */
 export interface TerrainTileStats { resident: number; reading: number; bytes: number; reads: number; evictions: number }
-
-/** A `.esterrain` checked, or a message naming what is wrong with it. */
-export function parseTerrainTiles(json: unknown, file = 'terrain tiles'): TerrainTilesDocument {
-    const o = json as Partial<TerrainTilesDocument> | null;
-    if (!o || typeof o !== 'object' || o.version !== 1) throw new Error(`${file}: not a version 1 terrain`);
-    const whole = (v: unknown, min: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= min;
-    if (!whole(o.tileSamples, 3) || !whole(o.tilesX, 1) || !whole(o.tilesZ, 1)) throw new Error(`${file}: tileSamples, tilesX and tilesZ must be whole numbers`);
-    if (typeof o.overview !== 'string' || !o.overview) throw new Error(`${file}: names no overview image`);
-    if (!Array.isArray(o.tiles)) throw new Error(`${file}: has no tile list`);
-    const seen = new Set<string>();
-    for (const t of o.tiles) {
-        if (!whole(t?.x, 0) || !whole(t?.z, 0) || t.x >= o.tilesX || t.z >= o.tilesZ || typeof t.height !== 'string' || !t.height) {
-            throw new Error(`${file}: tile ${JSON.stringify(t)} is outside the ${o.tilesX} by ${o.tilesZ} grid or names no heights`);
-        }
-        if (seen.has(`${t.x}:${t.z}`)) throw new Error(`${file}: tile ${t.x}, ${t.z} is listed twice`);
-        seen.add(`${t.x}:${t.z}`);
-    }
-    return { version: 1, tileSamples: o.tileSamples, tilesX: o.tilesX, tilesZ: o.tilesZ, format: o.format ?? HeightmapFormat.RedGreen16,
-        overview: o.overview, overviewSplat: o.overviewSplat, overviewSplat2: o.overviewSplat2, tiles: o.tiles };
-}
 
 /** @internal One tile in memory. */
 export interface Tile { field: Heightfield; splat: Splat | null; splat2: Splat | null; bytes: number; used: number }
