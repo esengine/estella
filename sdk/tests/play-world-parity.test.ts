@@ -118,6 +118,30 @@ describe('the snapshot Play boots', () => {
         expect(cut.manifest.cells.map((c) => c.name)).toEqual(['main.cell_1_0']);
     });
 
+    it('fetches an inherited root once and uses the variant position for all its instances', async () => {
+        const base = 'assets/prefabs/Base.esprefab';
+        const documents = new Map<string, unknown>([
+            [PREFAB, { rootEntityId: 'r', basePrefab: base, entities: [], overrides: [{ type: 'property',
+                prefabEntityId: 'r', componentType: 'Transform', propertyName: 'position', value: { x: 2500, y: 0, z: 1500 },
+            }] }],
+            [base, { rootEntityId: 'r', entities: [{ prefabEntityId: 'r', ...entity(9, 'Base', [500, 0, 500]) }] }],
+        ]);
+        const fetch = vi.fn(async (url: string) => {
+            const document = documents.get(url.slice('estella://project/'.length));
+            return { ok: document !== undefined, json: async () => document };
+        });
+        vi.stubGlobal('fetch', fetch);
+        const cut = await cutPlayWorld(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            { id: 1, name: 'First Hut', parent: null, prefab: PREFAB, overrides: [] },
+            { id: 2, name: 'Second Hut', parent: null, prefab: PREFAB, overrides: [] },
+        ), 'main', resolveRef);
+
+        expect(fetch.mock.calls.flat()).toEqual([resolveRef(PREFAB), resolveRef(base)]);
+        expect(cut?.manifest.cells.map(cell => cell.name)).toEqual(['main.cell_2_1']);
+        expect(names(cut!.documents.get('main.cell_2_1')!)).toEqual(['First Hut', 'Second Hut']);
+    });
+
     it('refuses a world a build would refuse, rather than playing it whole', async () => {
         vi.stubGlobal('fetch', refuseFetch);
         await expect(cutPlayWorld(scene(

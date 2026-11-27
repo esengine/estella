@@ -16,6 +16,9 @@
 import { partitionWorld, type PartitionOptions, type PrefabRoot } from './partitionWorld';
 import type { WorldCell, WorldManifest } from './cells';
 import type { SceneData } from '../scene/scene';
+import { flattenPrefab } from '../prefab/flatten';
+import { createPrefabSourceLoader } from '../prefab/source';
+import type { PrefabData, PrefabEntityData } from '../prefab/types';
 
 /** Where cooked world content goes, package-relative. */
 export const WORLD_DIR = 'world';
@@ -98,21 +101,25 @@ export function cutWorld(
 /** The shape of a `.esprefab` this reads — only the root's placement. */
 interface PrefabDocument {
     rootEntityId?: string;
-    entities?: Array<{
-        prefabEntityId?: string;
-        components?: Array<{ type: string; data: Record<string, unknown> }>;
-    }>;
+    basePrefab?: string;
+    overrides?: unknown[];
+    entities?: Array<Pick<PrefabEntityData, 'prefabEntityId'> & Partial<Pick<PrefabEntityData, 'components' | 'nestedPrefab'>>>;
 }
 
 /** Where a prefab asset's root sits, from its document. Null if it has no root. */
 export function prefabRootOf(document: unknown): PrefabRoot | null {
-    const prefab = document as PrefabDocument | null;
-    if (prefab === null || typeof prefab !== 'object') return null;
+    const root = authoredPrefabRoot(document as PrefabDocument | null);
+    return root ? rootPlacement(root.prefabEntityId, root.components) : null;
+}
+
+function authoredPrefabRoot(prefab: PrefabDocument | null) {
+    if (!Array.isArray(prefab?.entities)) return undefined;
     const rootId = prefab.rootEntityId ?? '0';
-    const root = (prefab.entities ?? []).find((e) => e.prefabEntityId === rootId);
-    if (!root) return null;
-    const at = (root.components?.find((c) => c.type === 'Transform')?.data.position ?? {}) as
-        Partial<{ x: number; y: number; z: number }>;
+    return prefab.entities.find(entity => entity?.prefabEntityId === rootId);
+}
+
+function rootPlacement(rootId: string, components: PrefabEntityData['components'] | undefined): PrefabRoot {
+    const at = (components?.find((c) => c.type === 'Transform')?.data.position ?? {}) as Partial<PrefabRoot['position']>;
     return { rootId, position: { x: at.x ?? 0, y: at.y ?? 0, z: at.z ?? 0 } };
 }
 
@@ -126,10 +133,41 @@ export function prefabRootOf(document: unknown): PrefabRoot | null {
 export async function resolvePrefabRoots(
     scene: SceneData, read: (ref: string) => Promise<unknown | null>,
 ): Promise<(ref: string) => PrefabRoot | null> {
+    const documents = new Map<string, Promise<PrefabData | null>>();
+    const readDocument = (ref: string) => {
+        let pending = documents.get(ref);
+        if (!pending) {
+            pending = Promise.resolve().then(() => read(ref) as Promise<PrefabData | null>).catch(() => null);
+            documents.set(ref, pending);
+        }
+        return pending;
+    };
+    const readSource = createPrefabSourceLoader(readDocument);
     const roots = new Map<string, PrefabRoot | null>();
     for (const entry of (scene.entities ?? []) as unknown as Array<{ prefab?: string }>) {
         if (typeof entry.prefab !== 'string' || roots.has(entry.prefab)) continue;
-        roots.set(entry.prefab, prefabRootOf(await read(entry.prefab).catch(() => null)));
+        const ref = entry.prefab;
+        const document = await readDocument(ref);
+        const authoredRoot = authoredPrefabRoot(document);
+        let placement: PrefabRoot | null;
+        // A plain root can be read without expanding the rest of its subtree.
+        if (document?.basePrefab || document?.overrides?.length || authoredRoot?.nestedPrefab) {
+            try {
+                const source = await readSource(ref);
+                let nextId = 1;
+                const { entities, rootId } = flattenPrefab(source.prefab, [], {
+                    allocateId: () => nextId++,
+                    loadPrefab: dependency => source.dependencies.get(dependency) ?? null,
+                });
+                const root = entities.find(entity => entity.id === rootId);
+                placement = root ? rootPlacement(root.prefabEntityId, root.components) : null;
+            } catch {
+                placement = null;
+            }
+        } else {
+            placement = authoredRoot ? rootPlacement(authoredRoot.prefabEntityId, authoredRoot.components) : null;
+        }
+        roots.set(ref, placement);
     }
     return (ref) => roots.get(ref) ?? null;
 }

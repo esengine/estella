@@ -22,6 +22,7 @@ import {
 } from 'esengine/node';
 import { readCachedAssetIndex, scanAssetDatabase, type AssetIndex } from '../assets/assetDb';
 import { resolveIndexedAssetRef } from '../../../sdk/src/asset/AssetRegistry';
+import { resolveInside } from '../fs/pathSandbox';
 import { cookFarProxies, type FarProxyCookResult } from './farProxy';
 
 /** One streamed scene, as `game.config.json` names it. */
@@ -44,7 +45,8 @@ function worldAssets(root: string, index: AssetIndex): FarProxyHost {
         async loadPrefab(ref) {
             const relative = resolveIndexedAssetRef(ref, paths);
             if (!relative) return null;
-            return JSON.parse(await readFile(path.join(root, relative), 'utf8')) as PrefabData;
+            const file = resolveInside(root, relative.replace(/^\//, ''), 'project root');
+            return JSON.parse(await readFile(file, 'utf8')) as PrefabData;
         },
         async readMesh(ref) {
             const relative = resolveIndexedAssetRef(ref, paths);

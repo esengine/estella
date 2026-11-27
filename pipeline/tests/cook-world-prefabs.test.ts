@@ -13,7 +13,7 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookWorlds } from '../src/world/cookWorld';
-import type { WorldManifest } from 'esengine';
+import { StreamPlane, type WorldManifest } from 'esengine';
 
 const SIZE = 1000;
 const UUID = 'aaaabbbb-cccc-dddd-eeee-ffff00001111';
@@ -79,4 +79,31 @@ describe('cooking a world that instances a prefab', () => {
         expect(await cellsOf(await projectWith([1500, 0, 500], [500, 0, 500])))
             .toEqual(['main.cell_0_0']);
     });
+
+    it.each([
+        { axes: 'XY', plane: StreamPlane.Screen, cell: 'main.cell_2_3' },
+        { axes: 'XZ', plane: StreamPlane.Ground, cell: 'main.cell_2_4' },
+    ])(
+        'cuts a variant using its effective root in the $axes plane even if a replaced mount asset is missing',
+        async ({ plane, cell }) => {
+            const root = await projectWith([1500, 500, 500], null);
+            const prefabs = path.join(root, 'assets', 'prefabs');
+            const hut = path.join(prefabs, 'Hut.esprefab');
+            const base = JSON.parse(await readFile(hut, 'utf8'));
+            const mount = { prefabEntityId: 'mount', name: 'Mount', parent: 'r', children: [], components: [], visible: true };
+            base.entities[0].children = ['mount'];
+            base.entities.push({ ...mount, nestedPrefab: { prefabPath: 'assets/prefabs/Removed.esprefab', overrides: [] } });
+            await writeFile(path.join(prefabs, 'Base.esprefab'), JSON.stringify(base));
+            await writeFile(hut, JSON.stringify({ name: 'Variant', rootEntityId: 'r', basePrefab: 'assets/prefabs/Base.esprefab',
+                entities: [mount], overrides: [{ type: 'property', prefabEntityId: 'r', componentType: 'Transform',
+                    propertyName: 'position', value: { x: 2500, y: 3500, z: 4500 } }],
+            }));
+            const sceneFile = path.join(root, 'assets/scenes/main.esscene');
+            const scene = JSON.parse(await readFile(sceneFile, 'utf8'));
+            scene.entities[0].components[0].data.plane = plane;
+            await writeFile(sceneFile, JSON.stringify(scene));
+
+            expect(await cellsOf(root)).toEqual([cell]);
+        },
+    );
 });
