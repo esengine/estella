@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { InputState, GamepadButton, GamepadAxis } from '../src/input/input';
+import { InputState, GamepadButton, GamepadAxis, inputEventCallbacks } from '../src/input/input';
 import type { GamepadSnapshot } from '../src/platform/types';
 
 /** Build a standard-layout snapshot (17 buttons / 4 axes) with specific overrides. */
@@ -66,6 +66,32 @@ describe('InputState gamepad', () => {
         expect(s.isGamepadConnected(0)).toBe(false);
         expect(s.getGamepads()).toEqual([]);
         expect(s.isGamepadButtonDown(GamepadButton.South)).toBe(false);
+    });
+
+    it.each([false, true])('starts a fresh button history after a reported disconnect (%s)', reported => {
+        const input = new InputState();
+        const held = pad({ buttons: { [GamepadButton.South]: 1 } });
+        const sibling = pad({ index: 1, buttons: { [GamepadButton.East]: 1 } });
+        input.updateGamepads([held, sibling]);
+        input.updateGamepads([...(reported ? [{ ...held, connected: false }] : []), sibling]);
+        expect(input.isGamepadConnected()).toBe(false);
+        input.updateGamepads([pad(), sibling]);
+        expect(input.isGamepadButtonReleased(GamepadButton.South)).toBe(false);
+        expect(input.isGamepadButtonPressed(GamepadButton.East, 1)).toBe(false);
+        input.updateGamepads([sibling]);
+        input.updateGamepads([held, sibling]);
+        expect(input.isGamepadButtonPressed(GamepadButton.South)).toBe(true);
+        expect(input.isGamepadButtonPressed(GamepadButton.East, 1)).toBe(false);
+    });
+
+    it('clears polled gamepad input when the host cancels held input', () => {
+        const input = new InputState();
+        input.updateGamepads([pad({ buttons: { [GamepadButton.South]: 1 }, axes: { [GamepadAxis.LeftX]: 0.8 } })]);
+        inputEventCallbacks(input).onInputCancel?.();
+        expect(input.isGamepadButtonDown(GamepadButton.South)).toBe(false);
+        expect(input.getGamepadAxis(GamepadAxis.LeftX)).toBe(0);
+        input.updateGamepads([pad()]);
+        expect(input.isGamepadButtonReleased(GamepadButton.South)).toBe(false);
     });
 
     it('supports multiple pads by index', () => {

@@ -440,16 +440,7 @@ export class InputState {
         for (const c of controllers) {
             if (c.hand !== 'left' && c.hand !== 'right') continue;
             const index = xrPadIndex(c.hand);
-            let p = this.gamepads.get(index);
-            if (!p) {
-                p = { connected: false, buttons: [], prevButtons: [], axes: [] };
-                this.gamepads.set(index, p);
-            }
-            // A controller found again starts from nothing pressed, so a button held through the gap is a press.
-            p.prevButtons = p.connected ? p.buttons : [];
-            p.buttons = c.buttons;
-            p.axes = c.axes;
-            p.connected = true;
+            this.updateConnectedPad_(index, c.buttons, c.axes);
             seen.add(index);
         }
         for (const hand of ['left', 'right'] as const) {
@@ -537,6 +528,20 @@ export class InputState {
     }
 
     private injected_ = new Map<number, GamepadSnapshot>();
+    private readonly polledPadIndices_ = new Set<number>();
+
+    private updateConnectedPad_(index: number, buttons: number[], axes: number[]): void {
+        let pad = this.gamepads.get(index);
+        if (!pad) {
+            pad = { connected: false, buttons: [], prevButtons: [], axes: [] };
+            this.gamepads.set(index, pad);
+        }
+        // A reconnected controller starts with no button history from the last connection.
+        pad.prevButtons = pad.connected ? pad.buttons : [];
+        pad.buttons = buttons;
+        pad.axes = axes;
+        pad.connected = true;
+    }
 
     updateGamepads(snapshots: GamepadSnapshot[]): void {
         // An injected pad REPLACES the polled one at its index; a polled pad at
@@ -546,19 +551,20 @@ export class InputState {
             ...snapshots.filter((s) => !this.injected_.has(s.index)),
             ...this.injected_.values(),
         ];
-        // The VR controllers' indices are the session's, not the poll's.
-        for (const [index, p] of this.gamepads) if (!isXRPadIndex(index)) p.connected = false;
+        const seen = this.polledPadIndices_;
+        seen.clear();
         for (const snap of merged) {
-            let p = this.gamepads.get(snap.index);
-            if (!p) {
-                p = { connected: true, buttons: [], prevButtons: [], axes: [] };
-                this.gamepads.set(snap.index, p);
+            if (snap.connected) {
+                seen.add(snap.index);
+                this.updateConnectedPad_(snap.index, snap.buttons, snap.axes);
+            } else {
+                seen.delete(snap.index);
+                const pad = this.gamepads.get(snap.index);
+                if (pad) pad.connected = false;
             }
-            p.prevButtons = p.buttons;
-            p.buttons = snap.buttons;
-            p.axes = snap.axes;
-            p.connected = snap.connected;
         }
+        // The VR controllers' indices are the session's, not the poll's.
+        for (const [index, pad] of this.gamepads) if (!isXRPadIndex(index) && !seen.has(index)) pad.connected = false;
     }
 
     clearFrameState(): void {
@@ -756,6 +762,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             if (!hostInput.owner || hostInput.owner === state) inputRouter.resetModifiers();
             state.keysDown.clear();
             state.mouseButtons.clear();
+            for (const pad of state.gamepads.values()) pad.connected = false;
             state.touches.clear();
             state.forgetTouches();
             state.cancelVirtualSources();
