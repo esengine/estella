@@ -10,7 +10,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { cookAssets } from '../src/assets/cookAssets';
+import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
+import { encodeRgbaPng } from '../src/assets/png';
 
 let root: string;
 
@@ -19,12 +20,17 @@ const PROPS_TEX = '22222222-2222-4222-8222-222222222222';
 const TILEMAP = '33333333-3333-4333-8333-333333333333';
 const SCENE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const NATIVE_TILESET = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const COLLECTION = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const COLLECTION_TILE = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const PAINTED_ATLAS = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const tilePng = encodeRgbaPng(16, 16, Uint8Array.from({ length: 16 * 16 * 4 }, (_, i) => i % 4 === 3 ? 255 : i % 251));
+const atlasPng = encodeRgbaPng(32, 32, Uint8Array.from({ length: 32 * 32 * 4 }, (_, i) => i % 4 === 3 ? 255 : i % 251));
 
-function writeAsset(rel: string, type: string, uuid: string, body = ''): void {
+function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = '', importer = {}): void {
   const abs = path.join(root, rel);
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, body);
-  writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+  writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer }));
 }
 
 // A .tmj at assets/maps/ whose tilesets reference images in ../textures/ (the Tiled
@@ -49,6 +55,12 @@ beforeAll(() => {
   root = mkdtempSync(path.join(tmpdir(), 'estella-tmcook-'));
   writeAsset('assets/textures/tiles.png', 'texture', TILES_TEX, 'TILES');
   writeAsset('assets/textures/props.png', 'texture', PROPS_TEX, 'PROPS');
+  writeAsset('assets/parts.atlas/single.png', 'texture', COLLECTION_TILE, tilePng, { maxSize: 8, compress: 'on' });
+  writeAsset('assets/parts.atlas/paint.png', 'texture', PAINTED_ATLAS, atlasPng, { maxSize: 8, compress: 'on' });
+  writeAsset('assets/maps/loose.tsj', 'json', COLLECTION, JSON.stringify({
+    name: 'Loose', tilewidth: 16, tileheight: 16, tilecount: 1, columns: 0,
+    tiles: [{ id: 0, image: '../parts.atlas/single.png', imagewidth: 16, imageheight: 16 }],
+  }));
   writeAsset('assets/maps/level.tmj', 'tilemap', TILEMAP, tmj);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
   writeAsset('assets/maps/ground.estileset', 'tileset', NATIVE_TILESET, JSON.stringify({
@@ -58,6 +70,18 @@ beforeAll(() => {
     version: 4, name: 'Painted', entities: [{ id: 1, parent: null, children: [], components: [
       { type: 'TilemapLayer', data: { tilesetAsset: `@uuid:${NATIVE_TILESET}` } },
     ] }],
+  }));
+  const map = JSON.parse(tmj);
+  map.tilesets = [{ firstgid: 1, source: './loose.tsj' }];
+  writeAsset('assets/maps/loose.tmj', 'tilemap', '99999999-9999-4999-8999-999999999999', JSON.stringify(map));
+  writeAsset('assets/maps/paint.estileset', 'tileset', '88888888-8888-4888-8888-888888888888', JSON.stringify({
+    version: '1', texture: 'assets/parts.atlas/paint.png', tileWidth: 16, tileHeight: 16, columns: 2, tiles: {},
+  }));
+  writeAsset('assets/scenes/layout.esscene', 'scene', '77777777-7777-4777-8777-777777777777', JSON.stringify({
+    version: 4, name: 'Layout', entities: [
+      { id: 1, parent: null, children: [], components: [{ type: 'Tilemap', data: { source: 'assets/maps/loose.tmj' } }] },
+      { id: 2, parent: null, children: [], components: [{ type: 'TilemapLayer', data: { tilesetAsset: 'assets/maps/paint.estileset' } }] },
+    ],
   }));
 });
 
@@ -93,5 +117,21 @@ describe('tilemap tileset images are cooked dependencies', () => {
     const stored = manifest.entries.find(entry => entry.uuid === NATIVE_TILESET)!;
     const tileset = JSON.parse(readFileSync(path.join(cooked.outDir, stored.path), 'utf8'));
     expect(tileset.texture).toBe('assets/textures/tiles.png');
+  });
+
+  it.each([true, false])('ships whole original tile images with resize and compression enabled (atlasing: %s)', async atlasTextures => {
+    const cooked = await cookAssets(root, {
+      entryScenes: ['assets/scenes/layout.esscene'], outDir: `build-layout-${atlasTextures}`,
+      atlasTextures, resizeTextures: true, compressTextures: true, contentAddressed: true,
+    });
+    expect(cooked.ok).toBe(true);
+    const { entries } = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')) as CookManifest;
+    for (const [uuid, bytes] of [[COLLECTION_TILE, tilePng], [PAINTED_ATLAS, atlasPng]] as const) {
+      const entry = entries.find(asset => asset.uuid === uuid)!;
+      expect(entry, uuid).toBeDefined();
+      expect(entry.atlas).toBeUndefined();
+      expect(entry.path).toMatch(/\.png$/);
+      expect(readFileSync(path.join(cooked.outDir, entry.path))).toEqual(Buffer.from(bytes));
+    }
   });
 });

@@ -667,13 +667,21 @@ export async function cookAssets(
     for (const dep of index.deps[uuid] ?? []) seed(dep, { reason: 'dependency', via: from });
   }
 
-  // The tile grid and its weights address individual source samples.
+  // Terrain reads individual samples. Tilemap loaders use whole images as
+  // fixed grids or read individual tile images before building their own atlas.
   const included = [...reachable.keys()];
   const terrainImages = new Set<string>();
+  const wholeTileImages = new Set<string>();
   for (const uuid of included) {
-    if (byUuid.get(uuid)?.type !== 'terrain-tiles') continue;
-    for (const dep of index.deps[uuid] ?? []) terrainImages.add(dep);
+    const asset = byUuid.get(uuid);
+    if (!asset) continue;
+    if (asset.type === 'terrain-tiles') {
+      for (const dep of index.deps[uuid] ?? []) terrainImages.add(dep);
+    } else if (/\.(?:tmj|tsj|estileset)$/i.test(asset.path)) {
+      for (const dep of index.deps[uuid] ?? []) if (byUuid.get(dep)?.type === 'texture') wholeTileImages.add(dep);
+    }
   }
+  const preservesImage = (uuid: string) => terrainImages.has(uuid) || wholeTileImages.has(uuid);
 
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(root, opts.outDir);
   await mkdir(absOut, { recursive: true });
@@ -697,7 +705,7 @@ export async function cookAssets(
     .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture' && !recipeProducts.has(e.path));
   const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
   const artBytes = textureSources.reduce((n, e) => {
-    if (terrainImages.has(e.uuid)) return n;
+    if (preservesImage(e.uuid)) return n;
     try { return n + statSync(path.join(root, e.path)).size; } catch { return n; }
   }, 0);
   const decoderBytes = opts.textureDecoderBytes;
@@ -754,7 +762,7 @@ export async function cookAssets(
     for (const uuid of included) {
       const entry = byUuid.get(uuid);
       // Mesh UVs, material samplers and baked lightmaps address the whole texture.
-      if (!entry || entry.type === 'scene' || roles.has(uuid) || terrainImages.has(uuid)) continue;
+      if (!entry || entry.type === 'scene' || roles.has(uuid) || preservesImage(uuid)) continue;
       if (path.extname(entry.path).toLowerCase() !== '.png') continue;
       const dir = resolveAtlas(entry.path, groupsConfig)?.name ?? null;
       if (!dir) continue;
@@ -890,7 +898,7 @@ export async function cookAssets(
       let tail: StreamTail | null = null;
       let compressedFormats: string[] | undefined;
       let cook: TextureCookDecision | undefined;
-      const preserveSamples = terrainImages.has(entry.uuid);
+      const preserveSamples = preservesImage(entry.uuid);
       // An authored single-level UASTC KTX2 gets the chain a compressed texture
       // cannot generate on the device, under its own untouched level 0.
       const layout = textureEnc && !preserveSamples && entry.type === 'texture' && ext.toLowerCase() === '.ktx2' ? readKtx2Layout(data) : null;
@@ -1085,7 +1093,7 @@ export async function cookAssets(
           height: tail.height, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight,
         };
       }
-      if (preserveSamples && !fromRecipe) {
+      if (terrainImages.has(entry.uuid) && !fromRecipe) {
         const size = pngSizeFromHeader(data);
         if (size) terrainPngSizes.set(entry.uuid.toLowerCase(), size);
       }
