@@ -12,9 +12,10 @@
  *          with them. The rule does not change with the camera, the order tiles are made in, or a reload.
  */
 import type { TerrainSource } from './source';
+import { copyCollisionPatchIndices, TERRAIN_PATCH_CELLS } from './patchTopology';
 
 /** Cells along a collision tile's side. */
-export const TILE_CELLS = 32;
+export const TILE_CELLS = TERRAIN_PATCH_CELLS;
 
 /** A tile's triangles: positions relative to its corner (x0, 0, z0) in the terrain's space, wound counter-clockwise from above. */
 export interface SurfaceTile { x0: number; z0: number; positions: Float32Array; indices: Uint32Array }
@@ -82,15 +83,7 @@ export class TerrainSurface {
             positions[at + 1] = h;
             positions[at + 2] = k * this.cell;
         }
-        const indices = new Uint32Array(n * n * 6);
-        let at = 0;
-        for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
-            const a = k * side + i, b = a + 1, c = a + side, d = c + 1;
-            // The patch's cut and winding (patch.ts): a, the next row, the next column; then the other half.
-            indices.set([a, c, b, b, c, d], at);
-            at += 6;
-        }
-        return { x0: tx * n * this.cell, z0: tz * n * this.cell, positions, indices };
+        return { x0: tx * n * this.cell, z0: tz * n * this.cell, positions, indices: copyCollisionPatchIndices() };
     }
 
     /**

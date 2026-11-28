@@ -18,6 +18,7 @@ import { collisionGeometryOf } from '../runtime/collisionGeometry';
 import { movers } from './movers';
 import { direction, facePlace, nodeRect, type SphereNode } from './sphere';
 import type { PlanetPageSource } from './planetPages';
+import { copyCollisionPatchIndices, TERRAIN_PATCH_CELLS as TILE_CELLS } from './patchTopology';
 
 /** How a planet's ground collides: whether it does, how far round a mover its tiles are built, its layer and friction, and its cells. */
 export interface PlanetCollisionOptions {
@@ -27,8 +28,6 @@ export interface PlanetCollisionOptions {
     friction: number;
 }
 
-/** Cells along a tile's side. */
-const TILE_CELLS = 32;
 const layerOf = (entity: Entity, face: number): string => `planet-collision:${entity}:${face}`;
 const keyOf = (entity: Entity, n: SphereNode): string => `planet:${entity}:${n.face}:${n.ix}:${n.iz}`;
 
@@ -58,14 +57,7 @@ export function tileOf(src: PlanetPageSource, node: SphereNode, key: string): Ti
         const ex = [p(1, 0) - p(0, 0), p(1, 1) - p(0, 1), p(1, 2) - p(0, 2)], ez = [p(n, 0) - p(0, 0), p(n, 1) - p(0, 1), p(n, 2) - p(0, 2)];
         const cross = [ex[1]! * ez[2]! - ex[2]! * ez[1]!, ex[2]! * ez[0]! - ex[0]! * ez[2]!, ex[0]! * ez[1]! - ex[1]! * ez[0]!];
         const outward = cross[0]! * mid[0] + cross[1]! * mid[1] + cross[2]! * mid[2] > 0;
-        const indices = new Uint32Array(TILE_CELLS * TILE_CELLS * 6);
-        let w = 0;
-        for (let j = 0; j < TILE_CELLS; j++) for (let i = 0; i < TILE_CELLS; i++) {
-            const a = j * n + i, b = a + 1, c = a + n, e = c + 1;
-            const tris = outward ? [a, b, c, b, e, c] : [a, c, b, b, c, e];
-            for (const t of tris) indices[w++] = t;
-        }
-        return { key, origin, positions, indices };
+        return { key, origin, positions, indices: copyCollisionPatchIndices(outward) };
     };
     const got = src.provider.sample({ world: src.world, seed: src.seed, version: src.version, radius: src.radius, directions: dirs, count: n * n });
     return got instanceof Promise ? got.then((r) => build(r.heights)) : build(got.heights);

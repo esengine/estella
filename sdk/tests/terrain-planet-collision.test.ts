@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { FACES, direction, facePlace, faceOf } from '../src/terrain/sphere';
 import { tileOf } from '../src/terrain/planetCollision';
+import { buildPatchMesh } from '../src/terrain/patch';
+import { PATCH_CELLS } from '../src/terrain/pages';
 import type { PlanetPageSource } from '../src/terrain/planetPages';
 
 const radius = 4000;
@@ -21,8 +23,10 @@ const src = {
 
 describe('a planet\'s collision tiles', () => {
     it('are wound to face out on every face', () => {
+        const patch = buildPatchMesh(PATCH_CELLS, true);
         for (let face = 0; face < 6; face++) {
             const tile = tileOf(src, { face, level: 0, ix: 3, iz: 5 }, 'k') as Awaited<ReturnType<typeof tileOf>>;
+            expect(tile.indices).toEqual(patch.indices);
             const p = tile.positions, i = tile.indices;
             let facing = 0;
             for (let t = 0; t < i.length; t += 3) {

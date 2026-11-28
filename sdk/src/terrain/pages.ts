@@ -13,9 +13,10 @@
  *          their slot up when the atlas is full. A node whose page is not made yet is drawn by an ancestor's.
  */
 import type { LayerWeights, TerrainRegionSamples, TerrainSource } from './source';
+import { TERRAIN_PATCH_CELLS } from './patchTopology';
 
 /** Cells along a patch's side, and samples along a page's (two to a cell). */
-export const PATCH_CELLS = 32;
+export const PATCH_CELLS = TERRAIN_PATCH_CELLS;
 export const PAGE_TEXELS = PATCH_CELLS * 2;
 /** A page's side in the atlas: its samples, the one on its far edge, and one past each edge. */
 export const PAGE_SIDE = PAGE_TEXELS + 3;

@@ -128,6 +128,17 @@ describe('the surface', () => {
         expect(PAGE_TEXELS).toBe(PATCH_CELLS * 2);
     });
 
+    it('keeps collision index buffers independent across terrain tiles and render patches', () => {
+        const a = surface.tile(0, 0)!, b = surface.tile(1, 0)!;
+        const patch = buildPatchMesh(TILE_CELLS);
+        expect(a.indices).toEqual(b.indices);
+        expect(a.indices).toEqual(patch.indices);
+        a.indices[0] = 17;
+        patch.indices[0] = 29;
+        expect(b.indices[0]).toBe(0);
+        expect(surface.tile(0, 0)!.indices[0]).toBe(0);
+    });
+
     it('faces the way its triangle does', () => {
         const n = surface.normal(7.2, 6.1)!;
         const h = (x: number, z: number) => surface.height(x, z)!;

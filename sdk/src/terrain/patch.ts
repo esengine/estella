@@ -8,6 +8,7 @@
  *          Terrain shader lifts it to the node's page and the node's scale.y is its page's height range, so culling sees the ground's true box.
  */
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../asset/meshFormat';
+import { buildPatchIndices } from './patchTopology';
 
 export function buildPatchMesh(cells: number, flipped = false): MeshData {
     const n = Math.max(1, Math.floor(cells));
@@ -31,14 +32,7 @@ export function buildPatchMesh(cells: number, flipped = false): MeshData {
         for (let k = 0; k < 4; k++) view.setUint8(base + color + k, 255);
         view.setFloat32(base + normal + 4, 1, true);
     }
-    const indices = new Uint32Array(n * n * 6);
-    let at = 0;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-        const a = j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1;
-        // Facing up: a, then the next row, then the next column, runs counter-clockwise from above.
-        // `flipped` is the same grid wound the other way round: a cube face's (u, v, out) is a right-handed frame, where flat ground's (x, z, up) is not.
-        indices.set(flipped ? [a, b, c, b, d, c] : [a, c, b, b, c, d], at);
-        at += 6;
-    }
+    // A cube face's (u, v, out) frame reverses the winding of flat ground's (x, z, up).
+    const indices = buildPatchIndices(n, flipped);
     return { channels, vertexStride, vertexCount: count, vertices, indices, aabbMin: [0, 0, 0], aabbMax: [1, 1, 1] };
 }
