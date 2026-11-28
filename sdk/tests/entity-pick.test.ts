@@ -97,6 +97,18 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
 });
 
 describe('picking entities by ray', () => {
+    it('picks a rotated mirrored shape through the same bounds for rays and area selection', () => {
+        const world = fakeWorld({
+            1: { Transform: { ...T(10, 20), worldScale: { x: -2, y: -3, z: 1 }, worldRotation: q.axis('z', Math.PI / 2) },
+                ShapeRenderer: { size: { x: 20, y: 10 }, layer: 1 } },
+        });
+        const ray = down(22, 38);
+        const options = { iconHalf: 2 };
+        expect(pickEntitiesByRay(world, ray, options)).toEqual([ent(1)]);
+        expect(pickEntityByRay(world, ray, options)).toBe(ent(1));
+        expect(pickEntitiesByBounds(world, box => box.hw === 20 && box.hh === 15, options)).toEqual([ent(1)]);
+        expect(pickEntitiesByRay(world, down(26, 38), options)).toEqual([]);
+    });
     it('resolves masked mesh layers and fallback sprites through live sorting groups', () => {
         const world: PickWorld = fakeWorld({
             1: { Transform: T(0, 0), MeshRenderer: { layer: 1 } },

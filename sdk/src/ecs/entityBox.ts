@@ -108,33 +108,34 @@ export function resolveEntityWorldBox(
     let w = iconHalf * 2;
     let h = iconHalf * 2;
     let d = iconHalf * 2;
-    let px = 0.5;
-    let py = 0.5;
+    let centerX = 0;
+    let centerY = 0;
     if (visibleSprite) {
         const sp = visibleSprite;
         w = sp.size.x * t.worldScale.x;
         h = sp.size.y * t.worldScale.y;
         d = 0;
-        px = sp.pivot?.x ?? 0.5;
-        py = sp.pivot?.y ?? 0.5;
+        centerX = w * (0.5 - (sp.pivot?.x ?? 0.5));
+        centerY = h * (0.5 - (sp.pivot?.y ?? 0.5));
     } else if (visibleShape) {
-        w = Math.max(visibleShape.size.x * t.worldScale.x, iconHalf * 2);
-        h = Math.max(visibleShape.size.y * t.worldScale.y, iconHalf * 2);
+        w = Math.max(Math.abs(visibleShape.size.x * t.worldScale.x), iconHalf * 2);
+        h = Math.max(Math.abs(visibleShape.size.y * t.worldScale.y), iconHalf * 2);
         d = 0;
     } else {
         const ext = opts?.extentOf?.(entity);
         if (ext) {
-            w = Math.max(ext.width * t.worldScale.x, iconHalf * 2);
-            h = Math.max(ext.height * t.worldScale.y, iconHalf * 2);
+            const scaleX = t.worldScale.x, scaleY = t.worldScale.y;
+            w = Math.max(Math.abs(ext.width * scaleX), iconHalf * 2);
+            h = Math.max(Math.abs(ext.height * scaleY), iconHalf * 2);
             d = 0;
-            px = 0.5 - ((ext.x + ext.width / 2) * t.worldScale.x) / (w || 1);
-            py = 0.5 - ((ext.y + ext.height / 2) * t.worldScale.y) / (h || 1);
+            centerX = (ext.x + ext.width / 2) * scaleX;
+            centerY = (ext.y + ext.height / 2) * scaleY;
         } else if (iconHalf === 0) return null;
     }
 
     // The centre orbits the transform position when the pivot is off-centre —
     // the position is what rotation turns around, not the middle of the sprite.
-    const offset = q.rotate(rot, { x: w * (0.5 - px), y: h * (0.5 - py), z: 0 });
+    const offset = q.rotate(rot, { x: centerX, y: centerY, z: 0 });
     const box: EntityBox = {
         cx: t.worldPosition.x + offset.x,
         cy: t.worldPosition.y + offset.y,

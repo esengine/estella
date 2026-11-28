@@ -110,6 +110,15 @@ describe('an entity world box', () => {
         expect(box).toEqual({ cx: 10, cy: 20, cz: 0, hw: 100, hh: 75, hd: 0, rot: { x: 0, y: 0, z: 0, w: 1 } });
     });
 
+    it('keeps a mirrored skeleton extent sized and turns its signed centre offset', () => {
+        const world = fakeWorld({ 1: { Transform: T(100, 30, -2, -3, Math.PI / 2) } });
+        const box = entityWorldBox(world, ent(1), { iconHalf: 4,
+            extentOf: () => ({ x: 10, y: -4, width: 20, height: 12 }) })!;
+        expect(box).toMatchObject({ hw: 20, hh: 18, hd: 0 });
+        expect(box.cx).toBeCloseTo(106);
+        expect(box.cy).toBeCloseTo(-10);
+    });
+
     it('puts the centre off the transform when the pivot is off-centre', () => {
         // A bottom-left pivot means the position is the sprite's CORNER; a box
         // centred on the position would sit a half-sprite down and left of it.
