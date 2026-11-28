@@ -121,6 +121,25 @@ describe('Assets.preload', () => {
         expect(customLoads.filter(p => p === 'data/level.custom')).toHaveLength(1);
     });
 
+    it('plans repeated refs once and keeps each occurrence independently releasable', async () => {
+        const ref = 'data/level.custom';
+        const copies = 256;
+        const catalogLookup = vi.spyOn(assets.catalog, 'getEntry');
+        const unload = vi.spyOn(assets.getLoader('custom')!, 'unload');
+        const progress = vi.fn();
+        try {
+            expect((await assets.preload(Array(copies).fill(ref), progress)).failed).toEqual([]);
+            expect(catalogLookup.mock.calls.filter(([path]) => path === ref)).toHaveLength(1);
+            expect(customLoads).toEqual([ref]);
+            expect(progress).toHaveBeenCalledTimes(copies + 1);
+            expect(progress).toHaveBeenLastCalledWith(copies, copies);
+            for (let i = 1; i < copies; i++) assets.releaseTyped('custom', ref);
+            expect(unload).not.toHaveBeenCalled();
+            assets.releaseTyped('custom', ref);
+            expect(unload).toHaveBeenCalledTimes(1);
+        } finally { assets.releaseAll(); }
+    });
+
     it('preloads a tooltip style prefab through component metadata and owns its lease', async () => {
         registerComponent('UITooltip', UITooltip);
         const unload = vi.fn();

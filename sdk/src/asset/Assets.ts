@@ -1754,8 +1754,15 @@ export class Assets {
         const failed: MissingAsset[] = [];
         const tasks: Array<() => Promise<void>> = [];
         const mounts = new Map<string, Promise<void>>();
+        const plans = new Map<string, () => Promise<void>>();
 
         for (const ref of refs) {
+            // A repeated ref shares its plan, while each occurrence still owns a load.
+            const planned = plans.get(ref);
+            if (planned) {
+                tasks.push(planned);
+                continue;
+            }
             const path = this.resolveLoadPath_(ref);
             const record = this.manifestRecord_(ref);
             const type = record?.asset.type ?? this.inferAssetType_(path);
@@ -1772,7 +1779,7 @@ export class Assets {
                 continue;
             }
             const lazy = record && this.manifestModel_?.bundleMode(record.group) === 'lazy' ? record.group : undefined;
-            tasks.push(async () => {
+            const task = async () => {
                 try {
                     if (lazy) {
                         const mount = mounts.get(lazy) ?? this.mountSubpackage_(lazy);
@@ -1784,7 +1791,9 @@ export class Assets {
                     log.warn('asset', `preload: failed to load ${ref}`, e);
                     failed.push({ ref, type, reason: 'load-failed', error: e instanceof Error ? e.message : String(e) });
                 }
-            });
+            };
+            plans.set(ref, task);
+            tasks.push(task);
         }
 
         let loadedCount = 0;
