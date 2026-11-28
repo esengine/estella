@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { RuntimeConfig } from '../src/defaults';
 import { Transform } from '../src/ecs/component';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import {
@@ -201,6 +202,79 @@ describe('SceneStreamingController', () => {
         c.update(); // same tick range, still active → no second load
         await flush();
         expect(calls).toEqual(['load:near']);
+    });
+
+    it.each(['load', 'unload'] as const)('retries a failed %s once the cooldown passes if demand is unchanged', async action => {
+        const { host, calls, loaded } = mockHost();
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
+        try {
+            const key = action === 'load' ? 'loadAdditive' : 'unload';
+            const operation = vi.spyOn(host, key);
+            const c = new SceneStreamingController(host, { loadRadius: 10, unloadRadius: 20 });
+            c.register(near);
+            if (action === 'unload') {
+                c.update();
+                await flush();
+                c.setFocus(50, 0);
+            }
+            operation.mockRejectedValueOnce(new Error('temporary failure'));
+            c.update();
+            await flush();
+            c.update();
+            expect(operation).toHaveBeenCalledTimes(1);
+            expect(loaded.has('near')).toBe(action === 'unload');
+
+            // A failed load must retain hysteresis when focus moves into the band.
+            if (action === 'load') c.setFocus(15, 0);
+            clock.mockReturnValue(Math.max(1000, RuntimeConfig.assetFailureCooldown));
+            c.update();
+            c.update();
+            await flush();
+            expect(operation).toHaveBeenCalledTimes(2);
+            expect(calls.at(-1)).toBe(`${action}:near`);
+            expect(loaded.has('near')).toBe(action === 'load');
+        } finally {
+            clock.mockRestore();
+        }
+    });
+
+    it('does not retry a failed load after the focus moves away', async () => {
+        const { host, loaded } = mockHost();
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(0);
+        try {
+            const load = vi.spyOn(host, 'loadAdditive').mockRejectedValueOnce(new Error('temporary failure'));
+            const c = new SceneStreamingController(host, { loadRadius: 10, unloadRadius: 20 });
+            c.register(near);
+            c.update();
+            await flush();
+            c.setFocus(50, 0);
+            clock.mockReturnValue(Math.max(1000, RuntimeConfig.assetFailureCooldown));
+            c.update();
+            expect(load).toHaveBeenCalledTimes(1);
+            expect(c.getActive()).toEqual([]);
+            expect(loaded.has('near')).toBe(false);
+        } finally {
+            clock.mockRestore();
+        }
+    });
+
+    it('keeps an outstanding operation serialized when a cell is cleared and registered again', async () => {
+        const { host, loaded } = mockHost();
+        let finish!: () => void;
+        const load = vi.spyOn(host, 'loadAdditive').mockImplementationOnce(name => new Promise<void>(resolve => {
+            finish = () => { loaded.add(name); resolve(); };
+        }));
+        const c = new SceneStreamingController(host, { loadRadius: 10, unloadRadius: 20 });
+        c.register(near);
+        c.update();
+        c.clear();
+        c.register(near);
+        c.update();
+        expect(load).toHaveBeenCalledTimes(1);
+        finish();
+        await flush();
+        expect(loaded.has('near')).toBe(true);
+        expect(c.getActive()).toEqual(['near']);
     });
 
     it('clamps unloadRadius up to loadRadius', () => {

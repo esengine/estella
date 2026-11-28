@@ -12,6 +12,7 @@
  * existing `loadAdditive`/`unload`/`sleep`/`wake` primitives.
  */
 import { defineResource } from '../ecs/resource';
+import { RuntimeConfig } from '../defaults';
 import type { Entity } from '../types';
 
 /** A streamable cell: an additive scene with a world-space center + radius. */
@@ -93,6 +94,7 @@ export class SceneStreamingController {
     private readonly active_ = new Set<string>();
     /** Cells with an async load/unload in flight, so it isn't issued twice. */
     private readonly inFlight_ = new Set<string>();
+    private readonly retryAt_ = new Map<string, number>();
     private focusX_ = 0;
     private focusY_ = 0;
     private focusZ_ = 0;
@@ -119,12 +121,14 @@ export class SceneStreamingController {
     unregister(scene: string): void {
         this.cells_.delete(scene);
         this.active_.delete(scene);
+        this.retryAt_.delete(scene);
     }
 
     clear(): void {
         this.cells_.clear();
         this.active_.clear();
-        this.inFlight_.clear();
+        this.retryAt_.clear();
+        // Outstanding operations still own their scene name until they settle.
         this.focusEntity_ = null;
     }
 
@@ -162,39 +166,51 @@ export class SceneStreamingController {
         );
         for (const scene of decision.toActivate) {
             this.active_.add(scene);
-            this.activate_(scene);
+            this.retryAt_.delete(scene);
+            this.reconcile_(scene);
         }
         for (const scene of decision.toDeactivate) {
             this.active_.delete(scene);
-            this.deactivate_(scene);
+            this.retryAt_.delete(scene);
+            this.reconcile_(scene);
+        }
+        if (this.retryAt_.size > 0) {
+            const now = Date.now();
+            for (const [scene, at] of this.retryAt_) {
+                if (at > now) continue;
+                this.retryAt_.delete(scene);
+                this.reconcile_(scene);
+            }
         }
     }
 
-    private activate_(scene: string): void {
-        if (this.policy_ === 'sleep' && this.host_.isSleeping(scene)) {
-            this.host_.wake(scene);
-            return;
+    private reconcile_(scene: string): void {
+        if (this.inFlight_.has(scene)) return;
+        const wanted = this.active_.has(scene);
+        const loaded = this.host_.isLoaded(scene);
+        if (this.policy_ === 'sleep' && loaded) {
+            if (wanted && this.host_.isSleeping(scene)) this.host_.wake(scene);
+            if (!wanted) this.host_.sleep(scene);
+        } else if (wanted !== loaded) {
+            void this.changeResidency_(scene, wanted);
         }
-        if (this.host_.isLoaded(scene) || this.inFlight_.has(scene)) return;
-        this.inFlight_.add(scene);
-        Promise.resolve(this.host_.loadAdditive(scene)).then(
-            // If the focus left during the load, drop it now (avoids a resident leak).
-            () => { this.inFlight_.delete(scene); if (!this.active_.has(scene)) this.deactivate_(scene); },
-            () => { this.inFlight_.delete(scene); },
-        );
     }
 
-    private deactivate_(scene: string): void {
-        if (this.policy_ === 'sleep') {
-            if (this.host_.isLoaded(scene)) this.host_.sleep(scene);
-            return;
-        }
-        if (!this.host_.isLoaded(scene) || this.inFlight_.has(scene)) return;
+    private async changeResidency_(scene: string, wanted: boolean): Promise<void> {
         this.inFlight_.add(scene);
-        Promise.resolve(this.host_.unload(scene)).then(
-            () => { this.inFlight_.delete(scene); if (this.active_.has(scene)) this.activate_(scene); },
-            () => { this.inFlight_.delete(scene); },
-        );
+        try {
+            if (wanted) await this.host_.loadAdditive(scene);
+            else await this.host_.unload(scene);
+        } catch {
+            // Keep the hysteresis state. The next tick after the asset cooldown
+            // retries only if the cell still has the same demand.
+            if (this.cells_.has(scene) && this.active_.has(scene) === wanted) {
+                this.retryAt_.set(scene, Date.now() + Math.max(1000, RuntimeConfig.assetFailureCooldown));
+            }
+        } finally {
+            this.inFlight_.delete(scene);
+        }
+        if (this.active_.has(scene) !== wanted) this.reconcile_(scene);
     }
 }
 
