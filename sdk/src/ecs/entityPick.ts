@@ -8,10 +8,10 @@
  * boxes. They asked it twice, and the two answers had drifted: one knew a mesh's
  * extent and the other boxed a model as a point.
  */
-import type { Entity, Vec2, Vec3 } from '../types';
-import type { World } from './world';
+import { isValidEntity, type Entity, type Vec2, type Vec3 } from '../types';
+import { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
+import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type SortingGroupData, type TransformData } from './component';
 import {
     firstRankedPick, layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -27,31 +27,48 @@ const GIZMO_PICK_LAYER = 1e6;
 const NO_ENCLOSING_GROUPS: readonly { layer: number; order: number }[] = [];
 
 /**
- * The groups enclosing @p entity, OUTERMOST first — what `sortingIdentity` needs.
+ * The two outermost groups enclosing the entity, in the order `sortingIdentity` needs.
  *
  * Resolve component readers once and walk live ancestry per hit. The bounds
  * callback can change the world between hits, so parent and group values are
- * read after each spatial test.
+ * read after each spatial test. The returned slots are borrowed until the next read.
  */
 function createEnclosingGroupReader(world: PickWorld) {
     const readGroup = pickComponentReader(world, SortingGroup);
     const readParent = pickComponentReader(world, Parent);
+    const coreWorld = world instanceof World ? world : null;
+    const coreRegistry = coreWorld?.getCppRegistry();
+    const optionalGroup = coreWorld?.builtin.resolvePtrGetter(SortingGroup._cppName) as
+        ((entity: Entity) => SortingGroupData | null) | null | undefined;
+    const outer = { layer: 0, order: 0 }, inner = { layer: 0, order: 0 };
+    const two = [outer, inner], one = [outer];
+    const seen = new Set<Entity>();
     return (entity: Entity): readonly { layer: number; order: number }[] => {
-        let chain: { layer: number; order: number }[] | undefined;
-        let seen: Set<Entity> | undefined;
+        // Core readers can answer missing components directly. Adapters and
+        // speculative reads still go through the World's component surface.
+        const registry = coreWorld?.getCppRegistry();
+        const direct = !world.speculating && registry && registry === coreRegistry ? registry : null;
+        seen.clear();
+        let count = 0;
         let current: Entity = entity;
         for (;;) {
-            if (world.has(current, SortingGroup)) {
-                const g = readGroup(current);
-                if (g.enabled) (chain ??= []).push({ layer: g.layer, order: g.order });
+            const g = direct && optionalGroup ? optionalGroup(current)
+                : world.has(current, SortingGroup) ? readGroup(current) : null;
+            if (g?.enabled) {
+                inner.layer = outer.layer;
+                inner.order = outer.order;
+                outer.layer = g.layer;
+                outer.order = g.order;
+                count++;
             }
-            if (!world.has(current, Parent)) break;
-            const parent = readParent(current).entity;
-            (seen ??= new Set()).add(current);
-            if (parent === undefined || seen.has(parent)) break;
+            const parent = direct?.getParent ? direct.getParent(current).entity
+                : world.has(current, Parent) ? readParent(current).entity : undefined;
+            if (parent === undefined || !isValidEntity(parent)) break;
+            seen.add(current);
+            if (seen.has(parent)) break;
             current = parent;
         }
-        return chain?.reverse() ?? NO_ENCLOSING_GROUPS;
+        return count > 1 ? two : count === 1 ? one : NO_ENCLOSING_GROUPS;
     };
 }
 
@@ -222,10 +239,11 @@ function visitPickHits(
         }
         // The enclosing group owns the layer and order, as it does during draw submission.
         groupsOf ??= createEnclosingGroupReader(world);
-        const identity = sortingIdentity(groupsOf(entity), drawable ? drawable.layer ?? 0 : unlayered, drawable?.order ?? 0);
-        if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) return false;
+        const groups = groupsOf(entity);
+        const layer = drawable ? drawable.layer ?? 0 : unlayered;
+        if (needsLayer && !layerVisibleToCamera(groups.length ? groups[0].layer : layer, cullingMask)) return false;
         if (unranked) visit.unranked(entity);
-        else visit.ranked(entity, distance, identity, offset?.y ?? 0, opaque);
+        else visit.ranked(entity, distance, sortingIdentity(groups, layer, drawable?.order ?? 0), offset?.y ?? 0, opaque);
         return true;
     };
     // Use the ECS query's effective activity, including the parent's switch.

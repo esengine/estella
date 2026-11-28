@@ -96,6 +96,54 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
     } finally { app.quit({ keepRenderer: true }); }
 });
 
+it.skipIf(!HAS_WASM)('keeps masked area hits in storage order across nested mesh and sprite groups', async () => {
+    const core = await loadWasmModule();
+    const app = App.new(), registry = new core.Registry();
+    app.connectCpp(registry, core, { ownedRegistry: true });
+    app.addPlugin(meshRendererPlugin);
+    const world = app.world;
+    try {
+        const group = (layer: number, parent?: Entity) => {
+            const entity = world.spawn();
+            world.insert(entity, SortingGroup, { layer });
+            if (parent !== undefined) world.setParent(entity, parent);
+            return entity;
+        };
+        const hidden = group(2, group(2, group(4)));
+        const visible = group(4, group(4, group(2)));
+        const expected: Entity[] = [];
+        const count = 2048;
+        for (let i = 0; i < count; i++) {
+            const entity = world.spawn();
+            world.insert(entity, Transform, { position: { x: i % 32, y: Math.floor(i / 32), z: 0 } });
+            if (i % 2 === 0) {
+                world.insert(entity, MeshRenderer, { layer: 4 });
+                app.getResource(MeshRenderers).setGeometry(entity, { positions: [-2, -2, 2, -2, 0, 2], indices: [0, 1, 2] });
+            } else {
+                world.insert(entity, Sprite, { size: { x: 4, y: 4 }, layer: 4 });
+            }
+            const shown = i % 4 < 2;
+            world.setParent(entity, shown ? visible : hidden);
+            if (shown) expected.push(entity);
+        }
+        core.transform_update(registry);
+        const pick = () => pickEntitiesByBounds(world, box => box.cx < 40 && box.cy < 70, { cullingMask: 1 << 2 });
+        expect(pick()).toEqual(expected);
+        if (process.env.ESTELLA_BENCH_MASKED_PICK === '1') {
+            const sample = () => {
+                const start = performance.now();
+                const hits = pick();
+                const ms = performance.now() - start;
+                expect(hits.length).toBe(expected.length);
+                return ms;
+            };
+            for (let i = 0; i < 20; i++) sample();
+            const samples = Array.from({ length: 31 }, sample).sort((a, b) => a - b);
+            console.log(`${count} grouped drawables, ${expected.length} hits, median ${samples[15].toFixed(2)} ms`);
+        }
+    } finally { app.quit({ keepRenderer: true }); }
+});
+
 it.skipIf(!HAS_WASM)('tracks parent, sorting group and mesh reads during a speculative pick', async () => {
     const core = await loadWasmModule();
     const app = App.new();
