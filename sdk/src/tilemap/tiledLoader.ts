@@ -1190,6 +1190,34 @@ export function initializeTiledLayer(
     if (slots?.length) toolkit.setTilesets(entity, slots);
 }
 
+const animationsByWorld = new WeakMap<World, Set<number>>();
+
+/** @internal Layers whose source animations advance with this world. */
+export function tiledAnimationLayers(world: World): Set<number> {
+    let layers = animationsByWorld.get(world);
+    if (!layers) {
+        layers = new Set();
+        animationsByWorld.set(world, layers);
+    }
+    return layers;
+}
+
+/** @internal Install the per-tile metadata shared by both Tiled loading paths. */
+export function applyTiledLayerMetadata(
+    toolkit: TilemapToolkit, entity: Entity,
+    source: Partial<Pick<TiledMapData, 'tileAnimations' | 'tileProperties'>>, animatedLayers: Set<number>,
+): void {
+    if (source.tileAnimations?.size) {
+        for (const [tileId, frames] of source.tileAnimations) toolkit.setTileAnimation(entity, tileId, frames);
+        animatedLayers.add(entity);
+    }
+    if (source.tileProperties) {
+        for (const [tileId, props] of source.tileProperties) {
+            for (const [key, value] of props) toolkit.setTileProperty(entity, tileId, key, value);
+        }
+    }
+}
+
 /** The TilemapLayer a Tiled layer becomes: its lattice, and what Tiled says about drawing it. */
 export function tiledLayerComponent(
     layer: TiledLayerData, tileWidth: number, tileHeight: number, renderLayer: number,
@@ -1219,6 +1247,7 @@ export function loadTiledMap(
     const entities: Entity[] = [];
     const firstTileset = mapData.tilesets[0];
     const layout = tiledGridLayout(mapData);
+    const animatedLayers = tiledAnimationLayers(world);
     const slots = mapData.tilesets.map(ts => ({
         firstId: ts.firstGid, textureHandle: textureHandles.get(ts.image) ?? 0,
         columns: ts.columns, margin: ts.margin, spacing: ts.spacing,
@@ -1247,6 +1276,7 @@ export function loadTiledMap(
         });
 
         initializeTiledLayer(toolkit, entity, layer, mapData.tileWidth, mapData.tileHeight, useTable ? slots : undefined);
+        applyTiledLayerMetadata(toolkit, entity, mapData, animatedLayers);
         toolkit.setOriginEntity(entity, entity);
         toolkit.setGridType(entity, layout.orientation);
         toolkit.setHexParams(entity, layout.hexSideLength ?? 0, !!layout.staggerAxisX, !!layout.staggerIndexEven);

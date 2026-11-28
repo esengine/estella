@@ -139,6 +139,37 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
         expect([tiles.getTile(child, 0, 0), tiles.getTile(child, 1, 0)]).toEqual([1, 5]);
     });
 
+    it.each([42, 0])('keeps direct Tiled animations and properties with texture handle %i', async handle => {
+        const { app, tiles } = await scene(mainCore, 1);
+        const map = parseTmjJson({ width: 2, height: 1, tilewidth: 16, tileheight: 16,
+            layers: [{ type: 'tilelayer', data: [1, 2] }],
+            tilesets: [{ firstgid: 1, image: 'terrain.png', columns: 2, tilecount: 2, tiles: [{
+                id: 0, properties: [{ name: 'surface', value: 'water' }],
+                animation: [{ tileid: 0, duration: 200 }, { tileid: 1, duration: 200 }],
+            }] }],
+        })!;
+        const setAnimation = vi.spyOn(tiles, 'setTileAnimation');
+        const advance = vi.spyOn(tiles, 'advanceAnimations');
+        const [layer] = loadTiledMap(app.world, map, new Map([['terrain.png', handle]]));
+        await app.tick(1 / 60);
+        tiles.setTile(layer, 2, 0, 1);
+
+        expect(tiles.getTile(layer, 2, 0)).toBe(0);
+        expect(tiles.getTileProperty(layer, 0, 0, 'surface')).toBe('water');
+        expect(setAnimation).toHaveBeenCalledWith(layer, 1, [{ tileId: 1, duration: 200 }, { tileId: 2, duration: 200 }]);
+        expect(advance).toHaveBeenCalledWith(layer, expect.any(Number));
+
+        app.world.despawn(layer);
+        advance.mockClear();
+        await app.tick(1 / 60);
+        expect(tiles.hasLayer(layer)).toBe(false);
+        expect(advance).not.toHaveBeenCalled();
+
+        const [unseen] = loadTiledMap(app.world, map, new Map([['terrain.png', handle]]));
+        app.world.despawn(unseen);
+        expect(tiles.hasLayer(unseen)).toBe(false);
+    });
+
     it.each(['main', 'preview'] as const)('isolates matching layer IDs on one engine when %s quits', async closing => {
         const main = await scene(mainCore, 11), preview = await scene(mainCore, 29);
         expect(main.entity).toBe(preview.entity);

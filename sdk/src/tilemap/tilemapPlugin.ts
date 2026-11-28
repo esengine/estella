@@ -19,6 +19,7 @@ import type { ResolvedTileCollision } from './tilesetResolve';
 import {
     chunkColliderPlan, exposedCollisionTiles,
     spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, initializeTiledLayer, tiledLayerComponent, tiledGridLayout,
+    applyTiledLayerMetadata, tiledAnimationLayers,
 } from './tiledLoader';
 import { decodeTilemapChunks, type DecodedChunk } from './chunkCodec';
 import type { CollisionChunkSnapshot } from './nativeCollisionChunks';
@@ -69,6 +70,7 @@ export class TilemapRuntime {
      *  must re-push — otherwise the drawn/hit grid diverges from the authored one. */
     private appliedGrid_ = new Map<number, string>();
     private animatedLayers_ = new Set<number>();
+    private stopTrackingDespawn_: (() => void) | null = null;
     /** Tilemap(source) entity → the RuntimeOnly child layer entities derived from its `.tmj`. */
     private sourceLayerEntities_ = new Map<number, Entity[]>();
     private derivedLayers_ = new Set<number>();
@@ -213,7 +215,11 @@ export class TilemapRuntime {
         const initializedLayers = this.initializedLayers_;
         const appliedCellSize = this.appliedCellSize_;
         const appliedGrid = this.appliedGrid_;
-        const animatedLayers = this.animatedLayers_;
+        const animatedLayers = this.animatedLayers_ = tiledAnimationLayers(world);
+        this.stopTrackingDespawn_ = world.onDespawn(entity => {
+            // A directly imported layer can die before the first sync sees it.
+            if (animatedLayers.delete(entity) && !initializedLayers.has(entity)) TilemapAPI.destroyLayer(entity);
+        });
         const sourceLayerEntities = this.sourceLayerEntities_;
         const collisionEntities = this.collisionEntities_;
 
@@ -288,7 +294,7 @@ export class TilemapRuntime {
 
                     const refs = tilesetRefs.get(entity);
                     // A layer needs either a copied texture (legacy) or .estileset ref(s).
-                    if (!this.derivedLayers_.has(entity) && !layerData.tileset && (!refs || refs.length === 0)) {
+                    if (!this.derivedLayers_.has(entity) && !animatedLayers.has(entity) && !layerData.tileset && (!refs || refs.length === 0)) {
                         this.clearLayerCollision_(world, entity);
                         continue;
                     }
@@ -469,22 +475,7 @@ export class TilemapRuntime {
                                 );
                             }
 
-                            if (cached.tileAnimations) {
-                                for (const [tileId, frames] of cached.tileAnimations) {
-                                    TilemapAPI.setTileAnimation(child, tileId, frames);
-                                }
-                                if (cached.tileAnimations.size > 0) {
-                                    animatedLayers.add(child);
-                                }
-                            }
-
-                            if (cached.tileProperties) {
-                                for (const [tileId, props] of cached.tileProperties) {
-                                    for (const [k, v] of props) {
-                                        TilemapAPI.setTileProperty(child, tileId, k, v);
-                                    }
-                                }
-                            }
+                            applyTiledLayerMetadata(TilemapAPI, child, cached, animatedLayers);
 
                             // The child answers tile-collision queries with the
                             // source map's vocabulary (same table as the spawn path).
@@ -785,6 +776,9 @@ export class TilemapRuntime {
     }
 
     resetLayers(): void {
+        for (const entity of this.animatedLayers_) {
+            if (!this.initializedLayers_.has(entity)) this.toolkit_?.destroyLayer(entity);
+        }
         for (const entity of this.initializedLayers_) {
             this.toolkit_?.destroyLayer(entity);
         }
@@ -812,6 +806,8 @@ export class TilemapRuntime {
 
     dispose(): void {
         this.resetLayers();
+        this.stopTrackingDespawn_?.();
+        this.stopTrackingDespawn_ = null;
         this.toolkit_ = null;
         this.unregisterCodec_?.();
         this.unregisterCodec_ = null;
