@@ -11,7 +11,7 @@
  */
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from './world';
-import { Transform, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData, type TransformData } from './component';
+import { Transform, Parent, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData, type TransformData } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { worldEngineApi } from './bridge/engineApi';
@@ -69,6 +69,13 @@ function worldRot(t: { worldRotation: unknown }): Quat {
     return { x: r?.x ?? 0, y: r?.y ?? 0, z: r?.z ?? 0, w: r?.w ?? 1 };
 }
 
+/** The XY-plane turn used by the flat sprite and shape render paths. */
+function flatWorldRot(t: TransformData): Quat {
+    const { z, w } = worldRot(t);
+    const length = Math.hypot(z, w);
+    return length > 0 ? { x: 0, y: 0, z: z / length, w: w / length } : { x: 0, y: 0, z: 0, w: 1 };
+}
+
 /**
  * The world box of `entity`, or null when it has none.
  *
@@ -93,7 +100,7 @@ export function resolveEntityWorldBox(
     const t = world.get(entity, Transform);
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
     if (sprite && (!visibility || sprite.enabled !== false)) {
-        return { box: spriteWorldBox(t, sprite), drawable: sprite };
+        return { box: spriteWorldBox(t, sprite, world.has(entity, Parent)), drawable: sprite };
     }
     const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
     const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
@@ -105,31 +112,31 @@ export function resolveEntityWorldBox(
     const ext = opts?.extentOf?.(entity);
     if (ext) {
         const scaleX = t.worldScale.x, scaleY = t.worldScale.y;
-        return { box: positionedBox(t, Math.max(Math.abs(ext.width * scaleX), iconSize),
+        return { box: positionedBox(t, worldRot(t), Math.max(Math.abs(ext.width * scaleX), iconSize),
             Math.max(Math.abs(ext.height * scaleY), iconSize), 0,
             (ext.x + ext.width / 2) * scaleX, (ext.y + ext.height / 2) * scaleY), drawable: null };
     }
     // An icon uses a cube so it can be clicked from every view angle.
-    return iconSize === 0 ? null : { box: positionedBox(t, iconSize, iconSize, iconSize), drawable: null };
+    return iconSize === 0 ? null : { box: positionedBox(t, worldRot(t), iconSize, iconSize, iconSize), drawable: null };
 }
 
 /** @internal Bounds of an individual sprite draw, even if its entity has other renderers. */
-export function spriteWorldBox(t: TransformData, sprite: SpriteData): EntityBox {
+export function spriteWorldBox(t: TransformData, sprite: SpriteData, parented: boolean): EntityBox {
     const w = sprite.size.x * t.worldScale.x;
     const h = sprite.size.y * t.worldScale.y;
-    return positionedBox(t, w, h, 0, w * (0.5 - (sprite.pivot?.x ?? 0.5)), h * (0.5 - (sprite.pivot?.y ?? 0.5)));
+    const rot = parented ? worldRot(t) : flatWorldRot(t);
+    return positionedBox(t, rot, w, h, 0, w * (0.5 - (sprite.pivot?.x ?? 0.5)), h * (0.5 - (sprite.pivot?.y ?? 0.5)));
 }
 
 /** @internal Bounds of an individual shape draw, with an optional minimum size for picking. */
 export function shapeWorldBox(t: TransformData, shape: ShapeRendererData, minSize = 0): EntityBox {
-    return positionedBox(t, Math.max(Math.abs(shape.size.x * t.worldScale.x), minSize),
+    return positionedBox(t, flatWorldRot(t), Math.max(Math.abs(shape.size.x * t.worldScale.x), minSize),
         Math.max(Math.abs(shape.size.y * t.worldScale.y), minSize), 0);
 }
 
-function positionedBox(t: TransformData, w: number, h: number, d: number, centerX = 0, centerY = 0): EntityBox {
+function positionedBox(t: TransformData, rot: Quat, w: number, h: number, d: number, centerX = 0, centerY = 0): EntityBox {
     // The centre orbits the transform position when the pivot is off-centre —
     // the position is what rotation turns around, not the middle of the sprite.
-    const rot = worldRot(t);
     const offset = q.rotate(rot, { x: centerX, y: centerY, z: 0 });
     return {
         cx: t.worldPosition.x + offset.x,

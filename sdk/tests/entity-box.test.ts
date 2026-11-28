@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { entityWorldBox, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
-import { Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
+import { Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
 import type { App } from '../src/app/app';
@@ -158,6 +158,28 @@ it.skipIf(!HAS_WASM)('frames the draws left visible in the prefab preview world'
 });
 
 describe('an entity world box', () => {
+    it('keeps shapes and standalone sprites in their drawn plane, and parented sprites on their 3D tilt', () => {
+        const transform = { ...T(7, 0), worldRotation: turn('y', Math.PI / 2) };
+        const sprite = { size: { x: 20, y: 6 }, pivot: { x: 0, y: .5 } };
+        const world = fakeWorld({
+            1: { Transform: transform, ShapeRenderer: { size: { x: 20, y: 6 } }, Parent: { entity: ent(4) } },
+            2: { Transform: transform, Sprite: sprite },
+            3: { Transform: transform, Sprite: sprite, Parent: { entity: ent(4) } },
+            4: { Transform: transform },
+        });
+        const shape = entityWorldBox(world, ent(1))!;
+        const standalone = entityWorldBox(world, ent(2))!;
+        const child = entityWorldBox(world, ent(3))!;
+        const rayFrom = (x: number) => ({ x, y: 0, z: 30 });
+        const down = { x: 0, y: 0, z: -1 };
+        expect(entityBoxRayHit(shape, rayFrom(12), down)).toBe(30);
+        expect(standalone).toMatchObject({ cx: 17, cz: 0 });
+        expect(entityBoxRayHit(standalone, rayFrom(22), down)).toBe(30);
+        expect(child.cx).toBeCloseTo(7);
+        expect(child.cz).toBeCloseTo(-10);
+        expect(entityBoxRayHit(child, rayFrom(22), down)).toBeNull();
+    });
+
     it('derives a sprite box without sampling the icon scale and keeps the shape fallback size', () => {
         const world = fakeWorld({
             1: { Transform: T(0, 0, -2, 1), Sprite: { size: { x: 12, y: 8 } } },
