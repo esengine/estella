@@ -128,15 +128,17 @@ export class Catalog {
         return this.entries_.get(key)?.type ?? this.manifest_?.recordForRef(key)?.asset.type;
     }
 
-    /** @internal Resolve authored file references in the same order as the cook's dependency scan. */
-    resolveDocumentRef(document: string, ref: string): string {
-        if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith('/')) return ref;
-        const known = findDocumentAsset(document, ref, path => {
+    /** @internal Resolve authored file references using both the live project index and the built catalog. */
+    resolveDocumentRef(document: string, ref: string, hostAssetType?: (path: string) => string | undefined): string {
+        const normalized = normalizeAssetPathSeparators(ref);
+        if (/^[a-z][a-z0-9+.-]*:/i.test(normalized) || normalized.startsWith('/')) return normalized;
+        const known = findDocumentAsset(document, normalized, path => {
             const address = this.resolve(path);
-            return address !== path || this.entries_.has(path) || this.manifest_?.recordForRef(path) ? address : undefined;
+            if (address !== path || this.entries_.has(path) || this.manifest_?.recordForRef(path)) return address;
+            return hostAssetType?.(path) === undefined ? undefined : path;
         });
         // Without an index an explicit relative path names a sibling. Keep legacy unqualified refs for the host's resolver.
-        return known ?? (ref.startsWith('./') || ref.startsWith('../') ? resolveDocumentRef(document, ref) : ref);
+        return known ?? (normalized.startsWith('./') || normalized.startsWith('../') ? resolveDocumentRef(document, normalized) : normalized);
     }
 
     getAtlasFrame(path: string): AtlasFrameInfo | null {

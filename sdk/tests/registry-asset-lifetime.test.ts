@@ -538,6 +538,26 @@ describe('a registry-backed asset lives as long as it is held', () => {
         } finally { assets.releaseAll(); }
     });
 
+    it('resolves uncooked flipbook frames against the editor index before the catalog is populated', async () => {
+        const clip = 'assets/intro/hero.esanim', sibling = 'assets/intro/hero.png';
+        const local = 'assets/intro/detail.png';
+        const indexed = new Set([sibling, local, 'detail.png']);
+        const sprites = new SpriteAnimationAPI();
+        const assets = buildAssets(sprites, () => JSON.stringify({ frames: [
+            { texture: 'hero.png' }, { texture: 'detail.png' }, { texture: './detail.png' },
+        ] }));
+        assets.setAssetRefResolver(ref => ref, path => indexed.has(path) ? 'texture' : undefined);
+        const acquire = vi.spyOn(assets, 'acquireTexture');
+        try {
+            const lease = await assets.acquireTyped('anim-clip', clip);
+            expect(acquire.mock.calls.map(([path]) => path)).toEqual([sibling, 'detail.png', local]);
+            const frames = sprites.getClip(clip)!.frames;
+            expect(new Set(frames.map(frame => frame.texture)).size).toBe(3);
+            expect(frames.every(frame => frame.texture > 0)).toBe(true);
+            lease.release();
+        } finally { assets.releaseAll(); }
+    });
+
     it('uses the same atlas frame as a sprite when the host maps a UUID to a catalog path', async () => {
         const image = 'assets/actor.png', ref = '@uuid:f55eb7b8-70c1-4e63-950a-9b6839250280';
         const catalog = Catalog.fromJson({ version: 1, entries: { [image]: {

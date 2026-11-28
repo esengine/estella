@@ -65,6 +65,7 @@ describe('atlasCatalogFields', () => {
         for (const [ref, expected] of [
             ['frames/badge.png', 'frames/badge.png'], ['badge', 'frames/badge.png'], ['run.png', 'assets/anims/run.png'],
             ['../art/step.png', 'assets/art/step.png'], ['./new.png', 'assets/anims/new.png'],
+            ['..\\art\\step.png', 'assets/art/step.png'],
             ['legacy/image.png', 'legacy/image.png'], ['https://art.test/eye.png', 'https://art.test/eye.png'],
         ]) expect(catalog.resolveDocumentRef(doc, ref)).toBe(expected);
     });

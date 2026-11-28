@@ -98,7 +98,7 @@ const fnt = [
 
 const clip = JSON.stringify({
   version: '1.2', name: 'idle', fps: 8,
-  frames: [{ texture: 'assets/anim/frame0.png', duration: 1 }],
+  frames: [{ texture: 'frame0.png', duration: 1 }],
 });
 
 // The scene names the environment and the controller, and NOTHING else.
@@ -201,6 +201,7 @@ describe('assets named only inside another document are cooked', () => {
   it('links animator controller → the clip its state plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(CLIP);
+    expect(index.deps[CLIP]).toEqual([FRAME]);
   });
 
   it('cooks the groom’s strand and card materials even when their indexed paths have no extension', async () => {

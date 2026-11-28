@@ -169,7 +169,7 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         expect(world.get(player, Sprite)).toMatchObject(full);
     });
 
-    it('resolves sibling frames and switches atlas regions even when they share a page', async () => {
+    it.each(['catalog', 'live index'])('resolves sibling frames through the %s and switches atlas regions on one page', async source => {
         const { app, world, player, publications } = scene();
         world.insert(player, Sprite);
         const catalog = Catalog.fromJson({
@@ -187,11 +187,15 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         });
         const acquired: string[] = [];
         const context = {
-            catalog,
+            catalog: source === 'catalog' ? catalog : Catalog.empty(),
+            ...(source === 'live index' ? {
+                assetTypeOf: (ref: string) => catalog.assetTypeOf(ref),
+                getAtlasFrame: (ref: string) => catalog.getAtlasFrame(ref),
+            } : {}),
             sourceAddressOf: () => 'assets/clip/intro.estimeline',
             loadText: async () => serializeTimelineToJson({
                 version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Once,
-                tracks: [track('', './first.png', './next.png')],
+                tracks: [track('', 'first.png', 'next.png')],
             }),
             acquireTexture: async (ref: string) => {
                 acquired.push(ref);

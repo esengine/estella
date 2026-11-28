@@ -37,7 +37,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             }
 
             for (const texPath of textures) {
-                const ref = ctx.catalog.resolveDocumentRef(document, texPath);
+                const ref = ctx.catalog.resolveDocumentRef(document, texPath, ctx.assetTypeOf);
                 try {
                     const lease = await ctx.acquireTexture(ref, true, 'imported');
                     textureHandles.set(texPath, lease.value.handle);
