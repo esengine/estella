@@ -8,7 +8,7 @@
  * solver once when the first cell using it actually publishes.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene } from '../src/runtime/runtimeLoader';
+import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene, publishRuntimeScene, sceneUsesPhysics, sceneUses3DPhysics, sceneUsesI18n } from '../src/runtime/runtimeLoader';
 import { SceneLoadCancelled } from '../src/scene/sceneManager';
 import { reservePromise } from '../src/util/reservePromise';
 // The optional subsystems are installed by an ENTRY, and this imports the loader
@@ -24,6 +24,7 @@ import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import { World } from '../src/ecs/world';
 import { App } from '../src/app/app';
 import { collectGarbage } from '../src/diagnostics/census';
+import { LocalizationPlugin } from '../src/i18n/LocalizationPlugin';
 import type { Backend } from '../src/asset/Backend';
 import type { ESEngineModule } from '../src/wasm';
 import type { SceneData } from '../src/scene/scene';
@@ -44,7 +45,10 @@ function makeFakeApp(acquired: string[], firstAcquire?: () => Promise<void>) {
         hasResource: (r: unknown) => resources.has(r),
         getResource: (r: unknown) => resources.get(r),
         insertResource: (r: unknown, v: unknown) => { resources.set(r, v); },
-        addPlugin: (p: object) => { plugins.push(p); },
+        addPlugin: (p: object) => {
+            plugins.push(p);
+            if (p instanceof LocalizationPlugin) p.build(app);
+        },
         getPlugin: (kind: abstract new (...args: never[]) => object) =>
             plugins.find((p) => p instanceof kind) ?? null,
         sideModules: {
@@ -82,6 +86,41 @@ const options = (app: App) => ({
 const load = (app: App, sceneData: SceneData): Promise<void> => loadRuntimeScene({ ...options(app), sceneData });
 
 describe('subsystems a scene installs for itself', () => {
+    it('prepares subsystems for spawned entities and project-declared physics', async () => {
+        const acquired: string[] = [];
+        const { app, plugins } = makeFakeApp(acquired);
+        const listAssetPaths = vi.fn(() => []);
+        const loadOptions = options(app);
+        const source = { ...loadOptions.source, listAssetPaths };
+        const data = cell('hidden');
+        const hidden = data.entities[0]!;
+        hidden.visible = false;
+        hidden.components.push(
+            { type: 'RigidBody2D', data: {} },
+            { type: 'Text', data: { i18nKey: 'prop.name' } },
+        );
+        data.entities.push({ ...hidden, id: 2, name: 'Plain', visible: true, components: [] });
+
+        // The exported detectors scan the authored document, including hidden rows.
+        expect(sceneUsesPhysics(data)).toBe(true);
+        expect(sceneUses3DPhysics(data)).toBe(true);
+        expect(sceneUsesI18n(data)).toBe(true);
+
+        await loadRuntimeScene({ ...loadOptions, source, sceneData: data });
+        expect(app.world.getAllEntities()).toHaveLength(1);
+        expect({ modules: acquired, localeScans: listAssetPaths.mock.calls.length, plugins: plugins.length })
+            .toEqual({ modules: [], localeScans: 0, plugins: 0 });
+
+        await loadRuntimeScene({ ...loadOptions, source, sceneData: data, physicsEnabled: true });
+        expect(acquired).toEqual(['physics']);
+        expect(plugins[0]).toBeInstanceOf(Physics2DPlugin);
+
+        hidden.visible = true;
+        await loadRuntimeScene({ ...loadOptions, source, sceneData: data });
+        expect(acquired).toEqual(['physics', 'physics3d']);
+        expect(listAssetPaths).toHaveBeenCalledOnce();
+    });
+
     it('rejoins a pending module when a scene returns to its original host', async () => {
         const app = App.new(), entered = reservePromise<void>(), finish = reservePromise<void>();
         const first = { acquire: vi.fn(async () => { entered.resolve(); await finish.promise; return null; }) };

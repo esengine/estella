@@ -11,7 +11,7 @@ import { SceneAssetProgress } from '../scene/sceneAssetProgress';
 import { requireSupportedSceneDocument } from '../scene/sceneFormat';
 import { bakesOf } from './bakes';
 import { migrateOwnedSceneData, spawnAndLoadEntities, spawnAndLoadEntitiesJob, revealStagedEntities,
-         updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type StagedSpawn,
+         updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabAssets, type SceneData, type SceneComponentData, type StagedSpawn,
          type PrefabAssetResolver, type SceneLoadProgressCallback, publishSceneTextureMetadata } from '../scene/scene';
 import { RENAMED_COMPONENT_TYPES } from '../scene/legacyComponents';
 import { registerDeferredInstances } from '../scene/deferredInstances';
@@ -229,29 +229,39 @@ const PHYSICS3D_COMPONENT_TYPES = new Set([
     'PointJoint3D', 'HingeJoint3D', 'SliderJoint3D', 'DistanceJoint3D', 'FixedJoint3D', 'SwingTwistJoint3D', 'SixDOFJoint3D',
 ]);
 
-/** True if any entity carries a 3D physics component. */
-export function sceneUses3DPhysics(sceneData: SceneData): boolean {
+function hasSceneComponent(
+    sceneData: SceneData, usesComponent: (component: SceneComponentData) => boolean, scope: 'authored' | 'spawned' = 'authored',
+): boolean {
     for (const entity of sceneData.entities ?? []) {
+        if (scope === 'spawned' && entity.visible === false) continue;
         for (const comp of entity.components ?? []) {
-            if (PHYSICS3D_COMPONENT_TYPES.has(comp.type)) return true;
+            if (usesComponent(comp)) return true;
         }
     }
     return false;
+}
+
+function uses3DPhysics(comp: SceneComponentData): boolean {
+    return PHYSICS3D_COMPONENT_TYPES.has(comp.type);
+}
+
+/** True if any entity carries a 3D physics component. */
+export function sceneUses3DPhysics(sceneData: SceneData): boolean {
+    return hasSceneComponent(sceneData, uses3DPhysics);
+}
+
+function usesI18n(comp: SceneComponentData): boolean {
+    const data = comp.data as { i18nKey?: unknown; placeholderI18nKey?: unknown } | undefined;
+    const key = comp.type === 'Text' ? data?.i18nKey
+        : comp.type === 'TextInput' ? data?.placeholderI18nKey : undefined;
+    return typeof key === 'string' && key.length > 0;
 }
 
 /** True if any Text or TextInput hint binds to a localization key — the scene needs
  *  the Localization resource + the project's `.eslocale` tables to render as
  *  authored (an unbound key would show as the raw key string). */
 export function sceneUsesI18n(sceneData: SceneData): boolean {
-    for (const entity of sceneData.entities ?? []) {
-        for (const comp of entity.components ?? []) {
-            const data = comp.data as { i18nKey?: unknown; placeholderI18nKey?: unknown } | undefined;
-            const key = comp.type === 'Text' ? data?.i18nKey
-                : comp.type === 'TextInput' ? data?.placeholderI18nKey : undefined;
-            if (typeof key === 'string' && key.length > 0) return true;
-        }
-    }
-    return false;
+    return hasSceneComponent(sceneData, usesI18n);
 }
 
 /** Cells can share the module read even when they have different lifetimes or world settings. */
@@ -294,24 +304,22 @@ async function prepareScenePhysics<T>(
     else log.warn(id, `scene requires ${id} but this realm could not supply its physics module`);
 }
 
+function uses2DPhysics(comp: SceneComponentData): boolean {
+    if (PHYSICS_COMPONENT_TYPES.has(RENAMED_COMPONENT_TYPES.get(comp.type) ?? comp.type)) return true;
+    if (comp.type !== 'TilemapLayer') return false;
+    const data = comp.data as Record<string, unknown> | undefined;
+    const ids = data?.collidableTileIds;
+    return (Array.isArray(ids) && ids.length > 0)
+        || (typeof data?.tilesetAsset === 'string' && data.tilesetAsset !== '');
+}
+
 /** True if any entity carries a physics component, or a TilemapLayer that may spawn
  *  colliders at runtime — either baked collidable tile ids (legacy scenes) or a
  *  `.estileset` reference, whose collision shapes derive live at load and are
  *  invisible to a component scan. A visual-only tileset costs one unused physics
  *  module load; missing real tile colliders would break the scene. */
 export function sceneUsesPhysics(sceneData: SceneData): boolean {
-    for (const entity of sceneData.entities ?? []) {
-        for (const comp of entity.components ?? []) {
-            if (PHYSICS_COMPONENT_TYPES.has(RENAMED_COMPONENT_TYPES.get(comp.type) ?? comp.type)) return true;
-            if (comp.type === 'TilemapLayer') {
-                const data = comp.data as Record<string, unknown> | undefined;
-                const ids = data?.collidableTileIds;
-                if (Array.isArray(ids) && ids.length > 0) return true;
-                if (typeof data?.tilesetAsset === 'string' && data.tilesetAsset !== '') return true;
-            }
-        }
-    }
-    return false;
+    return hasSceneComponent(sceneData, uses2DPhysics);
 }
 
 /**
@@ -543,7 +551,7 @@ async function readRuntimeScene(
     // Read the physics modules this project or scene needs through its own realm.
     // Publication installs the first live scene's world on each solver.
     const physicsInstalls: Array<() => void> = [];
-    const wantsPhysics = !!physicsEnabled || sceneUsesPhysics(sceneData);
+    const wantsPhysics = !!physicsEnabled || hasSceneComponent(sceneData, uses2DPhysics, 'spawned');
     if (!wantsPhysics) {
         // Once per game: said per scene, a streamed world said it for every cell it brought in.
         if (!saidNoPhysics.has(app)) {
@@ -578,7 +586,7 @@ async function readRuntimeScene(
     // The 3D world gates itself the same way, on its own components and its own
     // module: the two never share a solver, so a scene wanting one is not asking
     // for the other.
-    if (sceneUses3DPhysics(sceneData)) {
+    if (hasSceneComponent(sceneData, uses3DPhysics, 'spawned')) {
         const physics = physics3dSupport();
         if (!physics) log.warn('physics3d', 'scene has 3D physics components but this build ships without the 3D physics runtime');
         else {
@@ -594,7 +602,7 @@ async function readRuntimeScene(
     // Decode through the realm's registry. Other scenes may be playing throughout this preparation.
     attempt.assertCurrent();
     let publishLocalization: PreparedRuntimeScene['publishLocalization'];
-    if (sceneUsesI18n(sceneData)) {
+    if (hasSceneComponent(sceneData, usesI18n, 'spawned')) {
         // A direct load lets the player choose a language while its first scene boots.
         if (intent === 'load') sceneLocalization(app);
         const tables = (source.listAssetPaths?.() ?? []).filter(p => p.toLowerCase().endsWith('.eslocale'));
