@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
+import { loadPreviewScene } from '../src/app/previewApp';
 import { Schedule, defineSystem } from '../src/ecs/system';
 import { SceneManager, SceneManagerState, type SceneContext } from '../src/scene/sceneManager';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
@@ -27,6 +28,9 @@ import { connectFakeCpp } from './helpers/fakeEngine';
 import type { Backend } from '../src/asset/Backend';
 import type { Entity } from '../src/types';
 import type { ShaderHandle } from '../src/render/material';
+import { Text } from '../src/ui/core/text';
+import { reservePromise } from '../src/util/reservePromise';
+import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: vi.fn(() => false) }),
@@ -67,6 +71,41 @@ function harness() {
 }
 
 const CAMERA = 7 as Entity;
+
+it('retires a canceled preview before its shared preload returns and releases only its own receipt', async () => {
+    const { app, assets, unloaded } = harness();
+    const entered = reservePromise<void>(), download = reservePromise<{ id: string }>();
+    const load = vi.fn(async () => { entered.resolve(); return download.promise; });
+    assets.register({ type: 'font', load, unload: (value: { id: string }) => { unloaded.push(value.id); } } as never);
+    const scene: SceneData = { version: '1.0', name: 'obsolete', entities: [
+        { id: 1, name: 'Text', parent: null, children: [], components: [{ type: Text._name, data: { font: 'slow.ttf' } }] },
+    ] };
+    const abort = new AbortController();
+    const progress = vi.fn();
+    let outcome: string | undefined;
+    const stale = loadSceneWithAssets(app.world, scene, { assets, signal: abort.signal, onProgress: progress })
+        .then(() => { outcome = 'published'; }, (error: Error) => { outcome = error.name; });
+    let keep: ReturnType<typeof assets.acquireTyped> | undefined;
+    try {
+        await entered.promise;
+        keep = assets.acquireTyped('font', 'slow.ttf');
+        abort.abort();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        expect(outcome).toBe('SceneLoadCancelled');
+        await expect(loadPreviewScene(app, { version: '1.0', name: 'current', entities: [] })).resolves.toEqual(new Map());
+        expect(app.world.entityCount()).toBe(0);
+    } finally {
+        download.resolve({ id: 'slow' });
+        await stale;
+        const stillOwned = await keep;
+        expect(unloaded).toEqual([]);
+        stillOwned?.release();
+        await vi.waitFor(() => expect(unloaded).toEqual(['slow']));
+        app.quit();
+    }
+    expect(load).toHaveBeenCalledOnce();
+    expect(progress.mock.calls).toEqual([[0, 1]]);
+});
 
 /** Something sleep() switches off — the engine's renderables are C++-backed,
  *  and what is under test is the protocol, not the component. */

@@ -16,6 +16,11 @@ export class SceneLoadCancelled extends Error {
     }
 }
 
+function releaseSceneAssets(result?: SceneAssetResult): void {
+    try { result?.scope.releaseAll(); }
+    catch (error) { log.warn('scene', 'Scene asset cleanup failed', error); }
+}
+
 /** Resources and entities owned by one load until publication succeeds. */
 export class SceneLoadAttempt {
     assets?: SceneAssetResult;
@@ -28,8 +33,12 @@ export class SceneLoadAttempt {
         this.lifetime = world.entityLifetime;
     }
 
+    isCurrent(): boolean {
+        return this.world.entityLifetime === this.lifetime && !this.owner?.signal?.aborted;
+    }
+
     assertCurrent(): void {
-        if (this.world.entityLifetime !== this.lifetime || this.owner?.signal?.aborted) throw new SceneLoadCancelled(this.name);
+        if (!this.isCurrent()) throw new SceneLoadCancelled(this.name);
         this.owner?.check?.();
     }
 
@@ -60,18 +69,33 @@ export class SceneLoadAttempt {
         return () => { signal?.removeEventListener('abort', cancel); release(); };
     }
 
-    /** Stop waiting for shared data when this scene retires. The underlying read still serves its other callers. */
-    async waitForShared<T>(read: () => Promise<T>): Promise<T> {
+    /** Stop waiting when this scene retires, disposing any unclaimed result it would have owned. */
+    async waitForShared<T>(read: () => Promise<T>, discard?: (value: T) => void): Promise<T> {
         this.assertCurrent();
         let release: (() => void) | undefined;
+        let abandoned = false;
+        let discardUnclaimed: (() => void) | undefined;
         try {
             const value = await new Promise<T>((resolve, reject) => {
                 release = this.onCancel_(() => reject(new SceneLoadCancelled(this.name)));
-                read().then(resolve, reject);
+                read().then(result => {
+                    if (abandoned) { discard?.(result); return; }
+                    if (discard) discardUnclaimed = () => discard(result);
+                    resolve(result);
+                }, reject);
             });
             this.assertCurrent();
+            discardUnclaimed = undefined;
             return value;
-        } finally { release?.(); }
+        } finally {
+            abandoned = true;
+            release?.();
+            discardUnclaimed?.();
+        }
+    }
+
+    async preloadAssets(read: () => Promise<SceneAssetResult>): Promise<SceneAssetResult> {
+        return this.assets = await this.waitForShared(read, releaseSceneAssets);
     }
 
     /** A staged spawn and its outer publication share the same cancellation cleanup. */
@@ -86,8 +110,7 @@ export class SceneLoadAttempt {
     }
 
     discardAssets(): void {
-        try { this.assets?.scope.releaseAll(); }
-        catch (error) { log.warn('scene', 'Scene asset cleanup failed', error); }
+        releaseSceneAssets(this.assets);
     }
 
     discardEntities(): void {
