@@ -15,8 +15,7 @@ import { Transform, Parent, Sprite, MeshRenderer, ShapeRenderer, type SpriteData
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { v3 } from '../math/vec3';
-import { worldEngineApi } from './bridge/engineApi';
-import { withMalloc } from '../wasm/wasmScratch';
+import { worldEngineApi, type EngineApi } from './bridge/engineApi';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -96,15 +95,21 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
 /** @internal Resolve geometry and its draw order together, with optional renderer visibility. */
 export function resolveEntityWorldBox(
     world: ReadableWorld, entity: Entity, opts?: EntityBoxOptions,
-    visibility?: { hiddenMesh?: boolean; iconPickable?: (entity: Entity) => boolean },
+    visibility?: {
+        hiddenMesh?: boolean;
+        iconPickable?: (entity: Entity) => boolean;
+        readTransform?: (entity: Entity) => TransformData;
+    },
+    readSprite?: SpriteBoundsReader,
 ): { box: EntityBox; drawable: SpriteData | ShapeRendererData | null } | null {
     if (!world.valid(entity) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
 
-    const t = world.get(entity, Transform);
+    const t = visibility?.readTransform ? visibility.readTransform(entity) : world.get(entity, Transform);
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
     if (sprite && (!visibility || sprite.enabled !== false)) {
-        const box = spriteWorldBox(world, entity, t, sprite);
+        const box = readSprite ? readSprite(entity, t, sprite)
+            : withSpriteBounds(world, read => read(entity, t, sprite));
         if (box) return { box, drawable: sprite };
     }
     const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
@@ -125,12 +130,53 @@ export function resolveEntityWorldBox(
     return iconSize === 0 ? null : { box: positionedBox(t, worldRot(t), iconSize, iconSize, iconSize), drawable: null };
 }
 
-/** @internal Bounds of an individual sprite draw, even if its entity has other renderers. */
-export function spriteWorldBox(world: ReadableWorld, entity: Entity, t: TransformData, sprite: SpriteData): EntityBox | null {
+type SpriteBoundsReader = (entity: Entity, transform: TransformData, sprite: SpriteData) => EntityBox | null;
+
+/** @internal Share one lazily allocated render-matrix buffer for a synchronous bounds traversal. */
+export function withSpriteBounds<T>(world: ReadableWorld, use: (read: SpriteBoundsReader) => T): T {
+    const core = world as Partial<LayoutWorld>;
+    let owner: EngineApi | null = null;
+    let pointer = 0;
+    let matrix: Float32Array | undefined;
+    const release = () => {
+        if (pointer) owner?._free?.(pointer);
+        pointer = 0;
+        matrix = undefined;
+    };
+    const readMatrix = (entity: Entity): Float32Array | null | undefined => {
+        if (!core.getWasmModule || !core.getCppRegistry) return undefined;
+        const api = worldEngineApi(core as LayoutWorld);
+        if (api !== owner) {
+            release();
+            owner = api;
+        }
+        const registry = core.getCppRegistry();
+        if (!api?.transform_copyFlatRenderMatrix || !api._malloc || !api._free || !api.HEAPU8 || !registry) return undefined;
+        if (!pointer) {
+            pointer = api._malloc(64);
+            if (!pointer) throw new Error('Could not allocate sprite transform scratch.');
+        }
+        if (!api.transform_copyFlatRenderMatrix(registry, entity, pointer)) return null;
+        const heap = api.HEAPU8;
+        const offset = heap.byteOffset + pointer;
+        if (matrix?.buffer !== heap.buffer || matrix.byteOffset !== offset) matrix = new Float32Array(heap.buffer, offset, 16);
+        return matrix;
+    };
+    try {
+        return use((entity, transform, sprite) => spriteWorldBox(world, entity, transform, sprite, readMatrix));
+    } finally {
+        release();
+    }
+}
+
+function spriteWorldBox(
+    world: ReadableWorld, entity: Entity, t: TransformData, sprite: SpriteData,
+    readMatrix: (entity: Entity) => Float32Array | null | undefined,
+): EntityBox | null {
     const parented = world.has(entity, Parent);
     if (parented) {
-        const box = parentedSpriteBox(world, entity, t, sprite);
-        if (box !== undefined) return box;
+        const matrix = readMatrix(entity);
+        if (matrix !== undefined) return matrix && parentedSpriteBox(matrix, t, sprite);
     }
     const w = sprite.size.x * t.worldScale.x;
     const h = sprite.size.y * t.worldScale.y;
@@ -138,26 +184,18 @@ export function spriteWorldBox(world: ReadableWorld, entity: Entity, t: Transfor
     return positionedBox(t, rot, w, h, 0, w * (0.5 - (sprite.pivot?.x ?? 0.5)), h * (0.5 - (sprite.pivot?.y ?? 0.5)));
 }
 
-function parentedSpriteBox(world: ReadableWorld, entity: Entity, t: TransformData, sprite: SpriteData): EntityBox | null | undefined {
-    const core = world as Partial<LayoutWorld>;
-    if (!core.getWasmModule || !core.getCppRegistry) return undefined;
-    const api = worldEngineApi(core as LayoutWorld);
-    const registry = core.getCppRegistry();
-    if (!api?.transform_copyFlatRenderMatrix || !api._malloc || !api._free || !api.HEAPU8 || !registry) return undefined;
-    return withMalloc({ _malloc: api._malloc, _free: api._free }, 64, ptr => {
-        if (!ptr) throw new Error('Could not allocate sprite transform scratch.');
-        if (!api.transform_copyFlatRenderMatrix!(registry, entity, ptr)) return null;
-        const heap = api.HEAPU8!;
-        const m = new Float32Array(heap.buffer, heap.byteOffset + ptr, 16);
-        const x = { x: m[0], y: m[1], z: m[2] };
-        const y = { x: m[4], y: m[5], z: m[6] };
-        const sx = v3.len(x), sy = v3.len(y);
-        const offset = v3.add(v3.scale(x, sprite.size.x * (0.5 - (sprite.pivot?.x ?? 0.5))),
-            v3.scale(y, sprite.size.y * (0.5 - (sprite.pivot?.y ?? 0.5))));
-        return { cx: m[12] + offset.x, cy: m[13] + offset.y, cz: m[14] + offset.z,
-            hw: Math.abs(sprite.size.x) * sx / 2, hh: Math.abs(sprite.size.y) * sy / 2, hd: 0,
-            rot: worldRot(t), flatAxes: { x: v3.scale(x, 1 / sx), y: v3.scale(y, 1 / sy) } };
-    });
+function parentedSpriteBox(m: Float32Array, t: TransformData, sprite: SpriteData): EntityBox {
+    const x = { x: m[0], y: m[1], z: m[2] };
+    const y = { x: m[4], y: m[5], z: m[6] };
+    const sx = v3.len(x), sy = v3.len(y);
+    const { x: width, y: height } = sprite.size;
+    const pivot = sprite.pivot;
+    const offsetX = width * (0.5 - (pivot?.x ?? 0.5)), offsetY = height * (0.5 - (pivot?.y ?? 0.5));
+    return { cx: m[12] + x.x * offsetX + y.x * offsetY,
+        cy: m[13] + x.y * offsetX + y.y * offsetY,
+        cz: m[14] + x.z * offsetX + y.z * offsetY,
+        hw: Math.abs(width) * sx / 2, hh: Math.abs(height) * sy / 2, hd: 0,
+        rot: worldRot(t), flatAxes: { x: v3.scale(x, 1 / sx), y: v3.scale(y, 1 / sy) } };
 }
 
 /** @internal Bounds of an individual shape draw, with an optional minimum size for picking. */
@@ -350,12 +388,14 @@ export function entityBoxRayHit(b: EntityBox, origin: Vec3, dir: Vec3): number |
         // A sheared basis needs its reciprocal axes, since a rotation inverse
         // cannot map the drawn parallelogram back to its local rectangle.
         const normal = v3.cross(x, y);
-        const length = v3.len(normal);
-        if (!(length > 0)) return null;
-        const z = v3.scale(normal, 1 / length);
-        const dualX = v3.scale(v3.cross(y, z), 1 / length);
-        const dualY = v3.scale(v3.cross(z, x), 1 / length);
-        const toLocal = (v: Vec3) => ({ x: v3.dot(v, dualX), y: v3.dot(v, dualY), z: v3.dot(v, z) });
+        const normalSquared = v3.dot(normal, normal);
+        if (!(normalSquared > 0)) return null;
+        const dualX = v3.cross(y, normal), dualY = v3.cross(normal, x);
+        const normalLength = Math.sqrt(normalSquared);
+        const toLocal = (v: Vec3) => ({
+            x: v3.dot(v, dualX) / normalSquared, y: v3.dot(v, dualY) / normalSquared,
+            z: v3.dot(v, normal) / normalLength,
+        });
         o = toLocal(o);
         d = toLocal(dir);
     } else if (x !== 0 || y !== 0 || z !== 0 || Math.abs(w) !== 1) {

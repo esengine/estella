@@ -13,7 +13,7 @@ import { Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/e
 import { UINode } from '../src/ui/core/ui-node';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
 import { App } from '../src/app/app';
-import { pickEntityByRay } from '../src/ecs/entityPick';
+import { pickEntitiesByBounds, pickEntityByRay } from '../src/ecs/entityPick';
 import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
 import { NodeVisibility } from '../src/imported-scene';
@@ -186,9 +186,30 @@ describe('an entity world box', () => {
             });
             expect(pick(8, 4)).toBe(child);
             expect(pick(8, 6)).toBeNull();
+            const record = vi.fn();
+            world.openSpeculation({ record });
+            try {
+                expect(pick(8, 4)).toBe(child);
+                expect(record).toHaveBeenCalledWith(world, child, Transform);
+            } finally { world.closeSpeculation(); }
             const bounds = extendEntityBoxBounds(null, box);
             expect(bounds.maxX).toBeCloseTo(45 * Math.SQRT1_2);
             expect(bounds.maxY).toBeCloseTo(15 * Math.SQRT1_2);
+            const sibling = world.spawn();
+            world.insert(sibling, Transform, { position: { x: 100, y: 0, z: 0 } });
+            world.insert(sibling, Sprite);
+            world.setParent(sibling, parent);
+            core.transform_update(registry);
+            const malloc = vi.spyOn(core, '_malloc'), free = vi.spyOn(core, '_free');
+            try {
+                expect(pick(8, 4)).toBe(child);
+                expect(malloc).toHaveBeenCalledTimes(1);
+                expect(free.mock.calls).toEqual([[malloc.mock.results[0].value]]);
+                malloc.mockClear(); free.mockClear();
+                expect(() => pickEntitiesByBounds(world, () => { throw new Error('stop pick'); })).toThrow('stop pick');
+                expect(malloc).toHaveBeenCalledTimes(1);
+                expect(free.mock.calls).toEqual([[malloc.mock.results[0].value]]);
+            } finally { malloc.mockRestore(); free.mockRestore(); }
             world.update(parent, Transform, data => { data.scale.x = -3; });
             world.update(child, Sprite, data => { data.pivot = { x: 0, y: .5 }; });
             core.transform_update(registry);

@@ -48,7 +48,7 @@ import type { SceneData } from '../scene/scene';
 import type { Entity } from '../types';
 import { Transform, MeshRenderer, ShapeRenderer, Sprite } from '../ecs/component';
 import { UINode } from '../ui/core/ui-node';
-import { extendEntityBoxBounds, meshWorldBox, shapeWorldBox, spriteWorldBox, uiNodeWorldBox, type EntityBoxBounds } from '../ecs/entityBox';
+import { extendEntityBoxBounds, meshWorldBox, shapeWorldBox, uiNodeWorldBox, withSpriteBounds, type EntityBoxBounds } from '../ecs/entityBox';
 import { ortho, invertViewOrbit, multiply } from '../math/mat4';
 import { drawPreview, previewCore, DEFAULT_PREVIEW_ORBIT, type PreviewOrbit } from '../render/assetPreview';
 
@@ -140,34 +140,37 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                              orbit: PreviewOrbit = DEFAULT_PREVIEW_ORBIT): PreviewFraming | null {
     const world = app.world;
     const aspect = w / h;
-    let uiBounds: EntityBoxBounds | null = null;
-    let sceneBounds: EntityBoxBounds | null = null;
-    let hasMesh = false;
-    for (const e of entities) {
-        if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
-        if (world.has(e, UINode)) {
-            const box = uiNodeWorldBox(world, e);
-            if (box) uiBounds = extendEntityBoxBounds(uiBounds, box);
-            continue;
-        }
-        if (world.has(e, MeshRenderer) && world.get(e, MeshRenderer).enabled !== false) {
-            const box = meshWorldBox(world, e);
-            if (box) {
-                sceneBounds = extendEntityBoxBounds(sceneBounds, box);
-                hasMesh = true;
+    const { uiBounds, sceneBounds, hasMesh } = withSpriteBounds(world, readSprite => {
+        let uiBounds: EntityBoxBounds | null = null;
+        let sceneBounds: EntityBoxBounds | null = null;
+        let hasMesh = false;
+        for (const e of entities) {
+            if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
+            if (world.has(e, UINode)) {
+                const box = uiNodeWorldBox(world, e);
+                if (box) uiBounds = extendEntityBoxBounds(uiBounds, box);
+                continue;
+            }
+            if (world.has(e, MeshRenderer) && world.get(e, MeshRenderer).enabled !== false) {
+                const box = meshWorldBox(world, e);
+                if (box) {
+                    sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+                    hasMesh = true;
+                }
+            }
+            const sprite = world.tryGet(e, Sprite);
+            const shape = world.tryGet(e, ShapeRenderer);
+            if ((sprite && sprite.enabled !== false) || (shape && shape.enabled !== false)) {
+                const transform = world.get(e, Transform);
+                if (sprite && sprite.enabled !== false) {
+                    const box = readSprite(e, transform, sprite);
+                    if (box) sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+                }
+                if (shape && shape.enabled !== false) sceneBounds = extendEntityBoxBounds(sceneBounds, shapeWorldBox(transform, shape));
             }
         }
-        const sprite = world.tryGet(e, Sprite);
-        const shape = world.tryGet(e, ShapeRenderer);
-        if ((sprite && sprite.enabled !== false) || (shape && shape.enabled !== false)) {
-            const transform = world.get(e, Transform);
-            if (sprite && sprite.enabled !== false) {
-                const box = spriteWorldBox(world, e, transform, sprite);
-                if (box) sceneBounds = extendEntityBoxBounds(sceneBounds, box);
-            }
-            if (shape && shape.enabled !== false) sceneBounds = extendEntityBoxBounds(sceneBounds, shapeWorldBox(transform, shape));
-        }
-    }
+        return { uiBounds, sceneBounds, hasMesh };
+    });
     const screen = uiBounds ? flatFraming(uiBounds, aspect, 1e6) : null;
 
     if (hasMesh && sceneBounds) {

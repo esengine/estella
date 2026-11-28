@@ -16,7 +16,7 @@ import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, type EntityBox, type LayoutWorld, type EntityBoxOptions,
+    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, withSpriteBounds, type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -205,40 +205,43 @@ function visitPickHits(
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.
     const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
-    for (const entity of entities) {
-        if (!world.valid(entity) || !world.has(entity, Transform)) continue;
-        if (opts.pickable && !opts.pickable(entity)) continue;
-        // A mesh's extent is in its vertices, so it is asked for before the icon
-        // fallback would answer with the size of a gizmo.
-        const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
-        const hiddenMesh = renderer?.enabled === false;
-        const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform) : null;
-        if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
-        const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts, { hiddenMesh, iconPickable: opts.iconPickable });
-        const box = meshBox ?? fallback?.box;
-        if (!box) continue;
-        const distance = intersect(box, entity);
-        if (distance === null) continue;
+    withSpriteBounds(world, readSprite => {
+        for (const entity of entities) {
+            if (!world.valid(entity) || !world.has(entity, Transform)) continue;
+            if (opts.pickable && !opts.pickable(entity)) continue;
+            // A mesh's extent is in its vertices, so it is asked for before the icon
+            // fallback would answer with the size of a gizmo.
+            const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
+            const hiddenMesh = renderer?.enabled === false;
+            const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform) : null;
+            if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
+            const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts,
+                { hiddenMesh, iconPickable: opts.iconPickable, readTransform }, readSprite);
+            const box = meshBox ?? fallback?.box;
+            if (!box) continue;
+            const distance = intersect(box, entity);
+            if (distance === null) continue;
 
-        const mesh = meshBox ? renderer : null;
-        const sprite = fallback?.drawable;
-        const needsLayer = cullingMask !== 0xFFFFFFFF && (mesh || sprite);
-        // Area picks already arrive in storage order. A group matters only
-        // when its layer determines whether the camera draws this hit.
-        if ('unranked' in visit && !needsLayer) {
-            visit.unranked(entity);
-            continue;
+            const mesh = meshBox ? renderer : null;
+            const sprite = fallback?.drawable;
+            const needsLayer = cullingMask !== 0xFFFFFFFF && (mesh || sprite);
+            // Area picks already arrive in storage order. A group matters only
+            // when its layer determines whether the camera draws this hit.
+            if ('unranked' in visit && !needsLayer) {
+                visit.unranked(entity);
+                continue;
+            }
+            // A group owns the layer as well as the order, so the layer's RULE is asked of
+            // the group's — the same resolution pushBatchDraw does, for the same reason.
+            groupsOf ??= createEnclosingGroupReader(world);
+            const identity = sortingIdentity(
+                groupsOf(entity),
+                mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
+                (sprite as { order?: number } | null)?.order ?? 0,
+            );
+            if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
+            if ('ranked' in visit) visit.ranked(entity, distance, identity, mesh?.opaque);
+            else visit.unranked(entity);
         }
-        // A group owns the layer as well as the order, so the layer's RULE is asked of
-        // the group's — the same resolution pushBatchDraw does, for the same reason.
-        groupsOf ??= createEnclosingGroupReader(world);
-        const identity = sortingIdentity(
-            groupsOf(entity),
-            mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
-            (sprite as { order?: number } | null)?.order ?? 0,
-        );
-        if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
-        if ('ranked' in visit) visit.ranked(entity, distance, identity, mesh?.opaque);
-        else visit.unranked(entity);
-    }
+    });
 }
