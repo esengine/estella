@@ -11,12 +11,12 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData, type SortingGroupData, type ParentData } from './component';
+import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData, type SortingGroupData, type ParentData, type TransformData } from './component';
 import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, meshWorldBox, entityBoxRayHit, type EntityBox, type LayoutWorld, type EntityBoxOptions,
+    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -31,7 +31,7 @@ const GIZMO_PICK_LAYER = 1e6;
  * callback can change the world between hits, so parent and group values are
  * read after each spatial test.
  */
-function createEnclosingGroupReader(world: PickWorld & Partial<Pick<World, 'resolveGetter'>>) {
+function createEnclosingGroupReader(world: PickWorld) {
     const groupGetter = world.resolveGetter?.(SortingGroup) as ((entity: Entity) => SortingGroupData) | null | undefined;
     const parentGetter = world.resolveGetter?.(Parent) as ((entity: Entity) => ParentData) | null | undefined;
     const readGroup = groupGetter ?? (entity => world.get(entity, SortingGroup));
@@ -58,7 +58,8 @@ function createEnclosingGroupReader(world: PickWorld & Partial<Pick<World, 'reso
  *
  * @experimental
  */
-export type PickWorld = LayoutWorld & Pick<World, 'getAllEntities'> & Partial<Pick<World, 'getEntitiesWithComponents'>>;
+export type PickWorld = LayoutWorld & Pick<World, 'getAllEntities'>
+    & Partial<Pick<World, 'getEntitiesWithComponents' | 'resolveGetter' | 'speculating'>>;
 
 /** @experimental */
 export interface EntityPickOptions {
@@ -98,9 +99,10 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    visitPickHits(world, opts, rayIntersection(ray), {
+    const readTransform = pickTransformReader(world);
+    visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, opaque) {
-            const candidate = rankRayHit(world, opts, entity, hits.length + opaqueHits.length, identity, opaque);
+            const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, opaque);
             if (opaque) opaqueHits.push({ candidate, distance });
             else hits.push(candidate);
         },
@@ -120,11 +122,12 @@ export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPic
     let index = 0;
     let nearestOpaque: PickCandidate<Entity> | undefined;
     let nearestDistance = Infinity;
-    visitPickHits(world, opts, rayIntersection(ray), {
+    const readTransform = pickTransformReader(world);
+    visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, opaque) {
             const position = index++;
             if (opaque && distance > nearestDistance) return;
-            const candidate = rankRayHit(world, opts, entity, position, identity, opaque);
+            const candidate = rankRayHit(readTransform, opts, entity, position, identity, opaque);
             if (opaque) {
                 nearestOpaque = candidate;
                 nearestDistance = distance;
@@ -148,10 +151,10 @@ function rayIntersection(ray: WorldRay): (box: EntityBox) => number | null {
 }
 
 function rankRayHit(
-    world: PickWorld, opts: EntityPickOptions, entity: Entity, index: number,
+    readTransform: (entity: Entity) => TransformData, opts: EntityPickOptions, entity: Entity, index: number,
     identity: ReturnType<typeof sortingIdentity>, opaque?: boolean,
 ): PickCandidate<Entity> {
-    const t = world.get(entity, Transform);
+    const t = readTransform(entity);
     return {
         entity,
         index,
@@ -172,7 +175,8 @@ export function pickEntitiesByBounds(
     world: PickWorld, intersects: (box: EntityBox, entity: Entity) => boolean, opts: EntityPickOptions = {},
 ): Entity[] {
     const hits: Entity[] = [];
-    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, { unranked: entity => hits.push(entity) });
+    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, pickTransformReader(world),
+        { unranked: entity => hits.push(entity) });
     return hits;
 }
 
@@ -180,15 +184,21 @@ type PickHitVisitor =
     | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean): void }
     | { unranked(entity: Entity): void };
 
+function pickTransformReader(world: PickWorld): (entity: Entity) => TransformData {
+    const read = (entity: Entity) => world.get(entity, Transform);
+    const fast = world.resolveGetter?.(Transform) as ((entity: Entity) => TransformData) | null | undefined;
+    // The normal getter records reads during a speculative transaction.
+    return fast ? entity => world.speculating ? read(entity) : fast(entity) : read;
+}
+
 function visitPickHits(
     world: PickWorld, opts: EntityPickOptions, intersect: (box: EntityBox, entity: Entity) => number | null,
-    visit: PickHitVisitor,
+    readTransform: (entity: Entity) => TransformData, visit: PickHitVisitor,
 ): void {
     const iconHalf = opts.iconHalf ?? 0;
     const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
-    const fastWorld = world as PickWorld & Partial<Pick<World, 'resolveGetter'>>;
-    const meshGetter = fastWorld.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
+    const meshGetter = world.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
     const readMesh = meshGetter ?? (entity => world.get(entity, MeshRenderer));
     let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
     // Use the ECS query's effective activity, including the parent's switch.
@@ -201,7 +211,7 @@ function visitPickHits(
         // fallback would answer with the size of a gizmo.
         const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
         const hiddenMesh = renderer?.enabled === false;
-        const meshBox = renderer && !hiddenMesh ? meshWorldBox(world, entity) : null;
+        const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform) : null;
         if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
         const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts, { hiddenMesh, iconPickable: opts.iconPickable });
         const box = meshBox ?? fallback?.box;
@@ -220,7 +230,7 @@ function visitPickHits(
         }
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
-        groupsOf ??= createEnclosingGroupReader(fastWorld);
+        groupsOf ??= createEnclosingGroupReader(world);
         const identity = sortingIdentity(
             groupsOf(entity),
             mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,

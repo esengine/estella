@@ -11,7 +11,7 @@
  */
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from './world';
-import { Transform, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData } from './component';
+import { Transform, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData, type TransformData } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { worldEngineApi } from './bridge/engineApi';
@@ -199,6 +199,13 @@ interface LocalBounds {
  * @experimental
  */
 export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | null {
+    return resolveMeshWorldBox(world, entity);
+}
+
+/** @internal Picking can supply a borrowed transform reader for a single traversal. */
+export function resolveMeshWorldBox(
+    world: LayoutWorld, entity: Entity, readTransform?: (entity: Entity) => TransformData,
+): EntityBox | null {
     if (!world.valid(entity) || !world.has(entity, MeshRenderer) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
     // The wasm module, not the shared engine api: this answer is a small object,
@@ -211,7 +218,7 @@ export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | nu
     const b = module.meshRenderer_localBounds(registry, entity);
     if (!b) return null;
 
-    const t = world.get(entity, Transform);
+    const t = readTransform ? readTransform(entity) : world.get(entity, Transform);
     const rot = worldRot(t);
     const minZ = b.minZ ?? 0;
     const maxZ = b.maxZ ?? 0;

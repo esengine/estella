@@ -242,8 +242,21 @@ describe('picking entities by ray', () => {
             };
             const near = mesh(8, 0), far = mesh(-8, 9);
             core.transform_update(registry);
-            const pick = () => pickEntitiesByRay(world, { origin: { x: 20, y: -1, z: 2 }, dir: { x: -1, y: 0, z: 0 } });
+            const ray = { origin: { x: 20, y: -1, z: 2 }, dir: { x: -1, y: 0, z: 0 } };
+            const options = { fallbackPickable: () => false };
+            const pick = () => pickEntitiesByRay(world, ray, options);
+            const read = vi.spyOn(world, 'get');
             expect(pick()).toEqual([near, far]);
+            expect(pickEntityByRay(world, ray, options)).toBe(near);
+            expect(read.mock.calls.filter(([, component]) => component === Transform)).toHaveLength(0);
+            read.mockRestore();
+            const record = vi.fn();
+            world.openSpeculation({ record });
+            try {
+                expect(pick()).toEqual([near, far]);
+                expect(record).toHaveBeenCalledWith(world, near, Transform);
+                expect(record).toHaveBeenCalledWith(world, far, Transform);
+            } finally { world.closeSpeculation(); }
             registry.setEntityEnabled(parent, false);
             expect(world.valid(near)).toBe(true);
             expect(pick()).toEqual([]);
