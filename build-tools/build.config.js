@@ -95,6 +95,7 @@ export default {
         wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'wechat-glx': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'wechat-lite': { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        'quickgame-lite': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         quickgame: { cmakeOpt: '-O2', wasmOpt: '-O2' },
     },
 
@@ -183,6 +184,18 @@ export default {
             outputs: {
                 'sdk/esengine.wxgame.js': 'wasm/quickgame/esengine.wxgame.js',
                 'sdk/esengine.wxgame.wasm': 'wasm/quickgame/esengine.wxgame.wasm',
+            },
+        },
+        // The engine without wasm SIMD and without the particle, post-process and tilemap subsystems: what wechat-lite
+        // is to wechat, for the hosts that take the build above. The export picks it from the directory beside that one.
+        'quickgame-lite': {
+            buildDir: 'build/cmake/qgame-lite',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_MAIN_DISABLE_SIMD=ON',
+                '-DES_ENABLE_PARTICLES=OFF', '-DES_ENABLE_POSTPROCESS=OFF', '-DES_ENABLE_TILEMAP=OFF'],
+            targets: ['esengine_wxgame'],
+            outputs: {
+                'sdk/esengine.wxgame.js': 'wasm/quickgame-lite/esengine.wxgame.js',
+                'sdk/esengine.wxgame.wasm': 'wasm/quickgame-lite/esengine.wxgame.wasm',
             },
         },
         ...physicsModules('physics', 'BOX2D', 'physics_module'),
@@ -306,6 +319,7 @@ export default {
             'build/wasm/wechat-glx': 'desktop/public/wasm-wechat-glx',
             'build/wasm/wechat-lite': 'desktop/public/wasm-wechat-lite',
             'build/wasm/quickgame': 'desktop/public/wasm-quickgame',
+            'build/wasm/quickgame-lite': 'desktop/public/wasm-quickgame-lite',
         },
         sdk: {
             'build/sdk/esm': 'desktop/public/sdk/esm',

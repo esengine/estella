@@ -227,3 +227,25 @@ describe('Douyin ships the mini-game runtime without wasm SIMD', () => {
     for (const t of targets) expect(t).toMatch(/-quickgame$/);
   });
 });
+
+describe('exportGame (douyin) — the lite engine without SIMD', () => {
+  // quickgame-lite is to the build without SIMD what wechat-lite is to WeChat's: the export takes it from the directory
+  // beside the engine's when the content reaches no particles, post-processing or tilemaps.
+  it('ships the lite engine beside the one without SIMD when the content allows', async () => {
+    const base = path.join(root, '_wasm-qg');
+    for (const [dir, bytes] of [[base, 'plainbytes'], [`${base}-lite`, 'litebytes']] as const) {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');
+      writeFileSync(path.join(dir, 'esengine.wxgame.wasm'), bytes);
+    }
+    const o = path.join(root, 'dist-douyin-lite');
+    const res = await exportGame({
+      minifyScripts: false, root, entryScene: 'scenes/main.esscene', scriptsEntry: 'player.ts',
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: base, outDir: o, platform: 'douyin',
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok, res.errors.join('\n')).toBe(true);
+    expect(readFileSync(path.join(o, 'wasm', 'esengine.wxgame.wasm'), 'utf8')).toBe('litebytes');
+  }, 180_000);
+});

@@ -31,3 +31,16 @@ describe('the mini-game runtime without wasm SIMD', () => {
     expect(wasm.quickgame.cmakeFlags).toContain('-DES_MAIN_DISABLE_SIMD=ON');
   });
 });
+
+describe('the lite engine without wasm SIMD', () => {
+  it('is wechat-lite built the way quickgame is, beside it', () => {
+    const lite = wasm['quickgame-lite'];
+    expect(lite.cmakeFlags).toContain('-DES_MAIN_DISABLE_SIMD=ON');
+    for (const flag of wasm['wechat-lite'].cmakeFlags) expect(lite.cmakeFlags).toContain(flag);
+    // The export looks for `<engine dir>-lite`, so the directory name is the contract.
+    for (const out of Object.values(lite.outputs)) expect(out.startsWith('wasm/quickgame-lite/')).toBe(true);
+    // ...and the editor finds it as `<wasm-quickgame>-lite` the same way.
+    const sync = (config as unknown as { sync: { wasm: Record<string, string> } }).sync.wasm;
+    expect(sync['build/wasm/quickgame-lite']).toBe(`${sync['build/wasm/quickgame']}-lite`);
+  });
+});

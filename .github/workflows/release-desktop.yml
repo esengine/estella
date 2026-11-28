@@ -126,6 +126,7 @@ jobs:
             desktop/public/wasm-wechat-glx
             desktop/public/wasm-wechat-lite
             desktop/public/wasm-quickgame
+            desktop/public/wasm-quickgame-lite
           retention-days: 3
 
       - name: Install the virtual display dependencies
