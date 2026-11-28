@@ -67,4 +67,22 @@ describe('a model import records where its products came from', () => {
         const bySource = index.entries.filter((e) => e.source === model).map((e) => e.path).sort();
         expect(bySource).toEqual([...made].sort());
     });
+
+    it('preserves an existing destination dependency even for a fixed import directory', async () => {
+        const root = mkdtempSync(path.join(tmpdir(), 'model-source-dest-'));
+        const originDir = mkdtempSync(path.join(tmpdir(), 'model-source-origin-'));
+        roots.push(root, originDir);
+        const dir = path.join(root, 'assets');
+        mkdirSync(dir);
+        const absSource = path.join(dir, 'tri.gltf');
+        const previous = 'existing PNG', incoming = path.join(originDir, 'wall.png');
+        writeFileSync(absSource, triangleGltf());
+        writeFileSync(path.join(dir, 'wall.png'), previous);
+        writeFileSync(incoming, 'a different PNG');
+        const options = { root, absSource, originDir, destDir: 'assets' };
+        await expect(importModelFile(options)).rejects.toThrow('conflicts with assets/wall.png');
+        expect(readFileSync(path.join(dir, 'wall.png'), 'utf8')).toBe(previous);
+        writeFileSync(incoming, previous);
+        expect((await importModelFile(options)).products).toContain('assets/wall.png');
+    });
 });

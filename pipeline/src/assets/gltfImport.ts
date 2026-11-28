@@ -221,6 +221,28 @@ function parseGlb(bytes: Uint8Array): { json: GltfJson; bin: Uint8Array | null }
     return { json, bin };
 }
 
+function readGltfDocument(bytes: Uint8Array): { json: GltfJson; bin: Uint8Array | null } {
+    const binary = bytes.byteLength >= 4
+        && new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0, true) === GLB_MAGIC;
+    return binary ? parseGlb(bytes) : { json: JSON.parse(new TextDecoder().decode(bytes)) as GltfJson, bin: null };
+}
+
+function gltfFilePath(uri: string): string {
+    try { return decodeURIComponent(uri); }
+    catch { return uri; } // Some exporters put a literal path with a bare % in the URI field.
+}
+
+/** Files named by the source, before reading any geometry or decoding images. */
+export function gltfExternalPaths(bytes: Uint8Array): string[] {
+    const { json } = readGltfDocument(bytes);
+    const uris = [
+        ...(json.buffers ?? []).map(buffer => buffer.uri),
+        ...(json.images ?? []).map(image => image.uri),
+        ...(json.materials ?? []).flatMap(material => [material.extras?.flow_map, material.extras?.shift_map]),
+    ];
+    return [...new Set(uris.flatMap(uri => typeof uri === 'string' && uri && !uri.startsWith('data:') ? [gltfFilePath(uri)] : []))];
+}
+
 function decodeDataUri(uri: string): Uint8Array | null {
     const comma = uri.indexOf(',');
     if (!uri.startsWith('data:') || comma < 0) return null;
@@ -1242,23 +1264,12 @@ export async function importGltfMeshes(
     // unconditionally keeps "is the decoder up" from being a per-file question.
     await MeshoptDecoder.ready;
     const warnings: string[] = [];
-    let json: GltfJson;
-    let bin: Uint8Array | null = null;
-
-    const looksBinary = bytes.byteLength >= 4
-        && new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0, true) === GLB_MAGIC;
-    if (looksBinary) {
-        ({ json, bin } = parseGlb(bytes));
-    } else {
-        json = JSON.parse(new TextDecoder().decode(bytes)) as GltfJson;
-    }
+    const { json, bin } = readGltfDocument(bytes);
 
     for (const note of json.extras?.estella?.warnings ?? []) if (typeof note === 'string') warnings.push('Scene bridge: ' + note);
     const externalFiles: string[] = [];
     const noteExternal = (uri: string): string => {
-        let file = uri;
-        try { file = decodeURIComponent(uri); }
-        catch { /* Some exporters put a literal path with a bare % in the URI field. */ }
+        const file = gltfFilePath(uri);
         if (!externalFiles.includes(file)) externalFiles.push(file);
         return file;
     };

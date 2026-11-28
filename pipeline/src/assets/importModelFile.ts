@@ -11,8 +11,8 @@
 import { rebindStrayVertices } from './strayJoints';
 import { extractRootMotion } from './rootMotionExtract';
 import { maxBonesFor, type SkinningConfig } from '../project/skinning';
-import { copyFile, mkdir } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFile, mkdir, open, readFile } from 'node:fs/promises';
+import { constants, existsSync, readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
@@ -124,6 +124,54 @@ function collectNodeMeshes(nodes: ImportedNode[], meshFiles: string[], out: Map<
         }
         collectNodeMeshes(node.children, meshFiles, out);
     }
+}
+
+function modelDependencyName(folder: string, uri: string): { name: string; relative: boolean } {
+    const relative = isInsideRoot(folder, path.resolve(folder, uri));
+    return { name: relative ? uri : path.basename(uri), relative };
+}
+
+async function readModelHeader(file: string): Promise<Uint8Array> {
+    if (path.extname(file).toLowerCase() === '.glb') {
+        // A GLB's first chunk is JSON. Skip the potentially large geometry chunk on preflight.
+        const handle = await open(file, 'r');
+        try {
+            const header = Buffer.alloc(20);
+            const { bytesRead } = await handle.read(header, 0, header.length, 0);
+            if (bytesRead === header.length && header.toString('ascii', 0, 4) === 'glTF'
+                && header.toString('ascii', 16, 20) === 'JSON') {
+                const length = header.readUInt32LE(12);
+                if (length <= (await handle.stat()).size - header.length) {
+                    const json = Buffer.alloc(length);
+                    if ((await handle.read(json, 0, length, header.length)).bytesRead === length) return json;
+                }
+            }
+        } finally { await handle.close(); }
+    }
+    return readFile(file);
+}
+
+/** An external glTF can retain its relative dependency URLs by moving into an empty folder. */
+export async function gltfDependenciesCollide(source: string, folder: string): Promise<boolean> {
+    if (!/\.gl(?:tf|b)$/i.test(source)) return false;
+    const { gltfExternalPaths } = await import('./gltfImport');
+    const origin = path.dirname(source);
+    for (const uri of gltfExternalPaths(await readModelHeader(source))) {
+        const leaf = path.basename(uri.replace(/\\/g, '/'));
+        const file = existsSync(path.join(origin, uri)) ? uri : leaf;
+        if (!file || !existsSync(path.join(origin, file))) continue;
+        const { name } = modelDependencyName(folder, file);
+        const target = path.resolve(folder, name);
+        if (existsSync(target) || existsSync(target + META_EXT)) return true;
+        let parent = folder;
+        for (const segment of path.relative(folder, target).split(path.sep).slice(0, -1)) {
+            parent = path.join(parent, segment);
+            const entry = statSync(parent, { throwIfNoEntry: false });
+            if (!entry) break;
+            if (!entry.isDirectory()) return true;
+        }
+    }
+    return false;
 }
 
 /** Keep generated images on paths owned by this model. A collision must not
@@ -289,14 +337,20 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         }
         // A uri that reaches outside the model's own folder cannot keep its shape in the project: it lands beside the model, and the
         // source's link to it stays broken — said out loud rather than silently rewritten.
-        const keepsShape = isInsideRoot(absDir, path.resolve(absDir, uri));
-        if (!keepsShape) warnings.push(`${uri} came from outside the model's folder; the copy is beside it`);
-        const name = keepsShape ? uri : path.basename(uri);
+        const { name, relative } = modelDependencyName(absDir, uri);
+        if (!relative) warnings.push(`${uri} came from outside the model's folder; the copy is beside it`);
         const rel = destDir ? `${destDir}/${name}` : name;
-        const absDest = path.join(absDir, name);
+        const absDest = resolveInside(absDir, name, 'model directory');
+        resolveInside(absDir, name + META_EXT, 'model directory');
         await opts.beforeWrite?.(rel);
         await mkdir(path.dirname(absDest), { recursive: true });
-        await copyFile(abs, absDest);
+        try { await copyFile(abs, absDest, constants.COPYFILE_EXCL); }
+        catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+            if (!(await readFile(abs)).equals(await readFile(absDest))) {
+                throw new Error(`Model dependency ${uri} conflicts with ${rel}`);
+            }
+        }
         await adoptOrphan(absDest, imageSettings.get(uri));
         products.push(rel);
         opts.onProduct?.(rel, 'copied');
