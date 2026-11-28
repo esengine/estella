@@ -230,14 +230,14 @@ describe('a tilemap era owns the textures it resolved', () => {
 });
 
 describe('a tilemap runtime belongs to one app', () => {
-    it.skipIf(!HAS_WASM)('projects Tiled tile objects with their atlas, transforms and inherited color', async () => {
+    it.skipIf(!HAS_WASM)('projects Tiled tile objects from a padded atlas with their transforms and color', async () => {
         const { App } = await import('../src/app/app');
         const { Assets: AssetsResource } = await import('../src/asset/AssetPlugin');
         const { Marker, Sprite, Transform } = await import('../src/ecs/component');
         const { Tilemap, TilemapLayer } = await import('../src/tilemap/components');
         const { TilemapPlugin } = await import('../src/tilemap/tilemapPlugin');
         const map = JSON.parse(GRID_MAP);
-        map.tilesets.push({ ...map.tilesets[0], firstgid: 5, image: '../tiles/props.png' });
+        map.tilesets.push({ ...map.tilesets[0], firstgid: 5, image: '../tiles/props.png', margin: 2, spacing: 1 });
         map.layers = [{ type: 'group', offsetx: 12, offsety: 5, opacity: 0.5, tintcolor: '#80ff8040', layers: [
             map.layers[0],
             { type: 'objectgroup', objects: [
@@ -247,6 +247,11 @@ describe('a tilemap runtime belongs to one app', () => {
             { type: 'group', visible: false, layers: [{ type: 'objectgroup', objects: [{ id: 2, point: true }] }] },
         ] }];
         const assets = realm(JSON.stringify(map));
+        assets.getTextureLoader().setPixelDecoder(async path => {
+            const props = path.endsWith('props.png');
+            const width = props ? 16 : 8, height = props ? 20 : 8;
+            return { width, height, pixels: new Uint8Array(width * height * 4) };
+        });
         const engine = await loadWasmModule();
         const registry = new engine.Registry();
         const app = App.new();
@@ -263,15 +268,19 @@ describe('a tilemap runtime belongs to one app', () => {
             const layers = app.world.getEntitiesWithComponents([TilemapLayer]);
             const sprites = app.world.getEntitiesWithComponents([Sprite]);
             expect(layers).toHaveLength(1);
-            const drawn = sprites.map(entity => app.world.get(entity, Sprite));
-            const slot = assets.resolveRegistryAsset<PublishedTilemap>('tilemap', ref)!.source.tilesets[1];
-            expect(drawn).toContainEqual(expect.objectContaining({ texture: slot.textureHandle,
-                uvOffset: { x: 0.5, y: 0 }, uvScale: { x: 0.5, y: 0.5 }, flipX: true, flipY: false }));
             expect(sprites).toHaveLength(1);
             const [layer] = layers, [sprite] = sprites;
+            const slot = assets.resolveRegistryAsset<PublishedTilemap>('tilemap', ref)!.source.tilesets[1];
+            const drawn = app.world.get(sprite, Sprite);
+            expect(drawn).toMatchObject({ texture: slot.textureHandle, flipX: true, flipY: false });
+            // The second row and column start at pixel 7. The layer renderer insets each edge by half a texel.
+            expect(drawn.uvOffset.x).toBeCloseTo(7.5 / 16, 6);
+            expect(drawn.uvOffset.y).toBeCloseTo(1 - 10.5 / 20, 6);
+            expect(drawn.uvScale.x).toBeCloseTo(3 / 16, 6);
+            expect(drawn.uvScale.y).toBeCloseTo(3 / 20, 6);
             expect(app.world.get(layer, TilemapLayer).originOffset).toEqual({ x: 12, y: -5 });
             expect(app.world.get(sprite, Transform).position).toEqual({ x: 18, y: -12, z: 0 });
-            const color = app.world.get(sprite, Sprite).color;
+            const color = drawn.color;
             expect(color.r).toBe(1);
             expect(color.g).toBeCloseTo(128 / 255, 6);
             expect(color.b).toBeCloseTo(64 / 255, 6);

@@ -52,9 +52,11 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 continue;
             }
             let textureHandle = 0;
+            let atlasSize: LoadedTilemapTileset['atlasSize'];
             try {
                 const lease = await ctx.acquireTexture(ts.image, true, 'imported');
                 textureHandle = lease.value.handle;
+                atlasSize = { width: lease.value.fullWidth ?? lease.value.width, height: lease.value.fullHeight ?? lease.value.height };
             } catch (e) {
                 // Loud, with the fix: a dead tileset texture makes every tile that
                 // uses it invisible (the renderer drops handle-0 slots), while the
@@ -69,7 +71,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             const rows = ts.columns > 0 ? Math.max(1, Math.ceil(ts.tileCount / ts.columns)) : 1;
             tilesets.push({
                 textureHandle, columns: ts.columns, rows, firstId: ts.firstGid,
-                margin: ts.margin ?? 0, spacing: ts.spacing ?? 0,
+                margin: ts.margin ?? 0, spacing: ts.spacing ?? 0, atlasSize,
             });
         }
 
@@ -130,6 +132,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         return {
             textureHandle: atlas.value.handle, columns: grid.columns, rows: grid.rows,
             firstId: ts.firstGid, margin: 0, spacing: 0,
+            atlasSize: { width: grid.width, height: grid.height },
         };
     }
 

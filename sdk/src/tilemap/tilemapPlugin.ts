@@ -12,7 +12,7 @@ import { registerWorldSceneComponentCodec } from '../scene/scene';
 import { sceneAssetScopeForEntity } from '../scene/sceneManagerResource';
 import type { LoadedTilemapSource, PublishedTilemap, PublishedTileset } from './tilesetCache';
 import { appRegistryAsset } from '../asset/registryLookup';
-import { resolveTilesetModel } from './tilesetResolve';
+import { atlasCells, resolveTilesetModel } from './tilesetResolve';
 import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
@@ -572,13 +572,19 @@ export class TilemapRuntime {
                                 }
                                 if (!ts?.textureHandle) continue;
                                 const localId = dec.globalId - ts.firstId;
-                                const { columns: cols, rows } = ts;
+                                const { columns: cols, rows, margin, spacing, atlasSize } = ts;
                                 if (cols <= 0 || rows <= 0 || localId >= cols * rows) continue;
-                                const uvW = 1 / cols, uvH = 1 / rows;
                                 const col = localId % cols;
                                 const row = Math.floor(localId / cols);
-                                const w = obj.width || cached.tileWidth;
-                                const h = obj.height || cached.tileHeight;
+                                const { tileWidth, tileHeight } = cached;
+                                const tw = atlasSize?.width ?? 2 * margin + cols * tileWidth + (cols - 1) * spacing;
+                                const th = atlasSize?.height ?? 2 * margin + rows * tileHeight + (rows - 1) * spacing;
+                                if (col >= atlasCells(tw, margin, tileWidth, spacing) || row >= atlasCells(th, margin, tileHeight, spacing)) continue;
+                                // The same top-left pixel grid and half-texel inset as packed tile layers.
+                                const u = (margin + col * (tileWidth + spacing) + 0.5) / tw;
+                                const v = 1 - (margin + row * (tileHeight + spacing) + tileHeight - 0.5) / th;
+                                const w = obj.width || tileWidth;
+                                const h = obj.height || tileHeight;
                                 // Tiled tile-objects anchor BOTTOM-LEFT, y-down, and rotate
                                 // CW about that anchor. Rotate the centre offset (w/2,-h/2)
                                 // about the anchor and set the sprite's rotation to match
@@ -598,8 +604,8 @@ export class TilemapRuntime {
                                     texture: ts.textureHandle,
                                     ...(group.spriteColor ? { color: group.spriteColor } : {}),
                                     size: dec.flipD ? { x: h, y: w } : { x: w, y: h },
-                                    uvOffset: { x: col * uvW, y: 1 - (row + 1) * uvH },
-                                    uvScale: { x: uvW, y: uvH },
+                                    uvOffset: { x: u, y: v },
+                                    uvScale: { x: (tileWidth - 1) / tw, y: (tileHeight - 1) / th },
                                     flipX: dec.flipD ? dec.flipV : dec.flipH,
                                     flipY: dec.flipD ? !dec.flipH : dec.flipV,
                                     layer: cached.layers.length,

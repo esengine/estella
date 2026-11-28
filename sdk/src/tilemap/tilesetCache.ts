@@ -11,9 +11,10 @@ export type LoadedTilemapChunk = TiledChunkData;
 export interface LoadedTilemapTileset {
     textureHandle: number;
     columns: number;
-    /** Tile rows (= ceil(tileCount / columns)); with columns it gives the normalized
-     *  UV cell size (1/columns × 1/rows) for tile (GID) objects. */
+    /** Declared tile rows (= ceil(tileCount / columns)). */
     rows: number;
+    /** Full imported atlas dimensions, before any texture streaming. */
+    atlasSize?: { width: number; height: number };
     firstId: number;   // global tile-id at which this tileset begins (Tiled firstgid)
     /** Atlas border before the first tile, and gap between tiles (px, Tiled). */
     margin: number;

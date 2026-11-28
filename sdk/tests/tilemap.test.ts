@@ -262,7 +262,8 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         const era = await loader.registry.prepare('maps/level.tmj', ctx);
         expect(uploads).toEqual([{ width: 4, height: 2 }]); // ONE folded 2x1 page
         const src = (era.published as { source: LoadedTilemapSource }).source;
-        expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5, margin: 0, spacing: 0 });
+        expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5, margin: 0, spacing: 0,
+            atlasSize: { width: 4, height: 2 } });
     });
 
     it('a collection tile off the map grid fails loud with the fix', async () => {
