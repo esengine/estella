@@ -10,10 +10,10 @@
  *        explicit fallback cases (overflow / bulk / directory move → full rescan).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../src/assets/assetDb';
+import { readCachedAssetIndex, scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../src/assets/assetDb';
 
 let root: string;
 
@@ -232,6 +232,41 @@ describe('updateAssetIndex — incremental == full rescan', () => {
 });
 
 describe('updateAssetIndex — fallbacks (never silent)', () => {
+  it('reconciles the index when the project manifest excludes or restores an asset folder', async () => {
+    const scene = 'assets/scenes/main.esscene';
+    const manifest = path.join(root, 'project.esproject');
+    writeFileSync(path.join(root, scene), sceneBody({ texture: TEX }).replace(`@uuid:${TEX}`, 'assets/textures/player.png'));
+    writeFileSync(manifest, JSON.stringify({ name: 'Sample' }));
+    const { index: initial } = await scanAssetDatabase(root, { write: false });
+    writeFileSync(manifest, JSON.stringify({ name: 'Sample', assetExclude: ['assets/textures'] }));
+    const hidden = await updateAssetIndex(root, initial, ['project.esproject']);
+    expect(hidden.index).toEqual((await scanAssetDatabase(root, { write: false })).index);
+    expect(hidden.index.deps[SCENE]).toBeUndefined();
+    const cached = await readCachedAssetIndex(root);
+    expect(cached).toEqual(hidden.index);
+    writeFileSync(manifest, JSON.stringify({ name: 'Renamed project', assetExclude: ['assets/textures'] }));
+    expect(await updateAssetIndex(root, cached!, ['project.esproject'], { write: false })).toMatchObject({
+      index: hidden.index, fullRescan: false,
+    });
+    writeFileSync(manifest, JSON.stringify({ name: 'Sample' }));
+    const restored = await updateAssetIndex(root, cached!, ['project.esproject'], { write: false });
+    expect(restored.index).toEqual(initial);
+  });
+
+  it.skipIf(process.platform !== 'win32').each(['old', 'new'] as const)(
+    'keeps the UUID on a case-only rename reported with the %s spelling', async spelling => {
+      const old = 'assets/textures/player.png', next = 'assets/textures/Player.png';
+      const { index: previous } = await scanAssetDatabase(root, { write: false });
+      renameSync(path.join(root, old), path.join(root, next));
+      renameSync(path.join(root, old + '.meta'), path.join(root, next + '.meta'));
+      const inc = await updateAssetIndex(root, previous, [spelling === 'old' ? old : next], { write: false });
+      expect(inc.reminted).toEqual([]);
+      expect(inc.index.entries.filter(entry => entry.uuid === TEX)).toEqual([{ uuid: TEX, path: next, type: 'texture', importer: {} }]);
+      expect(inc.index.deps[SCENE]).toEqual([FONT, TEX].sort());
+      expect(inc.index).toEqual((await scanAssetDatabase(root, { write: false })).index);
+    },
+  );
+
   it('an empty change set (watcher overflow) falls back to a full rescan', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     const inc = await updateAssetIndex(root, prev, [], { write: false });

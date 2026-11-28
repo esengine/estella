@@ -18,10 +18,12 @@
  */
 import { readFile, writeFile, mkdir, readdir, stat, rename } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { existsSync } from 'node:fs';
+import { existsSync, realpath } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
 import path from 'node:path';
 import { readManifest, readTextInRoot } from '../project/readProject';
+import { PROJECT_MANIFEST_FILE } from '../project/format';
 import { isInsideRoot } from '../fs/pathSandbox';
 import { META_EXT, isContentDir, isContentFile, isExcludedByProject, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
@@ -105,6 +107,8 @@ export interface AssetIndex {
   version: '1.0';
   entries: AssetEntry[];
   deps: Record<string, string[]>;
+  /** The content filter used to build this index. Older caches omitted it. */
+  assetExclude?: string[];
 }
 
 export interface ScanAssetsResult {
@@ -594,6 +598,8 @@ export async function readCachedAssetIndex(root: string): Promise<AssetIndex | n
         version: typeof raw.version === 'string' ? raw.version : '1.0',
         entries: raw.entries as AssetEntry[],
         deps: (raw.deps as Record<string, string[]>) ?? {},
+        ...(Array.isArray(raw.assetExclude) && raw.assetExclude.every((v: unknown) => typeof v === 'string')
+          ? { assetExclude: raw.assetExclude as string[] } : {}),
       };
     }
   } catch {
@@ -602,12 +608,12 @@ export async function readCachedAssetIndex(root: string): Promise<AssetIndex | n
   return null;
 }
 
-/** The folders the project's manifest takes out of content; none for a project with no manifest or one that cannot be read (the scan then sees everything, as before). */
-async function excludedFolders(root: string): Promise<readonly string[] | undefined> {
+/** A canonical list so reordering equivalent manifest entries does not invalidate the index. */
+async function excludedFolders(root: string): Promise<string[]> {
   try {
-    return (await readManifest(root)).assetExclude;
+    return [...new Set((await readManifest(root)).assetExclude ?? [])].sort();
   } catch {
-    return undefined;
+    return [];
   }
 }
 
@@ -660,7 +666,7 @@ export async function scanAssetDatabase(
   warnings.push(...depWarnings);
 
   t.deps = performance.now() - tDeps;
-  const index: AssetIndex = { version: '1.0', entries, deps };
+  const index: AssetIndex = { version: '1.0', entries, deps, assetExclude: exclude };
 
   const tWrite = performance.now();
   const outputPath = opts?.write !== false ? await writeIndexIfChanged(root, index) : null;
@@ -682,6 +688,19 @@ export async function scanAssetDatabase(
 /** Above this many changed paths a full rescan is cheaper/safer than per-path
  *  work — a bulk edit (git checkout, a dropped asset folder) rather than a save. */
 export const INCREMENTAL_PATH_LIMIT = 100;
+
+const nativeRealpath = promisify(realpath.native);
+
+/** Windows may open either spelling. A full scan indexes the spelling of the sidecar itself. */
+async function hasDifferentSidecarCase(root: string, sidecar: string): Promise<boolean> {
+  try {
+    const physical = (await nativeRealpath(path.join(root, sidecar))).replace(/\\/g, '/');
+    const suffix = `/${sidecar}`;
+    return physical.toLowerCase().endsWith(suffix.toLowerCase()) && !physical.endsWith(suffix);
+  } catch {
+    return false;
+  }
+}
 
 /** A {@link ScanAssetsResult} plus whether the incremental path fell back to a
  *  full rescan (and why) — so the caller can log it and pick its cache strategy. */
@@ -712,16 +731,20 @@ export async function updateAssetIndex(
     reason,
   });
 
-  const exclude = await excludedFolders(root);
   if (changed.length === 0) return full('watcher overflow (no paths)');
   if (changed.length > INCREMENTAL_PATH_LIMIT) return full(`bulk change (${changed.length} paths)`);
+  const exclude = await excludedFolders(root);
+  const previousExclude = prev.assetExclude;
+  if (!previousExclude || previousExclude.length !== exclude.length || previousExclude.some((folder, i) => folder !== exclude[i])) {
+    return full('asset exclusions changed');
+  }
 
   // The content paths touched (strip `.meta` pairing; dedup — a texture edit fires
   // both foo.png and foo.png.meta). Skip plumbing paths + the editor-managed cover.
   const contentPaths = new Set<string>();
   for (const raw of changed) {
     const rel = raw.replace(/\\/g, '/');
-    if (isNonContentPath(rel, exclude)) continue;
+    if (rel === PROJECT_MANIFEST_FILE || isNonContentPath(rel, exclude)) continue;
     const abs = path.join(root, rel);
     let st: Awaited<ReturnType<typeof stat>> | null;
     try { st = await stat(abs); } catch { st = null; }
@@ -769,7 +792,16 @@ export async function updateAssetIndex(
       if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
       else { drop(before, content); continue; }
     }
-    const result = await readIndexEntry(root, content + META_EXT);
+    const sidecar = content + META_EXT;
+    if (process.platform === 'win32' && !before) {
+      const folded = content.toLowerCase();
+      if (prev.entries.some(entry => entry.path.toLowerCase() === folded)) return full(`asset path changed case (${content})`);
+    }
+    const [result, caseChanged] = await Promise.all([
+      readIndexEntry(root, sidecar),
+      process.platform === 'win32' && hasDifferentSidecarCase(root, sidecar),
+    ]);
+    if (caseChanged) return full(`asset path changed case (${content})`);
     if ('warning' in result) {
       warnings.push(result.warning);
       drop(before, content);
@@ -820,7 +852,7 @@ export async function updateAssetIndex(
     warnings.push(...r.warnings);
   }
 
-  const index: AssetIndex = { version: '1.0', entries, deps };
+  const index: AssetIndex = { version: '1.0', entries, deps, assetExclude: exclude };
   const outputPath = opts?.write !== false ? await writeIndexIfChanged(root, index) : null;
   return { ok: true, outputPath, index, warnings, adopted, reminted, fullRescan: false };
 }
