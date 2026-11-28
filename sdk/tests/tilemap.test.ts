@@ -20,7 +20,7 @@ import type { TiledMapData } from '../src/tilemap/tiledLoader';
 import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
 import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
-import { tileFlagsOf, tileIdOf } from '../src/tilemap/tileBits';
+import { TILE_ID_MASK, tileFlagsOf, tileIdOf } from '../src/tilemap/tileBits';
 import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { BodyType, RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D } from '../src/physics/PhysicsComponents';
@@ -664,6 +664,19 @@ describe('loadTiledMap', () => {
         } finally {
             shutdownTilemapAPI(world);
         }
+    });
+
+    it('omits unreachable ranges before they can wrap in the native tileset table', () => {
+        const heap = new Uint8Array(64);
+        const bindSlots = vi.fn((_entity: number, ptr: number, count: number) =>
+            [...new Uint32Array(heap.buffer, ptr, count * 6)]);
+        const api = createTilemapAPI({ HEAPU8: heap, _malloc: () => 8, _free: vi.fn(), tilemap_setTilesets: bindSlots });
+        api.setTilesets(1, [
+            { firstId: TILE_ID_MASK, textureHandle: 42, columns: 1 },
+            { firstId: TILE_ID_MASK + 1, textureHandle: 84, columns: 1 },
+            { firstId: 65537, textureHandle: 99, columns: 1 },
+        ]);
+        expect(bindSlots).toHaveReturnedWith([TILE_ID_MASK, 42, 1, 0, 0, 0]);
     });
 
     it('initializes an empty Tiled layer with the sparse tile store', () => {

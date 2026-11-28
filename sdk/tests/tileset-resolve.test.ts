@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { resolveTilesetModel, atlasCells, type ResolvedTileset } from '../src/tilemap/tilesetResolve';
+import { TILE_ID_MASK } from '../src/tilemap/tileBits';
 import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 
 function tileset(over: Partial<TilesetAsset>): TilesetAsset {
@@ -55,6 +56,19 @@ describe('resolveTilesetModel', () => {
         };
         const m = resolveTilesetModel([rt]);
         expect(m.slots).toEqual([{ firstId: 1, textureHandle: 100, columns: 4, margin: 4, spacing: 8, extrude: 0 }]);
+    });
+
+    it('keeps collision and animation within the encodable tile IDs', () => {
+        const a = tileset({ tileCount: TILE_ID_MASK - 1 });
+        const b = tileset({ tileCount: 2, tiles: {
+            1: { collision: { type: 'box' }, animation: [{ tile: 1, durationMs: 100 }, { tile: 2, durationMs: 100 }] },
+            2: { collision: { type: 'box' }, properties: { kind: 'overflow' } },
+        } });
+        const model = resolveTilesetModel([{ asset: a, textureHandle: 1 }, { asset: b, textureHandle: 2 }]);
+        expect(model.slots[1].firstId).toBe(TILE_ID_MASK);
+        expect(model.collidableTileIds).toEqual([TILE_ID_MASK]);
+        expect(model.animations.get(TILE_ID_MASK)).toEqual([{ tileId: TILE_ID_MASK, duration: 100 }]);
+        expect(model.tileProperties?.size).toBe(0);
     });
 
     it('animations re-key both the tile and its frames to global ids', () => {

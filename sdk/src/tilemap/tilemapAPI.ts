@@ -7,6 +7,7 @@ import type { World } from '../ecs/world';
 import { readCollisionChunks, type CollisionChunkSnapshot } from './nativeCollisionChunks';
 import { defineResource } from '../ecs/resource';
 import { isTileCoordinate, tileWorldToLocal } from './tileGeometry';
+import { TILE_ID_MASK } from './tileBits';
 
 function isTileExtent(value: number): boolean {
     return Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
@@ -154,19 +155,22 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
     }[]): void {
         const m = moduleOf();
         if (!m) return;
+        // A slot beyond the tile word cannot be referenced. Do not send it to
+        // the native table, where narrower integer storage could wrap its base.
+        const encodable = slots.filter(({ firstId }) => Number.isInteger(firstId) && firstId > 0 && firstId <= TILE_ID_MASK);
         const STRIDE = TILESET_SLOT_STRIDE;
-        const packed = new Uint32Array(slots.length * STRIDE);
-        for (let i = 0; i < slots.length; i++) {
-            packed[i * STRIDE] = slots[i].firstId;
-            packed[i * STRIDE + 1] = slots[i].textureHandle;
-            packed[i * STRIDE + 2] = slots[i].columns;
-            packed[i * STRIDE + 3] = slots[i].margin ?? 0;
-            packed[i * STRIDE + 4] = slots[i].spacing ?? 0;
-            packed[i * STRIDE + 5] = slots[i].extrude ?? 0;
+        const packed = new Uint32Array(encodable.length * STRIDE);
+        for (const [i, slot] of encodable.entries()) {
+            packed[i * STRIDE] = slot.firstId;
+            packed[i * STRIDE + 1] = slot.textureHandle;
+            packed[i * STRIDE + 2] = slot.columns;
+            packed[i * STRIDE + 3] = slot.margin ?? 0;
+            packed[i * STRIDE + 4] = slot.spacing ?? 0;
+            packed[i * STRIDE + 5] = slot.extrude ?? 0;
         }
         withMalloc(m, packed.byteLength, ptr => {
             new Uint32Array(m.HEAPU8.buffer, ptr, packed.length).set(packed);
-            m.tilemap_setTilesets(entity, ptr, slots.length);
+            m.tilemap_setTilesets(entity, ptr, encodable.length);
         });
     },
 

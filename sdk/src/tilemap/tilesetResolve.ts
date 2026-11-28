@@ -17,6 +17,7 @@
  * single TilemapLayer can mix tilesets and painted/imported maps converge.
  */
 import type { TilesetAsset, TilesetCollision } from './tilesetAsset';
+import { TILE_ID_MASK } from './tileBits';
 
 /** A `.estileset` parsed + its atlas texture loaded (handle resolved by the caller). */
 export interface ResolvedTileset {
@@ -167,11 +168,12 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
         });
         const tw = asset.tileWidth || 1;
         const th = asset.tileHeight || 1;
+        const encodableLimit = Math.min(limit ?? Infinity, TILE_ID_MASK - firstId + 1);
 
         // Local tile ids are 1-based; global id = firstId + (localId - 1).
         for (const key of tileKeys) {
             const localId = Number(key);
-            if (!Number.isInteger(localId) || localId < 1 || localId > (limit ?? Infinity)) continue;
+            if (!Number.isInteger(localId) || localId < 1 || localId > encodableLimit) continue;
             const globalId = firstId + localId - 1;
             const tile = asset.tiles[localId];
             if (tile.properties && Object.keys(tile.properties).length > 0) tileProperties.set(globalId, tile.properties);
@@ -183,7 +185,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
             if (tile.animation && tile.animation.length > 0) {
                 const frames: { tileId: number; duration: number }[] = [];
                 for (const frame of tile.animation) {
-                    if (!Number.isInteger(frame.tile) || frame.tile < 1 || frame.tile > (limit ?? Infinity)) continue;
+                    if (!Number.isInteger(frame.tile) || frame.tile < 1 || frame.tile > encodableLimit) continue;
                     frames.push({ tileId: firstId + frame.tile - 1, duration: frame.durationMs });
                 }
                 if (frames.length > 0) animations.set(globalId, frames);
