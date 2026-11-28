@@ -8,7 +8,7 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { entityWorldBox, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
+import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
 import { Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
@@ -76,8 +76,9 @@ it('reads and picks a mesh through the native engine arena without a WASM module
     });
     const world = {
         ...fakeWorld({
-            1: { Transform: T(0, 0), MeshRenderer: {} },
+            1: { Transform: T(0, 0), MeshRenderer: { parallax: { x: .5, y: 1 } } },
             2: { Transform: T(0, 0), MeshRenderer: {} },
+            3: { Transform: T(1, 2), MeshRenderer: {}, Sprite: { size: { x: 8, y: 4 }, pivot: { x: 0, y: 0 }, parallax: { x: 0, y: .5 } } },
         }) as object,
         getWasmModule: () => null,
         getCppRegistry: () => registry,
@@ -89,6 +90,15 @@ it('reads and picks a mesh through the native engine arena without a WASM module
         expect(pickEntityByRay(world, { origin: { x: 15, y: 0, z: 30 }, dir: { x: 0, y: 0, z: -1 } })).toBe(ent(1));
         expect(fill).toHaveBeenCalledWith(ent(1), 4);
         expect(free.mock.calls).toEqual([[4], [4], [4], [4]]);
+        fill.mockClear();
+        const opts = { parallaxCenter: { x: 20, y: 6 } };
+        expect(entityWorldSelectionGeometry(world, ent(1), opts)).toMatchObject({
+            box: { cx: 25, cy: 0, cz: 2, hd: 5 }, drawOffset: { x: 10, y: 0 },
+        });
+        expect(entityWorldSelectionGeometry(world, ent(3), opts)).toMatchObject({
+            box: { cx: 25, cy: 7, cz: 0, hd: 0 }, drawOffset: { x: 20, y: 3 },
+        });
+        expect(fill.mock.calls).toEqual([[ent(1), 4], [ent(3), 4]]);
     } finally { setNativeEngineApi(null); }
 });
 

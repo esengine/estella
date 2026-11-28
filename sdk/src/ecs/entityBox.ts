@@ -96,6 +96,29 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
     return source ? translateBox(source.box, parallaxOffset(source.drawable?.parallax, opts?.parallaxCenter)) : null;
 }
 
+/**
+ * The drawn world bounds and origin translation for a selection overlay.
+ * Mesh geometry takes precedence, then the flat and fallback geometry of
+ * {@link entityWorldBox}. The translation applies to the transform origin
+ * independently of the bounds' pivot or local centre.
+ *
+ * @experimental
+ */
+export function entityWorldSelectionGeometry(
+    world: LayoutWorld, entity: Entity, opts?: EntityBoxOptions,
+): { box: EntityBox; drawOffset?: Vec2 } | null {
+    const center = opts?.parallaxCenter;
+    const mesh = resolveMeshWorldBox(world, entity);
+    if (mesh) {
+        const drawOffset = center ? parallaxOffset(world.get(entity, MeshRenderer).parallax, center) : undefined;
+        return { box: translateBox(mesh, drawOffset), drawOffset };
+    }
+    const source = resolveEntityWorldBox(world, entity, opts);
+    if (!source) return null;
+    const drawOffset = parallaxOffset(source.drawable?.parallax, center);
+    return { box: translateBox(source.box, drawOffset), drawOffset };
+}
+
 /** The world translation applied to a renderable by the presented camera. @experimental */
 export function parallaxOffset(factor?: Readonly<Vec2>, center?: Readonly<Vec2>): Vec2 | undefined {
     if (!factor || !center || (factor.x === 1 && factor.y === 1)) return undefined;
