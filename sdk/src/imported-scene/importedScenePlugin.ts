@@ -12,15 +12,16 @@ export class ImportedScenePlugin implements Plugin {
     private release_: (() => void) | null = null;
 
     build(app: App): void {
-        const visibility = new NodeVisibilityState();
+        const visibility = new NodeVisibilityState(app.world);
         const modelUnits = new ParticleModelUnitState();
-        this.release_ = registerWorldSceneExportFilter(app.world,
+        const releaseFilter = registerWorldSceneExportFilter(app.world,
             (entity, component, data) => visibility.exportData(entity, component, data));
+        this.release_ = () => { releaseFilter(); visibility.dispose(); };
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             app.world.ensureTransformsComposed();
             modelUnits.update(app.world);
         }, { name: 'ParticleModelUnitSystem' }), { runIf: fxPreviewOrPlayMode });
-        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => visibility.update(app.world),
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => visibility.update(),
             { name: 'NodeVisibilitySystem' }));
     }
 
