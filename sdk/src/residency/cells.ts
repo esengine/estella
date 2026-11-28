@@ -132,8 +132,16 @@ export function cellSquare(cellX: number, cellZ: number, cellSize: number): {
  * that is where holes open in a world laid out on a grid.
  */
 export function distanceToCell(cell: WorldCell, x: number, z: number): number {
+    return distanceOrLowerBound(cell, x, z);
+}
+
+/** Outside the limit, the larger axis gap is enough to rule out membership. */
+function distanceOrLowerBound(cell: WorldCell, x: number, z: number, limit?: number): number {
     const dx = Math.max(cell.minX - x, 0, x - cell.maxX);
     const dz = Math.max(cell.minZ - z, 0, z - cell.maxZ);
+    if (dx === 0) return dz;
+    if (dz === 0) return dx;
+    if (limit !== undefined && (dx > limit || dz > limit)) return Math.max(dx, dz);
     return Math.hypot(dx, dz);
 }
 
@@ -202,23 +210,43 @@ export function desiredResidency(
     const toUnload: string[] = [];
     /** Demanded-and-absent cells with how far the nearest source is. */
     const pending: Array<{ name: string; distance: number }> = [];
+    const ranges = sources.map(source => {
+        const { x, z, loadRadius } = source;
+        const keep = Math.max(loadRadius, source.unloadRadius);
+        const prefetch = Math.max(loadRadius, source.prefetchRadius);
+        const reach = sources.length > 1 ? Math.max(keep, prefetch) : undefined;
+        return { x, z, load: loadRadius, keep, prefetch, reach };
+    });
     for (const cell of cells) {
         let wanted = false;
         let kept = false;
         let speculated = false;
         let nearest = Infinity;
-        for (const source of sources) {
-            const distance = distanceToCell(cell, source.x, source.z);
+        let outsideReach = Infinity;
+        for (const source of ranges) {
+            const distance = distanceOrLowerBound(cell, source.x, source.z, source.reach);
+            if (source.reach !== undefined && distance > source.reach) {
+                if (distance < outsideReach) outsideReach = distance;
+                continue;
+            }
             if (distance < nearest) nearest = distance;
-            if (distance <= source.loadRadius) wanted = true;
+            if (distance <= source.load) wanted = true;
             // An authored band that is not a band is not one the streamer invents:
             // the wider of the two is the only reading under which a resident cell
             // cannot be dropped by the same distance that just asked for it.
-            else if (distance <= Math.max(source.loadRadius, source.unloadRadius)) kept = true;
-            if (distance <= Math.max(source.loadRadius, source.prefetchRadius)) speculated = true;
+            else if (distance <= source.keep) kept = true;
+            if (distance <= source.prefetch) speculated = true;
+        }
+        const isResident = resident.has(cell.name);
+        // A source outside its own radius may still be closer than the one that
+        // asked for the cell. Measure it when it could change the ordering.
+        if (outsideReach < nearest && (speculated || (wanted && !isResident))) {
+            for (const source of sources) {
+                const distance = distanceToCell(cell, source.x, source.z);
+                if (distance < nearest) nearest = distance;
+            }
         }
         if (speculated) prefetch.push({ name: cell.name, distance: nearest });
-        const isResident = resident.has(cell.name);
         if (wanted || (kept && isResident)) {
             target.push(cell.name);
             if (!isResident) pending.push({ name: cell.name, distance: nearest });

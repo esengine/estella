@@ -118,6 +118,19 @@ describe('desiredResidency', () => {
         expect(d.toLoad).toEqual(['c_1_0', 'c_2_0', 'c_3_0']);
     });
 
+    it('orders demand and prefetch by the nearest source even if another source supplied the reach', () => {
+        const cells = [cell(0, 0), cell(2, 0), cell(4, 0)];
+        const broad = source(50, 150, 400, 450, 500);
+        const close = source(410, -5, 0, 0, 0);
+        const distant = source(-10000, 10000, 20, 20, 20);
+        for (const sources of [[broad, close, distant], [distant, close, broad]]) {
+            const decision = desiredResidency(cells, sources, new Set());
+            expect(decision.target).toEqual(['c_0_0', 'c_2_0', 'c_4_0']);
+            expect(decision.toLoad).toEqual(['c_4_0', 'c_0_0', 'c_2_0']);
+            expect(decision.prefetch).toEqual(decision.toLoad);
+        }
+    });
+
     it('partitions on XZ only — a source overhead still holds the ground', () => {
         // Y is not in the sample at all: a cell is a vertical column, so a source
         // on a tower's roof keeps the floors below it resident.
