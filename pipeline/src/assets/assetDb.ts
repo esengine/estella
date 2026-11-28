@@ -189,8 +189,8 @@ async function resolveDuplicateUuids(
  * and a project is not trusted input. A link that stays inside is an ordinary
  * file here, and only links pay the realpath call.
  */
-function leavesProject(root: string, dirent: Dirent, abs: string): boolean {
-  return dirent.isSymbolicLink() && !isInsideRoot(root, abs);
+function leavesProject(root: string, dirent: Dirent, parent: string): boolean {
+  return dirent.isSymbolicLink() && !isInsideRoot(root, path.join(parent, dirent.name));
 }
 
 /** Recursively yield the sidecars of present content files, with project-relative forward slashes. */
@@ -205,7 +205,7 @@ async function* walkMeta(root: string, rel = '', exclude?: readonly string[]): A
   const escaped = new Set<string>(), files = new Set<string>();
   const fileKey = (name: string) => process.platform === 'win32' ? name.toLowerCase() : name;
   for (const e of entries) {
-    if (leavesProject(root, e, path.join(abs, e.name))) escaped.add(e.name);
+    if (leavesProject(root, e, abs)) escaped.add(e.name);
     else if (!e.isDirectory()) files.add(fileKey(e.name));
   }
   for (const e of entries) {
@@ -238,14 +238,20 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = [], excl
   } catch {
     return adopted; // unreadable dir
   }
+  // A regular sidecar with the exact name is already known to exist from readdir.
+  // Case variants and links still go through adoptOrphan's filesystem checks.
+  const sidecars = new Set<string>();
   for (const e of entries) {
+    if (e.isFile() && e.name.endsWith(META_EXT)) sidecars.add(e.name);
+  }
+  for (const e of entries) {
+    if (leavesProject(root, e, abs)) continue;
     const relPath = rel ? `${rel}/${e.name}` : e.name;
-    if (leavesProject(root, e, path.join(abs, e.name))) continue;
     if (e.isDirectory()) {
       if (!isContentDir(e.name)) continue;
       if (isExcludedByProject(relPath, exclude)) continue;
       await adoptOrphans(root, relPath, adopted, exclude);
-    } else if (isContentFile(e.name)) {
+    } else if (isContentFile(e.name) && !sidecars.has(e.name + META_EXT)) {
       // The project-root thumbnail.png is the editor-managed launcher cover
       // (rewritten on every scene save), not an asset — adopting it would put
       // a churning file in the registry.
