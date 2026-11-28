@@ -26,7 +26,7 @@ import { readManifest, readTextInRoot } from '../project/readProject';
 import { PROJECT_MANIFEST_FILE } from '../project/format';
 import { isInsideRoot } from '../fs/pathSandbox';
 import { META_EXT, isContentDir, isContentFile, isExcludedByProject, isNonContentPath } from './contentPolicy';
-import { adoptOrphan } from './assetMeta';
+import { adoptOrphan, metaTypeForFile } from './assetMeta';
 import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
@@ -626,6 +626,41 @@ async function excludedFolders(root: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/** Check candidate paths against the same files a scan would index, without adopting or walking the project. */
+export function projectAssetPathProbe(root: string): (rel: string) => Promise<boolean> {
+  const results = new Map<string, Promise<boolean>>();
+  const directories = new Map<string, Promise<string[]>>();
+  let exclude: Promise<string[]> | undefined;
+  async function exists(rel: string): Promise<boolean> {
+    const file = path.posix.basename(rel);
+    if (!isContentFile(file) || isNonContentPath(rel, await (exclude ??= excludedFolders(root)))) return false;
+    const abs = path.resolve(root, rel);
+    if (!isInsideRoot(root, abs)) return false;
+    const folder = path.dirname(abs);
+    let listing = directories.get(folder);
+    if (!listing) {
+      listing = readdir(folder).catch(() => []);
+      directories.set(folder, listing);
+    }
+    const names = await listing;
+    const hasMeta = names.includes(file + META_EXT);
+    if ((!hasMeta && !names.includes(file)) || !(await stat(abs).catch(() => null))?.isFile()) return false;
+    if (hasMeta) {
+      if (!isInsideRoot(root, abs + META_EXT)) return false;
+      return 'entry' in await readIndexEntry(root, rel + META_EXT);
+    }
+    return rel !== 'thumbnail.png' && (await metaTypeForFile(abs)) !== null;
+  }
+  return rel => {
+    let result = results.get(rel);
+    if (!result) {
+      result = exists(rel);
+      results.set(rel, result);
+    }
+    return result;
+  };
 }
 
 /** How far a scan is: the step it is in and how many of that step's items are done. */

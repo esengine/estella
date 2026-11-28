@@ -6,6 +6,9 @@ import path from 'node:path';
 import { expect, it, onTestFinished } from 'vitest';
 import { importAsepriteFile } from '../src/assets/importSpriteFile';
 import { writeAseprite } from './asepriteWriter';
+import { scanAssetDatabase } from '../src/assets/assetDb';
+import { cookAssets } from '../src/assets/cookAssets';
+import { encodeRgbaPng } from '../src/assets/png';
 
 type Tag = [name: string, cell: number];
 async function fixture() {
@@ -90,6 +93,51 @@ it('reserves artist filenames, keeps standalone imports separate and gives new U
   expect((await f.json('Fox_奔跑-2.esanim.meta')).uuid).not.toBe(ids[2]);
   expect(await readFile(f.file('Fox.png'), 'utf8')).toBe('artist page');
   expect(await readFile(f.file('Fox_待机.esanim'), 'utf8')).toBe('artist animation');
+});
+
+it.each(['indexed', 'unindexed'])('keeps a retired clip’s project-first reference to an %s texture', async registry => {
+  const f = await fixture(), run = () => importAsepriteFile(f.location);
+  await f.source([['Rest', 0], ['Run', 1]]);
+  await run();
+  const oldPage = await readFile(f.file('Fox.png'));
+  await writeFile(path.join(f.root, 'Fox.png'), encodeRgbaPng(1, 1, new Uint8Array([200, 10, 20, 255])));
+  if (registry === 'indexed') await scanAssetDatabase(f.root, { write: false });
+  const generated = await f.json('Fox.png.meta');
+  const clipFile = 'Fox_Rest.esanim';
+  const edited = await f.json(clipFile);
+  edited.sheet.texture = 'Fox.png';
+  edited.frames = [
+    { texture: 'Fox.png?revision=2', duration: 1 },
+    { texture: './Fox.png', duration: 2 },
+    { texture: '@uuid:' + generated.uuid, duration: 3 },
+  ];
+  await writeFile(f.file(clipFile), JSON.stringify(edited));
+  await f.source([['Run', 0]], [90, 100]);
+  await run();
+
+  const retired = await f.json(clipFile);
+  expect(retired.sheet.texture).toBe(edited.sheet.texture);
+  expect(retired.frames[0]).toEqual(edited.frames[0]);
+  expect(retired.frames[1].texture).toMatch(/^generated\/Fox-retained-.*\.png$/);
+  expect(retired.frames[2].texture).toBe(retired.frames[1].texture);
+  expect(await readFile(path.join(f.root, retired.frames[1].texture))).toEqual(oldPage);
+  const retiredId = (await f.json(clipFile + '.meta')).uuid;
+  const snapshotId = (await f.json(path.basename(retired.frames[1].texture) + '.meta')).uuid;
+  const scene = 'main.esscene';
+  await writeFile(path.join(f.root, scene), JSON.stringify({
+    version: 4, entities: [{
+      id: 1, name: 'Fox', parent: null, children: [],
+      components: [{ type: 'SpriteAnimator', data: { clip: '@uuid:' + retiredId } }],
+    }],
+  }));
+  const rescanned = await scanAssetDatabase(f.root, { write: false });
+  const other = rescanned.index.entries.find(entry => entry.path === 'Fox.png')!;
+  expect(rescanned.index.deps[retiredId]).toEqual(expect.arrayContaining([other.uuid, snapshotId]));
+  expect(rescanned.index.deps[retiredId]).not.toContain(generated.uuid);
+  const cooked = await cookAssets(f.root, { entryScenes: [scene], outDir: 'build', contentAddressed: true });
+  expect(cooked.ok, [...cooked.failed, ...cooked.warnings].join('\n')).toBe(true);
+  expect(cooked.included).toEqual(expect.arrayContaining([retiredId, other.uuid, snapshotId]));
+  expect(cooked.included).not.toContain(generated.uuid);
 });
 
 it('keeps duplicate named tags by range and treats a new punctuated name as a separate animation', async () => {

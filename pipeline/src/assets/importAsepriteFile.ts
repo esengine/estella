@@ -9,6 +9,7 @@ import type { AnimClipAssetData } from 'esengine';
 import { extractUuid } from '../../../sdk/src/asset/AssetRegistry';
 import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
 import { realPathOf, resolveInside } from '../fs/pathSandbox';
+import { projectAssetPathProbe } from './assetDb';
 import { metaTypeFor, mintMeta } from './assetMeta';
 import { importAseprite } from './asepriteImport';
 import { asepriteClipName, availableName, filenameKey, matchAsepriteClips, type PreviousClip } from './asepriteTagIdentity';
@@ -93,13 +94,26 @@ async function retainSheet(writer: Writer, sheet: Sheet, occupied: Set<string>):
 }
 
 /** Redirect only references to the page about to change. Keep edited events, timing and unknown fields verbatim. */
-function liveTextures(clip: AnimClipAssetData | null, clipPath: string, livePath: string, uuid: unknown) {
-    const slots = [clip?.sheet, ...(Array.isArray(clip?.frames) ? clip.frames : [])];
-    return slots.filter((slot): slot is { texture: string } => {
-        if (typeof slot?.texture !== 'string') return false;
-        const id = extractUuid(slot.texture);
-        return id ? id === uuid : !!findDocumentAsset(clipPath, slot.texture, name => name === livePath ? true : undefined);
-    });
+async function liveTextures(
+    clip: AnimClipAssetData | null, clipPath: string, livePath: string, uuid: string | null,
+    hasAsset: (candidate: string) => Promise<boolean>,
+) {
+    const slots = [clip?.sheet, ...(Array.isArray(clip?.frames) ? clip.frames : [])]
+        .filter((slot): slot is { texture: string } => typeof slot?.texture === 'string');
+    const matches = await Promise.all(slots.map(async ({ texture }) => {
+        const id = extractUuid(texture);
+        if (id) return id === uuid;
+        const earlier: string[] = [];
+        const live = findDocumentAsset(clipPath, texture, candidate => {
+            if (candidate === livePath) return candidate;
+            earlier.push(candidate);
+            return undefined;
+        });
+        if (!live) return false;
+        for (const candidate of earlier) if (await hasAsset(candidate)) return false;
+        return true;
+    }));
+    return slots.filter((_, i) => matches[i]);
 }
 
 export async function importAsepriteFile(location: SourceFileLocation) {
@@ -115,12 +129,13 @@ export async function importAsepriteFile(location: SourceFileLocation) {
     const { occupied, sheet, clips } = await inventory(writer, origin);
     const { matched, retired } = matchAsepriteClips(sheet ? path.parse(sheet.file).name : stem, art.clips, clips);
     const page = sheet?.file ?? availableName(art.sheet.file, occupied);
+    const hasAsset = projectAssetPathProbe(location.root);
     let snapshot: string | undefined;
     // Freeze every retiring clip before publishing the new pixels. If interrupted, already detached clips
     // still play and the next import can finish the others against the same original page.
     for (const old of retired) {
         const clip = old.data ?? await readClip(writer.absDir, old.file);
-        const slots = liveTextures(clip, prefix + old.file, prefix + page, extractUuid(sheet?.meta.uuid));
+        const slots = await liveTextures(clip, prefix + old.file, prefix + page, extractUuid(sheet?.meta.uuid), hasAsset);
         if (slots.length) {
             if (sheet && existsSync(inside(writer.absDir, page))) {
                 snapshot ??= await retainSheet(writer, sheet, occupied);
