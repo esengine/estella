@@ -45,6 +45,7 @@ import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { bitmapFontMetricsField, type BitmapFontDocument } from '../../../sdk/src/asset/bitmapFontDocument';
+import { mapGroomAssetRefs } from '../../../sdk/src/groom/groomFormat';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { parseTerrainTiles, terrainTileImageRefs, terrainTileSizeError } from '../../../sdk/src/terrain/tileDocument';
 import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
@@ -355,14 +356,8 @@ function rewriteGroomRefs(
   docPath: string,
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
-  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as { curves?: unknown; groups?: { material?: unknown }[]; cards?: { mesh?: unknown; material?: unknown } };
-  if (typeof json.curves === 'string' && json.curves) json.curves = logicalRef(json.curves, docPath, byPath);
-  // Its cards, the far level of detail: a mesh and a material beside it, moved by staging like the curves.
-  if (json.cards && typeof json.cards.mesh === 'string') json.cards.mesh = logicalRef(json.cards.mesh, docPath, byPath);
-  if (json.cards && typeof json.cards.material === 'string') json.cards.material = logicalRef(json.cards.material, docPath, byPath);
-  for (const group of Array.isArray(json.groups) ? json.groups : []) {
-    if (group && typeof group.material === 'string' && group.material) group.material = logicalRef(group.material, docPath, byPath);
-  }
+  const json: unknown = JSON.parse(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/, ''));
+  mapGroomAssetRefs(json, ref => logicalRef(resolveDocumentRef(docPath, ref), '', byPath));
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 
@@ -1028,7 +1023,7 @@ export async function cookAssets(
         }
       }
       // Grooms: the curves file beside them, and each group's material → logical project paths.
-      if (ext.toLowerCase() === '.esgroom') {
+      if (entry.type === 'groom' || ext.toLowerCase() === '.esgroom') {
         try {
           data = rewriteGroomRefs(data, entry.path, byPath);
         } catch (err) {

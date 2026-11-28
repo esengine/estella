@@ -99,6 +99,28 @@ export interface GroomDocument {
     groups: GroomGroupSettings[];
 }
 
+function groomGrowth(raw: Partial<GroomDocument>): GrowRecipe | undefined {
+    return raw.grow && typeof raw.grow === 'object' ? raw.grow : undefined;
+}
+
+function hasGroomCards(cards: Partial<GroomCardsLod> | undefined): cards is Partial<GroomCardsLod> & Pick<GroomCardsLod, 'mesh' | 'material'> {
+    return !!cards && typeof cards.mesh === 'string' && !!cards.mesh && typeof cards.material === 'string' && !!cards.material;
+}
+
+/** Map the asset fields read by the groom, retaining the authored document's other fields. */
+export function mapGroomAssetRefs(document: unknown, map: (ref: string) => string): void {
+    const groom = document as Partial<GroomDocument> | null;
+    if (groom?.type !== 'groom') return;
+    if (!groomGrowth(groom) && typeof groom.curves === 'string' && groom.curves) groom.curves = map(groom.curves);
+    if (hasGroomCards(groom.cards)) {
+        groom.cards.mesh = map(groom.cards.mesh);
+        groom.cards.material = map(groom.cards.material);
+    }
+    for (const group of Array.isArray(groom.groups) ? groom.groups : []) {
+        if (typeof group?.material === 'string' && group.material) group.material = map(group.material);
+    }
+}
+
 export const DEFAULT_GROUP_SETTINGS: Readonly<GroomGroupSettings> = Object.freeze({
     material: '',
     overrideWidth: true,
@@ -131,11 +153,11 @@ export function groupSettings(raw: Partial<GroomGroupSettings> | undefined): Gro
 export function parseGroomDocument(text: string): GroomDocument {
     const raw = JSON.parse(text) as Partial<GroomDocument>;
     if (raw.type !== 'groom') throw new Error('not a groom: its "type" is not "groom"');
-    const grow = raw.grow && typeof raw.grow === 'object' ? raw.grow : undefined;
+    const grow = groomGrowth(raw);
     const curves = typeof raw.curves === 'string' ? raw.curves : '';
     if (!curves && !grow) throw new Error('a groom names its curves file in "curves", or grows them from "grow"');
-    const c = raw.cards as Partial<GroomCardsLod> | undefined;
-    const cards = c && typeof c.mesh === 'string' && c.mesh && typeof c.material === 'string' && c.material
+    const c = raw.cards;
+    const cards = hasGroomCards(c)
         ? { mesh: c.mesh, material: c.material, screenSize: typeof c.screenSize === 'number' && Number.isFinite(c.screenSize) ? Math.max(0, c.screenSize) : DEFAULT_CARDS_SCREEN_SIZE }
         : undefined;
     return {

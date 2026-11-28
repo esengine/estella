@@ -203,6 +203,39 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[CONTROLLER]).toContain(CLIP);
   });
 
+  it('cooks the groom’s strand and card materials even when their indexed paths have no extension', async () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'estella-groom-refs-'));
+    const put = (file: string, type: string, id: string, data: string | Uint8Array) => writeAsset(file, type, id, data, project);
+    const entry = 'assets/main.esscene';
+    try {
+      put(entry, 'scene', SCENE, JSON.stringify({ version: 4, entities: [{ id: 1, parent: null, children: [],
+        components: [{ type: 'Groom', data: { groom: `@uuid:${GROOM}` } }],
+      }] }));
+      put('assets/hair/actor.esgroom', 'groom', GROOM, JSON.stringify({ version: 1, type: 'groom', curves: 'geometry',
+        groups: [{ material: 'strands' }], cards: { mesh: './cardMesh', material: './cards' }, editorNote: 'unused.esmaterial',
+      }));
+      put('assets/hair/geometry', metaTypeForExt('.escurves')!, CURVES, new Uint8Array([1, 2, 3, 4]));
+      put('assets/hair/cardMesh', 'mesh', CARDS_MESH, new Uint8Array([5, 6, 7, 8]));
+      const surface = (texture: string) => JSON.stringify({ type: 'material', shader: 'builtin:hair', properties: { mainTex: texture } });
+      put('assets/hair/strands', 'material', 'strands', surface('strands.png'));
+      put('assets/hair/cards', 'material', CARDS_MATERIAL, surface('cards.png'));
+      put('assets/hair/unused.esmaterial', 'material', 'unused', surface('strands.png'));
+      const image = encodeRgbaPng(1, 1, new Uint8Array([128, 128, 255, 255]));
+      put('assets/hair/strands.png', 'texture', 'strand-map', image);
+      put('assets/hair/cards.png', 'texture', 'card-map', image);
+
+      const { index } = await scanAssetDatabase(project, { write: false });
+      expect(index.deps[GROOM]).toEqual([CURVES, CARDS_MESH, CARDS_MATERIAL, 'strands'].sort());
+      const cooked = await cookAssets(project, { entryScenes: [entry], outDir: 'build', contentAddressed: true });
+      expect(cooked.ok, cooked.warnings.join('\n')).toBe(true);
+      expect(cooked.included.slice().sort()).toEqual([SCENE, GROOM, CURVES, CARDS_MESH, CARDS_MATERIAL, 'strands', 'strand-map', 'card-map'].sort());
+      const files = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')).entries as { uuid: string; path: string }[];
+      const staged = JSON.parse(readFileSync(path.join(cooked.outDir, files.find(file => file.uuid === GROOM)!.path), 'utf8'));
+      expect(staged).toMatchObject({ curves: 'assets/hair/geometry', groups: [{ material: 'assets/hair/strands' }],
+        cards: { mesh: 'assets/hair/cardMesh', material: 'assets/hair/cards' }, editorNote: 'unused.esmaterial' });
+    } finally { rmSync(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it.each([
     ['Sprite', 'path'], ['MeshRenderer', 'path'],
     ['Sprite', 'uuid'], ['MeshRenderer', 'uuid'],

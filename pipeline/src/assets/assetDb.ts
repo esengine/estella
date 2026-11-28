@@ -42,6 +42,7 @@ import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 import { parseTerrainTiles, terrainTileImageRefs } from '../../../sdk/src/terrain/tileDocument';
+import { mapGroomAssetRefs } from '../../../sdk/src/groom/groomFormat';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -351,7 +352,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** Reuse candidates while the file stamp matches, including edits that preserve mtime. */
-const CANDIDATE_CACHE_VERSION = 9;
+const CANDIDATE_CACHE_VERSION = 10;
 interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; ctimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
@@ -380,7 +381,7 @@ async function writeCandidateCache(root: string, cache: CandidateCache): Promise
  */
 const PATH_LIKE = /\.[a-z0-9]{1,16}(?:[?#].*)?$/i;
 
-const SIBLING_REF_TYPES = new Set(['material', 'environment', 'groom', 'animatorcontroller']);
+const SIBLING_REF_TYPES = new Set(['material', 'environment', 'animatorcontroller']);
 
 /**
  * Bounded-concurrency map preserving output order. The scan reads hundreds of
@@ -467,6 +468,8 @@ async function computeDeps(
         if (assetRefId(ref) || !/^[a-z][a-z0-9+.-]*:/i.test(ref)) found.add(ref);
         return ref;
       });
+    } else if (type === 'groom') {
+      mapGroomAssetRefs(json, ref => { found.add(ref); return ref; });
     } else {
       collectCandidates(json, found, type, named);
     }
@@ -483,10 +486,12 @@ async function computeDeps(
     const isSpineAtlas = editorType === 'spine-atlas';
     const isBitmapFont = entry.type === BITMAP_FONT;
     const bitmapWrapper = isBitmapFont && path.extname(entry.path).toLowerCase() === '.bmfont';
+    // These loaders resolve against the document without guessing a project-relative address.
+    const documentRelative = bitmapWrapper || entry.type === 'groom';
     const preferSibling = isBitmapFont || SKELETAL_ATLAS_TYPES.has(editorType)
       || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tmx|tsj)$/i.test(entry.path);
     const lookup = (ref: string, slot?: RegisteredSlot) => {
-      if (bitmapWrapper) {
+      if (documentRelative) {
         const logical = resolveDocumentRef(entry.path, ref).replace(/^\//, '');
         return byPath.get(logical) ?? byPath.get(localAssetPathWithoutSuffix(logical));
       }

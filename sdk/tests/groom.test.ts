@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from '../src/asset/meshFormat';
 import {
-    decodeCurves, encodeCurves, groupStats, parseGroomDocument, settingsForGroups, emptyCurveSet, DEFAULT_GROUP_SETTINGS, DEFAULT_CARDS_SCREEN_SIZE,
+    decodeCurves, encodeCurves, groupStats, mapGroomAssetRefs, parseGroomDocument, settingsForGroups, emptyCurveSet, DEFAULT_GROUP_SETTINGS, DEFAULT_CARDS_SCREEN_SIZE,
     type CurveSet, type GroomCurves,
 } from '../src/groom/groomFormat';
 import { buildStrandMesh } from '../src/groom/groomMesh';
@@ -40,6 +40,23 @@ function read(mesh: MeshData, semantic: number, v: number, n: number): number[] 
 }
 const alphaOf = (mesh: MeshData, v: number): number =>
     mesh.vertices[v * mesh.vertexStride + mesh.channels.find((ch) => ch.semantic === MeshChannel.Color)!.offset + 3]!;
+
+it('follows only the active groom source and complete cards when mapping asset references', () => {
+    const raw = {
+        type: 'groom', curves: 'unused.escurves', grow: { groups: [] },
+        groups: [null, { material: 'roughness', note: 'other.esmaterial' }],
+        cards: { mesh: 'unused.esmesh' },
+    };
+    const map = (ref: string) => besideFile('assets/actor/fur.esgroom', ref);
+    mapGroomAssetRefs(raw, map);
+    const parsed = parseGroomDocument(JSON.stringify(raw));
+    expect(parsed.grow).toEqual(raw.grow);
+    expect(parsed.cards).toBeUndefined();
+    expect(parsed.groups.map(group => group.material)).toEqual(['', 'assets/actor/roughness']);
+    expect(raw.curves).toBe('unused.escurves');
+    expect(raw.cards.mesh).toBe('unused.esmesh');
+    expect(raw.groups[1]?.note).toBe('other.esmaterial');
+});
 
 describe('a curves file', () => {
     it('reads back what was written, every attribute and group, at any alignment of its name', () => {
