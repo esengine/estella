@@ -1130,6 +1130,25 @@ describe('parseTmjJson — group layers, infinite chunks, external tilesets', ()
         expect(layer.chunks[0].tiles[0]).toBe(5 | 0x2000);
     });
 
+    it('keeps row-major chunk order and only overwrites nonempty cells in overlapping Tiled chunks', () => {
+        const data = new Array(60).fill(0);
+        for (const [index, gid] of [[5, 1], [19, 2], [20, 3], [22, 4], [39, 5]]) data[index] = gid;
+        const map = parseTmjJson({ width: 1, height: 1, tilewidth: 16, tileheight: 16, infinite: true,
+            layers: [{ type: 'tilelayer', chunks: [
+                { x: -2, y: -1, width: 20, height: 3, data },
+                { x: -2, y: 0, width: 4, height: 1, data: [0, 0x80000006, 0, 7] },
+                { x: 48, y: 0, width: 2, height: 1, data: [0, 0] },
+            ] }],
+        })!;
+        const chunks = map.layers[0].chunks;
+        expect(chunks.map(({ x, y }) => [x, y])).toEqual([[0, -1], [1, -1], [-1, 0], [0, 0], [1, 0]]);
+        expect(chunks[0].tiles[15 * 16 + 3]).toBe(1);
+        expect(chunks[1].tiles[15 * 16 + 1]).toBe(2);
+        expect([...chunks[2].tiles.slice(14, 16)]).toEqual([3, 6 | 0x2000]);
+        expect([...chunks[3].tiles.slice(0, 2)]).toEqual([4, 7]);
+        expect(chunks[4].tiles[1]).toBe(5);
+    });
+
     it('parseTmjWithExternals merges external .tsj tilesets (map-relative image, animations, collision)', async () => {
         const tsj = {
             name: 'terrain', image: '../textures/terrain.png',

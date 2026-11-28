@@ -226,25 +226,34 @@ function rechunkTiledLayer(layer: Record<string, unknown>, rawChunks: Array<Reco
         const w = (chunk.width as number) ?? 0;
         const h = (chunk.height as number) ?? 0;
         const data = readTiledGids(layer, chunk, w * h);
-        if (!data) continue;
+        if (!data || w <= 0 || h <= 0 || !Number.isInteger(baseX) || !Number.isInteger(baseY)
+            || !Number.isInteger(w) || !Number.isInteger(h)) continue;
+        const firstColumn = Math.floor(baseX / CHUNK_SIZE);
+        const targets: Array<Uint16Array | undefined> = [];
+        let chunkRow: number | undefined;
         for (let ty = 0; ty < h; ty++) {
-            for (let tx = 0; tx < w; tx++) {
-                const gid = data[ty * w + tx];
-                if (!gid) continue;
+            const gy = baseY + ty, cy = Math.floor(gy / CHUNK_SIZE);
+            if (chunkRow !== cy) { targets.length = 0; chunkRow = cy; }
+            const sourceRow = ty * w, targetRow = (gy - cy * CHUNK_SIZE) * CHUNK_SIZE;
+            // Stay in document order so overlapping chunks and first appearances resolve as before.
+            for (let tx = 0; tx < w;) {
                 const gx = baseX + tx;
-                const gy = baseY + ty;
                 const cx = Math.floor(gx / CHUNK_SIZE);
-                const cy = Math.floor(gy / CHUNK_SIZE);
-                const key = `${cx},${cy}`;
-                let target = engine.get(key);
-                if (!target) {
-                    target = {
-                        x: cx, y: cy, width: CHUNK_SIZE, height: CHUNK_SIZE,
-                        tiles: new Uint16Array(CHUNK_SIZE * CHUNK_SIZE),
-                    };
-                    engine.set(key, target);
+                const column = gx - cx * CHUNK_SIZE;
+                const end = Math.min(w, tx + CHUNK_SIZE - column), cacheIndex = cx - firstColumn;
+                let target = targets[cacheIndex];
+                for (let at = targetRow + column; tx < end; tx++, at++) {
+                    const gid = data[sourceRow + tx];
+                    if (!gid) continue;
+                    if (!target) {
+                        const key = `${cx},${cy}`;
+                        const existing = engine.get(key);
+                        target = existing?.tiles ?? new Uint16Array(CHUNK_SIZE * CHUNK_SIZE);
+                        if (!existing) engine.set(key, { x: cx, y: cy, width: CHUNK_SIZE, height: CHUNK_SIZE, tiles: target });
+                        targets[cacheIndex] = target;
+                    }
+                    target[at] = convertGid(gid);
                 }
-                target.tiles[(gy - cy * CHUNK_SIZE) * CHUNK_SIZE + (gx - cx * CHUNK_SIZE)] = convertGid(gid);
             }
         }
     }
