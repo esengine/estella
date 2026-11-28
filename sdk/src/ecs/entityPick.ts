@@ -11,7 +11,8 @@
 import { isValidEntity, type Entity, type Vec2, type Vec3 } from '../types';
 import { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type SortingGroupData, type TransformData } from './component';
+import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type SortingGroupData, type TransformData } from './component';
+import { borrowedComponentReader } from './borrowedComponentReader';
 import {
     firstRankedPick, layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -34,8 +35,8 @@ const NO_ENCLOSING_GROUPS: readonly { layer: number; order: number }[] = [];
  * read after each spatial test. The returned slots are borrowed until the next read.
  */
 function createEnclosingGroupReader(world: PickWorld) {
-    const readGroup = pickComponentReader(world, SortingGroup);
-    const readParent = pickComponentReader(world, Parent);
+    const readGroup = borrowedComponentReader(world, SortingGroup);
+    const readParent = borrowedComponentReader(world, Parent);
     const coreWorld = world instanceof World ? world : null;
     const coreRegistry = coreWorld?.getCppRegistry();
     const optionalGroup = coreWorld?.builtin.resolvePtrGetter(SortingGroup._cppName) as
@@ -121,7 +122,7 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    const readTransform = pickComponentReader(world, Transform);
+    const readTransform = borrowedComponentReader(world, Transform);
     const repeated = visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, offsetY, opaque) {
             const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, offsetY, opaque);
@@ -146,7 +147,7 @@ export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPic
     let index = 0;
     let nearestOpaque: PickCandidate<Entity> | undefined;
     let nearestDistance = Infinity;
-    const readTransform = pickComponentReader(world, Transform);
+    const readTransform = borrowedComponentReader(world, Transform);
     visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, offsetY, opaque) {
             const position = index++;
@@ -199,7 +200,7 @@ export function pickEntitiesByBounds(
     world: PickWorld, intersects: (box: EntityBox, entity: Entity) => boolean, opts: EntityPickOptions = {},
 ): Entity[] {
     const hits: Entity[] = [];
-    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, pickComponentReader(world, Transform),
+    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, borrowedComponentReader(world, Transform),
         { unranked: entity => hits.push(entity) });
     return hits;
 }
@@ -208,13 +209,6 @@ type PickHitVisitor =
     | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, offsetY: number, opaque?: boolean): void }
     | { unranked(entity: Entity): void };
 
-function pickComponentReader<T>(world: PickWorld, component: BuiltinComponentDef<T>): (entity: Entity) => T {
-    const read = (entity: Entity) => world.get(entity, component);
-    const fast = world.resolveGetter?.(component) as ((entity: Entity) => T) | null | undefined;
-    // The normal getter records reads during a speculative transaction.
-    return fast ? entity => world.speculating ? read(entity) : fast(entity) : read;
-}
-
 function visitPickHits(
     world: PickWorld, opts: EntityPickOptions, intersect: (box: EntityBox, entity: Entity) => number | null,
     readTransform: (entity: Entity) => TransformData, visit: PickHitVisitor,
@@ -222,7 +216,7 @@ function visitPickHits(
     const iconHalf = opts.iconHalf ?? 0;
     const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
-    const readMesh = pickComponentReader(world, MeshRenderer);
+    const readMesh = borrowedComponentReader(world, MeshRenderer);
     let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
     let repeated = false;
     const unranked = 'unranked' in visit;

@@ -16,6 +16,7 @@ import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { v3 } from '../math/vec3';
 import { worldEngineApi, type EngineApi } from './bridge/engineApi';
+import { borrowedComponentReader } from './borrowedComponentReader';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -374,6 +375,18 @@ export function meshWorldBox(world: LayoutWorld, entity: Entity, parallaxCenter?
     const box = resolveMeshWorldBox(world, entity);
     if (!box || !parallaxCenter) return box;
     return translateBox(box, parallaxOffset(world.get(entity, MeshRenderer).parallax, parallaxCenter));
+}
+
+/**
+ * Read several meshes' world boxes with one scratch allocation. The reader is
+ * valid only within the synchronous callback and reads live geometry per call.
+ * @experimental
+ */
+export function withMeshWorldBoxes<T>(
+    world: LayoutWorld, use: (read: (entity: Entity) => EntityBox | null) => T,
+): T {
+    const readTransform = borrowedComponentReader(world, Transform);
+    return withMeshBounds(world, read => use(entity => resolveMeshWorldBox(world, entity, readTransform, read)));
 }
 
 /** @internal Picking can supply shared readers for a single traversal. */

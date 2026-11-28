@@ -8,7 +8,7 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox, type EntityBox } from '../src/ecs/entityBox';
+import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox, withMeshWorldBoxes, type EntityBox } from '../src/ecs/entityBox';
 import { Canvas, Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UIDisplay, UINode } from '../src/ui/core/ui-node';
 import { px } from '../src/ui/core/dimension';
@@ -100,6 +100,11 @@ it('reads and picks a mesh through the native engine arena without a WASM module
             box: { cx: 25, cy: 7, cz: 0, hd: 0 }, drawOffset: { x: 20, y: 3 },
         });
         expect(fill.mock.calls).toEqual([[ent(1), 4], [ent(3), 4]]);
+        free.mockClear();
+        const [mesh, missing] = withMeshWorldBoxes(world, read => [read(ent(1)), read(ent(2))]);
+        expect(mesh).toMatchObject({ cx: 15, cy: 0, cz: 2 });
+        expect(missing).toBeNull();
+        expect(free.mock.calls).toEqual([[4]]);
         free.mockClear();
         expect(() => pickEntitiesByBounds(world, () => { throw new Error('selection cancelled'); }))
             .toThrow('selection cancelled');
