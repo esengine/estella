@@ -151,8 +151,8 @@ const { failed } = await assets.preload(
 );
 ```
 
-`preload` never rejects. Refs whose type cannot be inferred or whose load fails are returned in `failed`. Later loads
-of the same refs are served from the caches.
+Refs with an unknown type or a resolution or load error appear in `failed`. Successful preloads warm the caches for
+later loads. If the progress callback throws, `preload` rejects.
 
 ## Cooking, compression & content addressing
 

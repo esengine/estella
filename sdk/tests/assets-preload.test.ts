@@ -162,6 +162,33 @@ describe('Assets.preload', () => {
         ]);
     });
 
+    it('infers URL types from the pathname and loads with the original query and fragment', async () => {
+        const ref = 'https://cdn.example/data/level.CUSTOM?revision=build.42#source';
+        const unknown = 'https://cdn.example/data/opaque?name=level.custom';
+        const progress = vi.fn();
+        expect((await assets.preload([ref, unknown], progress)).failed).toEqual([{ ref: unknown, reason: 'unresolved' }]);
+        expect(customLoads).toEqual([ref]);
+        expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
+        assets.releaseTyped('custom', ref);
+    });
+
+    it('reports a resolver error without abandoning the other preloads', async () => {
+        const offline = '@uuid:offline';
+        const good = 'data/level.custom';
+        assets.setAssetRefResolver(ref => {
+            if (ref === offline) throw new Error('asset index unavailable');
+            return ref;
+        });
+        const progress = vi.fn();
+        expect((await assets.preload([offline, good, offline], progress)).failed).toEqual([
+            { ref: offline, reason: 'load-failed', error: 'asset index unavailable' },
+            { ref: offline, reason: 'load-failed', error: 'asset index unavailable' },
+        ]);
+        expect(customLoads).toEqual([good]);
+        expect(progress.mock.calls).toEqual([[0, 1], [1, 1]]);
+        assets.releaseTyped('custom', good);
+    });
+
     it('reports load failures per ref and still completes the rest', async () => {
         const failing: AssetLoader<never> = {
             type: 'broken',

@@ -313,7 +313,7 @@ export interface MissingAsset {
     ref: string;
     /** Asset type (`"texture"`, `"material"`, ...) when known. */
     type?: string;
-    /** `unresolved` = UUID not in registry; `load-failed` = fetch threw. */
+    /** `unresolved` = no matching asset or loader; `load-failed` = resolution or loading threw. */
     reason: 'unresolved' | 'load-failed';
     /** Stringified error for `load-failed`. */
     error?: string;
@@ -1743,8 +1743,8 @@ export class Assets {
      *
      * Asset types come from the catalog / manifest when known, falling back
      * to file-extension matching against the registered loaders. Refs whose
-     * type can't be determined — and refs that fail to load — are reported
-     * in `failed`; preload itself never rejects.
+     * type can't be determined or that fail to resolve or load are reported
+     * in `failed`. A thrown progress callback rejects the batch.
      */
     async preload(
         refs: ReadonlyArray<string>,
@@ -1755,6 +1755,11 @@ export class Assets {
         const tasks: Array<() => Promise<void>> = [];
         const mounts = new Map<string, Promise<void>>();
         const plans = new Map<string, () => Promise<void>>();
+        const reportFailure = (ref: string, error: unknown, type?: string) => {
+            log.warn('asset', `preload: failed to load ${ref}`, error);
+            failed.push({ ref, ...(type ? { type } : {}), reason: 'load-failed',
+                error: error instanceof Error ? error.message : String(error) });
+        };
 
         for (const ref of refs) {
             // A repeated ref shares its plan, while each occurrence still owns a load.
@@ -1763,37 +1768,40 @@ export class Assets {
                 tasks.push(planned);
                 continue;
             }
-            const path = this.resolveLoadPath_(ref);
-            const record = this.manifestRecord_(ref);
-            const type = record?.asset.type ?? this.inferAssetType_(path);
-            if (!type) {
-                log.warn('asset', `preload: cannot determine asset type for ${ref}`);
-                failed.push({ ref, reason: 'unresolved' });
-                continue;
-            }
-            const named = type === 'audio' || this.sceneHandleRecord_(ref) || this.loaders_.get(type)?.registry;
-            const load = this.typedLoadFor_(named ? ref : path, type);
-            if (!load) {
-                log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
-                failed.push({ ref, type, reason: 'unresolved' });
-                continue;
-            }
-            const lazy = record && this.manifestModel_?.bundleMode(record.group) === 'lazy' ? record.group : undefined;
-            const task = async () => {
-                try {
-                    if (lazy) {
-                        const mount = mounts.get(lazy) ?? this.mountSubpackage_(lazy);
-                        mounts.set(lazy, mount);
-                        await mount;
-                    }
-                    await load();
-                } catch (e) {
-                    log.warn('asset', `preload: failed to load ${ref}`, e);
-                    failed.push({ ref, type, reason: 'load-failed', error: e instanceof Error ? e.message : String(e) });
+            try {
+                const path = this.resolveLoadPath_(ref);
+                const record = this.manifestRecord_(ref);
+                const type = record?.asset.type ?? this.inferAssetType_(path);
+                if (!type) {
+                    log.warn('asset', `preload: cannot determine asset type for ${ref}`);
+                    failed.push({ ref, reason: 'unresolved' });
+                    continue;
                 }
-            };
-            plans.set(ref, task);
-            tasks.push(task);
+                const named = type === 'audio' || this.sceneHandleRecord_(ref) || this.loaders_.get(type)?.registry;
+                const load = this.typedLoadFor_(named ? ref : path, type);
+                if (!load) {
+                    log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
+                    failed.push({ ref, type, reason: 'unresolved' });
+                    continue;
+                }
+                const lazy = record && this.manifestModel_?.bundleMode(record.group) === 'lazy' ? record.group : undefined;
+                const task = async () => {
+                    try {
+                        if (lazy) {
+                            const mount = mounts.get(lazy) ?? this.mountSubpackage_(lazy);
+                            mounts.set(lazy, mount);
+                            await mount;
+                        }
+                        await load();
+                    } catch (error) {
+                        reportFailure(ref, error, type);
+                    }
+                };
+                plans.set(ref, task);
+                tasks.push(task);
+            } catch (error) {
+                reportFailure(ref, error);
+            }
         }
 
         let loadedCount = 0;
@@ -1813,9 +1821,11 @@ export class Assets {
         if (catalogType) return catalogType;
         const manifestType = this.manifestModel_?.assetByPath(path)?.type;
         if (manifestType) return manifestType;
-        const dot = path.lastIndexOf('.');
-        if (dot < 0) return null;
-        const ext = path.slice(dot).toLowerCase();
+        const suffix = path.search(/[?#]/);
+        const file = suffix < 0 ? path : path.slice(0, suffix);
+        const dot = file.lastIndexOf('.');
+        if (dot <= file.lastIndexOf('/')) return null;
+        const ext = file.slice(dot).toLowerCase();
         for (const loader of this.loaders_.values()) {
             if (loader.extensions.includes(ext)) return loader.type;
         }

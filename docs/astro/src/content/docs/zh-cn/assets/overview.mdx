@@ -131,7 +131,7 @@ const { failed } = await assets.preload(
 );
 ```
 
-`preload` 从不拒绝（reject）。无法推断类型或加载失败的引用在 `failed` 中返回。之后对相同引用的加载由缓存提供。
+无法推断类型、解析出错或加载失败的引用会列在 `failed` 中。成功预加载的资源会进入缓存，供后续加载使用。如果进度回调抛出异常，`preload` 返回的 Promise 会被拒绝。
 
 ## 烘焙、压缩与内容寻址
 
