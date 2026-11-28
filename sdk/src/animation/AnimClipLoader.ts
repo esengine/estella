@@ -160,6 +160,24 @@ export function animClipCellUv(
     return sheetCellUv(sheet, cell);
 }
 
+/** The frame's source image and top-left pixel crop, shared by the player and editor. */
+export function animClipFrameImage(sheet: AnimClipSheetData | undefined, frame: AnimClipFrameData): {
+    texture: string | undefined;
+    crop?: AnimClipFrameData['atlasFrame'];
+} {
+    if (sheet && frame.cell !== undefined) {
+        const crop = animClipCellRect(sheet, frame.cell);
+        return { texture: sheet.texture, crop: { ...crop, pageWidth: sheet.pageWidth, pageHeight: sheet.pageHeight } };
+    }
+    return { texture: frame.texture, crop: frame.atlasFrame };
+}
+
+/** Compose an authored crop with the position of its image in a packed atlas. */
+export function animClipImageUv(crop: AnimClipFrameData['atlasFrame'], atlas?: AtlasFrameInfo | null) {
+    const uv = crop ? uvRectFromPixels(crop, crop.pageWidth, crop.pageHeight) : undefined;
+    return atlas ? atlasFrameUv(atlas, uv) : uv;
+}
+
 // =============================================================================
 // Frame geometry — size and anchor
 // =============================================================================
@@ -448,25 +466,21 @@ export function bakeAnimClip(
             // Resolved once at load: at runtime a frame either carries the size and
             // anchor it renders with, or the clip authors none and playback leaves
             // the entity's own standing.
-            const { cell, atlasFrame: crop } = f;
-            const isCell = sheet !== undefined && cell !== undefined;
-            const texture = textureFor(isCell ? sheet.texture : f.texture ?? '');
-            const natural = isCell ? { x: sheet.cellWidth, y: sheet.cellHeight }
-                : crop ? { x: crop.width, y: crop.height } : texture?.size;
+            const { texture: ref, crop } = animClipFrameImage(sheet, f);
+            const texture = textureFor(ref ?? '');
+            const natural = crop ? { x: crop.width, y: crop.height } : texture?.size;
             const size = animClipFrameSize(data, f, natural);
             if (drivesSize && !size) missingNatural++;
             const pivot = animClipFramePivot(data, f, size);
-            if (isCell && cell >= cellCount) {
-                log.warn('asset', `${clipPath}: frame cell ${cell} outside the ${cellCount}-cell sheet grid; clamped`);
+            if (sheet && f.cell !== undefined && f.cell >= cellCount) {
+                log.warn('asset', `${clipPath}: frame cell ${f.cell} outside the ${cellCount}-cell sheet grid; clamped`);
             }
-            const uv = isCell ? animClipCellUv(sheet, cell)
-                : crop ? uvRectFromPixels(crop, crop.pageWidth, crop.pageHeight) : undefined;
             return {
                 texture: texture?.handle ?? 0,
                 duration: f.duration,
                 ...(pivot ? { pivot } : {}),
                 ...(size ? { size } : {}),
-                ...(texture?.atlas ? atlasFrameUv(texture.atlas, uv) : uv),
+                ...animClipImageUv(crop, texture?.atlas),
             };
         }),
     };
