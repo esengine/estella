@@ -15,6 +15,7 @@ import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene } from 
 import type { SceneData } from '../src/scene/scene';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { reservePromise } from '../src/util/reservePromise';
+import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
 
 const FETCHED = 'the loader reached for the path';
 
@@ -72,6 +73,46 @@ it('rejects discarded scene preparation while its document fetch is pending', as
   } finally {
     fetched.resolve(JSON.stringify(doc));
     await pending;
+    app.quit();
+  }
+});
+
+it('releases prefab receipts that arrive after a custom scene preparation is discarded', async () => {
+  const { app, options } = await runtimeThatRefusesToFetch();
+  const assets = app.getResource(AssetsResource);
+  const readStarted = reservePromise<void>(), slow = reservePromise<void>(), callbackFinished = reservePromise<void>();
+  const unload = vi.fn();
+  const load = vi.fn(async (path: string) => {
+    if (path === 'slow.esprefab') { readStarted.resolve(); await slow.promise; }
+    return { path, data: { version: '2', name: path, rootEntityId: 'root', entities: [] } };
+  });
+  assets.register({ type: 'prefab', extensions: [], load, unload });
+  const install = vi.fn();
+  const config = createRuntimeSceneConfig(doc.name, doc, {
+    ...options,
+    async prepareDocument(data, _check, publish, readPrefab) {
+      publish(install);
+      try {
+        await readPrefab('first.esprefab');
+        await readPrefab('slow.esprefab');
+        return data;
+      } finally { callbackFinished.resolve(); }
+    },
+  });
+  const cancelled = expect(config.prepare!()).rejects.toThrow(/cancelled/i);
+  try {
+    await readStarted.promise;
+    config.discardPrepared!();
+    await cancelled;
+    expect(unload.mock.calls.map(([entry]) => entry.path)).toEqual(['first.esprefab']);
+    slow.resolve();
+    await callbackFinished.promise;
+    expect(unload.mock.calls.map(([entry]) => entry.path)).toEqual(['first.esprefab', 'slow.esprefab']);
+    expect(assets.sizes().refRows).toBe(0);
+    expect(install).not.toHaveBeenCalled();
+  } finally {
+    slow.resolve();
+    await cancelled;
     app.quit();
   }
 });

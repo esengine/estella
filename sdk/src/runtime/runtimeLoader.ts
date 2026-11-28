@@ -973,15 +973,19 @@ function createRuntimeSceneConfigWithData(
             const prepareDocument = options.prepareDocument;
             if (prepareDocument) {
                 const authored = data;
+                const sources = prefabSources = new AssetScope();
                 const readPrefab: PrefabAssetResolver = async ref => {
                     assertActive();
                     // Keep the typed asset alive until scene expansion acquires its own lease.
-                    const sources = prefabSources ??= new AssetScope();
                     const assets = options.app.getResource(AssetsResource);
-                    return sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref)).value.data as PrefabData | null;
+                    const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
+                    assertActive();
+                    return lease.value.data as PrefabData | null;
                 };
-                data = await attempt.waitForShared(() => prepareDocument(authored, assertActive,
-                    install => { publishDocument = install; }, readPrefab));
+                data = await attempt.waitForShared(() => prepareDocument(authored, assertActive, install => {
+                    assertActive();
+                    publishDocument = install;
+                }, readPrefab));
                 document = 'borrowed';
             }
             const ready = await prepareWithAttempt({
@@ -990,7 +994,7 @@ function createRuntimeSceneConfigWithData(
             }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
             return publishDocument ? { ...ready, publishDocument } : ready;
         } finally {
-            prefabSources?.releaseAll();
+            if (prefabSources) AssetScope.closeAll([prefabSources]);
         }
     };
     const discard = (pending: Preparation): number => {
