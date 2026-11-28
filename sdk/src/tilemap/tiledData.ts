@@ -4,6 +4,27 @@ import { decodeBase64Bytes } from '../util/base64';
 
 type Layer = Record<string, unknown>;
 
+function validDimension(value: unknown, min: number): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+}
+
+export function tiledMapDimensions(map: Layer) {
+    const { width, height, tilewidth: tileWidth, tileheight: tileHeight } = map;
+    const min = map.infinite === true ? 0 : 1;
+    if (!validDimension(width, min) || !validDimension(height, min)
+        || !validDimension(tileWidth, 1) || !validDimension(tileHeight, 1)) return null;
+    return { width, height, tileWidth, tileHeight };
+}
+
+export function tiledLayerStorage(layer: Layer, map: { width: number; height: number }) {
+    return {
+        width: (layer.width as number | undefined) ?? map.width,
+        height: (layer.height as number | undefined) ?? map.height,
+        // An empty chunks array still describes a sparse layer.
+        chunks: Array.isArray(layer.chunks) ? layer.chunks as Layer[] : undefined,
+    };
+}
+
 export function parseTiledMapDocument(text: string, path?: string): Layer {
     if (text.trimStart().startsWith('<')) {
         const name = path ? `"${path}"` : 'This map';
@@ -59,13 +80,15 @@ export function readTiledGids(layer: Layer, block: Layer, count: number): ArrayL
 
 /** Check the same encoded layer and chunk envelopes at export, without allocating decoded tiles. */
 export function validateTiledTileData(map: Layer): void {
+    const dimensions = tiledMapDimensions(map);
+    if (!dimensions) throw new Error('Invalid Tiled map dimensions. Check the map size and tile size in Tiled.');
     for (const { layer } of walkTmjLayers((map.layers as Layer[] | undefined) ?? [])) {
         if (layer.type !== 'tilelayer') continue;
-        const chunks = layer.chunks as Layer[] | undefined;
-        if (chunks?.length) {
+        const { width, height, chunks } = tiledLayerStorage(layer, dimensions);
+        if (chunks) {
             for (const chunk of chunks) encodedTileData(layer, chunk, ((chunk.width as number) ?? 0) * ((chunk.height as number) ?? 0));
         } else {
-            encodedTileData(layer, layer, ((layer.width ?? map.width) as number) * ((layer.height ?? map.height) as number));
+            encodedTileData(layer, layer, width * height);
         }
     }
 }

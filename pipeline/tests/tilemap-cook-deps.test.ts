@@ -132,6 +132,41 @@ describe('tilemap tileset images are cooked dependencies', () => {
     }
   });
 
+  it('ships a zero-size infinite map with empty and populated sparse layers', async () => {
+    const id = '45454545-4545-4545-8545-454545454545';
+    const scenePath = 'assets/scenes/infinite.esscene';
+    const map = { ...JSON.parse(tmj), width: 0, height: 0, infinite: true, layers: [
+      { type: 'tilelayer', name: 'Empty', width: 0, height: 0, chunks: [] },
+      { type: 'tilelayer', name: 'Ground', width: 1, height: 1, startx: -1, starty: 0, encoding: 'base64',
+        chunks: [{ x: -1, y: 0, width: 1, height: 1, data: 'AQAAAA==' }] },
+    ] };
+    writeAsset('assets/maps/infinite.tmj', 'tilemap', id, JSON.stringify(map));
+    writeAsset(scenePath, 'scene', id.replace(/.$/, '0'), scene.replace(TILEMAP, id));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build-infinite', contentAddressed: true });
+    expect(result.ok, result.failed.join('\n')).toBe(true);
+    const { entries } = JSON.parse(readFileSync(result.manifestPath!, 'utf8')) as CookManifest;
+    const staged = JSON.parse(readFileSync(path.join(result.outDir, entries.find(e => e.uuid === id)!.path), 'utf8'));
+    const original = parseTmjJson(map);
+    const packaged = parseTmjJson(staged);
+    expect(original?.layers.map(layer => [layer.name, layer.infinite, layer.chunks.length])).toEqual([
+      ['Empty', true, 0], ['Ground', true, 1],
+    ]);
+    expect(packaged?.layers).toEqual(original?.layers);
+    const chunk = packaged!.layers[1].chunks[0];
+    expect([chunk.x, chunk.y, chunk.tiles[15]]).toEqual([-1, 0, 1]);
+  });
+
+  it('rejects a zero-size fixed map at export as well as at runtime', async () => {
+    const id = '46464646-4646-4646-8646-464646464646';
+    const scenePath = 'assets/scenes/zero-size.esscene';
+    const map = { ...JSON.parse(tmj), width: 0 };
+    expect(parseTmjJson(map)).toBeNull();
+    writeAsset('assets/maps/zero-size.tmj', 'tilemap', id, JSON.stringify(map));
+    writeAsset(scenePath, 'scene', id.replace(/.$/, '0'), scene.replace(TILEMAP, id));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build-zero-size', contentAddressed: true });
+    expect(result.failed).toEqual([expect.stringMatching(/zero-size\.tmj: Invalid Tiled map dimensions/)]);
+  });
+
   it('reports the same JSON export guidance as the loader for a Tiled XML map', async () => {
     const id = '12121212-1212-4212-8212-121212121212';
     const scenePath = 'assets/scenes/xml-tilemap.esscene';

@@ -624,6 +624,24 @@ describe('loadTiledMap', () => {
         expect(world.spawn).toHaveBeenCalledTimes(2);
     });
 
+    it('initializes an empty Tiled layer with the sparse tile store', () => {
+        const world = createMockWorld();
+        const sparse = vi.fn(), bounded = vi.fn();
+        const layer = { type: 'tilelayer', name: 'Empty', width: 0, height: 0, chunks: [] };
+        const map = parseTmjJson({ infinite: true, width: 40, height: 30, tilewidth: 16, tileheight: 24, layers: [layer] });
+        expect(map?.layers[0]).toMatchObject({ name: 'Empty', infinite: true, width: 0, height: 0, chunks: [] });
+        expect(map?.layers[0]?.tiles).toHaveLength(0);
+        initTilemapAPI({ tilemap_initLayer: bounded, tilemap_initInfiniteLayer: sparse,
+            tilemap_setOriginEntity: vi.fn(), tilemap_setGridType: vi.fn(), tilemap_setHexParams: vi.fn() }, world, world);
+        try {
+            const [entity] = loadTiledMap(world, map!, new Map());
+            expect(sparse).toHaveBeenCalledWith(entity, 16, 24);
+            expect(bounded).not.toHaveBeenCalled();
+        } finally {
+            shutdownTilemapAPI(world);
+        }
+    });
+
     it.each([false, true])('applies inherited offsets to drawing and tile collision (infinite=%s)', infinite => {
         const world = createMockWorld();
         const layer = infinite ? { chunks: [{ x: 0, y: 0, width: 1, height: 1, data: [1] }] } : { data: [1] };

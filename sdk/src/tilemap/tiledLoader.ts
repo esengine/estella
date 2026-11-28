@@ -15,7 +15,7 @@ import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../util/logger';
 import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
-import { walkTmjLayers, readTiledGids } from './tiledData';
+import { walkTmjLayers, readTiledGids, tiledMapDimensions, tiledLayerStorage } from './tiledData';
 
 export interface TiledChunkData {
     x: number;
@@ -261,11 +261,9 @@ function rechunkTiledLayer(layer: Record<string, unknown>, rawChunks: Array<Reco
 }
 
 export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null {
-    const width = json.width as number;
-    const height = json.height as number;
-    const tileWidth = (json.tilewidth as number) ?? 0;
-    const tileHeight = (json.tileheight as number) ?? 0;
-    if (!width || !height || !tileWidth || !tileHeight) return null;
+    const dimensions = tiledMapDimensions(json);
+    if (!dimensions) return null;
+    const { width, height, tileWidth, tileHeight } = dimensions;
 
     const rawTilesets = json.tilesets as Array<Record<string, unknown>> | undefined;
     const tilesets: TiledTilesetData[] = [];
@@ -306,12 +304,10 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     if (rawLayers) {
         for (const { layer, groups } of rawLayers) {
             if (layer.type !== 'tilelayer') continue;
-            const lw = (layer.width as number) ?? width;
-            const lh = (layer.height as number) ?? height;
-            const rawChunks = layer.chunks as Array<Record<string, unknown>> | undefined;
+            const { width: lw, height: lh, chunks: rawChunks } = tiledLayerStorage(layer, dimensions);
 
-            const infinite = !!rawChunks && rawChunks.length > 0;
-            const chunks = infinite ? rechunkTiledLayer(layer, rawChunks!) : [];
+            const infinite = rawChunks !== undefined;
+            const chunks = rawChunks ? rechunkTiledLayer(layer, rawChunks) : [];
             const rawData = infinite ? undefined : readTiledGids(layer, layer, lw * lh);
             const tiles = new Uint16Array(infinite ? 0 : lw * lh);
             if (!infinite && rawData) {
