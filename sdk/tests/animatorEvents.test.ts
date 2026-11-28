@@ -132,6 +132,8 @@ describe('the stretch of clip a step covered', () => {
             .toEqual([{ from: 0, to: 0, inclusiveStart: true }]);
         expect(playheadRuns(0, 0, 1, WrapMode.Loop, false))
             .toEqual([{ from: 0, to: 0, inclusiveStart: false }]);
+        expect(playheadRuns(2, 2, 1, WrapMode.Loop, false))
+            .toEqual([{ from: 0, to: 0, inclusiveStart: false }]);
     });
 
     it('covers a whole pass once however long the step was', () => {
@@ -248,6 +250,27 @@ describe('an animator over a clip that declares events', () => {
         seed(world, 'w');
         for (let i = 0; i < 10; i++) ctrl.update(world, 0.05);
         expect((world.get(E, probeDef()) as { x: number }).x).toBe(7);
+    });
+
+    it('waits for a stopped motion to leave a loop seam before firing the next time-zero cue', () => {
+        const world = makeWorld();
+        const ctrl = controllerOver({ 'walk.estimeline': clipWith(1, [{ time: 0, name: 'step' }]) });
+        const def = oneState('walk.estimeline');
+        def.parameters = [{ name: 'pace', type: 'float', default: 1 }];
+        def.states[0]!.speedParameter = 'pace';
+        ctrl.registerController('w', def);
+        seed(world, 'w');
+        const events = sink();
+        for (const dt of [0, 0.5, 0.5]) ctrl.update(world, dt, events);
+        expect(events.got.map(e => e.name)).toEqual(['step']);
+
+        ctrl.setFloat(E, 'pace', 0);
+        for (let i = 0; i < 3; i++) ctrl.update(world, 0.25, events);
+        expect(events.got.map(e => e.name)).toEqual(['step']);
+        ctrl.setFloat(E, 'pace', 1);
+        ctrl.update(world, 0.25, events);
+        ctrl.update(world, 0.25, events);
+        expect(events.got.map(e => e.name)).toEqual(['step', 'step']);
     });
 });
 

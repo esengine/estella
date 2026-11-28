@@ -486,6 +486,28 @@ describe('signals: the events and markers a playhead crosses', () => {
     };
     const deps: SampleDeps = { world: {} as SampleDeps['world'], getComponent: () => undefined, resolveChild: () => 1 as never };
 
+    it('does not repeat the time-zero marker while parked at a loop seam', () => {
+        const loop: TimelineAsset = { ...asset, tracks: [
+            { type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0, name: 'start' }] },
+        ] };
+        const state = createTimelineState(WrapMode.Loop);
+        state.playing = true;
+        const heard: string[] = [];
+        const ctx = { deps, onSignals: (signals: readonly { name: string }[]) => { heard.push(...signals.map(s => s.name)); } };
+        const advance = (dt: number) => advanceTimelineTS(loop, 1 as never, state, dt, ctx);
+        for (const dt of [0, 1, 1]) advance(dt);
+        expect(state.time).toBe(0);
+        expect(heard).toEqual(['start']);
+        state.speed = 0;
+        advance(0.25);
+        advance(0.25);
+        expect(heard).toEqual(['start']);
+        state.speed = 1;
+        advance(0.25);
+        advance(0.25);
+        expect(heard).toEqual(['start', 'start']);
+    });
+
     it('hands each over once as it is crossed, with its kind, payload, time and track, and again on the next loop', () => {
         const s = createTimelineState(WrapMode.Loop);
         s.playing = true;

@@ -65,8 +65,8 @@ export function playheadRuns(
     if (mode === WrapMode.Loop) {
         if (span >= duration) return [{ from: 0, to: duration, inclusiveStart: true }];
         const a = from % duration;
-        // The caller owns which step dispatches a lap's time-zero cue when a step lands on the seam.
-        const opens = inclusiveStart || (loopEntry === 'departure' && a === 0 && from > 0);
+        // A lap's departure cue belongs to the first moving step out of the seam.
+        const opens = inclusiveStart || (loopEntry === 'departure' && span > 0 && a === 0 && from > 0);
         const b = a + span;
         if (b < duration || (b === duration && loopEntry === 'departure')) return [{ from: a, to: b, inclusiveStart: opens }];
         // The playhead JUMPED from the end to the start; the head of the clip is a
