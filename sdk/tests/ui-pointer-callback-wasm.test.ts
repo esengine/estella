@@ -139,7 +139,7 @@ describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
         let resize: ((rect: DOMRectReadOnly) => void) | undefined;
         vi.spyOn(window, 'ResizeObserver').mockImplementation(function (callback: ResizeObserverCallback) {
             const observer = { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
-            resize = contentRect => callback([{ target: canvas, contentRect } as ResizeObserverEntry], observer);
+            resize = contentRect => callback([{ target: canvas, contentRect } as unknown as ResizeObserverEntry], observer);
             return observer;
         });
         bindRenderSurface(app, { canvas }, { kind: 'gl-context', handle: 0 });

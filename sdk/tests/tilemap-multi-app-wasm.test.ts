@@ -124,7 +124,7 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
             { firstId: 1, textureHandle: 42, columns: 4, rows: 4, margin: 2, spacing: 3 },
             { firstId: 5, textureHandle: 0, columns: 2, rows: 1, margin: 0, spacing: 0 },
         ];
-        const assets = Assets.create({ module: mainCore });
+        const assets = Assets.create({ module: mainCore } as unknown as Parameters<typeof Assets.create>[0]);
         vi.spyOn(assets, 'resolveRegistryAsset').mockReturnValue({ source: { ...source, tilesets: slots } });
         app.insertResource(AssetsResource, assets);
         const setTilesets = vi.spyOn(tiles, 'setTilesets');

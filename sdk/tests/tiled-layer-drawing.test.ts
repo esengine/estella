@@ -92,7 +92,7 @@ describe('a Tiled layer draws the way Tiled says', () => {
                 ],
             }],
         }] });
-        const { layers: [layer], objectGroups: [objects] } = await loadedMap(map);
+        const { layers: [layer], objectGroups: [objects] = [] } = await loadedMap(map);
         const component = tiledLayerComponent(layer, 16, 12, 0);
         expect(component).toMatchObject({ visible: false, originOffset: { x: 11, y: -6 }, opacity: 0.2,
             parallaxFactor: { x: 0.1, y: 0.75 } });

@@ -110,7 +110,7 @@ describe.skipIf(!HAS_WASM)('text field scene round trips', () => {
         vi.spyOn(window, 'ResizeObserver').mockImplementation(function (callback: ResizeObserverCallback) {
             const observer = {
                 disconnect: vi.fn(), unobserve: vi.fn(),
-                observe: () => callback([{ target: canvas, contentRect: new DOMRect(6, 4, 400, 240) } as ResizeObserverEntry], observer),
+                observe: () => callback([{ target: canvas, contentRect: new DOMRect(6, 4, 400, 240) } as unknown as ResizeObserverEntry], observer),
             };
             return observer;
         });

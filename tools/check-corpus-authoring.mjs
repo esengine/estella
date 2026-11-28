@@ -133,6 +133,7 @@ const DISPOSITION = {
   NetGhost: ['derived', 'replication tags a remote proxy with it; the authority writes it, never the scene'],
   Planet: ['owed', 'authored by a game today (star-neighbors, a round planet from its own generator); an example that registers a planet provider is owed'],
   MeshInstances: ['derived', 'the foliage and world generation systems write it, one entity a kind and part of a cell; its places are data a system computes, not something a scene authors'],
+  UIMeter: ['owed', 'no example shows a health or stamina bar taking a hit yet; a HUD in an action example, whose bar keeps a ghost of the blow, is where the first one goes'],
   EffectLifetime: ['owed', 'no example spawns a one-shot effect yet; an impact spawned where a projectile hits, in a 3D example, is where the first one goes'],
   ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
   XRController: ['owed', 'no example is played in a headset yet; a VR example where the player holds a lantern and points with the other hand is where the first one goes'],

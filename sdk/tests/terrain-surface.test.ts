@@ -286,7 +286,7 @@ describe('collision tiles', () => {
         let invalidate = () => {};
         let resolveReload!: (text: string) => void;
         const reload = new Promise<string>(resolve => { resolveReload = resolve; });
-        const fetchPhysical = vi.fn(async (_path: string) => { throw new Error('Unavailable physical material'); })
+        const fetchPhysical = vi.fn(async (_path: string): Promise<string> => { throw new Error('Unavailable physical material'); })
             .mockImplementationOnce(async () => JSON.stringify({ friction: 0.2, restitution: 0.4 }))
             .mockImplementationOnce(() => reload);
         app.insertResource(Assets, {

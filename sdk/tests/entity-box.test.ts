@@ -71,7 +71,7 @@ it('frames mixed scene geometry and keeps distant UI in its own preview projecti
             uiNode_computedHeight: () => 40,
         }),
     } as never;
-    const app = { world } as App;
+    const app = { world } as unknown as App;
     const scene = framePreview(app, [ent(1), ent(2)], 300, 200)!;
     const withUI = framePreview(app, [ent(1), ent(2), ent(3)], 300, 200)!;
     expect(scene.screen).toBeNull();
