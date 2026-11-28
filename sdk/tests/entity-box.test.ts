@@ -30,6 +30,7 @@ function fakeWorld(rows: Record<number, Record<string, unknown>>) {
         isEntityActive: (e: Entity) => rows[e as unknown as number] !== undefined,
         has: (e: Entity, c: unknown) => rows[e as unknown as number]?.[nameOf(c)] !== undefined,
         get: (e: Entity, c: unknown) => rows[e as unknown as number]?.[nameOf(c)],
+        tryGet: (e: Entity, c: unknown) => rows[e as unknown as number]?.[nameOf(c)],
     } as never;
 }
 
@@ -92,6 +93,30 @@ it('frames mixed scene geometry and keeps distant UI in its own preview projecti
             expect(Math.abs(m[1] * x + m[5] * y + m[9] * z + m[13])).toBeLessThan(1);
         }
     }
+});
+
+it('frames a sprite, shape and mesh equally whether they share an entity or not', () => {
+    const transform = T(7, -5, -1, 2);
+    const sprite = { size: { x: 90, y: 6 }, pivot: { x: 0, y: 1 }, enabled: true };
+    const shape = { size: { x: 12, y: 80 }, enabled: true };
+    const mesh = {};
+    const world = {
+        ...fakeWorld({
+            1: { Transform: transform, MeshRenderer: mesh, Sprite: sprite, ShapeRenderer: shape },
+            2: { Transform: transform, MeshRenderer: mesh },
+            3: { Transform: transform, Sprite: sprite },
+            4: { Transform: transform, ShapeRenderer: shape },
+        }) as object,
+        ...meshBounds({ minX: -2, minY: -4, minZ: -5, maxX: 8, maxY: 12, maxZ: 16 }),
+    } as never;
+    const app = { world } as unknown as App;
+    const frame = (...entities: number[]) => framePreview(app, entities.map(ent), 300, 200, { yaw: 0, pitch: 0 });
+    const separate = frame(2, 3, 4);
+    expect(separate).not.toBeNull();
+    expect(frame(1)).toEqual(separate);
+    shape.enabled = false;
+    expect(frame(1)).toEqual(frame(2, 3));
+    expect(frame(1)).not.toEqual(separate);
 });
 
 it.skipIf(!HAS_WASM)('frames the draws left visible in the prefab preview world', async () => {

@@ -91,52 +91,47 @@ export function resolveEntityWorldBox(
     if (world.has(entity, UINode)) return null;
 
     const t = world.get(entity, Transform);
-    const rot = worldRot(t);
-
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
-    const visibleSprite = sprite && (!visibility || sprite.enabled !== false) ? sprite : null;
-    const shape = !visibleSprite && world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
-    const visibleShape = shape && (!visibility || shape.enabled !== false) ? shape : null;
-    let iconHalf = 0;
-    if (!visibleSprite) {
-        const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
-        const spec = hiddenRenderer && !visibility.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
-        iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
+    if (sprite && (!visibility || sprite.enabled !== false)) {
+        return { box: spriteWorldBox(t, sprite), drawable: sprite };
     }
-    // An icon is a marker in space rather than a card, so it is a cube: it reads
-    // and clicks the same from wherever the view has been turned to.
-    let w = iconHalf * 2;
-    let h = iconHalf * 2;
-    let d = iconHalf * 2;
-    let centerX = 0;
-    let centerY = 0;
-    if (visibleSprite) {
-        const sp = visibleSprite;
-        w = sp.size.x * t.worldScale.x;
-        h = sp.size.y * t.worldScale.y;
-        d = 0;
-        centerX = w * (0.5 - (sp.pivot?.x ?? 0.5));
-        centerY = h * (0.5 - (sp.pivot?.y ?? 0.5));
-    } else if (visibleShape) {
-        w = Math.max(Math.abs(visibleShape.size.x * t.worldScale.x), iconHalf * 2);
-        h = Math.max(Math.abs(visibleShape.size.y * t.worldScale.y), iconHalf * 2);
-        d = 0;
-    } else {
-        const ext = opts?.extentOf?.(entity);
-        if (ext) {
-            const scaleX = t.worldScale.x, scaleY = t.worldScale.y;
-            w = Math.max(Math.abs(ext.width * scaleX), iconHalf * 2);
-            h = Math.max(Math.abs(ext.height * scaleY), iconHalf * 2);
-            d = 0;
-            centerX = (ext.x + ext.width / 2) * scaleX;
-            centerY = (ext.y + ext.height / 2) * scaleY;
-        } else if (iconHalf === 0) return null;
+    const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
+    const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
+    const spec = hiddenRenderer && !visibility.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
+    const iconSize = 2 * (typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec);
+    if (shape && (!visibility || shape.enabled !== false)) {
+        return { box: shapeWorldBox(t, shape, iconSize), drawable: shape };
     }
+    const ext = opts?.extentOf?.(entity);
+    if (ext) {
+        const scaleX = t.worldScale.x, scaleY = t.worldScale.y;
+        return { box: positionedBox(t, Math.max(Math.abs(ext.width * scaleX), iconSize),
+            Math.max(Math.abs(ext.height * scaleY), iconSize), 0,
+            (ext.x + ext.width / 2) * scaleX, (ext.y + ext.height / 2) * scaleY), drawable: null };
+    }
+    // An icon uses a cube so it can be clicked from every view angle.
+    return iconSize === 0 ? null : { box: positionedBox(t, iconSize, iconSize, iconSize), drawable: null };
+}
 
+/** @internal Bounds of an individual sprite draw, even if its entity has other renderers. */
+export function spriteWorldBox(t: TransformData, sprite: SpriteData): EntityBox {
+    const w = sprite.size.x * t.worldScale.x;
+    const h = sprite.size.y * t.worldScale.y;
+    return positionedBox(t, w, h, 0, w * (0.5 - (sprite.pivot?.x ?? 0.5)), h * (0.5 - (sprite.pivot?.y ?? 0.5)));
+}
+
+/** @internal Bounds of an individual shape draw, with an optional minimum size for picking. */
+export function shapeWorldBox(t: TransformData, shape: ShapeRendererData, minSize = 0): EntityBox {
+    return positionedBox(t, Math.max(Math.abs(shape.size.x * t.worldScale.x), minSize),
+        Math.max(Math.abs(shape.size.y * t.worldScale.y), minSize), 0);
+}
+
+function positionedBox(t: TransformData, w: number, h: number, d: number, centerX = 0, centerY = 0): EntityBox {
     // The centre orbits the transform position when the pivot is off-centre —
     // the position is what rotation turns around, not the middle of the sprite.
+    const rot = worldRot(t);
     const offset = q.rotate(rot, { x: centerX, y: centerY, z: 0 });
-    const box: EntityBox = {
+    return {
         cx: t.worldPosition.x + offset.x,
         cy: t.worldPosition.y + offset.y,
         cz: (t.worldPosition.z ?? 0) + offset.z,
@@ -145,7 +140,6 @@ export function resolveEntityWorldBox(
         hd: Math.abs(d) / 2,
         rot,
     };
-    return { box, drawable: visibleSprite ?? visibleShape };
 }
 
 /**
