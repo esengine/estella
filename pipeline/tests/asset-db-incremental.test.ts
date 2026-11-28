@@ -121,6 +121,24 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     expect(inc.index.deps[SCENE]).toEqual([TEX]);
   });
 
+  it('updates one saved scene without rewriting the project-wide reference cache', async () => {
+    const scene = 'assets/scenes/main.esscene';
+    const cachePath = path.join(root, '.esengine/cache/ref-candidates.json');
+    const { index: previous } = await scanAssetDatabase(root);
+    const previousCache = readFileSync(cachePath, 'utf8');
+
+    writeFileSync(path.join(root, scene), sceneBody({ texture: TEX }));
+    const change = await updateAssetIndex(root, previous, [scene]);
+    expect(change.fullRescan).toBe(false);
+    expect(change.index.deps[SCENE]).toEqual([TEX]);
+    expect(await readCachedAssetIndex(root)).toEqual(change.index);
+    expect(readFileSync(cachePath, 'utf8')).toBe(previousCache);
+
+    const full = await scanAssetDatabase(root, { write: false });
+    expect(full.index).toEqual(change.index);
+    expect(readFileSync(cachePath, 'utf8')).not.toBe(previousCache);
+  });
+
   it('a .meta-only touch (paired to its content path) refreshes the entry', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     writeFileSync(

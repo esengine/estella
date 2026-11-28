@@ -439,12 +439,15 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const byKey = new Map(entries.map(e => [e.uuid, e]));
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
-  const cache = await readCandidateCache(root);
+  // Reading one changed document is cheaper than loading and rewriting the whole
+  // cache. Full scans still refresh its entries using the on-disk file stamps.
+  const cache = targets && refEntries.length === 1 ? null : await readCandidateCache(root);
   let cacheDirty = false;
   const seenFiles = new Set<string>();
   const candidatesOf = async (rel: string, type: string, parse: (text: string) => RefCandidate[]): Promise<RefCandidate[]> => {
-    seenFiles.add(rel);
     const file = path.join(root, rel);
+    if (!cache) return parse(await readTextInRoot(file));
+    seenFiles.add(rel);
     const info = await stat(file);
     const hit = cache.files[rel];
     if (hit && hit.type === type && hit.size === info.size && hit.mtimeMs === info.mtimeMs && hit.ctimeMs === info.ctimeMs) return hit.c;
@@ -555,8 +558,10 @@ async function computeDeps(
     try { return await dependenciesOf(entry); } finally { onProgress?.({ phase: 'references', done: ++finished, total: refEntries.length }); }
   });
   // A full scan forgets the documents that are gone; one of some documents only (`targets`) leaves the rest as they are.
-  if (!targets) for (const rel of Object.keys(cache.files)) if (!seenFiles.has(rel)) { delete cache.files[rel]; cacheDirty = true; }
-  if (cacheDirty) await writeCandidateCache(root, cache);
+  if (cache) {
+    if (!targets) for (const rel of Object.keys(cache.files)) if (!seenFiles.has(rel)) { delete cache.files[rel]; cacheDirty = true; }
+    if (cacheDirty) await writeCandidateCache(root, cache);
+  }
   const deps: Record<string, string[]> = {};
   const warnings: string[] = [];
   for (const r of depResults) {
