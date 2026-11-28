@@ -14,6 +14,7 @@ import type { World } from '../ecs/world';
 import { Sprite, type SpriteData } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
 import { setSpriteFrameTexture } from './spriteFrameProjection';
+import { spriteFrameDuration } from './spriteFrameTiming';
 
 // =============================================================================
 // Sprite Animation Clip
@@ -58,8 +59,7 @@ export interface SpriteAnimClip {
 }
 
 function frameDurationOf(clip: SpriteAnimClip, index: number, speed: number, fallback: number): number {
-    const duration = clip.frames[index]?.duration;
-    return Math.max(Number.MIN_VALUE, (duration !== undefined && Number.isFinite(duration) && duration > 0 ? duration : fallback) / speed);
+    return Math.max(Number.MIN_VALUE, spriteFrameDuration(clip.frames[index]?.duration, fallback) / speed);
 }
 
 export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, _totalFrames: number, loop: boolean): boolean {

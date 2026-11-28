@@ -24,6 +24,7 @@ import {
 } from './TimelineTypes';
 import { log } from '../util/logger';
 import { adoptDecodedKeyframes, loadKeyframes } from '../math/keyframes';
+import { isSpriteFrameDuration } from '../animation/spriteFrameTiming';
 
 const STEP_TANGENT_THRESHOLD = 1e5;
 
@@ -171,7 +172,7 @@ function parseTrack(raw: any, readKeys: typeof adoptDecodedKeyframes): Track {
                 type: TrackType.AnimFrames,
                 frames: (raw.animFrames ?? []).map((f: any) => ({
                     texture: f.texture ?? '',
-                    duration: f.duration,
+                    duration: isSpriteFrameDuration(f.duration) ? f.duration : undefined,
                 })),
             } as AnimFramesTrack;
 

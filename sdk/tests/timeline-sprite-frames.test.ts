@@ -9,6 +9,7 @@ import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
 import { Sprite } from '../src/ecs/component';
 import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
+import { parseTimelineAsset } from '../src/timeline/TimelineLoader';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline, type Track } from '../src/timeline/TimelineTypes';
 import { sampleTimelineSpriteFrames } from '../src/timeline/timelineSpriteFrames';
@@ -41,6 +42,25 @@ it('reads long frame timings only after their target can accept the frame', () =
 });
 
 const spriteTimeline = (tracks: Track[]) => ({ version: '1.3', type: 'timeline' as const, duration: 512, wrapMode: WrapMode.Once, tracks });
+
+it('uses the default timing for invalid frame durations on both sides of a frame boundary', () => {
+    const source = spriteTimeline([{ ...track('', 'zero', 'broken', 'long', 'last'), frames: [
+        { texture: 'zero', duration: 0 }, { texture: 'broken', duration: NaN },
+        { texture: 'long', duration: 0.25 }, { texture: 'last', duration: -1 },
+    ] }]);
+    const sample = (time: number) => sampleTimelineSpriteFrames(source, time, 1, () => null,
+        () => ({ texture: 1 }), () => true).get(1)?.frame;
+    expect([sample(0), sample(1 / 12 - 1e-6), sample(1 / 12), sample(1 / 6), sample(1 / 6 + 0.25), sample(3)])
+        .toEqual([0, 0, 1, 2, 3, 3]);
+});
+
+it('normalizes broken durations when decoding an authored sprite timeline', () => {
+    const parsed = parseTimelineAsset({ ...spriteTimeline([]), tracks: [{ type: TrackType.AnimFrames,
+        animFrames: [0, -1, '0.125', 0.25].map(duration => ({ texture: 'frame', duration })),
+    }] });
+    const frames = (parsed.tracks[0] as AnimFramesTrack).frames;
+    expect(frames.map(frame => frame.duration)).toEqual([undefined, undefined, undefined, 0.25]);
+});
 
 function repeatedLayers(frames: AnimFramesTrack['frames'], count: number): SequenceLayer[] {
     const asset = spriteTimeline([{ ...track(''), frames }]);

@@ -373,6 +373,12 @@ describe('parseAnimClipAsset (tolerant parse)', () => {
         expect(parsed.frames).toEqual([]);
     });
 
+    it('drops invalid frame durations without dropping their images', () => {
+        const parsed = parseAnimClipAsset({ fps: 10, frames: [{ texture: 'a.png', duration: Infinity },
+            { texture: 'b.png', duration: 0 }, { texture: 'c.png', duration: 0.25 }] });
+        expect(parsed.frames).toEqual([{ texture: 'a.png' }, { texture: 'b.png' }, { texture: 'c.png', duration: 0.25 }]);
+    });
+
     it('keeps legacy atlasFrame frames intact', () => {
         const af = { x: 1, y: 2, width: 3, height: 4, pageWidth: 10, pageHeight: 20 };
         const parsed = parseAnimClipAsset({ frames: [{ texture: 'a.png', atlasFrame: af }] });

@@ -3,6 +3,7 @@
 import { Sprite } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
 import { setSpriteFrameTexture } from '../animation/spriteFrameProjection';
+import { spriteFrameDuration } from '../animation/spriteFrameTiming';
 import { atlasFrameUv, type AtlasFrameInfo } from '../asset/Catalog';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -30,7 +31,7 @@ interface AppliedFrame extends TimelineSpriteFrame { incarnation: number }
 function frameIndexAt(track: AnimFramesTrack, time: number): number {
     let end = 0;
     for (let i = 0; i < track.frames.length - 1; i++) {
-        end += track.frames[i].duration ?? 1 / 12;
+        end += spriteFrameDuration(track.frames[i].duration);
         if (time < end) return i;
     }
     return track.frames.length - 1;

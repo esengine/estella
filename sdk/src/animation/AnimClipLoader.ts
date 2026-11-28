@@ -7,6 +7,7 @@
  */
 
 import type { SpriteAnimClip } from './SpriteAnimator';
+import { isSpriteFrameDuration } from './spriteFrameTiming';
 import { log } from '../util/logger';
 import { uvRectFromPixels } from '../render/uvRect';
 import { atlasFrameUv, type AtlasFrameInfo } from '../asset/Catalog';
@@ -278,7 +279,7 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
     const frames: AnimClipFrameData[] = [];
     for (const f of Array.isArray(raw?.frames) ? raw.frames : []) {
         if (!f) continue;
-        const duration = typeof f.duration === 'number' && f.duration > 0 ? f.duration : undefined;
+        const duration = isSpriteFrameDuration(f.duration) ? f.duration : undefined;
         const framePivot = pivotOf(f.pivot);
         const frameSize = vec2Of(f.size, true);
         const frameOffset = vec2Of(f.offset, false);
