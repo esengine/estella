@@ -2144,9 +2144,8 @@ export class Assets {
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
         for (const entity of sceneData.entities) {
-            // Prefab-instance entries carry no inline components (a prefab ref +
-            // overrides); their handles bind when the prefab expands, not here.
-            if (!Array.isArray(entity.components)) continue;
+            // Discovery and spawning skip hidden rows; prefab entries bind after expansion.
+            if (entity.visible === false || !Array.isArray(entity.components)) continue;
             for (const comp of entity.components) {
                 // A component can customize discovery and still declare which fields take handles.
                 const componentType = canonicalComponentType(comp.type);

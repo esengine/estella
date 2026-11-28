@@ -185,6 +185,25 @@ describe('scene-owned physics preparation', () => {
 });
 
 describe('scene asset discovery', () => {
+    it('binds only spawned scene rows without touching hidden asset declarations', async () => {
+        const { app, assets, options } = await runtime();
+        const hidden = { ...scene.entities[0]!, id: 2, name: 'hidden', visible: false, components: [
+            { type: 'Sprite', data: { texture: 'hidden.png' } },
+            { type: 'MeshRenderer', data: { mesh: 'hidden.esmesh' } },
+        ] };
+        const data = { ...scene, entities: [...scene.entities, hidden] };
+        const resolve = vi.spyOn(assets, 'sceneAssetRef');
+        try {
+            const prepared = await prepareRuntimeScene({ ...options, sceneData: data });
+            expect(prepared.sceneData.entities[0]?.components[0]?.data.mesh).toBe(7);
+            expect({ hiddenRefs: resolve.mock.calls.flat().filter(ref => ref.startsWith('hidden.')),
+                hiddenComponents: prepared.sceneData.entities[1]?.components })
+                .toEqual({ hiddenRefs: [], hiddenComponents: hidden.components });
+            await publishRuntimeScene(prepared);
+            expect(app.world.findEntityByName('hidden')).toBeNull();
+        } finally { assets.releaseAll(); app.quit(); }
+    });
+
     it.each(['authored', 'packaged', 'prepared prefab'])('keeps failed texture and mesh refs without loading twice (%s)', async door => {
         const { app, assets, options } = await runtime();
         connectFakeCpp(app.world);
