@@ -1320,13 +1320,17 @@ export class Assets {
         const epoch = this.resetEpoch_;
         const bundle = emptyBundle(scope);
         const groups = new Set<string>(requestedGroup ? [requestedGroup] : []);
+        const mountFailures = new Map<string, unknown>();
         const tasks: Array<() => Promise<void>> = [];
         for (const { ref, name, type, group } of members) {
             const channel = this.batchChannel_(type);
             if (!channel) continue;
             if (group) groups.add(group);
             tasks.push(async () => {
-                try { await channel.load(this, ref, bundle, name); }
+                try {
+                    if (group && mountFailures.has(group)) throw mountFailures.get(group);
+                    await channel.load(this, ref, bundle, name);
+                }
                 catch (error) { bundle.failed.push({ ref, type, reason: 'load-failed', error: String(error) }); }
             });
         }
@@ -1339,7 +1343,14 @@ export class Assets {
         try {
             reportProgress(0);
             const lazy = [...groups].filter(group => this.manifestModel_?.bundleMode(group) === 'lazy');
-            await Promise.all(lazy.map(group => this.mountSubpackage_(group)));
+            await Promise.all(lazy.map(async group => {
+                try { await this.mountSubpackage_(group); }
+                catch (error) {
+                    // A direct request is for that package. A label can still load assets from other groups.
+                    if (group === requestedGroup) throw error;
+                    mountFailures.set(group, error);
+                }
+            }));
             this.assertLoading_(epoch);
             await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => reportProgress(++loaded));
             this.assertLoading_(epoch);

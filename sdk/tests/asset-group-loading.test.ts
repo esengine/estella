@@ -264,6 +264,70 @@ describe('Assets.loadGroup', () => {
         expect(releases.sort()).toEqual(['gate', 'rock', 'tex1.png']);
     });
 
+    it('returns successful label assets and per-asset errors from a refused subpackage', async () => {
+        const assets = createAssets();
+        const manifest = createManifest();
+        manifest.groups.main.assets['tex1.png'].labels.push('encounter');
+        manifest.groups.extra.assets = {
+            'hero.png': { path: 'hero.png', type: 'texture', size: 4, labels: ['encounter'] },
+            'gate.esmesh': { path: 'gate.esmesh', type: 'mesh', size: 4, labels: ['encounter'] },
+        };
+        manifest.groups.other = {
+            bundleMode: 'lazy', labels: [],
+            assets: { 'rock.esmesh': { path: 'rock.esmesh', type: 'mesh', size: 4, labels: ['encounter'] } },
+        };
+        assets.setManifest(manifest);
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockImplementationOnce(async group => {
+            if (group === 'extra') throw new Error('package unavailable');
+        });
+        const release = vi.fn();
+        const loadTexture = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture', generation: 1, value: { handle: 1 }, release,
+        } as never);
+        const loadTyped = vi.spyOn(assets, 'acquireTyped').mockResolvedValue({
+            key: 'mesh', generation: 1, value: { handle: 2 }, release,
+        } as never);
+        const progress = vi.fn();
+        try {
+            const bundle = await assets.loadByLabel('encounter', progress);
+            expect([...bundle.textures.keys()]).toEqual(['tex1.png']);
+            expect([...bundle.meshes.keys()]).toEqual(['rock.esmesh']);
+            expect(bundle.failed.map(({ ref }) => ref).sort()).toEqual(['gate.esmesh', 'hero.png']);
+            expect(bundle.failed.every(item => item.reason === 'load-failed' && item.error?.includes('package unavailable'))).toBe(true);
+            expect(loadTexture.mock.calls).toEqual([['tex1.png']]);
+            expect(loadTyped.mock.calls).toEqual([['mesh', 'rock.esmesh']]);
+            expect(progress.mock.calls).toEqual([[0, 4], [1, 4], [2, 4], [3, 4], [4, 4]]);
+            bundle.release();
+            expect(release).toHaveBeenCalledTimes(2);
+
+            const retried = await assets.loadByLabel('encounter');
+            expect(retried.failed).toEqual([]);
+            expect(retried.scope.size).toBe(4);
+            expect(mount.mock.calls.map(([group]) => group).sort()).toEqual(['extra', 'extra', 'other']);
+            retried.release();
+        } finally { assets.releaseAll(); }
+    });
+
+    it('rejects a direct group mount failure and allows the caller to retry it', async () => {
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('package unavailable'));
+        const load = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture', generation: 1, value: { handle: 1 }, release: vi.fn(),
+        } as never);
+        try {
+            await expect(assets.loadGroup('extra')).rejects.toThrow('package unavailable');
+            expect(load).not.toHaveBeenCalled();
+            const bundle = await assets.loadGroup('extra');
+            expect(bundle.failed).toEqual([]);
+            expect(bundle.scope.size).toBe(1);
+            expect(mount.mock.calls).toEqual([['extra'], ['extra']]);
+            bundle.release();
+        } finally { assets.releaseAll(); }
+    });
+
     it('dispatches every asset in a group through the typed loader, into the bundle', async () => {
         const assets = createAssets();
         assets.setManifest(createManifest());
