@@ -3,9 +3,13 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { Assets, type AssetsData } from '../src/asset/AssetPlugin';
+import type { LoadContext } from '../src/asset/AssetLoader';
+import { Catalog } from '../src/asset/Catalog';
+import { TimelineAssetLoader } from '../src/asset/loaders/TimelineAssetLoader';
 import { Sprite } from '../src/ecs/component';
 import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
+import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline, type Track } from '../src/timeline/TimelineTypes';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
@@ -96,6 +100,50 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         world.insert(player, Sprite, cropped);
         await app.tick(0.01);
         expect(world.get(player, Sprite)).toMatchObject(full);
+    });
+
+    it('resolves sibling frames and switches atlas regions even when they share a page', async () => {
+        const { app, world, player, publications } = scene();
+        world.insert(player, Sprite);
+        const catalog = Catalog.fromJson({
+            version: 1,
+            entries: {
+                'assets/clip/first.png': {
+                    type: 'texture', atlas: 'page.png', frame: { x: 0, y: 0, w: 32, h: 32 },
+                    uv: { offset: [0, .5], scale: [.5, .5] },
+                },
+                'assets/clip/next.png': {
+                    type: 'texture', atlas: 'page.png', frame: { x: 32, y: 0, w: 32, h: 32 },
+                    uv: { offset: [.5, .5], scale: [.5, .5] },
+                },
+            },
+        });
+        const acquired: string[] = [];
+        const context = {
+            catalog,
+            sourceAddressOf: () => 'assets/clip/intro.estimeline',
+            loadText: async () => serializeTimelineToJson({
+                version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Once,
+                tracks: [track('', './first.png', './next.png')],
+            }),
+            acquireTexture: async (ref: string) => {
+                acquired.push(ref);
+                return { value: { handle: 33 } };
+            },
+        } as unknown as LoadContext;
+        const era = await new TimelineAssetLoader().registry.prepare('cooked/intro.estimeline', context);
+        expect(acquired).toEqual(['assets/clip/first.png', 'assets/clip/next.png']);
+        publications.set('intro', era.published as PublishedTimeline);
+
+        await app.tick(.01);
+        expect(world.get(player, Sprite)).toMatchObject({
+            texture: 33, uvOffset: { x: 0, y: .5 }, uvScale: { x: .5, y: .5 },
+        });
+        app.getResource(Timeline).setTime(player, 1 / 12);
+        await app.tick(.01);
+        expect(world.get(player, Sprite)).toMatchObject({
+            texture: 33, uvOffset: { x: .5, y: .5 }, uvScale: { x: .5, y: .5 },
+        });
     });
 
     it('samples a nested clip with its own clock, binding and texture publication', async () => {

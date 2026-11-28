@@ -3,20 +3,28 @@
 import { Sprite } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
 import { setSpriteFrameTexture } from '../animation/spriteFrameProjection';
+import { atlasFrameUv, type AtlasFrameInfo } from '../asset/Catalog';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { TrackType, type AnimFramesTrack, type PublishedTimeline, type TimelineAsset } from './TimelineTypes';
 import { collectSequenceLayers, type ChildResolver, type SequenceLayer } from './timelineSequences';
 
-type FramePublication = Pick<PublishedTimeline, 'asset'> & Partial<Pick<PublishedTimeline, 'textureHandles'>>;
+type FramePublication = Pick<PublishedTimeline, 'asset'> & Partial<Pick<PublishedTimeline, 'textureHandles' | 'textureAtlases'>>;
 
-interface FrameSample {
+/** @experimental */
+export interface TimelineFrameImage {
+    texture: number;
+    atlas?: AtlasFrameInfo | null;
+}
+
+/** @experimental */
+export interface TimelineSpriteFrame extends TimelineFrameImage {
     track: AnimFramesTrack;
     layer: string;
     frame: number;
-    texture: number;
-    incarnation: number;
 }
+
+interface AppliedFrame extends TimelineSpriteFrame { incarnation: number }
 
 /** Half-open frame intervals, with the last frame held through the end of the timeline. */
 function frameIndexAt(track: AnimFramesTrack, time: number): number {
@@ -28,20 +36,53 @@ function frameIndexAt(track: AnimFramesTrack, time: number): number {
     return track.frames.length - 1;
 }
 
+/** Sample the last drawable frame for each target, including active nested timelines. @experimental */
+export function sampleTimelineSpriteFrames(
+    asset: TimelineAsset, time: number, root: Entity, resolveChild: ChildResolver,
+    textureFor: (ref: string, layer?: SequenceLayer) => TimelineFrameImage | undefined,
+    accepts: (entity: Entity) => boolean, layers: readonly SequenceLayer[] = [],
+): Map<Entity, TimelineSpriteFrame> {
+    const samples = new Map<Entity, TimelineSpriteFrame>();
+    const sample = (source: TimelineAsset, targetRoot: Entity, localTime: number, layer?: SequenceLayer) => {
+        for (const track of source.tracks ?? []) {
+            if (track.type !== TrackType.AnimFrames || track.muted) continue;
+            const frame = frameIndexAt(track, localTime);
+            if (frame < 0) continue;
+            const target = track.childPath ? resolveChild(targetRoot, track.childPath) : targetRoot;
+            if (target === null || !accepts(target)) continue;
+            const image = textureFor(track.frames[frame].texture, layer);
+            if (image?.texture) samples.set(target, { ...image, track, layer: layer?.key ?? '', frame });
+        }
+    };
+    sample(asset, root, time);
+    for (const layer of layers) sample(layer.asset, layer.root, layer.time, layer);
+    return samples;
+}
+
+/** Apply a sampled image and its atlas window, preserving unrelated Sprite fields. @experimental */
+export function projectTimelineSpriteFrame(world: World, target: Entity, image: TimelineFrameImage): boolean {
+    const sprite = world.tryGet(target, Sprite);
+    if (!sprite) return false;
+    const uv = image.atlas ? atlasFrameUv(image.atlas) : undefined;
+    setSpriteFrameTexture(sprite, image.texture, uv?.uvOffset, uv?.uvScale);
+    writeProjection(world, target, Sprite, sprite);
+    return true;
+}
+
 /** Resolve the last usable track on each target before projecting any frames. */
 export class TimelineSpriteFrames {
-    private tracks_ = new WeakMap<TimelineAsset, { frames: AnimFramesTrack[]; nested: boolean }>();
-    private readonly players_ = new Map<Entity, { asset: TimelineAsset; samples: Map<Entity, FrameSample> }>();
+    private tracks_ = new WeakMap<TimelineAsset, { frames: boolean; nested: boolean }>();
+    private readonly players_ = new Map<Entity, { asset: TimelineAsset; samples: Map<Entity, AppliedFrame> }>();
     private lifetime_: symbol | null = null;
 
     sync(
         world: World, player: Entity, asset: TimelineAsset, time: number,
-        handles: ReadonlyMap<string, number> | undefined, resolveChild: ChildResolver,
+        source: FramePublication, resolveChild: ChildResolver,
         lookup: (ref: string) => FramePublication | undefined,
         resolvedLayers?: readonly SequenceLayer[],
     ): void {
         const tracks = this.tracksFor_(asset);
-        if ((!tracks.nested || resolvedLayers?.length === 0) && (!tracks.frames.length || !handles?.size)) {
+        if ((!tracks.nested || resolvedLayers?.length === 0) && (!tracks.frames || !source.textureHandles?.size)) {
             this.players_.delete(player);
             return;
         }
@@ -52,42 +93,28 @@ export class TimelineSpriteFrames {
             world.enableIncarnationTracking(Sprite);
         }
 
-        const samples = new Map<Entity, FrameSample>();
-        const sample = (root: Entity, layer: string, frames: readonly AnimFramesTrack[], localTime: number, textures?: ReadonlyMap<string, number>) => {
-            if (!textures?.size) return;
-            for (const track of frames) {
-                const frame = frameIndexAt(track, localTime);
-                const texture = frame >= 0 ? textures.get(track.frames[frame].texture) : undefined;
-                if (!texture) continue;
-                const target = track.childPath ? resolveChild(root, track.childPath) : root;
-                if (target === null || !world.has(target, Sprite)) continue;
-                samples.set(target, { track, layer, frame, texture, incarnation: world.getComponentIncarnation(target, Sprite) });
-            }
+        const publications = new Map<string, FramePublication | undefined>();
+        const publicationFor = (ref: string) => {
+            if (!publications.has(ref)) publications.set(ref, lookup(ref));
+            return publications.get(ref);
         };
-        sample(player, '', tracks.frames, time, handles);
-        if (tracks.nested && resolvedLayers?.length !== 0) {
-            const publications = new Map<string, FramePublication | undefined>();
-            const publicationFor = (ref: string) => {
-                if (!publications.has(ref)) publications.set(ref, lookup(ref));
-                return publications.get(ref);
-            };
-            const layers = resolvedLayers ?? collectSequenceLayers(asset, time, player, resolveChild, ref => publicationFor(ref)?.asset);
-            for (const layer of layers) {
-                sample(layer.root, layer.key, this.tracksFor_(layer.asset).frames, layer.time, publicationFor(layer.ref)?.textureHandles);
-            }
-        }
-
+        const layers = tracks.nested ? resolvedLayers ?? collectSequenceLayers(asset, time, player, resolveChild, ref => publicationFor(ref)?.asset) : [];
+        const sampled = sampleTimelineSpriteFrames(asset, time, player, resolveChild, (ref, layer) => {
+            const publication = layer ? publicationFor(layer.ref) : source;
+            const texture = publication?.textureHandles?.get(ref);
+            return texture ? { texture, atlas: publication?.textureAtlases?.get(ref) } : undefined;
+        }, target => world.has(target, Sprite), layers);
         const previous = this.players_.get(player);
-        for (const [target, frame] of samples) {
-            const last = previous?.asset === asset ? previous.samples.get(target) : undefined;
+        const samples = previous?.asset === asset ? previous.samples : new Map<Entity, AppliedFrame>();
+        for (const [target, frame] of sampled) {
+            const incarnation = world.getComponentIncarnation(target, Sprite);
+            const last = samples.get(target);
             if (last && last.track === frame.track && last.layer === frame.layer && last.frame === frame.frame
-                && last.texture === frame.texture && last.incarnation === frame.incarnation) continue;
-            // A projection observer can replace another target while applying this batch.
-            const sprite = world.getComponentIncarnation(target, Sprite) === frame.incarnation ? world.tryGet(target, Sprite) : null;
-            if (!sprite) { samples.delete(target); continue; }
-            setSpriteFrameTexture(sprite, frame.texture);
-            writeProjection(world, target, Sprite, sprite);
+                && last.texture === frame.texture && last.atlas === frame.atlas && last.incarnation === incarnation) continue;
+            if (projectTimelineSpriteFrame(world, target, frame)) samples.set(target, { ...frame, incarnation });
+            else samples.delete(target);
         }
+        for (const target of samples.keys()) if (!sampled.has(target)) samples.delete(target);
         if (samples.size) this.players_.set(player, { asset, samples });
         else this.players_.delete(player);
     }
@@ -101,10 +128,10 @@ export class TimelineSpriteFrames {
     private tracksFor_(asset: TimelineAsset) {
         const cached = this.tracks_.get(asset);
         if (cached) return cached;
-        const frames: AnimFramesTrack[] = [];
+        let frames = false;
         let nested = false;
         for (const track of asset.tracks ?? []) {
-            if (track.type === TrackType.AnimFrames) frames.push(track);
+            if (track.type === TrackType.AnimFrames) frames = true;
             else if (track.type === TrackType.Sequence) nested = true;
         }
         const tracks = { frames, nested };

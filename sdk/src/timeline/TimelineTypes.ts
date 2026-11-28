@@ -352,6 +352,8 @@ export function timelineSpawnPrefabRefs(asset: TimelineAsset): Set<string> {
 export interface PublishedTimeline {
     asset: TimelineAsset;
     textureHandles: Map<string, number>;
+    /** Atlas windows by authored frame reference, for images that share a page. */
+    textureAtlases?: ReadonlyMap<string, import('../asset/Catalog').AtlasFrameInfo>;
     /** Spawn recipes prepared with this publication's import settings. */
     prefabs?: ReadonlyMap<string, PreparedPrefab>;
 }

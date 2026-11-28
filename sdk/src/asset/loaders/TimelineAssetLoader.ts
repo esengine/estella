@@ -11,6 +11,7 @@ import type { RegistryEra } from '../registryAssets';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
 import type { PublishedTimeline } from '../../timeline/TimelineTypes';
 import type { PreparedPrefab } from '../../prefab/preparedPrefab';
+import type { AtlasFrameInfo } from '../Catalog';
 import { log } from '../../util/logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
@@ -23,6 +24,8 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const asset = parseTimelineAsset(text);
             const textureHandles = new Map<string, number>();
+            const textureAtlases = new Map<string, AtlasFrameInfo>();
+            const document = ctx.sourceAddressOf?.(path) ?? path;
 
             const { timelines, textures, prefabs } = extractTimelineAssetPaths(asset);
             for (const ref of timelines) {
@@ -34,15 +37,18 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             }
 
             for (const texPath of textures) {
+                const ref = ctx.catalog.resolveDocumentRef(document, texPath);
                 try {
-                    const lease = await ctx.acquireTexture(texPath, true, 'imported');
+                    const lease = await ctx.acquireTexture(ref, true, 'imported');
                     textureHandles.set(texPath, lease.value.handle);
+                    const atlas = ctx.getAtlasFrame ? ctx.getAtlasFrame(ref) : ctx.catalog.getAtlasFrame(ref);
+                    if (atlas) textureAtlases.set(texPath, atlas);
                 } catch (e) {
                     log.warn('asset', `Failed to load texture: ${texPath}`, e);
                     textureHandles.set(texPath, 0);
                 }
             }
-            const published: PublishedTimeline = { asset, textureHandles };
+            const published: PublishedTimeline = { asset, textureHandles, ...(textureAtlases.size ? { textureAtlases } : {}) };
             if (ctx.preparePrefab) {
                 const recipes = new Map<string, PreparedPrefab>();
                 for (const ref of prefabs) {

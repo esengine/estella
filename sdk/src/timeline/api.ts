@@ -25,4 +25,5 @@ export {
     type CameraClip, type CameraTrack, type SequenceClip, type SequenceTrack, type AnimationTrack, type AnimationClipItem,
     MAX_SEQUENCE_DEPTH, collectSequenceLayers, wouldNestCycle, resolveShot, resolveActiveShot,
     type SequenceLayer, type SequenceLookup, type ShotState, type ActiveShot,
+    sampleTimelineSpriteFrames, projectTimelineSpriteFrame, type TimelineSpriteFrame, type TimelineFrameImage,
 } from './index';

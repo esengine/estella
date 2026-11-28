@@ -202,7 +202,7 @@ class TimelinePlaybackSystem {
                         this.forgetOutputs(entity);
                         continue;
                     }
-                    const { asset, textureHandles } = published;
+                    const { asset } = published;
 
                     const wrapMode = resolveWrapMode(player.wrapMode, asset.wrapMode);
                     const state = tl.ensureState(entity, wrapMode, player.speed);
@@ -248,7 +248,7 @@ class TimelinePlaybackSystem {
                     });
                     // A cue can retire the player synchronously during the advance.
                     if (!this.active_ || tl.getState(entity) !== state) continue;
-                    this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild, ref => tl.playback(ref, entity), layers);
+                    this.frames_.sync(world, entity, asset, state.time, published, deps.resolveChild, ref => tl.playback(ref, entity), layers);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // A clip that ran out gives the view back; one that is only paused keeps it.

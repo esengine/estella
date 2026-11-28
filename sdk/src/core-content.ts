@@ -1076,6 +1076,7 @@ export {
     sampleTimeline, sampleTimelineInWorld, evaluateChannel, applyWrapMode,
     serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
     TrackType, InterpType, WrapMode, TIMELINE_FORMAT_VERSION, playableTimeline,
+    sampleTimelineSpriteFrames, projectTimelineSpriteFrame, type TimelineSpriteFrame, type TimelineFrameImage,
     isRootPlacementChannel, sampleRootPlacement, createRootPlacement,
     playheadRuns, runCrosses, collectCustomEvents, collectSignals, TimelineEvent, TimelinePlayback, TimeDilation, sampleAnimationTracks, animationClipWeights, extrapolatedTime, forgetAnimationRests, rootPlacementAt, TimelineAudioVoices, audioClipGain, TimelineSpawns, spawnClipActive, type TimelineSpawner, type PreparedTimelineSpawn, timelineShakenPOV, TIMELINE_VIEW_SHAKE, type TimelineShakeDeps, resolveTimelinePath, isBoundPath, splitBoundPath,
     type RootPlacement, type PlayheadRun, type TimelineSignal, type TimelineEventPayload, type TimelinePlaybackPayload,
