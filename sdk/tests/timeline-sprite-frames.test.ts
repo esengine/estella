@@ -6,7 +6,7 @@ import { Assets, type AssetsData } from '../src/asset/AssetPlugin';
 import { Sprite } from '../src/ecs/component';
 import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
-import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline } from '../src/timeline/TimelineTypes';
+import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline, type Track } from '../src/timeline/TimelineTypes';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -31,8 +31,8 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         const world = app.world;
         const player = world.spawn();
         world.insert(player, TimelinePlayer, { timeline: 'intro' });
-        function publish(tracks: AnimFramesTrack[], textures: [string, number][]) {
-            publications.set('intro', {
+        function publish(tracks: Track[], textures: [string, number][], ref = 'intro') {
+            publications.set(ref, {
                 asset: { version: '1.3', type: 'timeline', duration: 2, wrapMode: WrapMode.Once, tracks },
                 textureHandles: new Map(textures),
             });
@@ -82,6 +82,65 @@ describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
         handles.set('replacement', 22);
         await app.tick(0.01);
         expect(world.get(player, Sprite).texture).toBe(22);
+    });
+
+    it('applies a held frame to a replacement Sprite and clears its old sheet window', async () => {
+        const { app, world, player, publish } = scene();
+        const cropped = { texture: 4, uvOffset: { x: .5, y: .5 }, uvScale: { x: .5, y: .5 } };
+        const full = { texture: 11, uvOffset: { x: 0, y: 0 }, uvScale: { x: 1, y: 1 } };
+        world.insert(player, Sprite, cropped);
+        publish([track('', 'still')], [['still', 11]]);
+        await app.tick(0.01);
+        expect.soft(world.get(player, Sprite)).toMatchObject(full);
+        world.remove(player, Sprite);
+        world.insert(player, Sprite, cropped);
+        await app.tick(0.01);
+        expect(world.get(player, Sprite)).toMatchObject(full);
+    });
+
+    it('samples a nested clip with its own clock, binding and texture publication', async () => {
+        const { app, world, player, publish, publications } = scene();
+        const cast = world.spawn('Cast');
+        world.setParent(cast, player);
+        world.insert(cast, Sprite);
+        publish([track('Cast', 'same.png'), { type: TrackType.Sequence, name: '', childPath: '',
+            clips: [{ start: .5, duration: .5, timeline: 'child', root: 'Cast', speed: 1, loop: false }],
+        }], [['same.png', 11]]);
+        publish([track('', 'first.png', 'same.png')], [['first.png', 21], ['same.png', 22]], 'child');
+        const seek = async (time: number) => { app.getResource(Timeline).setTime(player, time); await app.tick(0.01); };
+        await seek(.25);
+        expect(world.get(cast, Sprite).texture).toBe(11);
+        await seek(.5);
+        expect(world.get(cast, Sprite).texture).toBe(21);
+        await seek(.75);
+        expect(world.get(cast, Sprite).texture).toBe(22);
+        publications.get('child')!.textureHandles.set('same.png', 23);
+        await app.tick(0.01);
+        expect(world.get(cast, Sprite).texture).toBe(23);
+        await seek(1);
+        expect(world.get(cast, Sprite).texture).toBe(11);
+
+        const timeline = app.getResource(Timeline);
+        timeline.setTime(player, .5);
+        timeline.play(player);
+        await app.tick(.1);
+        expect(world.get(cast, Sprite).texture).toBe(23);
+        const revision = world.mutationRevision(Sprite, 'write');
+        await app.tick(.1);
+        expect(world.mutationRevision(Sprite, 'write')).toBe(revision);
+    });
+
+    it('keeps the last track on a shared target when an earlier track changes frames', async () => {
+        const { app, world, player, publish } = scene();
+        world.insert(player, Sprite);
+        publish([track('', 'first', 'second'), track('', 'top')], [['first', 11], ['second', 12], ['top', 21]]);
+        await app.tick(0.01);
+        expect(world.get(player, Sprite).texture).toBe(21);
+        const revision = world.mutationRevision(Sprite, 'write');
+        app.getResource(Timeline).setTime(player, .2);
+        await app.tick(0.01);
+        expect(world.get(player, Sprite).texture).toBe(21);
+        expect(world.mutationRevision(Sprite, 'write')).toBe(revision);
     });
 
     it('keeps a code timeline independent of a file with the same clip and frame names', async () => {

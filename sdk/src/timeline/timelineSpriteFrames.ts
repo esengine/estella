@@ -2,16 +2,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Sprite } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
+import { setSpriteFrameTexture } from '../animation/spriteFrameProjection';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { TrackType, type AnimFramesTrack, type TimelineAsset } from './TimelineTypes';
-import type { ChildResolver } from './timelineSequences';
+import { TrackType, type AnimFramesTrack, type PublishedTimeline, type TimelineAsset } from './TimelineTypes';
+import { collectSequenceLayers, type ChildResolver, type SequenceLayer } from './timelineSequences';
 
-interface PlayingTrack {
+type FramePublication = Pick<PublishedTimeline, 'asset'> & Partial<Pick<PublishedTimeline, 'textureHandles'>>;
+
+interface FrameSample {
     track: AnimFramesTrack;
-    lastTarget: Entity | null;
-    lastFrame: number;
-    lastTexture: number;
+    layer: string;
+    frame: number;
+    texture: number;
+    incarnation: number;
 }
 
 /** Half-open frame intervals, with the last frame held through the end of the timeline. */
@@ -24,47 +28,87 @@ function frameIndexAt(track: AnimFramesTrack, time: number): number {
     return track.frames.length - 1;
 }
 
-/** Applied sprite frames belong to the player and the playable asset it sampled. */
+/** Resolve the last usable track on each target before projecting any frames. */
 export class TimelineSpriteFrames {
-    private readonly players_ = new Map<Entity, { asset: TimelineAsset; tracks: PlayingTrack[] }>();
+    private tracks_ = new WeakMap<TimelineAsset, { frames: AnimFramesTrack[]; nested: boolean }>();
+    private readonly players_ = new Map<Entity, { asset: TimelineAsset; samples: Map<Entity, FrameSample> }>();
+    private lifetime_: symbol | null = null;
 
     sync(
         world: World, player: Entity, asset: TimelineAsset, time: number,
         handles: ReadonlyMap<string, number> | undefined, resolveChild: ChildResolver,
+        lookup: (ref: string) => FramePublication | undefined,
+        resolvedLayers?: readonly SequenceLayer[],
     ): void {
-        for (const state of this.tracksFor_(player, asset)) {
-            const { track } = state;
-            const frame = frameIndexAt(track, time);
-            const texture = frame >= 0 ? handles?.get(track.frames[frame].texture) : undefined;
-            const target = track.childPath ? resolveChild(player, track.childPath) : player;
-            if (!texture || target === null || !world.has(target, Sprite)) {
-                state.lastTarget = null;
-                continue;
-            }
-            if (state.lastTarget === target && state.lastFrame === frame && state.lastTexture === texture) continue;
-
-            const sprite = world.get(target, Sprite);
-            sprite.texture = texture;
-            writeProjection(world, target, Sprite, sprite);
-            state.lastTarget = target;
-            state.lastFrame = frame;
-            state.lastTexture = texture;
+        const tracks = this.tracksFor_(asset);
+        if ((!tracks.nested || resolvedLayers?.length === 0) && (!tracks.frames.length || !handles?.size)) {
+            this.players_.delete(player);
+            return;
         }
+        const lifetime = world.entityLifetime;
+        if (this.lifetime_ !== lifetime) {
+            this.players_.clear();
+            this.lifetime_ = lifetime;
+            world.enableIncarnationTracking(Sprite);
+        }
+
+        const samples = new Map<Entity, FrameSample>();
+        const sample = (root: Entity, layer: string, frames: readonly AnimFramesTrack[], localTime: number, textures?: ReadonlyMap<string, number>) => {
+            if (!textures?.size) return;
+            for (const track of frames) {
+                const frame = frameIndexAt(track, localTime);
+                const texture = frame >= 0 ? textures.get(track.frames[frame].texture) : undefined;
+                if (!texture) continue;
+                const target = track.childPath ? resolveChild(root, track.childPath) : root;
+                if (target === null || !world.has(target, Sprite)) continue;
+                samples.set(target, { track, layer, frame, texture, incarnation: world.getComponentIncarnation(target, Sprite) });
+            }
+        };
+        sample(player, '', tracks.frames, time, handles);
+        if (tracks.nested && resolvedLayers?.length !== 0) {
+            const publications = new Map<string, FramePublication | undefined>();
+            const publicationFor = (ref: string) => {
+                if (!publications.has(ref)) publications.set(ref, lookup(ref));
+                return publications.get(ref);
+            };
+            const layers = resolvedLayers ?? collectSequenceLayers(asset, time, player, resolveChild, ref => publicationFor(ref)?.asset);
+            for (const layer of layers) {
+                sample(layer.root, layer.key, this.tracksFor_(layer.asset).frames, layer.time, publicationFor(layer.ref)?.textureHandles);
+            }
+        }
+
+        const previous = this.players_.get(player);
+        for (const [target, frame] of samples) {
+            const last = previous?.asset === asset ? previous.samples.get(target) : undefined;
+            if (last && last.track === frame.track && last.layer === frame.layer && last.frame === frame.frame
+                && last.texture === frame.texture && last.incarnation === frame.incarnation) continue;
+            // A projection observer can replace another target while applying this batch.
+            const sprite = world.getComponentIncarnation(target, Sprite) === frame.incarnation ? world.tryGet(target, Sprite) : null;
+            if (!sprite) { samples.delete(target); continue; }
+            setSpriteFrameTexture(sprite, frame.texture);
+            writeProjection(world, target, Sprite, sprite);
+        }
+        if (samples.size) this.players_.set(player, { asset, samples });
+        else this.players_.delete(player);
     }
 
     forget(player: Entity): void { this.players_.delete(player); }
-    clear(): void { this.players_.clear(); }
+    clear(): void {
+        this.players_.clear();
+        this.tracks_ = new WeakMap();
+    }
 
-    private tracksFor_(player: Entity, asset: TimelineAsset): PlayingTrack[] {
-        const cached = this.players_.get(player);
-        if (cached?.asset === asset) return cached.tracks;
-        const tracks: PlayingTrack[] = [];
-        for (const track of asset.tracks) {
-            if (track.type === TrackType.AnimFrames) {
-                tracks.push({ track, lastTarget: null, lastFrame: -1, lastTexture: 0 });
-            }
+    private tracksFor_(asset: TimelineAsset) {
+        const cached = this.tracks_.get(asset);
+        if (cached) return cached;
+        const frames: AnimFramesTrack[] = [];
+        let nested = false;
+        for (const track of asset.tracks ?? []) {
+            if (track.type === TrackType.AnimFrames) frames.push(track);
+            else if (track.type === TrackType.Sequence) nested = true;
         }
-        this.players_.set(player, { asset, tracks });
+        const tracks = { frames, nested };
+        this.tracks_.set(asset, tracks);
         return tracks;
     }
 }

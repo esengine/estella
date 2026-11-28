@@ -13,6 +13,7 @@ import type { Entity, TextureHandle } from '../types';
 import type { World } from '../ecs/world';
 import { Sprite, type SpriteData } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
+import { setSpriteFrameTexture } from './spriteFrameProjection';
 
 // =============================================================================
 // Sprite Animation Clip
@@ -351,17 +352,7 @@ export class SpriteAnimationAPI {
                 const direct = readSprite && writeSprite && !world.speculating && !getDefaultContext().editorBridge
                     && registry === world.getCppRegistry() && module === world.getWasmModule();
                 const sprite = (direct ? readSprite(entity) : world.get(entity, Sprite)) as SpriteData;
-                sprite.texture = frame.texture;
-                // Copy (don't alias the clip's frame objects), and RESET to the full
-                // texture when a frame carries no sub-rect — else a plain frame after
-                // a sheet-cell frame renders through the stale cell window.
-                if (frame.uvOffset) {
-                    sprite.uvOffset = { x: frame.uvOffset.x, y: frame.uvOffset.y };
-                    sprite.uvScale = frame.uvScale ? { x: frame.uvScale.x, y: frame.uvScale.y } : { x: 1, y: 1 };
-                } else {
-                    sprite.uvOffset = { x: 0, y: 0 };
-                    sprite.uvScale = { x: 1, y: 1 };
-                }
+                setSpriteFrameTexture(sprite, frame.texture, frame.uvOffset, frame.uvScale);
                 // No reset branch on either: the loader gives EVERY frame of an
                 // owning clip both, so absent here means the clip owns neither and
                 // what the entity authored stands.

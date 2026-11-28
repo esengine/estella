@@ -165,6 +165,8 @@ export interface AdvanceContext {
     onPropertyApplied?: (entity: Entity, asset: TimelineAsset) => void;
     /** How a sequence clip finds the timeline it plays; without it nested clips are not played. */
     lookup?: SequenceLookup;
+    /** Reuse the layers sampled this step. Undefined means callbacks may have changed them. */
+    onSequenceLayers?: (layers: readonly SequenceLayer[] | undefined) => void;
     /** The view this step asks for (null: none), for the camera director. */
     onShot?: (shot: ActiveShot | null) => void;
     /** Events and markers this step crossed, with the root their target paths are relative to. */
@@ -258,6 +260,7 @@ export function advanceTimelineTS(
         if (seeking && state.started) {
             sampleLayer(asset, state.time, root, ctx);
             const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, 'seek') : [];
+            ctx.onSequenceLayers?.(layers);
             ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES, layers));
         }
         return false;
@@ -298,6 +301,7 @@ export function advanceTimelineTS(
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
     const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup) : [];
+    ctx.onSequenceLayers?.(layers);
     ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, lookup, layers));
 
     if (wrapped.stopped) state.playing = false;

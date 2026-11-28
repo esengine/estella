@@ -32,6 +32,7 @@ import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './Timeli
 import { CameraDirector, setTimelineShot, shakeCamera } from '../camera/CameraDirector';
 import { fireImpulse } from '../camera/CameraImpulse';
 import type { SampleDeps } from './TimelineEvaluator';
+import type { SequenceLayer } from './timelineSequences';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
@@ -214,12 +215,14 @@ class TimelinePlaybackSystem {
 
                     // Real time for a player that runs while the game is paused.
                     const dt = player.unscaledTime ? time.unscaledDelta : time.delta;
+                    let layers: readonly SequenceLayer[] | undefined;
                     const justFinished = advanceTimelineTS(asset, entity, state, dt, {
                         particle: app.hasResource(Particle) ? app.getResource(Particle) : null,
                         deps, audio,
                         syncSpawns: time => this.spawns_.sync(entity, asset, time, spawner,
                             path => deps.resolveChild(entity, path), published.prefabs),
                         lookup: (ref) => tl.getAsset(ref, entity),
+                        onSequenceLayers: resolved => { layers = resolved; },
                         onShot: director ? (shot) => {
                             if (this.active_ && state.started && tl.getState(entity) === state) setTimelineShot(director, entity, shot);
                         } : undefined,
@@ -245,7 +248,7 @@ class TimelinePlaybackSystem {
                     });
                     // A cue can retire the player synchronously during the advance.
                     if (!this.active_ || tl.getState(entity) !== state) continue;
-                    this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild);
+                    this.frames_.sync(world, entity, asset, state.time, textureHandles, deps.resolveChild, ref => tl.playback(ref, entity), layers);
                     // Audio clips: kept while the playhead is inside them, paused with the timeline.
                     this.voices_.sync(entity, asset, state.time, state.playing, audio);
                     // A clip that ran out gives the view back; one that is only paused keeps it.
