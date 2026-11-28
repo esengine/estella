@@ -20,6 +20,7 @@ export {
     WORLD_BASIS,
     DODGE_KEY,
     ATTACK_KEY,
+    LOCK_KEY,
     type ThirdPersonControllerData,
     type MoveBasis,
 } from './ThirdPersonController';
@@ -88,6 +89,7 @@ export {
     requestMotion,
     observeMotion,
     updateCameras,
+    pickLockTarget,
 } from './GameplayPlugin';
 
 export {

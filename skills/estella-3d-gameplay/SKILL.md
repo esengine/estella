@@ -37,6 +37,12 @@ A third-person fighter needs no movement code: `ThirdPersonController` beside th
 - On enemies, `Health.poise` (about a third of their health) staggers them after enough blows; a staggered Hunter loses
   its swing. `Health.graceTime` gives a hit player a moment untouchable.
 
+The camera is half the feel. On the `ThirdPersonCamera`: `shoulder` about 55 (over the right shoulder, drawn in off a
+wall), `lockRange` about 2500 so Q locks onto the foe ahead (the view keeps it in front and the fighter faces it),
+`sprintFov` widens the view while sprinting, `hitShake` about 8 throws the view when the player is hit, and
+`recenterDelay` swings the view behind a player left to run. Pulling in past a pillar is at once and going back out is
+eased (`recoverDamping`).
+
 Prove it by playing: hold Shift and read the speed, tap it and read the trigger, land a swing and read `Time.scale`.
 
 ## Physics and triggers

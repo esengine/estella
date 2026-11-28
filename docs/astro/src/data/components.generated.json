@@ -10291,6 +10291,70 @@
           "advanced": true
         },
         {
+          "key": "shoulder",
+          "type": "number",
+          "default": "0",
+          "doc": "How far right of the character the eye sits (negative: left). Drawn in when a wall is beside it."
+        },
+        {
+          "key": "recoverDamping",
+          "type": "number",
+          "default": "4",
+          "doc": "How fast the eye goes back out after something pulled it in, per second. 0 = at once.",
+          "range": "≥ 0, step 0.5",
+          "advanced": true
+        },
+        {
+          "key": "lockRange",
+          "type": "number",
+          "default": "0",
+          "doc": "How far a foe may be for Q to lock onto it. 0 = no lock-on.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "lockTarget",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The foe it is locked onto. Set by Q or by a game; let go when it dies or gets too far."
+        },
+        {
+          "key": "lockTurnRate",
+          "type": "number",
+          "default": "4.5",
+          "doc": "How fast the view turns to keep a locked foe ahead, per second.",
+          "range": "≥ 0, step 0.5",
+          "advanced": true
+        },
+        {
+          "key": "sprintFov",
+          "type": "number",
+          "default": "7",
+          "doc": "Degrees the view widens while the character sprints. 0 = none.",
+          "range": "0–30, step 1"
+        },
+        {
+          "key": "fovDamping",
+          "type": "number",
+          "default": "5",
+          "doc": "How fast the field of view follows, per second.",
+          "range": "≥ 0, step 0.5",
+          "advanced": true
+        },
+        {
+          "key": "recenterDelay",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds without turning the camera before it swings round behind a moving character. 0 = never.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "hitShake",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the view is thrown when the character takes a blow (half when it lands one). 0 = none.",
+          "range": "≥ 0"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -10309,7 +10373,16 @@
         "targetOffset.y",
         "targetOffset.z",
         "obstructionRadius",
-        "obstructionLayers"
+        "obstructionLayers",
+        "shoulder",
+        "recoverDamping",
+        "lockRange",
+        "lockTarget",
+        "lockTurnRate",
+        "sprintFov",
+        "fovDamping",
+        "recenterDelay",
+        "hitShake"
       ]
     },
     {

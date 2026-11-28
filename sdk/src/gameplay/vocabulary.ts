@@ -35,6 +35,9 @@ export const DODGE_KEY = 'ShiftLeft';
 /** The key an attack is asked for on. Same rule: a request, not a clip name. */
 export const ATTACK_KEY = 'KeyJ';
 
+/** The key a ThirdPersonCamera with a `lockRange` locks onto the nearest foe in front with, and lets go with. */
+export const LOCK_KEY = 'KeyQ';
+
 /**
  * The events a clip declares that melee reads. Names rather than times: a state
  * that re-times its swing re-times the hit, and nothing else has to be told.

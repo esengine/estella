@@ -108,9 +108,17 @@ world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
 | `yaw` / `pitch` | `0` / `15` | 绕世界上方向的旋转，以及高于地平线的仰角（正值向下看），度。 |
 | `minPitch` / `maxPitch` | `-30` / `70` | 俯仰限位，度。 |
 | `sensitivity` | `0.2` | 指针每移动一像素对应的度数。 |
-| `followDamping` | `12` | 位置跟随的速率，每秒；`0` 为刚性跟随。 |
+| `followDamping` | `0` | 位置跟随的速率，每秒；`0` 为刚性跟随。 |
 | `targetOffset` | `{0, 90, 0}` | 将支点从目标原点抬高，使相机取景胸部而非脚部。 |
 | `obstruction` / `obstructionRadius` / `obstructionLayers` | `true` / `15` / `0` | 支点与视点之间有障碍时拉近；探测半径；检测的层（`0` 为全部）。 |
+| `shoulder` | `0` | 视点在目标右侧多远，世界单位（负值为左侧）；旁边有墙时自动收回。 |
+| `recoverDamping` | `4` | 被遮挡拉近后，视点重新放远的速度，每秒。拉近总是立即的；`0` 为放远也立即。 |
+| `lockRange` | `0` | 敌人（`Health` 大于 0 的实体）在多远以内可以按 Q 锁定；`0` 为不能锁定。Q 锁定前方最近的一个，再按一次解锁。 |
+| `lockTarget` | `0` | 当前锁定的敌人。镜头自动转向它，`ThirdPersonController` 面朝它；敌人死亡或超出 1.5 × `lockRange` 时解锁。游戏也可以直接设置。 |
+| `lockTurnRate` | `4.5` | 镜头转向锁定目标的速度，每秒。 |
+| `sprintFov` / `fovDamping` | `7` / `5` | 目标冲刺时 `Camera` 视角放大的度数，以及跟随的速度。游戏自己设置的视角保持为底值。 |
+| `recenterDelay` | `0` | 多少秒没有用鼠标转动后，镜头慢慢转到移动中的目标身后；`0` 为从不。 |
+| `hitShake` | `0` | 目标挨打时镜头晃动的幅度，世界单位（目标打中别人时减半）；`0` 为不晃。 |
 | `enabled` | `true` | 为 `false` 时相机停止工作。 |
 
 ## 第一人称

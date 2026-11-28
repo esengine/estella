@@ -23,7 +23,7 @@ import type { Vec3 } from '../types';
 // The names authored content reaches this through live on `esengine`; the
 // runtime does not, so they are declared apart from it.
 export {
-    TPC_SPEED, TPC_GROUNDED, TPC_JUMP, TPC_DODGE, TPC_ATTACK, TPC_SPRINT, TPC_STAGGER, DODGE_KEY, ATTACK_KEY,
+    TPC_SPEED, TPC_GROUNDED, TPC_JUMP, TPC_DODGE, TPC_ATTACK, TPC_SPRINT, TPC_STAGGER, DODGE_KEY, ATTACK_KEY, LOCK_KEY,
 } from './vocabulary';
 
 /** The fields of the `ThirdPersonController` component. @experimental */

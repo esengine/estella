@@ -32,6 +32,11 @@ it. Before adding a rig or a shot camera, delete that file and its `addSystemToS
 | `camera:impulse` | a place a shake is fired from (an explosion) | none |
 | `camera:brain` | one per scene: a change of camera blends instead of cutting | none |
 
+A third-person game the player steers with the pointer wants `ThirdPersonCamera` instead (with a
+`ThirdPersonController` on the player): it orbits under the pointer and keeps out of walls, and its fields give a fight
+its view: `shoulder`, Q lock-on (`lockRange`), a wider view while sprinting (`sprintFov`), a shake when the player is hit
+(`hitShake`) and a swing round behind a running player (`recenterDelay`). The 3D gameplay skill has the numbers.
+
 `describe_component` lists a component's fields. Every camera runs, in order: one position stage (`FollowTarget`,
 `PositionComposer` or `CameraDolly`), `LookAtTarget`, then `GroupFraming`, `CameraDeoccluder`, `CameraBounds` (an
 orthographic camera kept inside the level), then `CameraNoise`. A 3D `FollowTarget` needs `followZ: true`, or the

@@ -26,11 +26,11 @@ import {
 } from '../animation/animatorRootMotion';
 import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorEvent';
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
-import { Damage, applyDamage, tickHealth, type DamagePayload } from './Health';
+import { Damage, Health, applyDamage, tickHealth, type DamagePayload, type HealthData } from './Health';
 import { MeleeAttack, MeleeAttacks, resolveMeleeHits, sweepMeleeWindows, type MeleeAttackData, type MeleeWindowSource } from './MeleeAttack';
 import { huntTargets, staggerHunter } from './Hunter';
 import { Stamina, regenerateStamina, type StaminaData } from './Stamina';
-import { COMBAT_INVULNERABLE, TPC_STAGGER } from './vocabulary';
+import { COMBAT_INVULNERABLE, TPC_STAGGER, LOCK_KEY } from './vocabulary';
 import { PlatformerController2D, type PlatformerController2DData } from '../physics/PlatformerController2D';
 import { q } from '../math/quat';
 import { look as lookFirstPerson, move as moveFirstPerson, installViewModels, TouchLook } from './firstPersonSystems';
@@ -48,6 +48,9 @@ import {
     ThirdPersonCamera, type ThirdPersonCameraData,
     orbitOffset, cameraGroundBasis, dampFactor, clampPitch,
 } from './ThirdPersonCamera';
+import { Camera } from '../ecs/component';
+import type { CameraData } from '../ecs/component.generated';
+import { CameraDirector, shakeCamera } from '../camera/CameraDirector';
 
 /**
  * What the animation is asking this character to do, or null when nothing is.
@@ -75,6 +78,8 @@ interface ControllerFeel {
     dodgeHeld: number;
     /** The bar ran out mid-sprint: a run until the key is let go. */
     exhausted: boolean;
+    /** Sprinting this step, for the camera that widens with it. */
+    sprinting: boolean;
 }
 
 const feels = new WeakMap<World, Map<Entity, ControllerFeel>>();
@@ -84,7 +89,7 @@ function feelOf(world: World, entity: Entity): ControllerFeel {
     if (!byEntity) { byEntity = new Map(); feels.set(world, byEntity); }
     let feel = byEntity.get(entity);
     if (!feel) {
-        feel = { coyote: 0, buffered: 0, jumpWasDown: false, dodgeWasDown: false, dodgeHeld: 0, exhausted: false };
+        feel = { coyote: 0, buffered: 0, jumpWasDown: false, dodgeWasDown: false, dodgeHeld: 0, exhausted: false, sprinting: false };
         byEntity.set(entity, feel);
     }
     return feel;
@@ -205,6 +210,7 @@ export function requestMotion(
             feel.exhausted = true;
             sprinting = false;
         }
+        feel.sprinting = sprinting;
         const topSpeed = sprinting ? sprintSpeed : data.moveSpeed;
         if (sprintSpeed > 0 && animator && world.has(entity, Animator)) animator.setBool(entity, TPC_SPRINT, sprinting);
 
@@ -361,6 +367,21 @@ export function observeMotion(world: World, animator: AnimatorControllerAPI | nu
             continue;
         }
 
+        // Locked onto a foe, it faces the foe whichever way it moves: a strafe, a step back.
+        const foe = lockedFoe(world, data);
+        if (foe !== null) {
+            const at = (world.get(foe, Transform) as TransformData).position;
+            const from = (world.get(entity, Transform) as TransformData).position;
+            if (Math.hypot(at.x - from.x, at.z - from.z) > 1e-6) {
+                const toward = facingYaw({ x: at.x - from.x, y: 0, z: at.z - from.z });
+                world.update(entity, Transform, (t: TransformData) => {
+                    const yaw = yawQuaternion(turnToward(yawOfQuaternion(t.rotation), toward, data.rotationSpeed, dt));
+                    t.rotation.w = yaw.w; t.rotation.x = yaw.x; t.rotation.y = yaw.y; t.rotation.z = yaw.z;
+                });
+            }
+            continue;
+        }
+
         // Face where it is going, not where it was asked to go - and hold the
         // last heading when it stops, rather than snapping back to world forward.
         if (speed < data.idleThreshold) continue;
@@ -395,12 +416,82 @@ function clearDistance(
     return Math.max(0, Math.min(data.distance, hit.fraction * data.distance));
 }
 
+/** What a camera remembers between frames: how far out the eye stands now, the widening it added, and how long the pointer has left it alone. */
+interface CameraFeel {
+    distance: number | null;
+    fovKick: number;
+    idle: number;
+}
+
+const cameraFeels = new WeakMap<World, Map<Entity, CameraFeel>>();
+
+function cameraFeelOf(world: World, entity: Entity): CameraFeel {
+    let byEntity = cameraFeels.get(world);
+    if (!byEntity) { byEntity = new Map(); cameraFeels.set(world, byEntity); }
+    let feel = byEntity.get(entity);
+    if (!feel) { feel = { distance: null, fovKick: 0, idle: 0 }; byEntity.set(entity, feel); }
+    return feel;
+}
+
+/** Whether @p entity stands to be locked onto: there, placed, and not down. */
+function lockable(world: World, entity: Entity): boolean {
+    if (!entity || !world.valid(entity) || !world.has(entity, Transform)) return false;
+    return !world.has(entity, Health) || (world.get(entity, Health) as HealthData).current > 0;
+}
+
+/**
+ * The foe the lock key picks: alive, within `range` of the target, and in front of the view, nearest first with what
+ * is straight ahead preferred. Null when there is none.
+ */
+export function pickLockTarget(
+    world: World, target: Entity, yawDeg: number, range: number,
+): Entity | null {
+    const from = (world.get(target, Transform) as TransformData).position;
+    const ahead = cameraGroundBasis(yawDeg).forward;
+    let best: Entity | null = null;
+    let bestScore = Infinity;
+    for (const candidate of world.getEntitiesWithComponents([Health, Transform])) {
+        if (candidate === target || !lockable(world, candidate)) continue;
+        const at = (world.get(candidate, Transform) as TransformData).position;
+        const dx = at.x - from.x, dz = at.z - from.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance > range || distance < 1e-6) continue;
+        const facing = (dx * ahead.x + dz * ahead.z) / distance;
+        if (facing < 0.3) continue;
+        const score = distance * (2 - facing);
+        if (score < bestScore) { bestScore = score; best = candidate; }
+    }
+    return best;
+}
+
+/** The yaw that looks from behind @p from toward @p to along the ground, degrees: the camera's forward is its -offset. */
+function yawLookingAt(from: { x: number; z: number }, to: { x: number; z: number }): number | null {
+    const dx = to.x - from.x, dz = to.z - from.z;
+    if (Math.hypot(dx, dz) < 1e-6) return null;
+    return Math.atan2(-dx, -dz) * 180 / Math.PI;
+}
+
 export function updateCameras(
     world: World, input: InputState, queries: Physics3DQueries | null, dt: number,
 ): void {
     for (const entity of world.getEntitiesWithComponents([ThirdPersonCamera, Transform])) {
         const data = world.get(entity, ThirdPersonCamera) as ThirdPersonCameraData;
         if (!data.enabled || !data.target || !world.has(data.target, Transform)) continue;
+        const feel = cameraFeelOf(world, entity);
+        const targetTransform = world.get(data.target, Transform) as TransformData;
+        const here = targetTransform.position;
+
+        // A lock lasts while the foe is there, alive and within reach; the lock key takes one or lets it go.
+        let lockTarget = (data.lockTarget ?? 0) as Entity;
+        const range = data.lockRange ?? 0;
+        if (lockTarget && (!lockable(world, lockTarget) || (range > 0 && Math.hypot(
+            (world.get(lockTarget, Transform) as TransformData).position.x - here.x,
+            (world.get(lockTarget, Transform) as TransformData).position.z - here.z) > range * 1.5))) {
+            lockTarget = 0 as Entity;
+        }
+        if (range > 0 && input.isKeyPressed(LOCK_KEY)) {
+            lockTarget = lockTarget ? 0 as Entity : (pickLockTarget(world, data.target, data.yaw, range) ?? 0 as Entity);
+        }
 
         const pointer = input.getMousePosition();
         const previous = lastPointer.get(entity);
@@ -409,25 +500,59 @@ export function updateCameras(
         // someone turning the camera.
         const dragging = input.isMouseButtonDown(0) || input.isMouseButtonDown(2);
         let { yaw, pitch } = data;
+        const turned = !!previous && dragging && (pointer.x !== previous.x || pointer.y !== previous.y);
         if (previous && dragging) {
-            yaw -= (pointer.x - previous.x) * data.sensitivity;
+            // Locked, the foe decides where the view looks round; the pointer still tips it up and down.
+            if (!lockTarget) yaw -= (pointer.x - previous.x) * data.sensitivity;
             pitch = clampPitch(pitch + (pointer.y - previous.y) * data.sensitivity,
                                data.minPitch, data.maxPitch);
         }
-        if (yaw !== data.yaw || pitch !== data.pitch) {
+        feel.idle = turned ? 0 : feel.idle + dt;
+
+        if (lockTarget) {
+            const wanted = yawLookingAt(here, (world.get(lockTarget, Transform) as TransformData).position);
+            if (wanted !== null) yaw += shortestAngleDelta(yaw, wanted) * dampFactor(data.lockTurnRate ?? 0, dt);
+        } else if ((data.recenterDelay ?? 0) > 0 && feel.idle >= (data.recenterDelay ?? 0)
+                   && world.has(data.target, CharacterController3D)) {
+            // Left alone, the view swings round behind a target that is going somewhere.
+            const moved = (world.get(data.target, CharacterController3D) as CharacterController3DData).realVelocity;
+            const going = Math.hypot(moved.x, moved.z);
+            const idle = world.has(data.target, ThirdPersonController)
+                ? (world.get(data.target, ThirdPersonController) as ThirdPersonControllerData).idleThreshold : 0;
+            if (going > Math.max(idle, 1e-6)) {
+                yaw += shortestAngleDelta(yaw, facingYaw({ x: moved.x, y: 0, z: moved.z })) * dampFactor(1.4, dt);
+            }
+        }
+        if (yaw !== data.yaw || pitch !== data.pitch || lockTarget !== (data.lockTarget ?? 0)) {
             world.update(entity, ThirdPersonCamera, (c: ThirdPersonCameraData) => {
                 c.yaw = yaw; c.pitch = pitch;
+                if (c.lockTarget !== undefined || lockTarget) c.lockTarget = lockTarget;
             });
         }
 
-        const targetTransform = world.get(data.target, Transform) as TransformData;
-        const pivot = {
-            x: targetTransform.position.x + data.targetOffset.x,
-            y: targetTransform.position.y + data.targetOffset.y,
-            z: targetTransform.position.z + data.targetOffset.z,
+        let pivot = {
+            x: here.x + data.targetOffset.x,
+            y: here.y + data.targetOffset.y,
+            z: here.z + data.targetOffset.z,
         };
+        // Over the shoulder: the pivot stands aside, and no further than a wall beside it allows.
+        let side = data.shoulder ?? 0;
+        if (side !== 0) {
+            const right = cameraGroundBasis(yaw).right;
+            if (data.obstruction && queries) {
+                const hit = queries.sphereCast(pivot, data.obstructionRadius,
+                    { x: right.x * side, y: 0, z: right.z * side }, data.obstructionLayers);
+                if (hit) side *= Math.max(0, Math.min(1, hit.fraction));
+            }
+            pivot = { x: pivot.x + right.x * side, y: pivot.y, z: pivot.z + right.z * side };
+        }
         const offset = orbitOffset(yaw, pitch);
-        const distance = clearDistance(queries, data, pivot, offset);
+        // In at once, so nothing stands between; back out eased, so a pillar passed does not snap the view.
+        const clear = clearDistance(queries, data, pivot, offset);
+        const distance = feel.distance === null || clear < feel.distance
+            ? clear
+            : feel.distance + (clear - feel.distance) * dampFactor(data.recoverDamping ?? 0, dt);
+        feel.distance = distance;
         const wanted = {
             x: pivot.x + offset.x * distance,
             y: pivot.y + offset.y * distance,
@@ -449,7 +574,32 @@ export function updateCameras(
             t.rotation.y = cp * sy;
             t.rotation.z = -sp * sy;
         });
+
+        // A sprint widens the view. The widening is this camera's own, so a field of view the game sets is kept under it.
+        const sprintFov = data.sprintFov ?? 0;
+        if ((sprintFov > 0 || feel.fovKick !== 0) && world.has(entity, Camera)) {
+            const sprinting = feels.get(world)?.get(data.target)?.sprinting ?? false;
+            const goal = sprinting ? sprintFov : 0;
+            const kick = Math.abs(goal - feel.fovKick) < 1e-3 ? goal : feel.fovKick + (goal - feel.fovKick) * dampFactor(data.fovDamping ?? 0, dt);
+            if (kick !== feel.fovKick) {
+                const delta = kick - feel.fovKick;
+                world.update(entity, Camera, (c: CameraData) => { c.fov += delta; });
+                feel.fovKick = kick;
+            }
+        }
     }
+}
+
+/**
+ * The foe a controller's camera is locked onto, or null: the character then faces it rather than where it walks.
+ */
+function lockedFoe(world: World, data: ThirdPersonControllerData): Entity | null {
+    const camera = data.camera && world.has(data.camera, ThirdPersonCamera)
+        ? data.camera
+        : world.getEntitiesWithComponents([ThirdPersonCamera])[0];
+    if (camera === undefined) return null;
+    const lock = ((world.get(camera, ThirdPersonCamera) as ThirdPersonCameraData).lockTarget ?? 0) as Entity;
+    return lock && lockable(world, lock) ? lock : null;
 }
 
 export class GameplayPlugin implements Plugin {
@@ -496,6 +646,7 @@ export class GameplayPlugin implements Plugin {
             lastPointer.delete(entity);
             attacks.forget(entity);
             feels.get(world)?.delete(entity);
+            cameraFeels.get(world)?.delete(entity);
             paidDashes.get(world)?.delete(entity);
         });
 
@@ -565,6 +716,17 @@ export class GameplayPlugin implements Plugin {
                     stop = Math.max(stop, (world.get(blow.source, MeleeAttack) as MeleeAttackData).hitStop ?? 0);
                 }
                 if (stop > 0) this.holdFor_(app, stop);
+                // A camera on whoever took a blow is thrown by it; one on whoever landed it, by half.
+                let shake = 0;
+                for (const camera of world.getEntitiesWithComponents([ThirdPersonCamera])) {
+                    const view = world.get(camera, ThirdPersonCamera) as ThirdPersonCameraData;
+                    if (!view.enabled || !(view.hitShake && view.hitShake > 0)) continue;
+                    for (const blow of outcome.landed) {
+                        if (blow.target === view.target) shake = Math.max(shake, view.hitShake);
+                        else if (blow.source === view.target) shake = Math.max(shake, view.hitShake * 0.5);
+                    }
+                }
+                if (shake > 0 && app.hasResource(CameraDirector)) shakeCamera(app, { amplitude: shake, rotation: 0.6, frequency: 24, duration: 0.3 });
             },
             { name: 'DamageSystem' },
         ), { runIf: playModeOnly });

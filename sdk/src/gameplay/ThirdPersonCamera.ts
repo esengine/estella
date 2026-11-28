@@ -47,6 +47,27 @@ export interface ThirdPersonCameraData {
     obstructionRadius: number;
     /** Physics layers the probe collides with; 0 = every layer. */
     obstructionLayers: number;
+    /** How far right of the target the eye sits, world units (negative: left), drawn in when a wall is beside it. */
+    shoulder?: number;
+    /**
+     * How fast the eye goes back out once what pulled it in is out of the way, per second. Pulling in is at once, so
+     * nothing comes between; going back out is eased, so a pillar passed does not snap the view. 0 = at once.
+     */
+    recoverDamping?: number;
+    /** How far a foe may be for the lock key to lock onto it, world units; 0 = no lock-on. */
+    lockRange?: number;
+    /** The foe it is locked onto, or 0. Set by the lock key, or by a game; let go when it dies or gets too far. */
+    lockTarget?: Entity;
+    /** How fast the view turns to keep a locked foe ahead, per second. */
+    lockTurnRate?: number;
+    /** Degrees the view widens while its target sprints, the rush of speed. 0 = none. */
+    sprintFov?: number;
+    /** How fast the field of view follows, per second. */
+    fovDamping?: number;
+    /** Seconds without the pointer turning it before the view swings round behind a moving target; 0 = never. */
+    recenterDelay?: number;
+    /** How far the view is thrown when its target takes a blow, world units (half when its target lands one). 0 = none. */
+    hitShake?: number;
     enabled: boolean;
 }
 
@@ -69,11 +90,20 @@ export const ThirdPersonCamera: ComponentDef<ThirdPersonCameraData> =
         obstruction: true,
         obstructionRadius: 15,
         obstructionLayers: 0,
+        shoulder: 0,
+        recoverDamping: 4,
+        lockRange: 0,
+        lockTarget: 0 as Entity,
+        lockTurnRate: 4.5,
+        sprintFov: 7,
+        fovDamping: 5,
+        recenterDelay: 0,
+        hitShake: 0,
         enabled: true,
     }, {
     // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
-    worldUnitFields: ['distance', 'targetOffset', 'obstructionRadius'],
-        entityFields: ['target'],
+    worldUnitFields: ['distance', 'targetOffset', 'obstructionRadius', 'shoulder', 'lockRange', 'hitShake'],
+        entityFields: ['target', 'lockTarget'],
         fields: {
             target: { tooltip: 'The transform this camera orbits.' },
             minPitch: { unit: '°' },
@@ -83,6 +113,15 @@ export const ThirdPersonCamera: ComponentDef<ThirdPersonCameraData> =
             obstructionRadius: { min: 0, advanced: true },
             obstructionLayers: { min: 0, max: 15, step: 1, advanced: true },
             followDamping: { min: 0, tooltip: 'How fast the camera catches up with the character, per second. 0 holds it rigidly on the character.' },
+            shoulder: { tooltip: 'How far right of the character the eye sits (negative: left). Drawn in when a wall is beside it.' },
+            recoverDamping: { min: 0, step: 0.5, advanced: true, tooltip: 'How fast the eye goes back out after something pulled it in, per second. 0 = at once.' },
+            lockRange: { min: 0, tooltip: 'How far a foe may be for Q to lock onto it. 0 = no lock-on.' },
+            lockTarget: { tooltip: 'The foe it is locked onto. Set by Q or by a game; let go when it dies or gets too far.' },
+            lockTurnRate: { min: 0, step: 0.5, advanced: true, tooltip: 'How fast the view turns to keep a locked foe ahead, per second.' },
+            sprintFov: { min: 0, max: 30, step: 1, unit: '°', tooltip: 'Degrees the view widens while the character sprints. 0 = none.' },
+            fovDamping: { min: 0, step: 0.5, advanced: true, tooltip: 'How fast the field of view follows, per second.' },
+            recenterDelay: { min: 0, step: 0.1, unit: 's', tooltip: 'Seconds without turning the camera before it swings round behind a moving character. 0 = never.' },
+            hitShake: { min: 0, tooltip: 'How far the view is thrown when the character takes a blow (half when it lands one). 0 = none.' },
         },
     });
 

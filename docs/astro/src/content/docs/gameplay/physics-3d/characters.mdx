@@ -119,9 +119,17 @@ pulling in when something solid stands between them. It moves only itself.
 | `yaw` / `pitch` | `0` / `15` | Rotation about world up, and elevation above the horizon (positive looks down), degrees. |
 | `minPitch` / `maxPitch` | `-30` / `70` | Pitch limits, degrees. |
 | `sensitivity` | `0.2` | Degrees per pixel of pointer travel. |
-| `followDamping` | `12` | Rate at which the position catches up, per second; `0` is rigid. |
+| `followDamping` | `0` | Rate at which the position catches up, per second; `0` is rigid. |
 | `targetOffset` | `{0, 90, 0}` | Lifts the pivot from the target's origin, so the camera frames the chest rather than the feet. |
 | `obstruction` / `obstructionRadius` / `obstructionLayers` | `true` / `15` / `0` | Pull in when an obstacle is between pivot and eye; the probe radius; the layers it hits (`0` = all). |
+| `shoulder` | `0` | How far right of the target the eye sits, world units (negative: left); drawn in when a wall is beside it. |
+| `recoverDamping` | `4` | How fast the eye goes back out after something pulled it in, per second. Pulling in is at once; `0` goes back out at once too. |
+| `lockRange` | `0` | How far a foe (an entity with `Health` above 0) may be for Q to lock onto it; `0` is no lock-on. Q picks the nearest in front and lets go again. |
+| `lockTarget` | `0` | The foe it is locked onto. The view turns to keep it ahead and the `ThirdPersonController` faces it; let go when it dies or is more than 1.5 × `lockRange` away. A game may set it. |
+| `lockTurnRate` | `4.5` | How fast the view turns toward a locked foe, per second. |
+| `sprintFov` / `fovDamping` | `7` / `5` | Degrees the `Camera` field of view widens while the target sprints, and how fast it follows. A field of view the game sets is kept under it. |
+| `recenterDelay` | `0` | Seconds without the pointer turning it before the view swings round behind a moving target; `0` never. |
+| `hitShake` | `0` | How far the view is thrown when the target takes a blow, world units (half when it lands one); `0` none. |
 | `enabled` | `true` | `false` stops the camera. |
 
 ## First person
