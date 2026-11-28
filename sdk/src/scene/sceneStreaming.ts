@@ -44,7 +44,7 @@ export interface StreamDecision {
  * the third term vanishes and the answer is the plane one.
  */
 export function computeStreaming(
-    cells: readonly StreamCell[],
+    cells: Iterable<StreamCell>,
     focusX: number,
     focusY: number,
     loadRadius: number,
@@ -55,11 +55,18 @@ export function computeStreaming(
     const toActivate: string[] = [];
     const toDeactivate: string[] = [];
     for (const c of cells) {
-        const edge = Math.max(
-            0, Math.hypot(focusX - c.x, focusY - c.y, focusZ - (c.z ?? 0)) - c.radius);
         const isActive = active.has(c.scene);
-        if (!isActive && edge <= loadRadius) toActivate.push(c.scene);
-        else if (isActive && edge > unloadRadius) toDeactivate.push(c.scene);
+        const limit = isActive ? unloadRadius : loadRadius;
+        const dx = focusX - c.x, dy = focusY - c.y, dz = focusZ - (c.z ?? 0);
+        // The largest axis is a lower bound on the spherical distance.
+        // Keep the exact edge calculation when that bound could still fit.
+        const lowerEdge = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) - c.radius;
+        const edge = lowerEdge > limit ? lowerEdge : Math.max(0, Math.hypot(dx, dy, dz) - c.radius);
+        if (isActive) {
+            if (edge > limit) toDeactivate.push(c.scene);
+        } else if (edge <= limit) {
+            toActivate.push(c.scene);
+        }
     }
     return { toActivate, toDeactivate };
 }
@@ -158,7 +165,7 @@ export class SceneStreamingController {
     update(): void {
         if (this.cells_.size === 0) return;
         const decision = computeStreaming(
-            [...this.cells_.values()],
+            this.cells_.values(),
             this.focusX_, this.focusY_,
             this.loadRadius_, this.unloadRadius_,
             this.active_,

@@ -83,6 +83,30 @@ describe('computeStreaming', () => {
         expect(computeStreaming(cells(a), 5, 0, 10, 20, new Set()).toActivate).toEqual(['a']);
         expect(computeStreaming(cells(a), 5, 0, 10, 20, new Set(), 300).toActivate).toEqual([]);
     });
+
+    it('matches spherical edge distances at thresholds and for distant cells', () => {
+        const samples: StreamCell[] = [
+            { scene: 'origin', x: 0, y: 0, radius: 30 },
+            { scene: 'axis', x: 25, y: 0, radius: 5 },
+            { scene: 'diagonal', x: 12, y: 16, radius: 0 },
+            { scene: 'depth-a', x: 0, y: 0, z: 25, radius: 5 },
+            { scene: 'depth-b', x: 0, y: 0, z: 25.000001, radius: 5 },
+            { scene: 'distant', x: 1e200, y: -1e200, radius: 5 },
+            { scene: 'infinite', x: Infinity, y: 0, radius: 0 },
+            { scene: 'unset', x: 55, y: NaN, radius: 0 },
+        ];
+        for (const [load, unload] of [[0, 0], [10, 20], [20, 20], [20.000001, 25], [1e200, Infinity]]) {
+            for (const [x, y, z] of [[0, 0, 0], [13, 2, -4], [0, 0, 20]]) {
+                for (const active of [new Set<string>(), new Set(samples.map(cell => cell.scene))]) {
+                    const edge = (cell: StreamCell) => Math.max(0, Math.hypot(x - cell.x, y - cell.y, z - (cell.z ?? 0)) - cell.radius);
+                    expect(computeStreaming(samples.values(), x, y, load, unload, active, z)).toEqual({
+                        toActivate: samples.filter(cell => !active.has(cell.scene) && edge(cell) <= load).map(cell => cell.scene),
+                        toDeactivate: samples.filter(cell => active.has(cell.scene) && edge(cell) > unload).map(cell => cell.scene),
+                    });
+                }
+            }
+        }
+    });
 });
 
 describe('sceneStreamingSystem', () => {
