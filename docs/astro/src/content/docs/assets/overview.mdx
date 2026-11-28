@@ -135,7 +135,7 @@ Assets held by another scene or group stay loaded. Unreferenced textures can rem
 
 Add a top-level `"labels": ["encounter"]` field to an asset’s `.meta` to include it and its dependencies in builds.
 `await assets.loadByLabel('encounter')` loads tagged assets across groups, including textures, fonts, meshes and lighting.
-It mounts any required [WeChat subpackages](/docs/publishing/wechat/) first. The bundle returns the assets that loaded
+It loads ready assets while any required [WeChat subpackages](/docs/publishing/wechat/) mount. The bundle returns the assets that loaded
 and lists affected assets in `bundle.failed` when a subpackage mount or an asset load fails. Call `bundle.release()`
 when the level ends to release exactly what that call acquired, even after a label edit.
 

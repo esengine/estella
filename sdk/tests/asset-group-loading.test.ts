@@ -7,6 +7,7 @@ import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
 import * as platform from '../src/platform';
 import { log } from '../src/util/logger';
+import { RuntimeConfig } from '../src/defaults';
 
 const mockModule = {
     _malloc: vi.fn(() => 0),
@@ -256,12 +257,65 @@ describe('Assets.loadGroup', () => {
         const progress: [number, number][] = [];
         const bundle = await assets.loadByLabel('encounter', (done, total) => progress.push([done, total]));
         expect(progress).toEqual([[0, 3], [1, 3], [2, 3], [3, 3]]);
-        expect(order[0]).toBe('extra');
+        expect(order.indexOf('extra')).toBeLessThan(order.indexOf('gate'));
+        expect(order.indexOf('extra')).toBeLessThan(order.indexOf('rock'));
         expect([...bundle.textures.keys()]).toEqual(['tex1.png']);
         expect([...bundle.meshes.keys()].sort()).toEqual(['gate', 'rock']);
         bundle.release();
         bundle.release();
         expect(releases.sort()).toEqual(['gate', 'rock', 'tex1.png']);
+    });
+
+    it('uses the shared load slots for ready label assets while another subpackage is pending', async () => {
+        const assets = createAssets();
+        const manifest = createManifest();
+        const slowCount = RuntimeConfig.preloadConcurrency + 1;
+        manifest.groups.extra.assets = Object.fromEntries(Array.from({ length: slowCount }, (_, i) => [
+            `slow-${i}.esmesh`, { path: `slow-${i}.esmesh`, type: 'mesh', size: 4, labels: ['encounter'] },
+        ]));
+        manifest.groups.main.assets['tex1.png'].labels.push('encounter');
+        manifest.groups.fast = {
+            bundleMode: 'lazy', labels: [],
+            assets: { 'fast.esmesh': { path: 'fast.esmesh', type: 'mesh', size: 4, labels: ['encounter'] } },
+        };
+        assets.setManifest(manifest);
+        let mountSlow!: () => void;
+        const slow = new Promise<void>(resolve => { mountSlow = resolve; });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockImplementation(group => group === 'extra' ? slow : Promise.resolve());
+        let active = 0;
+        let peak = 0;
+        const started: string[] = [];
+        const finish: Array<() => void> = [];
+        const acquire = async (ref: string) => {
+            started.push(ref);
+            peak = Math.max(peak, ++active);
+            if (ref === 'tex1.png') await new Promise<void>(resolve => { finish.push(resolve); });
+            else await Promise.resolve();
+            active--;
+            return { key: ref, generation: 1, value: { handle: 1 }, release: () => {} };
+        };
+        vi.spyOn(assets, 'acquireTexture').mockImplementation(ref => acquire(ref) as never);
+        vi.spyOn(assets, 'acquireTyped').mockImplementation((_type, ref) => acquire(ref) as never);
+        const progress = vi.fn();
+        const loading = assets.loadByLabel('encounter', progress);
+        try {
+            await vi.waitFor(() => expect(started.sort()).toEqual(['fast.esmesh', 'tex1.png']));
+            expect(active).toBe(1);
+            expect(progress).toHaveBeenLastCalledWith(1, slowCount + 2);
+            mountSlow();
+            await vi.waitFor(() => expect(started).toHaveLength(slowCount + 2));
+            expect(peak).toBe(RuntimeConfig.preloadConcurrency);
+        } finally {
+            mount.mockReset().mockResolvedValue(undefined);
+            mountSlow();
+            await vi.waitFor(() => expect(finish).toHaveLength(1));
+            finish[0]();
+            const bundle = await loading;
+            bundle.release();
+            assets.releaseAll();
+        }
+        expect(progress).toHaveBeenLastCalledWith(slowCount + 2, slowCount + 2);
     });
 
     it('returns successful label assets and per-asset errors from a refused subpackage', async () => {

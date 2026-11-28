@@ -77,3 +77,18 @@ it('stops dispatching after a worker fails and waits for active tasks to finish'
     await expect(work).rejects.toBe(error);
     expect(queued).not.toHaveBeenCalled();
 });
+
+it('stops idle workers and ignores late gated tasks when progress throws', async () => {
+    let finishMount!: () => void;
+    const ready = new Promise<void>(resolve => { finishMount = resolve; });
+    const error = new Error('cancelled');
+    const gated = vi.fn(async () => {});
+    const loading = runWithConcurrency([async () => {}], 2, () => { throw error; }, [{ ready, tasks: [gated] }]);
+    try {
+        await expect(loading).rejects.toBe(error);
+    } finally {
+        finishMount();
+    }
+    await Promise.resolve();
+    expect(gated).not.toHaveBeenCalled();
+});

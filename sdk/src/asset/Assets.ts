@@ -1319,20 +1319,21 @@ export class Assets {
         this.assertLoading_();
         const epoch = this.resetEpoch_;
         const bundle = emptyBundle(scope);
-        const groups = new Set<string>(requestedGroup ? [requestedGroup] : []);
         const mountFailures = new Map<string, unknown>();
-        const tasks: Array<() => Promise<void>> = [];
+        const tasks: Array<{ group?: string; run: () => Promise<void> }> = [];
         for (const { ref, name, type, group } of members) {
             const channel = this.batchChannel_(type);
             if (!channel) continue;
-            if (group) groups.add(group);
-            tasks.push(async () => {
+            const run = async () => {
+                // Progress callbacks and package mounts can outlive this asset realm.
+                this.assertLoading_(epoch);
                 try {
                     if (group && mountFailures.has(group)) throw mountFailures.get(group);
                     await channel.load(this, ref, bundle, name);
                 }
                 catch (error) { bundle.failed.push({ ref, type, reason: 'load-failed', error: String(error) }); }
-            });
+            };
+            tasks.push({ group, run });
         }
         let loaded = 0;
         const reportProgress = (count: number): void => {
@@ -1342,17 +1343,25 @@ export class Assets {
         };
         try {
             reportProgress(0);
-            const lazy = [...groups].filter(group => this.manifestModel_?.bundleMode(group) === 'lazy');
-            await Promise.all(lazy.map(async group => {
-                try { await this.mountSubpackage_(group); }
-                catch (error) {
-                    // A direct request is for that package. A label can still load assets from other groups.
-                    if (group === requestedGroup) throw error;
-                    mountFailures.set(group, error);
+            const ready: Array<() => Promise<void>> = [];
+            const lazy = new Map<string, Array<() => Promise<void>>>();
+            if (requestedGroup !== undefined && this.manifestModel_?.bundleMode(requestedGroup) === 'lazy') {
+                await this.mountSubpackage_(requestedGroup);
+                this.assertLoading_(epoch);
+            }
+            for (const { group, run } of tasks) {
+                if (group !== undefined && group !== requestedGroup && this.manifestModel_?.bundleMode(group) === 'lazy') {
+                    let groupTasks = lazy.get(group);
+                    if (!groupTasks) lazy.set(group, groupTasks = []);
+                    groupTasks.push(run);
+                } else {
+                    ready.push(run);
                 }
+            }
+            const gated = [...lazy].map(([group, tasks]) => ({
+                tasks, ready: this.mountSubpackage_(group).catch(error => { mountFailures.set(group, error); }),
             }));
-            this.assertLoading_(epoch);
-            await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => reportProgress(++loaded));
+            await runWithConcurrency(ready, RuntimeConfig.preloadConcurrency, () => reportProgress(++loaded), gated);
             this.assertLoading_(epoch);
         } catch (error) {
             bundle.release();

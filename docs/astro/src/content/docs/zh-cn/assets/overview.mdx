@@ -117,7 +117,7 @@ bundle.release();
 其他场景或组仍在使用的资源会保留。无人引用的纹理可以留在[温缓存](/docs/zh-cn/assets/memory/#温缓存)中。
 
 在资源的 `.meta` 顶层添加 `"labels": ["encounter"]`，构建会包含该资源及其依赖。
-`await assets.loadByLabel('encounter')` 可以跨组加载带此标签的纹理、字体、网格和光照资源，并先挂载所需的[微信分包](/docs/zh-cn/publishing/wechat/)。
+`await assets.loadByLabel('encounter')` 可以跨组加载带此标签的纹理、字体、网格和光照资源。等待[微信分包](/docs/zh-cn/publishing/wechat/)挂载期间，已就绪的资源会先开始加载。
 返回的资源包保留已加载的资源，并在 `bundle.failed` 中列出因分包挂载或资产加载失败而受影响的资源。关卡结束时调用 `bundle.release()`，即使期间标签发生变化，也能准确释放本次取得的引用。
 
 ### 预加载列表
