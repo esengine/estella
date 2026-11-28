@@ -288,8 +288,7 @@ export function prepareModelImages(result: ModelImportResult,
         texture.bytes = encodeRgbaPng(entry.pixels.width, entry.pixels.height, bleedCutoutColor(entry.pixels));
     }
 
-    const converted = new Set([...seen.entries()].filter(([k]) => k.startsWith('x:') && isDdsName(k.slice(2)))
-        .map(([k]) => k.slice(2)));
-    result.externalFiles = result.externalFiles.filter(uri => !converted.has(uri));
+    // Converted material refs point at PNGs. The original external files still
+    // belong to the source model and must accompany it for the next import.
     result.textures = result.textures.filter(t => !isDdsName(t.name));
 }

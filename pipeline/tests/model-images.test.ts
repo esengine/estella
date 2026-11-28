@@ -51,14 +51,14 @@ describe('preparing a model\'s images', () => {
         expect(result.externalFiles).toEqual(['packed.png']);
     });
 
-    it('turns an external DDS into an embedded PNG, keeping its sampler settings', () => {
+    it('turns an external DDS into a PNG, keeping its sampler settings and source dependency', () => {
         const files: Record<string, Uint8Array> = { 'Textures/Wall.dds': dds([30, 20, 10, 255]) };
         const result = model({ baseColorTexture: { file: 'Textures/Wall.dds', external: true, settings: { wrapMode: 'clamp' } } },
             ['scene.bin', 'Textures/Wall.dds']);
         prepareModelImages(result, uri => files[uri] ?? null);
 
         expect(result.meshes[0]!.material!.baseColorTexture).toEqual({ file: 'Wall.png', external: false, settings: { wrapMode: 'clamp' } });
-        expect(result.externalFiles).toEqual(['scene.bin']);
+        expect(result.externalFiles).toEqual(['scene.bin', 'Textures/Wall.dds']);
         const decoded = PNG.sync.read(Buffer.from(result.textures[0]!.bytes));
         expect([...decoded.data.subarray(0, 4)]).toEqual([10, 20, 30, 255]);
     });
