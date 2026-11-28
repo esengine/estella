@@ -133,13 +133,21 @@ export class TerrainSurface {
         let tk = dz !== 0 ? ((dz > 0 ? (k + 1) * c : k * c) - oz) / dz : Infinity;
         if (!(entry <= exit)) return null;
         let a = this.node(i, k), b = this.node(i + 1, k), cc = this.node(i, k + 1), d = this.node(i + 1, k + 1);
+        // The two triangles share these four vertices at every step of the walk.
+        const p00 = [0, 0, 0], p10 = [0, 0, 0], p01 = [0, 0, 0], p11 = [0, 0, 0];
+        const triangles = [[p00, p01, p10], [p10, p01, p11]] as const;
         for (let steps = 1; ; steps++) {
             if (a === null || b === null || cc === null || d === null) return null;
             const x0 = i * c, z0 = k * c;
             // The cell's two triangles, cut from its (1, 0) corner to its (0, 1) corner, as the patch is.
+            p00[0] = p01[0] = x0;
+            p10[0] = p11[0] = x0 + c;
+            p00[2] = p10[2] = z0;
+            p01[2] = p11[2] = z0 + c;
+            p00[1] = a; p10[1] = b; p01[1] = cc; p11[1] = d;
             let closest: { distance: number; point: [number, number, number]; normal: [number, number, number] } | null = null;
-            for (const tri of [[[x0, a, z0], [x0, cc, z0 + c], [x0 + c, b, z0]], [[x0 + c, b, z0], [x0, cc, z0 + c], [x0 + c, d, z0 + c]]] as const) {
-                const hit = rayTriangle(ox, oy, oz, dx, dy, dz, tri[0], tri[1], tri[2]);
+            for (const [p0, p1, p2] of triangles) {
+                const hit = rayTriangle(ox, oy, oz, dx, dy, dz, p0, p1, p2);
                 if (hit && hit.t <= maxDistance && (!closest || hit.t < closest.distance)) {
                     const x = ox + dx * hit.t, z = oz + dz * hit.t;
                     if (this.covers(x, z)) closest = { distance: hit.t, point: [x, oy + dy * hit.t, z], normal: hit.n };
