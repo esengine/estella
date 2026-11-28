@@ -131,6 +131,18 @@ describe('desiredResidency', () => {
         }
     });
 
+    it('keeps manifest order for tied distances and preserves each queue’s membership', () => {
+        const cells = [cell(2, 0), cell(0, 0), cell(3, 0), cell(4, 0), cell(7, 0), cell(-3, 0)];
+        const decision = desiredResidency(cells, [source(150, 50, 50, 250, 150), source(750, 50, 0, 0, NaN)],
+            new Set(['c_4_0', 'c_-3_0']));
+        expect(decision).toEqual({
+            target: ['c_2_0', 'c_0_0', 'c_4_0', 'c_7_0'],
+            prefetch: ['c_2_0', 'c_0_0', 'c_3_0'],
+            toLoad: ['c_7_0', 'c_2_0', 'c_0_0'],
+            toUnload: ['c_-3_0'],
+        });
+    });
+
     it('partitions on XZ only — a source overhead still holds the ground', () => {
         // Y is not in the sample at all: a cell is a vertical column, so a source
         // on a tower's roof keeps the floors below it resident.

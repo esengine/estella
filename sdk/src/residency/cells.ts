@@ -206,10 +206,8 @@ export function desiredResidency(
     resident: ReadonlySet<string>,
 ): ResidencyDecision {
     const target: string[] = [];
-    const prefetch: Array<{ name: string; distance: number }> = [];
     const toUnload: string[] = [];
-    /** Demanded-and-absent cells with how far the nearest source is. */
-    const pending: Array<{ name: string; distance: number }> = [];
+    const queued: Array<{ name: string; distance: number; load: boolean; prefetch: boolean }> = [];
     const ranges = sources.map(source => {
         const { x, z, loadRadius } = source;
         const keep = Math.max(loadRadius, source.unloadRadius);
@@ -238,27 +236,26 @@ export function desiredResidency(
             if (distance <= source.prefetch) speculated = true;
         }
         const isResident = resident.has(cell.name);
+        const load = wanted && !isResident;
         // A source outside its own radius may still be closer than the one that
         // asked for the cell. Measure it when it could change the ordering.
-        if (outsideReach < nearest && (speculated || (wanted && !isResident))) {
+        if (outsideReach < nearest && (speculated || load)) {
             for (const source of sources) {
                 const distance = distanceToCell(cell, source.x, source.z);
                 if (distance < nearest) nearest = distance;
             }
         }
-        if (speculated) prefetch.push({ name: cell.name, distance: nearest });
-        if (wanted || (kept && isResident)) {
-            target.push(cell.name);
-            if (!isResident) pending.push({ name: cell.name, distance: nearest });
-        } else if (isResident) {
-            toUnload.push(cell.name);
-        }
+        if (speculated || load) queued.push({ name: cell.name, distance: nearest, load, prefetch: speculated });
+        if (wanted || (kept && isResident)) target.push(cell.name);
+        else if (isResident) toUnload.push(cell.name);
     }
-    // Nearest first, and stable: two cells a source is equally far from keep the
-    // order the cook wrote them in rather than one the sort invented.
-    pending.sort((a, b) => a.distance - b.distance);
-    // The same for what is only readied: with a cap on preparations at once (`StreamingPolicy.maxLoadingCells`), the order
-    // is who gets a slot, and in the cook's order the cell ahead of a player waited behind the far side of the map.
-    prefetch.sort((a, b) => a.distance - b.distance);
-    return { target, prefetch: prefetch.map((p) => p.name), toLoad: pending.map((p) => p.name), toUnload };
+    // Both queues use the same nearest-first order. A stable sort keeps tied
+    // cells in manifest order, even when a cell belongs to just one queue.
+    queued.sort((a, b) => a.distance - b.distance);
+    const prefetch: string[] = [], toLoad: string[] = [];
+    for (const entry of queued) {
+        if (entry.prefetch) prefetch.push(entry.name);
+        if (entry.load) toLoad.push(entry.name);
+    }
+    return { target, prefetch, toLoad, toUnload };
 }
