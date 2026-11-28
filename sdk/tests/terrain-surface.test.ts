@@ -143,6 +143,32 @@ describe('the surface', () => {
 describe('a ray against the surface', () => {
     const surface = new TerrainSurface(new NoiseSource(params), 2);
 
+    it('picks the nearer of two triangles hit in the same cell from either direction', () => {
+        const valley = new TerrainSurface({ infinite: false, bounds: [0, 0, 1, 1], minHeight: 0, maxHeight: 2,
+            height: (x, z) => x === z ? 2 : 0, normal: () => null, paint: () => [1, 0, 0, 0] }, 1);
+        for (const [x, dx, nearest] of [[0.9, -1, 0.75], [0.1, 1, 0.25]] as const) {
+            const hit = valley.raycast(x, 0.5, 0.5, dx, 0, 0, 1)!;
+            expect(hit.point[0]).toBeCloseTo(nearest, 10);
+            expect(hit.distance).toBeCloseTo(0.15, 10);
+            expect(hit.point[1]).toBe(valley.height(nearest, 0.5));
+            expect(hit.normal).toEqual(valley.normal(nearest, 0.5));
+            expect(valley.raycast(x, 0.5, 0.5, dx, 0, 0, 0.1)).toBeNull();
+        }
+    });
+
+    it('reads each traversed lattice node once before a hit along either grid axis', () => {
+        const height = vi.fn((x: number, z: number) => Math.max(Math.abs(x), Math.abs(z)) === 6 ? 2 : 0);
+        const hill = new TerrainSurface({ infinite: true, bounds: null, minHeight: 0, maxHeight: 2,
+            height, normal: () => null, paint: () => [1, 0, 0, 0] }, 1);
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            height.mockClear();
+            const hit = hill.raycast(dx * 0.25 + Math.abs(dz) * 0.25, 1, dz * 0.25 + Math.abs(dx) * 0.25, dx, 0, dz, 10);
+            expect(hit?.distance).toBeCloseTo(5.25, 10);
+            expect(height).toHaveBeenCalledTimes(14);
+            expect(new Set(height.mock.calls.map(([x, z]) => `${x},${z}`)).size).toBe(14);
+        }
+    });
+
     it('meets the ground where heightAt says it is, straight down or slanting, and faces the way normalAt does', () => {
         for (const [x, z] of [[3.3, 7.9], [-120.5, 44.25], [999.1, -12.6]] as const) {
             const down = surface.raycast(x, 500, z, 0, -1, 0, 1000)!;

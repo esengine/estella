@@ -123,30 +123,45 @@ export class TerrainSurface {
         const tdi = dx !== 0 ? Math.abs(c / dx) : Infinity, tdk = dz !== 0 ? Math.abs(c / dz) : Infinity;
         let ti = dx !== 0 ? ((dx > 0 ? (i + 1) * c : i * c) - ox) / dx : Infinity;
         let tk = dz !== 0 ? ((dz > 0 ? (k + 1) * c : k * c) - oz) / dz : Infinity;
-        let t = entry;
-        for (let steps = 0; steps < 1_000_000 && t <= exit; steps++) {
-            const a = this.node(i, k), b = this.node(i + 1, k), cc = this.node(i, k + 1), d = this.node(i + 1, k + 1);
+        if (!(entry <= exit)) return null;
+        let a = this.node(i, k), b = this.node(i + 1, k), cc = this.node(i, k + 1), d = this.node(i + 1, k + 1);
+        for (let steps = 1; ; steps++) {
             if (a === null || b === null || cc === null || d === null) return null;
             const x0 = i * c, z0 = k * c;
             // The cell's two triangles, cut from its (1, 0) corner to its (0, 1) corner, as the patch is.
+            let closest: { distance: number; point: [number, number, number]; normal: [number, number, number] } | null = null;
             for (const tri of [[[x0, a, z0], [x0, cc, z0 + c], [x0 + c, b, z0]], [[x0 + c, b, z0], [x0, cc, z0 + c], [x0 + c, d, z0 + c]]] as const) {
                 const hit = rayTriangle(ox, oy, oz, dx, dy, dz, tri[0], tri[1], tri[2]);
-                if (hit && hit.t <= maxDistance && this.covers(ox + dx * hit.t, oz + dz * hit.t)) {
-                    return { distance: hit.t, point: [ox + dx * hit.t, oy + dy * hit.t, oz + dz * hit.t], normal: hit.n };
+                if (hit && hit.t <= maxDistance && (!closest || hit.t < closest.distance)) {
+                    const x = ox + dx * hit.t, z = oz + dz * hit.t;
+                    if (this.covers(x, z)) closest = { distance: hit.t, point: [x, oy + dy * hit.t, z], normal: hit.n };
                 }
             }
+            if (closest) return closest;
+            if (steps === 1_000_000 || (dx === 0 && dz === 0) || Math.min(ti, tk) > exit) return null;
+            // Adjacent cells share the two heights on the edge the ray just crossed.
             if (ti < tk) {
-                t = ti;
                 ti += tdi;
                 i += si;
+                if (si > 0) {
+                    a = b; cc = d;
+                    b = this.node(i + 1, k); d = this.node(i + 1, k + 1);
+                } else {
+                    b = a; d = cc;
+                    a = this.node(i, k); cc = this.node(i, k + 1);
+                }
             } else {
-                t = tk;
                 tk += tdk;
                 k += sk;
+                if (sk > 0) {
+                    a = cc; b = d;
+                    cc = this.node(i, k + 1); d = this.node(i + 1, k + 1);
+                } else {
+                    cc = a; d = b;
+                    a = this.node(i, k); b = this.node(i + 1, k);
+                }
             }
-            if (dx === 0 && dz === 0) break;
         }
-        return null;
     }
 
     /** The four corners of the cell under (x, z) and where in it the point is, or null. */
