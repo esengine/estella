@@ -249,7 +249,8 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
      * one shorter than a frame is still open on the frame that passed over it, which
      * a sample of where the playhead ended up would miss. A window is half open, so
      * the frame that ends exactly where it closes does not count it. Absent, the
-     * motion declares none.
+     * motion declares none. The animator samples on demand for transition
+     * conditions and separately for the active motion it publishes.
      */
     windows?(ctx: MotionContext, motion: M, span: MotionSpan, out: MotionWindow[]): void;
     /**

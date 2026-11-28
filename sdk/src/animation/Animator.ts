@@ -309,12 +309,13 @@ export interface AnimatorEvalResult {
 }
 
 const NO_OPEN_WINDOWS: ReadonlySet<string> = new Set();
+type OpenWindows = ReadonlySet<string> | (() => ReadonlySet<string>);
 
 function conditionHolds(
     c: AnimatorCondition,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
-    windows: ReadonlySet<string>,
+    windows: OpenWindows,
 ): boolean {
     if (!c.param) return false;
     switch (c.op) {
@@ -325,7 +326,7 @@ function conditionHolds(
         case 'true': return params[c.param] === true;
         case 'false': return params[c.param] === false;
         case 'trigger': return triggers.has(c.param);
-        case 'window': return windows.has(c.param);
+        case 'window': return (typeof windows === 'function' ? windows() : windows).has(c.param);
     }
 }
 
@@ -343,7 +344,7 @@ function firstReady(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
-    windows: ReadonlySet<string>,
+    windows: OpenWindows,
 ): ReadyTransition | null {
     if (!list) return null;
     for (const t of list) {
@@ -473,7 +474,7 @@ function evaluateResolvedAnimatorPath(
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
-    windows: ReadonlySet<string>,
+    windows: OpenWindows,
 ): AnimatorPathEvalResult {
     const { segments, scopes, states } = resolved;
     // Any State edges run from the outermost machine inward.
@@ -1054,14 +1055,18 @@ export class AnimatorControllerAPI {
         // The windows the state being left holds over the stretch its clock just
         // covered: a press buffered before the combo window opens is taken the
         // frame it does, and the window being shorter than a frame does not lose it.
-        const open = this.openNames_;
-        open.clear();
-        if (leafMotion) {
+        let sampled: Set<string> | undefined;
+        const open = leafMotion ? () => {
+            if (sampled) return sampled;
+            const names = this.openNames_;
+            names.clear();
             const held = this.windowScratch_;
             held.length = 0;
             ctx.windows(leafMotion, { from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered }, held);
-            for (const w of held) open.add(w.name);
-        }
+            for (const w of held) names.add(w.name);
+            sampled = names;
+            return names;
+        } : NO_OPEN_WINDOWS;
         const { nextPath, consumedTriggers, fadeDuration, blend } = evaluateResolvedAnimatorPath(
             resolved, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished, open,
         );

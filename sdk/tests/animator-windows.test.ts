@@ -6,7 +6,7 @@
  * motion that is playing, so a clip left early leaves its window shut. Each opening
  * is its own, so two attacks back to back are two.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Animator, AnimatorControllerAPI, type AnimatorData, type AnimatorControllerDef } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
@@ -54,9 +54,10 @@ function clip(events: CustomEvent[], duration = 1, wrapMode: WrapMode = WrapMode
 const win = (name: string, time: number, duration: number): CustomEvent => ({ name, time, duration, payload: {} });
 
 /** One state playing `clipName`; Attack -> Attack2 when `next` is set, with `fade` seconds of crossfade. */
-function controller(timeline: TimelineAPI, fade = 0): AnimatorControllerAPI {
+function controller(timeline: TimelineAPI, fade = 0) {
     const ctrl = new AnimatorControllerAPI();
-    ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+    const driver = createTimelineMotionDriver(timeline);
+    ctrl.registerMotionDriver(TIMELINE_MOTION, driver);
     const def: AnimatorControllerDef = {
         parameters: [{ name: 'next', type: 'bool', default: false }],
         initialState: 'Attack',
@@ -70,17 +71,17 @@ function controller(timeline: TimelineAPI, fade = 0): AnimatorControllerAPI {
         ],
     };
     ctrl.registerController('fight', def);
-    return ctrl;
+    return { ctrl, def, driver };
 }
 
 function rig(a: TimelineAsset, b: TimelineAsset = clip([]), fade = 0) {
     const timeline = new TimelineAPI();
     timeline.registerAsset('a.estimeline', a);
     timeline.registerAsset('b.estimeline', b);
-    const ctrl = controller(timeline, fade);
+    const clock = controller(timeline, fade);
     const world = makeWorld();
     world.insert(E, Animator, { controller: 'fight', currentState: '', enabled: true } as AnimatorData);
-    return { ctrl, world };
+    return { ...clock, world };
 }
 
 const open = (ctrl: AnimatorControllerAPI) => ctrl.windowsOf(E).map((w) => w.name);
@@ -172,6 +173,31 @@ describe('an animator window', () => {
         ctrl.update(world, 0.25, sink);
         ctrl.update(world, 0.2, sink);
         expect(posted).toEqual(['attack-active']);
+    });
+
+    it('samples only published windows when a transition never reaches its window conditions', () => {
+        const { ctrl, def, driver, world } = rig(clip([win('attack-active', 0.1, 0.3)]));
+        def.states[0]!.transitions[0]!.conditions.push({ param: 'attack-active', op: 'window' });
+        ctrl.update(world, 0);
+        const windows = vi.spyOn(driver, 'windows');
+
+        ctrl.update(world, 0.2);
+        expect(open(ctrl)).toEqual(['attack-active']);
+        expect(windows).toHaveBeenCalledOnce();
+    });
+
+    it('shares a window sample across checked conditions and publishes the destination windows separately', () => {
+        const { ctrl, def, driver, world } = rig(clip([win('attack-active', 0.1, 0.3), win('combo', 0.15, 0.2)]),
+            clip([win('follow-through', 0, 0.3)]));
+        def.states[0]!.transitions[0]!.conditions.push({ param: 'attack-active', op: 'window' }, { param: 'combo', op: 'window' });
+        ctrl.update(world, 0);
+        ctrl.setBool(E, 'next', true);
+        const windows = vi.spyOn(driver, 'windows');
+
+        ctrl.update(world, 0.2);
+        expect(world.get(E, Animator).currentState).toBe('Attack2');
+        expect(open(ctrl)).toEqual(['follow-through']);
+        expect(windows.mock.calls.map(([, motion]) => motion.clip)).toEqual(['a.estimeline', 'b.estimeline']);
     });
 });
 
