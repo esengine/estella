@@ -271,6 +271,65 @@ describe('baking a scene', () => {
         expect(Buffer.from(parallel.atlasBytes).equals(cutout)).toBe(true);
     });
 
+    it('bakes the inherited foliage image from its declaring material and honors texture overrides', async () => {
+        const library = path.join(dir, 'foliage-library');
+        await mkdir(library);
+        const parentId = '22222222-2222-4222-8222-222222222222';
+        const material = (properties: object, instanceOf?: string) => JSON.stringify({
+            type: 'material', shader: 'builtin:foliage', properties, instanceOf,
+        });
+        const base = path.join(library, 'leaf.esmaterial');
+        const child = path.join(dir, 'foliage-instance.esmaterial');
+        const holes = path.join(library, 'holes.png');
+        await Promise.all([
+            writeFile(holes, await readFile(path.join(dir, 'holes.png'))),
+            writeFile(base, material({ u_albedo: './holes.png', u_useTexture: 1 })),
+            writeFile(child, material({}, '@uuid:' + parentId)),
+        ]);
+        const materialProject = { root: dir, assets: [{ uuid: parentId, path: 'foliage-library/leaf.esmaterial' }] };
+        const inputFor = (roof: Partial<SceneBakeSurface>): SceneBakeInput => ({
+            materialProject,
+            surfaces: [surface('unwrapped.esmesh', 'Floor'), {
+                ...surface('roof.esmesh', 'Roof'),
+                transform: [...IDENTITY.slice(0, 12), 0, 0.5, 0, 1],
+                ...roof,
+            }],
+            lights: [], options: { ...SMALL, samples: 64, ambient: [1, 1, 1] },
+        });
+        const bake = (roof: Partial<SceneBakeSurface>) => Buffer.from(bakeSceneLightmap(inputFor(roof)).atlasBytes);
+        const cutout = bake({ material: path.join(dir, 'cutout.esmaterial'), baseColorTexture: holes });
+        const solid = bake({});
+        expect(cutout.equals(solid)).toBe(false);
+        expect(bake({ material: child }).equals(cutout)).toBe(true);
+
+        let run: ReturnType<typeof bakeRunner> | undefined;
+        const parallel = await bakeSceneLightmapParallel(inputFor({ material: child }), {
+            async run(step) {
+                run ??= bakeRunner(step.scene);
+                run(step.job, 0, jobLength(step));
+            },
+            async textureStats(files, cutoffs) {
+                expect(files).toEqual([holes]);
+                expect(cutoffs).toEqual([0.5]);
+                return files.map((file, i) => statsOf(file, cutoffs[i]));
+            },
+        });
+        expect(Buffer.from(parallel.atlasBytes).equals(cutout)).toBe(true);
+
+        for (const overrides of [{ u_useTexture: 0 }, { u_albedo: 0 }]) {
+            await writeFile(child, material(overrides, '@uuid:' + parentId));
+            expect(bake({ material: child, baseColorTexture: holes }).equals(solid)).toBe(true);
+        }
+
+        await Promise.all([
+            writeFile(path.join(library, 'leaves.esshader'), '#pragma shader "Leaf Card"\n'
+                + '#pragma param u_albedo texture default(white)\n#pragma param u_alphaCutoff float default(0.5)\n'),
+            writeFile(base, JSON.stringify({ type: 'material', shader: './leaves.esshader', properties: { u_albedo: './holes.png' } })),
+            writeFile(child, material({ u_useTexture: 0 }, '@uuid:' + parentId)),
+        ]);
+        expect(bake({ material: child }).equals(cutout)).toBe(true);
+    });
+
     it('names a surface whose lightmap UVs lie on themselves', () => {
         const result = bakeSceneLightmap({
             surfaces: [surface('unwrapped.esmesh', 'Floor'), surface('stacked.esmesh', 'Curb', 20)],

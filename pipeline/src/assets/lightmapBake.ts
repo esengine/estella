@@ -8,9 +8,8 @@
  * caller only writes files. What arrives is already placed — the editor holds
  * the world the transforms come from, and this holds the meshes they name.
  */
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { PNG } from 'pngjs';
 import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
@@ -20,9 +19,7 @@ import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, builtinMeshTe
 import { encodeRgbaPng } from './png';
 import { adoptOrphan } from './assetMeta';
 import { META_EXT } from './contentPolicy';
-import { resolveInside } from '../fs/pathSandbox';
-import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
-import { resolveIndexedSiblingRef } from '../../../sdk/src/asset/documentRef';
+import { surfaceTextureReader, type BakeSurfaceTexture } from './lightmapMaterials';
 
 export { BakeKernelExecutor } from './lightmapKernel';
 import { bakeSceneReflections, bakeSky, irradianceSky, type BakeEnvironment,
@@ -220,54 +217,6 @@ export function statsOf(file: string, cutoff: number): TextureStats | null {
 
 const statsKey = (file: string, cutoff: number): string => `${file}|${cutoff}`;
 
-/** Follow the material instance chain once per bake, keeping the nearest numeric override. */
-function materialCutoffReader(project: SceneBakeInput['materialProject']): (file?: string) => number {
-    const assets = project?.assets;
-    const byId = new Map(assets?.map(({ uuid, path }) => [uuid.toLowerCase(), path]));
-    const indexed = new Set(byId.values());
-    const cutoffsByRoot = new Map<string, Map<string, number>>();
-
-    function parentFile(root: string, file: string, ref: string): string | undefined {
-        const owner = path.relative(root, file).split(path.sep).join('/');
-        const isKnown = (candidate: string) => {
-            if (assets) return indexed.has(candidate);
-            try { return statSync(resolveInside(root, candidate, 'bake project'), { throwIfNoEntry: false })?.isFile() ?? false; }
-            catch { return false; }
-        };
-        const id = assetRefId(ref);
-        const resolved = id !== null ? byId.get(id) : resolveIndexedSiblingRef(owner, ref, isKnown);
-        if (!resolved || /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i.test(resolved)) return undefined;
-        return resolveInside(root, resolved.replace(/^\//, ''), 'bake project');
-    }
-
-    return file => {
-        if (!file) return 0;
-        file = path.resolve(file);
-        const root = project?.root ?? path.dirname(file);
-        let cache = cutoffsByRoot.get(root);
-        if (!cache) cutoffsByRoot.set(root, cache = new Map());
-        const saved = cache.get(file);
-        if (saved !== undefined) return saved;
-        const visited = new Set<string>();
-        let cutoff = 0;
-        try {
-            file = resolveInside(root, path.relative(root, file), 'bake project');
-            while (file && !visited.has(file)) {
-                const cached = cache.get(file);
-                if (cached !== undefined) { cutoff = cached; break; }
-                visited.add(file);
-                const doc = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) as
-                    { properties?: { u_alphaCutoff?: unknown }; instanceOf?: unknown };
-                const value = doc.properties?.u_alphaCutoff;
-                if (typeof value === 'number' && Number.isFinite(value)) { cutoff = Math.max(0, value); break; }
-                file = typeof doc.instanceOf === 'string' && doc.instanceOf ? parentFile(root, file, doc.instanceOf) : undefined;
-            }
-        } catch { /* An unreadable material contributes no cutoff. */ }
-        for (const visitedFile of visited) cache.set(visitedFile, cutoff);
-        return cutoff;
-    };
-}
-
 /**
  * What fraction of each channel this surface reflects.
  *
@@ -275,19 +224,19 @@ function materialCutoffReader(project: SceneBakeInput['materialProject']): (file
  * bounce that used only one would drop the colour whenever the other held it.
  * A surface with neither reflects a neutral grey, which is a guess, so it says so.
  */
-function albedoOf(s: SceneBakeSurface, cutoff: number, cache: Map<string, TextureStats | null>,
+function albedoOf(s: SceneBakeSurface, { file, cutoff }: BakeSurfaceTexture, cache: Map<string, TextureStats | null>,
                   warnings: string[]): { albedo?: [number, number, number]; coverage: number } {
     const factor = s.baseColor;
-    if (!s.baseColorTexture) {
+    if (!file) {
         if (!factor) {
             warnings.push(`${s.label}: no base colour, so light bounces off it as neutral grey`);
         }
         return { albedo: factor, coverage: 1 };
     }
-    const key = statsKey(s.baseColorTexture, cutoff);
+    const key = statsKey(file, cutoff);
     if (!cache.has(key)) {
         try {
-            cache.set(key, statsOf(s.baseColorTexture, cutoff));
+            cache.set(key, statsOf(file, cutoff));
         } catch {
             cache.set(key, null);
             warnings.push(`${s.label}: its base colour texture could not be read, so light`
@@ -332,20 +281,20 @@ export interface BakeExecutor {
 export async function bakeSceneLightmapParallel(input: SceneBakeInput,
                                                 executor: BakeExecutor): Promise<SceneBakeResult> {
     const averages = new Map<string, TextureStats | null>();
-    const cutoffOf = materialCutoffReader(input.materialProject);
+    const textureOf = surfaceTextureReader(input.materialProject);
     if (executor.textureStats) {
         const wanted = new Map<string, { file: string; cutoff: number }>();
         for (const s of input.surfaces) {
-            if (!s.baseColorTexture || s.holdsStill === false) continue;
-            const cutoff = cutoffOf(s.material);
-            wanted.set(statsKey(s.baseColorTexture, cutoff), { file: s.baseColorTexture, cutoff });
+            if (s.holdsStill === false) continue;
+            const { file, cutoff } = textureOf(s);
+            if (file) wanted.set(statsKey(file, cutoff), { file, cutoff });
         }
         const list = [...wanted];
         const got = await executor.textureStats(list.map(([, w]) => w.file), list.map(([, w]) => w.cutoff),
                                                 TO_LINEAR);
         list.forEach(([key], k) => { if (got[k] !== undefined) averages.set(key, got[k]!); });
     }
-    const steps = sceneBakeSteps(input, averages, cutoffOf);
+    const steps = sceneBakeSteps(input, averages, textureOf);
     for (;;) {
         const next = steps.next();
         if (next.done) return next.value;
@@ -392,7 +341,7 @@ export function resolveEnvironmentSun(lights: readonly BakeLight[],
  *        surfaces. A driver may fill it ahead.
  */
 function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, TextureStats | null>(),
-                         cutoffOf = materialCutoffReader(input.materialProject)): Generator<BakeStep, SceneBakeResult, void> {
+                         textureOf = surfaceTextureReader(input.materialProject)): Generator<BakeStep, SceneBakeResult, void> {
     const warnings: string[] = [];
     const { lights, environment } = resolveEnvironmentSun(input.lights, input.environment,
                                                           input.options?.ambient ?? [0, 0, 0], warnings);
@@ -428,11 +377,11 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
                 + ' and hides the sky from the probes) — turn on Generate Lightmap UVs in its model\'s import'
                 + ' settings and reimport');
             occluders.push({ mesh, transform: s.transform, label: s.label, twoSided: s.twoSided,
-                             coverage: albedoOf(s, cutoffOf(s.material), averages, warnings).coverage });
+                             coverage: albedoOf(s, textureOf(s), averages, warnings).coverage });
             continue;
         }
         slot.push(i);
-        const { albedo, coverage } = albedoOf(s, cutoffOf(s.material), averages, warnings);
+        const { albedo, coverage } = albedoOf(s, textureOf(s), averages, warnings);
         surfaces.push({ mesh, transform: s.transform, albedo, coverage, label: s.label,
                         realtimeDirect: s.realtimeDirect, twoSided: s.twoSided });
     }
