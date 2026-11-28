@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createReadStream, readFileSync, statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
@@ -152,6 +153,53 @@ export function surfaceTextureReader(project: SceneBakeInput['materialProject'])
     };
 }
 
+interface CachedTextureDigest {
+    stamp: string;
+    digest: Promise<string | undefined>;
+}
+
+const TEXTURE_DIGEST_LIMIT = 256;
+const textureDigests = new Map<string, CachedTextureDigest>();
+
+async function textureStamp(file: string): Promise<string | undefined> {
+    try {
+        const info = await stat(file, { bigint: true });
+        if (info.isFile()) return `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
+    } catch { /* A missing or inaccessible path has nothing to sample. */ }
+    return undefined;
+}
+
+async function readTextureDigest(file: string, stamp: string): Promise<string | undefined> {
+    let digest = 'missing';
+    try {
+        const hash = createHash('sha256');
+        for await (const bytes of createReadStream(file)) hash.update(bytes);
+        digest = hash.digest('hex');
+    } catch { /* Use the missing-texture fingerprint, but try again on the next check. */ }
+    return await textureStamp(file) === stamp ? digest : undefined;
+}
+
+/** Reuse warm and in-flight hashes only for the same file identity and change stamp. */
+async function textureDigest(file: string): Promise<string> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const stamp = await textureStamp(file);
+        if (!stamp) {
+            textureDigests.delete(file);
+            return 'missing';
+        }
+        const cached = textureDigests.get(file);
+        const entry = cached?.stamp === stamp ? cached : { stamp, digest: readTextureDigest(file, stamp) };
+        textureDigests.delete(file);
+        textureDigests.set(file, entry);
+        if (textureDigests.size > TEXTURE_DIGEST_LIMIT) textureDigests.delete(textureDigests.keys().next().value!);
+        const digest = await entry.digest;
+        if (digest && digest !== 'missing') return digest;
+        if (textureDigests.get(file) === entry) textureDigests.delete(file);
+        if (digest !== undefined) return digest;
+    }
+    throw new Error(`Texture changed during the lighting check: ${file}`);
+}
+
 /** Refine the scene fingerprint with the texture bytes and cutoff the solve samples. */
 export async function bakeTextureFingerprint(sceneFingerprint: string,
     input: Pick<SceneBakeInput, 'surfaces' | 'materialProject'>): Promise<string> {
@@ -166,11 +214,7 @@ export async function bakeTextureFingerprint(sceneFingerprint: string,
         if (!file) continue;
         let digest = hashes.get(file);
         if (digest === undefined) {
-            try {
-                const hash = createHash('sha256');
-                for await (const bytes of createReadStream(file)) hash.update(bytes);
-                digest = hash.digest('hex');
-            } catch { digest = 'missing'; }
+            digest = await textureDigest(file);
             hashes.set(file, digest);
         }
         rows.push(JSON.stringify([surface.transform, surface.baseColor, surface.builtinRef ?? logicalPath(surface.meshFile),
