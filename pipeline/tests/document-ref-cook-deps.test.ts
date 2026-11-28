@@ -29,6 +29,7 @@ const SKY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const CLIP = '33333333-3333-4333-8333-333333333333';
 const CONTROLLER = '44444444-4444-4444-8444-444444444444';
 const LAYER_CLIP = '88888888-8888-4888-8888-888888888888';
+const CHILD_CLIP = '12345678-1234-4234-8234-123456789abc';
 const FRAME = '55555555-5555-4555-8555-555555555555';
 const FNT = '66666666-6666-4666-8666-666666666666';
 const FNT_PAGE = '77777777-7777-4777-8777-777777777777';
@@ -82,7 +83,9 @@ const controller = JSON.stringify({
 });
 
 const layerClip = JSON.stringify({
-  version: '1.2', type: 'timeline', duration: 1, wrapMode: 'once', tracks: [],
+  version: '1.2', type: 'timeline', duration: 1, wrapMode: 'once', tracks: [
+    { type: 'sequence', clips: [{ start: 0, duration: 1, timeline: './nested/wave.estimeline' }] },
+  ],
 });
 
 // A bitmap font is TEXT, and names its page image the way a spine atlas does:
@@ -136,6 +139,7 @@ beforeAll(() => {
   writeAsset('assets/anim/frame0.png', 'texture', FRAME, 'PNG');
   writeAsset('assets/anim/idle.esanim', 'animclip', CLIP, clip);
   writeAsset('assets/anim/wave.estimeline', 'animation', LAYER_CLIP, layerClip);
+  writeAsset('assets/anim/nested/wave.estimeline', 'animation', CHILD_CLIP, JSON.stringify({ version: '1.2', tracks: [] }));
   writeAsset('assets/anim/player.esanimator', 'animatorcontroller', CONTROLLER, controller);
   writeAsset('assets/fonts/tiny.png', 'texture', FNT_PAGE, 'PNG');
   writeAsset('assets/fonts/tiny.fnt', metaTypeForExt('.fnt')!, FNT, fnt);
@@ -348,12 +352,13 @@ describe('assets named only inside another document are cooked', () => {
   it('links it to the clip only a LAYER plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(LAYER_CLIP);
+    expect(index.deps[LAYER_CLIP]).toEqual([CHILD_CLIP]);
   });
 
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE, GROOM, CURVES, CARDS_MESH, CARDS_MATERIAL]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, CHILD_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE, GROOM, CURVES, CARDS_MESH, CARDS_MATERIAL]));
     expect(res.unused).toEqual([]);
   });
 

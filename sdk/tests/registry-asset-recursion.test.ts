@@ -39,6 +39,29 @@ function barrier() {
 }
 
 describe('nested registry assets', () => {
+    it('publishes relative nested timelines from each source document directory', async () => {
+        const main = 'assets/main.estimeline', left = 'assets/left/child.estimeline', right = 'assets/right/child.estimeline';
+        const files = new Map([
+            [main, timeline('./left/child.estimeline', './right/child.estimeline')],
+            [left, timeline('leaf.estimeline')], [right, timeline('leaf.estimeline')],
+            ['assets/left/leaf.estimeline', timeline()], ['assets/right/leaf.estimeline', timeline()],
+        ]);
+        const fetch = vi.fn(async (path: string) => {
+            const text = files.get(path);
+            if (text === undefined) throw new Error(`missing ${path}`);
+            return text;
+        });
+        const assets = realm(fetch);
+        assets.setAssetRefResolver(ref => ref, ref => files.has(ref) ? 'timeline' : undefined);
+        const lease = await assets.acquireTyped('timeline', main);
+        try {
+            expect(fetch.mock.calls.map(([path]) => path).sort()).toEqual([...files.keys()].sort());
+            for (const owner of [left, right]) {
+                const published = assets.resolveRegistryAsset<PublishedTimeline>('timeline', owner);
+                expect(published?.asset.tracks[0]).toMatchObject({ clips: [{ timeline: owner.replace('child', 'leaf') }] });
+            }
+        } finally { lease.release(); }
+    });
     it('publishes the decoded keyframe storage once per file load', async () => {
         const text = JSON.stringify({ version: '1.3', tracks: [{ type: 'property', channels: [{
             property: 'position.x', keyframes: [{ time: 0, value: 1 }, { time: 2, value: 4, outTangent: 3 }],

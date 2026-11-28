@@ -8,7 +8,7 @@
  */
 import type { AssetLoader, LoadContext, TimelineResult, RegistryAssetLoader } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
-import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
+import { parseTimelineAsset, extractTimelineAssetPaths, resolveTimelineClipRefs } from '../../timeline/TimelineLoader';
 import type { PublishedTimeline } from '../../timeline/TimelineTypes';
 import type { PreparedPrefab } from '../../prefab/preparedPrefab';
 import type { AtlasFrameInfo } from '../Catalog';
@@ -22,10 +22,11 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
     readonly registry: RegistryAssetLoader<TimelineResult> = {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<TimelineResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
-            const asset = parseTimelineAsset(text);
+            const document = ctx.sourceAddressOf?.(path) ?? path;
+            const resolve = (ref: string) => ctx.catalog.resolveDocumentRef(document, ref, ctx.assetTypeOf);
+            const asset = resolveTimelineClipRefs(parseTimelineAsset(text), resolve);
             const textureHandles = new Map<string, number>();
             const textureAtlases = new Map<string, AtlasFrameInfo>();
-            const document = ctx.sourceAddressOf?.(path) ?? path;
 
             const { timelines, textures, prefabs } = extractTimelineAssetPaths(asset);
             for (const ref of timelines) {
@@ -37,7 +38,7 @@ export class TimelineAssetLoader implements AssetLoader<TimelineResult> {
             }
 
             for (const texPath of textures) {
-                const ref = ctx.catalog.resolveDocumentRef(document, texPath, ctx.assetTypeOf);
+                const ref = resolve(texPath);
                 try {
                     const lease = await ctx.acquireTexture(ref, true, 'imported');
                     textureHandles.set(texPath, lease.value.handle);

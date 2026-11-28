@@ -291,6 +291,37 @@ export interface TimelineAssetPaths {
     prefabs: string[];
 }
 
+/** Rebase the clips that play other timeline documents, leaving authored data intact. */
+export function resolveTimelineClipRefs(asset: TimelineAsset, resolve: (ref: string) => string): TimelineAsset {
+    const refs = new Map<string, string>();
+    const resolved = (ref: string) => {
+        if (!ref) return ref;
+        const cached = refs.get(ref);
+        if (cached !== undefined) return cached;
+        const path = resolve(ref);
+        refs.set(ref, path);
+        return path;
+    };
+    const tracks = asset.tracks.map(track => {
+        if (track.type === TrackType.Sequence) {
+            const clips = track.clips.map(clip => {
+                const timeline = resolved(clip.timeline);
+                return timeline === clip.timeline ? clip : { ...clip, timeline };
+            });
+            if (clips.some((clip, i) => clip !== track.clips[i])) return { ...track, clips };
+        }
+        if (track.type === TrackType.Animation) {
+            const clips = track.clips.map(item => {
+                const clip = resolved(item.clip);
+                return clip === item.clip ? item : { ...item, clip };
+            });
+            if (clips.some((clip, i) => clip !== track.clips[i])) return { ...track, clips };
+        }
+        return track;
+    });
+    return tracks.some((track, i) => track !== asset.tracks[i]) ? { ...asset, tracks } : asset;
+}
+
 export function extractTimelineAssetPaths(asset: TimelineAsset): TimelineAssetPaths {
     const audio = new Set<string>();
     const animClips = new Set<string>();
