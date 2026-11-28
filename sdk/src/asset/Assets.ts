@@ -449,7 +449,7 @@ export class Assets {
     set baseUrl(url: string | undefined) {
         this.baseUrl_ = url;
         if (this.backend.setBaseUrl) {
-            this.backend.setBaseUrl(url ?? '');
+            this.backend.setBaseUrl(url ?? '', file => this.hostAssetType_?.(file, true) !== undefined);
         }
     }
     private baseUrl_?: string;
@@ -522,7 +522,7 @@ export class Assets {
     private settling_ = new Set<Promise<void>>();
     private loadContext_: AssetLoadServices | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
-    private hostAssetType_?: (ref: string) => string | undefined;
+    private hostAssetType_?: (ref: string, literalPath?: boolean) => string | undefined;
     /** File locations produced by a host resolver, keyed back to the staged manifest path. */
     private readonly stagedPaths_ = new Map<string, string>();
     private refCounter_: AssetRefCounter | null = null;
@@ -3075,7 +3075,7 @@ export class Assets {
         return this.textureLoader_.formatReport();
     }
 
-    setAssetRefResolver(resolver: AssetRefResolver, typeOf?: (ref: string) => string | undefined): void {
+    setAssetRefResolver(resolver: AssetRefResolver, typeOf?: (ref: string, literalPath?: boolean) => string | undefined): void {
         if (resolver !== this.assetRefResolver_) this.stagedPaths_.clear();
         this.assetRefResolver_ = resolver;
         this.hostAssetType_ = typeOf;
@@ -3735,7 +3735,7 @@ export class Assets {
             assetTypeOf: ref => {
                 // An absent candidate can outrank the selected fallback once it appears.
                 recorder.read(ref);
-                return this.hostAssetType_?.(ref) ?? base.catalog.assetTypeOf(ref);
+                return this.hostAssetType_?.(ref, true) ?? base.catalog.assetTypeOf(ref, true);
             },
             sourceAddressOf: ref => {
                 // Registry slots own logical addresses and handle-backed loaders can own record keys.

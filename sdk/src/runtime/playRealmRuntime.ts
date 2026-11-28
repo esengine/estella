@@ -27,7 +27,7 @@ import { decodeMesh, encodeMesh } from '../asset/meshFormat';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
-import type { AddressableManifest } from '../asset/AddressableManifest';
+import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers, indexPackagedManifest } from './packagedRuntime';
@@ -111,6 +111,7 @@ export function resolvePlayAssetRef(
     manifest: Record<string, string>,
     assetBaseUrl?: string,
     pathMap?: Record<string, string>,
+    model?: ManifestModel,
 ): string {
     const uuid = assetRefId(ref);
     if (uuid !== null) {
@@ -129,6 +130,10 @@ export function resolvePlayAssetRef(
             ?? (local === portable ? undefined : pathMap[local.replace(/^\.?\//, '')]);
         if (staged) return staged;
     }
+    if (!pathMap && /[%?#]/.test(portable) && !portable.includes('://')) {
+        const record = model?.recordForRef(portable, true);
+        if (record && manifest[record.key]) return manifest[record.key];
+    }
     const base = (assetBaseUrl ?? '').replace(/\/$/, '');
     // Idempotent, like HttpBackend.resolveUrl: an already-resolved absolute URL or
     // base-prefixed path must not be prefixed again. Preload resolves a ref once to
@@ -144,8 +149,7 @@ export function resolvePlayAssetRef(
  * source — rebuilding a spelling map per ref would walk the manifest on every
  * asset a scene preloads.
  */
-function manifestBackedSettings(manifest: AddressableManifest): Partial<RuntimeAssetSource> {
-    const index = indexPackagedManifest(manifest);
+function manifestBackedSettings(index: ReturnType<typeof indexPackagedManifest>): Partial<RuntimeAssetSource> {
     return {
         resolveAddress: index.addressOf,
         textureImportSettings: index.textureImport,
@@ -220,13 +224,15 @@ function createPlayRealmSource(
 ) {
     const backend = new OverlayBackend(made);
     const base = assetBaseUrl?.replace(/\/$/, '');
+    const index = addressable ? indexPackagedManifest(addressable) : undefined;
+    const resolveRef = (ref: string) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap, index?.model);
     return {
         backend,
         ...(compressedTexture ? { compressedTexture } : {}),
         decodePixels: (path, _flip, maxEdge) => fetchDecodePixels(backend.resolveUrl(path), maxEdge),
-        resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
+        resolveRef,
         resolveAddress: (ref) => {
-            const url = resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap);
+            const url = resolveRef(ref);
             return base && url.startsWith(base + '/') ? url.slice(base.length + 1) : url;
         },
         // Cooked builds: logical paths (the pathMap keys). Editor play: the
@@ -236,7 +242,7 @@ function createPlayRealmSource(
         // Sampling, and the spine culling contract, both come off the addressable
         // manifest — the same fields a cooked build reads, so Play and ship
         // cannot disagree about what an author promised.
-        ...(addressable ? withUrlSettings(manifestBackedSettings(addressable), manifest, assetBaseUrl) : {}),
+        ...(index ? withUrlSettings(manifestBackedSettings(index), manifest, assetBaseUrl) : {}),
     } satisfies RuntimeAssetSource;
 }
 

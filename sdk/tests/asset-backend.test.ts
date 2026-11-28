@@ -20,6 +20,15 @@ describe('HttpBackend', () => {
         const backend = new HttpBackend({ baseUrl: 'http://localhost:3456/' });
         expect(backend.resolveUrl('sprites/hero.png')).toBe('http://localhost:3456/sprites/hero.png');
     });
+
+    it('encodes an indexed filename without encoding actual URL suffixes', () => {
+        const backend = new HttpBackend({ baseUrl: '' });
+        backend.setBaseUrl('estella://project', file => file === 'assets/frame%20.png#night.png');
+        const literal = 'estella://project/assets/frame%2520.png%23night.png';
+        expect(backend.resolveUrl('assets/frame%20.png#night.png')).toBe(literal);
+        expect(backend.resolveUrl(literal)).toBe(literal);
+        expect(backend.resolveUrl('assets/frame.png?v=2#night')).toBe('estella://project/assets/frame.png?v=2#night');
+    });
 });
 
 describe('EmbeddedBackend', () => {

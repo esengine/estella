@@ -123,9 +123,9 @@ export class Catalog {
     }
 
     /** A record's declared type, including uncategorized assets and address aliases. */
-    assetTypeOf(ref: string): string | undefined {
+    assetTypeOf(ref: string, literalPath = false): string | undefined {
         const key = this.resolve(ref);
-        return this.entries_.get(key)?.type ?? this.manifest_?.recordForRef(key)?.asset.type;
+        return this.entries_.get(key)?.type ?? this.manifest_?.recordForRef(key, literalPath)?.asset.type;
     }
 
     /** @internal Resolve authored file references using both the live project index and the built catalog. */
@@ -134,7 +134,7 @@ export class Catalog {
         if (/^[a-z][a-z0-9+.-]*:/i.test(normalized) || normalized.startsWith('/')) return normalized;
         const known = findDocumentAsset(document, normalized, path => {
             const address = this.resolve(path);
-            if (address !== path || this.entries_.has(path) || this.manifest_?.recordForRef(path)) return address;
+            if (address !== path || this.entries_.has(path) || this.manifest_?.recordForRef(path, true)) return address;
             return hostAssetType?.(path) === undefined ? undefined : path;
         });
         // Without an index an explicit relative path names a sibling. Keep legacy unqualified refs for the host's resolver.

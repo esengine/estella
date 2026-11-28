@@ -114,6 +114,8 @@ export function manifestBackend(
             return inner.prepareFile ? ready.then(() => inner.prepareFile!(path)) : ready;
         },
         resolveUrl: path => inner.resolveUrl(path),
-        ...(inner.setBaseUrl && { setBaseUrl(url: string) { inner.setBaseUrl!(url); index = undefined; } }),
+        ...(inner.setBaseUrl && {
+            setBaseUrl(url: string, isLocalFile?: (path: string) => boolean) { inner.setBaseUrl!(url, isLocalFile); index = undefined; },
+        }),
     };
 }

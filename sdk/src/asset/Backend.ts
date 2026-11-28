@@ -2,6 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { platformFetch, platformReadFile, platformReadTextFile, platformReadCacheFile } from '../platform';
 
+/** Encode an indexed filename for a URL while preserving directories. */
+export function encodeAssetFilePath(path: string): string {
+    return path.split('/').map(encodeURIComponent).join('/');
+}
+
 function isRemoteUrl(url: string): boolean {
     return /^https?:\/\//i.test(url);
 }
@@ -35,7 +40,7 @@ export interface Backend {
     resolveUrl(path: string): string;
     /** Wait for a packaged file before handing its URL to a decoder that performs its own I/O. */
     prepareFile?(path: string): Promise<void> | undefined;
-    setBaseUrl?(url: string): void;
+    setBaseUrl?(url: string, isLocalFile?: (path: string) => boolean): void;
 }
 
 export interface HttpBackendOptions {
@@ -44,6 +49,7 @@ export interface HttpBackendOptions {
 
 export class HttpBackend implements Backend {
     private baseUrl_: string;
+    private isLocalFile_?: (path: string) => boolean;
 
     constructor(options: HttpBackendOptions) {
         this.baseUrl_ = options.baseUrl.replace(/\/+$/, '');
@@ -58,14 +64,19 @@ export class HttpBackend implements Backend {
     }
 
     resolveUrl(path: string): string {
+        if (this.baseUrl_ && /[%?#]/.test(path) && !path.includes('://')) {
+            const file = path.replace(/^\//, '');
+            if (this.isLocalFile_?.(file)) return `${this.baseUrl_}/${encodeAssetFilePath(file)}`;
+        }
         if (path.startsWith('/') || path.includes('://')) {
             return path;
         }
         return this.baseUrl_ ? `${this.baseUrl_}/${path}` : path;
     }
 
-    setBaseUrl(url: string): void {
+    setBaseUrl(url: string, isLocalFile?: (path: string) => boolean): void {
         this.baseUrl_ = url.replace(/\/+$/, '');
+        this.isLocalFile_ = isLocalFile;
     }
 }
 

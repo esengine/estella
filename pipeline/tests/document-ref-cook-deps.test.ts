@@ -164,6 +164,34 @@ afterAll(() => {
 });
 
 describe('assets named only inside another document are cooked', () => {
+  it('ships the literal sibling texture and the ordinary URL-suffixed project texture as distinct flipbook frames', async () => {
+    const project = mkdtempSync(path.join(tmpdir(), 'estella-flipbook-names-'));
+    try {
+      const clip = 'assets/anim/walk.esanim';
+      const scene = 'assets/main.esscene';
+      const day = 'frame.png';
+      const night = 'assets/anim/frame.png#night.png';
+      const dayPng = encodeRgbaPng(1, 1, new Uint8Array([255, 192, 0, 255]));
+      const nightPng = encodeRgbaPng(1, 1, new Uint8Array([0, 0, 255, 255]));
+      writeAsset(day, 'texture', FRAME, dayPng, project);
+      writeAsset(night, 'texture', FNT_PAGE, nightPng, project);
+      writeAsset(clip, 'animclip', CLIP, JSON.stringify({ fps: 8, frames: [
+        { texture: 'frame.png#night.png' }, { texture: 'frame.png?v=2' },
+      ] }), project);
+      writeAsset(scene, 'scene', SCENE, JSON.stringify({ version: '1.0', name: 'Walk', entities: [
+        { id: 1, parent: null, children: [], components: [{ type: 'SpriteAnimator', data: { clip } }] },
+      ] }), project);
+      const cooked = await cookAssets(project, { entryScenes: [scene], outDir: 'build', contentAddressed: true });
+      expect(cooked.ok, [...cooked.failed, ...cooked.warnings].join('\n')).toBe(true);
+      const model = ManifestModel.fromJson(JSON.parse(await buildAddressableManifest(cooked.outDir)));
+      const catalog = Catalog.empty().withManifestLabels(model);
+      for (const [ref, png] of [['frame.png#night.png', nightPng], ['frame.png?v=2', dayPng]] as const) {
+        const pathRef = catalog.resolveDocumentRef(clip, ref);
+        expect(readFileSync(path.join(cooked.outDir, model.recordForRef(pathRef)!.asset.path))).toEqual(Buffer.from(png));
+      }
+    } finally { rmSync(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it.each(['png', 'ktx2'] as const)('keeps whole and cropped flipbook frames at authored size after Max Size reduces the exported %s', async format => {
     const project = mkdtempSync(path.join(tmpdir(), 'estella-flipbook-size-'));
     try {

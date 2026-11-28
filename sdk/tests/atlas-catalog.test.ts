@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Catalog, atlasCatalogFields } from '../src/asset/Catalog';
+import { ManifestModel } from '../src/asset/AddressableManifest';
 
 describe('atlasCatalogFields', () => {
     it('derives flipY-space uv from an image-space frame (AnimClipLoader convention)', () => {
@@ -68,5 +69,19 @@ describe('atlasCatalogFields', () => {
             ['..\\art\\step.png', 'assets/art/step.png'],
             ['legacy/image.png', 'legacy/image.png'], ['https://art.test/eye.png', 'https://art.test/eye.png'],
         ]) expect(catalog.resolveDocumentRef(doc, ref)).toBe(expected);
+    });
+
+    it('checks a literal sibling before stripping a suffix to find a project file', () => {
+        const doc = 'assets/anims/hero.esanim';
+        const sibling = 'assets/anims/frame.png#night.png';
+        const root = 'frame.png';
+        const manifest = ManifestModel.fromJson({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+            project: { type: 'texture', address: root, path: 'cooked/day.png', size: 1, labels: [] },
+            sibling: { type: 'texture', address: sibling, path: 'cooked/night.png', size: 1, labels: [] },
+        } } } });
+        const catalog = Catalog.empty().withManifestLabels(manifest);
+        expect(catalog.resolveDocumentRef(doc, 'frame.png#night.png')).toBe(sibling);
+        expect(catalog.resolveDocumentRef(doc, 'frame.png?v=2')).toBe(root);
+        expect(manifest.recordForRef('frame.png?v=2')?.asset.path).toBe('cooked/day.png');
     });
 });

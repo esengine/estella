@@ -400,7 +400,7 @@ export class ManifestModel {
     }
 
     /** @internal A staged file used by several records names the first one in manifest order. */
-    recordForRef(ref: string): ManifestRecord | undefined {
+    recordForRef(ref: string, literalPath = false): ManifestRecord | undefined {
         const { names, files } = this.indexes();
         const direct = names.get(ref) ?? files.get(ref);
         if (direct) return direct;
@@ -408,7 +408,7 @@ export class ManifestModel {
         const bare = portable.startsWith('/') ? portable.slice(1) : portable;
         const name = bare.startsWith(UUID_REF_PREFIX) ? bare.slice(UUID_REF_PREFIX.length) : bare;
         const indexed = names.get(name) ?? names.get(assetRefId(bare) ?? bare) ?? files.get(bare);
-        if (indexed) return indexed;
+        if (indexed || literalPath) return indexed;
         const local = localAssetPathWithoutSuffix(portable);
         if (local === portable) return undefined;
         const file = local.startsWith('/') ? local.slice(1) : local;

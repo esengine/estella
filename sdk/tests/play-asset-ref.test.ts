@@ -6,11 +6,21 @@
  */
 import { describe, it, expect } from 'vitest';
 import { resolvePlayAssetRef } from '../src/runtime/playRealmRuntime';
+import { ManifestModel } from '../src/asset/AddressableManifest';
 
 const MANIFEST = { 'aaaa': 'estella://project/assets/textures/hero.png' };
 const BASE = 'estella://project';
 
 describe('resolvePlayAssetRef', () => {
+    it('uses the registered URL for literal project filenames in editor Play', () => {
+        const path = 'assets/hero.png#night.png';
+        const url = `${BASE}/assets/hero.png%23night.png`;
+        const model = ManifestModel.fromJson({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: {
+            hero: { path, type: 'texture', size: 1, labels: [] },
+        } } } });
+        expect(resolvePlayAssetRef(path, { hero: url }, BASE, undefined, model)).toBe(url);
+        expect(resolvePlayAssetRef('assets/hero.png?v=2', { hero: url }, BASE, undefined, model)).toBe(`${BASE}/assets/hero.png?v=2`);
+    });
     it('maps a suffixed project path to its staged web file', () => {
         const map = { 'assets/hero.png': 'assets/123.png' };
         expect(resolvePlayAssetRef('/assets/hero.png?v=2#map', {}, undefined, map)).toBe('assets/123.png');
