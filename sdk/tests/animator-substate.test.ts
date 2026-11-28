@@ -78,6 +78,11 @@ describe('leafStateOf', () => {
         expect(leafStateOf(def, 'Combat/Nope')).toBeNull();
         expect(leafStateOf(def, 'Ghost')).toBeNull();
     });
+
+    it.each(['Combat', 'Locomotion/Removed', 'Combat/Swing/Removed'])('rejects an incomplete or overlong active path (%s)', path => {
+        expect(leafStateOf(def, path)).toBeNull();
+        expect(evaluateAnimatorPath(def, path, { dead: true }, new Set()).nextPath).toBeNull();
+    });
 });
 
 describe('evaluateAnimatorPath', () => {
@@ -208,13 +213,14 @@ describe('AnimatorControllerAPI.update — nested machine', () => {
     const E = 1;
     function setup() {
         const ctrl = new AnimatorControllerAPI();
-        ctrl.registerController('hero', nestedController());
+        const def = nestedController();
+        ctrl.registerController('hero', def);
         const world = makeWorld();
         world.insert(E, Animator, { controller: 'hero', currentState: '', enabled: true } as AnimatorData);
         world.insert(E, SpriteAnimator, {
             clip: '', speed: 1, playing: false, loop: true, enabled: true, currentFrame: 5, frameTimer: 0.3,
         } as SpriteAnimatorData);
-        return { ctrl, world };
+        return { ctrl, def, world };
     }
     const animPath = (world: any) => (world.get(E, Animator) as AnimatorData).currentState;
     const clip = (world: any) => (world.get(E, SpriteAnimator) as SpriteAnimatorData).clip;
@@ -242,6 +248,28 @@ describe('AnimatorControllerAPI.update — nested machine', () => {
         ctrl.update(world);
         expect(animPath(world)).toBe('Combat/Swing');
         expect(clip(world)).toBe('swing');
+    });
+
+    it('uses a replaced state definition on the next update without changing its active path', () => {
+        const { ctrl, def, world } = setup();
+        ctrl.setTrigger(E, 'attack');
+        ctrl.update(world);
+        expect(animPath(world)).toBe('Combat/Swing');
+        const combat = def.states[1]!.stateMachine!;
+        combat.states[0] = { ...combat.states[0]!, transitions: [{ to: 'Block', conditions: [] }] };
+
+        ctrl.update(world);
+        expect(animPath(world)).toBe('Combat/Block');
+        expect(clip(world)).toBe('block');
+    });
+
+    it.each(['Combat', 'Locomotion/Removed', 'Combat/Swing/Removed'])('repairs the active path and starts the entry clip (%s)', path => {
+        const { ctrl, world } = setup();
+        world.update(E, Animator, (anim: AnimatorData) => { anim.currentState = path; });
+
+        ctrl.update(world);
+        expect(animPath(world)).toBe('Locomotion');
+        expect(clip(world)).toBe('loco');
     });
 
     it('advances within the sub-machine, then exits via the container edge', () => {

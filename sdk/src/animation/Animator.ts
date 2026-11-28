@@ -419,7 +419,7 @@ interface ResolvedPath {
     states: AnimatorState[];
 }
 
-/** Resolve a path to its scope/state chain, or null if any segment is unknown. */
+/** Resolve a complete path that ends at a leaf. */
 function resolveStatePath(top: AnimatorScope, path: string): ResolvedPath | null {
     if (!path) return null;
     const segments = path.split(STATE_PATH_SEP);
@@ -431,10 +431,10 @@ function resolveStatePath(top: AnimatorScope, path: string): ResolvedPath | null
         if (!st) return null;
         scopes.push(scope);
         states.push(st);
-        if (!st.stateMachine) break;
+        if (!st.stateMachine) return states.length === segments.length ? { segments, scopes, states } : null;
         scope = st.stateMachine;
     }
-    return { segments, scopes, states };
+    return null;
 }
 
 export interface AnimatorPathEvalResult {
