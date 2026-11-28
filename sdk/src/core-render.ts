@@ -57,6 +57,8 @@ export { EditorGrid, DEFAULT_EDITOR_GRID } from './camera/EditorGrid';
 export type { EditorGridData, GridColor } from './camera/EditorGrid';
 export { installEditorGrid } from './camera/editorGridRenderer';
 export { CameraDirector, setViewTarget, setTimelineShot, shakeCamera, BlendCurve, cameraDirectorReport, CameraEvent, CameraEventKind } from './camera/CameraDirector';
+export { TrailerDirector, trailerPlan, trailerSeconds, trailerPlayer, shotAt, shotPose, pathPoint, lookRotation, clearEye } from './camera/TrailerDirector';
+export type { TrailerPlan, TrailerShot, TrailerAct, TrailerPlace } from './camera/TrailerDirector';
 export { FollowTarget } from './camera/FollowTarget';
 export type { FollowTargetData } from './camera/FollowTarget';
 export { LookAtTarget, aimStep, screenPointOf } from './camera/LookAtTarget';
