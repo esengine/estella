@@ -423,9 +423,10 @@ export interface MiniGameProfile {
 
     /** WASM instantiation, when the host does not use the standard
      *  `WebAssembly.instantiate` (WeChat routes it through WXWebAssembly, which
-     *  takes a package path and is not a member of the host global). Omit and
-     *  the family reads the file through the adapter and instantiates it. */
-    instantiateWasm?(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
+     *  takes a package path and is not a member of the host global). Omit, or
+     *  answer undefined on a host too old for its own loader, and the family
+     *  reads the file through the adapter and instantiates it. */
+    instantiateWasm?(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult> | undefined;
 
     /** Omit for the family backend over `global.createInnerAudioContext()`. */
     createAudioBackend?(): PlatformAudioBackend;

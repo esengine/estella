@@ -187,7 +187,8 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         pathOrBuffer: string | ArrayBuffer,
         imports: WebAssembly.Imports,
     ): Promise<WasmInstantiateResult> {
-        if (this.profile_.instantiateWasm) return this.profile_.instantiateWasm(pathOrBuffer, imports);
+        const own = this.profile_.instantiateWasm?.(pathOrBuffer, imports);
+        if (own) return own;
         // Family default: standard WebAssembly over the packaged filesystem. A
         // path is read through the host fs first — mini-game packages ship the
         // binary as a file, and there is no `fetch` to stream it from.

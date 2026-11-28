@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { runInNewContext } from 'node:vm';
 import path from 'node:path';
@@ -184,4 +184,31 @@ describe('exportGame (douyin)', () => {
     expect(total?.maxBytes).toBe(20 * 1024 * 1024);
     expect(total?.note).toContain('Douyin');
   });
+});
+
+describe('exportGame (douyin) — the engine compressed and in a subpackage', () => {
+  // TTWebAssembly takes a `.wasm.br` path and tt.loadSubpackage a `subPackages` root: the two switches WeChat had, on the
+  // host whose documentation names both.
+  it('ships the engine as .wasm.br in a subpackage game.json declares, and boots from that name', async () => {
+    const o = path.join(root, 'dist-douyin-br');
+    const res = await exportGame({
+      minifyScripts: false, root, entryScene: 'scenes/main.esscene', scriptsEntry: 'player.ts',
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: o,
+      platform: 'douyin', compressWasm: true, engineSubpackage: true,
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok, res.errors.join('\n')).toBe(true);
+
+    const files = (readdirSync(o, { recursive: true }) as string[]).map((f) => f.split(path.sep).join('/'));
+    const engine = files.filter((f) => f.endsWith('esengine.wxgame.wasm.br'));
+    expect(engine).toHaveLength(1);
+    expect(files.some((f) => f.endsWith('esengine.wxgame.wasm'))).toBe(false);
+
+    const subPackages = JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8')).subPackages as { name: string; root: string }[];
+    const home = subPackages.find((s) => engine[0].startsWith(`${s.root}/`));
+    expect(home, `${engine[0]} is in no declared subpackage`).toBeTruthy();
+    expect(existsSync(path.join(o, home!.root, 'game.js'))).toBe(true);
+    expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain(engine[0]);
+  }, 180_000);
 });

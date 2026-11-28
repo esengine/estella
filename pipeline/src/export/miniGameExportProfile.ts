@@ -12,6 +12,7 @@
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
 import { WECHAT_MODULE_BUILD_TARGET } from '../bundle/sideModuleScan';
+import { hasMiniGameFeature } from '../project/miniGameFeatures';
 import type { RuntimeHost } from '../bundle/runtimeHosts';
 import type { SizeBudget } from '../project/sizeBudget';
 import { packRpk, type RpkSigningKey } from './rpk';
@@ -279,6 +280,8 @@ export interface MiniGameExportProfile {
      * done on the main thread in turns of the frame's budget. Only a vendor whose worker API a document or a device has settled says yes.
      */
     readonly workers?: boolean;
+    /** Whether this host runs WeChat's EmscriptenGLX engine build (`platforms.wechat.emscriptenGLX`); absent: it does not. */
+    readonly emscriptenGLX?: boolean;
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
     /**
@@ -418,10 +421,11 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // developers.weixin.qq.com/minigame/dev/framework/performance/wasm.html:
     // `WXWebAssembly.instantiate(path)` takes 「.wasm 和 .wasm.br」 from base library
     // 2.14.0 — and a package whose engine is one, in a subpackage, plays in devtools.
-    wasmBrotli: true,
+    wasmBrotli: hasMiniGameFeature('wechat', 'compressWasm'),
     // developers.weixin.qq.com/minigame/dev/api/worker/wx.createWorker.html: one worker, started by path from the directory game.json's
     // `workers` names; a message may be any data from base library 2.20.2 (Worker.postMessage.html), checked at runtime.
-    workers: true,
+    workers: hasMiniGameFeature('wechat', 'workers'),
+    emscriptenGLX: hasMiniGameFeature('wechat', 'emscriptenGLX'),
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
 
@@ -483,6 +487,16 @@ export const wechatExportProfile: MiniGameExportProfile = {
  * `.wasm.br` and a host wasm loader stay off until a device settles them:
  * claiming one early builds clean and fails at upload or at boot.
  */
+/**
+ * Douyin's published code-package suffix list, the "文件类型" table of
+ * developer.open-douyin.com/docs/resource/zh-CN/mini-game/develop/guide/dev-guide/bytedance-mini-game
+ * (「只能上传以下列表中的文件」), plus the script the tool compiles itself.
+ */
+const DOUYIN_PACKER_SUFFIXES: ReadonlySet<string> = new Set(`js png jpg jpeg gif svg json cer mp3 aac m4a mp4 wav flac ape ogg wma
+    midi ogv webm mkv ttc ttf woff otf obj dae fbx mtl stl 3ds pvr plist fnt gz ccz bmp atlas swf ani part proto bin sk mipmaps
+    txt zip tt map silk dbbin dbmv etc lmat lm ls lh lani lav lsani ltc xml pkm scene csv prefab mesh astc wasm br heic ico cur
+    dat dds glb gltf ktx lmani lml skel`.split(/\s+/).filter(Boolean));
+
 export const douyinExportProfile: MiniGameExportProfile = {
     id: 'douyin',
     sdkEntryFile: 'index.minigame.js',
@@ -502,17 +516,15 @@ export const douyinExportProfile: MiniGameExportProfile = {
     // what a mini-game packer compiles itself everywhere this checkout has looked.
     // Wrong here means a staged file the runtime cannot read, on a device.
     nativeSuffixes: new Set(['.js', '.json']),
-    // Douyin's developer tool leaves out of the package every file whose suffix it
-    // does not know — `.esprefab`, `.esmaterial`, `.esmesh` all read back as "File
-    // not found" in a preview — and publishes no list of its own this checkout can
-    // cite. WeChat's published list is the floor: everything outside it ships as
-    // `<name>.<ext>.bin`, which the tool carries and the runtime reads through, so
-    // a suffix Douyin would have taken costs a rename and nothing else.
-    packerSuffixes: WECHAT_PACKER_SUFFIXES,
-    // Not claimed until a device says it: `.wasm.br` is WeChat's documented path,
-    // and shipping only the compressed file to a host that cannot read it is a
-    // package that builds clean and never boots.
-    wasmBrotli: false,
+    // Douyin's developer tool uploads only the suffixes it lists, and leaves the
+    // rest out without a word: `.esprefab`, `.esmaterial`, `.esmesh` read back as
+    // "File not found" in a preview. Everything outside the list ships as
+    // `<name>.<ext>.bin`, which the runtime reads through.
+    packerSuffixes: DOUYIN_PACKER_SUFFIXES,
+    // TTWebAssembly takes the `.wasm.br` path (miniGameFeatures); the runtime's
+    // Douyin profile instantiates through it.
+    wasmBrotli: hasMiniGameFeature('douyin', 'compressWasm'),
+    workers: hasMiniGameFeature('douyin', 'workers'),
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
 
@@ -571,7 +583,8 @@ export const kuaishouExportProfile: MiniGameExportProfile = {
     packerSuffixes: null,
     // The docs show `.wasm.br` only as another engine's converter output; not claimed
     // for an engine that loads its own binary.
-    wasmBrotli: false,
+    wasmBrotli: hasMiniGameFeature('kuaishou', 'compressWasm'),
+    workers: hasMiniGameFeature('kuaishou', 'workers'),
     subpackageDir: 'subpackages',
     // 「ks.loadSubpackage … 会自动 require 分包目录下的 game.js」
     subpackageEntry: 'game.js',
@@ -621,7 +634,8 @@ export const bilibiliExportProfile: MiniGameExportProfile = {
     // miniapp.bilibili.com/small-game-doc/framework/structure, 「只有后缀名在白名单内的文件可以被上传」.
     packerSuffixes: BILIBILI_PACKER_SUFFIXES,
     // 「平台暂不支持Wasm Brotli压缩」 (the Cocos build note).
-    wasmBrotli: false,
+    wasmBrotli: hasMiniGameFeature('bilibili', 'compressWasm'),
+    workers: hasMiniGameFeature('bilibili', 'workers'),
     subpackageDir: 'subpackages',
     // WeChat's rule, assumed here: the docs name loadSubpackage but not what a
     // root must hold, and a root without game.js is refused on WeChat.
@@ -684,7 +698,8 @@ export const quickgameExportProfile: MiniGameExportProfile = {
     // No upload whitelist is published for the rpk; nothing is restaged.
     packerSuffixes: null,
     // No doc names a `.wasm.br` loader for this host.
-    wasmBrotli: false,
+    wasmBrotli: hasMiniGameFeature('quickgame', 'compressWasm'),
+    workers: hasMiniGameFeature('quickgame', 'workers'),
     subpackageDir: 'subpackages',
     // 「主包和分包都可以是main.js 或 game.js」.
     subpackageEntry: 'game.js',
@@ -774,7 +789,8 @@ export const alipayExportProfile: MiniGameExportProfile = {
     // No upload whitelist is published; nothing is restaged.
     packerSuffixes: null,
     // MYWebAssembly documents a `.wasm` path only.
-    wasmBrotli: false,
+    wasmBrotli: hasMiniGameFeature('alipay', 'compressWasm'),
+    workers: hasMiniGameFeature('alipay', 'workers'),
     subpackageDir: 'subpackages',
     // 「目录根目录下的 game.js 会作为入口文件」.
     subpackageEntry: 'game.js',
@@ -828,7 +844,8 @@ export const huaweiExportProfile: MiniGameExportProfile = {
     // No upload whitelist is published for the rpk; nothing is restaged.
     packerSuffixes: null,
     // `.br` needs minPlatformVersion 1126 and Huawei's own tool to write it.
-    wasmBrotli: false,
+    wasmBrotli: hasMiniGameFeature('huawei', 'compressWasm'),
+    workers: hasMiniGameFeature('huawei', 'workers'),
     subpackageDir: 'subpackages',
     // 「分包入口文件只能命名为 game.js」.
     subpackageEntry: 'game.js',

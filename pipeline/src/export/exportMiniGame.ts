@@ -358,7 +358,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //    missing vendor runtime cannot produce a runnable package — fail before
   //    cooking. By its ACTUAL name in the wasm dir; see MINIGAME_ENGINE_GLUE.
   const glxDir = `${opts.wasmDir.replace(/[\\/]+$/, '')}-glx`;
-  const glx = opts.engineGlx === true && profile.id === 'wechat';
+  const glx = opts.engineGlx === true && profile.emscriptenGLX === true;
   if (glx && !profile.engineGlueCandidates.some((f) => existsSync(path.join(glxDir, f)))) {
     errors.push(`this project renders through EmscriptenGLX, and there is no GLX engine in ${glxDir} — `
       + 'build it with `node build-tools/cli.js build -t wechat-glx`, or turn EmscriptenGLX off in Project Settings → WeChat');
@@ -691,7 +691,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `}\n` +
     `export async function boot(engineFactory, sideModuleFactories) {\n` +
     `  const projectPlugin = await (projectReady ??= prepareProject());\n` +
-    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${sideModuleArgs}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}${sceneFileArg}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  return ${profile.runtimeInit}({ projectPlugin, engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${sideModuleArgs}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}${sceneFileArg}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.emscriptenGLX === true) ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */

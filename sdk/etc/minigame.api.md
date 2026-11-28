@@ -7483,7 +7483,7 @@ createVideoBackend: ((ctx: VideoBackendContext) => PlatformVideoBackend) | undef
 global: MiniGameGlobal
 hostLabel: string
 id: MiniGameVendor
-instantiateWasm: ((pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult>) | undefined
+instantiateWasm: ((pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult> | undefined) | undefined
 pay: { can(): boolean; request(request: PlatformPaymentRequest): Promise<void>; } | undefined
 recordingLimits: { readonly minSeconds: number; readonly maxSeconds: number; } | undefined
 windowInPhysicalPixels: boolean | undefined

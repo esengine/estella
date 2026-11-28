@@ -21,6 +21,7 @@ import {
   type ExportPlatform, type ProjectManifest, type ProjectPackaging,
 } from '../project/format';
 import { BUILTIN_PLATFORMS, isMiniGamePlatform } from '../project/platforms';
+import { hasMiniGameFeature } from '../project/miniGameFeatures';
 import { cookOptionsOf, packagingOptionsOf, runtimeConfigOf } from '../project/runtimeConfig';
 
 /** The part of an export a project's manifest decides; the caller adds where the
@@ -99,7 +100,7 @@ export async function projectExportOptions(
       miniGameVersionCode: quickGame.versionCode,
       miniGameReleaseKey: (await readReleaseKey(root, quickGame.releaseKey)) ?? undefined,
     } : {}),
-    ...(platform === 'wechat' && plat?.wechat?.emscriptenGLX ? { miniGameGlx: true } : {}),
+    ...(hasMiniGameFeature(platform, 'emscriptenGLX') && plat?.wechat?.emscriptenGLX ? { miniGameGlx: true } : {}),
     androidVersionCode: plat?.android?.versionCode,
     androidAppBundle: plat?.android?.appBundle,
     androidEmulatorAbi: plat?.android?.emulatorAbi,
