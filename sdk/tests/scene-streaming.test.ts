@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
+import { App } from '../src/app/app';
+import { Transform } from '../src/ecs/component';
+import { defineSystem, Schedule } from '../src/ecs/system';
 import {
     computeStreaming,
+    SceneStreaming,
     SceneStreamingController,
     type StreamCell,
     type SceneStreamHost,
 } from '../src/scene/sceneStreaming';
-import { sceneStreamingSystem } from '../src/scene/scenePlugin';
+import { sceneManagerPlugin, sceneStreamingSystem } from '../src/scene/scenePlugin';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 
@@ -90,12 +95,46 @@ describe('sceneStreamingSystem', () => {
         const world = {
             valid: () => true,
             has: () => true,
-            get: () => ({ position: { x: 1, y: 2, z: 3 } }),
+            ensureTransformsComposed: () => {},
+            get: () => ({ position: { x: 0, y: 0, z: 0 }, worldPosition: { x: 1, y: 2, z: 3 } }),
         };
         (sceneStreamingSystem as { _fn: (...a: unknown[]) => void })._fn(streaming, world);
         // z is the one a flat reader drops, and dropping it puts every floor of a
         // tower at the focus — so the whole position has to arrive, not two of it.
         expect(seen).toEqual([[1, 2, 3]]);
+    });
+
+    it.skipIf(!HAS_WASM).each([
+        ['2D', { x: 200, y: -100, z: 0 }],
+        ['3D', { x: 0, y: 0, z: 300 }],
+    ] as const)('streams the %s cell under a parented focus after movement that frame', async (_mode, destination) => {
+        const core = await loadWasmModule();
+        const app = App.new();
+        app.connectCpp(new core.Registry(), core, { ownedRegistry: true });
+        try {
+            app.addPlugin(sceneManagerPlugin);
+            const { host, calls } = mockHost();
+            const streaming = new SceneStreamingController(host, { loadRadius: 8, unloadRadius: 12 });
+            app.insertResource(SceneStreaming, streaming);
+            streaming.register({ scene: 'origin', x: 0, y: 0, radius: 0 });
+            streaming.register({ scene: 'destination', ...destination, radius: 0 });
+            const { world } = app;
+            const parent = world.spawn(), focus = world.spawn();
+            world.insert(parent, Transform);
+            world.insert(focus, Transform, { position: { x: 2, y: 0, z: 0 } });
+            world.setParent(focus, parent);
+            streaming.setFocusEntity(focus);
+            app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
+                world.update(parent, Transform, t => { t.position = { ...destination }; });
+            }));
+
+            await app.tick(1 / 60);
+
+            expect(streaming.getActive()).toEqual(['destination']);
+            expect(calls).toEqual(['load:destination']);
+        } finally {
+            app.quit();
+        }
     });
 });
 

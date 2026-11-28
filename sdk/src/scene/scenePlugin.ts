@@ -27,17 +27,16 @@ const sceneTransitionSystem = defineSystem(
     { name: 'SceneTransitionSystem' }
 );
 
-// Drives proximity streaming: pulls the focus from a follow-entity's Transform (if
-// one is set), then reconciles resident cells. A no-op until cells are registered.
-// Exported for the criterion that holds the follow to all three axes — the plugin
-// is the only place that reads a Transform into a focus.
+// Sample the follow entity in world space after movement, like manifest residency.
 export const sceneStreamingSystem = defineSystem(
     [Res(SceneStreaming), GetWorld()],
     (streaming: SceneStreamingController, world: World) => {
         const focus = streaming.getFocusEntity();
         if (focus != null && world.valid(focus) && world.has(focus, Transform)) {
+            world.ensureTransformsComposed();
             const t = world.get(focus, Transform) as TransformData;
-            streaming.setFocus(t.position.x, t.position.y, t.position.z);
+            const at = t.worldPosition ?? t.position;
+            streaming.setFocus(at.x, at.y, at.z);
         }
         streaming.update();
     },
@@ -79,6 +78,6 @@ export const sceneManagerPlugin: Plugin = {
 
         app.addSystemToSchedule(Schedule.Startup, initSystem);
         app.addSystemToSchedule(Schedule.Last, sceneTransitionSystem);
-        app.addSystemToSchedule(Schedule.Update, sceneStreamingSystem, { runIf: playModeOnly });
+        app.addSystemToSchedule(Schedule.PostUpdate, sceneStreamingSystem, { runIf: playModeOnly });
     },
 };
