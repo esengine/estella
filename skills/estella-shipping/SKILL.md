@@ -29,6 +29,9 @@ Build dialog lists, `playable`, `android`, `ios`. It writes `dist-<platform>/` u
   height is not a multiple of 4 ships raw, and the warning names it.
 - `profile` picks one of the project's saved export profiles; `debugChannel: true` makes a development build that
   connects back to this editor (below).
+- Every recording you did not make goes through `sound_conform` with its `credit` before it ships: it levels music and
+  ambience to one loudness, loops without a click, and keeps CREDITS.md. A CC BY licence also needs the author shown to
+  players on a credits screen; an ND or NC licence cannot ship in an edited or commercial game.
 
 ## Size
 
