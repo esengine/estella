@@ -6,10 +6,13 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { HOST_PAGE } from '../launchers/minigameHost.mjs';
 import { ROOT } from '../lib/repo.mjs';
 import { serveDir } from '../lib/staticServer.mjs';
+
+const FUTURE_SCENE = version => ({ version, name: 'future', entities: [] });
 
 async function asset(project, ref, type, data, uuid = randomUUID()) {
     const file = path.join(project, ref);
@@ -73,8 +76,8 @@ async function fixture(project) {
     await asset(project, 'assets/scenes/boot.esscene', 'scene', { version: 4, name: 'boot', entities: [
         entity(1, 'Boot', [{ type: 'Transform', data: {} }]),
     ] });
-    // Exercise a registered but unreadable destination through each target's scene loader.
-    await asset(project, 'assets/scenes/future.esscene', 'scene', { version: 999, name: 'future', entities: [] });
+    // Registered so every target ships it; plantFutureScene swaps in a newer document after export.
+    await asset(project, 'assets/scenes/future.esscene', 'scene', FUTURE_SCENE(4));
     // The UUIDs sort in the opposite order to the two English filenames.
     for (const [file, locale, text, uuid] of [
         ['z-overlay', 'en', 'Start game', '00000000-0000-4000-8000-000000000001'],
@@ -225,9 +228,35 @@ addPlugin({ name: 'ReadSceneCaption', build(app) {
 `);
 }
 
+// Export refuses to package a scene newer than the engine, so a newer document only reaches a game that way from content
+// delivered after the build. Put one in each package where that target's scene loader reads it, to exercise a registered
+// but unreadable destination at runtime.
+async function plantFutureScene(dir, platform) {
+    const future = JSON.stringify(FUTURE_SCENE(999));
+    if (platform === 'playable') {
+        const file = path.join(dir, 'index.html');
+        const html = await fs.readFile(file, 'utf8');
+        const marker = /window\.__GAME_SCENES__=(\{[^}]*\});/;
+        const packed = JSON.parse(html.match(marker)?.[1] ?? 'null');
+        assert.ok(packed, 'playable scene table');
+        const scenes = JSON.parse(inflateRawSync(Buffer.from(packed.z, 'base64')).toString('utf8'));
+        const entry = scenes.find(scene => scene.name === 'future');
+        assert.ok(entry, 'playable carries the future scene');
+        entry.data = JSON.parse(future);
+        const bytes = Buffer.from(JSON.stringify(scenes), 'utf8');
+        const table = JSON.stringify({ z: deflateRawSync(bytes, { level: 9 }).toString('base64'), n: bytes.length });
+        await fs.writeFile(file, html.replace(marker, () => `window.__GAME_SCENES__=${table};`));
+        return;
+    }
+    const file = path.join(dir, platform === 'web' ? 'assets/scenes/future.esscene' : 'scenes/future.json');
+    assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), FUTURE_SCENE(4), platform + ' packaged future scene');
+    await fs.writeFile(file, future);
+}
+
 async function check(browser, project, dir, platform) {
     execFileSync(process.execPath, ['pipeline/bin/estella.mjs', 'export', project, '--platform', platform,
         '--out', dir, '--no-aot', ...(platform === 'playable' ? ['--all-scenes'] : [])], { cwd: ROOT, windowsHide: true });
+    await plantFutureScene(dir, platform);
     const mini = platform === 'wechat' || platform === 'douyin';
     const shell = mini ? HOST_PAGE('game.js', null, { hostGlobal: platform === 'wechat' ? 'wx' : 'tt' }) : null;
     const server = await serveDir(dir, {
