@@ -13,7 +13,7 @@ import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
 import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
 import {
-    layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
+    firstRankedPick, layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
     resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, shapeWorldBox, withSpriteBounds,
@@ -144,7 +144,7 @@ export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPic
     // Later opaque hits at equal distance win, just as they do in the stack.
     // Keep the same draw ordering for blended hits and the nearest opaque hit.
     if (nearestOpaque) hits.push(nearestOpaque);
-    return hits.length <= 1 ? hits[0]?.entity ?? null : rankPickCandidates(hits)[0] ?? null;
+    return firstRankedPick(hits) ?? null;
 }
 
 function rayIntersection(ray: WorldRay): (box: EntityBox) => number | null {

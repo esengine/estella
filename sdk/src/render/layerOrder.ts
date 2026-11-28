@@ -155,6 +155,10 @@ export interface PickCandidate<T> {
     index: number;
 }
 
+function comparePickCandidates<T>(a: PickCandidate<T>, b: PickCandidate<T>): number {
+    return compareDrawRank(b.rank, a.rank) || b.index - a.index;
+}
+
 /**
  * Candidates ranked topmost-first, the way the RENDERER stacked them — the layer
  * rules via {@link compareDrawRank}, then later-drawn winning ties. Backwards
@@ -162,6 +166,23 @@ export interface PickCandidate<T> {
  */
 export function rankPickCandidates<T>(candidates: ReadonlyArray<PickCandidate<T>>): T[] {
     return [...candidates]
-        .sort((a, b) => compareDrawRank(b.rank, a.rank) || b.index - a.index)
+        .sort(comparePickCandidates)
         .map((c) => c.entity);
+}
+
+/** @internal Find the first ranked hit without sorting ordinary painter and Y-sort draws. */
+export function firstRankedPick<T>(candidates: ReadonlyArray<PickCandidate<T>>): T | undefined {
+    let best = candidates[0];
+    if (candidates.length <= 1) return best?.entity;
+    for (const candidate of candidates) {
+        const { rank } = candidate;
+        // Depth can compare across layers, and group order only compares two
+        // grouped draws. Keep the full ranking when those rules can interleave.
+        if (rank.order === LayerOrder.Depth || rank.groupInner != null || !Number.isFinite(rank.layer)
+            || !Number.isFinite(layerFrontness(rank.order, rank.worldY, rank.worldZ))) {
+            return rankPickCandidates(candidates)[0];
+        }
+        if (comparePickCandidates(candidate, best) < 0) best = candidate;
+    }
+    return best.entity;
 }

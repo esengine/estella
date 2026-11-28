@@ -207,6 +207,27 @@ describe('picking entities by ray', () => {
             expect(pickEntityByRay(world, clipped, options)).toBeNull();
         }
     });
+
+    it('preserves the full ranking for interleaved depth layers and sorting groups', () => {
+        const world = fakeWorld({
+            1: { Transform: T(0, 0, 10), Sprite: sprite(1) },
+            2: { Transform: T(0, 0, 5), Sprite: sprite(2) },
+            3: { Transform: T(0, 0), Sprite: sprite(3) },
+            4: { Transform: T(0, 0, 10), Sprite: { ...sprite(0), order: 1 }, Parent: { entity: ent(7) } },
+            5: { Transform: T(0, 0, 5), Sprite: sprite(4) },
+            6: { Transform: T(0, 0), Sprite: { ...sprite(0), order: 3 }, Parent: { entity: ent(7) } },
+            7: { SortingGroup: { layer: 4, order: 0, enabled: true } },
+        });
+        const ray = down(0, 0);
+        for (const options of [
+            { depthLayers: (1 << 1) | (1 << 3), pickable: (id: Entity) => id <= ent(3) },
+            { pickable: (id: Entity) => id >= ent(4) },
+        ]) {
+            const stack = pickEntitiesByRay(world, ray, options);
+            expect(stack).toHaveLength(3);
+            expect(pickEntityByRay(world, ray, options)).toBe(stack[0]);
+        }
+    });
     it.each(['orthographic', 'perspective'] as const)('uses the drawn depth range for %s camera picks', projection => {
         const origin = { x: 1e8, y: -1e8, z: 1e8 };
         const matrix = projection === 'orthographic'
