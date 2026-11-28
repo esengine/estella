@@ -48,7 +48,7 @@ import type { SceneData } from '../scene/scene';
 import type { Entity } from '../types';
 import { Transform, MeshRenderer, ShapeRenderer, Sprite } from '../ecs/component';
 import { UINode } from '../ui/core/ui-node';
-import { extendEntityBoxBounds, meshWorldBox, shapeWorldBox, uiNodeWorldBox, withSpriteBounds, type EntityBoxBounds } from '../ecs/entityBox';
+import { extendEntityBoxBounds, extendEntityBoxBoundsInFrame, meshWorldBox, shapeWorldBox, uiNodeWorldBox, withSpriteBounds, type EntityBox, type EntityBoxBounds } from '../ecs/entityBox';
 import { ortho, invertViewOrbit, multiply } from '../math/mat4';
 import { drawPreview, previewCore, DEFAULT_PREVIEW_ORBIT, type PreviewOrbit } from '../render/assetPreview';
 
@@ -122,12 +122,12 @@ export interface PreviewFraming {
 
 const PAD = 1.08;
 
-/** A front ortho over a rectangle, widened to the picture's aspect so nothing is stretched. */
-function flatFraming({ minX, minY, maxX, maxY }: EntityBoxBounds, aspect: number, depth: number): Float32Array {
+/** An ortho over a rectangle, fitted to the picture's aspect without stretching. */
+function fitFraming({ minX, minY, maxX, maxY }: EntityBoxBounds, aspect: number, near: number, far: number): Float32Array {
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     let hx = Math.max((maxX - minX) / 2, 1e-3) * PAD, hy = Math.max((maxY - minY) / 2, 1e-3) * PAD;
     if (hx / hy > aspect) hy = hx / aspect; else hx = hy * aspect;
-    return new Float32Array(ortho(cx - hx, cx + hx, cy - hy, cy + hy, -depth, depth));
+    return new Float32Array(ortho(cx - hx, cx + hx, cy - hy, cy + hy, near, far));
 }
 
 /**
@@ -140,9 +140,9 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                              orbit: PreviewOrbit = DEFAULT_PREVIEW_ORBIT): PreviewFraming | null {
     const world = app.world;
     const aspect = w / h;
-    const { uiBounds, sceneBounds, hasMesh } = withSpriteBounds(world, readSprite => {
+    const { uiBounds, boxes, hasMesh } = withSpriteBounds(world, readSprite => {
         let uiBounds: EntityBoxBounds | null = null;
-        let sceneBounds: EntityBoxBounds | null = null;
+        const boxes: EntityBox[] = [];
         let hasMesh = false;
         for (const e of entities) {
             if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
@@ -154,7 +154,7 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
             if (world.has(e, MeshRenderer) && world.get(e, MeshRenderer).enabled !== false) {
                 const box = meshWorldBox(world, e);
                 if (box) {
-                    sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+                    boxes.push(box);
                     hasMesh = true;
                 }
             }
@@ -164,34 +164,26 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                 const transform = world.get(e, Transform);
                 if (sprite && sprite.enabled !== false) {
                     const box = readSprite(e, transform, sprite);
-                    if (box) sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+                    if (box) boxes.push(box);
                 }
-                if (shape && shape.enabled !== false) sceneBounds = extendEntityBoxBounds(sceneBounds, shapeWorldBox(transform, shape));
+                if (shape && shape.enabled !== false) boxes.push(shapeWorldBox(transform, shape));
             }
         }
-        return { uiBounds, sceneBounds, hasMesh };
+        return { uiBounds, boxes, hasMesh };
     });
-    const screen = uiBounds ? flatFraming(uiBounds, aspect, 1e6) : null;
+    const screen = uiBounds ? fitFraming(uiBounds, aspect, -1e6, 1e6) : null;
+    const view = hasMesh ? invertViewOrbit(0, 0, 0, orbit.yaw * Math.PI / 180, orbit.pitch * Math.PI / 180, 0) : undefined;
+    let sceneBounds: EntityBoxBounds | null = null;
+    for (const box of boxes) sceneBounds = extendEntityBoxBoundsInFrame(sceneBounds, box, view);
 
-    if (hasMesh && sceneBounds) {
-        const { minX, minY, minZ, maxX, maxY, maxZ } = sceneBounds;
-        const radius = Math.max(Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) / 2, 1e-4);
-        const view = new Float32Array(invertViewOrbit((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2,
-            orbit.yaw * Math.PI / 180, orbit.pitch * Math.PI / 180, radius * 4));
-        // The box's extent as the eye sees it, so a long thing is framed long.
-        let half = 1e-4;
-        for (let corner = 0; corner < 8; corner++) {
-            const x = corner & 1 ? maxX : minX, y = corner & 2 ? maxY : minY, z = corner & 4 ? maxZ : minZ;
-            const vx = view[0] * x + view[4] * y + view[8] * z + view[12];
-            const vy = view[1] * x + view[5] * y + view[9] * z + view[13];
-            half = Math.max(half, Math.abs(vx), Math.abs(vy));
-        }
-        half *= PAD;
-        const hx = aspect >= 1 ? half * aspect : half, hy = aspect >= 1 ? half : half / aspect;
-        const proj = new Float32Array(ortho(-hx, hx, -hy, hy, 0.01, radius * 8));
+    if (view && sceneBounds) {
+        const { minZ, maxZ } = sceneBounds;
+        const margin = Math.max((maxZ - minZ) * (PAD - 1) / 2, 0.01);
+        // View-space +Z points toward the eye, so its upper bound is the near plane.
+        const proj = fitFraming(sceneBounds, aspect, -maxZ - margin, -minZ + margin);
         return { world: new Float32Array(multiply(proj, view)), screen };
     }
-    if (sceneBounds) return { world: flatFraming(sceneBounds, aspect, 1e6), screen };
+    if (sceneBounds) return { world: fitFraming(sceneBounds, aspect, -1e6, 1e6), screen };
     if (screen) return { world: new Float32Array(screen), screen };
     return null;
 }

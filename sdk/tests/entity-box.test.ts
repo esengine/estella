@@ -165,6 +165,27 @@ it('frames a sprite, shape and mesh equally whether they share an entity or not'
     expect(frame(1)).not.toEqual(separate);
 });
 
+it.each([
+    { w: 320, h: 100, yaw: 0, pitch: 0, rotation: turn('z', 0), axis: 'x' },
+    { w: 100, h: 320, yaw: 0, pitch: 0, rotation: turn('z', Math.PI / 2), axis: 'y' },
+    { w: 240, h: 240, yaw: 45, pitch: 0, rotation: turn('y', Math.PI * 3 / 4), axis: 'y' },
+] as const)('fits the drawn mesh along the limiting $axis axis at $w×$h with yaw $yaw', ({ w, h, yaw, pitch, rotation, axis }) => {
+    const world = {
+        ...fakeWorld({ 1: { Transform: { ...T(100, -70, 1, 1), worldRotation: rotation }, MeshRenderer: {} } }) as object,
+        ...meshBounds({ minX: 10, maxX: 130, minY: -3, maxY: 3, minZ: -2, maxZ: 2 }),
+    } as never;
+    const framing = framePreview({ world } as unknown as App, [ent(1)], w, h, { yaw, pitch })!;
+    const m = framing.world;
+    const points = entityBoxCorners(meshWorldBox(world, ent(1))!).map(({ x, y, z }) => ({
+        x: m[0] * x + m[4] * y + m[8] * z + m[12],
+        y: m[1] * x + m[5] * y + m[9] * z + m[13],
+        z: m[2] * x + m[6] * y + m[10] * z + m[14],
+    }));
+    for (const point of points) for (const value of Object.values(point)) expect(Math.abs(value)).toBeLessThan(1);
+    expect(Math.max(...points.map(point => point[axis]))).toBeCloseTo(1 / 1.08, 4);
+    expect(Math.min(...points.map(point => point[axis]))).toBeCloseTo(-1 / 1.08, 4);
+});
+
 it.skipIf(!HAS_WASM)('frames the draws left visible in the prefab preview world', async () => {
     const module = await loadWasmModule();
     const assets = Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module });

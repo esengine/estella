@@ -425,15 +425,37 @@ export interface EntityBoxBounds {
 
 /** Expand an existing bound in place, or start one from a single oriented box. @experimental */
 export function extendEntityBoxBounds(bounds: EntityBoxBounds | null, box: EntityBox): EntityBoxBounds {
+    return extendEntityBoxBoundsInFrame(bounds, box);
+}
+
+function projectDirection(m: Float32Array, { x, y, z }: Vec3): Vec3 {
+    return {
+        x: m[0] * x + m[4] * y + m[8] * z,
+        y: m[1] * x + m[5] * y + m[9] * z,
+        z: m[2] * x + m[6] * y + m[10] * z,
+    };
+}
+
+/** @internal Accumulate bounds in an optional rotated frame with the same origin. */
+export function extendEntityBoxBoundsInFrame(
+    bounds: EntityBoxBounds | null, box: EntityBox, frame?: Float32Array,
+): EntityBoxBounds {
     // Each rotated half-axis contributes its absolute length along each world axis.
-    const right = box.flatAxes ? v3.scale(box.flatAxes.x, box.hw) : q.rotate(box.rot, { x: box.hw, y: 0, z: 0 });
-    const up = box.flatAxes ? v3.scale(box.flatAxes.y, box.hh) : q.rotate(box.rot, { x: 0, y: box.hh, z: 0 });
-    const forward = q.rotate(box.rot, { x: 0, y: 0, z: box.hd });
+    let right = box.flatAxes ? v3.scale(box.flatAxes.x, box.hw) : q.rotate(box.rot, { x: box.hw, y: 0, z: 0 });
+    let up = box.flatAxes ? v3.scale(box.flatAxes.y, box.hh) : q.rotate(box.rot, { x: 0, y: box.hh, z: 0 });
+    let forward = q.rotate(box.rot, { x: 0, y: 0, z: box.hd });
+    let { cx, cy, cz } = box;
+    if (frame) {
+        right = projectDirection(frame, right);
+        up = projectDirection(frame, up);
+        forward = projectDirection(frame, forward);
+        ({ x: cx, y: cy, z: cz } = projectDirection(frame, { x: cx, y: cy, z: cz }));
+    }
     const x = Math.abs(right.x) + Math.abs(up.x) + Math.abs(forward.x);
     const y = Math.abs(right.y) + Math.abs(up.y) + Math.abs(forward.y);
     const z = Math.abs(right.z) + Math.abs(up.z) + Math.abs(forward.z);
-    const minX = box.cx - x, minY = box.cy - y, minZ = box.cz - z;
-    const maxX = box.cx + x, maxY = box.cy + y, maxZ = box.cz + z;
+    const minX = cx - x, minY = cy - y, minZ = cz - z;
+    const maxX = cx + x, maxY = cy + y, maxZ = cz + z;
     if (!bounds) return { minX, minY, minZ, maxX, maxY, maxZ };
     bounds.minX = Math.min(bounds.minX, minX);
     bounds.minY = Math.min(bounds.minY, minY);
