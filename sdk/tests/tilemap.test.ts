@@ -20,6 +20,7 @@ import type { TiledMapData } from '../src/tilemap/tiledLoader';
 import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
 import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
+import { tileFlagsOf, tileIdOf } from '../src/tilemap/tileBits';
 import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { BodyType, RigidBody2D, BoxCollider2D, CircleCollider2D, PolygonCollider2D, ChainCollider2D } from '../src/physics/PhysicsComponents';
@@ -351,6 +352,21 @@ describe('parseTmjJson', () => {
             .toThrow(/Floor.*zstd.*CSV/);
         expect(() => parseTmjJson(encodedMap({ chunks: [{ x: -1, y: 2, width: 2, height: 1, data: encodedGids([1]) }] })))
             .toThrow(/Floor.*-1, 2.*8 bytes/);
+    });
+
+    it.each(['csv', 'base64'])('rejects oversized tile-layer GIDs in %s before they alias lower tiles', encoding => {
+        const dataOf = (gids: number[]) => encoding === 'base64' ? encodedGids(gids) : gids;
+        const gid = 0x90002001; // horizontal flip, reserved hex bit, tile ID 8193
+        expect(() => parseTmjJson(encodedMap({ encoding, data: dataOf([1, gid]) })))
+            .toThrow(/Floor.*8193.*8191/);
+        expect(() => parseTmjJson(encodedMap({ encoding, chunks: [{ x: -4, y: 2, width: 2, height: 1, data: dataOf([1, gid]) }] })))
+            .toThrow(/Floor.*-4, 2.*8193.*8191/);
+
+        const map = encodedMap({ encoding, data: dataOf([0, 0x90001fff]) });
+        const parsed = parseTmjJson({ ...map, layers: [...map.layers, { type: 'objectgroup', name: 'Props', objects: [{ gid }] }] })!;
+        expect(tileIdOf(parsed.layers[0].tiles[1])).toBe(8191);
+        expect(tileFlagsOf(parsed.layers[0].tiles[1]).flipH).toBe(true);
+        expect(parsed.objectGroups[0].objects[0].gid).toBe(gid);
     });
     it('should parse a valid tmj json', () => {
         const json = {

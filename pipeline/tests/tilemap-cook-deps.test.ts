@@ -138,6 +138,19 @@ describe('tilemap tileset images are cooked dependencies', () => {
     }
   });
 
+  it('rejects an unrepresentable tile-layer GID when packaging the map', async () => {
+    const mapPath = 'assets/maps/tile-id-overflow.tmj';
+    const scenePath = 'assets/scenes/tile-id-overflow.esscene';
+    const id = '79797979-7979-4797-8797-797979797979';
+    const map = JSON.parse(tmj);
+    map.layers[0].data[1] = 0x80002001;
+    writeAsset(mapPath, 'tilemap', id, JSON.stringify(map));
+    writeAsset(scenePath, 'scene', id.replace(/.$/, '0'), scene.replace(TILEMAP, id));
+    const result = await cookAssets(root, { entryScenes: [scenePath], outDir: 'build-tile-id-overflow' });
+    expect(result.ok).toBe(false);
+    expect(result.failed).toEqual([expect.stringMatching(/tile-id-overflow\.tmj:.*layer "L".*8193.*8191/)]);
+  });
+
   it('ships a zero-size infinite map with empty and populated sparse layers', async () => {
     const id = '45454545-4545-4545-8545-454545454545';
     const scenePath = 'assets/scenes/infinite.esscene';

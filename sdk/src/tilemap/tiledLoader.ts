@@ -15,7 +15,7 @@ import { tileIdOf, tileFlagsOf, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D } from './
 import { log } from '../util/logger';
 import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
-import { walkTmjLayers, readTiledGids, tiledMapDimensions, tiledLayerStorage } from './tiledData';
+import { walkTmjLayers, readTiledGids, tiledMapDimensions, tiledLayerStorage, TILED_GID_MASK, assertTileLayerGid } from './tiledData';
 
 export interface TiledChunkData {
     x: number;
@@ -144,8 +144,6 @@ export function tiledGridLayout(map: {
 const TILED_FLIP_H = 0x80000000;
 const TILED_FLIP_V = 0x40000000;
 const TILED_FLIP_D = 0x20000000;
-// Tiled reserves all four high bits, including its hex rotation flag (bit 29).
-const TILED_GID_MASK = 0x0FFFFFFF;
 
 function parseTintColor(hex: string | undefined): { r: number; g: number; b: number; a: number } {
     if (!hex) return { r: 1, g: 1, b: 1, a: 1 };
@@ -185,21 +183,15 @@ function tiledLayerProperties(layer: Record<string, unknown>, groups: readonly R
     return { visible, opacity, tintColor, parallaxX, parallaxY, originOffset: { x, y } };
 }
 
-// Keep the global GID as the engine tile-id (Tiled GIDs are contiguous across
-// tilesets); the runtime tileset table resolves it to (tileset, local). For a
-// single-tileset map (firstgid 1) this equals the old local id + 1.
-function convertGid(gid: number): number {
-    if (gid === 0) return 0;
-    let flags = 0;
-    if (gid & TILED_FLIP_H) flags |= TILE_FLIP_H;
-    if (gid & TILED_FLIP_V) flags |= TILE_FLIP_V;
-    if (gid & TILED_FLIP_D) flags |= TILE_FLIP_D;
-    return tileIdOf(gid) | flags;
+/** The runtime atlas table resolves these preserved global IDs to a tileset and local ID. */
+function convertGid(gid: number, layer: Record<string, unknown>, block: Record<string, unknown>): number {
+    assertTileLayerGid(gid, layer, block);
+    return tileIdOf(gid) | (gid & TILED_FLIP_H ? TILE_FLIP_H : 0)
+        | (gid & TILED_FLIP_V ? TILE_FLIP_V : 0) | (gid & TILED_FLIP_D ? TILE_FLIP_D : 0);
 }
 
-/** Split a Tiled tile-object GID into its global tile id + H/V/D flip flags. Unlike
- *  convertGid (which truncates to the engine's 13-bit tile-layer id), this keeps the
- *  full 28-bit global id so the object's tileset can be resolved by firstgid. */
+/** Split a Tiled tile-object GID into its 28-bit global tile id and H/V/D flip flags.
+ *  Tile objects resolve their tileset by firstgid and do not use the packed tile-layer cells. */
 export function decodeTiledGid(gid: number): { globalId: number; flipH: boolean; flipV: boolean; flipD: boolean } {
     return {
         globalId: gid & TILED_GID_MASK,
@@ -242,6 +234,7 @@ function rechunkTiledLayer(layer: Record<string, unknown>, rawChunks: Array<Reco
                 for (let at = targetRow + column; tx < end; tx++, at++) {
                     const gid = data[sourceRow + tx];
                     if (!gid) continue;
+                    const cell = convertGid(gid, layer, chunk);
                     if (!target) {
                         const key = `${cx},${cy}`;
                         const existing = engine.get(key);
@@ -249,7 +242,7 @@ function rechunkTiledLayer(layer: Record<string, unknown>, rawChunks: Array<Reco
                         if (!existing) engine.set(key, { x: cx, y: cy, width: CHUNK_SIZE, height: CHUNK_SIZE, tiles: target });
                         targets[cacheIndex] = target;
                     }
-                    target[at] = convertGid(gid);
+                    target[at] = cell;
                 }
             }
         }
@@ -305,12 +298,11 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 
             const infinite = rawChunks !== undefined;
             const chunks = rawChunks ? rechunkTiledLayer(layer, rawChunks) : [];
-            const rawData = infinite ? undefined : readTiledGids(layer, layer, lw * lh);
+            const data = infinite ? undefined : readTiledGids(layer, layer, lw * lh);
             const tiles = new Uint16Array(infinite ? 0 : lw * lh);
-            if (!infinite && rawData) {
-                for (let i = 0; i < rawData.length && i < tiles.length; i++) {
-                    tiles[i] = convertGid(rawData[i]);
-                }
+            if (data) {
+                const end = Math.min(data.length, tiles.length);
+                for (let i = 0; i < end; i++) tiles[i] = convertGid(data[i], layer, layer);
             }
 
             layers.push({
