@@ -230,16 +230,20 @@ describe('a tilemap era owns the textures it resolved', () => {
 });
 
 describe('a tilemap runtime belongs to one app', () => {
-    it.skipIf(!HAS_WASM)('projects Tiled group offsets and sprite colors into the scene', async () => {
+    it.skipIf(!HAS_WASM)('projects Tiled tile objects with their atlas, transforms and inherited color', async () => {
         const { App } = await import('../src/app/app');
         const { Assets: AssetsResource } = await import('../src/asset/AssetPlugin');
         const { Marker, Sprite, Transform } = await import('../src/ecs/component');
         const { Tilemap, TilemapLayer } = await import('../src/tilemap/components');
         const { TilemapPlugin } = await import('../src/tilemap/tilemapPlugin');
         const map = JSON.parse(GRID_MAP);
+        map.tilesets.push({ ...map.tilesets[0], firstgid: 5, image: '../tiles/props.png' });
         map.layers = [{ type: 'group', offsetx: 12, offsety: 5, opacity: 0.5, tintcolor: '#80ff8040', layers: [
             map.layers[0],
-            { type: 'objectgroup', objects: [{ id: 1, gid: 1, x: 4, y: 9, width: 4, height: 4 }] },
+            { type: 'objectgroup', objects: [
+                { id: 1, gid: 0x90000008, x: 4, y: 9, width: 4, height: 4 },
+                { id: 3, gid: 9, x: 12, y: 9, width: 4, height: 4 },
+            ] },
             { type: 'group', visible: false, layers: [{ type: 'objectgroup', objects: [{ id: 2, point: true }] }] },
         ] }];
         const assets = realm(JSON.stringify(map));
@@ -259,6 +263,10 @@ describe('a tilemap runtime belongs to one app', () => {
             const layers = app.world.getEntitiesWithComponents([TilemapLayer]);
             const sprites = app.world.getEntitiesWithComponents([Sprite]);
             expect(layers).toHaveLength(1);
+            const drawn = sprites.map(entity => app.world.get(entity, Sprite));
+            const slot = assets.resolveRegistryAsset<PublishedTilemap>('tilemap', ref)!.source.tilesets[1];
+            expect(drawn).toContainEqual(expect.objectContaining({ texture: slot.textureHandle,
+                uvOffset: { x: 0.5, y: 0 }, uvScale: { x: 0.5, y: 0.5 }, flipX: true, flipY: false }));
             expect(sprites).toHaveLength(1);
             const [layer] = layers, [sprite] = sprites;
             expect(app.world.get(layer, TilemapLayer).originOffset).toEqual({ x: 12, y: -5 });

@@ -898,6 +898,7 @@ describe('parseTmjJson — Phase B: objectgroup parsing', () => {
         // Tiled packs flips in the high bits: H=0x80000000, V=0x40000000, D=0x20000000.
         const flipped = 5 | 0x80000000 | 0x40000000;
         expect(decodeTiledGid(flipped)).toEqual({ globalId: 5, flipH: true, flipV: true, flipD: false });
+        expect(decodeTiledGid(0xf0000005)).toEqual({ globalId: 5, flipH: true, flipV: true, flipD: true });
         // A large global id (multi-tileset) survives — not truncated to 13 bits.
         expect(decodeTiledGid(9000).globalId).toBe(9000);
     });

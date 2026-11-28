@@ -11,7 +11,7 @@ import type { ResolvedTileCollision } from './tilesetResolve';
 import { collisionBoxes, collisionGrid } from './collisionBoxes';
 import { tileCellCenter, TilemapOrientation, type TileGridLayout, type TileGridParams } from './tileGeometry';
 import { CHUNK_SIZE } from './chunkCodec';
-import { tileIdOf, tileFlagsOf } from './tileBits';
+import { tileIdOf, tileFlagsOf, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D } from './tileBits';
 import { log } from '../util/logger';
 import { rebaseDocumentRef, resolveRelativePath, resolveDocumentRef, resolveTiledRef, isLogicalAssetRef, resolveIndexedSiblingRef } from '../asset/documentRef';
 import { mapTilesetImages } from './tiledRefs';
@@ -144,10 +144,8 @@ export function tiledGridLayout(map: {
 const TILED_FLIP_H = 0x80000000;
 const TILED_FLIP_V = 0x40000000;
 const TILED_FLIP_D = 0x20000000;
-const TILED_GID_MASK = 0x1FFFFFFF;
-const ENGINE_FLIP_H = 0x2000;
-const ENGINE_FLIP_V = 0x4000;
-const ENGINE_FLIP_D = 0x8000;
+// Tiled reserves all four high bits, including its hex rotation flag (bit 29).
+const TILED_GID_MASK = 0x0FFFFFFF;
 
 function parseTintColor(hex: string | undefined): { r: number; g: number; b: number; a: number } {
     if (!hex) return { r: 1, g: 1, b: 1, a: 1 };
@@ -193,16 +191,15 @@ function tiledLayerProperties(layer: Record<string, unknown>, groups: readonly R
 function convertGid(gid: number): number {
     if (gid === 0) return 0;
     let flags = 0;
-    if (gid & TILED_FLIP_H) flags |= ENGINE_FLIP_H;
-    if (gid & TILED_FLIP_V) flags |= ENGINE_FLIP_V;
-    if (gid & TILED_FLIP_D) flags |= ENGINE_FLIP_D;
-    const globalId = (gid & TILED_GID_MASK) & 0x1FFF;
-    return globalId | flags;
+    if (gid & TILED_FLIP_H) flags |= TILE_FLIP_H;
+    if (gid & TILED_FLIP_V) flags |= TILE_FLIP_V;
+    if (gid & TILED_FLIP_D) flags |= TILE_FLIP_D;
+    return tileIdOf(gid) | flags;
 }
 
 /** Split a Tiled tile-object GID into its global tile id + H/V/D flip flags. Unlike
  *  convertGid (which truncates to the engine's 13-bit tile-layer id), this keeps the
- *  full 29-bit global id so the object's tileset can be resolved by firstgid. */
+ *  full 28-bit global id so the object's tileset can be resolved by firstgid. */
 export function decodeTiledGid(gid: number): { globalId: number; flipH: boolean; flipV: boolean; flipD: boolean } {
     return {
         globalId: gid & TILED_GID_MASK,

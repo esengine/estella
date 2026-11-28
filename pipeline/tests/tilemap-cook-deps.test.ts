@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookAssets, type CookManifest } from '../src/assets/cookAssets';
 import { encodeRgbaPng } from '../src/assets/png';
-import { parseTmjJson } from '../../sdk/src/tilemap/tiledLoader';
+import { decodeTiledGid, parseTmjJson } from '../../sdk/src/tilemap/tiledLoader';
 
 let root: string;
 
@@ -44,7 +44,10 @@ const tmj = JSON.stringify({
     { firstgid: 1, name: 'tiles', image: '../textures/tiles.png', imagewidth: 32, imageheight: 32, tilewidth: 16, tileheight: 16, columns: 2, tilecount: 4, margin: 0, spacing: 0 },
     { firstgid: 5, name: 'props', image: '../textures/props.png', imagewidth: 16, imageheight: 16, tilewidth: 16, tileheight: 16, columns: 1, tilecount: 1, margin: 0, spacing: 0 },
   ],
-  layers: [{ type: 'tilelayer', name: 'L', width: 2, height: 2, x: 0, y: 0, opacity: 1, visible: true, data: [1, 2, 5, 4] }],
+  layers: [
+    { type: 'tilelayer', name: 'L', width: 2, height: 2, x: 0, y: 0, opacity: 1, visible: true, data: [1, 2, 5, 4] },
+    { type: 'objectgroup', objects: [{ id: 1, gid: 0x90000005, x: 0, y: 16, width: 16, height: 16 }] },
+  ],
 });
 
 const scene = JSON.stringify({
@@ -106,6 +109,9 @@ describe('tilemap tileset images are cooked dependencies', () => {
     // so the @uuid-loaded map resolves it to the embedded asset in the single-file playable.
     expect(cooked.tilesets[0].image).toBe('assets/textures/tiles.png');
     expect(cooked.tilesets[1].image).toBe('assets/textures/props.png');
+    const gid = parseTmjJson(cooked)!.objectGroups[0].objects[0].gid!;
+    expect(gid).toBe(0x90000005);
+    expect(decodeTiledGid(gid)).toEqual({ globalId: 5, flipH: true, flipV: false, flipD: false });
   });
 
   it.each(['', 'zstd'])('validates a map with Base64 layers before shipping it (compression=%j)', async compression => {

@@ -564,16 +564,16 @@ export class TilemapRuntime {
                                     continue;
                                 }
                                 const dec = decodeTiledGid(obj.gid);
-                                // Resolve the tileset by global id (largest firstId <= id).
+                                // Resolve ownership before testing the texture, as tile layers do.
                                 let ts: (typeof cached.tilesets)[number] | undefined;
                                 for (const cand of cached.tilesets) {
-                                    if (cand.textureHandle && cand.firstId <= dec.globalId &&
+                                    if (cand.firstId <= dec.globalId &&
                                         (!ts || cand.firstId > ts.firstId)) ts = cand;
                                 }
-                                if (!ts) continue;
+                                if (!ts?.textureHandle) continue;
                                 const localId = dec.globalId - ts.firstId;
-                                const cols = ts.columns || 1;
-                                const rows = ts.rows || 1;
+                                const { columns: cols, rows } = ts;
+                                if (cols <= 0 || rows <= 0 || localId >= cols * rows) continue;
                                 const uvW = 1 / cols, uvH = 1 / rows;
                                 const col = localId % cols;
                                 const row = Math.floor(localId / cols);
