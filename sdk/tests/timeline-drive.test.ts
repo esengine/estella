@@ -440,6 +440,76 @@ describe('nested sequences', () => {
         step(0.25);
         expect(onShake.mock.calls).toEqual([[ROOT, 2]]);
     });
+
+    it('passes the actual backward run through consecutive nested timelines', () => {
+        const sequence = (timeline: string, duration: number, loop = false): TimelineAsset => ({
+            ...parent, duration, tracks: [{ type: TrackType.Sequence, name: '', childPath: '', clips: [
+                { start: 0, duration: 2, timeline, root: '', speed: 1, loop },
+            ] }],
+        });
+        const action: TimelineAsset = { ...child, tracks: [
+            { type: TrackType.Marker, name: '', childPath: '', markers: [
+                { time: 0.1, name: 'head' }, { time: 0.625, name: 'crossed' }, { time: 1.5, name: 'beyond parent' },
+            ] },
+            { type: TrackType.Particle, name: '', childPath: '', events: [
+                { time: 0.1, action: 'play' }, { time: 0.625, action: 'stop' }, { time: 1.5, action: 'play' },
+            ] },
+        ] };
+        const middle = sequence('action', 2), top = sequence('middle', 1);
+        const state = createTimelineState(WrapMode.PingPong);
+        state.playing = true;
+        const onSignals = vi.fn(), play = vi.fn(), stop = vi.fn();
+        const ctx = { deps, lookup: (ref: string) => ref === 'middle' ? middle : action, onSignals,
+            particle: { play, stop, reset: vi.fn() } };
+        advanceTimelineTS(top, ROOT, state, 1.25, ctx);
+        onSignals.mockClear(); play.mockClear(); stop.mockClear();
+        advanceTimelineTS(top, ROOT, state, 0.25, ctx);
+
+        expect(state.nested['0.0/0.0/']?.time).toBe(0.5);
+        expect(onSignals.mock.calls.flatMap(([signals]) => signals.map(({ name }: { name: string }) => name))).toEqual(['crossed']);
+        expect(stop.mock.calls).toEqual([[ROOT]]);
+        expect(play).not.toHaveBeenCalled();
+    });
+
+    it('follows the prior lap of a looping nested clip after crossing its seam in reverse', () => {
+        const top: TimelineAsset = { ...parent, duration: 3, tracks: [{ type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 0, duration: 4, timeline: 'child', root: '', speed: 1, loop: true },
+        ] }] };
+        const cues: TimelineAsset = { ...child, duration: 1, tracks: [{ type: TrackType.Marker, name: '', childPath: '', markers: [
+            { time: 0, name: 'start' }, { time: 0.125, name: 'early' }, { time: 0.5, name: 'outside' },
+            { time: 0.875, name: 'late' }, { time: 1, name: 'end' },
+        ] }] };
+        const state = createTimelineState(WrapMode.PingPong);
+        state.playing = true;
+        const onSignals = vi.fn(), ctx = { deps, lookup: () => cues, onSignals };
+        advanceTimelineTS(top, ROOT, state, 4.75, ctx);
+        onSignals.mockClear();
+        advanceTimelineTS(top, ROOT, state, 0.25, ctx);
+        advanceTimelineTS(top, ROOT, state, 0, ctx);
+        advanceTimelineTS(top, ROOT, state, 0.25, ctx);
+
+        expect(state.nested['0.0/']?.time).toBe(0.75);
+        expect(onSignals.mock.calls.map(([signals]) => signals.map(({ name }: { name: string }) => name)))
+            .toEqual([['start', 'early'], ['late', 'end']]);
+    });
+
+    it('clips the tail and head of a parent loop to the interval it actually played', () => {
+        const top: TimelineAsset = { ...parent, duration: 1, tracks: [{ type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 0, duration: 2, timeline: 'child', root: '', speed: 1, loop: false },
+        ] }] };
+        const cues: TimelineAsset = { ...child, tracks: [{ type: TrackType.Marker, name: '', childPath: '', markers: [
+            { time: 0.125, name: 'head' }, { time: 0.875, name: 'tail' }, { time: 1.5, name: 'outside' },
+        ] }] };
+        const state = createTimelineState(WrapMode.Loop);
+        state.playing = true;
+        const onSignals = vi.fn(), ctx = { deps, lookup: () => cues, onSignals };
+        advanceTimelineTS(top, ROOT, state, 0.75, ctx);
+        onSignals.mockClear();
+        advanceTimelineTS(top, ROOT, state, 0.5, ctx);
+
+        expect(onSignals.mock.calls.flatMap(([signals]) => signals.map(({ name }: { name: string }) => name)))
+            .toEqual(['tail', 'head']);
+    });
 });
 
 describe('native particle event tracks', () => {

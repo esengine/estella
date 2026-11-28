@@ -259,7 +259,7 @@ export function advanceTimelineTS(
         ctx.syncSpawns?.(!state.started && state.time === 0 ? null : state.time);
         if (seeking && state.started) {
             sampleLayer(asset, state.time, root, ctx);
-            const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, 'seek') : [];
+            const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup) : [];
             ctx.onSequenceLayers?.(layers);
             ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES, layers));
         }
@@ -279,7 +279,8 @@ export function advanceTimelineTS(
     state.prevTime = state.time;
     const advanced = phase + dt * state.speed;
     const wrapped = applyWrapMode(advanced, span, state.wrapMode);
-    state.time = from + wrapped.time;
+    const sampledTime = from + wrapped.time;
+    state.time = sampledTime;
     state.phase = advanced;
     if (state.wrapMode !== WrapMode.Once && span > 0) {
         const laps = Math.floor(advanced / span) - Math.floor(Math.max(0, phase) / span);
@@ -300,7 +301,8 @@ export function advanceTimelineTS(
     dispatchSignals(ctx, asset, root, segments);
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
-    const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup) : [];
+    const nestedTraversal = state.time === sampledTime && state.phase === advanced ? segments : undefined;
+    const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, nestedTraversal) : [];
     ctx.onSequenceLayers?.(layers);
     ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, lookup, layers));
 
@@ -316,19 +318,34 @@ function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: Adva
     ctx.onPropertyApplied?.(root, asset);
 }
 
-function nestedRuns(
-    before: TimelineState['nested'][string] | undefined, time: number, phase: number, duration: number, loop: boolean,
-): PlayheadRun[] {
-    const prev = before?.time ?? 0;
-    const prevPhase = before ? before.phase : 0;
-    if (loop && duration > 0 && prevPhase !== undefined && phase >= prevPhase) {
-        return playheadRuns(prevPhase, phase, duration, WrapMode.Loop, !before, 'arrival');
+/** Project the parent's directed traversal through the clip's placement and clock. */
+function nestedRuns(layer: SequenceLayer, parentRuns: readonly PlayheadRun[]): PlayheadRun[] {
+    const { start, duration, speed, loop } = layer.clip;
+    const end = start + duration;
+    const length = layer.asset.duration;
+    const out: PlayheadRun[] = [];
+    for (const run of parentRuns) {
+        if (Math.max(run.from, run.to) < start || Math.min(run.from, run.to) >= end) continue;
+        const entry = Math.max(start, Math.min(end, run.from));
+        const exit = Math.max(start, Math.min(end, run.to));
+        const from = Math.max(0, (entry - start) * speed);
+        const to = Math.max(0, (exit - start) * speed);
+        const inclusiveStart = run.inclusiveStart || entry !== run.from;
+        if (!loop || length <= 0) {
+            out.push({ from: Math.min(from, length), to: Math.min(to, length), inclusiveStart });
+        } else if (to >= from) {
+            out.push(...playheadRuns(from, to, length, WrapMode.Loop, inclusiveStart, 'arrival'));
+        } else {
+            // In reverse, reach time zero before jumping to the previous lap's end.
+            // Mirror the phase to use the same loop splitter in the opposite direction.
+            const local = from % length;
+            const mirrored = local === 0 ? 0 : length - local;
+            for (const slice of playheadRuns(mirrored, mirrored + (from - to), length, WrapMode.Loop, inclusiveStart || local === 0)) {
+                out.push({ from: length - slice.from, to: length - slice.to, inclusiveStart: slice.inclusiveStart });
+            }
+        }
     }
-    if (time < prev) return [
-        { from: prev, to: duration, inclusiveStart: false },
-        { from: 0, to: time, inclusiveStart: true },
-    ];
-    return [{ from: prev, to: time, inclusiveStart: !before }];
+    return out;
 }
 
 /**
@@ -338,25 +355,29 @@ function nestedRuns(
  */
 function advanceNested(
     asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
-    mode: 'play' | 'seek' = 'play',
+    runs?: readonly PlayheadRun[],
 ): SequenceLayer[] | undefined {
     const time = state.time;
     const layers = collectSequenceLayers(asset, time, root, ctx.deps.resolveChild, lookup);
     let refresh = !!ctx.onPropertyApplied && layers.length > 0;
     const live = new Set<string>();
+    const runsByLayer = runs && new Map<string, readonly PlayheadRun[]>([['', runs]]);
     for (const layer of layers) {
         live.add(layer.key);
         sampleLayer(layer.asset, layer.time, layer.root, ctx);
         const before = state.nested[layer.key];
         const phase = layer.phase ?? layer.time;
         const spineClipIndices = before?.spineClipIndices ?? {};
-        if (mode === 'play') {
+        if (runsByLayer) {
             const prev = before?.time ?? 0;
             const child = createTimelineState(WrapMode.Once, 1);
             child.time = layer.time;
             child.prevTime = prev;
             child.spineClipIndices = spineClipIndices;
-            const segments = nestedRuns(before, layer.time, phase, layer.asset.duration, layer.clip.loop);
+            // Keys end in a slash, and the preceding slash ends the owning layer's key.
+            const parentKey = layer.key.slice(0, layer.key.lastIndexOf('/', layer.key.length - 2) + 1);
+            const segments = nestedRuns(layer, runsByLayer.get(parentKey) ?? []);
+            runsByLayer.set(layer.key, segments);
             const events = detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments);
             for (const e of events) {
                 applyEvent(ctx, e);
