@@ -14,7 +14,9 @@ import type { World } from './world';
 import { Transform, Parent, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData, type TransformData } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
+import { v3 } from '../math/vec3';
 import { worldEngineApi } from './bridge/engineApi';
+import { withMalloc } from '../wasm/wasmScratch';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -41,6 +43,8 @@ export interface EntityBox {
     hh: number;
     hd: number;
     rot: Quat;
+    /** Unit axes of a flat draw whose rendered basis may be sheared. Use the box helpers to honor them. */
+    flatAxes?: { x: Vec3; y: Vec3 };
 }
 
 /** @experimental */
@@ -100,7 +104,8 @@ export function resolveEntityWorldBox(
     const t = world.get(entity, Transform);
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
     if (sprite && (!visibility || sprite.enabled !== false)) {
-        return { box: spriteWorldBox(t, sprite, world.has(entity, Parent)), drawable: sprite };
+        const box = spriteWorldBox(world, entity, t, sprite);
+        if (box) return { box, drawable: sprite };
     }
     const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
     const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
@@ -121,11 +126,38 @@ export function resolveEntityWorldBox(
 }
 
 /** @internal Bounds of an individual sprite draw, even if its entity has other renderers. */
-export function spriteWorldBox(t: TransformData, sprite: SpriteData, parented: boolean): EntityBox {
+export function spriteWorldBox(world: ReadableWorld, entity: Entity, t: TransformData, sprite: SpriteData): EntityBox | null {
+    const parented = world.has(entity, Parent);
+    if (parented) {
+        const box = parentedSpriteBox(world, entity, t, sprite);
+        if (box !== undefined) return box;
+    }
     const w = sprite.size.x * t.worldScale.x;
     const h = sprite.size.y * t.worldScale.y;
     const rot = parented ? worldRot(t) : flatWorldRot(t);
     return positionedBox(t, rot, w, h, 0, w * (0.5 - (sprite.pivot?.x ?? 0.5)), h * (0.5 - (sprite.pivot?.y ?? 0.5)));
+}
+
+function parentedSpriteBox(world: ReadableWorld, entity: Entity, t: TransformData, sprite: SpriteData): EntityBox | null | undefined {
+    const core = world as Partial<LayoutWorld>;
+    if (!core.getWasmModule || !core.getCppRegistry) return undefined;
+    const api = worldEngineApi(core as LayoutWorld);
+    const registry = core.getCppRegistry();
+    if (!api?.transform_copyFlatRenderMatrix || !api._malloc || !api._free || !api.HEAPU8 || !registry) return undefined;
+    return withMalloc({ _malloc: api._malloc, _free: api._free }, 64, ptr => {
+        if (!ptr) throw new Error('Could not allocate sprite transform scratch.');
+        if (!api.transform_copyFlatRenderMatrix!(registry, entity, ptr)) return null;
+        const heap = api.HEAPU8!;
+        const m = new Float32Array(heap.buffer, heap.byteOffset + ptr, 16);
+        const x = { x: m[0], y: m[1], z: m[2] };
+        const y = { x: m[4], y: m[5], z: m[6] };
+        const sx = v3.len(x), sy = v3.len(y);
+        const offset = v3.add(v3.scale(x, sprite.size.x * (0.5 - (sprite.pivot?.x ?? 0.5))),
+            v3.scale(y, sprite.size.y * (0.5 - (sprite.pivot?.y ?? 0.5))));
+        return { cx: m[12] + offset.x, cy: m[13] + offset.y, cz: m[14] + offset.z,
+            hw: Math.abs(sprite.size.x) * sx / 2, hh: Math.abs(sprite.size.y) * sy / 2, hd: 0,
+            rot: worldRot(t), flatAxes: { x: v3.scale(x, 1 / sx), y: v3.scale(y, 1 / sy) } };
+    });
 }
 
 /** @internal Bounds of an individual shape draw, with an optional minimum size for picking. */
@@ -253,9 +285,9 @@ export function entityBoxCorners(b: EntityBox): Vec3[] {
     const out: Vec3[] = [];
     const count = b.hd === 0 ? 4 : 8;
     for (let i = 0; i < count; i++) {
-        const r = q.rotate(b.rot, {
-            x: i & 1 ? b.hw : -b.hw,
-            y: i & 2 ? b.hh : -b.hh,
+        const x = i & 1 ? b.hw : -b.hw, y = i & 2 ? b.hh : -b.hh;
+        const r = b.flatAxes ? v3.add(v3.scale(b.flatAxes.x, x), v3.scale(b.flatAxes.y, y)) : q.rotate(b.rot, {
+            x, y,
             z: i & 4 ? b.hd : -b.hd,
         });
         out.push({ x: b.cx + r.x, y: b.cy + r.y, z: b.cz + r.z });
@@ -280,8 +312,8 @@ export interface EntityBoxBounds {
 /** Expand an existing bound in place, or start one from a single oriented box. @experimental */
 export function extendEntityBoxBounds(bounds: EntityBoxBounds | null, box: EntityBox): EntityBoxBounds {
     // Each rotated half-axis contributes its absolute length along each world axis.
-    const right = q.rotate(box.rot, { x: box.hw, y: 0, z: 0 });
-    const up = q.rotate(box.rot, { x: 0, y: box.hh, z: 0 });
+    const right = box.flatAxes ? v3.scale(box.flatAxes.x, box.hw) : q.rotate(box.rot, { x: box.hw, y: 0, z: 0 });
+    const up = box.flatAxes ? v3.scale(box.flatAxes.y, box.hh) : q.rotate(box.rot, { x: 0, y: box.hh, z: 0 });
     const forward = q.rotate(box.rot, { x: 0, y: 0, z: box.hd });
     const x = Math.abs(right.x) + Math.abs(up.x) + Math.abs(forward.x);
     const y = Math.abs(right.y) + Math.abs(up.y) + Math.abs(forward.y);
@@ -313,7 +345,20 @@ export function entityBoxRayHit(b: EntityBox, origin: Vec3, dir: Vec3): number |
     const { x, y, z, w } = b.rot;
     // An unrotated box already shares the world's axes, including the -q
     // identity a quaternion interpolation can produce.
-    if (x !== 0 || y !== 0 || z !== 0 || Math.abs(w) !== 1) {
+    if (b.flatAxes) {
+        const { x, y } = b.flatAxes;
+        // A sheared basis needs its reciprocal axes, since a rotation inverse
+        // cannot map the drawn parallelogram back to its local rectangle.
+        const normal = v3.cross(x, y);
+        const length = v3.len(normal);
+        if (!(length > 0)) return null;
+        const z = v3.scale(normal, 1 / length);
+        const dualX = v3.scale(v3.cross(y, z), 1 / length);
+        const dualY = v3.scale(v3.cross(z, x), 1 / length);
+        const toLocal = (v: Vec3) => ({ x: v3.dot(v, dualX), y: v3.dot(v, dualY), z: v3.dot(v, z) });
+        o = toLocal(o);
+        d = toLocal(dir);
+    } else if (x !== 0 || y !== 0 || z !== 0 || Math.abs(w) !== 1) {
         const inv = q.conjugate(b.rot);
         o = q.rotate(inv, o);
         d = q.rotate(inv, dir);

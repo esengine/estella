@@ -4654,6 +4654,7 @@ number
 cx: number
 cy: number
 cz: number
+flatAxes: { x: Vec3; y: Vec3; } | undefined
 hd: number
 hh: number
 hw: number

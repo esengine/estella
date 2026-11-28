@@ -12,7 +12,8 @@ import { entityWorldBox, entityBoxCorners, entityBoxRayHit, extendEntityBoxBound
 import { Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
-import type { App } from '../src/app/app';
+import { App } from '../src/app/app';
+import { pickEntityByRay } from '../src/ecs/entityPick';
 import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
 import { NodeVisibility } from '../src/imported-scene';
@@ -158,6 +159,51 @@ it.skipIf(!HAS_WASM)('frames the draws left visible in the prefab preview world'
 });
 
 describe('an entity world box', () => {
+    it.skipIf(!HAS_WASM)('uses the drawn corners and hit area of a sheared child sprite', async () => {
+        const core = await loadWasmModule();
+        const app = App.new();
+        const registry = new core.Registry();
+        app.connectCpp(registry, core, { ownedRegistry: true });
+        const world = app.world;
+        try {
+            const parent = world.spawn(), child = world.spawn();
+            world.insert(parent, Transform, { scale: { x: 3, y: 1, z: 1 } });
+            world.insert(child, Transform, { rotation: turn('z', Math.PI / 4) });
+            world.insert(child, Sprite, { size: { x: 20, y: 10 } });
+            world.setParent(child, parent);
+            core.transform_update(registry);
+            const corner = (x: number, y: number) =>
+                ({ x: 3 * (x - y) * Math.SQRT1_2, y: (x + y) * Math.SQRT1_2, z: 0 });
+            const box = entityWorldBox(world, child)!;
+            const corners = entityBoxCorners(box);
+            for (let i = 0; i < 4; i++) {
+                const expected = corner(i & 1 ? 10 : -10, i & 2 ? 5 : -5);
+                expect(corners[i].x).toBeCloseTo(expected.x);
+                expect(corners[i].y).toBeCloseTo(expected.y);
+            }
+            const pick = (x: number, y: number) => pickEntityByRay(world, {
+                origin: { ...corner(x, y), z: 20 }, dir: { x: 0, y: 0, z: -1 },
+            });
+            expect(pick(8, 4)).toBe(child);
+            expect(pick(8, 6)).toBeNull();
+            const bounds = extendEntityBoxBounds(null, box);
+            expect(bounds.maxX).toBeCloseTo(45 * Math.SQRT1_2);
+            expect(bounds.maxY).toBeCloseTo(15 * Math.SQRT1_2);
+            world.update(parent, Transform, data => { data.scale.x = -3; });
+            world.update(child, Sprite, data => { data.pivot = { x: 0, y: .5 }; });
+            core.transform_update(registry);
+            const mirrored = entityWorldBox(world, child)!;
+            expect(mirrored.cx).toBeCloseTo(-30 * Math.SQRT1_2);
+            expect(mirrored.cy).toBeCloseTo(10 * Math.SQRT1_2);
+            expect(pickEntityByRay(world, {
+                origin: { x: mirrored.cx, y: mirrored.cy, z: 20 }, dir: { x: 0, y: 0, z: -1 },
+            })).toBe(child);
+            world.update(parent, Transform, data => { data.scale.x = 0; });
+            core.transform_update(registry);
+            expect(entityWorldBox(world, child)).toBeNull();
+        } finally { app.quit({ keepRenderer: true }); }
+    });
+
     it('keeps shapes and standalone sprites in their drawn plane, and parented sprites on their 3D tilt', () => {
         const transform = { ...T(7, 0), worldRotation: turn('y', Math.PI / 2) };
         const sprite = { size: { x: 20, y: 6 }, pivot: { x: 0, y: .5 } };
