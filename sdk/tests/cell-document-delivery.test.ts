@@ -11,8 +11,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { EmbeddedBackend } from '../src/asset/Backend';
-import { createRuntimeSceneConfig, loadRuntimeScene } from '../src/runtime/runtimeLoader';
+import { createRuntimeSceneConfig, loadRuntimeScene, prepareRuntimeScene } from '../src/runtime/runtimeLoader';
 import type { SceneData } from '../src/scene/scene';
+import { connectFakeCpp } from './helpers/fakeEngine';
+import { reservePromise } from '../src/util/reservePromise';
 
 const FETCHED = 'the loader reached for the path';
 
@@ -51,4 +53,47 @@ describe('a registered scene with a document', () => {
       await expect(createRuntimeSceneConfig('cell_0_0', undefined, options).prepare!()).rejects.toThrow(/neither data nor path/);
     } finally { app.quit(); }
   });
+});
+
+it('rejects discarded scene preparation while its document fetch is pending', async () => {
+  const { app, options, fetchText } = await runtimeThatRefusesToFetch();
+  const fetched = reservePromise<string>();
+  fetchText.mockReturnValueOnce(fetched.promise);
+  const config = createRuntimeSceneConfig(doc.name, undefined, options, 'world/cell_0_0.json');
+  const phase = vi.fn();
+  config.onPhase = phase;
+  const settled = vi.fn();
+  const pending = config.prepare!().then(() => settled('prepared'), error => settled(error.name));
+  try {
+    await vi.waitFor(() => expect(fetchText).toHaveBeenCalledTimes(1));
+    config.discardPrepared!();
+    await vi.waitFor(() => expect(settled).toHaveBeenCalledWith('SceneLoadCancelled'));
+    expect(phase).not.toHaveBeenCalled();
+  } finally {
+    fetched.resolve(JSON.stringify(doc));
+    await pending;
+    app.quit();
+  }
+});
+
+it('rejects preparation on core disconnect while the next frame budget is pending', async () => {
+  const { app, options } = await runtimeThatRefusesToFetch();
+  connectFakeCpp(app.world);
+  const turn = reservePromise<void>();
+  const gate = vi.fn(() => turn.promise);
+  const settled = vi.fn();
+  const phases = vi.fn();
+  const pending = prepareRuntimeScene({ ...options, sceneData: doc, gate, onPhase: phases })
+    .then(() => settled('prepared'), error => settled(error.name));
+  try {
+    await vi.waitFor(() => expect(gate).toHaveBeenCalledTimes(1));
+    app.world.disconnectCpp();
+    await vi.waitFor(() => expect(settled).toHaveBeenCalledWith('SceneLoadCancelled'));
+    expect(phases.mock.calls.map(([phase]) => phase)).toEqual(['migrate']);
+  } finally {
+    turn.resolve();
+    await pending;
+    app.quit();
+  }
+  expect(gate).toHaveBeenCalledTimes(1);
 });

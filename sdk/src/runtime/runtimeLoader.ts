@@ -381,7 +381,7 @@ async function readRuntimeScene(
     const turn = async (): Promise<void> => {
         if (gate) {
             const began = onPhase ? performance.now() : 0;
-            await gate();
+            await attempt.waitForShared(gate);
             if (onPhase) onPhase('wait', performance.now() - began);
         }
         attempt.assertCurrent();
@@ -946,7 +946,6 @@ function createRuntimeSceneConfigWithData(
     ): Promise<ReadyScene> => {
         const assertActive = () => attempt.assertCurrent();
         assertActive();
-        const nextTurn = gate && (async () => { assertActive(); await gate(); assertActive(); });
         let data = preloadedData();
         let document: SceneDocumentOwnership = 'borrowed';
         if (!data) {
@@ -955,13 +954,12 @@ function createRuntimeSceneConfigWithData(
             // on WeChat — and only when something asks for the scene.
             if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
             const began = performance.now();
-            const text = await options.app.getResource(AssetsResource).fetchText(scenePath);
-            assertActive();
+            const text = await attempt.waitForShared(() => options.app.getResource(AssetsResource).fetchText(scenePath));
             config.onPhase?.('fetch', performance.now() - began);
             // Parsed in a frame's turn: a cell's document is the largest single piece of its preparation.
-            if (nextTurn) {
+            if (gate) {
                 const waited = performance.now();
-                await nextTurn();
+                await attempt.waitForShared(gate);
                 config.onPhase?.('wait', performance.now() - waited);
             }
             const parsed = performance.now();
@@ -987,7 +985,7 @@ function createRuntimeSceneConfigWithData(
                 document = 'borrowed';
             }
             const ready = await prepareWithAttempt({
-                ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate: nextTurn,
+                ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
                 onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
             }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
             return publishDocument ? { ...ready, publishDocument } : ready;

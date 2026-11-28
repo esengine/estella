@@ -368,12 +368,14 @@ describe('scene asset progress', () => {
     });
 
     it.each(['authoring', 'runtime'])('stops reporting %s reads when the scene is cancelled', async entry => {
-        const { app, assets, manager, started, resume, fast } = await setup(entry);
+        const { app, assets, manager, started, resume, fast, unloaded } = await setup(entry);
         const progress = vi.fn(), failed = expect(manager.load('cell', progress)).rejects.toBeInstanceOf(SceneLoadCancelled);
         try {
             await started.promise; expect(progress.mock.calls).toEqual([[0, 2]]);
             await manager.unload('cell');
-            fast.open(); resume.open(); await failed;
+            await failed;
+            fast.open(); resume.open();
+            await vi.waitFor(() => expect(unloaded).toHaveBeenCalledTimes(2));
             expect(progress.mock.calls).toEqual([[0, 2]]);
             expect(assets.sizes().refRows).toBe(0);
         } finally {
@@ -410,7 +412,7 @@ describe('scene asset progress', () => {
         } finally { fast.open(); resume.open(); await original; assets.releaseAll(); app.quit(); }
     });
 
-    it('drains in-flight preparation receipts before returning a replay failure', async () => {
+    it('returns a replay failure promptly and drains preparation receipts when the reads finish', async () => {
         const { app, assets, manager, started, fast, resume, unloaded } = await setup('runtime');
         const refused = new Error('handoff refused');
         const preparation = expect(manager.prepare('cell')).rejects.toBeInstanceOf(SceneLoadCancelled);
@@ -419,11 +421,10 @@ describe('scene asset progress', () => {
             await started.promise;
             const rejected = vi.fn();
             loading = manager.load('cell', () => { throw refused; }).catch(rejected);
-            await new Promise(resolve => setTimeout(resolve, 0));
-            expect(rejected).not.toHaveBeenCalled();
+            await vi.waitFor(() => expect(rejected).toHaveBeenCalledWith(refused));
+            expect(unloaded).not.toHaveBeenCalled();
             fast.open(); resume.open(); await Promise.all([loading, preparation]);
-            expect(rejected).toHaveBeenCalledWith(refused);
-            expect(unloaded).toHaveBeenCalledTimes(2);
+            await vi.waitFor(() => expect(unloaded).toHaveBeenCalledTimes(2));
             expect(assets.sizes().refRows).toBe(0);
             expect(manager.getLoading()).toEqual([]);
         } finally { fast.open(); resume.open(); await Promise.allSettled([loading, preparation]); assets.releaseAll(); app.quit(); }
@@ -445,7 +446,7 @@ describe('scene asset progress', () => {
     });
 
     it('detaches both observers of a direct packaged load when its owning setup is cancelled', async () => {
-        const { app, assets, options, manager, data, started, fast, resume } = await setup('runtime');
+        const { app, assets, options, manager, data, started, fast, resume, unloaded } = await setup('runtime');
         const direct = vi.fn(), caller = vi.fn();
         manager.register({ name: 'cell', setup: () => loadRuntimeScene({
             ...options, sceneName: 'cell', sceneData: data, onProgress: direct,
@@ -453,7 +454,9 @@ describe('scene asset progress', () => {
         const failed = expect(manager.load('cell', caller)).rejects.toBeInstanceOf(SceneLoadCancelled);
         try {
             await started.promise; await manager.unload('cell');
-            fast.open(); resume.open(); await failed;
+            await failed;
+            fast.open(); resume.open();
+            await vi.waitFor(() => expect(unloaded).toHaveBeenCalledTimes(2));
             expect(direct.mock.calls).toEqual([[0, 2]]);
             expect(caller.mock.calls).toEqual(direct.mock.calls);
             expect(assets.sizes().refRows).toBe(0);
@@ -510,10 +513,11 @@ describe('overlapping registered scene loads', () => {
             await began.promise;
             const waiting = manager.whenLoadsSettle();
             await manager.unload('cell'); await waiting;
-            resume.open(); await cancelled;
+            await cancelled;
+            resume.open();
+            await vi.waitFor(() => expect(unloaded).toHaveBeenCalledOnce());
             expect(spawn).not.toHaveBeenCalled();
             expect(assets.sizes().refRows).toBe(0);
-            expect(unloaded).toHaveBeenCalledOnce();
         } finally { resume.open(); await cancelled; assets.releaseAll(); app.quit(); }
     });
 
