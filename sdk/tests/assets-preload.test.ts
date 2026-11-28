@@ -240,4 +240,9 @@ describe('Assets.preload', () => {
         expect(failed).toHaveLength(1);
         expect(failed[0]).toMatchObject({ ref: 'a.broken', type: 'broken', reason: 'load-failed', error: 'boom' });
     });
+
+    it('does not start queued preloads after the progress callback resets assets', async () => {
+        await expect(assets.preload(['data/level.custom'], () => assets.releaseAll())).rejects.toThrow('Assets were released');
+        expect(customLoads).toEqual([]);
+    });
 });

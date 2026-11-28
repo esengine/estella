@@ -273,6 +273,11 @@ interface BatchAsset {
     group?: string;
 }
 
+interface AssetBatchTask {
+    group?: string;
+    run(mountFailure?: { error: unknown }): Promise<void>;
+}
+
 function scopedGroupChannel<T>(type: string, values?: (bundle: AssetBundle) => Map<string, T>): GroupAssetChannel {
     return {
         async load(assets, ref, bundle, name) {
@@ -1319,56 +1324,67 @@ export class Assets {
         this.assertLoading_();
         const epoch = this.resetEpoch_;
         const bundle = emptyBundle(scope);
-        const mountFailures = new Map<string, unknown>();
-        const tasks: Array<{ group?: string; run: () => Promise<void> }> = [];
+        const tasks: AssetBatchTask[] = [];
         for (const { ref, name, type, group } of members) {
             const channel = this.batchChannel_(type);
             if (!channel) continue;
-            const run = async () => {
-                // Progress callbacks and package mounts can outlive this asset realm.
-                this.assertLoading_(epoch);
+            tasks.push({ group, run: async mountFailure => {
                 try {
-                    if (group && mountFailures.has(group)) throw mountFailures.get(group);
+                    if (mountFailure) throw mountFailure.error;
                     await channel.load(this, ref, bundle, name);
+                } catch (error) {
+                    bundle.failed.push({ ref, type, reason: 'load-failed', error: String(error) });
                 }
-                catch (error) { bundle.failed.push({ ref, type, reason: 'load-failed', error: String(error) }); }
-            };
-            tasks.push({ group, run });
+            } });
         }
-        let loaded = 0;
-        const reportProgress = (count: number): void => {
-            this.assertLoading_(epoch);
-            onProgress?.(count, tasks.length);
-            this.assertLoading_(epoch);
-        };
         try {
-            reportProgress(0);
-            const ready: Array<() => Promise<void>> = [];
-            const lazy = new Map<string, Array<() => Promise<void>>>();
-            if (requestedGroup !== undefined && this.manifestModel_?.bundleMode(requestedGroup) === 'lazy') {
-                await this.mountSubpackage_(requestedGroup);
-                this.assertLoading_(epoch);
-            }
-            for (const { group, run } of tasks) {
-                if (group !== undefined && group !== requestedGroup && this.manifestModel_?.bundleMode(group) === 'lazy') {
-                    let groupTasks = lazy.get(group);
-                    if (!groupTasks) lazy.set(group, groupTasks = []);
-                    groupTasks.push(run);
-                } else {
-                    ready.push(run);
-                }
-            }
-            const gated = [...lazy].map(([group, tasks]) => ({
-                tasks, ready: this.mountSubpackage_(group).catch(error => { mountFailures.set(group, error); }),
-            }));
-            await runWithConcurrency(ready, RuntimeConfig.preloadConcurrency, () => reportProgress(++loaded), gated);
-            this.assertLoading_(epoch);
+            await this.runAssetBatch_(tasks, epoch, RuntimeConfig.preloadConcurrency, onProgress, requestedGroup);
         } catch (error) {
             bundle.release();
             throw error;
         }
         warnFailedLoads(bundle.failed, caller);
         return bundle;
+    }
+
+    private async runAssetBatch_(
+        tasks: readonly AssetBatchTask[], epoch: number, maxConcurrent: number,
+        onProgress?: (loaded: number, total: number) => void, requestedGroup?: string,
+    ): Promise<void> {
+        let loaded = 0;
+        const reportProgress = (count: number): void => {
+            this.assertLoading_(epoch);
+            onProgress?.(count, tasks.length);
+            this.assertLoading_(epoch);
+        };
+        reportProgress(0);
+        const ready: Array<() => Promise<void>> = [];
+        const lazy = new Map<string, Array<AssetBatchTask['run']>>();
+        if (requestedGroup !== undefined && this.manifestModel_?.bundleMode(requestedGroup) === 'lazy') {
+            await this.mountSubpackage_(requestedGroup);
+            this.assertLoading_(epoch);
+        }
+        for (const { group, run } of tasks) {
+            if (group !== undefined && group !== requestedGroup && this.manifestModel_?.bundleMode(group) === 'lazy') {
+                let groupTasks = lazy.get(group);
+                if (!groupTasks) lazy.set(group, groupTasks = []);
+                groupTasks.push(run);
+            } else {
+                ready.push(run);
+            }
+        }
+        const gated = [...lazy].map(([group, groupTasks]) => {
+            let failure: { error: unknown } | undefined;
+            return {
+                tasks: groupTasks.map(run => async () => {
+                    this.assertLoading_(epoch);
+                    await run(failure);
+                }),
+                ready: this.mountSubpackage_(group).catch(error => { failure = { error }; }),
+            };
+        });
+        await runWithConcurrency(ready, maxConcurrent, () => reportProgress(++loaded), gated);
+        this.assertLoading_(epoch);
     }
 
     /** Release the oldest outstanding bundle acquired by {@link loadGroup} for this name. */
@@ -1781,17 +1797,18 @@ export class Assets {
      * Asset types come from the manifest, catalog or project index when known,
      * falling back to file-extension matching against registered loaders. Refs whose
      * type can't be determined or that fail to resolve or load are reported
-     * in `failed`. A thrown progress callback rejects the batch.
+     * in `failed`. A thrown progress callback or an asset realm reset rejects the batch.
      */
     async preload(
         refs: ReadonlyArray<string>,
         onProgress?: (loaded: number, total: number) => void,
         options?: { readonly maxConcurrent?: number },
     ): Promise<{ failed: MissingAsset[] }> {
+        this.assertLoading_();
+        const epoch = this.resetEpoch_;
         const failed: MissingAsset[] = [];
-        const tasks: Array<() => Promise<void>> = [];
-        const mounts = new Map<string, Promise<void>>();
-        const plans = new Map<string, () => Promise<void>>();
+        const tasks: AssetBatchTask[] = [];
+        const plans = new Map<string, AssetBatchTask>();
         const reportFailure = (ref: string, error: unknown, type?: string) => {
             log.warn('asset', `preload: failed to load ${ref}`, error);
             failed.push({ ref, ...(type ? { type } : {}), reason: 'load-failed',
@@ -1821,18 +1838,16 @@ export class Assets {
                     failed.push({ ref, type, reason: 'unresolved' });
                     continue;
                 }
-                const lazy = record && this.manifestModel_?.bundleMode(record.group) === 'lazy' ? record.group : undefined;
-                const task = async () => {
-                    try {
-                        if (lazy) {
-                            const mount = mounts.get(lazy) ?? this.mountSubpackage_(lazy);
-                            mounts.set(lazy, mount);
-                            await mount;
+                const task: AssetBatchTask = {
+                    group: record?.group,
+                    async run(mountFailure) {
+                        try {
+                            if (mountFailure) throw mountFailure.error;
+                            await load();
+                        } catch (error) {
+                            reportFailure(ref, error, type);
                         }
-                        await load();
-                    } catch (error) {
-                        reportFailure(ref, error, type);
-                    }
+                    },
                 };
                 plans.set(ref, task);
                 tasks.push(task);
@@ -1841,13 +1856,8 @@ export class Assets {
             }
         }
 
-        let loadedCount = 0;
-        const totalCount = tasks.length;
-        onProgress?.(0, totalCount);
         const maxConcurrent = options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency;
-        await runWithConcurrency(tasks, maxConcurrent, () => {
-            onProgress?.(++loadedCount, totalCount);
-        });
+        await this.runAssetBatch_(tasks, epoch, maxConcurrent, onProgress);
         return { failed };
     }
 

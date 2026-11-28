@@ -452,6 +452,32 @@ describe('Assets.loadGroup', () => {
         group.release();
     });
 
+    it('preloads ready explicit refs with a single load slot while earlier refs wait for a package', async () => {
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        let finishMount!: () => void;
+        const pendingMount = new Promise<void>(resolve => { finishMount = resolve; });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockReturnValueOnce(pendingMount);
+        const progress = vi.fn();
+        const load = vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1 } as never);
+        const loading = assets.preload(['tex3.png', 'tex3.png', 'tex1.png'], progress, { maxConcurrent: 1 });
+        try {
+            await vi.waitFor(() => expect(progress.mock.calls).toEqual([[0, 3], [1, 3]]));
+            expect(load.mock.calls).toEqual([['tex1.png']]);
+            expect(mount.mock.calls).toEqual([['extra']]);
+            finishMount();
+            expect((await loading).failed).toEqual([]);
+            expect(load.mock.calls).toEqual([['tex1.png'], ['tex3.png'], ['tex3.png']]);
+            expect(progress.mock.calls).toEqual([[0, 3], [1, 3], [2, 3], [3, 3]]);
+            expect(mount).toHaveBeenCalledTimes(1);
+        } finally {
+            finishMount();
+            await loading;
+            assets.releaseAll();
+        }
+    });
+
     it('releases every successful receipt when a progress listener throws', async () => {
         const assets = createAssets();
         const release = vi.fn();
