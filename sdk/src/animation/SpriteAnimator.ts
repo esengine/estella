@@ -13,10 +13,7 @@ import type { Entity, TextureHandle } from '../types';
 import type { World } from '../ecs/world';
 import { Sprite, type SpriteData } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
-import {
-    copySpriteFrameField, restoredSpriteFramePose, sameSpriteFrameField, setSpriteFrameTexture, SPRITE_FRAME_FIELDS,
-    type SpriteFrameField, type SpriteFramePose,
-} from './spriteFrameProjection';
+import { applyTrackedSpriteFrame, restoredSpriteFramePose, type SpritePoseTracking } from './spriteFrameProjection';
 import { spriteFrameDuration } from './spriteFrameTiming';
 
 // =============================================================================
@@ -67,20 +64,6 @@ function frameDurationOf(clip: SpriteAnimClip, index: number, speed: number, fal
 
 // A paused player which restored its sprite still needs to apply the next populated clip.
 const EMPTY_CLIP_POSE = {};
-
-interface SpritePoseTracking {
-    base: SpriteFramePose;
-    projected: SpriteFramePose;
-}
-
-/** Reuse vectors owned by the snapshot. Live sprite fields never alias them. */
-function rememberSpriteField<K extends SpriteFrameField>(pose: SpriteFramePose, key: K, value: SpriteFramePose[K]): void {
-    const stored = pose[key];
-    if (stored && typeof stored === 'object' && value && typeof value === 'object') {
-        stored.x = value.x;
-        stored.y = value.y;
-    } else copySpriteFrameField(pose, key, value);
-}
 
 export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, _totalFrames: number, loop: boolean): boolean {
     // Frame-0 initial apply only. Without the `=== 0`, the completion clamp
@@ -390,28 +373,12 @@ export class SpriteAnimationAPI {
                     pose = { base: {}, projected: {} };
                     this.spritePoses.set(animator, pose);
                 }
-                for (const key of SPRITE_FRAME_FIELDS) {
-                    if (!sameSpriteFrameField(sprite[key], pose.projected[key])) rememberSpriteField(pose.base, key, sprite[key]);
+                if (applyTrackedSpriteFrame(sprite, frame, pose)) {
+                    if (direct) {
+                        writeSprite(entity, sprite);
+                        world.markChanged(entity, Sprite);
+                    } else writeProjection(world, entity, Sprite, sprite);
                 }
-                setSpriteFrameTexture(sprite, frame.texture, frame.uvOffset, frame.uvScale);
-                // No reset branch on either: the loader gives EVERY frame of an
-                // owning clip both, so absent here means the clip owns neither and
-                // what the entity authored stands.
-                if (frame.size) {
-                    sprite.size = { x: frame.size.x, y: frame.size.y };
-                }
-                if (frame.pivot) {
-                    sprite.pivot = { x: frame.pivot.x, y: frame.pivot.y };
-                }
-                pose.projected.texture = sprite.texture;
-                rememberSpriteField(pose.projected, 'uvOffset', sprite.uvOffset);
-                rememberSpriteField(pose.projected, 'uvScale', sprite.uvScale);
-                if (frame.size) rememberSpriteField(pose.projected, 'size', sprite.size);
-                if (frame.pivot) rememberSpriteField(pose.projected, 'pivot', sprite.pivot);
-                if (direct) {
-                    writeSprite(entity, sprite);
-                    world.markChanged(entity, Sprite);
-                } else writeProjection(world, entity, Sprite, sprite);
             }
 
             if (frameChanged) {

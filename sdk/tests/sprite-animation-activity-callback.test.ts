@@ -43,6 +43,23 @@ it('refreshes a replaced clip while paused without advancing its frame or firing
     app.quit();
 });
 
+it('advances frame events without writing an unchanged sprite', () => {
+    const { app, world, animation, spawn } = setup(), entity = spawn();
+    try {
+        animation.registerClip({ name: 'walk', fps: 10, loop: true, frames: [{ texture: 11 }, { texture: 11 }],
+            events: [{ frame: 1, name: 'step' }] });
+        animation.update(world, 0);
+        const event = vi.fn();
+        animation.onEvent(entity, event);
+        const stamp = vi.spyOn(world, 'markChanged');
+        animation.update(world, 0.1);
+        expect(world.get(entity, SpriteAnimator).currentFrame).toBe(1);
+        expect(event).toHaveBeenCalledWith(expect.objectContaining({ name: 'step' }), entity);
+        expect(stamp).not.toHaveBeenCalledWith(entity, Sprite);
+        stamp.mockRestore();
+    } finally { app.quit(); }
+});
+
 it.each(['self', 'ancestor', 'component'] as const)('stops event dispatch and sprite writes when a callback disables %s', target => {
     const { app, world, animation, spawn } = setup(), entity = spawn();
     const parent = world.spawn();
