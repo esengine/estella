@@ -157,6 +157,34 @@ describe('updateAssetIndex — incremental == full rescan', () => {
     await expectIncrementalEqualsFull(prev, ['assets/textures/enemy.png', 'assets/scenes/main.esscene']);
   });
 
+  it('keeps a moved asset UUID when the watcher reports only the destination', async () => {
+    const oldPath = 'assets/textures/player.png', newPath = 'assets/textures/renamed.png';
+    const { index: previous } = await scanAssetDatabase(root);
+    renameSync(path.join(root, oldPath), path.join(root, newPath));
+    renameSync(path.join(root, oldPath + '.meta'), path.join(root, newPath + '.meta'));
+
+    const result = await updateAssetIndex(root, previous, [newPath]);
+    expect(result.reminted).toEqual([]);
+    expect(result.index.entries.filter(entry => entry.uuid === TEX)).toMatchObject([{ path: newPath }]);
+    expect(result.index.entries.some(entry => entry.path === oldPath)).toBe(false);
+    expect(result.index.deps[SCENE]).toEqual([FONT, TEX].sort());
+    expect(result.index).toEqual((await scanAssetDatabase(root, { write: false })).index);
+  });
+
+  it('keeps the previous index intact when repairing a copied asset UUID', async () => {
+    const original = 'assets/textures/player.png', copy = 'assets/textures/copy.png';
+    const { index: previous } = await scanAssetDatabase(root);
+    const snapshot = structuredClone(previous);
+    writeAsset(copy, 'texture', TEX, 'COPIED PNG');
+
+    const result = await updateAssetIndex(root, previous, [copy]);
+    expect(result.fullRescan).toBe(false);
+    expect(result.reminted).toEqual([original]);
+    expect(previous).toEqual(snapshot);
+    expect(result.index.entries.find(entry => entry.uuid === TEX)?.path).toBe(copy);
+    expect(result.index).toEqual((await scanAssetDatabase(root, { write: false })).index);
+  });
+
   it('a PATH-ref that only resolves once its target is added (reverse-dep) matches full', async () => {
     // A material references a sibling texture by relative path; the texture is
     // added AFTER the material — the edge must appear once both exist, exactly as a

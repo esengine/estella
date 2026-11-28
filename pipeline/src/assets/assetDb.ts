@@ -156,7 +156,7 @@ async function resolveDuplicateUuids(
 ): Promise<string[]> {
   const owner = new Map<string, string>();
   const reminted: string[] = [];
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     const first = owner.get(entry.uuid);
     if (first === undefined) {
       owner.set(entry.uuid, entry.path);
@@ -176,7 +176,7 @@ async function resolveDuplicateUuids(
       continue;
     }
     warnings.push(`${entry.path}: shared its uuid with ${first}; re-minted as ${fresh}`);
-    entry.uuid = fresh;
+    entries[index] = { ...entry, uuid: fresh };
     owner.set(fresh, entry.path);
     reminted.push(entry.path);
   }
@@ -780,6 +780,7 @@ export async function updateAssetIndex(
   // a ref that used to dangle can now land. A REMOVAL cannot do that, so the two
   // are tracked apart; see the deps branch below for what each costs.
   let resolutionChanged = false;
+  const addedUuids = new Set<string>();
   const removedUuids = new Set<string>();
   const drop = (entry: AssetEntry | undefined, content: string): void => {
     if (!entry) return;
@@ -819,8 +820,19 @@ export async function updateAssetIndex(
       continue;
     }
     const { entry } = result;
+    if (before?.uuid !== entry.uuid) addedUuids.add(entry.uuid);
     if (!before || before.uuid !== entry.uuid || before.type !== entry.type || before.source !== entry.source) resolutionChanged = true;
     byPath.set(content, entry);
+  }
+
+  // A watcher can report only the destination of a move. Confirm that the
+  // previous owner of an incoming UUID still exists before repairing a duplicate.
+  if (addedUuids.size > 0) {
+    for (const entry of prev.entries) {
+      if (!addedUuids.has(entry.uuid) || byPath.get(entry.path) !== entry) continue;
+      const file = path.join(root, entry.path);
+      if (!existsSync(file) || !existsSync(file + META_EXT)) return full(`asset identity moved (${entry.path})`);
+    }
   }
 
   const entries = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
