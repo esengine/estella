@@ -16,6 +16,7 @@ import { bakesOf } from '../src/runtime/bakes';
 import { spawnPrepared } from '../src/prefab/preparedPrefab';
 import { defineComponent, Disabled, MeshRenderer, Parent, Sprite } from '../src/ecs/component';
 import { connectFakeCpp } from './helpers/fakeEngine';
+import type { ESEngineModule } from '../src/wasm';
 
 const setTextureMetadata = vi.hoisted(() => vi.fn());
 vi.mock('../src/wasm/resourceManager', () => ({
@@ -43,6 +44,51 @@ function barrier() {
     const promise = new Promise<void>(resolve => { open = resolve; });
     return { open, promise };
 }
+
+it.each(['discarded', 'timed out', 'completed'] as const)('reports shader readiness for a %s scene check', async mode => {
+    const { app, options, assets } = await runtime();
+    const heap = new Uint32Array(64);
+    let next = 4, compiling = 1;
+    const queued = vi.fn(() => compiling);
+    const module = {
+        HEAPU32: heap,
+        _malloc: (size: number) => { const address = next; next += size; return address; },
+        _free() {},
+        engine_prepareMeshPrograms: (_rows: number, _count: number, out: number) => { heap[out >> 2] = 1; },
+        renderer_getPendingShaders: queued,
+    } as unknown as ESEngineModule;
+    const config = createRuntimeSceneConfig('cell', scene, { ...options, module });
+    await config.prepare!();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    const settled = vi.fn();
+    const checking = config.readyRenderPrograms!().then(settled);
+    try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(queued).toHaveBeenCalledTimes(1);
+        if (mode === 'discarded') {
+            config.discardPrepared!();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(settled).toHaveBeenCalledWith({ applicable: false });
+            await vi.advanceTimersByTimeAsync(24);
+            expect(queued).toHaveBeenCalledTimes(1);
+        } else if (mode === 'timed out') {
+            await vi.advanceTimersByTimeAsync(30_016);
+            expect(settled).toHaveBeenCalledWith({ applicable: true, stamp: null });
+        } else {
+            compiling = 0;
+            await vi.advanceTimersByTimeAsync(8);
+            expect(settled).toHaveBeenCalledWith({ applicable: true, stamp: { digestLo: 0, digestHi: 0, programEpoch: 0 } });
+        }
+    } finally {
+        config.discardPrepared!();
+        compiling = 0;
+        await vi.advanceTimersByTimeAsync(40);
+        vi.useRealTimers();
+        await checking;
+        assets.releaseAll();
+        app.quit();
+    }
+});
 
 describe('scene-owned physics preparation', () => {
     it('keeps the solver out of the world when the scene rejects its asset handoff', async () => {

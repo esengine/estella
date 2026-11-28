@@ -42,7 +42,7 @@ import type { BasisTranscoder } from '../asset/compressed';
 import { SceneLoadCancelled, SceneManager, publishWhenSceneReady,
          type SceneConfig, type SceneContext, type SceneRetirement } from '../scene/sceneManager';
 import { readyMeshPrograms } from '../render/meshProgramReadiness';
-import { shadersCompiled } from '../render/shaderWarmup';
+import { waitForShaderCompiles } from '../render/shaderWarmup';
 import type { RenderReadiness } from '../render/renderReadiness';
 import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
@@ -1059,15 +1059,24 @@ function createRuntimeSceneConfigWithData(
         // The second obligation. It runs on what `prepare` decoded, so the mesh
         // references are already handles; readying from an unprepared scene would
         // describe requirements for geometry nothing has acquired.
-        async readyRenderPrograms() {
-            const prepared = currentPreparation()?.ready;
-            if (!prepared) return { applicable: false } as RenderReadiness;
-            if (gate) await gate();
-            if (currentPreparation()?.ready !== prepared) return { applicable: false } as RenderReadiness;
-            const result = readyMeshPrograms(options.module, prepared.sceneData);
-            // Queued compiles are not ready programs: where shaders compile in the background, the claim waits for them.
-            if (result.applicable) await shadersCompiled(options.module);
-            return currentPreparation()?.ready === prepared ? result : { applicable: false };
+        async readyRenderPrograms(): Promise<RenderReadiness> {
+            const pending = currentPreparation();
+            const prepared = pending?.ready;
+            if (!pending || !prepared) return { applicable: false };
+            const { attempt } = pending;
+            const current = () => attempt.isCurrent() && currentPreparation() === pending;
+            try {
+                if (gate) await attempt.waitForShared(gate);
+                if (!current()) return { applicable: false };
+                const result = readyMeshPrograms(options.module, prepared.sceneData);
+                if (!result.applicable) return result;
+                const compiled = await attempt.waitForShared(() => waitForShaderCompiles(options.module, undefined, current));
+                if (!current()) return { applicable: false };
+                return compiled ? result : { applicable: true, stamp: null };
+            } catch (error) {
+                if (error instanceof SceneLoadCancelled || !current()) return { applicable: false };
+                throw error;
+            }
         },
         discardPrepared() {
             // Speculation is not authority: what nobody asked for is given back,

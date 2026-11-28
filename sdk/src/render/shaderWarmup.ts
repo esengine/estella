@@ -79,13 +79,21 @@ export function pendingShaders(source: App | ESEngineModule | null): number {
  * Waits until no shader is compiling. For a host that asked the engine to ready programs (a scene being prepared) and wants "ready" to be true.
  * @experimental
  */
-export async function shadersCompiled(module: ESEngineModule | null, timeoutMs = 30000): Promise<boolean> {
+export function shadersCompiled(module: ESEngineModule | null, timeoutMs = 30000): Promise<boolean> {
+    return waitForShaderCompiles(module, timeoutMs);
+}
+
+/** @internal Stop polling a renderer once the request that needs it is obsolete. */
+export async function waitForShaderCompiles(
+    module: ESEngineModule | null, timeoutMs = 30000, isCurrent?: () => boolean,
+): Promise<boolean> {
     const start = now();
-    while (pendingShaders(module) > 0) {
+    while (!isCurrent || isCurrent()) {
+        if (!(pendingShaders(module) > 0)) return true;
         if (now() - start > timeoutMs) return false;
         await sleep(8);
     }
-    return true;
+    return false;
 }
 
 /**
