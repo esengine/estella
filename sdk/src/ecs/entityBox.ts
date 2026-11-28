@@ -96,7 +96,7 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
     return source ? translateBox(source.box, parallaxOffset(source.drawable?.parallax, opts?.parallaxCenter)) : null;
 }
 
-/** @internal The world translation applied by the render collect. */
+/** The world translation applied to a renderable by the presented camera. @experimental */
 export function parallaxOffset(factor?: Readonly<Vec2>, center?: Readonly<Vec2>): Vec2 | undefined {
     if (!factor || !center || (factor.x === 1 && factor.y === 1)) return undefined;
     return { x: center.x * (1 - factor.x), y: center.y * (1 - factor.y) };
