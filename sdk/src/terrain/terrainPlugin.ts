@@ -1061,11 +1061,17 @@ export class TerrainPlugin implements Plugin {
             built.table.markStale(() => true);
             app.getResource(TerrainsRes).revision_++;
         };
-        const hadPhysics = !!built.physical?.size;
-        built.physical = undefined;
-        if (hadPhysics) built.paintCollisionRevision = (built.paintCollisionRevision ?? 0) + 1;
+        const publishPhysical = (physical?: Map<string, TerrainPhysicalMaterial>) => {
+            if (!physical?.size && !built.physical?.size) return;
+            built.physical = physical?.size ? physical : undefined;
+            built.paintCollisionRevision = (built.paintCollisionRevision ?? 0) + 1;
+        };
         apply(bindings.length ? targets : undefined);
-        if (!app.hasResource(Assets) || !targets.some(row => row.info && !row.info.startsWith('builtin:'))) return;
+        if (!app.hasResource(Assets) || !targets.some(row => (row.info && !row.info.startsWith('builtin:'))
+            || (row.materialIndex >= 0 && row.physicalMaterial))) {
+            publishPhysical();
+            return;
+        }
         this.watchTerrainAssets(app);
         const assets = app.getResource(Assets), epoch = built.epoch;
         void resolvePaintInfo(app, targets).then(async rows => {
@@ -1076,10 +1082,8 @@ export class TerrainPlugin implements Plugin {
                 try { physical.set(ref, parseTerrainPhysicalMaterial(JSON.parse(await assets.fetchText(ref)))); }
                 catch { /* An unavailable physical material uses the terrain's friction. */ }
             }));
-            if (physical.size && built.epoch === epoch && built.paintKey === key) {
-                built.physical = physical;
-                built.paintCollisionRevision = (built.paintCollisionRevision ?? 0) + 1;
-            }
+            // Keep the last collision material until the replacement (or fallback) is resolved.
+            if (built.epoch === epoch && built.paintKey === key) publishPhysical(physical);
         });
     }
 

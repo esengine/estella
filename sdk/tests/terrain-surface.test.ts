@@ -5,6 +5,7 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
+import { Assets } from '../src/asset/AssetPlugin';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Transform } from '../src/ecs/component';
@@ -13,6 +14,7 @@ import { createMockModule } from './mocks/wasm';
 import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes } from '../src/terrain/terrainPlugin';
 import { TerrainSurface, TILE_CELLS } from '../src/terrain/surface';
 import { groundPaintAt } from '../src/terrain/groundQuery';
+import { defaultTerrainLayers } from '../src/terrain/paintLayers';
 import { NoiseSource, type NoiseParams } from '../src/terrain/source';
 import { makePage, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from '../src/terrain/pages';
 import { buildPatchMesh } from '../src/terrain/patch';
@@ -228,6 +230,50 @@ describe('collision tiles', () => {
         return e;
     };
     const pieces = (app: App) => [...app.getResource(CollisionGeometryRes).entries()];
+
+    it.each(['direct', 'layer info'] as const)('loads %s physical material bindings and keeps the live material during reload', async mode => {
+        const app = boot();
+        const ref = 'ground.esphysmat';
+        let invalidate = () => {};
+        let resolveReload!: (text: string) => void;
+        const reload = new Promise<string>(resolve => { resolveReload = resolve; });
+        const fetchPhysical = vi.fn(async (_path: string) => { throw new Error('Unavailable physical material'); })
+            .mockImplementationOnce(async () => JSON.stringify({ friction: 0.2, restitution: 0.4 }))
+            .mockImplementationOnce(() => reload);
+        app.insertResource(Assets, {
+            fetchText: async (path: string) => path === ref ? fetchPhysical(path)
+                : JSON.stringify({ name: path.replace('.esterrainlayerinfo', ''), blend: 'weight', physicalMaterial: ref }),
+            onInvalidate: (listener: () => void) => { invalidate = listener; return () => {}; },
+            load: () => new Promise(() => {}),
+        } as never);
+        const paintLayers = defaultTerrainLayers.map((name, slot) => ({ name, slot,
+            info: mode === 'direct' ? 'builtin:' + name : name + '.esterrainlayerinfo',
+            blend: 'weight', hardness: 0.5, physicalMaterial: mode === 'direct' ? ref : '' }));
+        const terrain = spawn(app, { extent: TerrainExtent.Area, sizeX: 64, sizeZ: 64, resolution: 17,
+            erosion: 0, friction: 0.6, collisionDistance: 1, paintLayers });
+        mover(app, 8, 8);
+        await tick(app, 12);
+        expect(fetchPhysical.mock.calls).toEqual([[ref]]);
+        const first = pieces(app);
+        expect(first).toHaveLength(1);
+        expect(first[0]![1]).toMatchObject({ friction: 0.2, restitution: 0.4 });
+
+        invalidate();
+        await tick(app, 6);
+        expect(fetchPhysical.mock.calls).toEqual([[ref], [ref]]);
+        expect(pieces(app)[0]![1]).toBe(first[0]![1]);
+
+        resolveReload(JSON.stringify({ friction: 0.8, restitution: 0.1 }));
+        await tick(app, 8);
+        expect(pieces(app)).toHaveLength(1);
+        expect(pieces(app)[0]![1]).toMatchObject({ friction: 0.8, restitution: 0.1 });
+        invalidate();
+        await tick(app, 8);
+        expect(pieces(app)[0]![1]).toMatchObject({ friction: 0.6, restitution: 0 });
+        app.world.update(terrain, Terrain, data => { data.paintLayers = []; });
+        await tick(app, 4);
+        expect(fetchPhysical).toHaveBeenCalledTimes(3);
+    });
 
     it('are owed where a mover stands until they are published, inside the area only, and no longer once the terrain goes', async () => {
         const app = boot();
