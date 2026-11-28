@@ -8,9 +8,10 @@
  * sitting beside its sprite is made of. One definition, these claims.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
-import { Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
+import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox, type EntityBox } from '../src/ecs/entityBox';
+import { Canvas, Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
+import { px } from '../src/ui/core/dimension';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
 import { App } from '../src/app/app';
 import { pickEntitiesByBounds, pickEntityByRay } from '../src/ecs/entityPick';
@@ -122,6 +123,7 @@ it('frames mixed scene geometry and keeps distant UI in its own preview projecti
             meshRenderer_localBounds: () => ({ minX: -15, minY: -10, minZ: -25, maxX: 15, maxY: 10, maxZ: 25 }),
             uiNode_computedWidth: () => 80,
             uiNode_computedHeight: () => 40,
+            ui_isScreenDomain: (_registry: unknown, entity: Entity) => entity === ent(3),
         }),
     } as never;
     const app = { world } as unknown as App;
@@ -139,6 +141,46 @@ it('frames mixed scene geometry and keeps distant UI in its own preview projecti
             expect(Math.abs(m[1] * x + m[5] * y + m[9] * z + m[13])).toBeLessThan(1);
         }
     }
+});
+
+it.skipIf(!HAS_WASM)('frames world-space UI through the world camera and plain HUD sprites through the overlay', async () => {
+    const module = await loadWasmModule();
+    const assets = Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module });
+    const app = createPreviewApp(module, { assets, design: { width: 320, height: 200 } });
+    const world = app.world;
+    try {
+        const anchor = world.spawn(), worldCanvas = world.spawn(), badge = world.spawn(), canvas = world.spawn(), decoration = world.spawn();
+        world.insert(anchor, Transform, { position: { x: 200, y: 100, z: 0 } });
+        world.insert(worldCanvas, Transform);
+        world.insert(worldCanvas, UINode, { width: px(80), height: px(60) });
+        world.insert(worldCanvas, Canvas);
+        world.setParent(worldCanvas, anchor);
+        world.insert(badge, Transform);
+        world.insert(badge, UINode, { width: px(20), height: px(10) });
+        world.setParent(badge, worldCanvas);
+        world.insert(canvas, Transform);
+        world.insert(canvas, UINode);
+        world.insert(canvas, Canvas);
+        world.insert(decoration, Transform, { position: { x: -100, y: -40, z: 0 } });
+        world.insert(decoration, Sprite, { size: { x: 12, y: 6 } });
+        world.setParent(decoration, canvas);
+        await app.tick(0);
+        const registry = world.getCppRegistry()!;
+        module.transform_update(registry);
+        expect(module.ui_isScreenDomain!(registry, badge)).toBe(false);
+        expect(module.ui_isScreenDomain!(registry, decoration)).toBe(true);
+
+        const badgeOnly = framePreview(app, [badge], 320, 200)!;
+        expect(badgeOnly.screen).toBeNull();
+        const hudOnly = framePreview(app, [decoration], 320, 200)!;
+        expect(hudOnly.screen).not.toBeNull();
+        const both = framePreview(app, [badge, decoration], 320, 200)!;
+        expect(both.world).toEqual(badgeOnly.world);
+        expect(both.screen).toEqual(hudOnly.screen);
+        const center = (m: Float32Array, box: EntityBox) => [m[0] * box.cx + m[12], m[5] * box.cy + m[13]];
+        for (const value of center(both.world, uiNodeWorldBox(world, badge)!)) expect(value).toBeCloseTo(0, 4);
+        for (const value of center(both.screen!, entityWorldBox(world, decoration)!)) expect(value).toBeCloseTo(0, 4);
+    } finally { app.quit({ keepRenderer: true }); }
 });
 
 it('frames a sprite, shape and mesh equally whether they share an entity or not', () => {

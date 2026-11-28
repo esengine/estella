@@ -36,6 +36,7 @@ import { textPlugin } from '../ui/text/plugin';
 import { inlineImagePlugin } from '../ui/text/inline-image-plugin';
 import { uiRenderOrderPlugin } from '../ui/render/render-order';
 import { holdUIHelpersBinding } from '../ui/util/helpers';
+import { isScreenEntity } from '../ui/util/ui-pick';
 import { meshRendererPlugin } from '../render/meshRenderer';
 import { entryPlugin } from '../runtime/entryPlugins';
 import { ScreenLayout, screenLayoutRect } from '../ui/core/screen-layout';
@@ -132,23 +133,30 @@ function fitFraming({ minX, minY, maxX, maxY }: EntityBoxBounds, aspect: number,
 
 /**
  * Frame @p entities for a @p w × @p h picture, the way the asset previews are framed:
- * UI to its laid-out boxes in layout pixels, a mesh from off-axis (or @p orbit) to its
- * bounds, anything flat head-on. Null when nothing visible among them has an extent.
+ * Screen content fits the overlay in layout pixels, while world content uses an
+ * off-axis view (or @p orbit) when it includes a mesh, and head-on otherwise.
+ * Null when nothing visible among them has an extent.
  * @experimental
  */
 export function framePreview(app: App, entities: readonly Entity[], w: number, h: number,
                              orbit: PreviewOrbit = DEFAULT_PREVIEW_ORBIT): PreviewFraming | null {
     const world = app.world;
     const aspect = w / h;
-    const { uiBounds, boxes, hasMesh } = withSpriteBounds(world, readSprite => {
-        let uiBounds: EntityBoxBounds | null = null;
+    const { screenBounds, boxes, hasMesh } = withSpriteBounds(world, readSprite => {
+        let screenBounds: EntityBoxBounds | null = null;
         const boxes: EntityBox[] = [];
         let hasMesh = false;
+        // UI elements and sprites can draw in either pass, including plain
+        // sprites parented under a screen Canvas without a layout component.
+        const includeInDrawDomain = (entity: Entity, box: EntityBox) => {
+            if (isScreenEntity(world, entity)) screenBounds = extendEntityBoxBounds(screenBounds, box);
+            else boxes.push(box);
+        };
         for (const e of entities) {
             if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
             if (world.has(e, UINode)) {
                 const box = uiNodeWorldBox(world, e);
-                if (box) uiBounds = extendEntityBoxBounds(uiBounds, box);
+                if (box) includeInDrawDomain(e, box);
                 continue;
             }
             if (world.has(e, MeshRenderer) && world.get(e, MeshRenderer).enabled !== false) {
@@ -164,14 +172,14 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                 const transform = world.get(e, Transform);
                 if (sprite && sprite.enabled !== false) {
                     const box = readSprite(e, transform, sprite);
-                    if (box) boxes.push(box);
+                    if (box) includeInDrawDomain(e, box);
                 }
                 if (shape && shape.enabled !== false) boxes.push(shapeWorldBox(transform, shape));
             }
         }
-        return { uiBounds, boxes, hasMesh };
+        return { screenBounds, boxes, hasMesh };
     });
-    const screen = uiBounds ? fitFraming(uiBounds, aspect, -1e6, 1e6) : null;
+    const screen = screenBounds ? fitFraming(screenBounds, aspect, -1e6, 1e6) : null;
     const view = hasMesh ? invertViewOrbit(0, 0, 0, orbit.yaw * Math.PI / 180, orbit.pitch * Math.PI / 180, 0) : undefined;
     let sceneBounds: EntityBoxBounds | null = null;
     for (const box of boxes) sceneBounds = extendEntityBoxBoundsInFrame(sceneBounds, box, view);
