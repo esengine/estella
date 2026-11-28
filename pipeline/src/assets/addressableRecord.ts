@@ -33,7 +33,9 @@ export function addressableKeys(sources: Iterable<Pick<RecordSource, 'uuid' | 'p
 
 /** The authored runtime fields shared by editor Play, packaged builds and embedded playables. */
 export function addressableRecord(source: RecordSource, size: number, keys: ReadonlyMap<string, AddressableKey>): AddressableManifestAsset {
-  const entry: AddressableManifestAsset = { path: source.path, type: addrType(source.type), size, labels: source.labels ?? [] };
+  const entry: AddressableManifestAsset = {
+    path: source.path, type: addrType(source.type, source.sourcePath ?? source.path), size, labels: source.labels ?? [],
+  };
   if (source.sourcePath && source.sourcePath !== source.path) entry.address = source.sourcePath;
   const texture = textureImportSettingsFrom(source.importer);
   if (texture) entry.textureImport = texture;

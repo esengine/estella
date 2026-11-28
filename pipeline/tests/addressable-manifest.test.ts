@@ -108,6 +108,26 @@ describe('buildAddressableManifest — texture import settings', () => {
     expect(asset.textureImport).toBeUndefined();
   });
 
+  it('preloads staged legacy sprite clips and timelines through their own loaders', async () => {
+    const sprite = { ...SLICED, type: 'animation', sourcePath: 'assets/art/idle.ESANIM', path: 'ca/sprite.bin' };
+    const timeline = { ...PLAIN, type: 'animation', sourcePath: 'assets/camera/intro.estimeline', path: 'ca/camera.bin' };
+    const manifest = await build([sprite, timeline]);
+    const records = manifest.groups.main.assets;
+    expect(records[sprite.uuid.toLowerCase()].type).toBe('anim-clip');
+    expect(records[timeline.uuid.toLowerCase()].type).toBe('timeline');
+    const { catalog } = indexPackagedManifest(manifest);
+    const assets = Assets.create({ backend: {} as never, catalog, manifest, module: null });
+    const loads: Array<[string, string]> = [];
+    for (const type of ['anim-clip', 'timeline']) {
+      assets.register({ type, extensions: [], load: async file => { loads.push([type, file]); return {}; }, unload() {} });
+    }
+    try {
+      const refs = [sprite, timeline].map(entry => `@uuid:${entry.uuid.toLowerCase()}`);
+      expect((await assets.preload(refs, undefined, { maxConcurrent: 1 })).failed).toEqual([]);
+      expect(loads).toEqual([['anim-clip', sprite.path], ['timeline', timeline.path]]);
+    } finally { assets.releaseAll(); }
+  });
+
   it('is answerable by every ref spelling once the runtime indexes it', async () => {
     const manifest = await build([{ ...SLICED, sourcePath: 'assets/ui/Button_Red.png', path: 'ca/9f3a1b.png' }]);
     const { ManifestModel } = await import('../../sdk/src/asset/AddressableManifest');

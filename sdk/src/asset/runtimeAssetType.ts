@@ -26,7 +26,9 @@ export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
     'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'proc', 'rig', 'curves',
 ]);
 
-export function runtimeAssetTypeFromMetadata(type: string): string {
+export function runtimeAssetTypeFromMetadata(type: string, path?: string): string {
+    // Older projects used one metadata name for sprite clips and timelines.
+    if (type === 'animation' && path?.split(/[?#]/, 1)[0].toLowerCase().endsWith('.esanim')) return 'anim-clip';
     if (UNLOADED_META_TYPES.has(type)) return UNLOADED_TYPE;
     return Object.prototype.hasOwnProperty.call(LOADER_TYPE_OF_META_TYPE, type) ? LOADER_TYPE_OF_META_TYPE[type] : type;
 }

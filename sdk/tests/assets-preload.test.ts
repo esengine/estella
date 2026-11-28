@@ -187,6 +187,18 @@ describe('Assets.preload', () => {
         } finally { assets.releaseAll(); }
     });
 
+    it('uses the resolved filename to distinguish legacy animation references', async () => {
+        const clip = '@uuid:legacy-clip';
+        const url = 'https://example.test/idle.ESANIM?v=1';
+        assets.setAssetRefResolver(ref => ref === clip ? url : ref, ref => ref === clip ? 'animation' : undefined);
+        const load = vi.fn(async (path: string) => ({ path }));
+        assets.register({ type: 'anim-clip', extensions: [], load, unload: vi.fn() });
+        try {
+            expect((await assets.preload([clip])).failed).toEqual([]);
+            expect(load.mock.calls.map(([path]) => path)).toEqual([url]);
+        } finally { assets.releaseAll(); }
+    });
+
     it('infers URL types from the pathname and loads with the original query and fragment', async () => {
         const ref = 'https://cdn.example/data/level.CUSTOM?revision=build.42#source';
         const unknown = 'https://cdn.example/data/opaque?name=level.custom';

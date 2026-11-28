@@ -1822,7 +1822,7 @@ export class Assets {
         if (manifestType) return manifestType;
         const indexed = this.hostAssetType_?.(ref);
         if (indexed) {
-            const type = runtimeAssetTypeFromMetadata(indexed);
+            const type = runtimeAssetTypeFromMetadata(indexed, path);
             if (type === UNLOADED_TYPE || this.loaders_.has(type)) return type;
         }
         const suffix = path.search(/[?#]/);
