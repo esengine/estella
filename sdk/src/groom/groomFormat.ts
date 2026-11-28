@@ -108,16 +108,16 @@ function hasGroomCards(cards: Partial<GroomCardsLod> | undefined): cards is Part
 }
 
 /** Map the asset fields read by the groom, retaining the authored document's other fields. */
-export function mapGroomAssetRefs(document: unknown, map: (ref: string) => string): void {
+export function mapGroomAssetRefs(document: unknown, map: (ref: string, kind: 'curves' | 'mesh' | 'material') => string): void {
     const groom = document as Partial<GroomDocument> | null;
     if (groom?.type !== 'groom') return;
-    if (!groomGrowth(groom) && typeof groom.curves === 'string' && groom.curves) groom.curves = map(groom.curves);
+    if (!groomGrowth(groom) && typeof groom.curves === 'string' && groom.curves) groom.curves = map(groom.curves, 'curves');
     if (hasGroomCards(groom.cards)) {
-        groom.cards.mesh = map(groom.cards.mesh);
-        groom.cards.material = map(groom.cards.material);
+        groom.cards.mesh = map(groom.cards.mesh, 'mesh');
+        groom.cards.material = map(groom.cards.material, 'material');
     }
     for (const group of Array.isArray(groom.groups) ? groom.groups : []) {
-        if (typeof group?.material === 'string' && group.material) group.material = map(group.material);
+        if (typeof group?.material === 'string' && group.material) group.material = map(group.material, 'material');
     }
 }
 

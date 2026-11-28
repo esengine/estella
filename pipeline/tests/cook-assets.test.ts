@@ -16,6 +16,9 @@ import { encodeRgbaPng } from '../src/assets/png';
 import { encodeGrey16 } from '../src/assets/png16';
 import { readKtx2Layout } from '../src/assets/ktx2Mips';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
+import { encodeMesh } from '../../sdk/src/asset/meshFormat';
+import { emptyCurveSet, encodeCurves } from '../../sdk/src/groom/groomFormat';
+import { buildGroomCards } from '../../sdk/src/groom/groomCards';
 import { noisePng } from './fixtures/solidPng.mjs';
 
 interface AssetManifest {
@@ -334,7 +337,7 @@ describe('cookAssets (A4)', () => {
     }
   });
 
-  it.each(['MeshRenderer', 'Mesh2D'])('on Auto, writes KTX2 for %s and keeps the sprite image as PNG', async type => {
+  it.each(['MeshRenderer', 'Mesh2D', 'Groom'])('on Auto, writes KTX2 for %s and keeps the sprite image as PNG', async type => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-ktx2-'));
     try {
       const TEX = '77777777-7777-4777-8777-777777777777';
@@ -352,9 +355,21 @@ describe('cookAssets (A4)', () => {
       const SPRITE = '77777777-7777-4777-8777-777777777779';
       wa('t/logo.png', 'texture', TEX, png);
       wa('t/sprite.png', 'texture', SPRITE, png);
+      if (type === 'Groom') {
+        const curves = { groups: [{ name: 'Coat', guides: emptyCurveSet(), strands: {
+          counts: new Uint16Array([2]), positions: new Float32Array([0, 0, 0, 0, 0.05, 0]), radii: new Float32Array([0.001, 0.0005]),
+        } }] };
+        wa('t/coat.esgroom', 'groom', 'coat', JSON.stringify({ type: 'groom', curves: 'coat.escurves',
+          cards: { mesh: 'cards.esmesh', material: 'cards.esmaterial' } }));
+        wa('t/coat.escurves', 'curves', 'curves', Buffer.from(encodeCurves(curves)));
+        wa('t/cards.esmesh', 'mesh', 'cards-mesh', Buffer.from(encodeMesh(buildGroomCards(curves))));
+        wa('t/cards.esmaterial', 'material', 'cards-material', JSON.stringify({ type: 'material', shader: 'builtin:hair',
+          properties: { u_flowMap: 'logo.png' } }));
+      }
+      const data = type === 'Groom' ? { groom: 't/coat.esgroom' } : { mesh: 'builtin:cube', texture: `@uuid:${TEX}` };
       wa('s/main.esscene', 'scene', SC, JSON.stringify({
         version: '1.0', name: 's', entities: [
-          { id: 1, name: 'E', parent: null, children: [], components: [{ type, data: { mesh: 'builtin:cube', texture: `@uuid:${TEX}` } }] },
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type, data }] },
           { id: 2, name: 'S', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${SPRITE}` } }] },
         ],
       }));

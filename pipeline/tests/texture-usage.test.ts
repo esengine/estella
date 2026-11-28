@@ -111,6 +111,32 @@ describe('texturesDrawnIn3D', () => {
     expect(reads.sort()).toEqual(['a.esmaterial', 'b.esmaterial', 's.esscene']);
   });
 
+  it('classifies strand and card textures through groom overrides and inherited materials', async () => {
+    const entries = [entry('scene', 'assets/main.esscene', 'scene'), entry('groom', 'assets/hair/actor.esgroom', 'groom'),
+      entry('strands', 'assets/hair/strands', 'material'), entry('cards', 'assets/hair/cards', 'material'),
+      entry('base', 'assets/surfaces/coat.esmaterial', 'material'), entry('unused', 'assets/hair/unused.esmaterial', 'material'),
+      ...['normal', 'albedo', 'hud', 'swatch'].map(name => entry(name, `assets/surfaces/${name}.png`, 'texture'))];
+    const files: Record<string, unknown> = {
+      'assets/main.esscene': { entities: [{ components: [{ type: 'Sprite', data: { texture: '@uuid:hud' } }], overrides: [
+        { type: 'property', componentType: 'Groom', propertyName: 'groom', value: 'hair/actor.esgroom' },
+      ] }, { components: [{ type: 'Groom', data: { groom: '@uuid:groom' } }] }] },
+      'assets/hair/actor.esgroom': { type: 'groom', curves: 'curves', groups: [{ material: 'strands' }],
+        cards: { mesh: 'cardMesh', material: './cards' }, note: 'unused.esmaterial' },
+      'assets/hair/strands': { instanceOf: '../surfaces/coat.esmaterial', properties: { normal: 0 } },
+      'assets/hair/cards': { instanceOf: '@uuid:base', properties: { albedo: 0 } },
+      'assets/surfaces/coat.esmaterial': { properties: { albedo: 'albedo.png', normal: 'normal.png' } },
+      'assets/hair/unused.esmaterial': { properties: { preview: '@uuid:swatch' } },
+    };
+    const reads: string[] = [];
+    const roles = await meshTextureRoles('/p', entries, async file => { reads.push(file); return JSON.stringify(files[file]); });
+    expect([...roles.entries()].sort(([a], [b]) => a.localeCompare(b))).toEqual([
+      ['albedo', new Set(['surface'])], ['normal', new Set(['surface'])],
+    ]);
+    expect(reads.filter(file => file === 'assets/hair/actor.esgroom')).toHaveLength(1);
+    expect(reads.filter(file => file === 'assets/surfaces/coat.esmaterial')).toHaveLength(1);
+    expect(reads).not.toContain('assets/hair/unused.esmaterial');
+  });
+
   it('bounds pending document and material reads while still visiting every mesh', async () => {
     const count = 96;
     const entries = Array.from({ length: count }, (_, i) => [

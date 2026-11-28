@@ -18,13 +18,14 @@ import path from 'node:path';
 import type { ComponentData, PrefabOverride } from '../../../sdk/src/prefab/types';
 import type { AssetEntry } from './assetDb';
 import { addrType } from './addressableRecord';
-import { findDocumentAsset } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { COMPONENT_META } from '../../../sdk/src/ecs/component.generated';
 import { canonicalComponentType } from '../../../sdk/src/scene/legacyComponents';
 import { readMaterialProperty } from '../../../sdk/src/render/materialProperty';
 import type { MaterialAssetData } from '../../../sdk/src/render/material';
 import { runWithConcurrency } from '../../../sdk/src/util/runWithConcurrency';
+import { mapGroomAssetRefs } from '../../../sdk/src/groom/groomFormat';
 
 const SCAN_IO_CONCURRENCY = 48;
 
@@ -70,9 +71,15 @@ function visitComponentFields(doc: Documented, visit: (type: string, fields: Rec
 
 type MaterialDocument = Partial<Pick<MaterialAssetData, 'instanceOf' | 'properties'>>;
 
+interface MaterialBindings {
+  parent?: AssetEntry;
+  /** A null texture is a uniform override that masks the ancestor's texture. */
+  properties: Array<[name: string, texture: string | null]>;
+}
+
 /**
- * The uuids of the textures a mesh in @p entries' scenes and prefabs draws, directly
- * or through its material. @p read supplies a document's text (the project file
+ * The uuids of the textures drawn by meshes and grooms in scenes and prefabs,
+ * directly or through their materials. @p read supplies a document's text (the project file
  * by default).
  */
 export async function texturesDrawnIn3D(
@@ -104,6 +111,7 @@ export async function meshTextureRoles(
     drawn.set(uuid, roles);
   };
   const materials = new Set<AssetEntry>();
+  const grooms = new Set<AssetEntry>();
   const docs = entries.filter((e) => e.type === 'scene' || e.type === 'prefab');
   await runWithConcurrency(docs.map(doc => async () => {
     let parsed: Documented;
@@ -115,6 +123,10 @@ export async function meshTextureRoles(
     if (!parsed) return;
     visitComponentFields(parsed, (authoredType, data) => {
       const type = canonicalComponentType(authoredType);
+      if (type === 'Groom' && typeof data?.groom === 'string') {
+        const groom = resolve(data.groom, doc.path);
+        if (groom?.type === 'groom') grooms.add(groom);
+      }
       for (const field of COMPONENT_META[type]?.assetFields ?? []) {
         // Baked lighting participates in compression but the renderer does not stream it by texel density.
         const lightmap = type === 'MeshLightmap' && field.field === 'lightmap';
@@ -128,14 +140,42 @@ export async function meshTextureRoles(
     });
   }), SCAN_IO_CONCURRENCY);
 
-  const files = new Map<AssetEntry, Promise<MaterialDocument | null>>();
-  const materialFile = (entry: AssetEntry): Promise<MaterialDocument | null> => {
+  await runWithConcurrency(Array.from(grooms, groom => async () => {
+    let document: unknown;
+    try { document = JSON.parse(await read(groom.path)); }
+    catch { return; }
+    mapGroomAssetRefs(document, (ref, kind) => {
+      if (kind === 'material') {
+        const material = resolve(resolveDocumentRef(groom.path, ref), '');
+        if (material?.type === 'material') materials.add(material);
+      }
+      return ref;
+    });
+  }), SCAN_IO_CONCURRENCY);
+
+  const files = new Map<AssetEntry, Promise<MaterialBindings | null>>();
+  const materialBindings = (entry: AssetEntry): Promise<MaterialBindings | null> => {
     let pending = files.get(entry);
     if (!pending) {
-      pending = Promise.resolve()
-        .then(() => read(entry.path))
-        .then(text => JSON.parse(text) as MaterialDocument)
-        .catch(() => null);
+      pending = (async () => {
+        try {
+          const doc = JSON.parse(await read(entry.path)) as MaterialDocument | null;
+          if (!doc) return null;
+          const properties: MaterialBindings['properties'] = [];
+          for (const [name, value] of Object.entries(doc.properties ?? {})) {
+            const uniform = readMaterialProperty(value);
+            if (uniform === undefined) continue;
+            if (typeof uniform !== 'string') {
+              properties.push([name, null]);
+              continue;
+            }
+            const texture = resolve(uniform, entry.path, 'document');
+            if (texture && addrType(texture.type) === 'texture') properties.push([name, texture.uuid]);
+          }
+          const parent = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, entry.path, 'document') : undefined;
+          return { properties, parent: parent?.type === 'material' ? parent : undefined };
+        } catch { return null; }
+      })();
       files.set(entry, pending);
     }
     return pending;
@@ -145,21 +185,14 @@ export async function meshTextureRoles(
     let current: AssetEntry | undefined = leaf;
     while (current && !chain.has(current)) {
       chain.add(current);
-      const doc = await materialFile(current);
-      if (!doc) break;
-      for (const [name, value] of Object.entries(doc.properties ?? {})) {
+      const bindings = await materialBindings(current);
+      if (!bindings) break;
+      for (const [name, texture] of bindings.properties) {
         if (bound.has(name)) continue;
-        const uniform = readMaterialProperty(value);
-        if (uniform === undefined) continue;
-        if (typeof uniform === 'string') {
-          const texture = resolve(uniform, current.path, 'document');
-          if (!texture || addrType(texture.type) !== 'texture') continue;
-          draw(texture.uuid, 'surface');
-        }
+        if (texture !== null) draw(texture, 'surface');
         bound.add(name);
       }
-      const parent: AssetEntry | undefined = typeof doc.instanceOf === 'string' ? resolve(doc.instanceOf, current.path, 'document') : undefined;
-      current = parent?.type === 'material' ? parent : undefined;
+      current = bindings.parent;
     }
   }), SCAN_IO_CONCURRENCY);
   return drawn;
