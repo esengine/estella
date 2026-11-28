@@ -12,6 +12,7 @@ import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline, type Track } from '../src/timeline/TimelineTypes';
 import { sampleTimelineSpriteFrames } from '../src/timeline/timelineSpriteFrames';
+import type { SequenceLayer } from '../src/timeline/timelineSequences';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -37,6 +38,31 @@ it('reads long frame timings only after their target can accept the frame', () =
     const rebound = (_root: number, path: string) => path === 'missing' ? 3 : null;
     expect(sampleTimelineSpriteFrames(asset, 400, 1, rebound, texture, accepts).get(3)?.track).toBe(tracks[0]);
     expect(readDuration).toHaveBeenCalledTimes(6402);
+});
+
+const spriteTimeline = (tracks: Track[]) => ({ version: '1.3', type: 'timeline' as const, duration: 512, wrapMode: WrapMode.Once, tracks });
+
+function repeatedLayers(frames: AnimFramesTrack['frames'], count: number): SequenceLayer[] {
+    const asset = spriteTimeline([{ ...track(''), frames }]);
+    const clip = { start: 0, duration: 512, timeline: 'shared', root: '', speed: 1, loop: true };
+    return Array.from({ length: count }, (_, i) => ({ key: `${i}/`, asset, ref: 'shared', time: 400, clip, root: i + 2 }));
+}
+
+it('shares timing scans across repeated nested layers while sampling each target and reading edits on the next call', () => {
+    let duration = 0.125;
+    const readDuration = vi.fn(() => duration);
+    const frames = Array.from({ length: 4096 }, (_, i) => ({ texture: String(i), get duration() { return readDuration(); } }));
+    const layers = repeatedLayers(frames, 3);
+    layers[2]!.time = 100;
+    const image = (ref: string, layer?: SequenceLayer) => ({ texture: Number(ref) + layer!.root * 10000 });
+    const sample = () => sampleTimelineSpriteFrames(spriteTimeline([]), 400, 1, () => null, image, () => true, layers);
+    const first = sample();
+    expect([...first.values()].map(row => [row.frame, row.texture])).toEqual([[3200, 23200], [3200, 33200], [800, 40800]]);
+    expect(readDuration).toHaveBeenCalledTimes(3201 + 801);
+
+    duration = 0.25;
+    const edited = sample();
+    expect([...edited.values()].map(row => row.frame)).toEqual([1600, 1600, 400]);
 });
 
 describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {

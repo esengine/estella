@@ -43,12 +43,18 @@ export function sampleTimelineSpriteFrames(
     accepts: (entity: Entity) => boolean, layers: readonly SequenceLayer[] = [],
 ): Map<Entity, TimelineSpriteFrame> {
     const samples = new Map<Entity, TimelineSpriteFrame>();
+    // A nested clip can be instanced on many targets. Its timing belongs to the
+    // frame list, while its texture publication still belongs to each layer.
+    const timings = layers.length ? new Map<AnimFramesTrack['frames'], { time: number; frame: number }>() : undefined;
     const sample = (source: TimelineAsset, targetRoot: Entity, localTime: number, layer?: SequenceLayer) => {
         for (const track of source.tracks ?? []) {
             if (track.type !== TrackType.AnimFrames || track.muted || track.frames.length === 0) continue;
             const target = track.childPath ? resolveChild(targetRoot, track.childPath) : targetRoot;
             if (target === null || !accepts(target)) continue;
-            const frame = frameIndexAt(track, localTime);
+            const previous = timings?.get(track.frames);
+            const reused = previous && previous.time === localTime;
+            const frame = reused ? previous.frame : frameIndexAt(track, localTime);
+            if (!reused) timings?.set(track.frames, { time: localTime, frame });
             if (frame < 0) continue;
             const image = textureFor(track.frames[frame].texture, layer);
             if (image?.texture) samples.set(target, { ...image, track, layer: layer?.key ?? '', frame });
