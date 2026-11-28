@@ -168,12 +168,23 @@ describe('a tree fitted to the pages there are', () => {
         expect(fitted.nodes).toEqual(selectNodes(island(fitted.share), -300, 119, -640));
     });
 
+    it('returns the complete minimum-range selection when even that exceeds the budget', () => {
+        const fitted = fitRange(island, -300, 119, -640, 1);
+        expect(fitted.share).toBeLessThanOrEqual(0.01);
+        expect(fitted.nodes.length).toBeGreaterThan(1);
+        expect(fitted.nodes).toEqual(selectNodes(island(fitted.share), -300, 119, -640));
+        const atFloor = fitRange(island, -300, 119, -640, 1, fitted.share);
+        expect(atFloor.nodes).toEqual(selectNodes(island(atFloor.share), -300, 119, -640));
+    });
+
     it('holds what it settled on, and takes range back only with room to spare', () => {
         const settled = fitRange(island, -300, 119, -640, 765).share;
         expect(fitRange(island, -300, 119, -640, 765, settled).share).toBe(settled);
         // A budget just over what the next step up wants is not room: one far over it is.
         const next = selectNodes(island(settled / 0.9), -300, 119, -640).length;
         expect(fitRange(island, -300, 119, -640, next + 1, settled).share).toBe(settled);
-        expect(fitRange(island, -300, 119, -640, next * 2, settled).share).toBeCloseTo(settled / 0.9, 9);
+        const expanded = fitRange(island, -300, 119, -640, next * 2, settled);
+        expect(expanded.share).toBeCloseTo(settled / 0.9, 9);
+        expect(expanded.nodes).toEqual(selectNodes(island(expanded.share), -300, 119, -640));
     });
 });

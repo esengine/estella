@@ -46,6 +46,11 @@ export function levelRange(p: Pick<QuadtreeParams, 'range0'>, level: number): nu
  * infinite ground) is covered by exactly one node.
  */
 export function selectNodes(p: QuadtreeParams, ex: number, ey: number, ez: number): TerrainNode[] {
+    return selectWithinBudget(p, ex, ey, ez, Infinity);
+}
+
+/** A candidate over budget only needs one extra node to prove it cannot fit. */
+function selectWithinBudget(p: QuadtreeParams, ex: number, ey: number, ez: number, budget: number): TerrainNode[] {
     const out: TerrainNode[] = [];
     const top = p.levels - 1;
     const topSize = p.leafSize * 2 ** top;
@@ -58,19 +63,25 @@ export function selectNodes(p: QuadtreeParams, ex: number, ey: number, ez: numbe
     }
     const i0 = Math.floor(minX / topSize), i1 = Math.ceil(maxX / topSize) - 1;
     const k0 = Math.floor(minZ / topSize), k1 = Math.ceil(maxZ / topSize) - 1;
-    for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) visit(p, top, i, k, ex, ey, ez, out);
+    for (let k = k0; k <= k1; k++) for (let i = i0; i <= i1; i++) {
+        if (visit(p, top, i, k, ex, ey, ez, out, budget)) return out;
+    }
     return out;
 }
 
-function visit(p: QuadtreeParams, level: number, ix: number, iz: number, ex: number, ey: number, ez: number, out: TerrainNode[]): void {
+function visit(p: QuadtreeParams, level: number, ix: number, iz: number, ex: number, ey: number, ez: number,
+    out: TerrainNode[], budget: number): boolean {
     const size = p.leafSize * 2 ** level;
     const x0 = ix * size, z0 = iz * size;
-    if (p.bounds && (x0 >= p.bounds[2] || z0 >= p.bounds[3] || x0 + size <= p.bounds[0] || z0 + size <= p.bounds[1])) return;
+    if (p.bounds && (x0 >= p.bounds[2] || z0 >= p.bounds[3] || x0 + size <= p.bounds[0] || z0 + size <= p.bounds[1])) return false;
     if (level === 0 || boxDistance(x0, z0, size, p.minHeight, p.maxHeight, ex, ey, ez) > levelRange(p, level - 1)) {
         out.push({ level, ix, iz, x0, z0, size });
-        return;
+        return out.length > budget;
     }
-    for (let dz = 0; dz < 2; dz++) for (let dx = 0; dx < 2; dx++) visit(p, level - 1, ix * 2 + dx, iz * 2 + dz, ex, ey, ez, out);
+    for (let dz = 0; dz < 2; dz++) for (let dx = 0; dx < 2; dx++) {
+        if (visit(p, level - 1, ix * 2 + dx, iz * 2 + dz, ex, ey, ez, out, budget)) return true;
+    }
+    return false;
 }
 
 /** How far the eye is from a node's box (its square, from the least to the most height). */
@@ -96,6 +107,7 @@ export function nodeKey(level: number, ix: number, iz: number): string {
 /** How much a fit that is over its budget gives up at a time, and how far under the budget the next step up has to be before it is taken back. */
 const FIT_STEP = 0.9;
 const FIT_ROOM = 0.85;
+const MIN_SHARE = 0.01;
 
 /**
  * The share of its `range0` a tree (`tree(share)`) can keep and still draw the eye's ground in `most` nodes: a node is a page, and a tree
@@ -104,16 +116,19 @@ const FIT_ROOM = 0.85;
  * room to spare, so an eye moving along the edge of the budget does not change the ground every frame.
  */
 export function fitRange(tree: (share: number) => QuadtreeParams, ex: number, ey: number, ez: number, most: number, held = 1): { share: number; nodes: TerrainNode[] } {
-    let share = Math.min(Math.max(held, 0.01), 1);
-    let nodes = selectNodes(tree(share), ex, ey, ez);
-    while (nodes.length > most && share > 0.01) {
+    // The final selection must remain whole even if nothing fits at the minimum range.
+    const select = (share: number) => selectWithinBudget(tree(share), ex, ey, ez, share > MIN_SHARE ? most : Infinity);
+    let share = Math.min(Math.max(held, MIN_SHARE), 1);
+    let nodes = select(share);
+    while (nodes.length > most && share > MIN_SHARE) {
         share *= FIT_STEP;
-        nodes = selectNodes(tree(share), ex, ey, ez);
+        nodes = select(share);
     }
     if (share < 1 && nodes.length <= most) {
         const up = Math.min(share / FIT_STEP, 1);
-        const more = selectNodes(tree(up), ex, ey, ez);
-        if (more.length <= most * FIT_ROOM) return { share: up, nodes: more };
+        const room = most * FIT_ROOM;
+        const more = selectWithinBudget(tree(up), ex, ey, ez, room);
+        if (more.length <= room) return { share: up, nodes: more };
     }
     return { share, nodes };
 }
