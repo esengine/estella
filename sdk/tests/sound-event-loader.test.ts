@@ -43,6 +43,14 @@ describe('sound event asset loading', () => {
         await expect(new SoundEventAssetLoader().load('steps.esaudioevent', makeContext('{'))).rejects.toThrow('steps.esaudioevent:');
     });
 
+    it('resolves relative clips from the authored event and preserves indexed project-first names', async () => {
+        const ctx = makeContext(JSON.stringify({ version: 1, clips: ['../audio/impact.wav', 'common.wav', 'local', '@uuid:other'].map(clip => ({ clip })) }));
+        ctx.sourceAddressOf = () => 'assets/events/hit.esaudioevent';
+        ctx.assetTypeOf = ref => ['common.wav', 'assets/events/common.wav', 'assets/events/local'].includes(ref) ? 'audio' : undefined;
+        const loaded = await new SoundEventAssetLoader().load('blobs/a.esaudioevent', ctx);
+        expect(loaded.clips.map(slot => slot.clip)).toEqual(['assets/audio/impact.wav', 'common.wav', 'assets/events/local', '@uuid:other']);
+    });
+
     it('loads through the registered Assets lifetime and cache', async () => {
         const fetchText = vi.fn(async () => JSON.stringify(document));
         const backend = { fetchText, fetchBinary: async () => new ArrayBuffer(0), resolveUrl: (path: string) => path,

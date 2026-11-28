@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, expect, it } from 'vitest';
-import { mkdtempSync, writeFileSync, renameSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, renameSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase } from '../src/assets/assetDb';
@@ -14,6 +14,34 @@ afterEach(() => {
         if (path.dirname(path.resolve(root)) !== path.resolve(tmpdir())) throw new Error('Unexpected fixture root');
         rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
+});
+
+it('stages the indexed audio candidates of a nested event using their logical paths', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'estella-sound-event-paths-')); roots.push(root);
+    const put = (file: string, uuid: string, type: string, data: string) => {
+        const absolute = path.join(root, file);
+        mkdirSync(path.dirname(absolute), { recursive: true });
+        writeFileSync(absolute, data);
+        writeFileSync(absolute + '.meta', JSON.stringify({ uuid, type, version: '2.0', importer: {} }));
+    };
+    put('assets/events/hit.esaudioevent', 'event', 'json', JSON.stringify({ version: 1, clips: [
+        { clip: 'impact', weight: 1 }, { clip: '../audio/alt.wav', weight: 0 },
+    ], editorNote: './unused.wav' }));
+    put('assets/events/impact', 'impact', 'audio', 'audio fixture');
+    put('assets/audio/alt.wav', 'alt', 'audio', 'audio fixture');
+    put('assets/events/unused.wav', 'unused', 'audio', 'audio fixture');
+    put('main.esscene', 'scene', 'scene', JSON.stringify({ version: 4, entities: [{ id: 1, parent: null, children: [],
+        components: [{ type: 'SoundEventSource', data: { event: '@uuid:event' } }],
+    }] }));
+    expect((await scanAssetDatabase(root, { write: false })).index.deps.event).toEqual(['alt', 'impact']);
+    const cooked = await cookAssets(root, { entryScenes: ['main.esscene'], outDir: 'build', contentAddressed: true });
+    expect(cooked.ok, cooked.warnings.join('\n')).toBe(true);
+    expect(cooked.included.slice().sort()).toEqual(['alt', 'event', 'impact', 'scene']);
+    const manifest = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8'));
+    const staged = manifest.entries.find((row: { uuid: string }) => row.uuid === 'event');
+    expect(JSON.parse(readFileSync(path.join(cooked.outDir, staged.path), 'utf8'))).toMatchObject({
+        clips: [{ clip: 'assets/events/impact', weight: 1 }, { clip: 'assets/audio/alt.wav', weight: 0 }], editorNote: './unused.wav',
+    });
 });
 
 it.each(['json', 'sound-event', 'orphan'])('keeps every candidate and moved UUID reference with %s metadata', async meta => {

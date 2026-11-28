@@ -46,6 +46,7 @@ import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
 import { bitmapFontMetricsField, type BitmapFontDocument } from '../../../sdk/src/asset/bitmapFontDocument';
 import { mapGroomAssetRefs } from '../../../sdk/src/groom/groomFormat';
+import { isSoundEventPath, mapSoundEventClipRefs } from '../../../sdk/src/audio/soundEventRefs';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { parseTerrainTiles, terrainTileImageRefs, terrainTileSizeError } from '../../../sdk/src/terrain/tileDocument';
 import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
@@ -1028,6 +1029,20 @@ export async function cookAssets(
           data = rewriteGroomRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: groom ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (entry.type === 'sound-event' || isSoundEventPath(entry.path)) {
+        try {
+          const event: unknown = JSON.parse(Buffer.from(data).toString('utf8').replace(/^\uFEFF/, ''));
+          let changed = false;
+          mapSoundEventClipRefs(event, ref => {
+            const resolved = logicalRef(ref, entry.path, byPath, 'project');
+            changed ||= resolved !== ref;
+            return resolved;
+          });
+          if (changed) data = new TextEncoder().encode(JSON.stringify(event, null, 2) + '\n');
+        } catch (err) {
+          warnings.push(`${entry.path}: sound event ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Animator controllers: the clips their motions play → logical project paths.

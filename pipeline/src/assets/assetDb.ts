@@ -43,6 +43,7 @@ import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 import { parseTerrainTiles, terrainTileImageRefs } from '../../../sdk/src/terrain/tileDocument';
 import { mapGroomAssetRefs } from '../../../sdk/src/groom/groomFormat';
+import { isSoundEventPath, mapSoundEventClipRefs } from '../../../sdk/src/audio/soundEventRefs';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -345,7 +346,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
 }
 
 /** Reuse candidates while the file stamp matches, including edits that preserve mtime. */
-const CANDIDATE_CACHE_VERSION = 10;
+const CANDIDATE_CACHE_VERSION = 11;
 interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; ctimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
@@ -419,7 +420,7 @@ async function computeDeps(
 ): Promise<{ deps: Record<string, string[]>; warnings: string[] }> {
   const refEntries = (targets ?? entries).filter(
     // A texture that is a recipe names what it is drawn from: the pictures it lays in, its font files, the picture it is a map of.
-    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e) || isAudioRecipe(e)
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e) || isAudioRecipe(e) || isSoundEventPath(e.path)
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   // A content-only edit to an ordinary texture or audio file cannot introduce
@@ -463,6 +464,8 @@ async function computeDeps(
       });
     } else if (type === 'groom') {
       mapGroomAssetRefs(json, ref => { found.add(ref); return ref; });
+    } else if (type === 'sound-event' || isSoundEventPath(rel)) {
+      mapSoundEventClipRefs(json, ref => { found.add(ref); return ref; });
     } else {
       collectCandidates(json, found, type, named);
     }
