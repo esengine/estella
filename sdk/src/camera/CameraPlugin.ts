@@ -726,7 +726,7 @@ function commitCamera(
     if (!cam) {
         if (commit.valid) {
             commit.valid = false;
-            cameraCommitChanged();
+            cameraCommitChanged(commit);
         }
         return;
     }
@@ -747,7 +747,7 @@ function commitCamera(
     commit.vpH = uiCam.vpH;
     commit.revision = uiCam.revision;
     commit.valid = true;
-    if (moved) cameraCommitChanged();
+    if (moved) cameraCommitChanged(commit);
 }
 
 /** Exact: the question is whether the projection moved, not whether two cameras

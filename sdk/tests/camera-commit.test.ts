@@ -450,6 +450,7 @@ describe('the camera a frame was drawn with', () => {
             await app.tick(1 / 60);
             expect(commit.cullingMask).toBe(0x80000000);
             expect(callback).toHaveBeenCalledOnce();
+            expect(callback.mock.calls[0][0]).toBe(commit);
         } finally { off(); }
     });
 
@@ -464,6 +465,24 @@ describe('the camera a frame was drawn with', () => {
             await app.tick(1 / 60);
             expect(app.getResource(PresentedCameraView).screenToWorld(400, 300)).toBeNull();
             expect(callback).toHaveBeenCalledTimes(1);
+            expect(callback.mock.calls[0][0]).toBe(app.getResource(CameraCommit));
+        } finally { off(); }
+    });
+
+    it('identifies which app presented a camera when two apps draw', async () => {
+        const first = bootWithCamera().app;
+        const second = bootWithCamera(undefined, 64).app;
+        const sources = vi.fn();
+        const off = onCameraCommitChanged(sources);
+        try {
+            await first.tick(1 / 60);
+            await second.tick(1 / 60);
+            const firstCommit = first.getResource(CameraCommit);
+            const secondCommit = second.getResource(CameraCommit);
+            expect(firstCommit).not.toBe(secondCommit);
+            expect(sources).toHaveBeenCalledTimes(2);
+            expect(sources.mock.calls[0][0]).toBe(firstCommit);
+            expect(sources.mock.calls[1][0]).toBe(secondCommit);
         } finally { off(); }
     });
 

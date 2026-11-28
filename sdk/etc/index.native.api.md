@@ -2384,7 +2384,7 @@ vpY: number
 
 ## CameraCommitListener — type @beta
 ```
-() => void
+(source?: Readonly<CameraCommitData>) => void
 ```
 
 ## CameraData — interface @beta
@@ -8578,7 +8578,8 @@ rank: DrawRank
 
 ## PickWorld — type @experimental
 ```
-LayoutWorld & Pick<World, 'getAllEntities'> & Partial<Pick<World, 'getEntitiesWithComponents'>>
+LayoutWorld & Pick<World, 'getAllEntities'>
+    & Partial<Pick<World, 'getEntitiesWithComponents' | 'resolveGetter' | 'speculating'>>
 ```
 
 ## PickableWorld — type @experimental
@@ -17135,7 +17136,7 @@ BreakablePlugin
 
 ## cameraCommitChanged — function @beta
 ```
-(): void
+(source?: Readonly<CameraCommitData>): void
 ```
 
 ## cameraDirectorReport — function @experimental
@@ -17420,7 +17421,7 @@ Plugin
 
 ## computeStreaming — function @experimental
 ```
-(cells: readonly StreamCell[], focusX: number, focusY: number, loadRadius: number, unloadRadius: number, active: ReadonlySet<string>, focusZ?: number): StreamDecision
+(cells: Iterable<StreamCell>, focusX: number, focusY: number, loadRadius: number, unloadRadius: number, active: ReadonlySet<string>, focusZ?: number): StreamDecision
 ```
 
 ## connect — function @beta

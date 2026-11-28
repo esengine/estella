@@ -48,9 +48,10 @@ export interface CameraCommitData {
  * A commit happens on every drawn frame, so "a commit happened" says nothing
  * about what is on screen. Told the other question instead: looking for it on a
  * clock of one's own is a poll that never sleeps, or a change that lands late.
+ * The camera plugin supplies its app's resource, including when it becomes invalid.
  * @beta
  */
-export type CameraCommitListener = () => void;
+export type CameraCommitListener = (source?: Readonly<CameraCommitData>) => void;
 
 const listeners = new Set<CameraCommitListener>();
 
@@ -61,8 +62,8 @@ export function onCameraCommitChanged(fn: CameraCommitListener): () => void {
 }
 
 /** Announce a change. Called by the camera plugin, after the submit. @beta */
-export function cameraCommitChanged(): void {
-    for (const fn of [...listeners]) fn();
+export function cameraCommitChanged(source?: Readonly<CameraCommitData>): void {
+    for (const fn of [...listeners]) fn(source);
 }
 
 /** The last drawn camera, as a resource. @beta */

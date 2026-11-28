@@ -140,6 +140,7 @@ tilesets: LoadedTilemapTileset[]
 
 ## LoadedTilemapTileset — interface @experimental
 ```
+atlasSize: { width: number; height: number; } | undefined
 columns: number
 firstId: number
 margin: number
