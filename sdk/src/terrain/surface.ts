@@ -13,6 +13,7 @@
  */
 import type { TerrainSource } from './source';
 import { copyCollisionPatchIndices, TERRAIN_PATCH_CELLS } from './patchTopology';
+import { clipSurfaceTile } from './surfaceTileClip';
 
 /** Cells along a collision tile's side. */
 export const TILE_CELLS = TERRAIN_PATCH_CELLS;
@@ -71,9 +72,12 @@ export class TerrainSurface {
         return c && { height: triangleHeight(c), normal: triangleNormal(c, this.cell) };
     }
 
-    /** Tile (tx, tz)'s triangles, or null while a node of it is not known yet. */
+    /** Tile (tx, tz)'s triangles inside the ground, or null off it or while a node is unknown. */
     tile(tx: number, tz: number): SurfaceTile | null {
         const n = TILE_CELLS, side = n + 1;
+        const x0 = tx * n * this.cell, z0 = tz * n * this.cell, span = n * this.cell;
+        const bounds = this.source.bounds;
+        if (bounds && (x0 >= bounds[2] || x0 + span <= bounds[0] || z0 >= bounds[3] || z0 + span <= bounds[1])) return null;
         const positions = new Float32Array(side * side * 3);
         for (let k = 0; k <= n; k++) for (let i = 0; i <= n; i++) {
             const h = this.node(tx * n + i, tz * n + k);
@@ -83,7 +87,9 @@ export class TerrainSurface {
             positions[at + 1] = h;
             positions[at + 2] = k * this.cell;
         }
-        return { x0: tx * n * this.cell, z0: tz * n * this.cell, positions, indices: copyCollisionPatchIndices() };
+        const tile = { x0, z0, positions, indices: copyCollisionPatchIndices() };
+        return bounds && (x0 < bounds[0] || x0 + span > bounds[2] || z0 < bounds[1] || z0 + span > bounds[3])
+            ? clipSurfaceTile(tile, bounds) : tile;
     }
 
     /**

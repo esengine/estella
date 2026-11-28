@@ -343,13 +343,19 @@ describe('collision tiles', () => {
 
     it('cover an area only where it is, including its last partial tile', async () => {
         const app = boot();
-        spawn(app, { extent: TerrainExtent.Area, sizeX: 100, sizeZ: 100, resolution: 65 });
+        spawn(app, { extent: TerrainExtent.Area, sizeX: 101, sizeZ: 101, resolution: 65, collisionDistance: 200 });
         mover(app, 49, 49);
         await tick(app, 20);
         const terrains = app.getResource(TerrainsRes);
-        expect(terrains.collisionReadyAt(49.5, 49.5)).toBe(true);
-        expect(terrains.heightAt(51, 0)).toBeNull();
-        for (const [, piece] of pieces(app)) expect(piece.origin[0]).toBeLessThan(50);
+        expect(terrains.collisionReadyAt(50.25, 50.25)).toBe(true);
+        const collision = (x: number, z: number) => pieces(app).map(([, piece]) => onPiece(piece, x, z)).find(h => h !== null);
+        for (const [x, z] of [[50.25, 50.25], [-50.25, 49.5], [49.5, -50.25], [-50.25, -50.25], [50.5, -50.5]] as const) {
+            expect(collision(x, z)).toBeCloseTo(terrains.heightAt(x, z)!, 4);
+        }
+        for (const [x, z] of [[50.75, 49.5], [-50.75, 49.5], [49.5, 50.75], [49.5, -50.75]] as const) {
+            expect(terrains.heightAt(x, z)).toBeNull();
+            expect(collision(x, z)).toBeUndefined();
+        }
     });
 });
 
