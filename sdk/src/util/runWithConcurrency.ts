@@ -16,16 +16,17 @@ interface GatedTasks {
 /**
  * Start lazy tasks with at most `maxConcurrent` in flight. Report each completion
  * while the batch is running. Gated tasks become eligible together when ready.
- * On error, wait for active tasks before rejecting.
+ * On error or cancellation, stop dispatch and wait for active tasks before rejecting.
  */
 export async function runWithConcurrency(
     tasks: readonly Task[],
     maxConcurrent: number,
     onEach?: () => void,
     gated: readonly GatedTasks[] = [],
+    signal?: AbortSignal,
 ): Promise<void> {
     const total = gated.reduce((count, batch) => count + batch.tasks.length, tasks.length);
-    if (!total) return;
+    if (!total && !gated.length) return;
     const queued = gated.length ? [...tasks] : undefined;
     let cursor = 0;
     let remaining = gated.length;
@@ -42,6 +43,7 @@ export async function runWithConcurrency(
         failure ??= { error };
         wake();
     };
+    const cancel = (): void => fail(signal?.reason);
     for (const batch of gated) {
         void batch.ready.then(() => {
             if (failure) return;
@@ -67,10 +69,14 @@ export async function runWithConcurrency(
             fail(error);
         }
     };
-    const slots = Math.min(normalizeConcurrency(maxConcurrent), total);
-    for (let i = 0; i < slots; i++) {
-        workers.push(worker());
+    if (signal?.aborted) cancel();
+    else signal?.addEventListener('abort', cancel);
+    try {
+        const slots = Math.min(normalizeConcurrency(maxConcurrent), Math.max(total, 1));
+        for (let i = 0; i < slots; i++) workers.push(worker());
+        await Promise.all(workers);
+        if (failure) throw failure.error;
+    } finally {
+        signal?.removeEventListener('abort', cancel);
     }
-    await Promise.all(workers);
-    if (failure) throw failure.error;
 }

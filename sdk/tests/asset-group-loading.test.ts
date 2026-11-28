@@ -478,6 +478,42 @@ describe('Assets.loadGroup', () => {
         }
     });
 
+    it.each(['group', 'label', 'explicit'] as const)('settles an abandoned %s load while its shared package is still mounting', async kind => {
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        let mounted!: () => void;
+        const pending = new Promise<void>(resolve => { mounted = resolve; });
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockReturnValueOnce(pending);
+        const acquire = vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture', generation: 1, value: { handle: 1 }, release: vi.fn(),
+        } as never);
+        const load = vi.spyOn(assets, 'loadTexture').mockResolvedValue({ handle: 1 } as never);
+        const start = () => kind === 'group' ? assets.loadGroup('extra')
+            : kind === 'label' ? assets.loadByLabel('gameplay') : assets.preload(['tex3.png']);
+        const abandoned = start();
+        const settled = vi.fn();
+        void abandoned.then(() => settled('fulfilled'), error => settled(error));
+        try {
+            await vi.waitFor(() => expect(mount.mock.calls).toEqual([['extra']]));
+            assets.releaseAll();
+            await vi.waitFor(() => expect(settled).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Assets were released') })));
+            expect(acquire).not.toHaveBeenCalled();
+            expect(load).not.toHaveBeenCalled();
+            const current = start();
+            mounted();
+            const result = await current;
+            expect(result.failed).toEqual([]);
+            expect(mount).toHaveBeenCalledTimes(1);
+            expect(acquire.mock.calls.length + load.mock.calls.length).toBe(1);
+            if ('release' in result) result.release();
+        } finally {
+            mounted();
+            await abandoned.catch(() => {});
+            assets.releaseAll();
+        }
+    });
+
     it('releases every successful receipt when a progress listener throws', async () => {
         const assets = createAssets();
         const release = vi.fn();
@@ -524,6 +560,21 @@ describe('Assets.loadGroup', () => {
         vi.spyOn(assets, 'acquireTexture').mockResolvedValue({ key: 'texture:x', generation: 1, value: { handle: 1, width: 1, height: 1 }, release: () => {} } as any);
         await assets.loadGroup('extra'); // createManifest: 'extra' is bundleMode 'lazy'
         expect(sub).toHaveBeenCalledWith('extra');
+    });
+
+    it('still waits for the host when explicitly loading an empty lazy group', async () => {
+        const assets = createAssets();
+        const manifest = createManifest();
+        manifest.groups.extra.assets = {};
+        assets.setManifest(manifest);
+        const mount = vi.mocked(platform.platformLoadSubpackage);
+        mount.mockClear().mockRejectedValueOnce(new Error('empty package unavailable'));
+        try {
+            await expect(assets.loadGroup('extra')).rejects.toThrow('empty package unavailable');
+            const result = await assets.loadGroup('extra');
+            expect(result.scope.size).toBe(0);
+            expect(mount.mock.calls).toEqual([['extra'], ['extra']]);
+        } finally { assets.releaseAll(); }
     });
 
     /**

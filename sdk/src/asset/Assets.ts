@@ -84,6 +84,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
+import { createAbort, type AbortHandle } from '../util/abort';
 import { normalizeConcurrency, runWithConcurrency } from '../util/runWithConcurrency';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
 import type { MaterialAssetData } from '../render/material';
@@ -278,6 +279,10 @@ interface AssetBatchTask {
     run(mountFailure?: { error: unknown }): Promise<void>;
 }
 
+function assetResetError(): Error {
+    return new Error('Assets were released while loading; this request has no owner. Load it again.');
+}
+
 function scopedGroupChannel<T>(type: string, values?: (bundle: AssetBundle) => Map<string, T>): GroupAssetChannel {
     return {
         async load(assets, ref, bundle, name) {
@@ -452,6 +457,7 @@ export class Assets {
     private module_: ESEngineModule | null;
     private readonly subpackages_ = new Map<string, Promise<void>>();
     private readonly groupScopes_ = new Map<string, Set<AssetScope>>();
+    private readonly pendingBatchWaits_ = new Set<AbortHandle>();
     private manifestModel_: ManifestModel | null = null;
     private readonly manifestBindings_ = new ManifestBindingHistory();
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
@@ -503,7 +509,7 @@ export class Assets {
 
     private assertLoading_(epoch = this.resetEpoch_): void {
         if (this.releasing_ || epoch !== this.resetEpoch_) {
-            throw new Error('Assets were released while loading; this request has no owner. Load it again.');
+            throw assetResetError();
         }
     }
     private genericCache_ = new Map<string, PreparedAssetCache>();
@@ -1360,12 +1366,12 @@ export class Assets {
         reportProgress(0);
         const ready: Array<() => Promise<void>> = [];
         const lazy = new Map<string, Array<AssetBatchTask['run']>>();
+        // A direct group request mounts even an empty subpackage.
         if (requestedGroup !== undefined && this.manifestModel_?.bundleMode(requestedGroup) === 'lazy') {
-            await this.mountSubpackage_(requestedGroup);
-            this.assertLoading_(epoch);
+            lazy.set(requestedGroup, []);
         }
         for (const { group, run } of tasks) {
-            if (group !== undefined && group !== requestedGroup && this.manifestModel_?.bundleMode(group) === 'lazy') {
+            if (group !== undefined && this.manifestModel_?.bundleMode(group) === 'lazy') {
                 let groupTasks = lazy.get(group);
                 if (!groupTasks) lazy.set(group, groupTasks = []);
                 groupTasks.push(run);
@@ -1375,16 +1381,23 @@ export class Assets {
         }
         const gated = [...lazy].map(([group, groupTasks]) => {
             let failure: { error: unknown } | undefined;
+            const mount = this.mountSubpackage_(group);
             return {
                 tasks: groupTasks.map(run => async () => {
                     this.assertLoading_(epoch);
                     await run(failure);
                 }),
-                ready: this.mountSubpackage_(group).catch(error => { failure = { error }; }),
+                ready: group === requestedGroup ? mount : mount.catch(error => { failure = { error }; }),
             };
         });
-        await runWithConcurrency(ready, maxConcurrent, () => reportProgress(++loaded), gated);
-        this.assertLoading_(epoch);
+        const waiting = gated.length ? createAbort() : undefined;
+        if (waiting) this.pendingBatchWaits_.add(waiting);
+        try {
+            await runWithConcurrency(ready, maxConcurrent, () => reportProgress(++loaded), gated, waiting?.signal);
+            this.assertLoading_(epoch);
+        } finally {
+            if (waiting) this.pendingBatchWaits_.delete(waiting);
+        }
     }
 
     /** Release the oldest outstanding bundle acquired by {@link loadGroup} for this name. */
@@ -2996,6 +3009,8 @@ export class Assets {
         // Pending loads lose ownership even if a user-provided unload throws.
         this.resetEpoch_++;
         try {
+            for (const waiting of this.pendingBatchWaits_) waiting.abort(assetResetError());
+            this.pendingBatchWaits_.clear();
             this.projectLocales_?.clear();
             this.sceneTextureImports_.clear();
             disposeAll([
