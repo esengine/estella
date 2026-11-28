@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { entityWorldBox, entityWorldSelectionGeometry, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox, type EntityBox } from '../src/ecs/entityBox';
 import { Canvas, Parent, Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
-import { UINode } from '../src/ui/core/ui-node';
+import { UIDisplay, UINode } from '../src/ui/core/ui-node';
 import { px } from '../src/ui/core/dimension';
 import { createPreviewApp, framePreview } from '../src/app/previewApp';
 import { App } from '../src/app/app';
@@ -180,6 +180,48 @@ it.skipIf(!HAS_WASM)('frames world-space UI through the world camera and plain H
         const center = (m: Float32Array, box: EntityBox) => [m[0] * box.cx + m[12], m[5] * box.cy + m[13]];
         for (const value of center(both.world, uiNodeWorldBox(world, badge)!)) expect(value).toBeCloseTo(0, 4);
         for (const value of center(both.screen!, entityWorldBox(world, decoration)!)) expect(value).toBeCloseTo(0, 4);
+    } finally { app.quit({ keepRenderer: true }); }
+});
+
+it.skipIf(!HAS_WASM)('excludes a hidden layout subtree even while it retains its last resolved bounds', async () => {
+    const module = await loadWasmModule();
+    const assets = Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module });
+    const app = createPreviewApp(module, { assets, design: { width: 320, height: 200 } });
+    const world = app.world;
+    try {
+        const canvas = world.spawn();
+        world.insert(canvas, Transform);
+        world.insert(canvas, UINode);
+        world.insert(canvas, Canvas);
+        const layoutChild = (parent: Entity, width: number, height: number) => {
+            const node = world.spawn();
+            world.insert(node, Transform);
+            world.insert(node, UINode, { width: px(width), height: px(height) });
+            world.setParent(node, parent);
+            return node;
+        };
+        const badge = layoutChild(canvas, 20, 10);
+        const panel = layoutChild(canvas, 200, 120);
+        const child = layoutChild(panel, 190, 100);
+        const registry = world.getCppRegistry()!;
+        const update = async () => { await app.tick(0); module.transform_update(registry); };
+        const preview = (...entities: Entity[]) => framePreview(app, entities, 320, 200);
+
+        await update();
+        const shown = preview(badge, child);
+        expect(shown).not.toEqual(preview(badge));
+        world.removeParent(panel);
+        world.update(panel, UINode, node => { node.display = UIDisplay.None; });
+        await update();
+        expect(module.getUINodeHiddenInTree!(registry, child)).toBe(true);
+        expect(uiNodeWorldBox(world, child)).not.toBeNull();
+        expect(preview(child)).toBeNull();
+        expect(preview(badge, child)).toEqual(preview(badge));
+
+        world.update(panel, UINode, node => { node.display = UIDisplay.Flex; });
+        world.setParent(panel, canvas);
+        await update();
+        expect(preview(badge, child)).toEqual(shown);
     } finally { app.quit({ keepRenderer: true }); }
 });
 

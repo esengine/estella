@@ -48,6 +48,7 @@ import { loadOwnedSceneWithAssets } from '../scene/scene';
 import type { SceneData } from '../scene/scene';
 import type { Entity } from '../types';
 import { Transform, MeshRenderer, ShapeRenderer, Sprite } from '../ecs/component';
+import { worldEngineApi } from '../ecs/bridge/engineApi';
 import { UINode } from '../ui/core/ui-node';
 import { extendEntityBoxBounds, extendEntityBoxBoundsInFrame, meshWorldBox, shapeWorldBox, uiNodeWorldBox, withSpriteBounds, type EntityBox, type EntityBoxBounds } from '../ecs/entityBox';
 import { ortho, invertViewOrbit, multiply } from '../math/mat4';
@@ -142,6 +143,8 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
                              orbit: PreviewOrbit = DEFAULT_PREVIEW_ORBIT): PreviewFraming | null {
     const world = app.world;
     const aspect = w / h;
+    const engine = worldEngineApi(world);
+    const registry = world.getCppRegistry();
     const { screenBounds, boxes, hasMesh } = withSpriteBounds(world, readSprite => {
         let screenBounds: EntityBoxBounds | null = null;
         const boxes: EntityBox[] = [];
@@ -155,6 +158,8 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
         for (const e of entities) {
             if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
             if (world.has(e, UINode)) {
+                // Detached UI can retain its old layout size even when its subtree stops drawing.
+                if (registry && engine?.getUINodeHiddenInTree?.(registry, e)) continue;
                 const box = uiNodeWorldBox(world, e);
                 if (box) includeInDrawDomain(e, box);
                 continue;
