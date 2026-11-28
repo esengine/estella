@@ -90,7 +90,7 @@ it('reads and picks a mesh through the native engine arena without a WASM module
         expect(meshWorldBox(world, ent(2))).toBeNull();
         expect(pickEntityByRay(world, { origin: { x: 15, y: 0, z: 30 }, dir: { x: 0, y: 0, z: -1 } })).toBe(ent(1));
         expect(fill).toHaveBeenCalledWith(ent(1), 4);
-        expect(free.mock.calls).toEqual([[4], [4], [4], [4]]);
+        expect(free.mock.calls).toEqual([[4], [4], [4]]);
         fill.mockClear();
         const opts = { parallaxCenter: { x: 20, y: 6 } };
         expect(entityWorldSelectionGeometry(world, ent(1), opts)).toMatchObject({
@@ -100,6 +100,10 @@ it('reads and picks a mesh through the native engine arena without a WASM module
             box: { cx: 25, cy: 7, cz: 0, hd: 0 }, drawOffset: { x: 20, y: 3 },
         });
         expect(fill.mock.calls).toEqual([[ent(1), 4], [ent(3), 4]]);
+        free.mockClear();
+        expect(() => pickEntitiesByBounds(world, () => { throw new Error('selection cancelled'); }))
+            .toThrow('selection cancelled');
+        expect(free.mock.calls).toEqual([[4]]);
     } finally { setNativeEngineApi(null); }
 });
 

@@ -16,7 +16,6 @@ import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { v3 } from '../math/vec3';
 import { worldEngineApi, type EngineApi } from './bridge/engineApi';
-import { withMalloc } from '../wasm/wasmScratch';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -195,41 +194,54 @@ export function resolveEntityWorldBox(
 
 type SpriteBoundsReader = (entity: Entity, transform: TransformData, sprite: SpriteData) => EntityBox | null;
 
-/** @internal Share one lazily allocated render-matrix buffer for a synchronous bounds traversal. */
-export function withSpriteBounds<T>(world: ReadableWorld, use: (read: SpriteBoundsReader) => T): T {
-    const core = world as Partial<LayoutWorld>;
+type BoundsCopy = (registry: unknown, entity: Entity, pointer: number) => boolean;
+type BoundsScratchReader = (api: EngineApi, copy: BoundsCopy, registry: unknown, entity: Entity) => Float32Array | null | undefined;
+
+/** Borrow one lazily allocated buffer during a synchronous bounds traversal. */
+function withBoundsScratch<T>(length: number, use: (read: BoundsScratchReader) => T): T {
     let owner: EngineApi | null = null;
     let pointer = 0;
-    let matrix: Float32Array | undefined;
+    let view: Float32Array | undefined;
     const release = () => {
         if (pointer) owner?._free?.(pointer);
         pointer = 0;
-        matrix = undefined;
+        view = undefined;
     };
-    const readMatrix = (entity: Entity): Float32Array | null | undefined => {
-        if (!core.getWasmModule || !core.getCppRegistry) return undefined;
-        const api = worldEngineApi(core as LayoutWorld);
+    const read: BoundsScratchReader = (api, copy, registry, entity) => {
         if (api !== owner) {
             release();
             owner = api;
         }
-        const registry = core.getCppRegistry();
-        if (!api?.transform_copyFlatRenderMatrix || !api._malloc || !api._free || !api.HEAPU8 || !registry) return undefined;
-        if (!pointer) {
-            pointer = api._malloc(64);
-            if (!pointer) throw new Error('Could not allocate sprite transform scratch.');
-        }
-        if (!api.transform_copyFlatRenderMatrix(registry, entity, pointer)) return null;
-        const heap = api.HEAPU8;
+        pointer ||= api._malloc!(length * Float32Array.BYTES_PER_ELEMENT);
+        if (!pointer) return undefined;
+        if (!copy.call(api, registry, entity, pointer)) return null;
+        const heap = api.HEAPU8!;
         const offset = heap.byteOffset + pointer;
-        if (matrix?.buffer !== heap.buffer || matrix.byteOffset !== offset) matrix = new Float32Array(heap.buffer, offset, 16);
-        return matrix;
+        if (view?.buffer !== heap.buffer || view.byteOffset !== offset) view = new Float32Array(heap.buffer, offset, length);
+        return view;
     };
     try {
-        return use((entity, transform, sprite) => spriteWorldBox(world, entity, transform, sprite, readMatrix));
+        return use(read);
     } finally {
         release();
     }
+}
+
+/** @internal Share one lazily allocated render-matrix buffer for a synchronous bounds traversal. */
+export function withSpriteBounds<T>(world: ReadableWorld, use: (read: SpriteBoundsReader) => T): T {
+    const core = world as Partial<LayoutWorld>;
+    return withBoundsScratch(16, read => {
+        const readMatrix = (entity: Entity): Float32Array | null | undefined => {
+            if (!core.getWasmModule || !core.getCppRegistry) return undefined;
+            const api = worldEngineApi(core as LayoutWorld);
+            const registry = core.getCppRegistry();
+            if (!api?.transform_copyFlatRenderMatrix || !api._malloc || !api._free || !api.HEAPU8 || !registry) return undefined;
+            const matrix = read(api, api.transform_copyFlatRenderMatrix, registry, entity);
+            if (matrix === undefined) throw new Error('Could not allocate sprite transform scratch.');
+            return matrix;
+        };
+        return use((entity, transform, sprite) => spriteWorldBox(world, entity, transform, sprite, readMatrix));
+    });
 }
 
 function spriteWorldBox(
@@ -324,22 +336,30 @@ interface LocalBounds {
     maxX: number; maxY: number; maxZ?: number;
 }
 
+type MeshBoundsReader = (entity: Entity) => LocalBounds | null;
+
+/** @internal Read current mesh geometry with one buffer per synchronous traversal. */
+export function withMeshBounds<T>(world: LayoutWorld, use: (read: MeshBoundsReader) => T): T {
+    return withBoundsScratch(6, read => use(entity => {
+        const registry = world.getCppRegistry();
+        if (!registry) return null;
+        const api = worldEngineApi(world);
+        if (api?.meshRenderer_copyLocalBounds && api.HEAPU8 && api._malloc && api._free) {
+            const values = read(api, api.meshRenderer_copyLocalBounds, registry, entity);
+            if (values === null) return null;
+            if (values) return { minX: values[0], minY: values[1], minZ: values[2],
+                maxX: values[3], maxY: values[4], maxZ: values[5] };
+        }
+        // Older Web builds and adapters may only expose the object binding.
+        const web = world.getWasmModule() as {
+            meshRenderer_localBounds?(registry: unknown, entity: number): LocalBounds | null;
+        } | null;
+        return web?.meshRenderer_localBounds?.(registry, entity) ?? null;
+    }));
+}
+
 function meshLocalBounds(world: LayoutWorld, entity: Entity): LocalBounds | null {
-    const registry = world.getCppRegistry();
-    if (!registry) return null;
-    const web = world.getWasmModule() as {
-        meshRenderer_localBounds?(registry: unknown, entity: number): LocalBounds | null;
-    } | null;
-    // The existing Web binding returns an object directly from the same core resolver.
-    if (web?.meshRenderer_localBounds) return web.meshRenderer_localBounds(registry, entity);
-    const api = worldEngineApi(world);
-    if (!api?.meshRenderer_copyLocalBounds || !api.HEAPU8 || !api._malloc || !api._free) return null;
-    return withMalloc({ _malloc: api._malloc, _free: api._free }, 24, ptr => {
-        if (!ptr || !api.meshRenderer_copyLocalBounds!(registry, entity, ptr)) return null;
-        const heap = api.HEAPU8!;
-        const [minX, minY, minZ, maxX, maxY, maxZ] = new Float32Array(heap.buffer, heap.byteOffset + ptr, 6);
-        return { minX, minY, minZ, maxX, maxY, maxZ };
-    });
+    return withMeshBounds(world, read => read(entity));
 }
 
 /**
@@ -356,13 +376,13 @@ export function meshWorldBox(world: LayoutWorld, entity: Entity, parallaxCenter?
     return translateBox(box, parallaxOffset(world.get(entity, MeshRenderer).parallax, parallaxCenter));
 }
 
-/** @internal Picking can supply a borrowed transform reader for a single traversal. */
+/** @internal Picking can supply shared readers for a single traversal. */
 export function resolveMeshWorldBox(
-    world: LayoutWorld, entity: Entity, readTransform?: (entity: Entity) => TransformData,
+    world: LayoutWorld, entity: Entity, readTransform?: (entity: Entity) => TransformData, readBounds?: MeshBoundsReader,
 ): EntityBox | null {
     if (!world.valid(entity) || !world.has(entity, MeshRenderer) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
-    const b = meshLocalBounds(world, entity);
+    const b = readBounds ? readBounds(entity) : meshLocalBounds(world, entity);
     if (!b) return null;
 
     const t = readTransform ? readTransform(entity) : world.get(entity, Transform);

@@ -16,7 +16,7 @@ import {
     firstRankedPick, layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, parallaxOffset, shapeWorldBox, translateBox, withSpriteBounds,
+    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, parallaxOffset, shapeWorldBox, translateBox, withMeshBounds, withSpriteBounds,
     type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
@@ -249,7 +249,7 @@ function visitPickHits(
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.
     const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
-    withSpriteBounds(world, readSprite => {
+    withMeshBounds(world, readMeshBounds => withSpriteBounds(world, readSprite => {
         for (const entity of entities) {
             if (!world.valid(entity) || !world.has(entity, Transform)) continue;
             if (opts.pickable && !opts.pickable(entity)) continue;
@@ -257,7 +257,7 @@ function visitPickHits(
             // fallback would answer with the size of a gizmo.
             const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
             const hiddenMesh = renderer?.enabled === false;
-            const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform) : null;
+            const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform, readMeshBounds) : null;
             const meshHit = !!(meshBox && submit(entity, meshBox, renderer, renderer?.opaque));
             if (unranked && meshHit) continue;
             if (meshBox ? !world.has(entity, Sprite) && !world.has(entity, ShapeRenderer)
@@ -275,6 +275,6 @@ function visitPickHits(
                 }
             }
         }
-    });
+    }));
     return repeated;
 }
