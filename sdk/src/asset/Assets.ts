@@ -1861,6 +1861,8 @@ export class Assets {
             readonly entityOwnership?: boolean | 'auxiliary';
             /** Receive the authored references before any acquisition or progress notification. */
             readonly onDiscover?: (authored: SceneAssetRefs) => void;
+            /** @internal Stop starting work when the owning scene can no longer publish. */
+            readonly assertCurrent?: () => void;
             /** @internal Resolve live component writes with the owning scene or the entity's retained settings. */
             readonly owner?: { world: World; entity: Entity; sceneScope?: AssetScope | null };
         },
@@ -1876,6 +1878,8 @@ export class Assets {
         options?: Parameters<Assets['preloadSceneAssets']>[2],
         recorder?: DependencyRecorder, inherited = this.sceneTextureImports_.current,
     ): Promise<SceneAssetResult> {
+        const assertCurrent = options?.assertCurrent;
+        assertCurrent?.();
         const missing: MissingAsset[] = [];
         const epoch = this.resetEpoch_;
         const declared = this.sceneTextureImports_.prepare(sceneData.textureImporterSettings,
@@ -2021,10 +2025,14 @@ export class Assets {
                     surfaceClaims.set(assetPairKey(type, path), this.surfaceUses_.claim(this.surfaceKey_(type, ref), use));
                 }
             }
-            onProgress?.(0, totalCount);
-            await runWithConcurrency(tasks, maxConcurrent, () => {
-                onProgress?.(++loadedCount, totalCount);
-            });
+            const reportProgress = (loaded: number) => {
+                assertCurrent?.();
+                onProgress?.(loaded, totalCount);
+                // A progress listener can retire the scene before the next task starts.
+                assertCurrent?.();
+            };
+            reportProgress(0);
+            await runWithConcurrency(tasks, maxConcurrent, () => reportProgress(++loadedCount));
             const wallMs = preloadClock() - began;
             if (totalCount > 0) {
                 const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)

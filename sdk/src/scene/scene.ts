@@ -856,7 +856,7 @@ async function loadSceneAssetsAndSpawn(
                 const progress = options?.onProgress;
                 const result = await timed('assets', () => attempt.preloadAssets(() => assets.preloadSceneAssets(data,
                     progress && ((loaded, total) => { if (attempt.isCurrent()) progress(loaded, total); }),
-                    { entityOwnership: collector?.auxiliary ? 'auxiliary' : !collector })));
+                    { entityOwnership: collector?.auxiliary ? 'auxiliary' : !collector, assertCurrent })));
                 assertCurrent();
                 if (collector?.auxiliary) {
                     auxiliary = prepareSceneAuxiliaryAssets(data, result, ref => assets.resolveRef(ref));

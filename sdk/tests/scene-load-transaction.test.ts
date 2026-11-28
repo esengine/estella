@@ -72,13 +72,23 @@ function harness() {
 
 const CAMERA = 7 as Entity;
 
-it('retires a canceled preview before its shared preload returns and releases only its own receipt', async () => {
+it('retires a canceled preview and skips queued loads while preserving a shared download', async () => {
     const { app, assets, unloaded } = harness();
-    const entered = reservePromise<void>(), download = reservePromise<{ id: string }>();
-    const load = vi.fn(async () => { entered.resolve(); return download.promise; });
+    const entered = reservePromise<void>(), drained = reservePromise<void>(), download = reservePromise<{ id: string }>();
+    const load = vi.fn(async (path: string) => {
+        if (path === 'queued.ttf') return { id: 'queued' };
+        entered.resolve();
+        return download.promise;
+    });
     assets.register({ type: 'font', load, unload: (value: { id: string }) => { unloaded.push(value.id); } } as never);
+    const preload = assets.preloadSceneAssets.bind(assets);
+    vi.spyOn(assets, 'preloadSceneAssets').mockImplementation((data, progress, options) =>
+        preload(data, progress, { ...options, maxConcurrent: 1 }).finally(() => {
+            if (data.name === 'obsolete') drained.resolve();
+        }));
     const scene: SceneData = { version: '1.0', name: 'obsolete', entities: [
         { id: 1, name: 'Text', parent: null, children: [], components: [{ type: Text._name, data: { font: 'slow.ttf' } }] },
+        { id: 2, name: 'Queued', parent: null, children: [], components: [{ type: Text._name, data: { font: 'queued.ttf' } }] },
     ] };
     const abort = new AbortController();
     const progress = vi.fn();
@@ -97,6 +107,7 @@ it('retires a canceled preview before its shared preload returns and releases on
     } finally {
         download.resolve({ id: 'slow' });
         await stale;
+        await drained.promise;
         const stillOwned = await keep;
         expect(unloaded).toEqual([]);
         stillOwned?.release();
@@ -104,7 +115,7 @@ it('retires a canceled preview before its shared preload returns and releases on
         app.quit();
     }
     expect(load).toHaveBeenCalledOnce();
-    expect(progress.mock.calls).toEqual([[0, 1]]);
+    expect(progress.mock.calls).toEqual([[0, 2]]);
 });
 
 /** Something sleep() switches off — the engine's renderables are C++-backed,
