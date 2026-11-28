@@ -419,6 +419,7 @@ export interface ESEngineModule extends TilemapBindings {
     meshRenderer_setMeshAll?(registry: CppRegistry, meshHandle: number): number;
     /** Local XY bounds of what a MeshRenderer draws — resident geometry, else its
      *  inline payload. Null when it draws nothing. */
+    meshRenderer_copyLocalBounds?(registry: CppRegistry, entity: number, outputPtr: number): boolean;
     meshRenderer_localBounds?(registry: CppRegistry, entity: number):
         { minX: number; minY: number; maxX: number; maxY: number } | null;
     /** Point every MeshRenderer in the world at one material; returns how many. */

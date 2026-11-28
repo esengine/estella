@@ -16,6 +16,7 @@ import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { v3 } from '../math/vec3';
 import { worldEngineApi, type EngineApi } from './bridge/engineApi';
+import { withMalloc } from '../wasm/wasmScratch';
 
 /**
  * The three reads a box derivation needs — so an editor's read-only projection
@@ -265,6 +266,24 @@ interface LocalBounds {
     maxX: number; maxY: number; maxZ?: number;
 }
 
+function meshLocalBounds(world: LayoutWorld, entity: Entity): LocalBounds | null {
+    const registry = world.getCppRegistry();
+    if (!registry) return null;
+    const web = world.getWasmModule() as {
+        meshRenderer_localBounds?(registry: unknown, entity: number): LocalBounds | null;
+    } | null;
+    // The existing Web binding returns an object directly from the same core resolver.
+    if (web?.meshRenderer_localBounds) return web.meshRenderer_localBounds(registry, entity);
+    const api = worldEngineApi(world);
+    if (!api?.meshRenderer_copyLocalBounds || !api.HEAPU8 || !api._malloc || !api._free) return null;
+    return withMalloc({ _malloc: api._malloc, _free: api._free }, 24, ptr => {
+        if (!ptr || !api.meshRenderer_copyLocalBounds!(registry, entity, ptr)) return null;
+        const heap = api.HEAPU8!;
+        const [minX, minY, minZ, maxX, maxY, maxZ] = new Float32Array(heap.buffer, heap.byteOffset + ptr, 6);
+        return { minX, minY, minZ, maxX, maxY, maxZ };
+    });
+}
+
 /**
  * The world box of a MeshRenderer's geometry — {@link entityWorldBox} for a mesh,
  * whose extent is in its vertices rather than in a size field. The engine
@@ -283,14 +302,7 @@ export function resolveMeshWorldBox(
 ): EntityBox | null {
     if (!world.valid(entity) || !world.has(entity, MeshRenderer) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
-    // The wasm module, not the shared engine api: this answer is a small object,
-    // which is a shape only that binding surface carries.
-    const module = world.getWasmModule() as {
-        meshRenderer_localBounds?(registry: unknown, entity: number): LocalBounds | null;
-    } | null;
-    const registry = world.getCppRegistry();
-    if (!registry || !module?.meshRenderer_localBounds) return null;
-    const b = module.meshRenderer_localBounds(registry, entity);
+    const b = meshLocalBounds(world, entity);
     if (!b) return null;
 
     const t = readTransform ? readTransform(entity) : world.get(entity, Transform);

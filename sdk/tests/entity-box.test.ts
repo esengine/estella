@@ -18,6 +18,8 @@ import { Assets } from '../src/asset/Assets';
 import { HttpBackend } from '../src/asset/Backend';
 import { NodeVisibility } from '../src/imported-scene';
 import { MeshRenderers } from '../src/render/meshRenderer';
+import { setNativeEngineApi } from '../src/ecs/bridge/engineApi';
+import { createNativeEngineApi } from '../src/ecs/bridge/nativeEngineApi.generated';
 import type { Entity } from '../src/types';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
@@ -56,6 +58,39 @@ const layout = (w: number, h: number) => ({
 const name = (c: unknown): string => (c as { _name?: string })._name ?? (c as { name: string }).name;
 const ent = (n: number) => n as unknown as Entity;
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
+
+it('reads and picks a mesh through the native engine arena without a WASM module', () => {
+    const registry = {};
+    const heap = new Uint8Array(new ArrayBuffer(32));
+    const free = vi.fn();
+    const fill = vi.fn((entity: number, offset: number) => {
+        if (entity !== 1) return false;
+        new Float32Array(heap.buffer, offset, 6).set([10, -2, -3, 20, 2, 7]);
+        return true;
+    });
+    setNativeEngineApi({
+        ...createNativeEngineApi({ es_meshRenderer_copyLocalBounds: fill }),
+        _malloc: () => 4,
+        _free: free,
+        HEAPU8: heap,
+    });
+    const world = {
+        ...fakeWorld({
+            1: { Transform: T(0, 0), MeshRenderer: {} },
+            2: { Transform: T(0, 0), MeshRenderer: {} },
+        }) as object,
+        getWasmModule: () => null,
+        getCppRegistry: () => registry,
+        getAllEntities: () => [ent(1), ent(2)],
+    } as never;
+    try {
+        expect(meshWorldBox(world, ent(1))).toMatchObject({ cx: 15, cy: 0, cz: 2, hw: 5, hh: 2, hd: 5 });
+        expect(meshWorldBox(world, ent(2))).toBeNull();
+        expect(pickEntityByRay(world, { origin: { x: 15, y: 0, z: 30 }, dir: { x: 0, y: 0, z: -1 } })).toBe(ent(1));
+        expect(fill).toHaveBeenCalledWith(ent(1), 4);
+        expect(free.mock.calls).toEqual([[4], [4], [4], [4]]);
+    } finally { setNativeEngineApi(null); }
+});
 
 /** A turn of `rad` about one world axis, as a rotation. */
 const turn = (axis: 'x' | 'y' | 'z', rad: number) => ({

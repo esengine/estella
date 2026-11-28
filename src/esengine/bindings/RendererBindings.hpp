@@ -357,6 +357,8 @@ u32 renderer_getDrawsWaitingForProgram();
 
 /** @brief What each program still compiling in the background is, one per line: its id and what it was made for. */
 std::string renderer_getPendingProgramLabels();
+/// Copy min XYZ then max XYZ for the live resident or inline geometry. False for empty bounds.
+bool meshRenderer_copyLocalBounds(ecs::Registry& registry, u32 entity, uintptr_t outputPtr);
 #ifdef __EMSCRIPTEN__
 /// GPU objects the device has not destroyed, for the resource census. Null when
 /// no device is initialized — absent counters, not zeroed ones.

@@ -1311,22 +1311,21 @@ u32 renderer_getGpuDrawCalls() {
     return g_renderFrame->stats().gpu_draws;
 }
 
-#ifdef __EMSCRIPTEN__
 /**
- * The local-space XY box of what a MeshRenderer DRAWS — resident geometry when it has
+ * The local-space box of what a MeshRenderer draws — resident geometry when it has
  * some, else the inline payload. Which of the two is live is the engine's to
  * know: an editor asking the component alone boxes a resident mesh at zero, and
  * then it cannot be clicked.
  */
-emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity) {
+static bool meshRendererLocalBounds(ecs::Registry& registry, u32 entity, glm::vec3& mn, glm::vec3& mx) {
     const Entity ent = Entity::fromRaw(entity);
     const auto* mesh = registry.tryGet<ecs::MeshRenderer>(ent);
-    if (!mesh) return emscripten::val::null();
+    if (!mesh) return false;
 
     // The inline payload is authored as 2D positions and has no third dimension;
     // resident geometry carries the one it was imported with.
-    glm::vec3 mn(mesh->localMin, 0.0f);
-    glm::vec3 mx(mesh->localMax, 0.0f);
+    mn = glm::vec3(mesh->localMin, 0.0f);
+    mx = glm::vec3(mesh->localMax, 0.0f);
     if (mesh->mesh.isValid()) {
         if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
             if (const Mesh* res = rm->getMesh(mesh->mesh)) {
@@ -1335,8 +1334,26 @@ emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity) {
             }
         }
     }
-    if (!(mx.x > mn.x) && !(mx.y > mn.y) && !(mx.z > mn.z)) return emscripten::val::null();
+    return mx.x > mn.x || mx.y > mn.y || mx.z > mn.z;
+}
 
+bool meshRenderer_copyLocalBounds(ecs::Registry& registry, u32 entity, uintptr_t outputPtr) {
+    auto* out = boundarySpanMut<f32>(outputPtr, 6, "meshRenderer_copyLocalBounds.output");
+    glm::vec3 mn, mx;
+    if (!out || !meshRendererLocalBounds(registry, entity, mn, mx)) return false;
+    out[0] = mn.x;
+    out[1] = mn.y;
+    out[2] = mn.z;
+    out[3] = mx.x;
+    out[4] = mx.y;
+    out[5] = mx.z;
+    return true;
+}
+
+#ifdef __EMSCRIPTEN__
+emscripten::val meshRenderer_localBounds(ecs::Registry& registry, u32 entity) {
+    glm::vec3 mn, mx;
+    if (!meshRendererLocalBounds(registry, entity, mn, mx)) return emscripten::val::null();
     auto out = emscripten::val::object();
     out.set("minX", mn.x);
     out.set("minY", mn.y);

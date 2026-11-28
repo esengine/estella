@@ -411,6 +411,7 @@ material_setTexture: (materialId: number, name: string, textureHandle: number) =
 material_setUniform: (materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number) => void
 material_undefine: (materialId: number) => void
 meshInstances_set: ((registry: CppRegistry, entity: number, dataPtr: number, count: number) => void) | undefined
+meshRenderer_copyLocalBounds: ((registry: CppRegistry, entity: number, outputPtr: number) => boolean) | undefined
 meshRenderer_localBounds: ((registry: CppRegistry, entity: number) => { minX: number; minY: number; maxX: number; maxY: number; } | null) | undefined
 meshRenderer_makeAllResident: ((registry: CppRegistry) => number) | undefined
 meshRenderer_setGeometry: ((registry: CppRegistry, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => void) | undefined

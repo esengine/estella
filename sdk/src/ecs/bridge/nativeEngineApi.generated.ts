@@ -82,6 +82,7 @@ export interface NativeEngineApi {
     material_setUniform?(materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number): void;
     material_undefine?(materialId: number): void;
     meshInstances_set?(registry: unknown, entity: number, dataPtr: number, count: number): void;
+    meshRenderer_copyLocalBounds?(registry: unknown, entity: number, outputPtr: number): boolean;
     meshRenderer_makeAllResident?(registry: unknown): number;
     meshRenderer_setGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): void;
     meshRenderer_setMaterialAll?(registry: unknown, materialId: number): number;
@@ -556,6 +557,7 @@ export function createNativeEngineApi(
     bind('material_setUniform', 'es_material_setUniform', false);
     bind('material_undefine', 'es_material_undefine', false);
     bind('meshInstances_set', 'es_meshInstances_set', true);
+    bind('meshRenderer_copyLocalBounds', 'es_meshRenderer_copyLocalBounds', true);
     bind('meshRenderer_makeAllResident', 'es_meshRenderer_makeAllResident', true);
     bind('meshRenderer_setGeometry', 'es_meshRenderer_setGeometry', true);
     bind('meshRenderer_setMaterialAll', 'es_meshRenderer_setMaterialAll', true);

@@ -823,6 +823,13 @@ add_executable(test_boundary_span
 target_include_directories(test_boundary_span PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_boundary_span COMMAND test_boundary_span)
 
+if(NOT EMSCRIPTEN)
+    add_executable(test_mesh_bounds bindings/test_mesh_bounds.cpp)
+    target_link_libraries(test_mesh_bounds PRIVATE esengine)
+    target_include_directories(test_mesh_bounds PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/third_party/glm)
+    add_test(NAME test_mesh_bounds COMMAND test_mesh_bounds)
+endif()
+
 # Unified submission face (render-pipeline unification): BatchBuilder is the single
 # DrawCommand producer for every stream. Compiles BatchBuilder/DrawList/
 # TransientBufferPool against the MockGfxDevice and asserts per-stream baseVertex

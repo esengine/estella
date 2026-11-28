@@ -652,6 +652,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("probe_volume_release", ES_RENDER_BIND(probe_volume_release));
     emscripten::function("probe_volume_setSkyVisibility", ES_RENDER_BIND(probe_volume_setSkyVisibility));
     emscripten::function("meshRenderer_localBounds", ES_RENDER_BIND(meshRenderer_localBounds));
+    emscripten::function("meshRenderer_copyLocalBounds", ES_RENDER_BIND(meshRenderer_copyLocalBounds));
     emscripten::function("meshRenderer_makeAllResident", ES_RENDER_BIND(meshRenderer_makeAllResident));
     emscripten::function("meshRenderer_setMeshAll", ES_RENDER_BIND(meshRenderer_setMeshAll));
     emscripten::function("meshRenderer_setMaterialAll", ES_RENDER_BIND(meshRenderer_setMaterialAll));
