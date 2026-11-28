@@ -102,6 +102,27 @@ export function parallaxOffset(factor?: Readonly<Vec2>, center?: Readonly<Vec2>)
     return { x: center.x * (1 - factor.x), y: center.y * (1 - factor.y) };
 }
 
+/**
+ * The parallax translation of the geometry used for the world selection
+ * outline. Mesh geometry takes precedence, followed by sprites and shapes.
+ *
+ * @experimental
+ */
+export function entityWorldDrawOffset(world: LayoutWorld, entity: Entity, center?: Readonly<Vec2>): Vec2 | undefined {
+    if (!center || (!center.x && !center.y) || !world.valid(entity)
+        || !world.has(entity, Transform) || world.has(entity, UINode)) return undefined;
+
+    const mesh = world.has(entity, MeshRenderer) ? world.get(entity, MeshRenderer) : null;
+    const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
+    const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
+    const meshOffset = parallaxOffset(mesh?.parallax, center);
+    if (!meshOffset && !parallaxOffset(sprite?.parallax, center) && !parallaxOffset(shape?.parallax, center)) return undefined;
+
+    if (mesh && meshLocalBounds(world, entity)) return meshOffset;
+    const source = resolveEntityWorldBox(world, entity);
+    return parallaxOffset(source?.drawable?.parallax, center);
+}
+
 /** @internal Apply a draw offset without changing the world-space box supplied by the caller. */
 export function translateBox(box: EntityBox, offset?: Readonly<Vec2>): EntityBox {
     return offset && (offset.x || offset.y) ? { ...box, cx: box.cx + offset.x, cy: box.cy + offset.y } : box;
