@@ -9,6 +9,8 @@
  * a KTX2 goes through as it is.
  */
 import { PNG } from 'pngjs';
+import { posix } from 'node:path';
+import { contentHashOf } from '../../../sdk/src/asset/contentHash';
 import { decodeDds, isDds } from './ddsDecode';
 import { encodeRgbaPng } from './png';
 import { IMPORTED_MATERIAL_IMAGE_SLOTS, type ImportedImageRef, type ImportedMaterial, type ModelImportResult } from './modelImport';
@@ -47,6 +49,7 @@ function alphaUse(p: Pixels): 'opaque' | 'cutout' | 'blend' {
 
 const isDdsName = (file: string): boolean => /\.dds$/i.test(file);
 const baseName = (file: string): string => file.split(/[\\/]/).pop() ?? file;
+const ddsOutputStem = (file: string): string => baseName(file).replace(/\.dds$/i, '');
 
 function readPng(bytes: Uint8Array): Pixels | null {
     try {
@@ -144,6 +147,28 @@ export function prepareModelImages(result: ModelImportResult,
                                    read?: (file: string) => Uint8Array | null,
                                    options: { alphaFromBaseColor?: boolean } = {}): void {
     const embedded = new Map(result.textures.map(t => [t.name, t]));
+    // Reserve authored names up front. Traversing the model in a different
+    // order on reimport must never swap the products of two DDS files.
+    const externalPaths = [...new Set(result.externalFiles)];
+    const names = new Set([...embedded.keys(), ...externalPaths.map(file => posix.normalize(file.replace(/\\/g, '/')))]
+        .map(file => file.toLowerCase()));
+    const ddsStems = new Set<string>(), repeatedDdsStems = new Set<string>();
+    for (const file of [...embedded.keys(), ...externalPaths]) {
+        if (!isDdsName(file)) continue;
+        const stem = ddsOutputStem(file).toLowerCase();
+        if (ddsStems.has(stem)) repeatedDdsStems.add(stem);
+        ddsStems.add(stem);
+    }
+    const claimPng = (stem: string, source: string, disambiguate = false): string => {
+        let file = `${stem}.png`;
+        if (disambiguate || names.has(file.toLowerCase())) {
+            const tag = `${stem}_${contentHashOf(source)}`;
+            file = `${tag}.png`;
+            for (let n = 2; names.has(file.toLowerCase()); n++) file = `${tag}_${n}.png`;
+        }
+        names.add(file.toLowerCase());
+        return file;
+    };
     // Per source file: its pixels and the ref it becomes, or null once it has failed.
     const seen = new Map<string, { pixels: Pixels | null; ref: ImportedImageRef | null }>();
 
@@ -161,12 +186,11 @@ export function prepareModelImages(result: ModelImportResult,
         } else {
             try {
                 const dds = decodeDds(bytes);
-                const name = `${baseName(ref.file).replace(/\.dds$/i, '')}.png`;
-                if (!embedded.has(name)) {
-                    const texture = { name, bytes: encodeRgbaPng(dds.width, dds.height, dds.rgba) };
-                    result.textures.push(texture);
-                    embedded.set(name, texture);
-                }
+                const stem = ddsOutputStem(ref.file);
+                const name = claimPng(stem, key, repeatedDdsStems.has(stem.toLowerCase()));
+                const texture = { name, bytes: encodeRgbaPng(dds.width, dds.height, dds.rgba) };
+                result.textures.push(texture);
+                embedded.set(name, texture);
                 entry = { pixels: dds, ref: { file: name, external: false } };
             } catch (error) {
                 result.warnings.push(`${label}: ${ref.file}: ${(error as Error).message} — skipped`);
@@ -214,7 +238,8 @@ export function prepareModelImages(result: ModelImportResult,
                 packed[at + 3] = 255;
             }
         }
-        const name = `${material.name.replace(/[^A-Za-z0-9_-]+/g, '_')}_orm.png`;
+        const stem = `${material.name.replace(/[^A-Za-z0-9_-]+/g, '_')}_orm`;
+        const name = claimPng(stem, `orm:${material.index}`);
         const texture = { name, bytes: encodeRgbaPng(width, height, packed) };
         result.textures.push(texture);
         embedded.set(name, texture);

@@ -5,9 +5,15 @@
  */
 import { describe, it, expect } from 'vitest';
 import { PNG } from 'pngjs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { prepareModelImages } from '../src/assets/modelImages';
+import { importModelFile } from '../src/assets/importModelFile';
+import { cookAssets } from '../src/assets/cookAssets';
 import { encodeRgbaPng } from '../src/assets/png';
 import { importedImageSettings, type ImportedMaterial, type ModelImportResult } from '../src/assets/modelImport';
+import { plainTriangle } from './fixtures/gltfFixtures.mjs';
 
 /** An 8x8 uncompressed BGRA DDS, every texel `bgra`. */
 function dds(bgra: number[]): Uint8Array {
@@ -61,6 +67,68 @@ describe('preparing a model\'s images', () => {
         expect(result.externalFiles).toEqual(['scene.bin', 'Textures/Wall.dds']);
         const decoded = PNG.sync.read(Buffer.from(result.textures[0]!.bytes));
         expect([...decoded.data.subarray(0, 4)]).toEqual([10, 20, 30, 255]);
+    });
+
+    it('keeps a converted DDS from taking the name of an authored PNG', () => {
+        const result = model({
+            baseColorTexture: { file: 'day/paint.dds', external: true },
+            emissiveTexture: { file: './paint.png', external: true },
+        }, ['day/paint.dds', './paint.png']);
+        prepareModelImages(result, file => file.endsWith('.dds') ? dds([30, 20, 10, 255]) : null);
+        expect(result.textures[0]?.name).toBe(result.meshes[0]?.material?.baseColorTexture?.file);
+        expect(result.textures[0]?.name).not.toBe('paint.png');
+        expect(result.meshes[0]?.material?.emissiveTexture).toEqual({ file: './paint.png', external: true });
+    });
+
+    it('keeps distinct maps with the same DDS name across traversal order and in a cooked package', async () => {
+        const root = mkdtempSync(path.join(tmpdir(), 'model-dds-maps-'));
+        try {
+            const readJson = (file: string) => JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+            const maps = ['day/paint.dds', 'night/paint.dds'];
+            const colors = [[230, 40, 15, 255], [12, 35, 240, 255]];
+            for (const [i, file] of maps.entries()) {
+                mkdirSync(path.dirname(path.join(root, 'assets', file)), { recursive: true });
+                const [r, g, b, a] = colors[i]!;
+                writeFileSync(path.join(root, 'assets', file), dds([b!, g!, r!, a!]));
+            }
+            const doc = JSON.parse(new TextDecoder().decode(plainTriangle()));
+            const primitive = doc.meshes[0].primitives[0];
+            doc.images = maps.map(uri => ({ uri }));
+            doc.textures = maps.map((_, source) => ({ source }));
+            doc.materials = maps.map((_, index) => ({ pbrMetallicRoughness: { baseColorTexture: { index }, metallicFactor: 0 } }));
+            doc.meshes = maps.map((_, material) => ({ primitives: [{ ...primitive, material }] }));
+            doc.nodes = [{ name: 'Day', mesh: 0 }, { name: 'Night', mesh: 1 }];
+            doc.scenes = [{ nodes: [0, 1] }];
+            doc.scene = 0;
+            const absSource = path.join(root, 'assets/robot.gltf');
+            const run = async () => {
+                writeFileSync(absSource, JSON.stringify(doc));
+                const result = await importModelFile({ root, absSource, destDir: 'assets' });
+                const prefab = readJson(result.prefab!) as { entities: { name: string; components: { type: string; data: { texture: string } }[] }[] };
+                const refs = ['Day', 'Night'].map(name => prefab.entities.find(e => e.name === name)!.components.find(c => c.type === 'MeshRenderer')!.data.texture);
+                expect(new Set(refs).size).toBe(2);
+                expect(refs.map(ref => [...PNG.sync.read(readFileSync(path.join(root, ref))).data.subarray(0, 4)])).toEqual(colors);
+                return { refs, uuids: refs.map(ref => readJson(`${ref}.meta`).uuid), prefab: result.prefab };
+            };
+            const first = await run();
+            doc.meshes.reverse();
+            for (const node of doc.nodes) node.mesh = 1 - node.mesh;
+            doc.images.reverse();
+            for (const texture of doc.textures) texture.source = 1 - texture.source;
+            doc.scenes[0].nodes.reverse();
+            expect(await run()).toEqual(first);
+
+            const scene = 'assets/main.esscene';
+            writeFileSync(path.join(root, scene), JSON.stringify({ version: 4, name: 'Main', entities: [
+                { id: 1, prefab: first.prefab, parent: null, overrides: [], added: [], removed: [] },
+            ] }));
+            writeFileSync(path.join(root, `${scene}.meta`), JSON.stringify({ version: '2.0', uuid: 'main', type: 'scene', importer: {} }));
+            const cooked = await cookAssets(root, { entryScenes: [scene], outDir: 'out', contentAddressed: true });
+            expect(cooked.ok, [...cooked.failed, ...cooked.warnings].join('\n')).toBe(true);
+            const manifest = readJson('out/assets.manifest.json') as { entries: { sourcePath: string; path: string }[] };
+            const shipped = first.refs.map(ref => manifest.entries.find(entry => entry.sourcePath === ref)!.path);
+            expect(shipped.map(file => [...PNG.sync.read(readFileSync(path.join(cooked.outDir, file))).data.subarray(0, 4)])).toEqual(colors);
+        } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
     it('packs separate metalness, roughness and occlusion maps the way glTF does', () => {
