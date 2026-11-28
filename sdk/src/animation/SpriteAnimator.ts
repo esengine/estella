@@ -13,7 +13,10 @@ import type { Entity, TextureHandle } from '../types';
 import type { World } from '../ecs/world';
 import { Sprite, type SpriteData } from '../ecs/component';
 import { writeProjection } from '../ecs/componentProjection';
-import { setSpriteFrameTexture } from './spriteFrameProjection';
+import {
+    copySpriteFrameField, restoredSpriteFramePose, sameSpriteFrameField, setSpriteFrameTexture, SPRITE_FRAME_FIELDS,
+    type SpriteFrameField, type SpriteFramePose,
+} from './spriteFrameProjection';
 import { spriteFrameDuration } from './spriteFrameTiming';
 
 // =============================================================================
@@ -62,6 +65,23 @@ function frameDurationOf(clip: SpriteAnimClip, index: number, speed: number, fal
     return Math.max(Number.MIN_VALUE, spriteFrameDuration(clip.frames[index]?.duration, fallback) / speed);
 }
 
+// A paused player which restored its sprite still needs to apply the next populated clip.
+const EMPTY_CLIP_POSE = {};
+
+interface SpritePoseTracking {
+    base: SpriteFramePose;
+    projected: SpriteFramePose;
+}
+
+/** Reuse vectors owned by the snapshot. Live sprite fields never alias them. */
+function rememberSpriteField<K extends SpriteFrameField>(pose: SpriteFramePose, key: K, value: SpriteFramePose[K]): void {
+    const stored = pose[key];
+    if (stored && typeof stored === 'object' && value && typeof value === 'object') {
+        stored.x = value.x;
+        stored.y = value.y;
+    } else copySpriteFrameField(pose, key, value);
+}
+
 export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, _totalFrames: number, loop: boolean): boolean {
     // Frame-0 initial apply only. Without the `=== 0`, the completion clamp
     // (currentFrame overflows → clamped to last, so prev === new === last) re-fires
@@ -95,6 +115,7 @@ export class SpriteAnimationAPI {
     // Remember the applied source without retaining an unloaded clip's frames.
     private readonly clipTokens = new WeakMap<SpriteAnimClip, object>();
     private readonly appliedAnimators = new WeakMap<SpriteAnimatorData, object>();
+    private readonly spritePoses = new WeakMap<SpriteAnimatorData, SpritePoseTracking>();
     private readonly pendingApplies = new WeakSet<SpriteAnimatorData>();
     private updating = false;
 
@@ -281,7 +302,19 @@ export class SpriteAnimationAPI {
 
             const clipName = animator.clip;
             const clip = this.getClip(clipName, entity);
-            if (!clip || clip.frames.length === 0) continue;
+            if (!clip) continue;
+            if (clip.frames.length === 0) {
+                const pose = this.spritePoses.get(animator);
+                if (pose) {
+                    this.spritePoses.delete(animator);
+                    this.appliedAnimators.set(animator, EMPTY_CLIP_POSE);
+                    if (world.has(entity, Sprite)) {
+                        const restored = restoredSpriteFramePose(world.get(entity, Sprite), pose.base, pose.projected);
+                        if (restored) writeProjection(world, entity, Sprite, restored);
+                    }
+                }
+                continue;
+            }
 
             // playing raised on a finished one-shot = replay from the top
             // (TimelinePlayer's flag contract).
@@ -352,6 +385,14 @@ export class SpriteAnimationAPI {
                 const direct = readSprite && writeSprite && !world.speculating && !getDefaultContext().editorBridge
                     && registry === world.getCppRegistry() && module === world.getWasmModule();
                 const sprite = (direct ? readSprite(entity) : world.get(entity, Sprite)) as SpriteData;
+                let pose = this.spritePoses.get(animator);
+                if (!pose) {
+                    pose = { base: {}, projected: {} };
+                    this.spritePoses.set(animator, pose);
+                }
+                for (const key of SPRITE_FRAME_FIELDS) {
+                    if (!sameSpriteFrameField(sprite[key], pose.projected[key])) rememberSpriteField(pose.base, key, sprite[key]);
+                }
                 setSpriteFrameTexture(sprite, frame.texture, frame.uvOffset, frame.uvScale);
                 // No reset branch on either: the loader gives EVERY frame of an
                 // owning clip both, so absent here means the clip owns neither and
@@ -362,6 +403,11 @@ export class SpriteAnimationAPI {
                 if (frame.pivot) {
                     sprite.pivot = { x: frame.pivot.x, y: frame.pivot.y };
                 }
+                pose.projected.texture = sprite.texture;
+                rememberSpriteField(pose.projected, 'uvOffset', sprite.uvOffset);
+                rememberSpriteField(pose.projected, 'uvScale', sprite.uvScale);
+                if (frame.size) rememberSpriteField(pose.projected, 'size', sprite.size);
+                if (frame.pivot) rememberSpriteField(pose.projected, 'pivot', sprite.pivot);
                 if (direct) {
                     writeSprite(entity, sprite);
                     world.markChanged(entity, Sprite);

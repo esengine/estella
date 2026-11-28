@@ -26,7 +26,8 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
             const document = ctx.sourceAddressOf?.(path) ?? path;
             const textures = new Map<string, AnimClipTexture>();
 
-            for (const ref of extractAnimClipTexturePaths(data)) {
+            const frameTextures = data.frames.length ? extractAnimClipTexturePaths(data) : [];
+            for (const ref of frameTextures) {
                 const texPath = ctx.catalog.resolveDocumentRef(document, ref, ctx.assetTypeOf);
                 try {
                     const lease = await ctx.acquireTexture(texPath, true, 'imported');

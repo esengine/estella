@@ -622,6 +622,53 @@ describe('a registry-backed asset lives as long as it is held', () => {
         expect(assets.sizes().refRows).toBe(base);
     });
 
+    it.each(['texture', 'sheet'])('restores the scene sprite when a %s flipbook reloads empty, and applies a later clip while paused', async kind => {
+        const app = App.new(), world = app.world, sprites = new SpriteAnimationAPI();
+        connectFakeCpp(world);
+        const original = { texture: 99, size: { x: 3, y: 4 }, pivot: { x: 0.4, y: 0.6 },
+            uvOffset: { x: 0.1, y: 0.2 }, uvScale: { x: 0.9, y: 0.8 } };
+        const texture = 'frames/a.png';
+        const populated = {
+            fps: 10, frameSizing: 'frame', pivot: { x: 0.25, y: 0.75 },
+            ...(kind === 'sheet' ? { sheet: { texture, cellWidth: 4, cellHeight: 8, pageWidth: 8, pageHeight: 8 } } : {}),
+            frames: kind === 'sheet' ? [{ cell: 1 }] : [
+                { texture, atlasFrame: { x: 4, y: 0, width: 4, height: 8, pageWidth: 8, pageHeight: 8 } },
+            ],
+        };
+        let doc = populated;
+        const clip = 'anim/walk.esanim';
+        const assets = buildAssets(sprites, () => JSON.stringify(doc));
+        const held = await assets.acquireTyped('anim-clip', clip);
+        try {
+            const entity = world.spawn();
+            world.insert(entity, Sprite, original);
+            world.insert(entity, SpriteAnimator, { clip });
+            sprites.update(world, 0);
+            const oldTexture = world.get(entity, Sprite).texture;
+            expect(oldTexture).not.toBe(original.texture);
+            expect(world.get(entity, Sprite).pivot).toEqual(populated.pivot);
+            world.update(entity, SpriteAnimator, data => { data.playing = false; });
+            const editedSize = { x: 11, y: 12 };
+            world.update(entity, Sprite, data => { data.size = editedSize; });
+
+            const reload = async (data: typeof populated) => {
+                doc = data;
+                assets.invalidate(clip);
+                await vi.waitFor(() => expect(sprites.getClip(clip)?.frames).toHaveLength(data.frames.length));
+                sprites.update(world, 0);
+            };
+            await reload({ ...populated, frames: [] });
+            expect(pool.releaseTexture).toHaveBeenCalledWith(oldTexture);
+            expect(world.get(entity, Sprite)).toMatchObject({ ...original, size: editedSize });
+
+            await reload(populated);
+            expect(world.get(entity, Sprite)).toMatchObject({ size: { x: 4, y: 8 }, pivot: populated.pivot });
+            expect(world.get(entity, SpriteAnimator).playing).toBe(false);
+            await reload({ ...populated, frames: [] });
+            expect(world.get(entity, Sprite)).toMatchObject({ ...original, size: editedSize });
+        } finally { held.release(); assets.releaseAll(); app.quit(); }
+    });
+
     it('the ref a component spells and the path it resolved to are one slot', async () => {
         // The realm's resolver turns the serialized ref into a URL; a component
         // still asks for the ref. Both names, one asset, one era.
