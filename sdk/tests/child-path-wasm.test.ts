@@ -131,12 +131,14 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
                 resolveChildEntity(world, root, 'Arm/Hand/Thumb');
                 resolveChildEntity(world, arm, 'Hand/Thumb');
                 resolveChildEntity(world, hand, 'Thumb');
+                resolveChildEntity(world, root, 'Arm/Missing0');
+                resolveChildEntity(world, root, 'Arm/Missing63');
                 // Four named children allow four cached paths. The fifth is still walked.
                 resolveChildEntity(world, root, 'Arm/Hand');
                 resolveChildEntity(world, root, 'Arm/Hand');
                 parsed = split.mock.contexts.map(String);
             } finally { split.mockRestore(); }
-            expect(parsed).toEqual(['Arm/Hand', 'Arm/Hand']);
+            expect(parsed).toEqual(['Arm/Missing63', 'Arm/Hand', 'Arm/Hand']);
         } finally { dispose(); }
     });
 
@@ -177,12 +179,17 @@ describe.skipIf(!HAS_WASM)('named child paths through real WASM', () => {
             const root = node('Root'), arm = node('Arm', root);
             expect(resolveChildEntity(world, root, 'Arm/Socket')).toBeNull();
             const reads = vi.spyOn(world, 'tryGet');
+            const split = vi.spyOn(String.prototype, 'split');
+            let parsed: string[];
             try {
                 for (let i = 0; i < 32; i++) {
                     expect(resolveChildEntity(world, root, 'Arm/Socket')).toBeNull();
                 }
-                expect(reads.mock.calls).toHaveLength(0);
-            } finally { reads.mockRestore(); }
+                expect(reads).not.toHaveBeenCalled();
+                parsed = split.mock.contexts.map(String);
+            } finally { split.mockRestore(); reads.mockRestore(); }
+            expect(parsed).not.toContain('Arm/Socket');
+            expect(parsed).not.toContain('Socket');
             const socket = node('Socket', arm);
             expect(resolveChildEntity(world, root, 'Arm/Socket')).toBe(socket);
             world.removeParent(socket);

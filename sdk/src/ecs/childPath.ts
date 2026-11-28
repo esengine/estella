@@ -25,8 +25,9 @@ interface ChildIndex {
     revision: number;
     core: ReturnType<World['getCppRegistry']>;
     parents: Map<Entity, ReadonlyMap<string, Entity> | null>;
-    pathsByRoot: Map<Entity, Map<string, Entity>>;
+    pathsByRoot: Map<Entity, Map<string, Entity | null>>;
     freePathSlots: number;
+    freeMissSlots: number;
 }
 
 const childIndices = new WeakMap<ChildPathWorld, ChildIndex>();
@@ -52,7 +53,7 @@ function childIndex(
     if (!index || index.revision !== revision) {
         index = {
             checkedAt: observed, children, name, parent, revision, core,
-            parents: new Map(), pathsByRoot: new Map(), freePathSlots: 0,
+            parents: new Map(), pathsByRoot: new Map(), freePathSlots: 0, freeMissSlots: 0,
         };
         childIndices.set(world, index);
     } else index.checkedAt = observed;
@@ -83,7 +84,23 @@ function namedChildren(
     index.parents.set(entity, named);
     // Limit retained paths to the number of child names already held by this index.
     index.freePathSlots += named.size;
+    index.freeMissSlots += named.size;
     return named;
+}
+
+function rememberPath(index: ChildIndex, root: Entity, path: string, entity: Entity | null): void {
+    // Keep a separate budget for misses so they cannot displace resolved paths.
+    const slots = entity === null ? 'freeMissSlots' : 'freePathSlots';
+    if (index[slots] <= 0) return;
+    let paths = index.pathsByRoot.get(root);
+    if (!paths) {
+        paths = new Map();
+        index.pathsByRoot.set(root, paths);
+    }
+    if (!paths.has(path)) {
+        paths.set(path, entity);
+        index[slots]--;
+    }
 }
 
 /**
@@ -112,7 +129,7 @@ export function resolveChildEntity(
         const slash = childPath.lastIndexOf('/');
         if (slash > 0) {
             const parent = knownPaths.get(childPath.slice(0, slash));
-            if (parent !== undefined) {
+            if (parent != null) {
                 current = parent;
                 remaining = childPath.slice(slash + 1);
             }
@@ -121,7 +138,10 @@ export function resolveChildEntity(
     for (const segment of remaining.split('/')) {
         if (index) {
             const child = namedChildren(world, current, Children, Name, index, current !== rootEntity)?.get(segment);
-            if (child === undefined) return null;
+            if (child === undefined) {
+                if (index.parents.get(rootEntity)) rememberPath(index, rootEntity, childPath, null);
+                return null;
+            }
             current = child;
             continue;
         }
@@ -140,17 +160,7 @@ export function resolveChildEntity(
         if (found === null) return null;
         current = found;
     }
-    if (index && index.freePathSlots > 0) {
-        let paths = index.pathsByRoot.get(rootEntity);
-        if (!paths) {
-            paths = new Map();
-            index.pathsByRoot.set(rootEntity, paths);
-        }
-        if (!paths.has(childPath)) {
-            paths.set(childPath, current);
-            index.freePathSlots--;
-        }
-    }
+    if (index) rememberPath(index, rootEntity, childPath, current);
     return current;
 }
 
