@@ -1173,9 +1173,10 @@ export function generateLayerTileShapes(
     return entities;
 }
 
-/** @internal Create the native store for either a bounded layer or a grid of sparse chunks. */
+/** @internal Create the native store for a bounded or sparse layer and install its atlas ranges. */
 export function initializeTiledLayer(
     toolkit: TilemapToolkit, entity: Entity, layer: TiledLayerData, tileWidth: number, tileHeight: number,
+    slots?: Parameters<TilemapToolkit['setTilesets']>[1],
 ): void {
     if (layer.infinite) {
         toolkit.initInfiniteLayer(entity, tileWidth, tileHeight);
@@ -1186,6 +1187,7 @@ export function initializeTiledLayer(
         toolkit.initLayer(entity, layer.width, layer.height, tileWidth, tileHeight);
         if (layer.tiles.length > 0) toolkit.setTiles(entity, layer.tiles);
     }
+    if (slots?.length) toolkit.setTilesets(entity, slots);
 }
 
 /** The TilemapLayer a Tiled layer becomes: its lattice, and what Tiled says about drawing it. */
@@ -1217,6 +1219,14 @@ export function loadTiledMap(
     const entities: Entity[] = [];
     const firstTileset = mapData.tilesets[0];
     const layout = tiledGridLayout(mapData);
+    const slots = mapData.tilesets.map(ts => ({
+        firstId: ts.firstGid, textureHandle: textureHandles.get(ts.image) ?? 0,
+        columns: ts.columns, margin: ts.margin, spacing: ts.spacing,
+    }));
+    // Keep simple direct imports editable through the layer's single-atlas fields.
+    // Other imports need the full range table, including ranges whose texture is missing.
+    const useTable = slots.length > 1 || (firstTileset &&
+        (firstTileset.firstGid !== 1 || firstTileset.margin || firstTileset.spacing));
 
     let layerIndex = 0;
     for (const layer of mapData.layers) {
@@ -1236,7 +1246,7 @@ export function loadTiledMap(
             tilesetColumns: columns,
         });
 
-        initializeTiledLayer(toolkit, entity, layer, mapData.tileWidth, mapData.tileHeight);
+        initializeTiledLayer(toolkit, entity, layer, mapData.tileWidth, mapData.tileHeight, useTable ? slots : undefined);
         toolkit.setOriginEntity(entity, entity);
         toolkit.setGridType(entity, layout.orientation);
         toolkit.setHexParams(entity, layout.hexSideLength ?? 0, !!layout.staggerAxisX, !!layout.staggerIndexEven);

@@ -9,6 +9,7 @@ import { App } from '../src/app/app';
 import { Transform, TilemapLayer } from '../src/ecs/component';
 import { TilemapPlugin, TilemapRuntimeState } from '../src/tilemap/tilemapPlugin';
 import { TilemapAPI, Tilemaps } from '../src/tilemap/tilemapAPI';
+import { Tilemap } from '../src/tilemap/components';
 import { isTileSolid } from '../src/tilemap/tileQuery';
 import { loadSceneData, serializeEntityComponents } from '../src/scene/scene';
 import { loadTiledMap, parseTmjJson } from '../src/tilemap/tiledLoader';
@@ -113,6 +114,29 @@ describe.skipIf(!HAS_WASM)('tilemap runtimes in independent apps', () => {
         for (let i = 0; i < 20; i++) await app.tick(1 / 60);
         expect(setTilesets).toHaveBeenCalledOnce();
         app.world.despawn(entity); await app.tick(1 / 60); held.release(); assets.releaseAll();
+    });
+
+    it('keeps missing atlas ranges when deriving layers from a Tiled asset', async () => {
+        const { app, tiles } = await scene(mainCore, 1);
+        const source = parseTmjJson({ width: 2, height: 1, tilewidth: 16, tileheight: 16,
+            layers: [{ type: 'tilelayer', data: [1, 5] }] })!;
+        const slots = [
+            { firstId: 1, textureHandle: 42, columns: 4, rows: 4, margin: 2, spacing: 3 },
+            { firstId: 5, textureHandle: 0, columns: 2, rows: 1, margin: 0, spacing: 0 },
+        ];
+        const assets = Assets.create({ module: mainCore });
+        vi.spyOn(assets, 'resolveRegistryAsset').mockReturnValue({ source: { ...source, tilesets: slots } });
+        app.insertResource(AssetsResource, assets);
+        const setTilesets = vi.spyOn(tiles, 'setTilesets');
+        const root = app.world.spawn();
+        app.world.insert(root, Transform);
+        app.world.insert(root, Tilemap, { source: 'test.tmj' });
+        await app.tick(1 / 60);
+
+        expect(setTilesets).toHaveBeenCalledOnce();
+        const [child, installed] = setTilesets.mock.calls[0];
+        expect(installed).toEqual(slots);
+        expect([tiles.getTile(child, 0, 0), tiles.getTile(child, 1, 0)]).toEqual([1, 5]);
     });
 
     it.each(['main', 'preview'] as const)('isolates matching layer IDs on one engine when %s quits', async closing => {

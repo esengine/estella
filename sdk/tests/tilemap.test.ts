@@ -625,6 +625,31 @@ describe('loadTiledMap', () => {
         expect(world.spawn).toHaveBeenCalledTimes(2);
     });
 
+    it('uploads all atlas ranges, including a missing image between two loaded atlases', () => {
+        const world = createMockWorld();
+        const map = parseTmjJson({ width: 3, height: 1, tilewidth: 16, tileheight: 16,
+            layers: [{ type: 'tilelayer', data: [1, 5, 10] }],
+            tilesets: [
+                { firstgid: 1, image: 'first.png', columns: 4, tilecount: 4, margin: 2, spacing: 3 },
+                { firstgid: 5, image: 'missing.png', columns: 2, tilecount: 4 },
+                { firstgid: 10, image: 'last.png', columns: 3, tilecount: 6, margin: 1, spacing: 5 },
+            ],
+        })!;
+        const heap = new Uint8Array(128);
+        const setTilesets = vi.fn((_entity: number, ptr: number, slots: number) =>
+            [...new Uint32Array(heap.buffer, ptr, slots * 6)]);
+        initTilemapAPI({ HEAPU8: heap, _malloc: () => 8, _free: vi.fn(),
+            tilemap_initLayer: vi.fn(), tilemap_setTiles: vi.fn(), tilemap_setTilesets: setTilesets,
+            tilemap_setOriginEntity: vi.fn(), tilemap_setGridType: vi.fn(), tilemap_setHexParams: vi.fn() }, world, world);
+        try {
+            const [entity] = loadTiledMap(world, map, new Map([['first.png', 42], ['last.png', 84]]));
+            expect(setTilesets).toHaveBeenCalledWith(entity, 8, 3);
+            expect(setTilesets).toHaveReturnedWith([1, 42, 4, 2, 3, 0, 5, 0, 2, 0, 0, 0, 10, 84, 3, 1, 5, 0]);
+        } finally {
+            shutdownTilemapAPI(world);
+        }
+    });
+
     it('initializes an empty Tiled layer with the sparse tile store', () => {
         const world = createMockWorld();
         const sparse = vi.fn(), bounded = vi.fn();

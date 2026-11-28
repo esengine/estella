@@ -431,6 +431,14 @@ export class TilemapRuntime {
                     if (!sourceLayerEntities.has(entity)) {
                         const children: Entity[] = [];
                         const layout = tiledGridLayout(cached), gridType = layout.orientation;
+                        // A missing texture still marks where its GIDs begin.
+                        // Dropping that slot can make its IDs sample an earlier atlas.
+                        if (cached.layers.length > 0 && cached.tilesets.length > 0 && !cached.tilesets.some(t => t.textureHandle)) {
+                            log.error('tilemap',
+                                `Tiled map on entity ${entity}: none of its ${cached.tilesets.length} `
+                                + 'tileset texture(s) loaded — tiles will NOT render (collision still '
+                                + 'works). See earlier [tilemap] load errors for the failing image path(s).');
+                        }
 
                         for (let i = 0; i < cached.layers.length; i++) {
                             const layer = cached.layers[i];
@@ -447,7 +455,7 @@ export class TilemapRuntime {
                             world.insert(child, RuntimeOnly, {});
                             world.setParent(child, entity);
 
-                            initializeTiledLayer(TilemapAPI, child, layer, cached.tileWidth, cached.tileHeight);
+                            initializeTiledLayer(TilemapAPI, child, layer, cached.tileWidth, cached.tileHeight, cached.tilesets);
                             TilemapAPI.setOriginEntity(child, child);
                             if (gridType !== 0) {
                                 TilemapAPI.setGridType(child, gridType);
@@ -476,30 +484,6 @@ export class TilemapRuntime {
                                         TilemapAPI.setTileProperty(child, tileId, k, v);
                                     }
                                 }
-                            }
-
-                            // Multi-tileset: push the full tileset table (firstId +
-                            // texture + columns). The renderer batches per texture and
-                            // derives UVs from texture size; the remaining visual
-                            // metadata (tint/opacity/renderLayer/...) is read off the
-                            // child's TilemapLayer component like any painted layer.
-                            const slots = cached.tilesets
-                                .filter(t => t.textureHandle)
-                                .map(t => ({
-                                    firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns,
-                                    margin: t.margin, spacing: t.spacing,
-                                }));
-                            if (slots.length > 0) {
-                                TilemapAPI.setTilesets(child, slots);
-                            } else if (cached.tilesets.length > 0) {
-                                // Every tileset texture is dead (handle 0): the map parsed
-                                // and its collision generates, but nothing will draw. Say
-                                // so ONCE, loudly — silently-invisible-but-solid levels
-                                // cost a real debugging session to diagnose from pixels.
-                                log.error('tilemap',
-                                    `Tiled map on entity ${entity}: none of its ${cached.tilesets.length} `
-                                    + 'tileset texture(s) loaded — tiles will NOT render (collision still '
-                                    + 'works). See earlier [tilemap] load errors for the failing image path(s).');
                             }
 
                             // The child answers tile-collision queries with the
