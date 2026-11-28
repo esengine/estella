@@ -8,12 +8,13 @@
  * (an import setting, then a reimport) is one only the author can apply.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
+import { bakeRunner, jobLength, encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
-import { bakeSceneLightmap, claimLightmapImage, resolveEnvironmentSun, type SceneBakeSurface } from '../src/assets/lightmapBake';
+import { bakeSceneLightmap, bakeSceneLightmapParallel, claimLightmapImage, statsOf, resolveEnvironmentSun,
+         type SceneBakeInput, type SceneBakeSurface } from '../src/assets/lightmapBake';
 import { encodeRgbaPng } from '../src/assets/png';
 import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
 
@@ -219,6 +220,55 @@ describe('baking a scene', () => {
         expect(solid).toBeLessThan(open * 0.95);
         expect(cut).toBeGreaterThan(solid + (open - solid) * 0.3);
         expect(cut).toBeLessThan(solid + (open - solid) * 0.7);
+    });
+
+    it('bakes a cutout through inherited UUID and sibling refs, including a zero override', async () => {
+        const materialDir = path.join(dir, 'materials');
+        await mkdir(materialDir);
+        const parent = '11111111-1111-4111-8111-111111111111';
+        const material = (properties: object, instanceOf?: string) => JSON.stringify({ type: 'material', properties, instanceOf });
+        await Promise.all([
+            writeFile(path.join(materialDir, 'base.esmaterial'), material({ u_alphaCutoff: 0.5 })),
+            writeFile(path.join(dir, 'base.esmaterial'), material({ u_alphaCutoff: 0 })),
+            writeFile(path.join(materialDir, 'middle.esmaterial'), material({}, 'base.esmaterial')),
+            writeFile(path.join(materialDir, 'child.esmaterial'), material({}, '@uuid:' + parent.toUpperCase())),
+            writeFile(path.join(materialDir, 'solid.esmaterial'), material({ u_alphaCutoff: 0 }, '@uuid:' + parent)),
+        ]);
+        const materialProject = { root: dir, assets: [
+            { uuid: parent, path: 'materials/middle.esmaterial' },
+            { uuid: 'sibling', path: 'materials/base.esmaterial' },
+            { uuid: 'root', path: 'base.esmaterial' },
+        ] };
+        const inputFor = (materialFile?: string): SceneBakeInput => ({
+            materialProject,
+            surfaces: [surface('unwrapped.esmesh', 'Floor'), {
+                ...surface('roof.esmesh', 'Roof'),
+                transform: [...IDENTITY.slice(0, 12), 0, 0.5, 0, 1],
+                material: materialFile,
+                baseColorTexture: path.join(dir, 'holes.png'),
+            }],
+            lights: [], options: { ...SMALL, samples: 64, ambient: [1, 1, 1] },
+        });
+        const bake = (materialFile?: string) => Buffer.from(bakeSceneLightmap(inputFor(materialFile)).atlasBytes);
+
+        const cutout = bake(path.join(dir, 'cutout.esmaterial'));
+        const solid = bake();
+        const child = path.join(materialDir, 'child.esmaterial');
+        expect(cutout.equals(solid)).toBe(false);
+        expect(bake(child).equals(cutout)).toBe(true);
+        expect(bake(path.join(materialDir, 'solid.esmaterial')).equals(solid)).toBe(true);
+        let run: ReturnType<typeof bakeRunner> | undefined;
+        const parallel = await bakeSceneLightmapParallel(inputFor(child), {
+            async run(step) {
+                run ??= bakeRunner(step.scene);
+                run(step.job, 0, jobLength(step));
+            },
+            async textureStats(files, cutoffs) {
+                expect(cutoffs).toEqual([0.5]);
+                return files.map((file, i) => statsOf(file, cutoffs[i]));
+            },
+        });
+        expect(Buffer.from(parallel.atlasBytes).equals(cutout)).toBe(true);
     });
 
     it('names a surface whose lightmap UVs lie on themselves', () => {

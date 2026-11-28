@@ -471,6 +471,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
   try {
     result = await baker.bakeSceneLightmapParallel({
       surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
+      materialProject: { root: projectRoot ?? sceneDir, assets: projectRoot ? Array.from(byUuid, ([uuid, path]) => ({ uuid, path })) : undefined },
       options: { ...options, ambient },
     }, kernel);
   } finally {
