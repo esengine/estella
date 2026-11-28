@@ -14,6 +14,7 @@ import path from 'node:path';
 import { bakeRunner, jobLength, encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
 import { bakeSceneLightmap, bakeSceneLightmapParallel, claimLightmapImage, statsOf, resolveEnvironmentSun,
+         bakeTextureFingerprint,
          type SceneBakeInput, type SceneBakeSurface } from '../src/assets/lightmapBake';
 import { encodeRgbaPng } from '../src/assets/png';
 import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
@@ -93,6 +94,36 @@ const surface = (file: string, label: string, x = 0,
 });
 
 describe('baking a scene', () => {
+    it('fingerprints only the selected texture and effective cutoff, independently of scene order', async () => {
+        const texture = path.join(dir, 'fingerprint.png');
+        const parent = path.join(dir, 'fingerprint-parent.esmaterial');
+        const child = path.join(dir, 'fingerprint-child.esmaterial');
+        const paint = (red: number) => writeFile(texture, encodeRgbaPng(1, 1, new Uint8Array([red, 0, 0, 255])));
+        const material = (cutoff: number, extra = {}) => writeFile(parent, JSON.stringify({
+            type: 'material', shader: 'builtin:foliage', properties: {
+                u_albedo: './fingerprint.png', u_useTexture: 1, u_alphaCutoff: cutoff, ...extra,
+            },
+        }));
+        await Promise.all([paint(50), material(0.5), writeFile(child, JSON.stringify({
+            type: 'material', instanceOf: './fingerprint-parent.esmaterial', properties: {},
+        }))]);
+        const surfaces = [
+            { ...surface('roof.esmesh', 'Roof'), material: child },
+            surface('unwrapped.esmesh', 'Floor'),
+        ];
+        const project = { root: dir };
+        const first = await bakeTextureFingerprint('scene', { surfaces, materialProject: project });
+        expect(first).not.toBe('scene');
+        expect(await bakeTextureFingerprint('scene', { surfaces: [...surfaces].reverse(), materialProject: project })).toBe(first);
+        await material(0.5, { u_roughness: 0.1 });
+        expect(await bakeTextureFingerprint('scene', { surfaces, materialProject: project })).toBe(first);
+        await paint(90);
+        expect(await bakeTextureFingerprint('scene', { surfaces, materialProject: project })).not.toBe(first);
+        await paint(50);
+        await material(0.7);
+        expect(await bakeTextureFingerprint('scene', { surfaces, materialProject: project })).not.toBe(first);
+    });
+
     it('names the object it could not light, and lights the others', () => {
         const result = bakeSceneLightmap({
             surfaces: [surface('unwrapped.esmesh', 'Floor', -6), surface('raw.esmesh', 'Slab', 6)],

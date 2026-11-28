@@ -22,6 +22,7 @@ import { META_EXT } from './contentPolicy';
 import { surfaceTextureReader, type BakeSurfaceTexture } from './lightmapMaterials';
 
 export { BakeKernelExecutor } from './lightmapKernel';
+export { bakeTextureFingerprint } from './lightmapMaterials';
 import { bakeSceneReflections, bakeSky, irradianceSky, type BakeEnvironment,
          type ReflectionBakeResult } from './reflectionBake';
 

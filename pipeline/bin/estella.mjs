@@ -457,7 +457,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
     if (environment) environment.rotation = chosen.rotation;
   }
 
-  const fingerprint = baker.bakeFingerprint({
+  const sceneFingerprint = baker.bakeFingerprint({
     surfaces: fingerprintSurfaces, lights,
     volumes: volumes.map((v) => ({ center: v.center, halfExtents: v.halfExtents,
                                    spacing: v.spacing })),
@@ -466,12 +466,17 @@ async function bakeScene(baker, meta, sceneFile, check) {
     reflections: reflectionProbes.map((p) => p.center),
     ambient, options,
   });
+  const materialProject = {
+    root: projectRoot ?? sceneDir,
+    assets: projectRoot ? Array.from(byUuid, ([uuid, path]) => ({ uuid, path })) : undefined,
+  };
+  const fingerprint = await baker.bakeTextureFingerprint(sceneFingerprint, { surfaces, materialProject });
   const kernel = await baker.BakeKernelExecutor.load();
   let result;
   try {
     result = await baker.bakeSceneLightmapParallel({
       surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
-      materialProject: { root: projectRoot ?? sceneDir, assets: projectRoot ? Array.from(byUuid, ([uuid, path]) => ({ uuid, path })) : undefined },
+      materialProject,
       options: { ...options, ambient },
     }, kernel);
   } finally {
@@ -536,9 +541,12 @@ async function bakeScene(baker, meta, sceneFile, check) {
   for (const entity of scene.entities ?? []) {
     const at = entity.components.findIndex((c) => c.type === 'BakedLighting');
     if (at < 0) continue;
+    const data = entity.components[at].data;
+    // A legacy scene can still be checked byte-for-byte without requiring a migration write.
+    const bakedFrom = check && data.bakedFrom === sceneFingerprint ? sceneFingerprint : fingerprint;
     entity.components[at] = {
       type: 'BakedLighting',
-      data: { ...entity.components[at].data, bakedFrom: fingerprint },
+      data: { ...data, bakedFrom },
     };
   }
   for (const entity of scene.entities ?? []) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { readFileSync, statSync } from 'node:fs';
+import { createReadStream, readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { builtinRefId, resolveIndexedSiblingRef } from '../../../sdk/src/asset/documentRef';
@@ -149,4 +150,33 @@ export function surfaceTextureReader(project: SceneBakeInput['materialProject'])
         surfaces.set(surface, result);
         return result;
     };
+}
+
+/** Refine the scene fingerprint with the texture bytes and cutoff the solve samples. */
+export async function bakeTextureFingerprint(sceneFingerprint: string,
+    input: Pick<SceneBakeInput, 'surfaces' | 'materialProject'>): Promise<string> {
+    const textureOf = surfaceTextureReader(input.materialProject);
+    const hashes = new Map<string, string>();
+    const rows: string[] = [];
+    const logicalPath = (file: string) =>
+        path.relative(input.materialProject?.root ?? path.dirname(file), file).split(path.sep).join('/');
+    for (const surface of input.surfaces) {
+        if (surface.holdsStill === false) continue;
+        const { file, cutoff } = textureOf(surface);
+        if (!file) continue;
+        let digest = hashes.get(file);
+        if (digest === undefined) {
+            try {
+                const hash = createHash('sha256');
+                for await (const bytes of createReadStream(file)) hash.update(bytes);
+                digest = hash.digest('hex');
+            } catch { digest = 'missing'; }
+            hashes.set(file, digest);
+        }
+        rows.push(JSON.stringify([surface.transform, surface.baseColor, surface.builtinRef ?? logicalPath(surface.meshFile),
+            surface.material && logicalPath(surface.material), logicalPath(file), cutoff, digest]));
+    }
+    if (rows.length === 0) return sceneFingerprint;
+    const textures = createHash('sha256').update(rows.sort().join('\n')).digest('hex');
+    return `${sceneFingerprint}:${textures}`;
 }
