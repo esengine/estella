@@ -176,6 +176,43 @@ it('does not take back a shot after a marker stops its player', async () => {
     expect(app.world.get(player, TimelinePlayer).playing).toBe(false);
 });
 
+it.each([0.25, 1])('drops remaining cues when a marker at the end of a clip seeks to %s', async destination => {
+    const { app, player, timeline } = playerIn(new TimelinePlugin());
+    timeline.registerAsset('intro', { ...asset, duration: 1, tracks: [{
+        type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0.75, name: 'seek' }, { time: 0.9, name: 'stale' }],
+    }] });
+    const events = app.getResource(EntityEvents), stale = vi.fn();
+    events.on(player, timelineSignalType('seek'), () => timeline.setTime(player, destination));
+    events.on(player, timelineSignalType('stale'), stale);
+
+    await app.tick(1);
+    expect(stale).not.toHaveBeenCalled();
+    expect(timeline.getCurrentTime(player)).toBe(destination);
+    expect(app.world.get(player, TimelinePlayer)).toMatchObject({ playing: true, finished: false });
+});
+
+it('drops later nested cues and state when a nested marker stops playback', async () => {
+    const { app, player, timeline } = playerIn(new TimelinePlugin());
+    const nested = (name: string): TimelineAsset => ({ ...asset, duration: 1, tracks: [{
+        type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0.25, name }],
+    }] });
+    timeline.registerAsset('stopper', nested('stop'));
+    timeline.registerAsset('sibling', nested('stale'));
+    timeline.registerAsset('intro', { ...asset, tracks: [{
+        type: TrackType.Sequence, name: '', childPath: '', clips: ['stopper', 'sibling'].map(ref => ({
+            start: 0, duration: 1, timeline: ref, root: '', speed: 1, loop: false,
+        })),
+    }] });
+    const events = app.getResource(EntityEvents), stale = vi.fn();
+    events.on(player, timelineSignalType('stop'), () => timeline.stop(player));
+    events.on(player, timelineSignalType('stale'), stale);
+
+    await app.tick(0.5);
+    expect(stale).not.toHaveBeenCalled();
+    expect(timeline.getState(player)).toMatchObject({ time: 0, playing: false });
+    expect(timeline.getState(player)?.nested).toEqual({});
+});
+
 it('plays the same entity ID independently in two apps sharing a timeline plugin', async () => {
     const plugin = new TimelinePlugin();
     const first = playerIn(plugin);

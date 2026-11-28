@@ -168,12 +168,14 @@ export interface AdvanceContext {
     onPropertyApplied?: (entity: Entity, asset: TimelineAsset) => void;
     /** How a sequence clip finds the timeline it plays; without it nested clips are not played. */
     lookup?: SequenceLookup;
+    /** Whether the owner still holds this player state. */
+    isCurrent?: () => boolean;
     /** Reuse the layers sampled this step. Undefined means callbacks may have changed them. */
     onSequenceLayers?: (layers: readonly SequenceLayer[] | undefined) => void;
     /** The view this step asks for (null: none), for the camera director. */
     onShot?: (shot: ActiveShot | null) => void;
-    /** Events and markers this step crossed, with the root their target paths are relative to. */
-    onSignals?: (signals: TimelineSignal[], root: Entity) => void;
+    /** Events and markers relative to `root`. Check `isCurrent` between callbacks that can move the playhead. */
+    onSignals?: (signals: TimelineSignal[], root: Entity, isCurrent?: () => boolean) => void;
     /** A camera shake the playhead crossed: from `entity`, at `force` (TimelinePlugin fires it). */
     onShake?: (entity: Entity, force: number) => void;
 }
@@ -184,13 +186,33 @@ function applyEvent(ctx: AdvanceContext, e: FiredEvent): void {
     applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
 }
 
-function dispatchSignals(ctx: AdvanceContext, asset: TimelineAsset, root: Entity, runs: readonly PlayheadRun[]): boolean {
+function dispatchSignals(
+    ctx: AdvanceContext, asset: TimelineAsset, root: Entity, runs: readonly PlayheadRun[], isCurrent: () => boolean,
+): boolean {
     if (!ctx.onSignals) return false;
     const signals: TimelineSignal[] = [];
     collectSignals(asset, runs, signals);
     if (!signals.length) return false;
-    ctx.onSignals(signals, root);
+    ctx.onSignals(signals, root, isCurrent);
     return true;
+}
+
+function dispatchStepCues(
+    ctx: AdvanceContext, asset: TimelineAsset, state: TimelineState, root: Entity,
+    runs: readonly PlayheadRun[], isCurrent: () => boolean, sampleLevels = true,
+): boolean {
+    const events = detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, runs, sampleLevels);
+    for (const event of events) {
+        if (!isCurrent()) return false;
+        applyEvent(ctx, event);
+    }
+    return isCurrent() && (dispatchSignals(ctx, asset, root, runs, isCurrent) || events.length > 0);
+}
+
+function currentSample(state: TimelineState, ctx: AdvanceContext): () => boolean {
+    const { time, phase, started, nested } = state;
+    return () => !state.seekPending && state.time === time && state.phase === phase
+        && state.started === started && state.nested === nested && ctx.isCurrent?.() !== false;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,12 +281,15 @@ export function advanceTimelineTS(
     const seeking = state.seekPending;
     if (seeking) state.seekPending = false;
     if (!state.playing) {
+        const isCurrent = currentSample(state, ctx);
         ctx.syncSpawns?.(!state.started && state.time === 0 ? null : state.time);
-        if (seeking && state.started) {
+        if (seeking && state.started && isCurrent()) {
             sampleLayer(asset, state.time, root, ctx);
-            const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup) : [];
+            if (!isCurrent()) return false;
+            const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, isCurrent) : [];
+            if (!isCurrent()) return false;
             ctx.onSequenceLayers?.(layers);
-            ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES, layers));
+            if (isCurrent()) ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, ctx.lookup ?? NO_TIMELINES, layers));
         }
         return false;
     }
@@ -282,32 +307,34 @@ export function advanceTimelineTS(
     state.prevTime = state.time;
     const advanced = phase + dt * state.speed;
     const wrapped = applyWrapMode(advanced, span, state.wrapMode);
-    const sampledTime = from + wrapped.time;
-    state.time = sampledTime;
+    state.time = from + wrapped.time;
     state.phase = advanced;
     if (state.wrapMode !== WrapMode.Once && span > 0) {
         const laps = Math.floor(advanced / span) - Math.floor(Math.max(0, phase) / span);
         if (laps > 0) state.laps = (state.laps ?? 0) + laps;
     }
 
+    const stillSampling = currentSample(state, ctx);
     ctx.syncSpawns?.(state.time);
+    if (!stillSampling()) return false;
     sampleLayer(asset, state.time, root, ctx);
+    if (!stillSampling()) return false;
 
     // The stretches the playhead covered, in the timeline's own time.
     const segments = from === 0 ? playheadRuns(phase, advanced, span, state.wrapMode, !state.started)
         : playheadRuns(phase, advanced, span, state.wrapMode, !state.started).map((r) => ({ ...r, from: r.from + from, to: r.to + from }));
     state.started = true;
-
-    for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
-        applyEvent(ctx, e);
-    }
-    dispatchSignals(ctx, asset, root, segments);
+    const isCurrent = currentSample(state, ctx);
+    dispatchStepCues(ctx, asset, state, root, segments, isCurrent);
+    if (!isCurrent()) return false;
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
-    const nestedTraversal = state.time === sampledTime && state.phase === advanced ? segments : undefined;
-    const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, nestedTraversal) : [];
+    const layers = ctx.lookup ? advanceNested(asset, root, state, ctx, ctx.lookup, isCurrent, segments) : [];
+    if (!isCurrent()) return false;
     ctx.onSequenceLayers?.(layers);
+    if (!isCurrent()) return false;
     ctx.onShot?.(resolveActiveShot(asset, state.time, root, ctx.deps.resolveChild, lookup, layers));
+    if (!isCurrent()) return false;
 
     if (wrapped.stopped) state.playing = false;
     return wrapped.stopped;
@@ -327,7 +354,7 @@ function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: Adva
  */
 function advanceNested(
     asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
-    runs?: readonly PlayheadRun[],
+    isCurrent: () => boolean, runs?: readonly PlayheadRun[],
 ): SequenceLayer[] | undefined {
     const time = state.time;
     const playback = collectSequencePlayback(asset, time, runs, root, ctx.deps.resolveChild, lookup);
@@ -335,10 +362,12 @@ function advanceNested(
     let refresh = false;
     const live = new Set<string>();
     for (const { layer, sampled, traversal } of playback) {
+        if (!isCurrent()) return undefined;
         if (sampled) {
             layers.push(layer);
             live.add(layer.key);
             sampleLayer(layer.asset, layer.time, layer.root, ctx);
+            if (!isCurrent()) return undefined;
             refresh ||= !!ctx.onPropertyApplied;
         }
         const before = state.nested[layer.key];
@@ -347,11 +376,8 @@ function advanceNested(
             const child = createTimelineState(WrapMode.Once, 1);
             child.time = layer.time;
             child.spineClipIndices = spineClipIndices;
-            const events = detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, traversal, sampled);
-            for (const e of events) {
-                applyEvent(ctx, e);
-            }
-            refresh = dispatchSignals(ctx, layer.asset, layer.root, traversal) || events.length > 0 || refresh;
+            refresh = dispatchStepCues(ctx, layer.asset, child, layer.root, traversal, isCurrent, sampled) || refresh;
+            if (!isCurrent()) return undefined;
         }
         if (sampled) {
             state.nested[layer.key] = { time: layer.time, phase: layer.phase, spineClipIndices };

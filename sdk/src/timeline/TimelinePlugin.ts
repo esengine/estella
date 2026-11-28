@@ -222,6 +222,7 @@ class TimelinePlaybackSystem {
                         syncSpawns: time => this.spawns_.sync(entity, asset, time, spawner,
                             path => deps.resolveChild(entity, path), published.prefabs),
                         lookup: (ref) => tl.getAsset(ref, entity),
+                        isCurrent: () => this.active_ && tl.getState(entity) === state,
                         onSequenceLayers: resolved => { layers = resolved; },
                         onShot: director ? (shot) => {
                             if (this.active_ && state.started && tl.getState(entity) === state) setTimelineShot(director, entity, shot);
@@ -232,9 +233,9 @@ class TimelinePlaybackSystem {
                             if (director) shakeCamera(director, { amplitude: TIMELINE_VIEW_SHAKE.amplitude * force, rotation: TIMELINE_VIEW_SHAKE.rotation * force, frequency: TIMELINE_VIEW_SHAKE.frequency, duration: TIMELINE_VIEW_SHAKE.duration });
                         },
                         // What the playhead crossed, for the game: each about the entity its track names.
-                        onSignals: (signals, signalRoot) => {
+                        onSignals: (signals, signalRoot, isCurrent) => {
                             for (const s of signals) {
-                                if (!this.active_ || !state.started || tl.getState(entity) !== state) break;
+                                if (isCurrent?.() === false) break;
                                 const target = resolveTimelinePath(world, entity, signalRoot, s.childPath) ?? signalRoot;
                                 if (!world.valid(target)) continue;
                                 events.send({ kind: s.kind, name: s.name, payload: s.payload, time: s.time, player: entity, target });
