@@ -11,7 +11,7 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, SortingGroup, Parent, type MeshRendererData, type SortingGroupData, type ParentData, type TransformData } from './component';
+import { Transform, MeshRenderer, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
 import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -23,6 +23,7 @@ import {
  *  gizmo for it: above every real layer, so a small marker wins against the
  *  sprite it sits on. A realm that draws no gizmos has nothing up there. */
 const GIZMO_PICK_LAYER = 1e6;
+const NO_ENCLOSING_GROUPS: readonly { layer: number; order: number }[] = [];
 
 /**
  * The groups enclosing @p entity, OUTERMOST first — what `sortingIdentity` needs.
@@ -32,23 +33,24 @@ const GIZMO_PICK_LAYER = 1e6;
  * read after each spatial test.
  */
 function createEnclosingGroupReader(world: PickWorld) {
-    const groupGetter = world.resolveGetter?.(SortingGroup) as ((entity: Entity) => SortingGroupData) | null | undefined;
-    const parentGetter = world.resolveGetter?.(Parent) as ((entity: Entity) => ParentData) | null | undefined;
-    const readGroup = groupGetter ?? (entity => world.get(entity, SortingGroup));
-    const readParent = parentGetter ?? (entity => world.get(entity, Parent));
-    return (entity: Entity): { layer: number; order: number }[] => {
-        const chain: { layer: number; order: number }[] = [];
-        let current: Entity | undefined = entity;
-        const seen = new Set<Entity>();
-        while (current !== undefined && !seen.has(current)) {
-            seen.add(current);
+    const readGroup = pickComponentReader(world, SortingGroup);
+    const readParent = pickComponentReader(world, Parent);
+    return (entity: Entity): readonly { layer: number; order: number }[] => {
+        let chain: { layer: number; order: number }[] | undefined;
+        let seen: Set<Entity> | undefined;
+        let current: Entity = entity;
+        for (;;) {
             if (world.has(current, SortingGroup)) {
                 const g = readGroup(current);
-                if (g.enabled) chain.push({ layer: g.layer, order: g.order });
+                if (g.enabled) (chain ??= []).push({ layer: g.layer, order: g.order });
             }
-            current = world.has(current, Parent) ? readParent(current).entity : undefined;
+            if (!world.has(current, Parent)) break;
+            const parent = readParent(current).entity;
+            (seen ??= new Set()).add(current);
+            if (parent === undefined || seen.has(parent)) break;
+            current = parent;
         }
-        return chain.reverse();
+        return chain?.reverse() ?? NO_ENCLOSING_GROUPS;
     };
 }
 
@@ -99,7 +101,7 @@ export function pickEntitiesByRay(
 ): Entity[] {
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
-    const readTransform = pickTransformReader(world);
+    const readTransform = pickComponentReader(world, Transform);
     visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, opaque) {
             const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, opaque);
@@ -122,7 +124,7 @@ export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPic
     let index = 0;
     let nearestOpaque: PickCandidate<Entity> | undefined;
     let nearestDistance = Infinity;
-    const readTransform = pickTransformReader(world);
+    const readTransform = pickComponentReader(world, Transform);
     visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, opaque) {
             const position = index++;
@@ -175,7 +177,7 @@ export function pickEntitiesByBounds(
     world: PickWorld, intersects: (box: EntityBox, entity: Entity) => boolean, opts: EntityPickOptions = {},
 ): Entity[] {
     const hits: Entity[] = [];
-    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, pickTransformReader(world),
+    visitPickHits(world, opts, (box, entity) => intersects(box, entity) ? 0 : null, pickComponentReader(world, Transform),
         { unranked: entity => hits.push(entity) });
     return hits;
 }
@@ -184,9 +186,9 @@ type PickHitVisitor =
     | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean): void }
     | { unranked(entity: Entity): void };
 
-function pickTransformReader(world: PickWorld): (entity: Entity) => TransformData {
-    const read = (entity: Entity) => world.get(entity, Transform);
-    const fast = world.resolveGetter?.(Transform) as ((entity: Entity) => TransformData) | null | undefined;
+function pickComponentReader<T>(world: PickWorld, component: BuiltinComponentDef<T>): (entity: Entity) => T {
+    const read = (entity: Entity) => world.get(entity, component);
+    const fast = world.resolveGetter?.(component) as ((entity: Entity) => T) | null | undefined;
     // The normal getter records reads during a speculative transaction.
     return fast ? entity => world.speculating ? read(entity) : fast(entity) : read;
 }
@@ -198,8 +200,7 @@ function visitPickHits(
     const iconHalf = opts.iconHalf ?? 0;
     const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
-    const meshGetter = world.resolveGetter?.(MeshRenderer) as ((entity: Entity) => MeshRendererData) | null | undefined;
-    const readMesh = meshGetter ?? (entity => world.get(entity, MeshRenderer));
+    const readMesh = pickComponentReader(world, MeshRenderer);
     let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.

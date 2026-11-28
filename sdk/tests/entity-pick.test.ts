@@ -96,7 +96,69 @@ it.skipIf(!HAS_WASM)('reads live nesting during masked area selection without re
     } finally { app.quit({ keepRenderer: true }); }
 });
 
+it.skipIf(!HAS_WASM)('tracks parent, sorting group and mesh reads during a speculative pick', async () => {
+    const core = await loadWasmModule();
+    const app = App.new();
+    const registry = new core.Registry();
+    app.connectCpp(registry, core, { ownedRegistry: true });
+    const world = app.world;
+    try {
+        app.addPlugin(meshRendererPlugin);
+        const group = world.spawn(), child = world.spawn();
+        world.insert(group, SortingGroup, { layer: 2 });
+        world.insert(child, Transform);
+        world.insert(child, MeshRenderer);
+        world.setParent(child, group);
+        app.getResource(MeshRenderers).setGeometry(child, { positions: [-2, -2, 2, -2, 0, 2], indices: [0, 1, 2] });
+        core.transform_update(registry);
+        const record = vi.fn();
+        world.openSpeculation({ record });
+        try {
+            expect(pickEntityByRay(world, down(0, 0), { cullingMask: 1 << 2 })).toBe(child);
+            const reads = record.mock.calls.map(([, entity, component]) => [entity, name(component)]);
+            expect(reads).toEqual(expect.arrayContaining([
+                [child, 'MeshRenderer'], [child, 'Transform'], [child, 'Parent'], [group, 'SortingGroup'],
+            ]));
+        } finally { world.closeSpeculation(); }
+    } finally { app.quit({ keepRenderer: true }); }
+});
+
 describe('picking entities by ray', () => {
+    it('keeps the same first hit in a dense mixed 2D and 3D scene', () => {
+        const rows: Record<number, Record<string, unknown>> = {};
+        const local = { minX: -18, minY: -18, minZ: -2, maxX: 18, maxY: 18, maxZ: 2 };
+        const meshes: Record<number, typeof local> = {};
+        for (let i = 1; i <= 8192; i++) {
+            const x = ((i * 13) % 137) - 68, y = ((i * 31) % 151) - 75, z = (i * 43) % 127;
+            rows[i] = { Transform: T(x, y, z) };
+            if (i % 2) rows[i].Sprite = { ...sprite(i % 11), order: i % 17 };
+            else {
+                rows[i].MeshRenderer = { layer: i % 11, opaque: i % 4 === 0 };
+                meshes[i] = local;
+                if (i % 8 === 0) (rows[i].Transform as ReturnType<typeof T>).worldRotation = q.axis('y', 0.27);
+            }
+        }
+        const world = fakeWorld(rows, meshes);
+        const rays = [down(0, 0), down(-21, 18), down(64, 48), down(150, 150)];
+        const options = { ySortLayers: 1 << 3 };
+        const expected = rays.map(ray => pickEntitiesByRay(world, ray, options)[0] ?? null);
+        expect(expected.slice(0, 3).every(hit => hit !== null)).toBe(true);
+        expect(expected[3]).toBeNull();
+        const pick = () => rays.map(ray => pickEntityByRay(world, ray, options));
+        expect(pick()).toEqual(expected);
+        if (process.env.ESTELLA_BENCH_PICK === '1') {
+            for (let warm = 0; warm < 12; warm++) pick();
+            const elapsed = Array.from({ length: 15 }, () => {
+                const start = performance.now();
+                const hits = pick();
+                const ms = performance.now() - start;
+                expect(hits).toEqual(expected);
+                return ms;
+            }).sort((a, b) => a - b);
+            console.log(`4 rays / 8192 entities, median ${elapsed[7].toFixed(2)} ms`);
+        }
+    });
+
     it('picks a rotated mirrored shape through the same bounds for rays and area selection', () => {
         const world = fakeWorld({
             1: { Transform: { ...T(10, 20), worldScale: { x: -2, y: -3, z: 1 }, worldRotation: q.axis('z', Math.PI / 2) },
