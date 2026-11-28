@@ -1715,6 +1715,30 @@ export const SHIPPED = {
     { notCertifiable: "No CI host has a headset or controllers. sdk/tests/xr-controllers.test.ts covers the per-hand buttons and sticks, dead zones, the gamepad indices, bound actions, rebinds and controller entities placed through the rig, with a fake XR session; holding has no test of its own." },
   "Web builds can be played in a VR headset.":
     { notCertifiable: "No CI host has a headset. sdk/tests/xr-eyes.test.ts covers both eyes drawn from the session's projections and poses with the project's metre scale, using a fake XR session." },
+  "Screen UI can be drawn the quiet way a designed HUD is":
+    { notCertifiable: "Type weight, figure width and a gradient fill are looks, not a state a game act ends on. sdk/tests/ui-text-weight.test.ts, font-weights.test.ts and ui-text-retained.test.ts hold the weights and figures, and wgsl-transpile.test.ts the Gradient material's WebGPU twin." },
+  "A land's `where` can keep places out.":
+    { notCertifiable: "Where a land's maps and steps apply is world authoring, decided before any game act runs. pipeline/tests/land.test.ts holds `not` across maps, layers, tints and steps." },
+  "An AI agent can record the running game to a video through the editor's MCP tools.":
+    { notCertifiable: "Recording through MCP is an editor workflow, not a game act. desktop/tests/play-recording.test.ts holds the recording tool." },
+  "Rules graphs open in a node editor.":
+    { notCertifiable: "A node editor is editor UI, not a game act. pipeline/tests/proc-rules.test.ts holds wiring, order, preview and incremental runs of the graph, and desktop/tests/new-asset-types.test.ts, external-change.test.ts and document-open-race.test.ts the document the editor opens." },
+  "An AI agent can lay out towns and cities by rules through the editor's MCP tools.":
+    { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. pipeline/tests/proc-rules.test.ts covers the graph (grids, picks by where and tag, building upward, components, repeat, walls with gates on the ground, refusals and the plan), and desktop/tests/rules-tools.test.ts runs the guide's worked example and pins the op list to the graph's." },
+  "A rules graph can stand models made elsewhere.":
+    { notCertifiable: "Placing models by rules is world authoring, decided before any game act runs. pipeline/tests/proc-rules.test.ts holds the `model` node." },
+  "A rules graph can stand real trees.":
+    { notCertifiable: "Placing plants by rules is world authoring, decided before any game act runs. pipeline/tests/proc-rules.test.ts holds the `plant` node; applying them as one PlacedFoliage has no test of its own." },
+  "A rules graph can say what each part is made of.":
+    { notCertifiable: "Surface materials are a look, not a state a game act ends on. pipeline/tests/proc-rules.test.ts holds the surfaces a graph names; applying them with materials in the editor has no test of its own." },
+  "An AI agent can write a material shader and look at it in well under a second.":
+    { notCertifiable: "Authoring through MCP is an editor workflow, not a game act. desktop/tests/shader-tools.test.ts holds the shader tools, and sdk/tests/wgsl-transpile.test.ts the line a GLSL shader stops translating at." },
+  "Text can carry two shadows.":
+    { notCertifiable: "A second shadow is a look, not a state a game act ends on. sdk/tests/text-shadow-cell.test.ts and ui-text-retained.test.ts hold it." },
+  "A UIMeter shows how much a blow took.":
+    { notCertifiable: "The ghost is a look over time, not a state a game act ends on. sdk/tests/ui-meter.test.ts holds the meter and its ghost." },
+  "A UI mask can fade its content at its edges instead of cutting it.":
+    { notCertifiable: "A soft edge is a look, not a state a game act ends on. tests/renderer/test_batch_builder.cpp and test_shader_variant.cpp hold the softness in the batch and the shader variant under it." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

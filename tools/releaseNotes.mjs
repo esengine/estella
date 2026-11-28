@@ -7408,4 +7408,812 @@ export const NOTED = {
     { note: "Clicking a 3D text field places the caret at the clicked character." },
   "fix(ui): project the IME anchor from the world caret":
     { note: "IME candidate windows follow the caret on 3D text inputs." },
+  "perf(editor): reuse Animator graph and card wire layout data":
+    { note: "Large Animator graphs update faster during playback." },
+  "fix(editor): keep Animator editing usable in narrow docks":
+    { note: "The Animator stays editable in narrow docks." },
+  "fix(editor): show unbound Animator parameters":
+    { note: "Deleting an Animator parameter leaves its transition conditions inactive." },
+  "fix(animation): unbind deleted Animator parameters":
+    { note: "Deleting an Animator parameter leaves its transition conditions inactive." },
+  "fix(animation): ignore transitions to deleted Animator states":
+    { note: "Deleted Animator states no longer interrupt playback through old transitions." },
+  "fix(editor): keep the live Animator dropdown visible in narrow docks":
+    { note: "The Animator's live entity dropdown stays reachable in narrow docks." },
+  "fix(animation): preserve Animator playback settings when replacing motion":
+    { note: "Changing an Animator motion keeps the state's playback settings." },
+  "fix(editor): restore rejected Animator parameter names":
+    { note: "Renaming an Animator parameter keeps its controller bindings." },
+  "fix(animation): keep controller references when renaming Animator parameters":
+    { note: "Renaming an Animator parameter keeps its controller bindings." },
+  "perf(animation): reuse the active Animator state path within each update":
+    { note: "Animator updates do less work when many entities share a controller." },
+  "fix(assets): refresh loaders when an indexed reference candidate changes":
+    { note: "Adding a higher-priority asset updates documents that were using a fallback." },
+  "fix(ui): give an auto-sized Text its text's size in flex layout":
+    { note: "A Text left auto in a flex row or column takes its text's size." },
+  "perf(editor): prune floor support searches for large selections":
+    { note: "Drop to Floor searches nearby supports when moving large selections." },
+  "fix(editor): restore deleted selections in one hierarchy pass":
+    { note: "Deleting and restoring scene selections follows the actual parent links." },
+  "fix(project): ship reliable batch deletion undo":
+    { note: "Deleting and restoring scene selections follows the actual parent links." },
+  "fix(input): anchor the browser IME to the displayed canvas caret":
+    { note: "The browser's text input anchor follows the visible caret." },
+  "fix(input): use browser wheel coordinates before pointer motion":
+    { note: "The first wheel gesture reaches the UI under the pointer." },
+  "fix(picking): honor the far plane of presented camera rays":
+    { note: "Click selection follows the camera’s depth range." },
+  "fix(input): use the render canvas window scale for pointer projection":
+    { note: "Pointer input follows the canvas when it moves between windows." },
+  "test(editor): give the input binding and curve picker check the file's timeout":
+    { internal: "A generated docs table and API tier page brought up to date, the rules graph's source declared unloaded at runtime, and a test given its file's timeout; nothing a project loads or does changes." },
+  "chore: declare rules graphs unloaded and regenerate the component and API pages":
+    { internal: "A generated docs table and API tier page brought up to date, the rules graph's source declared unloaded at runtime, and a test given its file's timeout; nothing a project loads or does changes." },
+  "fix(ecs): read current parent and child relationships from the core":
+    { note: "SDK lookups follow the current entity hierarchy after engine-side edits." },
+  "fix(runtime): load deferred scenes from the active manifest revision":
+    { note: "Deferred scenes load their updated files after a hot update." },
+  "fix(ecs): advance component revisions on entity destruction":
+    { note: "Hierarchy queries drop entities destroyed by the engine." },
+  "fix(editor): close device preview selectors when builds start":
+    { note: "Device Preview closes its scene and network dropdowns when the settings become locked." },
+  "docs: document run conditions, profileDomain and touches on plugins":
+    { note: "The manual now covers run conditions, profiler domains and declared access for plugins." },
+  "docs: cover the presented camera, pixel readback, weather state, material subgraphs and prefab owners":
+    { note: "Five APIs the manual never named are now documented." },
+  "docs: list sound event fields, handles, rejections and stats":
+    { note: "The sound events page now lists every `.esaudioevent` field and the playback API." },
+  "docs: list the TabView, Tooltip, TreeView and ColorPicker handles and fields":
+    { note: "The UI widgets page now lists what the TabView, Tooltip, TreeView and ColorPicker factories return." },
+  "fix(editor): return focus to a dropdown's button on Escape and on a pick":
+    { note: "Closing a dropdown with Escape puts focus back on its button again." },
+  "fix(editor): keep focused dropdown choices visible after refresh":
+    { note: "Editor dropdowns keep the focused choice in view when their options refresh." },
+  "fix(editor): reveal the current dropdown choice when navigating after wheel scroll":
+    { note: "Keyboard navigation brings the focused dropdown choice back into view." },
+  "fix(editor): move dropdown focus with Page Up and Page Down":
+    { note: "Page Up and Page Down move focus through long dropdowns and menus." },
+  "fix(project): ship dropdown page navigation":
+    { note: "Page Up and Page Down move focus through long dropdowns and menus." },
+  "fix(editor): preserve open scene assets during cancelled reloads":
+    { note: "An interrupted disk reload keeps the open scene's resources and streamed cells." },
+  "fix(editor): apply cell actions to the current world partition":
+    { note: "Cell loading follows the latest scene edits." },
+  "perf(editor): reuse world partition plans when toggling cells":
+    { note: "Loading and unloading cells is faster in large streamed worlds." },
+  "perf(project): ship cached editor cell plans":
+    { note: "Loading and unloading cells is faster in large streamed worlds." },
+  "fix(editor): restore cell controls after repairing a world":
+    { note: "Worlds that opened whole regain cell controls after repair." },
+  "fix(editor): reveal clipped dropdown labels in narrow panels":
+    { note: "Read long dropdown values in narrow editor panels." },
+  "fix(editor): return to where a folder was scrolled in the content browser":
+    { note: "The content browser returns to where you were in a folder." },
+  "perf(editor): reuse mesh bounds when dropping a selection to the floor":
+    { note: "Drop to Floor is faster on large selections." },
+  "fix(editor): confirm a sole inspector dropdown search result with Enter":
+    { note: "Enter selects the only result in an inspector dropdown search." },
+  "fix(editor): wrap dropdown details when space is tight":
+    { note: "Dropdown choices stay readable in narrow editor windows." },
+  "fix(editor): dismiss dropdowns when their trigger shifts within a dock":
+    { note: "Dropdowns stay aligned with their toolbar controls." },
+  "fix(editor): keep oversized dropdown option labels visible during navigation":
+    { note: "Long dropdown options keep their label visible when focused." },
+  "fix(editor): reveal wrapped dropdown choices during keyboard navigation":
+    { note: "Long dropdown choices stay readable during keyboard navigation." },
+  "fix(editor): account for depth when framing a perspective selection":
+    { note: "Frame Selection fits deep objects in the perspective viewport." },
+  "perf(editor): reuse inherited visibility across hierarchy projection":
+    { note: "Deep hierarchies take less time to appear in the viewport." },
+  "fix(editor): match hollow tile rectangle previews to paint":
+    { note: "Alt-dragging a tile rectangle previews its hollow outline." },
+  "fix(editor): refresh inherited visibility when authored parents change":
+    { note: "Existing descendants follow changes to their ancestors' visibility." },
+  "fix(editor): migrate scene components before manifest asset preload":
+    { note: "Legacy meshes and materials load in scenes opened through editor automation." },
+  "fix(material): replace live shader programs with the material state":
+    { note: "Changing a material's shader updates its live scene appearance and preview." },
+  "fix(editor): preview material shader changes before saving":
+    { note: "Changing a material's shader updates its live scene appearance and preview." },
+  "perf(editor): keep material preview camera changes off the texture load path":
+    { note: "Rotating a live material preview or changing its shape reuses the current material." },
+  "perf(editor): reuse current textures for material parameter edits":
+    { note: "Editing scalar material parameters reuses the textures already bound to the live preview." },
+  "perf(editor): read each mesh box once per viewport pick":
+    { note: "Viewport clicks do less work in mesh-heavy scenes." },
+  "perf(picking): defer non-mesh eligibility until bounds fallback":
+    { note: "Viewport clicks do less work in mesh-heavy scenes." },
+  "fix(editor): preserve local depth when moving under flat parents":
+    { note: "2D moves under zero-depth parents keep their stored depth." },
+  "fix(editor): protect scene files written in newer formats":
+    { note: "Older editors protect scenes written in newer formats." },
+  "fix(scene): share the scene version gate with the editor":
+    { note: "Older editors protect scenes written in newer formats." },
+  "perf(editor): load live material textures concurrently":
+    { note: "Material previews update sooner when several texture maps need loading." },
+  "fix(editor): preserve wheel positions in Play input and recordings":
+    { note: "Play input and recordings can scroll at an explicit canvas position." },
+  "fix(editor): map pointer input through the displayed canvas size":
+    { note: "Pointer input stays aligned with the viewport at fractional display scaling." },
+  "fix(editor): preserve authored draw order when inserting prefab subtrees":
+    { note: "New prefab instances draw in the same order as the saved scene." },
+  "fix(scene): share prefab member ID allocation with the editor":
+    { note: "Opening a prefab scene keeps existing references pointed at their original targets." },
+  "fix(editor): reserve scene reference IDs during prefab expansion":
+    { note: "Opening a prefab scene keeps existing references pointed at their original targets." },
+  "fix(editor): project selection bounds with the displayed canvas scale":
+    { note: "Selection outlines stay aligned at fractional display scaling." },
+  "perf(editor): retain projected tile grids while the view is still":
+    { note: "Tilemap painting reuses the grid overlay while the view is still." },
+  "perf(material): retain draft material resources across preview draws":
+    { note: "Rotating an off-scene material preview or changing its shape reuses the current draft." },
+  "perf(editor): reuse off-scene material drafts for camera changes":
+    { note: "Rotating an off-scene material preview or changing its shape reuses the current draft." },
+  "perf(editor): reuse parent frames during multi-object moves":
+    { note: "Dragging many objects under a nested parent does less transform work." },
+  "fix(editor): keep shader picker focus through asset renames":
+    { note: "The material Shader picker follows asset renames while open." },
+  "feat(editor): paint the picked terrain with the rect, ellipse and line tools":
+    { note: "The rect, ellipse and line tools paint the terrain you picked, edges included." },
+  "fix(editor): keep new material shader and parent links through moves":
+    { note: "New material links follow indexed shaders and parents when they move." },
+  "fix(editor): refresh tile shape previews when modifiers change":
+    { note: "Tile shape previews respond to Shift and Alt while the pointer is still." },
+  "fix(editor): keep tile layer rows on one line after the terrain layer editor opens":
+    { note: "Tile layer rows stay on one line after the terrain layer editor has been open." },
+  "fix(editor): resume toolbar tab order after floating settings":
+    { note: "Tab follows the toolbar order after leaving Gizmos settings." },
+  "fix(editor): align transform gizmo drawing and picking with display scale":
+    { note: "Transform handles stay aligned with their hit areas when the viewport is scaled." },
+  "fix(material): preview unsaved materials through the runtime loader":
+    { note: "Material previews show unsaved edits even when the material is outside the current scene." },
+  "fix(editor): preview unsaved materials outside the current scene":
+    { note: "Material previews show unsaved edits even when the material is outside the current scene." },
+  "fix(editor): confirm updates and never install over another copy":
+    { note: "Taking an editor update is asked first, and a copy kept beside the installed one is never replaced." },
+  "fix(editor): pan the viewport using its displayed canvas scale":
+    { note: "The scene follows the pointer when panning a scaled viewport." },
+  "perf(editor): project only nearby cells in large tile paint previews":
+    { note: "Large tile paint previews generate fewer off-screen outlines." },
+  "fix(assets): resolve suffixed texture paths in Play and web builds":
+    { note: "Local texture references with query or fragment suffixes keep their import settings in the editor and Play." },
+  "fix(editor): use indexed settings for suffixed asset references":
+    { note: "Local texture references with query or fragment suffixes keep their import settings in the editor and Play." },
+  "fix(editor): validate streamed cells against project component schemas":
+    { note: "World editing checks entity references declared by project components." },
+  "fix(editor): place world-space moves using the composed parent matrix":
+    { note: "World-space moves land where intended under rotated, non-uniformly scaled hierarchies." },
+  "fix(editor): let post-effect dials take any value, inside their slider or not":
+    { note: "A post effect's dials take any value again, inside their slider or not." },
+  "fix(sdk): tell a post-effect choice from a dial, and let a fog lie on a high plain":
+    { note: "A post effect's dials take any value again, inside their slider or not." },
+  "fix(runtime): refresh the entry scene after a manifest update":
+    { note: "Packaged games use the updated entry scene after a hot update." },
+  "fix(export): reject scene formats the runtime cannot load":
+    { note: "Export reports scenes in an unsupported format." },
+  "perf(export): walk asset dependencies without shifting the queue":
+    { note: "Export traverses large asset dependency lists with less work." },
+  "fix(export): fail builds with missing required scene assets":
+    { note: "Export fails when a selected scene is missing from the asset index." },
+  "fix(world): match far proxy hierarchy to the loaded scene":
+    { note: "Far proxies match the active hierarchy of the scene they replace." },
+  "fix(world): wait for far proxy render programs before handoff":
+    { note: "A visible cell stays in place while its far proxy waits for render programs." },
+  "perf(world): skip cells in gaps between residency sources":
+    { note: "Large worlds spend less time reconciling cells between distant residency sources." },
+  "perf(editor): reuse selected rows while navigating bone pickers":
+    { note: "Keyboard navigation is faster in large joint lists." },
+  "perf(project): ship faster bone picker navigation":
+    { note: "Keyboard navigation is faster in large joint lists." },
+  "perf(editor): reuse the scene child index for branch paths":
+    { note: "The Sequencer and Animator can list paths under an entity faster in large scenes." },
+  "perf(project): ship faster editor branch path queries":
+    { note: "The Sequencer and Animator can list paths under an entity faster in large scenes." },
+  "perf(bounds): reuse rotated corners for flat entity boxes":
+    { note: "Flat world bounds take less work to project." },
+  "perf(editor): project a single face of flat world bounds":
+    { note: "Flat world bounds take less work to project." },
+  "perf(editor): reuse row positions in large suggestion lists":
+    { note: "Large editor suggestion lists respond faster to keyboard navigation." },
+  "perf(project): ship faster grouped editor suggestions":
+    { note: "Large editor suggestion lists respond faster to keyboard navigation." },
+  "perf(editor): reduce keyboard navigation work in large dropdowns":
+    { note: "Large searchable dropdowns respond faster to keyboard navigation." },
+  "perf(project): ship faster large editor dropdowns":
+    { note: "Large searchable dropdowns respond faster to keyboard navigation." },
+  "perf(editor): skip hull construction for fully enclosed marquee hits":
+    { note: "Marquee selection is faster when it encloses many entities." },
+  "perf(world): accumulate cell bounds during subtree placement":
+    { note: "Large streamed worlds partition faster." },
+  "fix(world): reject unrepresentable streamed partitions":
+    { note: "Play and export report invalid streamed-world geometry before publishing cells." },
+  "fix(editor): match flipbook viewport playback and preserve sprite edits":
+    { note: "Flipbook viewport previews use each Sprite Animator’s speed and loop settings." },
+  "fix(ui): deliver blur when a live control loses focusability":
+    { note: "A live UI control emits Blur when its Focusable component is removed." },
+  "fix(input): preserve fractional offsets on scaled browser canvases":
+    { note: "Touch and outside-canvas drags follow the scaled canvas." },
+  "fix(input): reset gamepad button history on reconnect":
+    { note: "Gamepads start with fresh button history after reconnecting." },
+  "fix(editor): align gizmos with the drawn viewport centre":
+    { note: "Gizmos align with the drawn viewport." },
+  "fix(import): track external gltf hair maps as dependencies":
+    { note: "Imported glTF hair materials keep their external flow and shift textures." },
+  "chore(golden): hold the rules graph's classification until it ships":
+    { internal: "The release census only classifies features a released version ships; the rules graph's entry waits for its release." },
+  "test(sdk): type the hierarchy members spy and record its wasm exports":
+    { internal: "A test's mock typing and the recorded wasm export list; nothing a project can call or see changes." },
+  "chore: note the hierarchy spy typing as internal":
+    { internal: "A test's mock typing and the recorded wasm export list; nothing a project can call or see changes." },
+  "fix(ecs): refresh hierarchy value predicates after reparenting":
+    { note: "Cached hierarchy predicates follow reparenting." },
+  "fix(editor): keep HLOD partition and proxy build errors visible":
+    { note: "The HLOD panel shows why a world or proxy could not be built." },
+  "perf(world): build requested far proxies without scanning the entire world":
+    { note: "Generating an HLOD proxy skips unrelated cells during proxy assembly." },
+  "perf(editor): build selected HLOD proxies directly":
+    { note: "Generating an HLOD proxy skips unrelated cells during proxy assembly." },
+  "fix(editor): keep HLOD results with the current refresh and project":
+    { note: "The HLOD panel keeps the latest refresh and clears when switching projects." },
+  "fix(editor): mark HLOD proxies stale when simplification settings change":
+    { note: "The HLOD panel flags proxies after simplification settings change." },
+  "fix(editor): refresh HLOD proxies when source assets change":
+    { note: "The HLOD panel notices edits to source meshes and prefabs." },
+  "fix(input): cancel host pointers without dispatching a release":
+    { note: "Losing focus or cancelling a touch no longer clicks a held game UI control." },
+  "perf(editor): stop hover picking at the first ranked hit":
+    { note: "Faster hover picking over UI." },
+  "perf(editor): reuse merged selection bounds during hover":
+    { note: "Hover stays responsive with large selections." },
+  "fix(editor-tools): wire entity fields by $ref and keep the HUD out of view_from":
+    { note: "`apply_scene_ops` wires a widget to the parts it made in the same call, and `view_from` shows the world without the HUD." },
+  "fix(editor): leave the screen HUD out of stills of the world":
+    { note: "`apply_scene_ops` wires a widget to the parts it made in the same call, and `view_from` shows the world without the HUD." },
+  "feat(ui): draw text at any weight with tabular figures, and shade screen UI with a Gradient material":
+    { note: "Screen UI can be drawn the quiet way a designed HUD is: light type, steady numbers and lines that fade." },
+  "fix(scene): preserve imported renderers under visibility gates":
+    { note: "Hidden imported nodes keep their model references and authored renderer flags." },
+  "fix(editor): withhold incomplete tilemap palettes and collision previews":
+    { note: "A tilemap layer keeps its tile IDs when a referenced tileset goes missing." },
+  "perf(assets): skip reference cache reads for leaf asset edits":
+    { note: "Replacing ordinary textures or audio files updates the editor’s asset index faster." },
+  "fix(assets): reconcile invalid sidecars during incremental scans":
+    { note: "The editor’s asset index drops entries with invalid sidecars." },
+  "perf(editor): update the source child index locally after reparenting":
+    { note: "Moving several nodes between parents is faster in large scenes." },
+  "perf(project): ship incremental editor hierarchy indexing":
+    { note: "Moving several nodes between parents is faster in large scenes." },
+  "fix(assets): resolve indexed document references with URL suffixes":
+    { note: "Document-relative material and tileset references can resolve local assets with query or fragment suffixes." },
+  "fix(world): resolve inherited streamed world settings across preview and export":
+    { note: "Streamed worlds can inherit their settings from a prefab root." },
+  "fix(editor): read resolved world settings for HLOD clusters":
+    { note: "Streamed worlds can inherit their settings from a prefab root." },
+  "fix(editor): restore inspector dropdown focus and reveal clipped flag summaries":
+    { note: "Inspector dropdowns return focus to the field that opened them." },
+  "feat(pipeline): keep places out of a land's maps, layers, tints and steps with `not`":
+    { note: "A land's `where` can keep places out." },
+  "perf(editor): combine offscreen option list spacers":
+    { note: "Large searchable dropdowns open and scroll faster." },
+  "perf(project): ship faster large dropdown rendering":
+    { note: "Large searchable dropdowns open and scroll faster." },
+  "fix(assets): use current asset metadata for legacy mesh components":
+    { note: "Legacy mesh scenes preload and cook the same assets as current scenes." },
+  "fix(ecs): refresh hierarchy queries after engine-side parenting":
+    { note: "Entity queries follow engine-side parenting edits." },
+  "fix(editor): apply live material edits when a texture is missing":
+    { note: "Live material previews apply valid edits when a texture is missing." },
+  "fix(editor): reveal the highlighted suggestion after live updates":
+    { note: "Searchable lists keep the keyboard-highlighted option visible after a project refresh." },
+  "fix(project): ship stable live suggestion scrolling":
+    { note: "Searchable lists keep the keyboard-highlighted option visible after a project refresh." },
+  "perf(editor): keep parent moves local to their sibling lists":
+    { note: "Moving a node between parents costs less in large scenes." },
+  "perf(ecs): support ordered reparenting without sorting the world":
+    { note: "Moving a node between parents costs less in large scenes." },
+  "perf(picking): skip unused sorting groups for area selection":
+    { note: "Faster marquee selection in grouped scenes." },
+  "perf(editor): query UI candidates separately for marquee selection":
+    { note: "World marquee selection does less work in scenes with sparse UI." },
+  "fix(editor): reject gutter-only marquee contact with viewports":
+    { note: "Marquees in the gutter stop at the viewport edge." },
+  "perf(material): send changed uniforms during material snapshot updates":
+    { note: "Editing one material parameter sends fewer updates to the renderer." },
+  "fix(cook): follow only dependencies a material uses":
+    { note: "Material exports follow the dependencies used by the runtime." },
+  "fix(export): keep indexed material dependencies without file extensions":
+    { note: "Exports keep indexed material dependencies even when their filenames have no extension." },
+  "fix(material): resolve the active shader through material instance chains":
+    { note: "Material instances use the closest inherited shader throughout the runtime." },
+  "fix(health): audit data textures through material inheritance":
+    { note: "Project Health checks data textures against the shader their material actually uses." },
+  "perf(material): reuse resolved state when updating material instances":
+    { note: "Updating a material with many instances takes less CPU time." },
+  "perf(material): read individual uniforms directly through instance chains":
+    { note: "Reading one material parameter is faster on inherited materials." },
+  "perf(material): keep unchanged render state during parameter edits":
+    { note: "Parameter-only material edits reuse the current render state." },
+  "fix(material): use the shader default for cleared texture overrides":
+    { note: "Material texture overrides can be edited in Details." },
+  "fix(editor): distinguish clearing a texture override from inheriting it":
+    { note: "Material texture overrides can be edited in Details." },
+  "fix(picking): rank opaque meshes by ray depth and respect mesh layers":
+    { note: "Click the near model when opaque 3D models overlap." },
+  "perf(picking): reuse live mesh transform readers during selection":
+    { note: "Model selection reuses transform reads in large scenes." },
+  "fix(minigame): dismiss late loading indicators independently":
+    { note: "Mini-game loading indicators no longer leave the first screen covered when an earlier host call fails or misses its callback." },
+  "fix(runtime): resolve mini-game scene files through the package manifest":
+    { note: "Mini-game exports resolve scene paths through the package manifest." },
+  "fix(minigame): stage colliding scene files at distinct paths":
+    { note: "Mini-game export handles scene file and folder name collisions." },
+  "fix(picking): keep mirrored shape and skeleton bounds at their drawn size":
+    { note: "Mirrored shapes and Spine skeletons keep their full selection bounds." },
+  "fix(editor): show all tilesets used by a tile stamp":
+    { note: "Tile stamps can preview tiles from more than one tileset." },
+  "fix(input): route native desktop wheel events at their own positions":
+    { note: "Native desktop wheel events scroll the control under each event." },
+  "fix(native): match Web children component membership":
+    { note: "Native and Web agree on empty `Children` components." },
+  "fix(tilemap): resolve relative atlases in native tilesets":
+    { note: "Native tilesets can reference an atlas relative to their `.estileset` file." },
+  "fix(editor): preview relative native tileset atlases":
+    { note: "Native tilesets can reference an atlas relative to their `.estileset` file." },
+  "fix(editor): draw no tree line under an Outliner folder":
+    { note: "Outliner folders no longer draw a tree line under their contents." },
+  "fix(assets): resolve suffixed scene references in packaged builds":
+    { note: "Packaged scenes can bind indexed textures whose references carry a query or fragment suffix." },
+  "perf(editor): bound tile paint previews in tilted perspective views":
+    { note: "Large tile paint previews are faster in tilted views." },
+  "fix(picking): exclude inactive entities from world ray picks":
+    { note: "Inactive objects stay out of viewport picks." },
+  "fix(editor): exclude inactive entities from viewport marquee picks":
+    { note: "Inactive objects stay out of viewport picks." },
+  "perf(picking): reuse live hierarchy readers across hits":
+    { note: "Faster picking with camera layer filters." },
+  "perf(play): share prefab assets between world detection and scene expansion":
+    { note: "Play reads prefab assets once per scene load." },
+  "fix(editor): align Play selection overlays with the drawn viewport":
+    { note: "Play selection outlines follow the rendered frame." },
+  "fix(asset): load the shader a material names in the running game":
+    { note: "A material made by `shader_write` draws in Play, and `verify` fails when an asset does not load." },
+  "fix(verify): count an asset the game failed to load as an error":
+    { note: "A material made by `shader_write` draws in Play, and `verify` fails when an asset does not load." },
+  "fix(editor): preserve export scene names during Play":
+    { note: "Play keeps the scene names used by project exports." },
+  "fix(project): reserve shipping scene names before editor-only names":
+    { note: "Play keeps the scene names used by project exports." },
+  "fix(playable): resolve embedded audio aliases consistently":
+    { note: "Playable ads resolve Windows-style audio paths to their embedded clips." },
+  "fix(editor): keep plugin dropdown labels and arrows inside narrow docks":
+    { note: "Plugin dropdowns fit narrow docks." },
+  "fix(asset): resolve Windows project paths consistently across runtimes":
+    { note: "Project asset paths written with Windows separators resolve in editor Play and packaged games." },
+  "fix(prefab): compare own component fields when saving overrides":
+    { note: "Prefab save handles custom component fields that share names with built-in JavaScript properties." },
+  "perf(editor): reuse prefab baselines while saving scenes":
+    { note: "Saving scenes with repeated nested prefabs is faster." },
+  "perf(prefab): share prepared scene-instance baselines with the editor":
+    { note: "Saving scenes with repeated nested prefabs is faster." },
+  "fix(prefab): preload the effective variant mounts":
+    { note: "Prefab variants load the nested dependencies they actually use." },
+  "fix(camera): identify the app that presented a camera":
+    { note: "Camera changes refresh the viewport that displays them." },
+  "fix(editor): scope viewport refresh to the displayed app":
+    { note: "Camera changes refresh the viewport that displays them." },
+  "fix(diagnostics): drop the layout notice from every well-formed UI node":
+    { note: "`get_diagnostics` no longer flags every UI node." },
+  "fix(editor-mcp): say when a stale editor build is someone's uncommitted edit":
+    { note: "`get_diagnostics` no longer flags every UI node." },
+  "perf(picking): skip icon scaling for sprite bounds":
+    { note: "Faster picking in sprite-heavy scenes." },
+  "fix(editor): cancel editable dropdown drafts when controls become disabled":
+    { note: "Read-only transitions discard dropdown drafts." },
+  "fix(editor): dismiss dropdowns when their trigger becomes disabled":
+    { note: "Read-only inspector dropdowns." },
+  "feat(editor): record the running game to a video through MCP":
+    { note: "An AI agent can record the running game to a video through the editor's MCP tools." },
+  "feat(project): ship recording the running game to a video":
+    { note: "An AI agent can record the running game to a video through the editor's MCP tools." },
+  "feat(sdk): give a RenderTexture's render target a public name":
+    { note: "A `RenderTexture` handle names its render target as `target`." },
+  "fix(editor): validate timeline paths in scene sibling order":
+    { note: "The Sequencer offers paths that can be reached in scene order." },
+  "fix(project): ship consistent timeline target paths":
+    { note: "The Sequencer offers paths that can be reached in scene order." },
+  "fix(ui): exclude retiring dialogs and controls from keyboard focus":
+    { note: "Dialogs and controls that are being destroyed stop receiving keyboard input immediately." },
+  "fix(editor): size the rules graph Apply icon on the ramp":
+    { internal: "A test's type narrowing and an icon size held to the editor's ramp; nothing a project or a panel does changes." },
+  "chore: bring the rules graph's test types and icon size green":
+    { internal: "A test's type narrowing and an icon size held to the editor's ramp; nothing a project or a panel does changes." },
+  "feat(pipeline): wire, order and preview rules graph nodes":
+    { note: "Rules graphs open in a node editor." },
+  "feat(editor): edit rules graphs as nodes, with what each node makes beside them":
+    { note: "Rules graphs open in a node editor." },
+  "feat(pipeline): run rules graphs again only where they changed, and make components of their parts":
+    { note: "Rules graphs open in a node editor." },
+  "feat(editor): preview rules graphs off the window, select nodes by box, copy them and make components of them":
+    { note: "Rules graphs open in a node editor." },
+  "feat(pipeline): lay out places with a rules graph":
+    { note: "An AI agent can lay out towns and cities by rules through the editor's MCP tools." },
+  "feat(editor): rules tools write, look at and apply rules graphs":
+    { note: "An AI agent can lay out towns and cities by rules through the editor's MCP tools." },
+  "feat(pipeline): tilt a rules graph part, and merge branches without copies":
+    { note: "An AI agent can lay out towns and cities by rules through the editor's MCP tools." },
+  "feat(pipeline): stand made models from a rules graph with a `model` node":
+    { note: "A rules graph can stand models made elsewhere." },
+  "feat(editor): apply the models of a rules graph, each as its own entity":
+    { note: "A rules graph can stand models made elsewhere." },
+  "feat(pipeline): stand plant models from a rules graph with a `plant` node":
+    { note: "A rules graph can stand real trees." },
+  "feat(editor): apply the plants of a rules graph as one PlacedFoliage, made as a land's are":
+    { note: "A rules graph can stand real trees." },
+  "feat(pipeline): name what a rules graph part is made of, drawn with tiling textures at their real size":
+    { note: "A rules graph can say what each part is made of." },
+  "feat(editor): apply a rules graph with a material and texture for each surface it names":
+    { note: "A rules graph can say what each part is made of." },
+  "fix(input): map browser pointers through the canvas content box":
+    { note: "Browser pointer picking follows the actual rendered canvas size." },
+  "fix(assets): align saved material texture loads with live preview":
+    { note: "Saved materials leave empty texture slots unassigned." },
+  "fix(scene): share authored hierarchy checks across load and export":
+    { note: "Scene opens and exports report duplicate IDs and parent cycles." },
+  "fix(editor): reject ambiguous scene hierarchies before projection":
+    { note: "Scene opens and exports report duplicate IDs and parent cycles." },
+  "fix(editor): preserve live sibling order through hierarchy edits":
+    { note: "Same-named siblings resolve in the same order in the live scene and after reload." },
+  "fix(ecs): keep live hierarchy order consistent with saved scenes":
+    { note: "Same-named siblings resolve in the same order in the live scene and after reload." },
+  "fix(scene): keep the active UI theme when a load fails":
+    { note: "A failed scene load keeps the running UI's palette." },
+  "fix(runtime): retry scene loads superseded by a manifest update":
+    { note: "Scene loads follow the active asset manifest during hot updates." },
+  "fix(scene): diagnose malformed scene records across loading and export":
+    { note: "Malformed scene records are reported at their location." },
+  "perf(scene): skip full distance calculations for distant streaming cells":
+    { note: "Large 2D and 3D maps spend less time deciding which scene cells to stream." },
+  "fix(scene): retry failed proximity streaming operations":
+    { note: "Proximity streaming recovers after temporary load and unload failures." },
+  "fix(scene): stream proximity cells from the focus entity's world position":
+    { note: "Scene streaming follows parented entities in 2D and 3D." },
+  "fix(editor): page through suggestions without leaving the input":
+    { note: "Page Up and Page Down work in editable suggestion fields." },
+  "fix(project): ship keyboard paging for searchable dropdowns":
+    { note: "Page Up and Page Down work in editable suggestion fields." },
+  "fix(editor): reveal the highlight when paging reaches a searchable dropdown boundary":
+    { note: "Page Up and Page Down bring the highlighted suggestion back into view." },
+  "fix(editor): keep searchable dropdown choices visible in short windows":
+    { note: "Searchable dropdowns keep a full choice visible in short windows when space permits." },
+  "fix(project): ship usable searchable dropdowns in short windows":
+    { note: "Searchable dropdowns keep a full choice visible in short windows when space permits." },
+  "perf(editor): avoid unnecessary hulls in selection bounds queries":
+    { note: "Faster outlines for large selections." },
+  "fix(editor): clip projected selection outlines to the drawn viewport":
+    { note: "Selection outlines stay inside the picture." },
+  "fix(editor): use anchored dropdowns for sequencer clip targets":
+    { note: "The Sequencer’s Add Shot and Add Sequence dropdowns follow the track buttons." },
+  "fix(project): ship anchored sequencer clip dropdowns":
+    { note: "The Sequencer’s Add Shot and Add Sequence dropdowns follow the track buttons." },
+  "feat(editor): write GLSL material shaders and see them on samples at once":
+    { note: "An AI agent can write a material shader and look at it in well under a second." },
+  "feat(shader): name the line where a GLSL shader stops translating for WebGPU":
+    { note: "An AI agent can write a material shader and look at it in well under a second." },
+  "perf(document): reduce scene and prefab validation work":
+    { note: "Scene and prefab validation does less work." },
+  "perf(editor): aggregate selection bounds without visiting corners":
+    { note: "Large selections and asset previews use faster framing bounds." },
+  "perf(render): share and streamline bounds aggregation for framing":
+    { note: "Large selections and asset previews use faster framing bounds." },
+  "fix(editor): show the focused toolbar choice in short windows":
+    { note: "Long dropdown labels stay readable in tight editor layouts." },
+  "fix(editor): show a complete dropdown option in short windows":
+    { note: "Dropdowns in short editor windows make room for a complete option." },
+  "fix(update): install a downloaded update silently and reopen the editor":
+    { note: "Restarting into an editor update on Windows no longer opens the installer wizard." },
+  "perf(ui): skip repeated wheel picks without a scroll target":
+    { note: "Wheel input over non-scrollable areas does less hit testing." },
+  "perf(ecs): read sparse hierarchy query candidates from the core":
+    { note: "Sparse hierarchy queries refresh faster in large scenes." },
+  "perf(editor): scan occupied chunks for tile replacement previews":
+    { note: "Tile replacement previews skip empty space when replacing existing tiles." },
+  "fix(picking): keep speculative component reads tracked":
+    { note: "Entity picking tracks mesh, parent and sorting-group reads during speculative steps." },
+  "fix(editor): keep dropdown search mode stable while choices update":
+    { note: "Changing choices keeps focus in an open inspector dropdown." },
+  "fix(project): ship stable focus for live dropdown choices":
+    { note: "Changing choices keeps focus in an open inspector dropdown." },
+  "fix(runtime): discard scene preloads from superseded manifests":
+    { note: "Scene switches refresh stale preloads after a hot update." },
+  "fix(world): preserve prefab entity references across streamed scene cuts":
+    { note: "Streamed prefabs keep references to persistent scene entities." },
+  "perf(world): prepare streamed prefab roots with bounded concurrency":
+    { note: "Play and export can overlap prefab reads when partitioning a streamed scene." },
+  "fix(export): read streamed world declarations from shipped scenes":
+    { note: "Export checks actual StreamedWorld components in the scenes it ships." },
+  "fix(world): migrate legacy component records before partitioning":
+    { note: "Older scenes and prefabs enter the correct streamed cells." },
+  "fix(runtime): resolve streamed world manifests through active assets":
+    { note: "Re-entering a streamed scene uses its current world manifest." },
+  "perf(world): index scene hierarchy and cell placement together":
+    { note: "Large streamed worlds partition faster." },
+  "fix(world): read streamed world settings from prefab instance overrides":
+    { note: "A prefab instance can declare streaming from its root." },
+  "fix(world): validate project entity references when exporting streamed worlds":
+    { note: "Streamed-world exports validate references declared by project components." },
+  "refactor(editor): share project schema extraction with the build pipeline":
+    { note: "Streamed-world exports validate references declared by project components." },
+  "fix(terrain): sample the interior triangle at grid-aligned outer edges":
+    { note: "Terrain queries report the slope at grid-aligned outer edges." },
+  "fix(editor): clip terrain brush picks to the presented camera":
+    { note: "Terrain brushes stay inside the view that was drawn." },
+  "perf(terrain): stop quadtree trials once they exceed the page budget":
+    { note: "High-detail terrain fits its page budget faster." },
+  "fix(terrain): clip collision triangles to finite terrain bounds":
+    { note: "Finite terrain collision ends at the visible edge." },
+  "fix(terrain): refresh collision across edited chunk boundaries":
+    { note: "Terrain collision follows height edits across chunk boundaries." },
+  "perf(terrain): streamline collision triangle grouping by physical material":
+    { note: "Painted terrain groups collision triangles faster." },
+  "perf(terrain): share height samples when querying ground paint":
+    { note: "3D terrain assigns collision materials faster." },
+  "fix(terrain): reject mismatched height tiles during asset cooking":
+    { note: "Builds report PNG height tiles that do not match the terrain grid." },
+  "fix(editor): refresh terrain hover when the presented camera moves":
+    { note: "The terrain brush follows the ground under a stationary pointer." },
+  "fix(editor): save ordinary terrain images as a batch":
+    { note: "Terrain height and paint images save together." },
+  "fix(editor): avoid filename collisions when saving terrain images":
+    { note: "New terrain images use available filenames." },
+  "fix(terrain): share typed manifest image dependencies with asset cooking":
+    { note: "Terrain builds use the same manifest fields as the runtime." },
+  "fix(terrain): refresh pages when their border samples change":
+    { note: "Terrain lighting follows edits near page seams." },
+  "perf(terrain): reuse height bounds across page samples":
+    { note: "Terrain pages build faster in worlds with height modifiers." },
+  "fix(terrain): decode render pages with their own height range":
+    { note: "Cached terrain no longer jumps when a nearby edit extends the height range." },
+  "perf(terrain): encode provided page weights directly":
+    { note: "Terrain pages can encode supplied paint weights faster." },
+  "fix(terrain): load direct physical materials and keep collision settings during reload":
+    { note: "Painted ground keeps its collision material while a file reloads." },
+  "fix(terrain): preserve secondary paint from region providers":
+    { note: "Terrain providers can supply the upper paint layers on their own." },
+  "fix(terrain): pick the nearest triangle and reuse raycast edge samples":
+    { note: "3D terrain picking uses the nearest surface hit." },
+  "perf(terrain): reuse triangle vertices while tracing a terrain ray":
+    { note: "Long terrain ray picks allocate less as they cross the grid." },
+  "perf(terrain): reuse paint composition buffers across a region":
+    { note: "Painted terrain pages take less time to build." },
+  "fix(editor): serialize terrain saves with project handoff":
+    { note: "Terrain saves stay with their project." },
+  "perf(terrain): reuse render patch topology when building collision tiles":
+    { note: "Ground and planet collision tiles build faster." },
+  "perf(terrain): reuse height sample coordinates during terrain splitting":
+    { note: "Terrain splitting samples heights faster." },
+  "fix(editor): protect terrain edits during tile conversion":
+    { note: "Splitting terrain into tiles preserves existing ground and assets." },
+  "perf(terrain): avoid per-pixel views when splitting paint maps":
+    { note: "Splitting painted terrain samples its weight maps faster." },
+  "fix(editor): align and distinguish terrain targets in the dropdown":
+    { note: "The terrain target dropdown fits the brush settings panel." },
+  "fix(tilemap): bound terrain rules to available tile IDs":
+    { note: "Terrain brushes pick tiles that are still available." },
+  "fix(editor): keep terrain brushes inside their tileset":
+    { note: "Terrain brushes pick tiles that are still available." },
+  "fix(terrain): resolve height references when naming new weight maps":
+    { note: "Tiled terrain saves and heightmap imports support UUID-backed images." },
+  "fix(editor): write tiled terrain images to resolved project files":
+    { note: "Tiled terrain saves and heightmap imports support UUID-backed images." },
+  "perf(ui): query only text fields missing input components":
+    { note: "Text input skips redundant focus and interaction checks on initialized fields." },
+  "fix(ui): isolate text editor callbacks across focus sessions":
+    { note: "Returning to a text field starts from its committed value." },
+  "feat(text): give Text a second shadow drawn behind the first":
+    { note: "Text can carry two shadows." },
+  "perf(assets): reduce path work and bound texture usage reads":
+    { note: "Texture usage scans finish faster on projects with many scenes and prefabs." },
+  "fix(editor): keep the tile brush atlas available across palette tabs":
+    { note: "The tile brush preview follows the active tileset across palette tabs." },
+  "fix(editor): refresh tile hover when the presented camera moves":
+    { note: "The tile brush and status readout follow the cell under a stationary pointer." },
+  "fix(editor): recover keyboard focus when tile layers change":
+    { note: "Keyboard focus stays in the tile layer picker when a row disappears." },
+  "fix(editor): show full tile layer names when dropdown labels are clipped":
+    { note: "Long tile layer names stay readable in narrow toolbars." },
+  "fix(editor): hide tile overlays when the camera clips the whole tile plane":
+    { note: "Tile overlays disappear when the camera clips the map's entire flat plane." },
+  "fix(editor): keep tile palette picks inside the active tileset":
+    { note: "The tile palette picks the same tile IDs the game renders." },
+  "fix(editor): use runtime tile ids in the tile palette":
+    { note: "The tile palette uses the same global tile IDs as the runtime." },
+  "fix(editor): apply tile replacement to empty cells with stored flags":
+    { note: "Replace Tiles can fill empty cells that still have flip flags." },
+  "perf(editor): reuse tile stamp preview slices":
+    { note: "Large tile stamp previews take less time to build." },
+  "fix(tilemap): compose brush transforms in displayed tile space":
+    { note: "Tile brushes rotate and flip in the direction shown on screen." },
+  "fix(editor): match tile brush previews to renderer orientation":
+    { note: "Tile brushes rotate and flip in the direction shown on screen." },
+  "fix(editor): clip tile tool picks to the presented camera":
+    { note: "Tile tools pick only where the camera draws the map." },
+  "fix(tilemap): load uncompressed Base64 Tiled layers":
+    { note: "Uncompressed Base64 Tiled maps keep their placed tiles." },
+  "fix(tilemap): keep Tiled animations and properties in direct imports":
+    { note: "Direct Tiled imports retain tile animations and custom properties." },
+  "fix(tilemap): preserve sparse layers in zero-size infinite Tiled maps":
+    { note: "Infinite Tiled maps open and export with empty layers." },
+  "fix(tilemap): load finite Tiled maps through the bounded layer store":
+    { note: "Finite Tiled maps respect their declared grid when loaded directly." },
+  "fix(tilemap): inherit Tiled group layer properties":
+    { note: "Imported Tiled groups keep their drawing and positioning settings." },
+  "perf(tilemap): reuse chunk lookups during infinite Tiled imports":
+    { note: "Large infinite Tiled maps load faster." },
+  "fix(tilemap): preserve atlas ranges in both Tiled layer loading paths":
+    { note: "Tiled layers keep their atlas boundaries." },
+  "fix(tilemap): reject oversized Tiled layer IDs in preview and export":
+    { note: "Tiled maps report tile-layer IDs that exceed Estella’s 8191 limit." },
+  "fix(tilemap): resolve Tiled objects from their unflagged tile IDs":
+    { note: "Tiled tile objects select the correct atlas cell after a map orientation change." },
+  "fix(tilemap): honor atlas margins and spacing for Tiled tile objects":
+    { note: "Tiled tile objects sample their own atlas cell." },
+  "fix(tilemap): resolve indexed Tiled references in preview":
+    { note: "Tiled maps in preview can use the same legacy project paths as exported builds." },
+  "fix(editor): save tiled terrain images and manifests as a batch":
+    { note: "Tiled terrain saves publish their images and manifest together." },
+  "fix(terrain): keep procedural paint beside painted tiles":
+    { note: "Unpainted terrain tiles keep their procedural materials beside painted tiles." },
+  "fix(terrain): honor standalone secondary paint maps on tiled ground":
+    { note: "Tiled terrain keeps upper paint layers visible when only the second paint map exists." },
+  "fix(tilemap): reject cell coordinates outside the native grid":
+    { note: "Out-of-range tile coordinates cannot wrap to another cell." },
+  "fix(editor): validate tile replacement coordinates before applying edits":
+    { note: "Out-of-range tile coordinates cannot wrap to another cell." },
+  "fix(tilemap): validate chunk dimensions and input length before uploading":
+    { note: "Chunk uploads validate the supplied tile rows." },
+  "perf(tilemap): write chunk export Base64 into a pre-sized string":
+    { note: "Large tilemaps export their saved data faster." },
+  "fix(tilemap): preserve layer bounds when loading saved chunks":
+    { note: "Saved tile chunks respect layer bounds." },
+  "perf(tilemap): decode chunk import Base64 into a pre-sized buffer":
+    { note: "Large tilemap saves load faster." },
+  "perf(tilemap): write saved chunk text directly into the engine heap":
+    { note: "Large tilemap saves load faster in web runtimes with native text encoding." },
+  "fix(tilemap): clip chunk writes to reachable cells":
+    { note: "Bulk tile writes respect the layer bounds." },
+  "fix(tilemap): clear flat tile layers on an empty bulk write":
+    { note: "An empty bulk tile write clears the layer." },
+  "perf(tilemap): load only the cells supplied for a flat layer":
+    { note: "Bulk tile layer loads process the supplied rows directly." },
+  "fix(tilemap): report missing local tileset inputs during builds":
+    { note: "Tilemap builds report missing local tilesets and images." },
+  "fix(editor): project tile painting onto the rendered layer plane":
+    { note: "Tile painting follows the drawn layer in an angled view." },
+  "fix(editor): align tile painting and outlines with parallax preview":
+    { note: "Paint the tile you see in parallax preview." },
+  "fix(camera): publish the rendered parallax anchor for editor overlays":
+    { note: "Paint the tile you see in parallax preview." },
+  "perf(tilemap): fill rectangles in contiguous chunk rows":
+    { note: "Large tile rectangles fill and erase faster." },
+  "fix(tilemap): export saved chunks in stable coordinate order":
+    { note: "Identical tilemaps export the same saved tile data." },
+  "fix(tilemap): preserve tile texture layout in cooked builds":
+    { note: "Cooked tilemaps keep the images their tile grids expect." },
+  "fix(editor): refresh open tileset atlases after disk edits":
+    { note: "Open tile palettes and the Tileset Editor refresh when their atlas image changes on disk." },
+  "fix(editor): use declared tileset rows for atlas editing":
+    { note: "Tileset editing uses the same tile IDs as painting and play." },
+  "fix(tilemap): keep tileset metadata inside its tile IDs":
+    { note: "Tilesets keep their own collision, properties, and animation." },
+  "fix(editor): keep tileset terrain mode controls aligned":
+    { note: "The Tileset Terrain inspector keeps its mode dropdown, name and Delete button on one row." },
+  "perf(ecs): reuse leaf lookups for missing animation targets":
+    { note: "2D and 3D animations skip repeated hierarchy reads for missing sockets." },
+  "fix(editor): return toolbar dropdown focus to its trigger":
+    { note: "Toolbar dropdowns return keyboard focus to their button on Escape or selection." },
+  "fix(project): ship consistent toolbar dropdown focus":
+    { note: "Toolbar dropdowns return keyboard focus to their button on Escape or selection." },
+  "fix(editor): retain toolbar menu focus through live option updates":
+    { note: "Toolbar dropdowns keep keyboard focus visible as their choices change." },
+  "fix(editor): rank transparent built-in UI behind visible geometry":
+    { note: "Selection respects UI opacity." },
+  "fix(editor): write a tree model again, and say why a terrain or rules edit was refused":
+    { note: "A tree model can be written again, and a refused terrain edit says why." },
+  "perf(ui): cache the set of controls missing interaction state":
+    { note: "UI interaction avoids rescanning initialized controls when unrelated scene entities come and go." },
+  "feat(ui): add UIMeter, a meter whose ghost shows how much a blow took":
+    { note: "A UIMeter shows how much a blow took." },
+  "fix(editor): share scene selection priority between Edit and Play":
+    { note: "Layout containers no longer take priority over visible objects." },
+  "feat(ui): fade what a UIMask holds in from its edges with UIMask.softness":
+    { note: "A UI mask can fade its content at its edges instead of cutting it." },
+  "feat(ui): fade a material's own shader under a soft UIMask":
+    { note: "A UI mask can fade its content at its edges instead of cutting it." },
+  "fix(editor): respect each UI viewport during selection":
+    { note: "UI selection follows the viewport that drew it." },
+  "fix(world): reject competing streamed world declarations":
+    { note: "Play and export report competing StreamedWorld declarations." },
+  "fix(world): validate manifests before changing residency":
+    { note: "A malformed streaming manifest leaves the active world loaded." },
+  "fix(sdk): let Velocity move kinematic bodies and leave every dynamic one to its solver":
+    { note: "Velocity now moves 2D and 3D bodies the same way: kinematic and static bodies follow it, dynamic ones are left to physics." },
+  "fix(editor): keep world picking inside the drawn viewport":
+    { note: "World selection respects preview gutters." },
+  "perf(editor): scan projected marquee bounds once":
+    { note: "Marquee bounds in large scenes." },
+  "fix(editor): clip viewport selection bounds to the drawn camera":
+    { note: "Viewport selection follows the camera’s depth range." },
+  "fix(editor): test marquee selection against projected outlines":
+    { note: "Marquee selection follows projected outlines." },
+  "fix(picking): share visible bounds between ray and area picks":
+    { note: "Marquee selection follows the same world visibility rules as clicking." },
+  "fix(editor): apply click visibility rules to viewport marquee selection":
+    { note: "Marquee selection follows the same world visibility rules as clicking." },
+  "fix(picking): honor the presented camera sorting-layer mask":
+    { note: "Viewport clicks respect the camera's sorting-layer mask." },
+  "fix(editor): pick world geometry through the presented camera mask":
+    { note: "Viewport clicks respect the camera's sorting-layer mask." },
+  "fix(picking): use visible renderer geometry for world clicks":
+    { note: "Hidden renderer components no longer intercept viewport clicks." },
+  "fix(editor): keep drawn icons pickable on hidden renderers":
+    { note: "Hidden renderer components no longer intercept viewport clicks." },
+  "fix(editor): inherit viewport visibility from source parent links":
+    { note: "The Outliner eye hides the same descendants live and after reopening a scene." },
+  "fix(project): ship consistent viewport hierarchy visibility":
+    { note: "The Outliner eye hides the same descendants live and after reopening a scene." },
+  "perf(editor): reuse shared corner samples while painting Wang terrain":
+    { note: "Wang terrain strokes do less work per painted cell." },
+  "fix(ui): stop a wheel batch when input is cancelled":
+    { note: "Cancelling input stops queued UI scrolling immediately." },
+  "fix(ui): route positioned wheel events to their own scroll targets":
+    { note: "Wheel gestures reach the controls where they occurred." },
+  "fix(ui): keep fractional wheel input on its intended route":
+    { note: "Fractional wheel input stays on its intended route." },
+  "perf(ui): reuse wheel picks while the scroll offset holds":
+    { note: "Repeated wheel events at a scroll limit do less hit-testing." },
+  "fix(editor): keep long picker highlights visible after layout changes":
+    { note: "Long searchable pickers keep the keyboard highlight in view when rows are measured or the list resizes." },
+  "fix(world): compose cell bounds from affine transforms":
+    { note: "Streamed cells cover children under rotated, non-uniformly scaled ancestors." },
+  "fix(world): preserve canonical hierarchy and texture settings in cell documents":
+    { note: "Streamed scene documents keep their hierarchy and texture settings." },
+  "fix(export): reject streamed scene name conflicts":
+    { note: "Export catches streaming scene name conflicts before writing world files." },
+  "perf(picking): keep only the nearest opaque hit for first-hit ray queries":
+    { note: "Faster first-hit picking in deep scenes." },
+  "perf(editor): use first-hit rays for viewport hover and Play selection":
+    { note: "Faster first-hit picking in deep scenes." },
+  "fix(world): restore streamed deletions through authored parent links":
+    { note: "Deleted streamed entities stay gone when their cell reloads." },
+  "perf(editor): index world panel cell residency":
+    { note: "The editor's World panel responds faster in worlds with many cells." },
+  "fix(editor): refresh world diagnostics when cell placement or references change":
+    { note: "The World panel updates partition errors as you edit." },
+  "perf(world): assemble streamed scene documents in one pass":
+    { note: "Large streamed 2D and 3D worlds partition faster while preserving scene order." },
+  "fix(world): apply prefab instance transforms before cutting cells":
+    { note: "Streamed world cells follow prefab instance transforms." },
+  "fix(world): honor persistent markers on prefab roots":
+    { note: "Prefab roots marked WorldPersistent stay loaded." },
+  "fix(world): resolve effective prefab roots before cutting cells":
+    { note: "Streamed worlds can place prefab variants using inherited and overridden root positions." },
+  "perf(editor): reuse indexed world preview residency":
+    { note: "Large streamed worlds take less editor CPU time to show residency during Play." },
+  "perf(world): sort load and prefetch candidates together":
+    { note: "World streaming sorts its queues once per update." },
+  "perf(world): share the near and far residency bounds pass":
+    { note: "Large streamed worlds check distant cells once per residency update." },
+  "perf(world): skip exact distances to out-of-range residency sources":
+    { note: "World streaming spends less time comparing distant sources." },
+  "fix(editor): fit World Rules dropdowns in narrow docks":
+    { note: "World Rules dropdowns have room for their labels in narrow docks." },
+  "perf(world): track occupied streaming slots on residency changes":
+    { note: "World streaming spends less CPU time scheduling a large queue of cells." },
+  "fix(world): finish discarding before preparing a cell again":
+    { note: "A world cell requested while its prefetch is being discarded prepares again before publication." },
+  "fix(world): stop superseded residency reconciliations":
+    { note: "World streaming honors the newest source positions when a host callback triggers another update." },
+  "fix(world): honor zero far distance and clear proxy failures":
+    { note: "A far proxy distance of zero turns off proxies in Play and exports." },
 };
