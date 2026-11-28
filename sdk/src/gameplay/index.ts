@@ -44,7 +44,9 @@ export {
     decideHunterState,
     huntTargets,
     staggerHunter,
+    hunterStrikeWindow,
     type HunterData,
+    type HunterPhase,
     type HunterState,
     type HunterSituation,
 } from './Hunter';

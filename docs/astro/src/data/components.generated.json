@@ -4217,6 +4217,54 @@
           "default": "0",
           "readonly": true,
           "advanced": true
+        },
+        {
+          "key": "windup",
+          "type": "number",
+          "default": "0",
+          "doc": "How long it winds up before a swing lands, the tell a player dodges by. 0 = the attack animation times it.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "strike",
+          "type": "number",
+          "default": "0.2",
+          "doc": "How long a swing it times itself can land in.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "recover",
+          "type": "number",
+          "default": "0.8",
+          "doc": "How long it stands committed after a swing, not turning: the opening a player punishes.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "telegraphColor",
+          "type": "Color",
+          "default": "#ffd17300",
+          "doc": "The colour it flushes while winding up; alpha is how far. 0 = no tell of its own."
+        },
+        {
+          "key": "maxAttackers",
+          "type": "number",
+          "default": "0",
+          "doc": "At most this many hunters swing at the same target at once; the rest wait their turn. 0 = any number.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "phase",
+          "type": "string",
+          "default": "empty",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "phaseTime",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
         }
       ],
       "animatable": [
@@ -4224,7 +4272,16 @@
         "attackInterval",
         "rotationSpeed",
         "idleThreshold",
-        "cooldown"
+        "cooldown",
+        "windup",
+        "strike",
+        "recover",
+        "telegraphColor.r",
+        "telegraphColor.g",
+        "telegraphColor.b",
+        "telegraphColor.a",
+        "maxAttackers",
+        "phaseTime"
       ]
     },
     {

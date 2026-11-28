@@ -40,6 +40,13 @@ enemy.add(Health, { current: 50, max: 50 });
 | `enabled` | `true` | `false` skips the hunter entirely. |
 | `state` | `idle` | Engine-written: `idle`, `chase`, `attack` or `dead`. |
 | `cooldown` | `0` | Engine-written: seconds until it may attack again. |
+| `windup` | `0` | Seconds it winds up before a swing lands: the tell a player reads and dodges by. `0` lets the attack clip time the swing (its `attack-active` window); above `0` the hunter times it itself and needs no clip. |
+| `strike` | `0.2` | Seconds a swing it times itself can land in, after the windup. |
+| `recover` | `0.8` | Seconds it stands committed after a swing, not turning: the opening a player punishes. |
+| `telegraphColor` | `(1, 0.82, 0.45, 0)` | The colour its meshes and sprites (and those of its children) flush toward while winding up; alpha is how far, `0` none. The colours come back after. |
+| `maxAttackers` | `0` | At most this many hunters wind up or strike at the same target at once; the others wait their turn. `0` is any number. |
+| `phase` | `''` | Engine-written: `windup`, `strike`, `recover`, `wait` or `''`. |
+| `phaseTime` | `0` | Engine-written: seconds in that phase. |
 
 ![Details of the Enemy in the third-person-3d example: its components, and the Hunter, Animator and Melee Attack cards](@/assets/guides/en/gameplay-hunter-details.png)
 ## Behaviour
@@ -50,6 +57,18 @@ enemy.add(Health, { current: 50, max: 50 });
 | `chase` | Navigates toward the perceived target, facing the direction it actually moves. |
 | `attack` | Within `attackRange`: faces the target and sets the `attack` trigger every `attackInterval` seconds. |
 | `dead` | `Health` has reached zero: navigation stops, the animator is told it is standing still, and no trigger is set. |
+
+### Reading a swing
+
+A swing goes through three phases a player learns to read. It **winds up** (`phase` `windup`): the hunter keeps turning
+to face the target and flushes toward its `telegraphColor`. It **strikes** (`strike`): the blow can land, and the hunter
+no longer turns, so a player who steps or rolls aside is missed. It **recovers** (`recover`): it stands committed, still
+not turning, and this is the moment to hit back. A swing under way is carried through even if the target steps out of
+reach. A blow that breaks its `Health.poise` cancels the swing.
+
+A swing that lands too quickly to react to, or one that turns with the player, cannot be dodged. A windup of 0.4 s or more
+for light blows and 0.8 s to 1.2 s for heavy ones, with a recover at least as long as the windup on heavy ones, keeps a fight
+readable. `maxAttackers` of 1 or 2 keeps a crowd from swinging all at once.
 
 The state is recomputed every frame rather than latched, so a target that steps away during an attack is chased again.
 An attack already in progress when the hunter dies lands on nobody; `MeleeAttack` handles that case.

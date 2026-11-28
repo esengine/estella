@@ -28,9 +28,9 @@ import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorE
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
 import { Damage, Health, applyDamage, tickHealth, type DamagePayload, type HealthData } from './Health';
 import { MeleeAttack, MeleeAttacks, resolveMeleeHits, sweepMeleeWindows, type MeleeAttackData, type MeleeWindowSource } from './MeleeAttack';
-import { huntTargets, staggerHunter } from './Hunter';
+import { huntTargets, staggerHunter, hunterStrikeWindow } from './Hunter';
 import { Stamina, regenerateStamina, type StaminaData } from './Stamina';
-import { COMBAT_INVULNERABLE, TPC_STAGGER, LOCK_KEY } from './vocabulary';
+import { COMBAT_ATTACK_ACTIVE, COMBAT_INVULNERABLE, TPC_STAGGER, LOCK_KEY } from './vocabulary';
 import { PlatformerController2D, type PlatformerController2DData } from '../physics/PlatformerController2D';
 import { q } from '../math/quat';
 import { look as lookFirstPerson, move as moveFirstPerson, installViewModels, TouchLook } from './firstPersonSystems';
@@ -690,8 +690,13 @@ export class GameplayPlugin implements Plugin {
             ) => {
                 const queries = app.hasResource(Physics3D) ? app.getResource(Physics3D) : null;
                 resolveMeleeHits(world, attacks, queries, events, damage);
-                // The windows the animator reported with that pose: the swings that reach along a path.
-                const windows = app.hasResource(AnimatorController) ? app.getResource(AnimatorController) : null;
+                // The windows the animator reported with that pose: the swings that reach along a path. A hunter
+                // that times its own swing has no clip to report one, and reaches while it strikes.
+                const animated = app.hasResource(AnimatorController) ? app.getResource(AnimatorController) : null;
+                const windows: MeleeWindowSource = {
+                    openWindow: (entity, name) => animated?.openWindow(entity, name)
+                        ?? (name === COMBAT_ATTACK_ACTIVE ? hunterStrikeWindow(world, entity) : null),
+                };
                 sweepMeleeWindows(world, attacks, queries, windows, damage);
             },
             { name: 'MeleeAttackSystem' },
@@ -739,7 +744,7 @@ export class GameplayPlugin implements Plugin {
             (time: TimeData) => {
                 const animator = app.hasResource(AnimatorController)
                     ? app.getResource(AnimatorController) : null;
-                huntTargets(world, animator, TPC_ATTACK, time.delta);
+                huntTargets(world, animator, TPC_ATTACK, time.delta, animator);
             },
             { name: 'HunterSystem' },
         ), { runAfter: ['PerceptionSystem'], runIf: playModeOnly });

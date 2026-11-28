@@ -36,6 +36,13 @@ enemy.add(Health, { current: 50, max: 50 });
 | `enabled` | `true` | 为 `false` 时完全跳过该 Hunter。 |
 | `state` | `idle` | 引擎写入：`idle`、`chase`、`attack` 或 `dead`。 |
 | `cooldown` | `0` | 引擎写入：距可再次攻击的秒数。 |
+| `windup` | `0` | 一击命中前蓄力的秒数：玩家据此读招和闪避。`0` 时由攻击片段决定出手时机（其 `attack-active` 窗口）；大于 `0` 时 Hunter 自己计时，不需要片段。 |
+| `strike` | `0.2` | 自己计时的出招在蓄力之后能命中的秒数。 |
+| `recover` | `0.8` | 出招后站定、不再转身的秒数：玩家反击的空档。 |
+| `telegraphColor` | `(1, 0.82, 0.45, 0)` | 蓄力时它（以及子物体）的网格和精灵逐渐变向的颜色；alpha 为强度，`0` 为不变色。结束后颜色恢复。 |
+| `maxAttackers` | `0` | 同一目标最多允许几个 Hunter 同时蓄力或出手，其余的等待轮到自己。`0` 为不限。 |
+| `phase` | `''` | 引擎写入：`windup`、`strike`、`recover`、`wait` 或 `''`。 |
+| `phaseTime` | `0` | 引擎写入：处于当前阶段的秒数。 |
 
 ![third-person-3d 示例中 Enemy 的细节面板：组件列表，以及 Hunter、Animator 与 Melee Attack 卡片](@/assets/guides/zh/gameplay-hunter-details.png)
 ## 行为
@@ -46,6 +53,12 @@ enemy.add(Health, { current: 50, max: 50 });
 | `chase` | 向感知到的目标导航，朝向其实际移动的方向。 |
 | `attack` | 位于 `attackRange` 内：面向目标，每隔 `attackInterval` 秒设置一次 `attack` 触发器。 |
 | `dead` | `Health` 归零：导航停止，动画器被告知其静止，且不再设置触发器。 |
+
+### 读招
+
+一次出招分三个阶段，玩家可以学会读。**蓄力**（`phase` 为 `windup`）：Hunter 持续转向目标，并逐渐变向 `telegraphColor`。**出手**（`strike`）：这一击可以命中，Hunter 不再转身，侧移或翻滚就能躲开。**收招**（`recover`）：站定不动，仍不转身，这是反击的时机。已经开始的出招即使目标走出范围也会打完。打破其 `Health.poise` 的一击会取消这次出招。
+
+出手太快来不及反应、或者跟着玩家转身的招都躲不开。轻击蓄力 0.4 秒以上，重击 0.8 到 1.2 秒，重击的收招至少和蓄力一样长，战斗就容易读。`maxAttackers` 设为 1 或 2，敌人成群时不会一起出手。
 
 状态每帧重新计算而非锁存，因此在攻击过程中退开的目标会被再次追击。Hunter 死亡时已在进行中的攻击不会命中任何人；这由 `MeleeAttack` 处理。
 

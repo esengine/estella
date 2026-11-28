@@ -36,6 +36,11 @@ A third-person fighter needs no movement code: `ThirdPersonController` beside th
   heavy. Leave it 0 in a networked game.
 - On enemies, `Health.poise` (about a third of their health) staggers them after enough blows; a staggered Hunter loses
   its swing. `Health.graceTime` gives a hit player a moment untouchable.
+- Make every enemy swing readable. On the `Hunter`: `windup` 0.4 to 0.6 s for a light blow, 0.8 to 1.2 for a heavy one
+  (it then needs no attack clip), `recover` at least the windup on heavy ones (the opening to hit back), a
+  `telegraphColor` with alpha about 0.8 so the windup shows, and `maxAttackers` 1 or 2 so a crowd takes turns. It tracks
+  the player while winding up and not after, so a sidestep or a roll beats a blow. Read `phase` to play a sound or a
+  sign on the windup.
 
 The camera is half the feel. On the `ThirdPersonCamera`: `shoulder` about 55 (over the right shoulder, drawn in off a
 wall), `lockRange` about 2500 so Q locks onto the foe ahead (the view keeps it in front and the fighter faces it),
