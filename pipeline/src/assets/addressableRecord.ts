@@ -5,33 +5,10 @@ import { textureImportSettingsFrom } from '../../../sdk/src/asset/textureImportS
 import { spineManifestContractFrom } from '../../../sdk/src/asset/spineImportSettings';
 import { extractUuid } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
+import { runtimeAssetTypeFromMetadata as addrType } from '../../../sdk/src/asset/runtimeAssetType';
 
-export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object.freeze({
-  imageSource: 'texture',
-  soundSource: 'audio',
-  musicSource: 'audio',
-  animclip: 'anim-clip',
-  animation: 'timeline',
-  bitmapfont: 'font',
-  shader: 'material-shader',
-  scene: 'json',
-  inputmap: 'json',
-  'terrain-tiles': 'json',
-  'terrain-layer-info': 'json',
-  'physical-material': 'json',
-  // The Groom plugin fetches a groom as text, by path; the curves it names are bytes (unloaded, below).
-  groom: 'json',
-});
-
-export const UNLOADED_TYPE = 'binary';
-
-export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
-  'video', 'dragonbones',
-  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'proc', 'rig', 'curves',
-]);
-
-export const addrType = (metaType: string): string =>
-  UNLOADED_META_TYPES.has(metaType) ? UNLOADED_TYPE : LOADER_TYPE_OF_META_TYPE[metaType] ?? metaType;
+export { addrType };
+export { LOADER_TYPE_OF_META_TYPE, UNLOADED_META_TYPES, UNLOADED_TYPE } from '../../../sdk/src/asset/runtimeAssetType';
 
 interface RecordSource {
   uuid: string;

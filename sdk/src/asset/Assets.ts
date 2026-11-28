@@ -49,6 +49,7 @@ import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { MaterialShaderAssetLoader } from './loaders/MaterialShaderAssetLoader';
 import { isBuiltinAssetRef, isFileAssetRef, matchesAssetFieldType } from './documentRef';
+import { runtimeAssetTypeFromMetadata, UNLOADED_TYPE } from './runtimeAssetType';
 import { MeshAssetLoader, type MeshResult } from './loaders/MeshAssetLoader';
 import type { MeshData } from './meshFormat';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
@@ -1741,8 +1742,8 @@ export class Assets {
      * assets while gameplay continues, and the eventual real loads hit warm
      * caches (or revive resident textures) instead of the network.
      *
-     * Asset types come from the catalog / manifest when known, falling back
-     * to file-extension matching against the registered loaders. Refs whose
+     * Asset types come from the manifest, catalog or project index when known,
+     * falling back to file-extension matching against registered loaders. Refs whose
      * type can't be determined or that fail to resolve or load are reported
      * in `failed`. A thrown progress callback rejects the batch.
      */
@@ -1771,7 +1772,7 @@ export class Assets {
             try {
                 const path = this.resolveLoadPath_(ref);
                 const record = this.manifestRecord_(ref);
-                const type = record?.asset.type ?? this.inferAssetType_(path);
+                const type = record?.asset.type ?? this.inferAssetType_(ref, path);
                 if (!type) {
                     log.warn('asset', `preload: cannot determine asset type for ${ref}`);
                     failed.push({ ref, reason: 'unresolved' });
@@ -1814,13 +1815,16 @@ export class Assets {
         return { failed };
     }
 
-    /** Asset type for a resolved path: catalog entry → manifest entry →
-     *  extension match against the registered loaders → null. */
-    private inferAssetType_(path: string): string | null {
+    private inferAssetType_(ref: string, path: string): string | null {
         const catalogType = this.catalog.getEntry(path)?.type;
         if (catalogType) return catalogType;
         const manifestType = this.manifestModel_?.assetByPath(path)?.type;
         if (manifestType) return manifestType;
+        const indexed = this.hostAssetType_?.(ref);
+        if (indexed) {
+            const type = runtimeAssetTypeFromMetadata(indexed);
+            if (type === UNLOADED_TYPE || this.loaders_.has(type)) return type;
+        }
         const suffix = path.search(/[?#]/);
         const file = suffix < 0 ? path : path.slice(0, suffix);
         const dot = file.lastIndexOf('.');

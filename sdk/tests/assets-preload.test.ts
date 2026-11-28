@@ -162,6 +162,31 @@ describe('Assets.preload', () => {
         ]);
     });
 
+    it('uses indexed project types for ambiguous files without overriding catalog entries', async () => {
+        const spine = '@uuid:spine';
+        const dragonbones = 'assets/dragon.json';
+        const animation = 'assets/camera.json';
+        const legacyClip = 'assets/clip.json';
+        const fromCatalog = 'data/level.custom';
+        const skeleton = 'assets/hero.json';
+        const types = new Map([[spine, 'spine'], [dragonbones, 'dragonbones'], [animation, 'animation'],
+            [legacyClip, 'animclip'], [fromCatalog, 'spine']]);
+        assets.setAssetRefResolver(ref => ref === spine ? skeleton : ref, ref => types.get(ref));
+        const loadSpine = vi.spyOn(assets, 'loadSpine').mockResolvedValue({} as Awaited<ReturnType<Assets['loadSpine']>>);
+        const timeline = vi.fn(async (path: string) => ({ path }));
+        const clip = vi.fn(async (path: string) => ({ path }));
+        assets.register({ type: 'timeline', extensions: [], load: timeline, unload: vi.fn() });
+        assets.register({ type: 'anim-clip', extensions: [], load: clip, unload: vi.fn() });
+        try {
+            expect((await assets.preload([spine, dragonbones, animation, legacyClip, fromCatalog])).failed)
+                .toEqual([{ ref: dragonbones, type: 'binary', reason: 'unresolved' }]);
+            expect(loadSpine.mock.calls).toEqual([[skeleton]]);
+            expect(timeline.mock.calls.map(([path]) => path)).toEqual([animation]);
+            expect(clip.mock.calls.map(([path]) => path)).toEqual([legacyClip]);
+            expect(customLoads).toEqual([fromCatalog]);
+        } finally { assets.releaseAll(); }
+    });
+
     it('infers URL types from the pathname and loads with the original query and fragment', async () => {
         const ref = 'https://cdn.example/data/level.CUSTOM?revision=build.42#source';
         const unknown = 'https://cdn.example/data/opaque?name=level.custom';
