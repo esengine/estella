@@ -337,19 +337,28 @@ export type PrefabAssetResolver = (ref: string) => Promise<PrefabData | null>;
 /** Expansion copies the prefab documents. Their asset receipts end when the copy is complete. */
 export async function expandScenePrefabAssets(
     scene: SceneData, assets: Pick<import('../asset/Assets').Assets, 'acquireTyped'>,
+    attempt: SceneLoadAttempt,
 ): Promise<SceneData> {
     const sources = new AssetScope();
+    const check = () => attempt.assertCurrent();
+    const read = createPrefabSourceLoader(async ref => {
+        check();
+        try {
+            const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
+            check();
+            return (lease.value.data as PrefabData) ?? null;
+        } catch (error) {
+            check();
+            log.warn('scene', `Failed to load prefab "${ref}": ${error}`);
+            return null;
+        }
+    });
     try {
-        return await expandScenePrefabs(scene, async ref => {
-            try {
-                const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
-                return (lease.value.data as PrefabData) ?? null;
-            } catch (error) {
-                log.warn('scene', `Failed to load prefab "${ref}": ${error}`);
-                return null;
-            }
-        });
-    } finally { sources.releaseAll(); }
+        return await attempt.waitForShared(() => expandPrefabSources(scene, read, undefined, check));
+    } finally {
+        // A still-shared read can finish after this scene left. Its late receipt is released by the closed scope.
+        AssetScope.closeAll([sources]);
+    }
 }
 
 const toSceneEntityData = (e: ProcessedEntity): SceneEntityData => ({
@@ -401,10 +410,19 @@ export function createScenePrefabIdAllocator(
 }
 
 /** Expand using the same asset versions a caller has already checked for this scene. */
-export async function expandScenePrefabSources(
+export function expandScenePrefabSources(
     scene: SceneData,
     readSource: (ref: string) => Promise<PrefabSource>,
     options?: { expandVirtual?: boolean },
+): Promise<SceneData> {
+    return expandPrefabSources(scene, readSource, options);
+}
+
+async function expandPrefabSources(
+    scene: SceneData,
+    readSource: (ref: string) => Promise<PrefabSource>,
+    options?: { expandVirtual?: boolean },
+    assertCurrent?: () => void,
 ): Promise<SceneData> {
     requireSupportedSceneDocument(scene);
     requireUnambiguousSceneHierarchy(scene);
@@ -421,13 +439,16 @@ export async function expandScenePrefabSources(
             continue;
         }
         if (expandVirtual && entry.overrides.some((o) => o.type === 'metadata_set' && o.metadataKey === VARIANT_KEY)) continue;
+        assertCurrent?.();
         let source: PrefabSource;
         try {
             source = await readSource(entry.prefab);
         } catch (e) {
+            assertCurrent?.();
             log.warn('scene', `Prefab instance "${entry.prefab}" could not be resolved; instance skipped (${e})`);
             continue;
         }
+        assertCurrent?.();
         const { prefab, dependencies } = source;
         // A virtual instance is made as its root alone (see prefab/deferred.ts); instances inside it are left to whoever opens it.
         const virtual = !expandVirtual && isDeferredInstance(prefab, entry.overrides) && canDefer(entry.overrides, prefab)
@@ -832,7 +853,7 @@ async function loadSceneDocument(
     if (options?.assets && sceneHasPrefabEntries(scene)) {
         const assets = options.assets;
         const timed = scenePhaseRunner(attempt.observe(options.onPhase));
-        scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets));
+        scene = await timed('prefab', () => expandScenePrefabAssets(scene, assets, attempt));
         attempt.assertCurrent();
     }
     const { data } = ownership === 'owned' ? migrateOwnedSceneData(scene) : migrateSceneData(scene);

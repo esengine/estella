@@ -407,7 +407,7 @@ async function readRuntimeScene(
     }
     if (sceneHasPrefabEntries(sceneData)) {
         await turn();
-        sceneData = await timed('prefab', () => expandScenePrefabAssets(sceneData, runtimeAssets));
+        sceneData = await timed('prefab', () => expandScenePrefabAssets(sceneData, runtimeAssets, attempt));
         attempt.assertCurrent();
     }
     // A streamed world's cell, as the world remembers it: what was destroyed taken out, what was left set back, before anything

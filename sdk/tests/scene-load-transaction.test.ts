@@ -32,6 +32,7 @@ import { Text } from '../src/ui/core/text';
 import { reservePromise } from '../src/util/reservePromise';
 import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
 import { prepareRuntimeScene } from '../src/runtime/runtimeLoader';
+import type { PrefabData } from '../src/prefab/types';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: vi.fn(() => false) }),
@@ -172,6 +173,54 @@ it.each([true, false])('retires a runtime scene preload on core disconnect with 
     }
     expect(load).toHaveBeenCalledTimes(1);
     expect(unload.mock.calls.map(([value]) => value)).toEqual([{ id: 'waiting' }]);
+});
+
+it.each(['preview', 'runtime'] as const)('cancels %s prefab expansion while a shared read is pending', async door => {
+    const { app, assets: initial } = harness();
+    connectFakeCpp(app.world);
+    const empty: SceneData = { version: '1.0', name: 'empty', entities: [] };
+    const runtime = { app, module: null, source: {
+        backend: initial.backend, decodePixels: async () => { throw new Error('Unexpected image asset'); },
+    } };
+    if (door === 'runtime') (await prepareRuntimeScene({ ...runtime, sceneData: empty })).assetResult.scope.releaseAll();
+    const assets = app.getResource(AssetsResource);
+    const entered = reservePromise<void>(), download = reservePromise<PrefabData>();
+    const document: PrefabData = { version: '2', name: 'root', rootEntityId: 'root', entities: [
+        { prefabEntityId: 'root', name: 'Root', components: [], parent: null, children: [], visible: true },
+    ] };
+    const load = vi.fn(async (path: string) => {
+        if (path === 'waiting.esprefab') {
+            entered.resolve();
+            return { data: await download.promise, path };
+        }
+        return { data: document, path };
+    });
+    const unloaded: string[] = [];
+    assets.register({ type: 'prefab', extensions: [], load, unload: value => unloaded.push(value.path) });
+    const scene = { ...empty, name: 'prefabs', entities: [
+        'first.esprefab', 'waiting.esprefab', 'queued.esprefab',
+    ].map((prefab, i) => ({ id: i + 1, parent: null, prefab, overrides: [], added: [], removed: [] })) } as unknown as SceneData;
+    const settled = vi.fn();
+    const pending = (door === 'runtime' ? prepareRuntimeScene({ ...runtime, sceneData: scene })
+        : loadSceneWithAssets(app.world, scene, { assets })).then(() => settled('loaded'), error => settled(error.name));
+    let shared: ReturnType<typeof assets.acquireTyped> | undefined;
+    try {
+        await Promise.race([entered.promise, pending.then(() => { throw new Error('Scene finished before the pending prefab read'); })]);
+        shared = assets.acquireTyped('prefab', 'waiting.esprefab');
+        app.world.disconnectCpp();
+        await vi.waitFor(() => expect(settled).toHaveBeenCalledWith('SceneLoadCancelled'));
+        expect(unloaded).toEqual(['first.esprefab']);
+        expect(load.mock.calls.map(([path]) => path)).toEqual(['first.esprefab', 'waiting.esprefab']);
+    } finally {
+        download.resolve({ ...document, basePrefab: 'nested.esprefab', entities: [] });
+        await pending;
+        const held = await shared;
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        held?.release();
+        app.quit();
+    }
+    expect(load.mock.calls.map(([path]) => path)).toEqual(['first.esprefab', 'waiting.esprefab']);
+    expect(unloaded).toEqual(['first.esprefab', 'waiting.esprefab']);
 });
 
 /** Something sleep() switches off — the engine's renderables are C++-backed,
