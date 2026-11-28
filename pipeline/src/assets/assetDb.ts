@@ -38,7 +38,7 @@ import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
-import { parseRichText } from '../../../sdk/src/ui/text/rich-text-parser';
+import { someRichTextImageRef } from './sceneRichTextRefs';
 import { getEditorType } from '../../../sdk/src/assetTypes';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 import { parseTerrainTiles, terrainTileImageRefs } from '../../../sdk/src/terrain/tileDocument';
@@ -339,14 +339,7 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
                 else if (row.data && row.type === name) takeNamedCandidate(row.data, key, name, named);
             }
         }
-        // A prefab instance can override either the markup or its richText switch.
-        const content = row.type === 'Text' && (row.data?.richText || documentType === 'prefab') ? row.data?.content
-            : row.type === 'property' && row.componentType === 'Text' && row.propertyName === 'content' ? row.value : undefined;
-        if (typeof content === 'string' && content.includes('<img')) {
-            for (const line of content.split('\n')) {
-                for (const run of parseRichText(line)) if (run.type === 'image') collectCandidates(run.src, into, documentType, named);
-            }
-        }
+        someRichTextImageRef(row, documentType, ref => { collectCandidates(ref, into, documentType, named); return false; });
         for (const v of Object.values(value)) collectCandidates(v, into, documentType, named);
     }
 }
