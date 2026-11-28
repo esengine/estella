@@ -28,11 +28,12 @@ import { adoptOrphan } from './assetMeta';
 import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
-import { findDocumentAsset, isFileAssetRef, matchesAssetFieldType } from '../../../sdk/src/asset/documentRef';
+import { findDocumentAsset, isFileAssetRef, matchesAssetFieldType, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { bitmapFontMetricsField, type BitmapFontDocument } from '../../../sdk/src/asset/bitmapFontDocument';
 import { registeredAssetFields } from '../../../sdk/src/asset/registeredAssetFields';
 import { visitAnimatorClips } from './animatorRefs';
 import { mapMaterialRefs } from './materialRefs';
-import { assetRefId, UUID_REF_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
+import { assetRefId, localAssetPathWithoutSuffix, UUID_REF_PREFIX, UUID_V4_REGEX as UUID_V4 } from '../../../sdk/src/asset/AssetRegistry';
 import { resolveMeshGI } from '../../../sdk/src/gi/meshGIAssets';
 // The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
@@ -349,9 +350,9 @@ function collectCandidates(value: unknown, into: Set<string>, documentType: stri
     }
 }
 
-/** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
-const CANDIDATE_CACHE_VERSION = 8;
-interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; type: string; c: RefCandidate[] }> }
+/** Reuse candidates while the file stamp matches, including edits that preserve mtime. */
+const CANDIDATE_CACHE_VERSION = 9;
+interface CandidateCache { version: number; files: Record<string, { size: number; mtimeMs: number; ctimeMs: number; type: string; c: RefCandidate[] }> }
 const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
 
 async function readCandidateCache(root: string): Promise<CandidateCache> {
@@ -436,15 +437,26 @@ async function computeDeps(
   const cache = await readCandidateCache(root);
   let cacheDirty = false;
   const seenFiles = new Set<string>();
-  const candidatesOf = async (rel: string, type: string): Promise<RefCandidate[]> => {
+  const candidatesOf = async (rel: string, type: string, parse: (text: string) => RefCandidate[]): Promise<RefCandidate[]> => {
     seenFiles.add(rel);
     const file = path.join(root, rel);
     const info = await stat(file);
     const hit = cache.files[rel];
-    if (hit && hit.type === type && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
+    if (hit && hit.type === type && hit.size === info.size && hit.mtimeMs === info.mtimeMs && hit.ctimeMs === info.ctimeMs) return hit.c;
+    const c = parse(await readTextInRoot(file));
+    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs, type, c };
+    cacheDirty = true;
+    return c;
+  };
+  const jsonCandidates = (rel: string, type: string, text: string, bitmapWrapper: boolean): RefCandidate[] => {
+    const json = JSON.parse(text);
+    if (bitmapWrapper) {
+      const wrapper = json as BitmapFontDocument | null;
+      const metrics = wrapper?.[bitmapFontMetricsField(wrapper)];
+      return typeof metrics === 'string' && metrics ? [metrics] : [];
+    }
     const found = new Set<string>();
     const named: NamedCandidate[] = [];
-    const json = JSON.parse(await readTextInRoot(file));
     if (type === 'animatorcontroller') visitAnimatorClips(json, (kind, holder) => {
       if (kind === 'sprite' || kind === 'timeline') takeNamedCandidate(holder, 'clip', kind === 'sprite' ? 'SpriteAnimator' : 'TimelinePlayer', named);
     });
@@ -458,9 +470,7 @@ async function computeDeps(
     } else {
       collectCandidates(json, found, type, named);
     }
-    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, type, c: [...found, ...named] };
-    cacheDirty = true;
-    return cache.files[rel]!.c;
+    return [...found, ...named];
   };
   const dependenciesOf = async (entry: AssetEntry): Promise<DepResult> => {
     // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
@@ -472,9 +482,14 @@ async function computeDeps(
     const editorType = getEditorType(entry.path);
     const isSpineAtlas = editorType === 'spine-atlas';
     const isBitmapFont = entry.type === BITMAP_FONT;
+    const bitmapWrapper = isBitmapFont && path.extname(entry.path).toLowerCase() === '.bmfont';
     const preferSibling = isBitmapFont || SKELETAL_ATLAS_TYPES.has(editorType)
       || SIBLING_REF_TYPES.has(entry.type) || /\.(?:tmj|tmx|tsj)$/i.test(entry.path);
     const lookup = (ref: string, slot?: RegisteredSlot) => {
+      if (bitmapWrapper) {
+        const logical = resolveDocumentRef(entry.path, ref).replace(/^\//, '');
+        return byPath.get(logical) ?? byPath.get(localAssetPathWithoutSuffix(logical));
+      }
       const explicit = slot && isFileAssetRef(ref, slot.fileExtension);
       return findDocumentAsset(entry.path, ref, file => {
         const target = byPath.get(file);
@@ -494,10 +509,10 @@ async function computeDeps(
           return dep?.type === type ? dep.uuid : undefined;
         });
         if (pair) { refs.add(pair.sdf); refs.add(pair.cards); }
-      } else if (isBitmapFont) {
-        const content = await readTextInRoot(path.join(root, entry.path));
-        for (const m of content.matchAll(FNT_PAGE)) {
-          const dep = pageAsset(m[1]);
+      } else if (isBitmapFont && !bitmapWrapper) {
+        const pages = await candidatesOf(entry.path, entry.type, content => Array.from(content.matchAll(FNT_PAGE), match => match[1]));
+        for (const page of pages) {
+          const dep = typeof page === 'string' ? pageAsset(page) : undefined;
           if (dep) refs.add(dep.uuid);
         }
       } else if (isSpineAtlas) {
@@ -507,7 +522,7 @@ async function computeDeps(
           if (dep) refs.add(dep.uuid);
         }
       } else {
-        const candidates = await candidatesOf(entry.path, entry.type);
+        const candidates = await candidatesOf(entry.path, entry.type, text => jsonCandidates(entry.path, entry.type, text, bitmapWrapper));
         const resolvePath = (ref: string, slot?: RegisteredSlot): string | null => {
           if (ref.includes('://')) return null;
           return lookup(ref, slot)?.uuid ?? null;

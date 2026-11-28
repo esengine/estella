@@ -10,7 +10,7 @@
  *        explicit fallback cases (overflow / bulk / directory move → full rescan).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase, updateAssetIndex, INCREMENTAL_PATH_LIMIT } from '../src/assets/assetDb';
@@ -22,6 +22,7 @@ const TEX2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const FONT = '22222222-2222-4222-8222-222222222222';
 const MAT = '44444444-4444-4444-8444-444444444444';
 const SCENE = '33333333-3333-4333-8333-333333333333';
+const BITMAP = '55555555-5555-4555-8555-555555555555';
 
 function writeAsset(rel: string, type: string, uuid: string, body = ''): void {
   const abs = path.join(root, rel);
@@ -88,6 +89,26 @@ async function expectIncrementalEqualsFull(prev: Awaited<ReturnType<typeof scanA
 }
 
 describe('updateAssetIndex — incremental == full rescan', () => {
+  it('detects a bitmap font page change when the file size and mtime are preserved', async () => {
+    const metrics = 'assets/fonts/status.fnt';
+    const abs = path.join(root, metrics);
+    const stamp = new Date('2025-01-02T03:04:05Z');
+    const fnt = (file: string) => `common lineHeight=8 scaleW=8 scaleH=8 pages=1\npage id=0 file="${file}"\n`;
+    writeAsset('assets/fonts/base.png', 'texture', TEX2);
+    writeAsset('assets/fonts/next.png', 'texture', MAT);
+    writeAsset(metrics, 'bitmapfont', BITMAP, fnt('base.png'));
+    utimesSync(abs, stamp, stamp);
+    const { index: previous } = await scanAssetDatabase(root, { write: false });
+    expect(previous.deps[BITMAP]).toEqual([TEX2]);
+    const { size, mtimeMs } = statSync(abs);
+    writeFileSync(abs, fnt('next.png'));
+    utimesSync(abs, stamp, stamp);
+    expect(statSync(abs)).toMatchObject({ size, mtimeMs });
+    const full = await scanAssetDatabase(root, { write: false });
+    expect(full.index.deps[BITMAP]).toEqual([MAT]);
+    await expectIncrementalEqualsFull(previous, [metrics]);
+  });
+
   it('a content edit that DROPS a scene ref removes just that dependency edge', async () => {
     const { index: prev } = await scanAssetDatabase(root, { write: false });
     expect(prev.deps[SCENE]).toEqual([FONT, TEX].sort());

@@ -153,6 +153,36 @@ afterAll(() => {
 });
 
 describe('assets named only inside another document are cooked', () => {
+  it.each(['bitmap-font', 'label-atlas'])('ships a %s wrapper with its metrics and page', async type => {
+    const project = mkdtempSync(path.join(tmpdir(), 'estella-bmfont-refs-'));
+    try {
+      const wrapper = 'assets/hud/font.bmfont';
+      const metrics = 'assets/hud/metrics/face.fnt';
+      const field = type === 'label-atlas' ? 'generatedFnt' : 'fntFile';
+      const other = field === 'generatedFnt' ? 'fntFile' : 'generatedFnt';
+      const fontType = metaTypeForExt('.fnt')!;
+      writeAsset(wrapper, fontType, FNT, JSON.stringify({ type, [field]: './metrics/face.fnt', [other]: '../unused.fnt' }), project);
+      writeAsset(metrics, fontType, OLD_FNT, fnt, project);
+      writeAsset('assets/unused.fnt', fontType, OLD_FNT_PAGE, fnt, project);
+      writeAsset('assets/hud/metrics/tiny.png', 'texture', FNT_PAGE, encodeRgbaPng(1, 1, new Uint8Array([255, 255, 255, 255])), project);
+      const entry = 'assets/scenes/main.esscene';
+      writeAsset(entry, 'scene', SCENE, JSON.stringify({ version: '1.0', name: 'HUD', entities: [
+        { id: 1, name: 'HUD', parent: null, children: [], components: [{ type: 'BitmapText', data: { font: `@uuid:${FNT}` } }] },
+      ] }), project);
+
+      const { index } = await scanAssetDatabase(project, { write: false });
+      expect(index.deps[FNT]).toEqual([OLD_FNT]);
+      expect(index.deps[OLD_FNT]).toEqual([FNT_PAGE]);
+      const cooked = await cookAssets(project, { entryScenes: [entry], outDir: 'build', contentAddressed: true });
+      expect(cooked.ok).toBe(true);
+      expect(cooked.included.slice().sort()).toEqual([SCENE, FNT, OLD_FNT, FNT_PAGE].sort());
+      const staged = JSON.parse(readFileSync(cooked.manifestPath!, 'utf8')).entries as Array<{ uuid: string; path: string }>;
+      const read = (uuid: string) => readFileSync(path.join(cooked.outDir, staged.find(row => row.uuid === uuid)!.path), 'utf8');
+      expect(JSON.parse(read(FNT))).toMatchObject({ [field]: metrics, [other]: '../unused.fnt' });
+      expect(read(OLD_FNT)).toContain('file="assets/hud/metrics/tiny.png"');
+    } finally { rmSync(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it('links environment → its reflection atlas, resolved as a sibling', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[ESENV]).toContain(SPECULAR);

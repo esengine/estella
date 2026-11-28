@@ -44,6 +44,7 @@ import {
 import { contentHashHex } from '../../../sdk/src/asset/contentHash';
 import { getAssetTypeEntry } from '../../../sdk/src/assetTypes';
 import { animatorMotionFile, findDocumentAsset, resolveDocumentRef } from '../../../sdk/src/asset/documentRef';
+import { bitmapFontMetricsField, type BitmapFontDocument } from '../../../sdk/src/asset/bitmapFontDocument';
 import { assetRefId } from '../../../sdk/src/asset/AssetRegistry';
 import { parseTerrainTiles, terrainTileImageRefs, terrainTileSizeError } from '../../../sdk/src/terrain/tileDocument';
 import { requireSupportedSceneDocument, requireUnambiguousSceneHierarchy } from '../../../sdk/src/scene/sceneFormat';
@@ -333,6 +334,16 @@ function rewriteFontRefs(
       return typeof logical === 'string' ? `${head}${logical}${tail}` : whole;
     },
   ));
+}
+
+function rewriteBitmapFontDocument(bytes: Uint8Array, docPath: string, byPath: Map<string, AssetEntry>): Uint8Array {
+  const font = JSON.parse(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/, '')) as BitmapFontDocument | null;
+  if (!font) return bytes;
+  const field = bitmapFontMetricsField(font);
+  const metrics = font[field];
+  if (typeof metrics !== 'string' || !metrics) return bytes;
+  font[field] = logicalRef(resolveDocumentRef(docPath, metrics), '', byPath);
+  return new TextEncoder().encode(JSON.stringify(font, null, 2) + '\n');
 }
 
 /**
@@ -1000,10 +1011,10 @@ export async function cookAssets(
           warnings.push(`${entry.path}: material ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      // Bitmap fonts: the sibling page image → its logical project path.
-      if (ext.toLowerCase() === '.fnt') {
+      // Bitmap fonts: wrappers and metrics both name siblings.
+      if (ext.toLowerCase() === '.fnt' || ext.toLowerCase() === '.bmfont') {
         try {
-          data = rewriteFontRefs(data, entry.path, byPath);
+          data = ext.toLowerCase() === '.bmfont' ? rewriteBitmapFontDocument(data, entry.path, byPath) : rewriteFontRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: font ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }

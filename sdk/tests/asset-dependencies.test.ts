@@ -364,10 +364,12 @@ describe('partial resource preparation through prefab graphs', () => {
 describe('an edge comes from the acquisition that made it', () => {
     beforeEach(() => { pool = createPoolFake(); });
 
-    it.each(['local', 'remote'] as const)('resolves shared font wrappers, metrics and pages in a %s group', async mode => {
+    it.each([['local', 'bitmap-font'], ['local', 'label-atlas'], ['remote', 'bitmap-font'], ['remote', 'label-atlas']] as const)(
+      'resolves shared font wrappers, metrics and pages in a %s group (%s)', async (mode, type) => {
         const metrics = 'common lineHeight=8 base=8 scaleW=8 scaleH=8 pages=1\npage id=0 file="page.png"';
+        const field = type === 'label-atlas' ? 'generatedFnt' : 'fntFile';
         const assets = realm({
-            'blobs/font.bmfont': JSON.stringify({ fntFile: 'metrics.fnt' }),
+            'blobs/font.bmfont': JSON.stringify({ type, [field]: 'metrics.fnt' }),
             'blobs/metrics.fnt': metrics,
         });
         assets.backend.resolveUrl = path => new URL(path, 'http://test/').href;

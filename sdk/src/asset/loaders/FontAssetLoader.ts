@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, FontResult } from '../AssetLoader';
 import { resolveDocumentRef } from '../documentRef';
+import { bitmapFontMetricsField, type BitmapFontDocument } from '../bitmapFontDocument';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';
 import { getPlatform } from '../../platform/base';
@@ -29,9 +30,9 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
         if (entry?.editorType === 'font') return this.loadOutlineFont(document, file, ctx);
         const text = await ctx.loadText(file);
         if (entry?.editorType === 'bitmap-font' && entry.contentType === 'json') {
-            const json = JSON.parse(text) as { type: string; fntFile?: string; generatedFnt?: string };
-            const metrics = json.type === 'label-atlas' ? json.generatedFnt : json.fntFile;
-            if (!metrics) throw new Error(`Invalid bmfont asset: no fnt file specified in ${document}`);
+            const json = JSON.parse(text) as BitmapFontDocument | null;
+            const metrics = json?.[bitmapFontMetricsField(json)];
+            if (typeof metrics !== 'string' || !metrics) throw new Error(`Invalid bmfont asset: no fnt file specified in ${document}`);
             const ref = resolveDocumentRef(document, metrics);
             const content = ctx.readSource ? await ctx.readSource(ref) : await ctx.loadText(ctx.catalog.getBuildPath(ref));
             return this.loadFntFile(ctx.sourceAddressOf?.(ref) ?? ref, content, ctx);
