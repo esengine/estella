@@ -10,6 +10,7 @@ import {
     leafStateOf,
     type AnimatorControllerDef,
     type AnimatorData,
+    type AnimatorTransition,
 } from '../src/animation/Animator';
 import { SpriteAnimator, type SpriteAnimatorData } from '../src/animation/SpriteAnimator';
 
@@ -146,6 +147,33 @@ describe('evaluateAnimatorPath', () => {
     it('top-level any-state outranks everything nested', () => {
         const r = evaluateAnimatorPath(def, 'Combat/Swing', { block: true, done: true, dead: true }, new Set(), true);
         expect(r.nextPath).toBe('Dead');
+    });
+
+    it('walks nested Any State edges from the outside and exits containers from the inside', () => {
+        const edge = (to: string, param: string): AnimatorTransition => ({ to, conditions: [{ param, op: 'true' }] });
+        const deep: AnimatorControllerDef = {
+            parameters: [], initialState: 'Outer', states: [
+                { name: 'RootExit', transitions: [] },
+                { name: 'Outer', transitions: [edge('RootExit', 'exit')], stateMachine: {
+                    initialState: 'Inner', anyStateTransitions: [edge('MiddleExit', 'middle')], states: [
+                        { name: 'MiddleExit', transitions: [] },
+                        { name: 'Inner', transitions: [edge('MiddleExit', 'exit')], stateMachine: {
+                            initialState: 'Hold', anyStateTransitions: [edge('InnerExit', 'deep')], states: [
+                                { name: 'Hold', transitions: [edge('LeafExit', 'leaf')] },
+                                { name: 'InnerExit', transitions: [] },
+                                { name: 'LeafExit', transitions: [] },
+                            ],
+                        } },
+                    ],
+                } },
+            ],
+        };
+        const resolve = (params: Record<string, boolean>) => evaluateAnimatorPath(deep, 'Outer/Inner/Hold', params, new Set()).nextPath;
+        expect(resolve({ middle: true, deep: true, leaf: true, exit: true })).toBe('Outer/MiddleExit');
+        expect(resolve({ deep: true, leaf: true, exit: true })).toBe('Outer/Inner/InnerExit');
+        expect(resolve({ leaf: true, exit: true })).toBe('Outer/Inner/LeafExit');
+        expect(resolve({ exit: true })).toBe('Outer/MiddleExit');
+        expect(resolve({})).toBeNull();
     });
 
     it('stays put when nothing fires', () => {

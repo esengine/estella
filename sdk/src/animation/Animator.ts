@@ -329,26 +329,34 @@ function conditionHolds(
     }
 }
 
+interface ReadyTransition {
+    targetPath: string[];
+    usedTriggers: string[];
+    fadeDuration: number;
+    blend?: AnimatorTransitionBlend;
+}
+
 /** First ready transition with a valid destination, and the triggers it used. */
 function firstReady(
     scope: AnimatorScope,
-    list: readonly AnimatorTransition[],
+    list: readonly AnimatorTransition[] | undefined,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
     clipFinished: boolean,
     windows: ReadonlySet<string>,
-): { targetPath: string[]; usedTriggers: string[]; fadeDuration: number; blend?: AnimatorTransitionBlend } | null {
+): ReadyTransition | null {
+    if (!list) return null;
     for (const t of list) {
         if (t.hasExitTime && !clipFinished) continue;
-        const used: string[] = [];
+        let used: string[] | undefined;
         let ok = true;
         for (const c of t.conditions) {
             if (!conditionHolds(c, params, triggers, windows)) { ok = false; break; }
-            if (c.op === 'trigger') used.push(c.param);
+            if (c.op === 'trigger') (used ??= []).push(c.param);
         }
         if (!ok) continue;
         const entry = stateEntry(scope, t.to);
-        if (entry.hasLeaf) return { targetPath: entry.path, usedTriggers: used, fadeDuration: t.duration ?? 0, blend: t.blend };
+        if (entry.hasLeaf) return { targetPath: entry.path, usedTriggers: used ?? [], fadeDuration: t.duration ?? 0, blend: t.blend };
     }
     return null;
 }
@@ -368,9 +376,9 @@ export function evaluateAnimatorTransitions(
     clipFinished: boolean = true,
     windows: ReadonlySet<string> = NO_OPEN_WINDOWS,
 ): AnimatorEvalResult {
-    const fromAny = firstReady(def, def.anyStateTransitions ?? [], params, triggers, clipFinished, windows);
+    const fromAny = firstReady(def, def.anyStateTransitions, params, triggers, clipFinished, windows);
     const current = def.states.find((s) => s.name === currentState);
-    const fired = fromAny ?? firstReady(def, current?.transitions ?? [], params, triggers, clipFinished, windows);
+    const fired = fromAny ?? firstReady(def, current?.transitions, params, triggers, clipFinished, windows);
     return fired
         ? { next: fired.targetPath[0], consumedTriggers: fired.usedTriggers }
         : { next: null, consumedTriggers: [] };
@@ -468,34 +476,28 @@ function evaluateResolvedAnimatorPath(
     windows: ReadonlySet<string>,
 ): AnimatorPathEvalResult {
     const { segments, scopes, states } = resolved;
-    const depth = states.length;
-    const root = scopes[0];
-
-    // (list, owning scope, path to that scope) in priority order.
-    const lists: { list: readonly AnimatorTransition[]; scope: AnimatorScope; base: string[] }[] = [];
-    lists.push({ list: root.anyStateTransitions ?? [], scope: root, base: [] });
-    for (let i = 0; i < depth - 1; i++) {
-        const sm = states[i].stateMachine!;
-        lists.push({ list: sm.anyStateTransitions ?? [], scope: sm, base: segments.slice(0, i + 1) });
+    // Any State edges run from the outermost machine inward.
+    for (let i = 0; i < scopes.length; i++) {
+        const scope = scopes[i];
+        const fired = firstReady(scope, scope.anyStateTransitions, params, triggers, clipFinished, windows);
+        if (fired) return pathTransitionResult(segments, i, fired);
     }
-    lists.push({ list: states[depth - 1].transitions ?? [], scope: scopes[depth - 1], base: segments.slice(0, depth - 1) });
-    for (let i = depth - 2; i >= 0; i--) {
-        lists.push({ list: states[i].transitions ?? [], scope: scopes[i], base: segments.slice(0, i) });
-    }
-
-    for (const entry of lists) {
-        const fired = firstReady(entry.scope, entry.list, params, triggers, clipFinished, windows);
-        if (fired) {
-            const next = [...entry.base, ...fired.targetPath];
-            return {
-                nextPath: next.join(STATE_PATH_SEP),
-                consumedTriggers: fired.usedTriggers,
-                fadeDuration: fired.fadeDuration,
-                blend: fired.blend,
-            };
-        }
+    // The leaf runs before its containers, whose edges exit to their owning machine.
+    for (let i = states.length - 1; i >= 0; i--) {
+        const fired = firstReady(scopes[i], states[i].transitions, params, triggers, clipFinished, windows);
+        if (fired) return pathTransitionResult(segments, i, fired);
     }
     return { nextPath: null, consumedTriggers: [], fadeDuration: 0 };
+}
+
+function pathTransitionResult(segments: string[], depth: number, fired: ReadyTransition): AnimatorPathEvalResult {
+    const target = fired.targetPath.join(STATE_PATH_SEP);
+    return {
+        nextPath: depth === 0 ? target : segments.slice(0, depth).join(STATE_PATH_SEP) + STATE_PATH_SEP + target,
+        consumedTriggers: fired.usedTriggers,
+        fadeDuration: fired.fadeDuration,
+        blend: fired.blend,
+    };
 }
 
 /** The leaf (motion-bearing) state of a resolved path, or null if unresolvable. */
