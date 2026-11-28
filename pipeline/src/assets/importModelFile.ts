@@ -161,8 +161,8 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         new Uint8Array(readFileSync(absSource)), stem,
         {
             filename: absSource,
-            externalBuffers: (uri) => {
-                const abs = path.join(sourceDir, decodeURIComponent(uri));
+            externalBuffers: (file) => {
+                const abs = path.join(sourceDir, file);
                 return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
             },
             specularMap,

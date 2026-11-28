@@ -1232,11 +1232,11 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
  *
  * @param bytes The `.gltf` (JSON) or `.glb` (container) file.
  * @param stem  Base name for the products.
- * @param externalBuffers Resolver for `buffers[].uri` that are not data URIs.
+ * @param externalBuffers Resolver for decoded external buffer paths.
  */
 export async function importGltfMeshes(
     bytes: Uint8Array, stem: string,
-    externalBuffers?: (uri: string) => Uint8Array | null,
+    externalBuffers?: (file: string) => Uint8Array | null,
 ): Promise<ModelImportResult> {
     // Compressed views decode synchronously once this resolves; awaiting it
     // unconditionally keeps "is the decoder up" from being a per-file question.
@@ -1256,9 +1256,11 @@ export async function importGltfMeshes(
     for (const note of json.extras?.estella?.warnings ?? []) if (typeof note === 'string') warnings.push('Scene bridge: ' + note);
     const externalFiles: string[] = [];
     const noteExternal = (uri: string): string => {
-        const decoded = decodeURIComponent(uri);
-        if (!externalFiles.includes(decoded)) externalFiles.push(decoded);
-        return decoded;
+        let file = uri;
+        try { file = decodeURIComponent(uri); }
+        catch { /* Some exporters put a literal path with a bare % in the URI field. */ }
+        if (!externalFiles.includes(file)) externalFiles.push(file);
+        return file;
     };
 
     const buffers: (Uint8Array | null)[] = (json.buffers ?? []).map((b, i) => {
@@ -1267,8 +1269,8 @@ export async function importGltfMeshes(
         if (!b.uri) return i === 0 && !b.extensions?.EXT_meshopt_compression?.fallback ? bin : null;
         const inline = decodeDataUri(b.uri);
         if (inline) return inline;
-        noteExternal(b.uri);
-        const external = externalBuffers?.(b.uri) ?? null;
+        const file = noteExternal(b.uri);
+        const external = externalBuffers?.(file) ?? null;
         if (!external) warnings.push(`buffer ${i}: ${b.uri} could not be read`);
         return external;
     });

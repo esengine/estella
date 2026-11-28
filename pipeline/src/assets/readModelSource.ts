@@ -31,9 +31,8 @@ export function modelStem(file: string): string {
 export interface ModelSourceOptions {
     /** What the source is called — how a reader resolves the paths inside it. */
     filename?: string;
-    /** Resolver for the files a source points out to: a glTF's non-data `buffers[].uri`,
-     *  and any DDS image, which is read to be converted. */
-    externalBuffers?: (uri: string) => Uint8Array | null;
+    /** Resolves filesystem paths for external geometry and images. The glTF reader decodes URI escapes. */
+    externalBuffers?: (file: string) => Uint8Array | null;
     /** The model's `specularMap` import setting; FBX is the format that carries one. */
     specularMap?: SpecularMapReading;
 }

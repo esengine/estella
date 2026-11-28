@@ -138,10 +138,10 @@ function redIsZero(p: Pixels): boolean {
  * Converts the result's DDS images to PNG and checks the images it can read,
  * editing `result` in place.
  *
- * @param read Resolves an external uri the way the reader's own buffers were.
+ * @param read Resolves the external filesystem paths produced by the model reader.
  */
 export function prepareModelImages(result: ModelImportResult,
-                                   read?: (uri: string) => Uint8Array | null,
+                                   read?: (file: string) => Uint8Array | null,
                                    options: { alphaFromBaseColor?: boolean } = {}): void {
     const embedded = new Map(result.textures.map(t => [t.name, t]));
     // Per source file: its pixels and the ref it becomes, or null once it has failed.
