@@ -330,6 +330,25 @@ describe('picking entities by ray', () => {
         } finally { app.quit({ keepRenderer: true }); }
     });
 
+    it('picks each visible renderer on a mixed entity and reports that entity once', () => {
+        const bounds = { minX: 28, minY: -2, minZ: -2, maxX: 32, maxY: 2, maxZ: 2 };
+        const smallSprite = (layer: number) => ({ ...sprite(layer), size: { x: 12, y: 12 } });
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), MeshRenderer: { opaque: true, layer: 1 }, Sprite: smallSprite(3),
+                ShapeRenderer: { size: { x: 80, y: 6 }, layer: 4 } },
+            2: { Transform: T(0, 0), Sprite: smallSprite(2) },
+        }, { 1: bounds });
+        const layers = (layer: number) => ({ cullingMask: 1 << layer });
+        expect(pickEntitiesByRay(world, down(0, 0), layers(3))).toEqual([ent(1)]);
+        expect(pickEntityByRay(world, down(30, 0), layers(1))).toBe(ent(1));
+        expect(pickEntityByRay(world, down(39, 0), layers(4))).toBe(ent(1));
+        expect(pickEntityByRay(world, down(39, 0), layers(1))).toBeNull();
+        expect(pickEntitiesByRay(world, down(0, 0))).toEqual([ent(1), ent(2)]);
+        expect(pickEntitiesByRay(world, down(30, 0))).toEqual([ent(1)]);
+        expect(pickEntitiesByBounds(world, box => box.cx + box.hw >= 39, layers(4))).toEqual([ent(1)]);
+        expect(pickEntitiesByBounds(world, () => true)).toEqual([ent(1), ent(2)]);
+    });
+
     it('uses the mesh sorting layer rather than its icon fallback layer', () => {
         const world = fakeWorld({
             1: { Transform: T(0, 0), Sprite: sprite(3) },

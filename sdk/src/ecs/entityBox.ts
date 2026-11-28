@@ -99,9 +99,10 @@ export function resolveEntityWorldBox(
         hiddenMesh?: boolean;
         iconPickable?: (entity: Entity) => boolean;
         readTransform?: (entity: Entity) => TransformData;
+        drawablesOnly?: boolean;
     },
     readSprite?: SpriteBoundsReader,
-): { box: EntityBox; drawable: SpriteData | ShapeRendererData | null } | null {
+): { box: EntityBox; drawable: SpriteData | ShapeRendererData | null; sprite?: true } | null {
     if (!world.valid(entity) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
 
@@ -110,9 +111,12 @@ export function resolveEntityWorldBox(
     if (sprite && (!visibility || sprite.enabled !== false)) {
         const box = readSprite ? readSprite(entity, t, sprite)
             : withSpriteBounds(world, read => read(entity, t, sprite));
-        if (box) return { box, drawable: sprite };
+        if (box) return { box, drawable: sprite, sprite: true };
     }
     const shape = world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
+    if (visibility?.drawablesOnly) {
+        return shape && shape.enabled !== false ? { box: shapeWorldBox(t, shape), drawable: shape } : null;
+    }
     const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
     const spec = hiddenRenderer && !visibility.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
     const iconSize = 2 * (typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec);

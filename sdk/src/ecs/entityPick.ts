@@ -11,12 +11,13 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, MeshRenderer, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
+import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
 import {
     layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, withSpriteBounds, type EntityBox, type LayoutWorld, type EntityBoxOptions,
+    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, shapeWorldBox, withSpriteBounds,
+    type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -102,20 +103,22 @@ export function pickEntitiesByRay(
     const hits: PickCandidate<Entity>[] = [];
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
     const readTransform = pickComponentReader(world, Transform);
-    visitPickHits(world, opts, rayIntersection(ray), readTransform, {
+    const repeated = visitPickHits(world, opts, rayIntersection(ray), readTransform, {
         ranked(entity, distance, identity, opaque) {
             const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, opaque);
             if (opaque) opaqueHits.push({ candidate, distance });
             else hits.push(candidate);
         },
     });
-    if (!opaqueHits.length) return rankPickCandidates(hits);
-
     // Depth-tested opaque meshes occlude one another even across sorting layers.
     // Rank the nearest against the blended draws; keep the others for cycling.
-    opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
-    hits.push(opaqueHits[0].candidate);
-    return rankPickCandidates(hits).concat(opaqueHits.slice(1).map(hit => hit.candidate.entity));
+    if (opaqueHits.length) {
+        opaqueHits.sort((a, b) => a.distance - b.distance || b.candidate.index - a.candidate.index);
+        hits.push(opaqueHits[0].candidate);
+    }
+    const ranked = rankPickCandidates(hits);
+    for (let i = 1; i < opaqueHits.length; i++) ranked.push(opaqueHits[i].candidate.entity);
+    return repeated ? [...new Set(ranked)] : ranked;
 }
 
 /** The topmost ray hit, with the same result as the first entry of {@link pickEntitiesByRay}. @experimental */
@@ -196,12 +199,30 @@ function pickComponentReader<T>(world: PickWorld, component: BuiltinComponentDef
 function visitPickHits(
     world: PickWorld, opts: EntityPickOptions, intersect: (box: EntityBox, entity: Entity) => number | null,
     readTransform: (entity: Entity) => TransformData, visit: PickHitVisitor,
-): void {
+): boolean {
     const iconHalf = opts.iconHalf ?? 0;
     const cullingMask = opts.cullingMask ?? 0xFFFFFFFF;
     const unlayered = (typeof iconHalf === 'function' || iconHalf > 0) ? GIZMO_PICK_LAYER : 0;
     const readMesh = pickComponentReader(world, MeshRenderer);
     let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
+    let repeated = false;
+    const unranked = 'unranked' in visit;
+    const submit = (entity: Entity, box: EntityBox, drawable: { layer?: number; order?: number } | null, opaque?: boolean) => {
+        const distance = intersect(box, entity);
+        if (distance === null) return false;
+        const needsLayer = cullingMask !== 0xFFFFFFFF && drawable;
+        if (unranked && !needsLayer) {
+            visit.unranked(entity);
+            return true;
+        }
+        // The enclosing group owns the layer and order, as it does during draw submission.
+        groupsOf ??= createEnclosingGroupReader(world);
+        const identity = sortingIdentity(groupsOf(entity), drawable ? drawable.layer ?? 0 : unlayered, drawable?.order ?? 0);
+        if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) return false;
+        if (unranked) visit.unranked(entity);
+        else visit.ranked(entity, distance, identity, opaque);
+        return true;
+    };
     // Use the ECS query's effective activity, including the parent's switch.
     // An empty filter preserves storage order for draw-order ties.
     const entities = world.getEntitiesWithComponents?.([]) ?? world.getAllEntities();
@@ -214,34 +235,23 @@ function visitPickHits(
             const renderer = world.has(entity, MeshRenderer) ? readMesh(entity) : null;
             const hiddenMesh = renderer?.enabled === false;
             const meshBox = renderer && !hiddenMesh ? resolveMeshWorldBox(world, entity, readTransform) : null;
-            if (!meshBox && opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
-            const fallback = meshBox ? null : resolveEntityWorldBox(world, entity, opts,
-                { hiddenMesh, iconPickable: opts.iconPickable, readTransform }, readSprite);
-            const box = meshBox ?? fallback?.box;
-            if (!box) continue;
-            const distance = intersect(box, entity);
-            if (distance === null) continue;
-
-            const mesh = meshBox ? renderer : null;
-            const sprite = fallback?.drawable;
-            const needsLayer = cullingMask !== 0xFFFFFFFF && (mesh || sprite);
-            // Area picks already arrive in storage order. A group matters only
-            // when its layer determines whether the camera draws this hit.
-            if ('unranked' in visit && !needsLayer) {
-                visit.unranked(entity);
-                continue;
+            const meshHit = !!(meshBox && submit(entity, meshBox, renderer, renderer?.opaque));
+            if (unranked && meshHit) continue;
+            if (meshBox ? !world.has(entity, Sprite) && !world.has(entity, ShapeRenderer)
+                : opts.fallbackPickable && !opts.fallbackPickable(entity)) continue;
+            const flat = resolveEntityWorldBox(world, entity, opts,
+                { hiddenMesh, iconPickable: opts.iconPickable, readTransform, drawablesOnly: !!meshBox }, readSprite);
+            const flatHit = !!(flat && submit(entity, flat.box, flat.drawable));
+            if (unranked && flatHit) continue;
+            repeated ||= meshHit && flatHit;
+            // Sprite and ShapeRenderer have independent draws even on the same transform.
+            if (flat?.sprite && world.has(entity, ShapeRenderer)) {
+                const shape = world.get(entity, ShapeRenderer);
+                if (shape.enabled !== false && submit(entity, shapeWorldBox(readTransform(entity), shape), shape)) {
+                    repeated ||= meshHit || flatHit;
+                }
             }
-            // A group owns the layer as well as the order, so the layer's RULE is asked of
-            // the group's — the same resolution pushBatchDraw does, for the same reason.
-            groupsOf ??= createEnclosingGroupReader(world);
-            const identity = sortingIdentity(
-                groupsOf(entity),
-                mesh ? mesh.layer ?? 0 : sprite ? sprite.layer : unlayered,
-                (sprite as { order?: number } | null)?.order ?? 0,
-            );
-            if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) continue;
-            if ('ranked' in visit) visit.ranked(entity, distance, identity, mesh?.opaque);
-            else visit.unranked(entity);
         }
     });
+    return repeated;
 }
