@@ -82,13 +82,17 @@ across the floor; pitch never reaches the character.
 | `cameraRelative` | `true` | Reads input in the camera's ground plane rather than the world's. |
 | `camera` | `0` | The `ThirdPersonCamera` whose forward the input is read against; `0` uses the first one found. |
 | `idleThreshold` | `8` | Speed below which the animator is told the character is standing still. |
+| `sprintSpeed` | `0` | Top speed while sprinting; `0` is no sprint. With one, Left Shift is held to sprint and tapped to dodge. |
+| `coyoteTime` | `0.12` | Seconds after walking off an edge that a jump still counts as from the ground. |
+| `jumpBuffer` | `0.14` | Seconds a jump pressed just before landing is remembered, to go on landing. |
+| `sprintCost` / `dodgeCost` / `attackCost` / `jumpCost` | `9` / `22` / `9` / `6` | What each action takes from a `Stamina` on the character (sprint per second). Without one they cost nothing. |
 | `enabled` | `true` | `false` stops the controller. |
 
 | Input | Effect |
 |---|---|
 | W / A / S / D | Movement. |
-| Space | Jump, when `jumpSpeed` is above 0 and the character is on the floor. |
-| Left Shift | Sets the animator trigger `dodge`. |
+| Space | Jump, when `jumpSpeed` is above 0, from the floor or within `coyoteTime` of leaving it; a press up to `jumpBuffer` early goes on landing. |
+| Left Shift | Sets the animator trigger `dodge`. With a `sprintSpeed`, a tap dodges when it is let go and a hold sprints. |
 | J | Sets the animator trigger `attack`. |
 
 | Animator parameter | Type | Written |
@@ -96,7 +100,9 @@ across the floor; pitch never reaches the character.
 | `speed` | float | The ground speed the character **reached** (from `realVelocity`), `0` below `idleThreshold`. A character pushing against a wall reports `0`. |
 | `grounded` | bool | `CharacterController3D.isOnFloor`. |
 | `jump` | trigger | The step a jump was applied. |
-| `dodge` / `attack` | trigger | On the key press; the animator graph decides whether a clip answers it. |
+| `dodge` / `attack` | trigger | On the key press; the animator graph decides whether a clip answers it. An empty `Stamina` refuses it. |
+| `sprint` | bool | Whether it is sprinting, written when it has a `sprintSpeed`. |
+| `stagger` | trigger | A blow broke its `Health.poise`. |
 
 While an animation drives root motion, the character's velocity and heading come from the animation instead of the
 input.

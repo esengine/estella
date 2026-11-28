@@ -15,6 +15,11 @@ buffers jumps. With `readKeyboard` on it reads A / D or the arrows to move and S
 an AI writes `moveInput` (-1..1), `jumpPressed` and `jumpHeld`. Tune `moveSpeed`, `jumpSpeed`, `gravity` (world units a
 second, 100 to the metre) rather than writing movement code.
 
+A dash is `dashSpeed` (about 3.5x `moveSpeed`), `dashTime` and `dashCooldown`: Shift or K bursts along the way it last
+faced with no gravity, once in the air until it lands, and the `Health` on it takes no blow meanwhile. With a `Stamina` on
+the player each dash takes `dashCost` and an empty bar refuses it. `Health.graceTime` (about 1 s) is the blink a hit
+player gets; `MeleeAttack.hitStop` and `Health.poise` work the same as in 3D.
+
 A top-down mover, or anything with rules of its own, is a script: a component for its state and a system that reads
 `Res(Input)` (`isKeyDown('KeyA')`, `isKeyPressed('Space')`) and writes the Transform through `Mut(Transform)`.
 

@@ -3911,11 +3911,52 @@
           "type": "number",
           "default": "100",
           "range": "≥ 0"
+        },
+        {
+          "key": "graceTime",
+          "type": "number",
+          "default": "0",
+          "doc": "After a blow lands, how long no other does. 0 = none.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "poise",
+          "type": "number",
+          "default": "0",
+          "doc": "Damage it takes, all within the recovery time, before a blow staggers it. 0 = never staggers.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "poiseRecovery",
+          "type": "number",
+          "default": "2",
+          "doc": "How long a full poise takes to come back after the last blow.",
+          "range": "≥ 0, step 0.1",
+          "advanced": true
+        },
+        {
+          "key": "invulnerable",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "stagger",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
         }
       ],
       "animatable": [
         "current",
-        "max"
+        "max",
+        "graceTime",
+        "poise",
+        "poiseRecovery",
+        "invulnerable",
+        "stagger"
       ]
     },
     {
@@ -4851,6 +4892,13 @@
           "doc": "The animated socket the swing reaches from."
         },
         {
+          "key": "hitStop",
+          "type": "number",
+          "default": "0",
+          "doc": "How long the game holds still when this swing lands; 0.04 to 0.08 gives a blow weight. 0 = none.",
+          "range": "0–0.3, step 0.01"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -4875,6 +4923,7 @@
         "damage",
         "layers",
         "anchor",
+        "hitStop",
         "attackId",
         "hitCount"
       ]
@@ -6880,10 +6929,47 @@
           "default": "true"
         },
         {
+          "key": "dashSpeed",
+          "type": "number",
+          "default": "0",
+          "doc": "Speed of a dash along the way it faces, with no gravity while it lasts. 0 = no dash.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "dashTime",
+          "type": "number",
+          "default": "0.18",
+          "doc": "How long a dash lasts.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "dashCooldown",
+          "type": "number",
+          "default": "0.35",
+          "doc": "How long after a dash before the next. One dash in the air until it lands.",
+          "range": "≥ 0, step 0.01",
+          "advanced": true
+        },
+        {
+          "key": "dashCost",
+          "type": "number",
+          "default": "20",
+          "doc": "Stamina a dash takes. Needs a Stamina on this entity.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "dashInvulnerable",
+          "type": "boolean",
+          "default": "true",
+          "doc": "No blow lands on its Health while it dashes.",
+          "advanced": true
+        },
+        {
           "key": "readKeyboard",
           "type": "boolean",
           "default": "true",
-          "doc": "Move with A/D or the arrows, jump with Space, W or Up, drop with Down or S and jump. Off, a game writes the inputs itself."
+          "doc": "Move with A/D or the arrows, jump with Space, W or Up, drop with Down or S and jump, dash with Shift or K. Off, a game writes the inputs itself."
         },
         {
           "key": "moveInput",
@@ -6911,6 +6997,26 @@
           "advanced": true
         },
         {
+          "key": "dashPressed",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "dashing",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "dashCount",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -6931,7 +7037,12 @@
         "jumpBuffer",
         "airJumps",
         "dropTime",
-        "moveInput"
+        "dashSpeed",
+        "dashTime",
+        "dashCooldown",
+        "dashCost",
+        "moveInput",
+        "dashCount"
       ]
     },
     {
@@ -8880,6 +8991,52 @@
       ]
     },
     {
+      "name": "Stamina",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "current",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "default": "100",
+          "range": "≥ 0"
+        },
+        {
+          "key": "regen",
+          "type": "number",
+          "default": "26",
+          "doc": "How fast the bar comes back.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "regenDelay",
+          "type": "number",
+          "default": "0.7",
+          "doc": "How long after the last spend before it starts to come back.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "cooldown",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "current",
+        "max",
+        "regen",
+        "regenDelay",
+        "cooldown"
+      ]
+    },
+    {
       "name": "StateDrivenCamera",
       "source": "ts",
       "fields": [
@@ -10218,6 +10375,59 @@
           "doc": "Cover ground by the travel the animation itself states: the stick chooses the heading and the speed it asks the animator for, and the gait that answers moves the character. Needs an AnimatorRootMotion on this entity and states with Root Motion on."
         },
         {
+          "key": "sprintSpeed",
+          "type": "number",
+          "default": "0",
+          "doc": "Top speed while the dodge key is held. 0 = no sprint, and the dodge key dodges the moment it goes down.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "coyoteTime",
+          "type": "number",
+          "default": "0.12",
+          "doc": "After walking off an edge, how long a jump still counts as from the ground.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "jumpBuffer",
+          "type": "number",
+          "default": "0.14",
+          "doc": "How long a jump pressed too early is remembered, to happen on landing.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "sprintCost",
+          "type": "number",
+          "default": "9",
+          "doc": "Stamina a second of sprinting takes. Needs a Stamina on this entity.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "dodgeCost",
+          "type": "number",
+          "default": "22",
+          "doc": "Stamina a dodge takes. Needs a Stamina on this entity.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "attackCost",
+          "type": "number",
+          "default": "9",
+          "doc": "Stamina an attack takes. Needs a Stamina on this entity.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "jumpCost",
+          "type": "number",
+          "default": "6",
+          "doc": "Stamina a jump takes. Needs a Stamina on this entity.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -10231,7 +10441,14 @@
         "jumpSpeed",
         "airControl",
         "camera",
-        "idleThreshold"
+        "idleThreshold",
+        "sprintSpeed",
+        "coyoteTime",
+        "jumpBuffer",
+        "sprintCost",
+        "dodgeCost",
+        "attackCost",
+        "jumpCost"
       ]
     },
     {

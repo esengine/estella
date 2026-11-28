@@ -40,6 +40,16 @@ export interface PlatformerController2DData {
     dropTime: number;
     /** A jump keeps the velocity of the platform it left. */
     keepPlatformVelocity: boolean;
+    /** Speed of a dash, a short burst along the way it faces with no gravity; 0 = no dash. */
+    dashSpeed?: number;
+    /** Seconds a dash lasts. */
+    dashTime?: number;
+    /** Seconds after a dash before the next. One dash in the air until it lands again. */
+    dashCooldown?: number;
+    /** What a dash costs from a Stamina on the character, which refuses one when empty. Needs the gameplay runtime. */
+    dashCost?: number;
+    /** No blow lands on its Health while it dashes. Needs the gameplay runtime. */
+    dashInvulnerable?: boolean;
     /** Read the keyboard itself. Off, a game or an AI writes `moveInput`, `jumpHeld`, `jumpPressed` and `dropPressed`. */
     readKeyboard: boolean;
     /** Input: -1 left to 1 right. */
@@ -50,6 +60,12 @@ export interface PlatformerController2DData {
     jumpPressed: boolean;
     /** Input: ask to drop through a one-way platform. Consumed by the next fixed step. */
     dropPressed: boolean;
+    /** Input: the dash button went down. Consumed by the next fixed step. */
+    dashPressed?: boolean;
+    /** Engine-written: it is dashing now. */
+    dashing?: boolean;
+    /** Engine-written: dashes made so far, which goes up by one as each starts. */
+    dashCount?: number;
     enabled: boolean;
 }
 
@@ -74,13 +90,22 @@ export const PlatformerController2D: ComponentDef<PlatformerController2DData> = 
     airJumps: 0,
     dropTime: 0.2,
     keepPlatformVelocity: true,
+    dashSpeed: 0,
+    dashTime: 0.18,
+    dashCooldown: 0.35,
+    dashCost: 20,
+    dashInvulnerable: true,
     readKeyboard: true,
     moveInput: 0,
     jumpHeld: false,
     jumpPressed: false,
     dropPressed: false,
+    dashPressed: false,
+    dashing: false,
+    dashCount: 0,
     enabled: true,
 }, {
+    readonlyFields: ['dashing', 'dashCount'],
     fields: {
         moveSpeed: { min: 0, unit: 'px/s' },
         groundAcceleration: { min: 0, unit: 'px/s²', advanced: true },
@@ -96,11 +121,19 @@ export const PlatformerController2D: ComponentDef<PlatformerController2DData> = 
         jumpBuffer: { min: 0, step: 0.01, unit: 's', tooltip: 'How long a jump pressed too early is remembered, to happen on landing.' },
         airJumps: { min: 0, step: 1, tooltip: 'Extra jumps before landing again.' },
         dropTime: { min: 0, step: 0.01, unit: 's', tooltip: 'How long a drop through a one-way platform lasts.' },
-        readKeyboard: { tooltip: 'Move with A/D or the arrows, jump with Space, W or Up, drop with Down or S and jump. Off, a game writes the inputs itself.' },
+        dashSpeed: { min: 0, unit: 'px/s', tooltip: 'Speed of a dash along the way it faces, with no gravity while it lasts. 0 = no dash.' },
+        dashTime: { min: 0, step: 0.01, unit: 's', tooltip: 'How long a dash lasts.' },
+        dashCooldown: { min: 0, step: 0.01, unit: 's', advanced: true, tooltip: 'How long after a dash before the next. One dash in the air until it lands.' },
+        dashCost: { min: 0, advanced: true, tooltip: 'Stamina a dash takes. Needs a Stamina on this entity.' },
+        dashInvulnerable: { advanced: true, tooltip: 'No blow lands on its Health while it dashes.' },
+        readKeyboard: { tooltip: 'Move with A/D or the arrows, jump with Space, W or Up, drop with Down or S and jump, dash with Shift or K. Off, a game writes the inputs itself.' },
         moveInput: { min: -1, max: 1, step: 0.1, advanced: true },
         jumpHeld: { advanced: true },
         jumpPressed: { advanced: true },
         dropPressed: { advanced: true },
+        dashPressed: { advanced: true },
+        dashing: { advanced: true },
+        dashCount: { advanced: true },
     },
 });
 
@@ -115,10 +148,22 @@ export interface PlatformerState {
     airJumpsLeft: number;
     /** Rising from a jump that has not yet been cut. */
     jumping: boolean;
+    /** The way it last moved, -1 or 1: where a dash goes with the stick centred. */
+    facing: number;
+    /** Seconds the dash under way has left, and the way it goes. */
+    dashLeft: number;
+    dashDir: number;
+    /** Seconds before the next dash. */
+    dashWait: number;
+    /** The dash it may make before landing again. */
+    airDash: boolean;
 }
 
 export function platformerState(airJumps = 0): PlatformerState {
-    return { coyote: 0, buffered: 0, dropping: 0, airJumpsLeft: airJumps, jumping: false };
+    return {
+        coyote: 0, buffered: 0, dropping: 0, airJumpsLeft: airJumps, jumping: false,
+        facing: 1, dashLeft: 0, dashDir: 1, dashWait: 0, airDash: true,
+    };
 }
 
 /** What the character controller reported of the last move. @internal */
@@ -136,6 +181,10 @@ export interface PlatformerStep {
     velocityY: number;
     dropThrough: boolean;
     jumped: boolean;
+    /** A dash started this step. */
+    dashed: boolean;
+    /** A dash is under way. */
+    dashing: boolean;
 }
 
 const approach = (from: number, to: number, step: number): number =>
@@ -148,8 +197,9 @@ const approach = (from: number, to: number, step: number): number =>
  */
 export function stepPlatformer(
     config: PlatformerController2DData, state: PlatformerState, ground: PlatformerGround,
-    velocityX: number, velocityY: number, jumpPressed: boolean, dropPressed: boolean, dt: number,
+    velocityX: number, velocityY: number, jumpPressed: boolean, dropPressed: boolean, dt: number, dashPressed = false,
 ): PlatformerStep {
+    if (config.moveInput !== 0) state.facing = Math.sign(config.moveInput);
     const target = Math.max(-1, Math.min(1, config.moveInput)) * config.moveSpeed;
     const moving = target !== 0 && (velocityX === 0 || Math.sign(target) === Math.sign(velocityX));
     const rate = ground.onFloor
@@ -161,13 +211,33 @@ export function stepPlatformer(
     state.coyote = Math.max(0, state.coyote - dt);
     state.buffered = Math.max(0, state.buffered - dt);
     state.dropping = Math.max(0, state.dropping - dt);
+    state.dashWait = Math.max(0, state.dashWait - dt);
 
     if (ground.onFloor && vy <= 0) {
         state.coyote = config.coyoteTime;
         state.airJumpsLeft = config.airJumps;
         state.jumping = false;
+        state.airDash = true;
     }
     if (jumpPressed) state.buffered = Math.max(config.jumpBuffer, dt);
+
+    // A dash is a burst along the way it faces with no gravity, for its time; a jump pressed meanwhile waits in the
+    // buffer for it to end. One in the air until the next landing.
+    const dashSpeed = config.dashSpeed ?? 0;
+    let dashed = false;
+    if (dashPressed && dashSpeed > 0 && state.dashLeft <= 0 && state.dashWait <= 0 && (ground.onFloor || state.airDash)) {
+        if (!ground.onFloor) state.airDash = false;
+        state.dashLeft = Math.max(config.dashTime ?? 0, dt);
+        state.dashDir = state.facing;
+        state.dashWait = (config.dashTime ?? 0) + (config.dashCooldown ?? 0);
+        state.jumping = false;
+        dashed = true;
+    }
+    if (state.dashLeft > 0) {
+        // Over within a hair of its time, or a float left over from the steps would add one more.
+        state.dashLeft = state.dashLeft - dt > 1e-6 ? state.dashLeft - dt : 0;
+        return { velocityX: state.dashDir * dashSpeed, velocityY: 0, dropThrough: state.dropping > 0, jumped: false, dashed, dashing: true };
+    }
 
     // A drop is asked for on the ground, and the same press is not also a jump.
     if (dropPressed && ground.onFloor) {
@@ -203,5 +273,5 @@ export function stepPlatformer(
         vy = Math.max(-config.maxFallSpeed, vy - gravity * dt);
     }
 
-    return { velocityX: vx, velocityY: vy, dropThrough: state.dropping > 0, jumped };
+    return { velocityX: vx, velocityY: vy, dropThrough: state.dropping > 0, jumped, dashed: false, dashing: false };
 }

@@ -93,6 +93,7 @@ With `readKeyboard` set, the controller reads the keyboard:
 | Move | A / D, Left / Right arrows |
 | Jump | Space, W, Up arrow |
 | Drop through a one-way platform | Down arrow or S, plus jump |
+| Dash, when `dashSpeed` is above 0 | Shift or K |
 
 With `readKeyboard: false`, a game, touch controls or an AI drive it through the input fields: `moveInput` and
 `jumpHeld` are levels; `jumpPressed` and `dropPressed` are consumed by the next fixed step. Presses are latched per
@@ -115,11 +116,18 @@ rendered frame, so a tap between two fixed steps is not lost.
 | `airJumps` | number | `0` | Extra jumps before landing again. |
 | `dropTime` | number | `0.2` | Seconds a drop through a one-way platform lasts. |
 | `keepPlatformVelocity` | boolean | `true` | A jump keeps the velocity of the platform it left. |
+| `dashSpeed` | number | `0` | Speed of a dash, a burst along the way it last faced with no gravity; `0` is no dash. |
+| `dashTime` | number | `0.18` | Seconds a dash lasts. |
+| `dashCooldown` | number | `0.35` | Seconds after a dash before the next. One dash in the air until it lands. |
+| `dashCost` | number | `20` | What a dash takes from a `Stamina` on the character, which refuses one when empty. |
+| `dashInvulnerable` | boolean | `true` | No blow lands on its `Health` while it dashes. |
 | `readKeyboard` | boolean | `true` | Reads the keyboard itself. |
 | `moveInput` | number | `0` | Input: -1 (left) to 1 (right). |
 | `jumpHeld` | boolean | `false` | Input: the jump button is down. |
 | `jumpPressed` | boolean | `false` | Input: the jump button went down; consumed by the next fixed step. |
 | `dropPressed` | boolean | `false` | Input: request a drop through a one-way platform; consumed by the next fixed step. |
+| `dashPressed` | boolean | `false` | Input: the dash button went down; consumed by the next fixed step. |
+| `dashing` / `dashCount` | boolean / number | `false` / `0` | Engine-written: a dash is under way; dashes made so far. |
 | `enabled` | boolean | `true` | `false` stops the controller. |
 
 ![Details of the player in the platformer example: the Character Controller 2D and Platformer Controller 2D cards](@/assets/guides/en/gameplay-platformer-controller.png)

@@ -13,6 +13,8 @@ export {
     TPC_JUMP,
     TPC_DODGE,
     TPC_ATTACK,
+    TPC_SPRINT,
+    TPC_STAGGER,
     yawQuaternion,
     yawOfQuaternion,
     WORLD_BASIS,
@@ -40,6 +42,7 @@ export {
     Hunter,
     decideHunterState,
     huntTargets,
+    staggerHunter,
     type HunterData,
     type HunterState,
     type HunterSituation,
@@ -49,10 +52,19 @@ export {
     Health,
     Damage,
     applyDamage,
+    tickHealth,
     restoreToFull,
     type HealthData,
     type DamagePayload,
+    type DamageOutcome,
 } from './Health';
+
+export {
+    Stamina,
+    spendStamina,
+    regenerateStamina,
+    type StaminaData,
+} from './Stamina';
 
 export {
     MeleeAttack,
@@ -64,6 +76,7 @@ export {
     COMBAT_ATTACK_END,
     COMBAT_ATTACK_ACTIVE,
     COMBAT_COMBO_WINDOW,
+    COMBAT_INVULNERABLE,
     type MeleeAttackData,
     type MeleeOverlapQuery,
     type MeleeWindowSource,

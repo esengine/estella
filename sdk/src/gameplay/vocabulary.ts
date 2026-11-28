@@ -21,8 +21,15 @@ export const TPC_GROUNDED = 'grounded';
 export const TPC_JUMP = 'jump';
 export const TPC_DODGE = 'dodge';
 export const TPC_ATTACK = 'attack';
+/** A bool: the character is sprinting, so a graph can pick a sprint gait apart from a run at the same speed. */
+export const TPC_SPRINT = 'sprint';
+/** Set the frame a blow broke the character's poise (Health.poise): the flinch that interrupts what it was doing. */
+export const TPC_STAGGER = 'stagger';
 
-/** The key a dodge is asked for on; the animator decides whether there is one. */
+/**
+ * The key a dodge is asked for on; the animator decides whether there is one. With a `sprintSpeed` on the controller it
+ * is also the sprint: a tap dodges when it is let go, and held it sprints.
+ */
 export const DODGE_KEY = 'ShiftLeft';
 
 /** The key an attack is asked for on. Same rule: a request, not a clip name. */
@@ -48,3 +55,8 @@ export const COMBAT_ATTACK_ACTIVE = 'attack-active';
  * a transition with `{ param: 'combo', op: 'window' }` chains only inside it.
  */
 export const COMBAT_COMBO_WINDOW = 'combo';
+/**
+ * The window a clip declares for the frames no blow lands on its character, a dodge's invulnerable frames: a custom
+ * event with a duration, as `attack-active` is. Re-timing the roll re-times them.
+ */
+export const COMBAT_INVULNERABLE = 'invulnerable';

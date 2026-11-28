@@ -23,7 +23,7 @@ import type { Vec3 } from '../types';
 // The names authored content reaches this through live on `esengine`; the
 // runtime does not, so they are declared apart from it.
 export {
-    TPC_SPEED, TPC_GROUNDED, TPC_JUMP, TPC_DODGE, TPC_ATTACK, DODGE_KEY, ATTACK_KEY,
+    TPC_SPEED, TPC_GROUNDED, TPC_JUMP, TPC_DODGE, TPC_ATTACK, TPC_SPRINT, TPC_STAGGER, DODGE_KEY, ATTACK_KEY,
 } from './vocabulary';
 
 /** The fields of the `ThirdPersonController` component. @experimental */
@@ -54,6 +54,23 @@ export interface ThirdPersonControllerData {
      * animator is told what speed came of it.
      */
     rootMotion?: boolean;
+    /**
+     * Top speed while sprinting; 0 is no sprint. With one, the dodge key is held to sprint and tapped to dodge, the
+     * dodge going out when the tap is let go.
+     */
+    sprintSpeed?: number;
+    /** Seconds after walking off an edge that a jump still counts as from the ground. */
+    coyoteTime?: number;
+    /** Seconds a jump pressed just before landing is remembered, to go on landing. */
+    jumpBuffer?: number;
+    /** What a sprint costs a second, from a Stamina on the character. An empty bar drops it to a run until the key is let go. */
+    sprintCost?: number;
+    /** What a dodge costs. An empty bar refuses it. */
+    dodgeCost?: number;
+    /** What an attack costs. An empty bar refuses it. */
+    attackCost?: number;
+    /** What a jump costs. An empty bar refuses it. */
+    jumpCost?: number;
     enabled: boolean;
 }
 
@@ -75,10 +92,17 @@ export const ThirdPersonController: ComponentDef<ThirdPersonControllerData> =
         camera: 0 as Entity,
         idleThreshold: 8,
         rootMotion: false,
+        sprintSpeed: 0,
+        coyoteTime: 0.12,
+        jumpBuffer: 0.14,
+        sprintCost: 9,
+        dodgeCost: 22,
+        attackCost: 9,
+        jumpCost: 6,
         enabled: true,
     }, {
     // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
-    worldUnitFields: ['moveSpeed', 'acceleration', 'deceleration', 'jumpSpeed', 'idleThreshold'],
+    worldUnitFields: ['moveSpeed', 'acceleration', 'deceleration', 'jumpSpeed', 'idleThreshold', 'sprintSpeed'],
         entityFields: ['camera'],
         fields: {
             camera: { tooltip: 'Whose forward the stick is read against.' },
@@ -86,6 +110,13 @@ export const ThirdPersonController: ComponentDef<ThirdPersonControllerData> =
             airControl: { min: 0, max: 1, step: 0.05, advanced: true },
             idleThreshold: { min: 0, step: 0.05, advanced: true },
             jumpSpeed: { min: 0, tooltip: 'Upward speed a jump starts with. 0 = cannot jump.' },
+            sprintSpeed: { min: 0, tooltip: 'Top speed while the dodge key is held. 0 = no sprint, and the dodge key dodges the moment it goes down.' },
+            coyoteTime: { min: 0, step: 0.01, unit: 's', tooltip: 'After walking off an edge, how long a jump still counts as from the ground.' },
+            jumpBuffer: { min: 0, step: 0.01, unit: 's', tooltip: 'How long a jump pressed too early is remembered, to happen on landing.' },
+            sprintCost: { min: 0, unit: '/s', advanced: true, tooltip: 'Stamina a second of sprinting takes. Needs a Stamina on this entity.' },
+            dodgeCost: { min: 0, advanced: true, tooltip: 'Stamina a dodge takes. Needs a Stamina on this entity.' },
+            attackCost: { min: 0, advanced: true, tooltip: 'Stamina an attack takes. Needs a Stamina on this entity.' },
+            jumpCost: { min: 0, advanced: true, tooltip: 'Stamina a jump takes. Needs a Stamina on this entity.' },
             rootMotion: { tooltip: 'Cover ground by the travel the animation itself states: the stick chooses the heading and the speed it asks the animator for, and the gait that answers moves the character. Needs an AnimatorRootMotion on this entity and states with Root Motion on.' },
         },
     });

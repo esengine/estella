@@ -604,6 +604,14 @@ airAcceleration: number
 airDeceleration: number
 airJumps: number
 coyoteTime: number
+dashCooldown: number | undefined
+dashCost: number | undefined
+dashCount: number | undefined
+dashInvulnerable: boolean | undefined
+dashPressed: boolean | undefined
+dashSpeed: number | undefined
+dashTime: number | undefined
+dashing: boolean | undefined
 dropPressed: boolean
 dropTime: number
 enabled: boolean

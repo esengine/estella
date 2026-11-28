@@ -19,6 +19,26 @@ gravity there, and sets it only to jump. `radius` and `halfHeight` are its capsu
 `Schedule.FixedPreUpdate`, where the controller reads it. Movement that turns the body to face where it walks writes
 the `Transform` rotation in the same system.
 
+## An action game that feels right
+
+A third-person fighter needs no movement code: `ThirdPersonController` beside the `CharacterController3D`, a
+`ThirdPersonCamera`, and an `Animator` whose graph answers the triggers `dodge`, `attack` and `stagger` (from
+`esengine/gameplay`). What makes it feel right are numbers on components, not systems:
+
+- Jump forgiveness is on by default: `coyoteTime` 0.12 s after walking off an edge, `jumpBuffer` 0.14 s before landing.
+- `sprintSpeed` (about 1.5x `moveSpeed`) turns Left Shift into hold to sprint, tap to dodge; the animator hears the bool
+  `sprint`.
+- A `Stamina` on the player makes sprint, dodge, attack and jump cost (`sprintCost` a second, `dodgeCost`, `attackCost`,
+  `jumpCost`); an empty bar refuses them. Show it with a UIMeter.
+- The dodge clip declares its invulnerable frames as an `invulnerable` window (a custom event with a duration, like
+  `attack-active`): from a tenth of the way in to about two thirds through the roll.
+- `MeleeAttack.hitStop` 0.04 to 0.08 holds the game still when a swing lands; that stop is most of what makes a blow
+  heavy. Leave it 0 in a networked game.
+- On enemies, `Health.poise` (about a third of their health) staggers them after enough blows; a staggered Hunter loses
+  its swing. `Health.graceTime` gives a hit player a moment untouchable.
+
+Prove it by playing: hold Shift and read the speed, tap it and read the trigger, land a swing and read `Time.scale`.
+
 ## Physics and triggers
 
 - A solid thing is a `RigidBody3D` and a collider together (`BoxCollider3D`, `SphereCollider3D`, `CapsuleCollider3D`,

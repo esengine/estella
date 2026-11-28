@@ -24,6 +24,7 @@ world.insert(dummy, Health, { current: 100, max: 100 });
 | `damage` | `25` | 一次命中造成的伤害。 |
 | `layers` | `0` | 挥击可触及的物理层掩码；`0` 为所有层。 |
 | `anchor` | `0` | 查询以其**世界**位姿为中心的实体。 |
+| `hitStop` | `0` | 这一击命中时整个游戏停顿的秒数（`Time.scale` 置 0 后恢复）。`0.04`–`0.08` 能让打击有分量。联网游戏保持 `0`。 |
 | `enabled` | `true` | 为 `false` 时禁用攻击。 |
 | `attackId` | `0` | 引擎写入：当前进行中的挥击，没有时为 `0`。 |
 | `hitCount` | `0` | 引擎写入：当前挥击已命中的目标数。 |
@@ -92,6 +93,25 @@ const hitSparks = defineSystem(
 |---|---|---|
 | `current` | `100` | 剩余生命值。 |
 | `max` | `100` | 满生命值。 |
+| `graceTime` | `0` | 一次命中后，其他攻击都打不中的秒数（平台游戏里受击后的闪烁）。 |
+| `poise` | `0` | 在 `poiseRecovery` 时间内累计受到多少伤害会被打出硬直；`0` 为永不硬直。 |
+| `poiseRecovery` | `2` | 最后一次受击后韧性完全恢复所需的秒数。 |
+| `invulnerable` | `0` | 引擎写入：受击后无敌剩余的秒数。 |
+| `stagger` | `0` | 引擎写入：朝硬直累积的伤害。 |
+
+目标的动画打开 `invulnerable` 窗口（和 `attack-active` 一样，是带时长的自定义事件）期间，任何攻击都打不中：翻滚片段就是这样声明无敌帧的，调整翻滚的时间，无敌帧也跟着变。2D 的 `PlatformerController2D` 冲刺期间不受伤害。打破目标韧性的一击会给它的动画器设 `stagger` 触发器，并让 `Hunter` 失去正在蓄力的那一击（它要等满一个 `attackInterval`）。
+
+### 体力 `Stamina`
+
+`Stamina` 是角色所有消耗性动作共用的一条体力：`ThirdPersonController` 的冲刺、翻滚、攻击和跳跃（每秒 `sprintCost`、`dodgeCost`、`attackCost`、`jumpCost`），以及 `PlatformerController2D` 的冲刺闪避（`dashCost`）。只要还有剩余就允许动作，最多扣到空；体力为空时动作被拒绝，冲刺耗尽后降为跑步，直到松开按键。没有 `Stamina` 时这些动作不消耗任何东西。
+
+| `Stamina` 字段 | 默认值 | 说明 |
+|---|---|---|
+| `current` | `100` | 剩余体力。 |
+| `max` | `100` | 满体力。 |
+| `regen` | `26` | 每秒恢复多少。 |
+| `regenDelay` | `0.7` | 最后一次消耗后，过多少秒才开始恢复。 |
+| `cooldown` | `0` | 引擎写入：距开始恢复还剩的秒数。 |
 
 `Health` 同时决定实体是否可受伤：物理查询返回碰撞体（地面也是其中之一），只有带 `Health` 的实体会受到伤害。自身与已命中的目标由挥击排除。`restoreToFull(world, entity)` 将 `current` 恢复为 `max`（用于重生）；`applyDamage(world, blows)` 是伤害系统执行的函数。
 

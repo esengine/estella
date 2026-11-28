@@ -30,6 +30,19 @@ import type { Entity } from '../types';
 export interface HealthData {
     current: number;
     max: number;
+    /** Seconds after a blow lands that no other does: the blink a platformer gives a hit player. 0 = none. */
+    graceTime?: number;
+    /**
+     * Damage it takes inside `poiseRecovery` seconds before a blow staggers it: the animator hears `stagger` and a
+     * Hunter loses the swing it was winding up. 0 = never staggers.
+     */
+    poise?: number;
+    /** Seconds a full poise takes to come back after the last blow. */
+    poiseRecovery?: number;
+    /** Engine-written: seconds no blow lands on it (the grace after a hit). */
+    invulnerable?: number;
+    /** Engine-written: damage taken toward a stagger, falling back to 0 over `poiseRecovery`. */
+    stagger?: number;
 }
 
 /**
@@ -41,12 +54,29 @@ export interface HealthData {
 export const Health: ComponentDef<HealthData> = defineComponent<HealthData>('Health', {
     current: 100,
     max: 100,
+    graceTime: 0,
+    poise: 0,
+    poiseRecovery: 2,
+    invulnerable: 0,
+    stagger: 0,
 }, {
+    readonlyFields: ['invulnerable', 'stagger'],
     fields: {
         current: { min: 0 },
         max: { min: 0 },
+        graceTime: { min: 0, step: 0.05, unit: 's', tooltip: 'After a blow lands, how long no other does. 0 = none.' },
+        poise: { min: 0, tooltip: 'Damage it takes, all within the recovery time, before a blow staggers it. 0 = never staggers.' },
+        poiseRecovery: { min: 0, step: 0.1, unit: 's', advanced: true, tooltip: 'How long a full poise takes to come back after the last blow.' },
+        invulnerable: { advanced: true },
+        stagger: { advanced: true },
     },
 });
+
+/** What a round of blows did: those that landed, and who they staggered. @experimental */
+export interface DamageOutcome {
+    landed: DamagePayload[];
+    staggered: Entity[];
+}
 
 /**
  * One blow, on its way to whoever it lands on.
@@ -94,13 +124,46 @@ export function restoreToFull(world: World, entity: Entity): void {
     world.update(entity, Health, (h: HealthData) => { h.current = h.max; });
 }
 
-export function applyDamage(world: World, blows: Iterable<DamagePayload>): void {
+export function applyDamage(
+    world: World, blows: Iterable<DamagePayload>, shielded: ((entity: Entity) => boolean) | null = null,
+): DamageOutcome {
+    const outcome: DamageOutcome = { landed: [], staggered: [] };
     for (const blow of blows) {
         if (!world.valid(blow.target) || !world.has(blow.target, Health)) continue;
         const health = world.get(blow.target, Health) as HealthData;
         if (health.current <= 0) continue;
+        // Untouchable: in the grace after a hit, or in frames its animation declared so (a dodge).
+        if ((health.invulnerable ?? 0) > 0 || shielded?.(blow.target)) continue;
+        let staggered = false;
         world.update(blow.target, Health, (h: HealthData) => {
             h.current = Math.max(0, h.current - blow.amount);
+            if ((h.graceTime ?? 0) > 0) h.invulnerable = h.graceTime;
+            const poise = h.poise ?? 0;
+            if (poise > 0 && h.current > 0) {
+                h.stagger = (h.stagger ?? 0) + blow.amount;
+                if (h.stagger >= poise) { h.stagger = 0; staggered = true; }
+            }
+        });
+        outcome.landed.push(blow);
+        if (staggered) outcome.staggered.push(blow.target);
+    }
+    return outcome;
+}
+
+/**
+ * Run the clocks of every Health by @p dt seconds: the grace after a hit runs out, and poise comes back.
+ *
+ * @experimental
+ */
+export function tickHealth(world: World, dt: number): void {
+    if (dt <= 0) return;
+    for (const entity of world.getEntitiesWithComponents([Health])) {
+        const health = world.get(entity, Health) as HealthData;
+        if (!((health.invulnerable ?? 0) > 0) && !((health.stagger ?? 0) > 0)) continue;
+        world.update(entity, Health, (h: HealthData) => {
+            h.invulnerable = Math.max(0, (h.invulnerable ?? 0) - dt);
+            const recovery = h.poiseRecovery ?? 0;
+            h.stagger = recovery > 0 ? Math.max(0, (h.stagger ?? 0) - (h.poise ?? 0) * dt / recovery) : 0;
         });
     }
 }

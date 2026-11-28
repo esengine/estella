@@ -64,6 +64,7 @@ function registerPlatformerController2DSystems(app: App): void {
                     const down = input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown');
                     if (pressed && down) p.dropPressed = true;
                     else if (pressed) p.jumpPressed = true;
+                    if (input.isKeyPressed('ShiftLeft') || input.isKeyPressed('ShiftRight') || input.isKeyPressed('KeyK')) p.dashPressed = true;
                 }
             },
             { name: 'PlatformerController2DInputSystem' },
@@ -88,10 +89,13 @@ function registerPlatformerController2DSystems(app: App): void {
                             floorVelocityY: cc.floorVelocity.x * cc.up.x + cc.floorVelocity.y * cc.up.y,
                         },
                         cc.velocity.x * rx + cc.velocity.y * ry, cc.velocity.x * cc.up.x + cc.velocity.y * cc.up.y,
-                        p.jumpPressed, p.dropPressed, dt,
+                        p.jumpPressed, p.dropPressed, dt, !!p.dashPressed,
                     );
                     p.jumpPressed = false;
                     p.dropPressed = false;
+                    p.dashPressed = false;
+                    p.dashing = step.dashing;
+                    if (step.dashed) p.dashCount = (p.dashCount ?? 0) + 1;
                     cc.velocity.x = rx * step.velocityX + cc.up.x * step.velocityY;
                     cc.velocity.y = ry * step.velocityX + cc.up.y * step.velocityY;
                     cc.dropThrough = step.dropThrough;

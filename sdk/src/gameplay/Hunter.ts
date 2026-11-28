@@ -137,6 +137,17 @@ function face(world: World, entity: Entity, wanted: Vec3, degreesPerSecond: numb
 }
 
 /**
+ * A blow broke @p entity's poise: the swing it was winding up is lost, and it waits a whole `attackInterval` before
+ * the next, so a player who staggers it has the opening that earned. Its animator hears `stagger` from the damage system.
+ *
+ * @experimental
+ */
+export function staggerHunter(world: World, entity: Entity): void {
+    if (!world.has(entity, Hunter)) return;
+    world.update(entity, Hunter, (h: HunterData) => { h.cooldown = Math.max(h.cooldown, h.attackInterval); });
+}
+
+/**
  * Perceive, decide, and ask — after perception, before navigation, so the
  * destination is planned the frame it was chosen. It moves nothing: where the
  * hunter ends up is the character controller's answer, and the speed the

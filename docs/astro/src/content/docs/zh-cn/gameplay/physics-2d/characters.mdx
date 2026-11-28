@@ -82,6 +82,7 @@ world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 })
 | 移动 | A / D、左 / 右方向键 |
 | 跳跃 | Space、W、上方向键 |
 | 穿过单向平台 | 下方向键或 S，加跳跃 |
+| 冲刺闪避（`dashSpeed` 大于 0 时） | Shift 或 K |
 
 `readKeyboard: false` 时，由游戏、触屏控件或 AI 通过输入字段驱动：`moveInput` 与 `jumpHeld` 为电平值；`jumpPressed` 与 `dropPressed` 由下一个固定步消费。按键按渲染帧锁存，因此两个固定步之间的短按不会丢失。
 
@@ -102,11 +103,18 @@ world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 })
 | `airJumps` | number | `0` | 再次落地前的额外跳跃次数。 |
 | `dropTime` | number | `0.2` | 穿过单向平台持续的秒数。 |
 | `keepPlatformVelocity` | boolean | `true` | 起跳时保留所离开平台的速度。 |
+| `dashSpeed` | number | `0` | 冲刺闪避的速度：沿最后朝向短暂突进，期间无重力；`0` 为不能冲刺。 |
+| `dashTime` | number | `0.18` | 一次冲刺持续的秒数。 |
+| `dashCooldown` | number | `0.35` | 冲刺结束后到下一次的秒数。空中落地前只能冲一次。 |
+| `dashCost` | number | `20` | 每次冲刺从角色 `Stamina` 中扣除的量；体力为空时拒绝冲刺。 |
+| `dashInvulnerable` | boolean | `true` | 冲刺期间任何攻击都打不中它的 `Health`。 |
 | `readKeyboard` | boolean | `true` | 自行读取键盘。 |
 | `moveInput` | number | `0` | 输入：-1（左）到 1（右）。 |
 | `jumpHeld` | boolean | `false` | 输入：跳跃键处于按下状态。 |
 | `jumpPressed` | boolean | `false` | 输入：跳跃键刚按下；由下一个固定步消费。 |
 | `dropPressed` | boolean | `false` | 输入：请求穿过单向平台；由下一个固定步消费。 |
+| `dashPressed` | boolean | `false` | 输入：冲刺键刚按下；由下一个固定步消费。 |
+| `dashing` / `dashCount` | boolean / number | `false` / `0` | 引擎写入：正在冲刺；累计冲刺次数。 |
 | `enabled` | boolean | `true` | 为 `false` 时控制器停止工作。 |
 
 ![platformer 示例中玩家的细节面板：Character Controller 2D 与 Platformer Controller 2D 卡片](@/assets/guides/zh/gameplay-platformer-controller.png)

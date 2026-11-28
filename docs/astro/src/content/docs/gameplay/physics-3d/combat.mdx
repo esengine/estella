@@ -26,6 +26,7 @@ world.insert(dummy, Health, { current: 100, max: 100 });
 | `damage` | `25` | Amount a landed blow deals. |
 | `layers` | `0` | Physics layer mask the swing can reach; `0` = every layer. |
 | `anchor` | `0` | The entity whose **world** placement the query is centred on. |
+| `hitStop` | `0` | Seconds the whole game holds still when this swing lands (`Time.scale` goes to 0 and comes back). `0.04`–`0.08` gives a blow weight. Leave it `0` in a networked game. |
 | `enabled` | `true` | `false` disables the attack. |
 | `attackId` | `0` | Engine-written: the live swing, `0` when none is running. |
 | `hitCount` | `0` | Engine-written: number of targets the current swing has hit. |
@@ -105,6 +106,31 @@ const hitSparks = defineSystem(
 |---|---|---|
 | `current` | `100` | Remaining health. |
 | `max` | `100` | Full health. |
+| `graceTime` | `0` | Seconds after a blow lands that no other does (the blink a platformer gives a hit player). |
+| `poise` | `0` | Damage taken inside `poiseRecovery` before a blow staggers it; `0` never staggers. |
+| `poiseRecovery` | `2` | Seconds a full poise takes to come back after the last blow. |
+| `invulnerable` | `0` | Engine-written: seconds left of the grace after a hit. |
+| `stagger` | `0` | Engine-written: damage taken toward a stagger. |
+
+No blow lands while the target's animation has an `invulnerable` window open (a custom event with a duration, as
+`attack-active` is): that is how a dodge clip declares its invulnerable frames, and re-timing the roll re-times them. A 2D
+`PlatformerController2D` is untouchable while it dashes. A blow that breaks a target's poise sets the `stagger` trigger
+on its animator and costs a `Hunter` the swing it was winding up (it waits a whole `attackInterval`).
+
+### Stamina
+
+`Stamina` is the one pool a character's costly actions draw on: a `ThirdPersonController`'s sprint, dodge, attack and
+jump (`sprintCost` a second, `dodgeCost`, `attackCost`, `jumpCost`) and a `PlatformerController2D`'s dash (`dashCost`).
+An action is allowed while anything is left and takes the bar to empty at worst; an empty bar refuses it, and a sprint
+that runs dry drops to a run until the key is let go. Without `Stamina` the actions cost nothing.
+
+| `Stamina` field | Default | Description |
+|---|---|---|
+| `current` | `100` | What is left. |
+| `max` | `100` | A full bar. |
+| `regen` | `26` | How fast it comes back, per second. |
+| `regenDelay` | `0.7` | Seconds after the last spend before it starts to come back. |
+| `cooldown` | `0` | Engine-written: seconds until it starts to come back. |
 
 `Health` is also what makes an entity damageable: the physics query returns colliders, the floor among them, and only
 entities with `Health` take damage. Self-hits and already-hit targets are excluded by the swing. `restoreToFull(world,

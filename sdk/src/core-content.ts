@@ -1041,6 +1041,8 @@ export {
     TPC_JUMP,
     TPC_DODGE,
     TPC_ATTACK,
+    TPC_SPRINT,
+    TPC_STAGGER,
     DODGE_KEY,
     ATTACK_KEY,
     COMBAT_ATTACK_START,
@@ -1048,6 +1050,7 @@ export {
     COMBAT_ATTACK_END,
     COMBAT_ATTACK_ACTIVE,
     COMBAT_COMBO_WINDOW,
+    COMBAT_INVULNERABLE,
 } from './gameplay/vocabulary';
 
 /** What a game says about its own run, for the observation seam a packaged game

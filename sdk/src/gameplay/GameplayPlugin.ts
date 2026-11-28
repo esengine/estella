@@ -26,9 +26,12 @@ import {
 } from '../animation/animatorRootMotion';
 import { AnimatorEvent, type AnimatorEventPayload } from '../animation/animatorEvent';
 import { EventReader, EventWriter, type EventWriterInstance } from '../ecs/event';
-import { Damage, applyDamage, type DamagePayload } from './Health';
-import { MeleeAttacks, resolveMeleeHits, sweepMeleeWindows } from './MeleeAttack';
-import { huntTargets } from './Hunter';
+import { Damage, applyDamage, tickHealth, type DamagePayload } from './Health';
+import { MeleeAttack, MeleeAttacks, resolveMeleeHits, sweepMeleeWindows, type MeleeAttackData, type MeleeWindowSource } from './MeleeAttack';
+import { huntTargets, staggerHunter } from './Hunter';
+import { Stamina, regenerateStamina, type StaminaData } from './Stamina';
+import { COMBAT_INVULNERABLE, TPC_STAGGER } from './vocabulary';
+import { PlatformerController2D, type PlatformerController2DData } from '../physics/PlatformerController2D';
 import { q } from '../math/quat';
 import { look as lookFirstPerson, move as moveFirstPerson, installViewModels, TouchLook } from './firstPersonSystems';
 import type { World } from '../ecs/world';
@@ -38,8 +41,9 @@ import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity, shortestAngleDelta,
     yawQuaternion, yawOfQuaternion, WORLD_BASIS, DODGE_KEY, ATTACK_KEY,
-    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, TPC_JUMP, type MoveBasis,
+    TPC_SPEED, TPC_GROUNDED, TPC_DODGE, TPC_ATTACK, TPC_JUMP, TPC_SPRINT, type MoveBasis,
 } from './ThirdPersonController';
+import { spendStamina } from './Stamina';
 import {
     ThirdPersonCamera, type ThirdPersonCameraData,
     orbitOffset, cameraGroundBasis, dampFactor, clampPitch,
@@ -54,6 +58,84 @@ function rootMotionRequest(world: World, entity: Entity): AnimatorRootMotionData
     if (!world.has(entity, AnimatorRootMotion)) return null;
     const data = world.get(entity, AnimatorRootMotion) as AnimatorRootMotionData;
     return data.active ? data : null;
+}
+
+/** How long the dodge key is held before it is a sprint rather than a dodge, seconds. */
+const SPRINT_HOLD = 0.22;
+
+/** What a controller remembers between fixed steps: the forgiveness of its jump and what its dodge key is doing. */
+interface ControllerFeel {
+    /** Seconds a jump still counts as from the ground. */
+    coyote: number;
+    /** Seconds a jump pressed too early has left. */
+    buffered: number;
+    jumpWasDown: boolean;
+    dodgeWasDown: boolean;
+    /** Seconds the dodge key has been down. */
+    dodgeHeld: number;
+    /** The bar ran out mid-sprint: a run until the key is let go. */
+    exhausted: boolean;
+}
+
+const feels = new WeakMap<World, Map<Entity, ControllerFeel>>();
+
+function feelOf(world: World, entity: Entity): ControllerFeel {
+    let byEntity = feels.get(world);
+    if (!byEntity) { byEntity = new Map(); feels.set(world, byEntity); }
+    let feel = byEntity.get(entity);
+    if (!feel) {
+        feel = { coyote: 0, buffered: 0, jumpWasDown: false, dodgeWasDown: false, dodgeHeld: 0, exhausted: false };
+        byEntity.set(entity, feel);
+    }
+    return feel;
+}
+
+/**
+ * Whether no blow lands on @p entity now: inside a window its animation declared invulnerable (a dodge's frames), or
+ * dashing as a 2D platformer that says a dash is.
+ */
+function untouchable(world: World, windows: MeleeWindowSource | null, entity: Entity): boolean {
+    if (windows?.openWindow(entity, COMBAT_INVULNERABLE)) return true;
+    if (!world.has(entity, PlatformerController2D)) return false;
+    const platformer = world.get(entity, PlatformerController2D) as PlatformerController2DData;
+    return !!platformer.dashing && platformer.dashInvulnerable !== false;
+}
+
+/** The dashes each 2D platformer has paid for, so each one that starts is paid once. */
+const paidDashes = new WeakMap<World, Map<Entity, number>>();
+
+/**
+ * A 2D platformer's dash, against its Stamina: a press on an empty bar is taken back before the step that would dash,
+ * and each dash that did start is paid for after it.
+ */
+function paidOf(world: World): Map<Entity, number> {
+    let paid = paidDashes.get(world);
+    if (!paid) { paid = new Map(); paidDashes.set(world, paid); }
+    return paid;
+}
+
+function refuseUnaffordableDashes(world: World): void {
+    const paid = paidOf(world);
+    for (const entity of world.getEntitiesWithComponents([PlatformerController2D, Stamina])) {
+        const platformer = world.get(entity, PlatformerController2D) as PlatformerController2DData;
+        // Counted from before the step, so the first dash a character makes is paid for too.
+        if (!paid.has(entity)) paid.set(entity, platformer.dashCount ?? 0);
+        if (!platformer.dashPressed) continue;
+        if ((world.get(entity, Stamina) as StaminaData).current <= 0) {
+            world.update(entity, PlatformerController2D, (p: PlatformerController2DData) => { p.dashPressed = false; });
+        }
+    }
+}
+
+function payForDashes(world: World): void {
+    const paid = paidOf(world);
+    for (const entity of world.getEntitiesWithComponents([PlatformerController2D, Stamina])) {
+        const platformer = world.get(entity, PlatformerController2D) as PlatformerController2DData;
+        const count = platformer.dashCount ?? 0;
+        const before = paid.get(entity) ?? count;
+        paid.set(entity, count);
+        if (count > before) spendStamina(world, entity, (platformer.dashCost ?? 0) * (count - before));
+    }
 }
 
 /** What the stick last asked of each character that walks by its animation: a ground direction, how hard (0..1), and the speed the animator is told, which follows it at the controller's rates. */
@@ -89,20 +171,48 @@ export function requestMotion(
     for (const entity of world.getEntitiesWithComponents([ThirdPersonController, CharacterController3D])) {
         const data = world.get(entity, ThirdPersonController) as ThirdPersonControllerData;
         if (!data.enabled) continue;
+        const feel = feelOf(world, entity);
+        const stick = readStick(input);
+
+        // With a sprint, the dodge key is two things: held it sprints, and a tap goes out as a dodge when it is let
+        // go. Read from the key's level, which every fixed step sees, rather than its edges.
+        const sprintSpeed = data.sprintSpeed ?? 0;
+        const dodgeDown = input.isKeyDown(DODGE_KEY);
+        let dodgeAsked: boolean;
+        if (sprintSpeed > 0) {
+            dodgeAsked = !dodgeDown && feel.dodgeWasDown && feel.dodgeHeld < SPRINT_HOLD;
+            if (dodgeDown) feel.dodgeHeld += dt;
+            else { feel.dodgeHeld = 0; feel.exhausted = false; }
+        } else {
+            dodgeAsked = input.isKeyPressed(DODGE_KEY);
+        }
+        feel.dodgeWasDown = dodgeDown;
 
         if (animator && world.has(entity, Animator)) {
             // A press asks for the ACTION; which clip that is, and whether this
-            // character has one at all, stays the animator graph's answer.
-            if (input.isKeyPressed(DODGE_KEY)) animator.setTrigger(entity, TPC_DODGE);
-            if (input.isKeyPressed(ATTACK_KEY)) animator.setTrigger(entity, TPC_ATTACK);
+            // character has one at all, stays the animator graph's answer. An
+            // empty Stamina refuses it before the graph hears of it.
+            if (dodgeAsked && spendStamina(world, entity, data.dodgeCost ?? 0)) animator.setTrigger(entity, TPC_DODGE);
+            if (input.isKeyPressed(ATTACK_KEY) && spendStamina(world, entity, data.attackCost ?? 0)) {
+                animator.setTrigger(entity, TPC_ATTACK);
+            }
         }
+
+        // A sprint draws on the bar while it lasts; run dry, it is a run until the key is let go.
+        let sprinting = sprintSpeed > 0 && dodgeDown && feel.dodgeHeld >= SPRINT_HOLD && !feel.exhausted
+            && Math.hypot(stick.x, stick.y) > 0;
+        if (sprinting && !spendStamina(world, entity, (data.sprintCost ?? 0) * dt)) {
+            feel.exhausted = true;
+            sprinting = false;
+        }
+        const topSpeed = sprinting ? sprintSpeed : data.moveSpeed;
+        if (sprintSpeed > 0 && animator && world.has(entity, Animator)) animator.setBool(entity, TPC_SPRINT, sprinting);
 
         const character = world.get(entity, CharacterController3D) as CharacterController3DData;
         // Which of the two states the character's movement: the stick, or the
         // animation that declared itself in charge. Chosen HERE and not by the
         // animator, which states a request and never a position.
         const driven = rootMotionRequest(world, entity);
-        const stick = readStick(input);
         const direction = desiredDirection(stick, basisFor(world, data));
         // A character that walks by its animation: the stick is a wish, kept for
         // the step that tells the animator and turns the character.
@@ -122,7 +232,7 @@ export function requestMotion(
                 back = Math.cos(error) < 0;
                 along = back ? 1 + Math.cos(error) : 1;
             }
-            const wanted = amount * data.moveSpeed * along;
+            const wanted = amount * topSpeed * along;
             const was = wishes.get(entity)?.speed ?? 0;
             const rate = (wanted < was ? data.deceleration : data.acceleration) * dt;
             const speed = Math.abs(wanted - was) <= rate ? wanted : was + Math.sign(wanted - was) * rate;
@@ -157,8 +267,8 @@ export function requestMotion(
             );
         } else {
             const target = {
-                x: direction.x * data.moveSpeed,
-                z: direction.z * data.moveSpeed,
+                x: direction.x * topSpeed,
+                z: direction.z * topSpeed,
             };
             // Off the ground the player has only as much say as airControl allows.
             const authority = character.isOnFloor ? 1 : Math.max(0, Math.min(1, data.airControl));
@@ -168,11 +278,17 @@ export function requestMotion(
             );
         }
 
-        // A jump is the one time the vertical is ours to set; every other frame
-        // it stays 0, which the character controller reads as "walk". Not while an
-        // animation is driving: two things setting the vertical is one too many.
-        const jumping = !driven && data.jumpSpeed > 0 && character.isOnFloor
-            && (input.isKeyPressed('Space') || input.isKeyDown('Space'));
+        // The vertical is ours only for a jump (0 is "walk"), and never while an animation drives.
+        // A jump forgives both ways: pressed just before landing, or just after walking off an edge.
+        const jumpDown = input.isKeyDown('Space');
+        const jumpPressed = input.isKeyPressed('Space') || (jumpDown && !feel.jumpWasDown);
+        feel.jumpWasDown = jumpDown;
+        feel.coyote = character.isOnFloor ? (data.coyoteTime ?? 0) : Math.max(0, feel.coyote - dt);
+        feel.buffered = jumpPressed ? Math.max(data.jumpBuffer ?? 0, dt) : Math.max(0, feel.buffered - dt);
+        const wantsJump = feel.buffered > 0 || (jumpDown && character.isOnFloor);
+        const jumping = !driven && data.jumpSpeed > 0 && (character.isOnFloor || feel.coyote > 0) && wantsJump
+            && spendStamina(world, entity, data.jumpCost ?? 0);
+        if (jumping) { feel.coyote = 0; feel.buffered = 0; }
 
         world.update(entity, CharacterController3D, (c: CharacterController3DData) => {
             c.velocity.x = next.x;
@@ -342,6 +458,33 @@ export class GameplayPlugin implements Plugin {
     private offViewModels_: (() => void) | null = null;
     /** Per App, not per module: two Apps in one process must not share swings. */
     private readonly attacks_ = new MeleeAttacks();
+    /** A hit stop under way: real seconds left, and the time scale it gives back. */
+    private readonly hold_ = { left: 0, restore: 1, active: false, app: null as App | null };
+
+    /**
+     * Hold the whole game still for @p seconds of real time: Time.scale goes to 0 and comes back to what it was. A game
+     * that changed the scale meanwhile keeps its own.
+     */
+    private holdFor_(app: App, seconds: number): void {
+        if (!(seconds > 0)) return;
+        const time = app.getResource(Time);
+        if (!this.hold_.active) {
+            this.hold_.restore = time.scale;
+            this.hold_.active = true;
+            this.hold_.app = app;
+            time.scale = 0;
+        }
+        this.hold_.left = Math.max(this.hold_.left, seconds);
+    }
+
+    private releaseHold_(time: TimeData, elapsed: number): void {
+        if (!this.hold_.active) return;
+        this.hold_.left -= elapsed;
+        if (this.hold_.left > 0) return;
+        this.hold_.active = false;
+        this.hold_.app = null;
+        if (time.scale === 0) time.scale = this.hold_.restore;
+    }
 
     build(app: App): void {
         const world = app.world;
@@ -352,7 +495,38 @@ export class GameplayPlugin implements Plugin {
         this.offDespawn_ = world.onDespawn((entity: Entity) => {
             lastPointer.delete(entity);
             attacks.forget(entity);
+            feels.get(world)?.delete(entity);
+            paidDashes.get(world)?.delete(entity);
         });
+
+        // Before anything reads the clock this frame: a hit stop counts down in real time and gives the scale back.
+        app.addSystemToSchedule(Schedule.First, defineSystem(
+            [Res(Time)],
+            (time: TimeData) => { this.releaseHold_(app.getResource(Time), time.unscaledDelta); },
+            { name: 'HitStopSystem' },
+        ), { runIf: playModeOnly });
+
+        // The clocks a fight runs on: stamina coming back, the grace after a hit running out, poise returning.
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(Time)],
+            (time: TimeData) => {
+                regenerateStamina(world, time.delta);
+                tickHealth(world, time.delta);
+            },
+            { name: 'CombatClockSystem' },
+        ), { runIf: playModeOnly });
+
+        // A 2D platformer's dash against its Stamina: refused on an empty bar before the step, paid for after it.
+        app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
+            [],
+            () => { refuseUnaffordableDashes(world); },
+            { name: 'DashStaminaGateSystem' },
+        ), { runIf: playModeOnly });
+        app.addSystemToSchedule(Schedule.FixedPostUpdate, defineSystem(
+            [],
+            () => { payForDashes(world); },
+            { name: 'DashStaminaPaySystem' },
+        ), { runIf: playModeOnly });
 
         // BEFORE this frame's animator: the events are last frame's, and the
         // joints still hold the pose that posted them. Running after would ask
@@ -376,7 +550,22 @@ export class GameplayPlugin implements Plugin {
         // called by whatever swung.
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [EventReader(Damage)],
-            (blows: Iterable<DamagePayload>) => { applyDamage(world, blows); },
+            (blows: Iterable<DamagePayload>) => {
+                const animator = app.hasResource(AnimatorController) ? app.getResource(AnimatorController) : null;
+                const outcome = applyDamage(world, blows, (entity) => untouchable(world, animator, entity));
+                // A broken poise is a flinch the animator plays and a swing a hunter loses.
+                for (const entity of outcome.staggered) {
+                    staggerHunter(world, entity);
+                    if (animator && world.has(entity, Animator)) animator.setTrigger(entity, TPC_STAGGER);
+                }
+                // A swing that landed holds the game for its hit stop; one that was dodged does not.
+                let stop = 0;
+                for (const blow of outcome.landed) {
+                    if (!world.valid(blow.source) || !world.has(blow.source, MeleeAttack)) continue;
+                    stop = Math.max(stop, (world.get(blow.source, MeleeAttack) as MeleeAttackData).hitStop ?? 0);
+                }
+                if (stop > 0) this.holdFor_(app, stop);
+            },
             { name: 'DamageSystem' },
         ), { runIf: playModeOnly });
 
@@ -446,6 +635,13 @@ export class GameplayPlugin implements Plugin {
     }
 
     cleanup(): void {
+        // A stop left holding would leave the game frozen once this plugin is gone.
+        if (this.hold_.active && this.hold_.app?.hasResource(Time)) {
+            const time = this.hold_.app.getResource(Time);
+            if (time.scale === 0) time.scale = this.hold_.restore;
+        }
+        this.hold_.active = false;
+        this.hold_.app = null;
         this.offDespawn_?.();
         this.offDespawn_ = null;
         this.offViewModels_?.();

@@ -73,13 +73,17 @@ world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
 | `cameraRelative` | `true` | 在相机的地面平面而非世界中读取输入。 |
 | `camera` | `0` | 输入所依据其前方向的 `ThirdPersonCamera`；`0` 使用找到的第一个。 |
 | `idleThreshold` | `8` | 低于该速度时，动画器被告知角色静止。 |
+| `sprintSpeed` | `0` | 冲刺时的最高速度；`0` 为不能冲刺。设置后，左 Shift 长按冲刺、短按翻滚。 |
+| `coyoteTime` | `0.12` | 走下边缘后，多少秒内起跳仍算从地面起跳。 |
+| `jumpBuffer` | `0.14` | 落地前多少秒按下的跳跃会被记住，落地即跳。 |
+| `sprintCost` / `dodgeCost` / `attackCost` / `jumpCost` | `9` / `22` / `9` / `6` | 每个动作从角色的 `Stamina` 中扣除的量（冲刺按每秒计）。没有 `Stamina` 时不消耗。 |
 | `enabled` | `true` | 为 `false` 时控制器停止工作。 |
 
 | 输入 | 效果 |
 |---|---|
 | W / A / S / D | 移动。 |
-| Space | 当 `jumpSpeed` 大于 0 且角色在地面上时跳跃。 |
-| 左 Shift | 设置动画器触发器 `dodge`。 |
+| Space | 当 `jumpSpeed` 大于 0 时，在地面上或离开地面 `coyoteTime` 秒内跳跃；落地前 `jumpBuffer` 秒内按下的会在落地时跳。 |
+| 左 Shift | 设置动画器触发器 `dodge`。设置了 `sprintSpeed` 时，短按在松开时翻滚，长按冲刺。 |
 | J | 设置动画器触发器 `attack`。 |
 
 | 动画器参数 | 类型 | 写入内容 |
@@ -87,7 +91,9 @@ world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
 | `speed` | float | 角色**实际达到**的地面速度（来自 `realVelocity`），低于 `idleThreshold` 时为 `0`。推着墙的角色报告 `0`。 |
 | `grounded` | bool | `CharacterController3D.isOnFloor`。 |
 | `jump` | trigger | 跳跃实际生效的那一步。 |
-| `dodge` / `attack` | trigger | 按键按下时设置；由动画器图决定是否有片段响应。 |
+| `dodge` / `attack` | trigger | 按键按下时设置；由动画器图决定是否有片段响应。`Stamina` 为空时拒绝。 |
+| `sprint` | bool | 是否在冲刺；设置了 `sprintSpeed` 时写入。 |
+| `stagger` | trigger | 一击打破了它的 `Health.poise`。 |
 
 动画驱动根运动期间，角色的速度与朝向来自动画而非输入。
 

@@ -17,6 +17,8 @@ import type { Entity } from '../src/types';
 import type { ESEngineModule } from '../src/wasm';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import { HAS_WASM, hasSideModule, loadSideModule, loadWasmModule } from './helpers/loadWasm';
+import { GameplayPlugin } from '../src/gameplay/GameplayPlugin';
+import { Stamina } from '../src/gameplay/Stamina';
 
 let core: ESEngineModule;
 const apps: App[] = [];
@@ -521,6 +523,25 @@ describe.skipIf(!HAS_WASM || !hasSideModule('physics'))('a 2D character on the r
             for (let i = 0; i < 10; i++) { s.world.update(p, Transform, (t) => { t.position.x += 3; }); await s.run(1); }
             s.press(c, { jumpHeld: true, jumpPressed: true }); await s.run(1);
             expect(s.cc(c).velocity.x).toBeCloseTo(180, -1);
+        });
+
+        it('dashes along the way it faces, and pays for each dash from its Stamina', async () => {
+            const s = await ground({ dashSpeed: 900, dashTime: 0.1, dashCooldown: 0.1, dashCost: 30 });
+            s.app.addPlugin(new GameplayPlugin());
+            s.world.insert(s.c, Stamina, { current: 50, max: 100, regen: 0, regenDelay: 1, cooldown: 0 });
+            const x = s.at(s.c).x;
+            s.press(s.c, { dashPressed: true }); await s.run(1);
+            expect(s.world.get(s.c, PlatformerController2D).dashing).toBe(true);
+            await s.run(5);
+            expect(s.at(s.c).x - x).toBeCloseTo(90, -1);
+            await s.run(10);
+            expect(s.world.get(s.c, PlatformerController2D).dashing).toBe(false);
+            expect(s.world.get(s.c, Stamina).current).toBe(20);
+            s.press(s.c, { dashPressed: true }); await s.run(12);
+            expect(s.world.get(s.c, Stamina).current).toBe(0);
+            // An empty bar refuses the next one before it starts.
+            s.press(s.c, { dashPressed: true }); await s.run(12);
+            expect(s.world.get(s.c, PlatformerController2D).dashCount).toBe(2);
         });
 
         it('does nothing disabled', async () => {

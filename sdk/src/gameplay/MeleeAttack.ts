@@ -29,7 +29,7 @@ import type { AnimatorEventPayload } from '../animation/animatorEvent';
 import { Health, type DamagePayload, type HealthData } from './Health';
 
 import { COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END, COMBAT_ATTACK_ACTIVE } from './vocabulary';
-export { COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END, COMBAT_ATTACK_ACTIVE, COMBAT_COMBO_WINDOW } from './vocabulary';
+export { COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END, COMBAT_ATTACK_ACTIVE, COMBAT_COMBO_WINDOW, COMBAT_INVULNERABLE } from './vocabulary';
 
 /** The fields of the `MeleeAttack` component. @experimental */
 export interface MeleeAttackData {
@@ -45,6 +45,11 @@ export interface MeleeAttackData {
      * 0 falls back to the attacker itself, which is a body slam, not a sword.
      */
     anchor: Entity;
+    /**
+     * Seconds the whole game holds still when this swing lands, the stop that gives a blow its weight. 0 = none. It
+     * holds everything, so leave it 0 in a game whose clock others share (a networked one).
+     */
+    hitStop?: number;
     enabled: boolean;
     /** Engine-written: the live swing, or 0 when none is running. */
     attackId: number;
@@ -66,6 +71,7 @@ export const MeleeAttack: ComponentDef<MeleeAttackData> =
         damage: 25,
         layers: 0,
         anchor: 0 as Entity,
+        hitStop: 0,
         enabled: true,
         attackId: 0,
         hitCount: 0,
@@ -79,6 +85,7 @@ export const MeleeAttack: ComponentDef<MeleeAttackData> =
             damage: { min: 0 },
             layers: { min: 0, max: 15, step: 1, advanced: true },
             anchor: { tooltip: 'The animated socket the swing reaches from.' },
+            hitStop: { min: 0, max: 0.3, step: 0.01, unit: 's', tooltip: 'How long the game holds still when this swing lands; 0.04 to 0.08 gives a blow weight. 0 = none.' },
             attackId: { advanced: true },
             hitCount: { advanced: true },
         },
