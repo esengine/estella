@@ -17,6 +17,7 @@ interface RecordSource {
   type: string;
   labels?: string[];
   importer?: Record<string, unknown>;
+  sourceImageSize?: AddressableManifestAsset['sourceImageSize'];
 }
 
 type AddressableKey = { key: string; type?: string };
@@ -39,6 +40,7 @@ export function addressableRecord(source: RecordSource, size: number, keys: Read
   if (source.sourcePath && source.sourcePath !== source.path) entry.address = source.sourcePath;
   const texture = textureImportSettingsFrom(source.importer);
   if (texture) entry.textureImport = texture;
+  if (source.sourceImageSize) entry.sourceImageSize = source.sourceImageSize;
   const lookup = (ref: string) => keys.get(extractUuid(ref) ?? ref);
   const spine = spineManifestContractFrom(source.importer, ref => lookup(ref)?.key);
   if (spine) entry.spineImport = spine;

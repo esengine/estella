@@ -19,6 +19,13 @@ import path from 'node:path';
 import { scanAssetDatabase } from '../src/assets/assetDb';
 import { cookAssets } from '../src/assets/cookAssets';
 import { encodeRgbaPng } from '../src/assets/png';
+import { pngDimensions } from '../src/assets/textureCook';
+import { readKtx2Layout } from '../src/assets/ktx2Mips';
+import { buildAddressableManifest } from '../src/assets/addressableManifest';
+import { ManifestModel, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
+import { Catalog } from '../../sdk/src/asset/Catalog';
+import type { LoadContext } from '../../sdk/src/asset/AssetLoader';
+import { AnimClipAssetLoader } from '../../sdk/src/asset/loaders/AnimClipAssetLoader';
 import { metaTypeForExt } from '../../tools/assetMetaTable.js';
 
 let root: string;
@@ -157,6 +164,53 @@ afterAll(() => {
 });
 
 describe('assets named only inside another document are cooked', () => {
+  it.each(['png', 'ktx2'] as const)('keeps whole and cropped flipbook frames at authored size after Max Size reduces the exported %s', async format => {
+    const project = mkdtempSync(path.join(tmpdir(), 'estella-flipbook-size-'));
+    try {
+      const clipPath = 'assets/anim/idle.esanim';
+      const framePath = 'assets/anim/frame0.png';
+      const scenePath = 'assets/main.esscene';
+      writeAsset(framePath, 'texture', FRAME, encodeRgbaPng(64, 32, new Uint8Array(64 * 32 * 4).fill(255)), project);
+      writeFileSync(path.join(project, `${framePath}.meta`), JSON.stringify({
+        uuid: FRAME, version: '2.0', type: 'texture', importer: { maxSize: 32, compress: 'on' },
+      }));
+      writeAsset(clipPath, 'animclip', CLIP, JSON.stringify({
+        version: '1.2', fps: 8, frameSizing: 'frame', frames: [
+          { texture: 'frame0.png', duration: 1, offset: { x: 16, y: 0 } },
+          { texture: './frame0.png', duration: 1, atlasFrame: { x: 32, y: 0, width: 32, height: 16, pageWidth: 64, pageHeight: 32 } },
+        ],
+      }), project);
+      writeAsset(scenePath, 'scene', SCENE, JSON.stringify({ version: '1.0', name: 'Sprite', entities: [
+        { id: 1, parent: null, children: [], components: [{ type: 'SpriteAnimator', data: { clip: clipPath } }] },
+      ] }), project);
+
+      const cooked = await cookAssets(project, {
+        entryScenes: [scenePath], outDir: 'build', contentAddressed: true, resizeTextures: true, compressTextures: format === 'ktx2',
+      });
+      expect(cooked.ok).toBe(true);
+      const manifest = JSON.parse(await buildAddressableManifest(cooked.outDir)) as AddressableManifest;
+      const model = ManifestModel.fromJson(manifest);
+      const stagedFrame = model.recordForRef(framePath)!.asset.path;
+      const pixels = readFileSync(path.join(cooked.outDir, stagedFrame));
+      const size = format === 'ktx2' ? readKtx2Layout(pixels)! : pngDimensions(pixels);
+      expect(stagedFrame).toMatch(new RegExp(`\\.${format}$`));
+      expect(size).toMatchObject({ width: 32, height: 16 });
+      const ctx = {
+        catalog: Catalog.empty().withManifestLabels(model),
+        sourceAddressOf: (ref: string) => model.recordForRef(ref)!.asset.address ?? ref,
+        loadText: async (stagedPath: string) => readFileSync(path.join(cooked.outDir, stagedPath), 'utf8'),
+        acquireTexture: async (ref: string) => ({
+          value: { handle: ref === framePath ? 1 : 0, width: size.width, height: size.height },
+        }),
+      } as LoadContext;
+      const clip = await new AnimClipAssetLoader().registry.prepare(model.recordForRef(clipPath)!.asset.path, ctx);
+      expect(clip.published).toMatchObject({ frames: [
+        { texture: 1, size: { x: 64, y: 32 }, pivot: { x: 0.25, y: 0.5 } },
+        { texture: 1, size: { x: 32, y: 16 }, uvOffset: { x: 0.5, y: 0.5 }, uvScale: { x: 0.5, y: 0.5 } },
+      ] });
+    } finally { rmSync(project, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+  });
+
   it.each(['bitmap-font', 'label-atlas'])('ships a %s wrapper with its metrics and page', async type => {
     const project = mkdtempSync(path.join(tmpdir(), 'estella-bmfont-refs-'));
     try {

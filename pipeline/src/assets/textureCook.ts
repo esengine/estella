@@ -223,6 +223,8 @@ export interface TextureCookOutput {
   data: Uint8Array;
   ext: string;
   cook: TextureCookDecision;
+  /** Before Max Size, when the output was actually downscaled. */
+  sourceImageSize?: { width: number; height: number };
   /** GPU formats the output transcodes to, when it is compressed. */
   compressedFormats?: string[];
   warnings: string[];
@@ -268,7 +270,8 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
         data = encodeRgbaPng(small.width, small.height, small.rgba);
       } else warnings.push(`${path}: Max Size ${tex.maxSize} was not applied - a 16-bit PNG that is not plain grey is shipped at its own size.`);
     }
-    return { data, ext, cook, warnings, defeatedByFormat: false };
+    return { data, ext, cook, warnings, defeatedByFormat: false,
+      ...(data !== input.data && size ? { sourceImageSize: size } : {}) };
   }
   // maxSize downscale first — it applies even when a texture opts OUT of
   // compression (a huge UI sprite can ship as a smaller raw PNG), and the
@@ -277,6 +280,7 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const scaled = !!((textureEnc || input.resizeTextures) && sourceSize && tex.maxSize > 0 &&
     tex.maxSize < Math.max(sourceSize.width, sourceSize.height));
   const size = scaled ? downscaledSize(sourceSize!.width, sourceSize!.height, tex.maxSize) : sourceSize;
+  const sourceImageSize = scaled ? sourceSize! : undefined;
   const scaledImage = () => downscaleRgba(decodePngImage(path, data), tex.maxSize);
   const cook = decideTextureCook({
     compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
@@ -320,7 +324,7 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     if (!shipped) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
     const unchanged = shipped.byteLength === source.byteLength && Buffer.from(shipped).equals(Buffer.from(source));
     return unchanged ? { data: source, ext, cook, warnings, defeatedByFormat }
-      : { data: shipped, ext, cook, warnings, defeatedByFormat, cacheFile: file };
+      : { data: shipped, ext, cook, warnings, defeatedByFormat, cacheFile: file, sourceImageSize };
   }
   if (cook.selected !== 'raw') {
     // Only a build that encodes can select an encoding, and that is exactly
@@ -355,7 +359,7 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     const encoded = input.cachedOnly ? await cookCacheHitAt(file) : (await cookCachedAt(file, produce)).bytes;
     if (!encoded) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
     return { data: encoded, ext: '.ktx2', cook, compressedFormats: COMPRESSED_TARGETS, warnings, defeatedByFormat,
-      cacheFile: file };
+      cacheFile: file, sourceImageSize };
   }
   return { data, ext, cook, warnings, defeatedByFormat };
 }

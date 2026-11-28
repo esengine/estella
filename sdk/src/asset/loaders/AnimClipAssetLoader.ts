@@ -31,8 +31,9 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
                 try {
                     const lease = await ctx.acquireTexture(texPath, true, 'imported');
                     const atlas = ctx.getAtlasFrame ? ctx.getAtlasFrame(texPath) : ctx.catalog.getAtlasFrame(texPath);
-                    const width = atlas?.frame.w ?? lease.value.width;
-                    const height = atlas?.frame.h ?? lease.value.height;
+                    const sourceSize = atlas ? undefined : ctx.catalog.getSourceImageSize(texPath);
+                    const width = atlas?.frame.w ?? sourceSize?.width ?? lease.value.width;
+                    const height = atlas?.frame.h ?? sourceSize?.height ?? lease.value.height;
                     const size = width > 0 && height > 0 ? { x: width, y: height } : undefined;
                     textures.set(ref, { handle: lease.value.handle, size, atlas });
                 } catch (e) {

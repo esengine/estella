@@ -83,6 +83,8 @@ export interface AddressableManifestAsset {
     contentHash?: string;
     /** GPU compressed formats this asset was encoded for (e.g. ['astc-4x4','etc2-rgba8']). */
     compressedFormats?: string[];
+    /** Authored image dimensions when the cook reduced the texture resolution. */
+    sourceImageSize?: { width: number; height: number };
     /** A small copy of a texture a mesh draws, which texture streaming fetches first (`path` is its build path). */
     streamTail?: StreamTailInfo;
     /**

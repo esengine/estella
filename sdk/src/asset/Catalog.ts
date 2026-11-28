@@ -141,6 +141,11 @@ export class Catalog {
         return known ?? (normalized.startsWith('./') || normalized.startsWith('../') ? resolveDocumentRef(document, normalized) : normalized);
     }
 
+    /** Authored dimensions of a texture that was downscaled during the cook. */
+    getSourceImageSize(ref: string): { width: number; height: number } | undefined {
+        return this.manifest_?.recordForRef(this.resolve(ref))?.asset.sourceImageSize;
+    }
+
     getAtlasFrame(path: string): AtlasFrameInfo | null {
         // A frame is keyed by its `@uuid:` spelling; a scene or clip may name the
         // same asset by its bare uuid, in either case.

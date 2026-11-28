@@ -59,7 +59,7 @@ import { parseTiledMapDocument, validateTiledTileData } from '../../../sdk/src/t
 // Single source for the folder→delivery-group model, shared with the editor Play
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
-import type { AssetPackRef, BundleMode, StreamTailInfo } from '../../../sdk/src/asset/AddressableManifest';
+import type { AddressableManifestAsset, AssetPackRef, BundleMode, StreamTailInfo } from '../../../sdk/src/asset/AddressableManifest';
 import {
   readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
@@ -105,6 +105,7 @@ export interface CookManifestEntry extends AssetEntry {
   sourcePath: string;
   /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
   compressedFormats?: string[];
+  sourceImageSize?: AddressableManifestAsset['sourceImageSize'];
   /**
    * The small copy of a texture a mesh draws (streamTail.ts), staged beside it: what texture streaming fetches first, so the full
    * file is downloaded only once a view needs it. `width`/`height` are the copy's, `fullWidth`/`fullHeight` the file's.
@@ -913,6 +914,7 @@ export async function cookAssets(
       let ext = path.extname(entry.path);
       let tail: StreamTail | null = null;
       let compressedFormats: string[] | undefined;
+      let sourceImageSize: CookManifestEntry['sourceImageSize'];
       let cook: TextureCookDecision | undefined;
       const preserveSamples = preservesImage(entry.uuid);
       // An authored single-level UASTC KTX2 gets the chain a compressed texture
@@ -949,6 +951,7 @@ export async function cookAssets(
           resizeTextures: opts.resizeTextures, preserveSamples,
         });
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
+        sourceImageSize = t.sourceImageSize;
         warnings.push(...t.warnings);
         if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
       }
@@ -1139,6 +1142,7 @@ export async function cookAssets(
         group,
         groupMode: delivery,
         ...(compressedFormats ? { compressedFormats } : {}),
+        ...(sourceImageSize ? { sourceImageSize } : {}),
         ...(cook ? { cook } : {}),
         ...(streamTail ? { streamTail } : {}),
       });
