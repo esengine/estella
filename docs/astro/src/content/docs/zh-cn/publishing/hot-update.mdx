@@ -203,7 +203,7 @@ const unsub = assets.onInvalidate((event) => {
 | `remoteRoot` | `string \| undefined` | 当前的 CDN 根地址（getter）。 |
 | `onInvalidate(listener)` | `() => void` | 订阅失效事件。监听函数接收 `{ ref, type, oldValue }`；返回取消订阅函数。 |
 | `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | 按需加载整个分组（[按需分组](#按需分组)）。 |
-| `releaseGroup(name)` | `void` | 释放 `loadGroup(name)` 获取的全部内容。 |
+| `releaseGroup(name)` | `void` | 释放 `loadGroup(name)` 获取的、仍待释放的最早一批资源。 |
 
 **`CheckForUpdateOptions`**
 

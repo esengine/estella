@@ -233,7 +233,7 @@ The hot-update API is on the `Assets` resource (`Res(Assets)`):
 | `remoteRoot` | `string \| undefined` | The active CDN root (getter). |
 | `onInvalidate(listener)` | `() => void` | Subscribes to invalidations. The listener receives `{ ref, type, oldValue }`; returns an unsubscribe function. |
 | `loadGroup(name, onProgress?)` | `Promise<AssetBundle>` | Loads a whole group on demand ([On-demand groups](#on-demand-groups)). |
-| `releaseGroup(name)` | `void` | Releases everything `loadGroup(name)` acquired. |
+| `releaseGroup(name)` | `void` | Releases the oldest outstanding bundle acquired by `loadGroup(name)`. |
 
 **`CheckForUpdateOptions`**
 

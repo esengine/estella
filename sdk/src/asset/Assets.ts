@@ -229,17 +229,15 @@ export interface AssetBundle {
     /** Selected assets whose loaders failed, with their refs and reasons. */
     failed: MissingAsset[];
     /**
-     * What this load actually acquired. Release through it rather than by group
-     * name: a manifest can be updated between the two, and then the group's
-     * membership is no longer the set this bundle took out.
+     * What this load actually acquired. Use `release()` to release this
+     * particular bundle, including when the same group has other owners.
      */
     scope: AssetScope;
     /** Give back everything this bundle acquired. Idempotent. */
     release(): void;
 }
 
-function emptyBundle(): AssetBundle {
-    const scope = new AssetScope();
+function emptyBundle(scope = new AssetScope()): AssetBundle {
     return {
         textures: new Map(), materials: new Map(), spine: new Map(), fonts: new Map(),
         meshes: new Map(), environments: new Map(), probeVolumes: new Map(), failed: [],
@@ -247,17 +245,22 @@ function emptyBundle(): AssetBundle {
     };
 }
 
+/** Unregister the group even when a caller releases the public scope directly. */
+class GroupAssetScope extends AssetScope {
+    constructor(private readonly forgetGroup: (scope: AssetScope) => void) { super(); }
+
+    override releaseAll(): void {
+        this.forgetGroup(this);
+        super.releaseAll();
+    }
+}
+
 
 /**
- * How one addressable asset type is acquired and given back.
- *
- * ONE table, because two of them drift: load handled `font` and release did
- * not, so every group carrying a font kept its reference forever. A type that
- * the group loads now supplies the matching release.
+ * How one addressable asset type adds its acquisition to the bundle.
  */
 interface GroupAssetChannel {
     load(assets: Assets, ref: string, bundle: AssetBundle, name: string): Promise<void>;
-    release(assets: Assets, path: string): void;
 }
 
 // These components read raw files or host streams themselves unless a project installs a typed loader.
@@ -276,7 +279,6 @@ function scopedGroupChannel<T>(type: string, values?: (bundle: AssetBundle) => M
             const lease = bundle.scope.add(await assets.acquireTyped<T>(type, ref));
             values?.(bundle).set(name, lease.value);
         },
-        release: (assets, ref) => assets.releaseTyped(type, ref),
     };
 }
 
@@ -286,14 +288,12 @@ const GROUP_ASSET_CHANNELS: ReadonlyMap<string, GroupAssetChannel> = new Map(Obj
             const lease = bundle.scope.add(await assets.acquireTexture(ref));
             bundle.textures.set(name, lease.value);
         },
-        release: (assets, ref) => assets.releaseTexture(ref),
     },
     spine: {
         async load(assets, ref, bundle, name) {
             const lease = bundle.scope.add(await assets.acquireSpine(ref));
             bundle.spine.set(name, lease.value);
         },
-        release: (assets, ref) => assets.releaseTyped('spine', ref),
     },
     material: scopedGroupChannel('material', b => b.materials),
     font: scopedGroupChannel('font', b => b.fonts),
@@ -446,6 +446,7 @@ export class Assets {
 
     private module_: ESEngineModule | null;
     private readonly subpackages_ = new Map<string, Promise<void>>();
+    private readonly groupScopes_ = new Map<string, Set<AssetScope>>();
     private manifestModel_: ManifestModel | null = null;
     private readonly manifestBindings_ = new ManifestBindingHistory();
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
@@ -1266,10 +1267,26 @@ export class Assets {
         groupName: string,
         onProgress?: (loaded: number, total: number) => void,
     ): Promise<AssetBundle> {
+        this.assertLoading_();
+        const epoch = this.resetEpoch_;
         const group = this.manifestModel_?.group(groupName);
         if (!this.manifestModel_) log.warn('asset', `loadGroup('${groupName}') called but no manifest is set`);
         const members = Object.entries(group?.assets ?? {}).map(([key, asset]) => this.batchAsset_(key, asset, groupName));
-        return this.loadBatch_(`loadGroup('${groupName}')`, members, onProgress, groupName);
+        const scope = new GroupAssetScope(released => {
+            const current = this.groupScopes_.get(groupName);
+            if (current?.delete(released) && !current.size) this.groupScopes_.delete(groupName);
+        });
+        const bundle = await this.loadBatch_(`loadGroup('${groupName}')`, members, onProgress, groupName, scope);
+        if (epoch !== this.resetEpoch_) {
+            bundle.release();
+            this.assertLoading_(epoch);
+        }
+        if (scope.size) {
+            const scopes = this.groupScopes_.get(groupName) ?? new Set<AssetScope>();
+            scopes.add(scope);
+            this.groupScopes_.set(groupName, scopes);
+        }
+        return bundle;
     }
 
     private batchAsset_(key: string, asset: AddressableManifestAsset, group: string): BatchAsset {
@@ -1297,9 +1314,11 @@ export class Assets {
 
     private async loadBatch_(
         caller: string, members: Iterable<BatchAsset>,
-        onProgress?: (loaded: number, total: number) => void, requestedGroup?: string,
+        onProgress?: (loaded: number, total: number) => void, requestedGroup?: string, scope?: AssetScope,
     ): Promise<AssetBundle> {
-        const bundle = emptyBundle();
+        this.assertLoading_();
+        const epoch = this.resetEpoch_;
+        const bundle = emptyBundle(scope);
         const groups = new Set<string>(requestedGroup ? [requestedGroup] : []);
         const tasks: Array<() => Promise<void>> = [];
         for (const { ref, name, type, group } of members) {
@@ -1312,11 +1331,18 @@ export class Assets {
             });
         }
         let loaded = 0;
-        onProgress?.(0, tasks.length);
-        const lazy = [...groups].filter(group => this.manifestModel_?.bundleMode(group) === 'lazy');
-        await Promise.all(lazy.map(group => this.mountSubpackage_(group)));
+        const reportProgress = (count: number): void => {
+            this.assertLoading_(epoch);
+            onProgress?.(count, tasks.length);
+            this.assertLoading_(epoch);
+        };
         try {
-            await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => onProgress?.(++loaded, tasks.length));
+            reportProgress(0);
+            const lazy = [...groups].filter(group => this.manifestModel_?.bundleMode(group) === 'lazy');
+            await Promise.all(lazy.map(group => this.mountSubpackage_(group)));
+            this.assertLoading_(epoch);
+            await runWithConcurrency(tasks, RuntimeConfig.preloadConcurrency, () => reportProgress(++loaded));
+            this.assertLoading_(epoch);
         } catch (error) {
             bundle.release();
             throw error;
@@ -1325,26 +1351,16 @@ export class Assets {
         return bundle;
     }
 
-    /**
-     * Release every asset the group's CURRENT membership names.
-     *
-     * @details Prefer `bundle.release()` on what {@link loadGroup} returned:
-     *          this door re-reads the manifest, so an update between the two
-     *          releases a set the load never took. No-op without a manifest.
-     */
+    /** Release the oldest outstanding bundle acquired by {@link loadGroup} for this name. */
     releaseGroup(groupName: string): void {
-        const model = this.manifestModel_;
-        if (!model) {
-            log.warn('asset', `releaseGroup('${groupName}') called but no manifest is set`);
+        const scopes = this.groupScopes_.get(groupName);
+        if (!scopes) return;
+        for (const scope of scopes) {
+            scopes.delete(scope);
+            if (!scopes.size) this.groupScopes_.delete(groupName);
+            if (!scope.size) continue;
+            scope.releaseAll();
             return;
-        }
-        const mode = model.bundleMode(groupName);
-        for (const [key, asset] of Object.entries(model.group(groupName)?.assets ?? {})) {
-            // The SAME path loadGroup acquired under. Resolving it a different
-            // way here would release a key nobody holds, which is a leak that
-            // looks exactly like a working release.
-            const path = this.groupAssetRef_(key, asset, mode === 'remote');
-            this.batchChannel_(asset.type)?.release(this, path);
         }
     }
 
@@ -2961,6 +2977,11 @@ export class Assets {
                 },
                 // Normal receipts first, then every remaining generation.
                 () => this.appScope_.releaseAll(),
+                () => {
+                    const scopes = [...this.groupScopes_.values()].flatMap(group => [...group]);
+                    this.groupScopes_.clear();
+                    AssetScope.closeAll(scopes);
+                },
                 () => this.registrySlots_.releaseAll(),
                 () => {
                     const handles = new Set<number>();
