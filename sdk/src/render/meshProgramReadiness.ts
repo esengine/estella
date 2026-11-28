@@ -16,10 +16,6 @@ import type { RenderReadiness } from './renderReadiness';
 const ROW_WORDS = 5;
 const RESULT_WORDS = 11;
 
-interface DocEntity {
-    components?: Array<{ type: string; data: Record<string, unknown> }>;
-}
-
 /**
  * The five words per renderable the engine reads: mesh handle, lit, normal-map
  * handle, joint count, material id.
@@ -29,7 +25,8 @@ interface DocEntity {
  */
 export function meshDocumentRows(doc: SceneData): number[] {
     const rows: number[] = [];
-    for (const entity of doc.entities as DocEntity[]) {
+    for (const entity of doc.entities) {
+        if (entity.visible === false) continue;
         const parts = entity.components;
         const renderer = parts?.find((c) => c.type === 'MeshRenderer');
         if (!renderer) continue;

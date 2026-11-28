@@ -90,6 +90,33 @@ it.each(['discarded', 'timed out', 'completed'] as const)('reports shader readin
     }
 });
 
+it('only submits mesh programs for entities that the prepared scene can spawn', async () => {
+    const { app, options, assets } = await runtime();
+    const hidden: SceneData['entities'] = Array.from({ length: 512 }, (_, i) => ({
+        ...scene.entities[0]!, id: i + 2, visible: false,
+        components: [{ type: 'MeshRenderer', data: { mesh: 1000 + i, lit: true } }],
+    }));
+    const heap = new Uint32Array(4096);
+    let next = 4;
+    const programs = vi.fn((rows: number, count: number, out: number) => {
+        expect(count).toBe(1);
+        heap[out >> 2] = 1;
+        expect(Array.from(heap.subarray(rows >> 2, (rows >> 2) + count * 5))).toEqual([7, 0, 0, 0, 0]);
+    });
+    const module = {
+        HEAPU32: heap,
+        _malloc: (size: number) => { const address = next; next += size; return address; },
+        _free() {},
+        engine_prepareMeshPrograms: programs,
+    } as unknown as ESEngineModule;
+    const config = createRuntimeSceneConfig('visible', { ...scene, entities: [...scene.entities, ...hidden] }, { ...options, module });
+    try {
+        await config.prepare!();
+        await expect(config.readyRenderPrograms!()).resolves.toMatchObject({ applicable: true });
+        expect(programs).toHaveBeenCalledWith(expect.any(Number), 1, expect.any(Number));
+    } finally { config.discardPrepared!(); assets.releaseAll(); app.quit(); }
+});
+
 describe('scene-owned physics preparation', () => {
     it('keeps the solver out of the world when the scene rejects its asset handoff', async () => {
         registerPhysics2DSupport();
