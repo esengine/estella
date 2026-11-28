@@ -15,13 +15,15 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { isInsideRoot } from '../fs/pathSandbox';
-import { adoptOrphan } from './assetMeta';
+import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
+import { adoptOrphan, importSourceOf } from './assetMeta';
+import { META_EXT } from './contentPolicy';
+import { contentHashOf } from '../../../sdk/src/asset/contentHash';
 import { sourceProductWriter, type SourceFileLocation } from './sourceProducts';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
     capTriangles, clusterMeshes, generateLods, buildSkins, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
-    type ImportedMesh, type ImportedNode, type SpecularMapReading,
+    type ImportedMesh, type ImportedNode, type ImportedTexture, type SpecularMapReading,
     trimClipLeadIn,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
@@ -124,6 +126,50 @@ function collectNodeMeshes(nodes: ImportedNode[], meshFiles: string[], out: Map<
     }
 }
 
+/** Keep generated images on paths owned by this model. A collision must not
+ *  replace another asset's pixels or transfer its existing UUID. */
+async function placeModelTextures(
+    textures: ImportedTexture[], meshes: ImportedMesh[], externalFiles: string[], absDir: string, sourceUuid: string,
+): Promise<void> {
+    const authored = new Set(externalFiles.map(file => path.posix.normalize(file.replace(/\\/g, '/')).toLowerCase()));
+    const reserved = new Set([...authored, ...textures.map(texture => texture.name.toLowerCase())]);
+    const replacements = new Map<string, string>();
+    const stateOf = async (name: string) => {
+        const abs = resolveInside(absDir, name, 'product directory');
+        if (existsSync(abs + META_EXT)) {
+            resolveInside(absDir, name + META_EXT, 'product directory');
+            return await importSourceOf(abs) === sourceUuid ? 'owned' : 'occupied';
+        }
+        return existsSync(abs) ? 'occupied' : 'free';
+    };
+    for (const texture of textures) {
+        const original = texture.name;
+        const preferred = authored.has(original.toLowerCase()) ? 'occupied' : await stateOf(original);
+        if (preferred === 'owned') continue;
+        const { name, ext } = path.posix.parse(original);
+        const stem = `${name}_${contentHashOf(`${sourceUuid}:${original}`)}`;
+        let candidate = `${stem}${ext}`;
+        let state = await stateOf(candidate);
+        for (let n = 2; reserved.has(candidate.toLowerCase()) || state === 'occupied'; n++) {
+            candidate = `${stem}_${n}${ext}`;
+            state = await stateOf(candidate);
+        }
+        if (preferred === 'free' && state !== 'owned') continue;
+        reserved.add(candidate.toLowerCase());
+        replacements.set(original, candidate);
+        texture.name = candidate;
+    }
+    if (!replacements.size) return;
+    for (const mesh of meshes) {
+        if (!mesh.material) continue;
+        for (const slot of IMPORTED_MATERIAL_IMAGE_SLOTS) {
+            const image = mesh.material[slot];
+            const replacement = image && !image.external ? replacements.get(image.file) : undefined;
+            if (image && replacement) image.file = replacement;
+        }
+    }
+}
+
 /** The project's skinning settings (`features.rendering.skinning`), or none when it states none or is no project. */
 function projectSkinning(root: string): SkinningConfig | undefined {
   try {
@@ -212,12 +258,14 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         highPrecisionWeights: highPrecisionSkinWeights ?? skinning?.highPrecisionWeights ?? false,
     }));
 
+    const writer = await sourceProductWriter(opts);
+    const { absDir, products, sourceUuid } = writer;
+    if (sourceUuid) await placeModelTextures(textures, meshes, externalFiles, absDir, sourceUuid);
+
     // What each image's sampler asked for, by product name — applied when its `.meta` is first minted and never after: the file's settings are the user's.
     const imageSettings = new Map<string, Record<string, unknown>>(
         [...importedImageSettings(meshes)].map(([file, { settings }]) => [file, { ...settings }]));
 
-    const writer = await sourceProductWriter(opts);
-    const { absDir, products } = writer;
     const unitsPerMeter = projectUnitsPerMeter(projectRoot);
     const gi = await modelGIProducts(opts, writer, unitsPerMeter / Math.max(scale, 1e-6), dynamicGI, opts.onProduct);
     const write = async (name: string, bytes: Uint8Array | string, detail?: string, settle?: (abs: string) => Promise<unknown>): Promise<string> => {

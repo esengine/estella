@@ -138,6 +138,16 @@ export async function metaUuidOf(absFile: string): Promise<string | null> {
   }
 }
 
+/** The source that owns a generated asset, if its sidecar records one. */
+export async function importSourceOf(absFile: string): Promise<string | null> {
+  try {
+    const meta = JSON.parse(await readFile(absFile + META_EXT, 'utf8')) as { source?: unknown };
+    return typeof meta.source === 'string' ? meta.source.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Says in `<absProduct>.meta` which asset an import made it from: `source`, that asset's uuid, so a model's
  * sub-assets stay under the model. The Content Browser

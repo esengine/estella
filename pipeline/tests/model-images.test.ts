@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { PNG } from 'pngjs';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prepareModelImages } from '../src/assets/modelImages';
@@ -128,6 +128,54 @@ describe('preparing a model\'s images', () => {
             const manifest = readJson('out/assets.manifest.json') as { entries: { sourcePath: string; path: string }[] };
             const shipped = first.refs.map(ref => manifest.entries.find(entry => entry.sourcePath === ref)!.path);
             expect(shipped.map(file => [...PNG.sync.read(readFileSync(path.join(cooked.outDir, file))).data.subarray(0, 4)])).toEqual(colors);
+        } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+
+    it('keeps products owned by each model when two models generate the same PNG name', async () => {
+        const root = mkdtempSync(path.join(tmpdir(), 'model-dds-owners-'));
+        try {
+            const file = (rel: string) => path.join(root, 'assets', rel);
+            const colors = [[230, 40, 15, 255], [12, 35, 240, 255]];
+            const models = ['day', 'night'];
+            for (const [i, name] of models.entries()) {
+                mkdirSync(file(name), { recursive: true });
+                const [r, g, b, a] = colors[i]!;
+                writeFileSync(file(`${name}/paint.dds`), dds([b!, g!, r!, a!]));
+                const doc = JSON.parse(new TextDecoder().decode(plainTriangle()));
+                doc.images = [{ uri: `${name}/paint.dds` }];
+                doc.textures = [{ source: 0 }];
+                doc.materials = [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 }, metallicFactor: 0 } }];
+                doc.meshes[0].primitives[0].material = 0;
+                writeFileSync(file(`${name}.gltf`), JSON.stringify(doc));
+            }
+            const importModel = async (name: string) => {
+                const result = await importModelFile({ root, absSource: file(`${name}.gltf`), destDir: 'assets' });
+                const texture = result.products.find(p => p.endsWith('.png'))!;
+                const prefab = JSON.parse(readFileSync(path.join(root, result.prefab!), 'utf8')) as {
+                    entities: { components: { type: string; data: { texture?: string } }[] }[];
+                };
+                const renderer = prefab.entities.flatMap(entity => entity.components).find(c => c.type === 'MeshRenderer');
+                expect(renderer?.data.texture).toBe(texture);
+                return texture;
+            };
+            const pixels = (rel: string) => [...PNG.sync.read(readFileSync(path.join(root, rel))).data.subarray(0, 4)];
+            const meta = (rel: string) => JSON.parse(readFileSync(path.join(root, rel + '.meta'), 'utf8'));
+            const day = await importModel('day');
+            const dayMeta = meta(day);
+            const night = await importModel('night');
+            expect(night).not.toBe(day);
+            const nightMeta = meta(night);
+            expect(nightMeta.source).not.toBe(dayMeta.source);
+            expect(pixels(day)).toEqual(colors[0]);
+            expect(pixels(night)).toEqual(colors[1]);
+            expect(meta(day)).toEqual(dayMeta);
+
+            // A previously occupied name can become free. The other model keeps its established output.
+            renameSync(path.join(root, day), file('saved-day.png'));
+            renameSync(path.join(root, day + '.meta'), file('saved-day.png.meta'));
+            expect(await importModel('night')).toBe(night);
+            expect(meta(night)).toEqual(nightMeta);
+            expect(pixels(night)).toEqual(colors[1]);
         } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
