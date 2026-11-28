@@ -198,8 +198,10 @@ node build-tools/cli.js build -t wechat
 The dialog distinguishes two kinds of missing prerequisite:
 
 - A missing **engine runtime** (Web, Playable, WeChat) blocks the export. A WeChat export stops and names the build
-  command to run. WeChat and Douyin use `physics-wechat` for Box2D and either `physics3d-wechat` (Jolt)
-  or `physics3d-physx-wechat` (PhysX) for a 3D physics scene. Other optional builds are listed in [WeChat MiniGame](/docs/publishing/wechat/).
+  command to run. WeChat uses `physics-wechat` for Box2D and either `physics3d-wechat` (Jolt)
+  or `physics3d-physx-wechat` (PhysX) for a 3D physics scene. Douyin ships the runtime built without WASM SIMD, which its
+  iOS host refuses: the same modules with a `-quickgame` suffix (`physics-quickgame`, `physics3d-quickgame`, …).
+  Other optional builds are listed in [WeChat MiniGame](/docs/publishing/wechat/).
 - A missing **native toolchain** (iOS) does not block the export. The content is written; only the final assembly
   into an installable app needs the toolchain, and that step can run on another machine.
 

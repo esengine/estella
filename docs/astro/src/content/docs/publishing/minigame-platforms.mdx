@@ -263,6 +263,11 @@ A host needs its own engine build only if it cannot load the web engine's wasm. 
 `ES_BUILD_WXGAME`) because of `WXWebAssembly` and because it has no WebGPU. A host with standard `WebAssembly` and
 WebGL2 can ship the web build's glue; `engineGlueCandidates` falls back to `esengine.js` for this case.
 
+A host that refuses WASM SIMD takes the mini-game build without it (`-t quickgame`, `ES_MAIN_DISABLE_SIMD`), and its
+side modules from the same flavor (`physics-quickgame`, `spine-quickgame`, …, all into `build/wasm/quickgame`). The
+quick-game hosts, Alipay and Huawei use it, and so does Douyin, whose iOS host does not support SIMD and whose one
+package runs on both phones. A build without SIMD is optimized without it, so an opcode left in one fails the build.
+
 ## See also
 
 - [WeChat MiniGame](/docs/publishing/wechat/) — the WeChat target.

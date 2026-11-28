@@ -25,7 +25,13 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
 # zero-copy ptr offsets are unchanged (ABI_LAYOUT_HASH stays put). The physics module
 # already ships SIMD to web AND wechat, so this is on by default with a compat
 # fallback (`-DES_MAIN_DISABLE_SIMD=ON`) mirroring BOX2D_DISABLE_SIMD.
-option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallback)" OFF)
+option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD in every module of this build (compat fallback)" OFF)
+# One switch for the whole configuration, side modules included: a host that refuses
+# SIMD (vivo's quick-game V8, Douyin on iOS) refuses it in physics and Spine as much
+# as in the engine. Box2D, Jolt and PhysX each fall back to scalar math without it.
+if(ES_MAIN_DISABLE_SIMD)
+    set(BOX2D_DISABLE_SIMD ON)
+endif()
 # A mini-game module never crosses the wasm↔JS boundary with BigInt, in any target of
 # this configuration: i64 is legalized into i32 pairs and the glue carries no HEAP64.
 # Mini-game hosts differ on what they offer. V8 older than 8.5 rejects an i64 in a

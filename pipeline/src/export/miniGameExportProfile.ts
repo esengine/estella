@@ -11,7 +11,7 @@
  *
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
-import { WECHAT_MODULE_BUILD_TARGET } from '../bundle/sideModuleScan';
+import { QUICKGAME_MODULE_BUILD_TARGET, WECHAT_MODULE_BUILD_TARGET } from '../bundle/sideModuleScan';
 import { hasMiniGameFeature } from '../project/miniGameFeatures';
 import type { RuntimeHost } from '../bundle/runtimeHosts';
 import type { SizeBudget } from '../project/sizeBudget';
@@ -503,15 +503,15 @@ export const douyinExportProfile: MiniGameExportProfile = {
     sdkLeanEntryFile: 'index.minigame.lean.js',
     runtimeInit: 'initMiniGameRuntime',
     runtimeProfileHost: 'douyinPlatformProfile',
-    // No Douyin-specific engine build — and no web one either: the mini-game
-    // build is the family's, see MINIGAME_ENGINE_GLUE.
+    // The family's mini-game engine without wasm SIMD (engineBuildFor): Douyin's iOS
+    // host refuses a SIMD opcode, and one package runs on both phones.
     engineGlueCandidates: MINIGAME_ENGINE_GLUE,
     // Same floor as WeChat until a device says otherwise — down-levelling costs
     // nothing and a syntax error on a phone costs a release.
     esTarget: 'es2017',
-    wasmBuildHint: MINIGAME_ENGINE_BUILD,
+    wasmBuildHint: 'quickgame',
     hostGlobal: 'tt',
-    sideModuleBuildTargets: WECHAT_MODULE_BUILD_TARGET,
+    sideModuleBuildTargets: QUICKGAME_MODULE_BUILD_TARGET,
     // Assumed to match WeChat, not read from a Douyin doc: script and config are
     // what a mini-game packer compiles itself everywhere this checkout has looked.
     // Wrong here means a staged file the runtime cannot read, on a device.

@@ -161,7 +161,7 @@ node build-tools/cli.js build -t wechat
 
 对话框区分两类缺失的前置条件：
 
-- 缺少**引擎运行时**（网页、Playable、微信）会阻止导出。微信导出会给出需要运行的构建命令。微信和抖音小游戏使用 `physics-wechat` 构建 Box2D。使用 3D 物理时，按项目选择构建 `physics3d-wechat`（Jolt）或 `physics3d-physx-wechat`（PhysX）。其他可选模块见[微信小游戏](/docs/zh-cn/publishing/wechat/)。
+- 缺少**引擎运行时**（网页、Playable、微信）会阻止导出。微信导出会给出需要运行的构建命令。微信小游戏使用 `physics-wechat` 构建 Box2D。使用 3D 物理时，按项目选择构建 `physics3d-wechat`（Jolt）或 `physics3d-physx-wechat`（PhysX）。抖音的 iOS 宿主不支持 WASM SIMD，所以抖音包使用不带 SIMD 的运行时：同样的模块，名字后缀为 `-quickgame`（`physics-quickgame`、`physics3d-quickgame` 等）。其他可选模块见[微信小游戏](/docs/zh-cn/publishing/wechat/)。
 - 缺少**原生工具链**（iOS）不会阻止导出。应用内容照常写出；只有装配为可安装应用的最后一步需要工具链，且这一步可以在另一台机器上完成。
 
 <Aside type="caution" title="原生目标需要运行时模板">

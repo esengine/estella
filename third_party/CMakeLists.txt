@@ -91,8 +91,13 @@ if(ES_ENABLE_JOLT)
         # -msse4.1/-msse4.2 are not optional here: under wasm SIMD Jolt DECLARES
         # that it uses them (Core.h), and emscripten only supplies those intrinsics
         # when asked — without them the library does not compile at all.
-        target_compile_options(jolt PUBLIC
-            ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msse4.1 -msse4.2 -fno-rtti -fno-exceptions)
+        # Without SIMD (ES_MAIN_DISABLE_SIMD) Jolt sees no __wasm_simd128__ and takes its scalar path.
+        if(ES_MAIN_DISABLE_SIMD)
+            target_compile_options(jolt PUBLIC ${ES_EMSCRIPTEN_COMPILE_FLAGS} -fno-rtti -fno-exceptions)
+        else()
+            target_compile_options(jolt PUBLIC
+                ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msse4.1 -msse4.2 -fno-rtti -fno-exceptions)
+        endif()
     endif()
 endif()
 
@@ -110,8 +115,15 @@ if(ES_ENABLE_PHYSX)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         # The SSE2 path, which emscripten lowers onto wasm SIMD (the flags above
         # carry -msse2). No LTO: measured, it made the module 130 KB larger.
-        target_compile_options(physx PUBLIC
-            ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msimd128 -fno-rtti -fno-exceptions)
+        # Without SIMD there is no __SSE2__, and PxVecMath compiles its scalar path;
+        # PX_SIMD_DISABLED is how the rest of the SDK is told (PxSIMDHelpers.h).
+        if(ES_MAIN_DISABLE_SIMD)
+            target_compile_options(physx PUBLIC ${ES_EMSCRIPTEN_COMPILE_FLAGS} -fno-rtti -fno-exceptions)
+            target_compile_definitions(physx PUBLIC PX_SIMD_DISABLED)
+        else()
+            target_compile_options(physx PUBLIC
+                ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msimd128 -fno-rtti -fno-exceptions)
+        endif()
     endif()
 endif()
 

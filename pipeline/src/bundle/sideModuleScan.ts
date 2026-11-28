@@ -36,6 +36,11 @@ export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   'spine:4.3': 'spine-wechat',
 };
 
+/** The same side modules without wasm SIMD, in build/wasm/quickgame beside the engine built that way. */
+export const QUICKGAME_MODULE_BUILD_TARGET: Record<string, string> = Object.fromEntries(
+  Object.entries(WECHAT_MODULE_BUILD_TARGET).map(([id, target]) => [id, target.replace(/-wechat$/, '-quickgame')]),
+);
+
 export interface CookEntryLike {
   path: string;
   sourcePath?: string;

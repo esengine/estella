@@ -83,7 +83,8 @@ describe.each(['wechat', 'douyin'] as const)('%s 3D solver artifacts', (platform
         hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, sdkDistDir: path.join(f.root, '_sdk'), wasmDir,
         features: { physics: { backend3d } },
       });
-      const command = `node build-tools/cli.js build -t ${file}-wechat`;
+      // Douyin's runtime is the build without wasm SIMD (its iOS host refuses it), so its hint names that build.
+      const command = `node build-tools/cli.js build -t ${file}-${platform === 'douyin' ? 'quickgame' : 'wechat'}`;
       const wrongFormat = await build();
       expect(wrongFormat.ok).toBe(false);
       expect(wrongFormat.errors.join('\n')).toContain(`${file}.js is an ES module`);

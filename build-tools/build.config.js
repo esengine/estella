@@ -7,23 +7,73 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Web hosts import an ES module. Mini-game hosts require the same solver by
 // its CommonJS factory, with the platform's WebAssembly prelude.
+/**
+ * The two mini-game builds of every side module, beside the engine they load with:
+ * `wechat` with wasm SIMD, and `quickgame` without it for the hosts that refuse a
+ * SIMD opcode (vivo's quick-game V8, Douyin on iOS). Same sources, same file
+ * names, one directory each, so an export reads its whole runtime from one place.
+ */
+const MINIGAME_FLAVORS = [
+    { name: 'wechat', flags: [] },
+    { name: 'quickgame', flags: ['-DES_MAIN_DISABLE_SIMD=ON'] },
+];
+
 function physicsModules(file, feature, target) {
     const builds = {};
-    for (const platform of ['web', 'wechat']) {
+    for (const platform of ['web', ...MINIGAME_FLAVORS.map((f) => f.name)]) {
         const web = platform === 'web';
-        const name = web ? file : `${file}-wechat`;
+        const name = web ? file : `${file}-${platform}`;
+        const flavor = MINIGAME_FLAVORS.find((f) => f.name === platform);
         builds[name] = {
             buildDir: `build/cmake/${name}`,
             cmakeFlags: [
                 web ? '-DES_BUILD_WEB=ON' : '-DES_BUILD_WXGAME=ON',
                 '-DES_BUILD_TESTS=OFF', `-DES_ENABLE_${feature}=ON`,
                 `-DES_PHYSICS_ESM=${web ? 'ON' : 'OFF'}`,
+                ...(flavor ? flavor.flags : []),
             ],
             targets: [web ? `${target}_esm` : target],
             outputs: {
                 [`sdk/${file}.js`]: `wasm/${platform}/${file}.js`,
                 [`sdk/${file}.wasm`]: `wasm/${platform}/${file}.wasm`,
             },
+        };
+    }
+    return builds;
+}
+
+/** The require()-based side modules a mini-game package loads, in each mini-game flavor (see MINIGAME_FLAVORS). */
+function miniGameSideModules() {
+    const spineOutputs = (dir) => Object.fromEntries(['42', '43', '41', '38', '21'].flatMap((v) => [
+        [`sdk/spine${v}.js`, `wasm/${dir}/spine${v}.js`], [`sdk/spine${v}.wasm`, `wasm/${dir}/spine${v}.wasm`],
+    ]));
+    const one = (file, dir) => ({ [`sdk/${file}.js`]: `wasm/${dir}/${file}.js`, [`sdk/${file}.wasm`]: `wasm/${dir}/${file}.wasm` });
+    const builds = {};
+    for (const { name, flags } of MINIGAME_FLAVORS) {
+        const base = ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', ...flags];
+        builds[`basis-${name}`] = {
+            buildDir: `build/cmake/basis-${name}`,
+            cmakeFlags: [...base, '-DES_ENABLE_BASIS=ON'],
+            targets: ['basis_module'],
+            outputs: one('basis', name),
+        };
+        builds[`videodec-${name}`] = {
+            buildDir: `build/cmake/videodec-${name}`,
+            cmakeFlags: base,
+            targets: ['video_module'],
+            outputs: one('videodec', name),
+        };
+        builds[`spine-${name}`] = {
+            buildDir: `build/cmake/spine-${name}`,
+            cmakeFlags: base,
+            targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38', 'spine_module_21'],
+            outputs: spineOutputs(name),
+        };
+        builds[`dragonbones-${name}`] = {
+            buildDir: `build/cmake/dragonbones-${name}`,
+            cmakeFlags: [...base, '-DES_ENABLE_DRAGONBONES=ON'],
+            targets: ['dragonbones_module'],
+            outputs: one('dragonbones', name),
         };
     }
     return builds;
@@ -121,9 +171,11 @@ export default {
                 'sdk/esengine.wxgame.wasm': 'wasm/wechat-glx/esengine.wxgame.wasm',
             },
         },
-        // The mini-game engine for vivo's quick-game V8 (8.3), which refuses a SIMD
-        // opcode ("Invalid opcode (enable with --experimental-wasm-simd)"). What it also
-        // refuses, an i64 in a wasm↔JS signature, no mini-game build carries.
+        // The mini-game engine without wasm SIMD, for the hosts that refuse a SIMD opcode:
+        // vivo's quick-game V8 (8.3) ("Invalid opcode (enable with --experimental-wasm-simd)")
+        // and Douyin on iOS (「iOS 平台目前不支持 SIMD 等 WebAssembly 提案特性」). Its side
+        // modules are built the same way, into the same directory (MINIGAME_FLAVORS).
+        // What vivo also refuses, an i64 in a wasm↔JS signature, no mini-game build carries.
         quickgame: {
             buildDir: 'build/cmake/qgame',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_MAIN_DISABLE_SIMD=ON'],
@@ -213,50 +265,7 @@ export default {
         // they evaluate inside the MiniGame runtime. Web-aligned filenames in a
         // separate wechat dir (synced to desktop/public/wasm-wechat) → exportWeChat
         // require()s `./wasm/physics.js` / `./wasm/spine42.js` exactly as the host expects.
-        'basis-wechat': {
-            buildDir: 'build/cmake/basis-wechat',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
-            targets: ['basis_module'],
-            outputs: {
-                'sdk/basis.js': 'wasm/wechat/basis.js',
-                'sdk/basis.wasm': 'wasm/wechat/basis.wasm',
-            },
-        },
-        'videodec-wechat': {
-            buildDir: 'build/cmake/videodec-wechat',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
-            targets: ['video_module'],
-            outputs: {
-                'sdk/videodec.js': 'wasm/wechat/videodec.js',
-                'sdk/videodec.wasm': 'wasm/wechat/videodec.wasm',
-            },
-        },
-        'spine-wechat': {
-            buildDir: 'build/cmake/spine-wechat',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
-            targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38', 'spine_module_21'],
-            outputs: {
-                'sdk/spine42.js': 'wasm/wechat/spine42.js',
-                'sdk/spine42.wasm': 'wasm/wechat/spine42.wasm',
-                'sdk/spine43.js': 'wasm/wechat/spine43.js',
-                'sdk/spine43.wasm': 'wasm/wechat/spine43.wasm',
-                'sdk/spine41.js': 'wasm/wechat/spine41.js',
-                'sdk/spine41.wasm': 'wasm/wechat/spine41.wasm',
-                'sdk/spine38.js': 'wasm/wechat/spine38.js',
-                'sdk/spine38.wasm': 'wasm/wechat/spine38.wasm',
-                'sdk/spine21.js': 'wasm/wechat/spine21.js',
-                'sdk/spine21.wasm': 'wasm/wechat/spine21.wasm',
-            },
-        },
-        'dragonbones-wechat': {
-            buildDir: 'build/cmake/dragonbones-wechat',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_DRAGONBONES=ON'],
-            targets: ['dragonbones_module'],
-            outputs: {
-                'sdk/dragonbones.js': 'wasm/wechat/dragonbones.js',
-                'sdk/dragonbones.wasm': 'wasm/wechat/dragonbones.wasm',
-            },
-        },
+        ...miniGameSideModules(),
     },
 
     sdk: {

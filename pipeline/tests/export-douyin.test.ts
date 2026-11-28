@@ -16,6 +16,8 @@ import { runInNewContext } from 'node:vm';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { builtinSizeBudgets } from '../src/project/sizeBudget';
+import { engineBuildFor } from '../src/project/platforms';
+import { douyinExportProfile } from '../src/export/miniGameExportProfile';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
@@ -159,7 +161,8 @@ describe('exportGame (douyin)', () => {
     expect(res.ok).toBe(false);
     expect(res.errors.join('\n')).toContain('is an ES module');
     // And it says what to run, since the fix is a build and not a setting.
-    expect(res.errors.join('\n')).toContain('build -t wechat');
+    // The mini-game engine without wasm SIMD: Douyin's iOS host refuses SIMD.
+    expect(res.errors.join('\n')).toContain('build -t quickgame');
   }, 180_000);
 
   it('says it is starting BEFORE it parses a megabyte of game code', () => {
@@ -211,4 +214,16 @@ describe('exportGame (douyin) — the engine compressed and in a subpackage', ()
     expect(existsSync(path.join(o, home!.root, 'game.js'))).toBe(true);
     expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain(engine[0]);
   }, 180_000);
+});
+
+describe('Douyin ships the mini-game runtime without wasm SIMD', () => {
+  // 「iOS 平台目前不支持 SIMD 等 WebAssembly 提案特性」, and one package runs on both phones: a SIMD opcode in the engine or in
+  // any side module is a game that never starts on an iPhone.
+  it('takes the engine and every side module from the build without it', () => {
+    expect(engineBuildFor('douyin')).toBe('quickgame');
+    expect(douyinExportProfile.wasmBuildHint).toBe('quickgame');
+    const targets = Object.values(douyinExportProfile.sideModuleBuildTargets);
+    expect(targets.length).toBeGreaterThan(0);
+    for (const t of targets) expect(t).toMatch(/-quickgame$/);
+  });
 });

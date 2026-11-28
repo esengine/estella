@@ -225,6 +225,8 @@ export default {
 
 只有无法加载 Web 引擎 wasm 的宿主才需要专属的引擎构建。微信需要（`-t wechat`，`ES_BUILD_WXGAME`），因为它使用 `WXWebAssembly` 且不支持 WebGPU。支持标准 `WebAssembly` 和 WebGL2 的宿主可以使用 Web 构建的 glue；`engineGlueCandidates` 会为此回退到 `esengine.js`。
 
+不支持 WASM SIMD 的宿主使用不带 SIMD 的小游戏构建（`-t quickgame`，`ES_MAIN_DISABLE_SIMD`），侧模块也取同一套（`physics-quickgame`、`spine-quickgame` 等，都输出到 `build/wasm/quickgame`）。快游戏、支付宝和华为使用这套构建；抖音也使用，因为它的 iOS 宿主不支持 SIMD，而同一个包要同时在两种手机上运行。不带 SIMD 的构建在优化时也不开启 SIMD，产物里残留一条 SIMD 指令就会让构建失败。
+
 ## 参见
 
 - [微信小游戏](/docs/zh-cn/publishing/wechat/)——微信目标。

@@ -214,14 +214,17 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
     try {
         const files = Object.keys(targetConfig.outputs);
         await copyOutputs(buildDir, staging, Object.fromEntries(files.map(file => [file, file])));
-        await optimizeWasmFiles(staging, targetConfig.outputs, config.optimization[target]?.wasmOpt || '-O2', env);
+        // A build without SIMD is optimized without it too, so one SIMD opcode left in it (a library that forces its own
+        // -msimd128) fails the build here instead of a game on a host that refuses it.
+        const simd = !targetConfig.cmakeFlags.includes('-DES_MAIN_DISABLE_SIMD=ON');
+        await optimizeWasmFiles(staging, targetConfig.outputs, config.optimization[target]?.wasmOpt || '-O2', env, { simd });
         await copyOutputs(staging, outputDir, targetConfig.outputs);
     } finally {
         await rm(staging, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 }
 
-export async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env = undefined) {
+export async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env = undefined, { simd = true } = {}) {
     const wasmFiles = Object.keys(outputs).filter(src => src.endsWith('.wasm'));
     if (wasmFiles.length === 0) return;
 
@@ -235,7 +238,7 @@ export async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env
             // The optimizer drops the name section unless told to keep it; a build made to find where the bytes are (a size report by subsystem) asks.
             const features = src === 'sdk/esengine-threaded.wasm' ? ['--enable-threads'] : [];
             const keepNames = process.env.ESTELLA_WASM_NAMES === '1' ? ['-g'] : [];
-            await runCommand('wasm-opt', [optLevel, ...keepNames, ...features, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-simd', '-o', optimizedPath, wasmPath], { silent: true, env });
+            await runCommand('wasm-opt', [optLevel, ...keepNames, ...features, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', ...(simd ? ['--enable-simd'] : []), '-o', optimizedPath, wasmPath], { silent: true, env });
             const bytes = await readFile(optimizedPath);
             if (!WebAssembly.validate(bytes)) throw new Error('optimizer produced invalid WASM');
             const after = bytes.byteLength;
