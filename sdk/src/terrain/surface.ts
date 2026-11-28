@@ -23,6 +23,12 @@ export interface SurfaceTile { x0: number; z0: number; positions: Float32Array; 
 
 type CellSample = [number, number, number, number, number, number];
 
+/** At the closed upper edge of a finite surface, the triangle lies on the inside. */
+function cellIndex(at: number, cell: number, upper?: number): number {
+    const index = Math.floor(at / cell);
+    return at === upper && index * cell >= upper ? index - 1 : index;
+}
+
 function triangleHeight([a, b, c, d, fx, fz]: CellSample): number {
     return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
 }
@@ -117,7 +123,10 @@ export class TerrainSurface {
         if (bounds && (!clip(ox, dx, bounds[0], bounds[2]) || !clip(oz, dz, bounds[1], bounds[3]))) return null;
         const c = this.cell;
         // Over the cells the ray's shadow on the ground crosses, in order (Amanatides and Woo).
-        let i = Math.floor((ox + entry * dx) / c), k = Math.floor((oz + entry * dz) / c);
+        const x = ox + entry * dx, z = oz + entry * dz;
+        // Roundoff at the slab entry can put the starting cell just outside it.
+        let i = cellIndex(bounds ? Math.min(Math.max(x, bounds[0]), bounds[2]) : x, c, bounds?.[2]);
+        let k = cellIndex(bounds ? Math.min(Math.max(z, bounds[1]), bounds[3]) : z, c, bounds?.[3]);
         const si = dx > 0 ? 1 : -1, sk = dz > 0 ? 1 : -1;
         const tdi = dx !== 0 ? Math.abs(c / dx) : Infinity, tdk = dz !== 0 ? Math.abs(c / dz) : Infinity;
         let ti = dx !== 0 ? ((dx > 0 ? (i + 1) * c : i * c) - ox) / dx : Infinity;
@@ -166,8 +175,9 @@ export class TerrainSurface {
     /** The four corners of the cell under (x, z) and where in it the point is, or null. */
     private corners(x: number, z: number): CellSample | null {
         if (!this.covers(x, z)) return null;
+        const bounds = this.source.bounds;
         const u = x / this.cell, v = z / this.cell;
-        const i = Math.floor(u), k = Math.floor(v);
+        const i = cellIndex(x, this.cell, bounds?.[2]), k = cellIndex(z, this.cell, bounds?.[3]);
         const a = this.node(i, k), b = this.node(i + 1, k), c = this.node(i, k + 1), d = this.node(i + 1, k + 1);
         if (a === null || b === null || c === null || d === null) return null;
         return [a, b, c, d, u - i, v - k];

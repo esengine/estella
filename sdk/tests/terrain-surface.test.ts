@@ -136,6 +136,26 @@ describe('the surface', () => {
         expect(sample).not.toHaveBeenCalled();
     });
 
+    it('uses the interior triangle for samples and ray hits along a grid-aligned outer edge', () => {
+        const bounds = [-2, -2, 2, 2] as const;
+        const height = (x: number, z: number) => 2 * x + 3 * z;
+        const area = new TerrainSurface({ infinite: false, bounds, minHeight: -10, maxHeight: 10,
+            height, normal: () => null, paint: () => [1, 0, 0, 0] }, 1);
+        const expectedNormal = [-2, 1, -3].map(c => c / Math.sqrt(14));
+        for (const [x, z] of [[2, 0.5], [0.5, 2], [2, 2]]) {
+            const sample = area.sample(x, z)!;
+            const hit = area.raycast(x, 20, z, 0, -1, 0, 50)!;
+            expect(sample.height).toBeCloseTo(height(x, z));
+            expect(hit.point[1]).toBeCloseTo(sample.height);
+            for (let axis = 0; axis < 3; axis++) {
+                expect(sample.normal[axis]).toBeCloseTo(expectedNormal[axis], 12);
+                expect(hit.normal[axis]).toBeCloseTo(expectedNormal[axis], 12);
+            }
+        }
+        expect(area.sample(2.00001, 0.5)).toBeNull();
+        expect(area.raycast(2.00001, 20, 0.5, 0, -1, 0, 50)).toBeNull();
+    });
+
     it('is the source at every lattice node, and flat across each triangle', () => {
         const source = new NoiseSource(params);
         for (const [i, k] of [[0, 0], [17, -9], [-300, 41]] as const) expect(surface.height(i * 2, k * 2)).toBeCloseTo(source.height(i * 2, k * 2), 9);
