@@ -80,6 +80,11 @@ export interface ShaderReflection {
     params: ShaderParam[];
 }
 
+/** The feature names a material document enables, in stable permutation order. */
+export function materialSwitchFeatures(switches: Readonly<Record<string, boolean>> | undefined): string[] {
+    return switches ? Object.keys(switches).filter(name => switches[name]).sort() : [];
+}
+
 const TYPES = new Set<ShaderParamType>(['float', 'vec2', 'vec3', 'vec4', 'color', 'int', 'texture']);
 const ARITY: Record<string, number> = { float: 1, int: 1, vec2: 2, vec3: 3, vec4: 4, color: 4 };
 const VEC_KEYS = ['x', 'y', 'z', 'w'] as const;

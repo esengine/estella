@@ -4,6 +4,7 @@ import type { AssetLoader, LoadContext } from '../AssetLoader';
 import { BUILTIN_REF_PREFIX, isBuiltinAssetRef } from '../documentRef';
 import { builtinShaderTemplate, BUILTIN_SHADER_MODULE } from '../../render/builtinShaders';
 import { Material, type ShaderHandle } from '../../render/material';
+import { materialSwitchFeatures } from '../../render/shaderReflect';
 import { disposeAll } from '../../util/disposeAll';
 
 /** One source era owns every permutation compiled from those exact bytes. */
@@ -12,8 +13,7 @@ export class MaterialShaderSource {
     constructor(private readonly path_: string, private readonly source_: string) {}
 
     compileDocument(switches: Record<string, boolean> | undefined): ShaderHandle {
-        const features = Object.keys(switches ?? {}).filter(name => switches?.[name]).sort();
-        return this.compile(features);
+        return this.compile(materialSwitchFeatures(switches));
     }
 
     compile(features: string[]): ShaderHandle {

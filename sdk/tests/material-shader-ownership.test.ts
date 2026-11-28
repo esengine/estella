@@ -160,10 +160,16 @@ describe('material shaders use the asset ownership and source graph', () => {
     });
 
     it('one source read feeds distinct switch permutations and retires all programs with that source era', async () => {
-        const { acquire, fetchText } = realm(); const a = await acquire('a.esmaterial'), b = await acquire('variant.esmaterial');
+        const { acquire, docs, fetchText } = realm();
+        docs['instance.esmaterial'] = JSON.stringify({
+            type: 'material', instanceOf: 'variant.esmaterial', properties: {}, switches: { GLOW: false, RIM: true },
+        });
+        const a = await acquire('a.esmaterial'), b = await acquire('variant.esmaterial'), instance = await acquire('instance.esmaterial');
         expect(a.value.shaderHandle).not.toBe(b.value.shaderHandle); expect(gpu.compiled.map(c => c.features)).toEqual([[], ['GLOW']]);
+        expect(instance.value.shaderHandle).toBe(b.value.shaderHandle);
         expect(fetchText.mock.calls.filter(([path]) => path === 'fx.esshader')).toHaveLength(1);
-        a.release(); expect(gpu.live.size).toBe(2); b.release(); expect(gpu.live.size).toBe(0);
+        a.release(); expect(gpu.live.size).toBe(2); b.release(); expect(gpu.live.size).toBe(2);
+        instance.release(); expect(gpu.live.size).toBe(0);
     });
 
     it('restoring missing shader source clears the material failure cooldown immediately', async () => {
