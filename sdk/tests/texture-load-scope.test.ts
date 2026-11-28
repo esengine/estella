@@ -534,7 +534,7 @@ describe('mesh texture size before the first frame', () => {
     it('keeps a parent material texture full for a sprite that joins a mesh material instance', async () => {
         const assets = assetsWithPixels();
         assets.setTextureStreamingStart(64);
-        assets.register({ type: 'material-shader', extensions: [], load: async () => ({ compile: () => 1 }) });
+        assets.register({ type: 'material-shader', extensions: [], load: async () => ({ compile: () => 1, compileDocument: () => 1 }) });
         vi.spyOn(assets.backend, 'fetchText').mockImplementation(async url => JSON.stringify(url.endsWith('child.esmaterial')
             ? { type: 'material', instanceOf: 'parent.esmaterial', properties: {} }
             : { type: 'material', shader: 'builtin:test', properties: { u_map: 'map.png' } }));
