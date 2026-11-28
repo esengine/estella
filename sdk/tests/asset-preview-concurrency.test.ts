@@ -32,4 +32,29 @@ describe('shared preview readback ownership', () => {
             expect(image!.data[0]).toBe(66);
         } finally { ready = true; await pending; }
     });
+    it('skips canceled submissions and pixel copies while draining the active readback', async () => {
+        imageData();
+        const m = core();
+        const active = new AbortController(), queued = new AbortController();
+        let ready = false;
+        m.renderer_pollPreviewReadback = () => ready ? 1 : 0;
+        const getPixels = vi.spyOn(m, 'renderer_getPreviewPtr');
+        const submitActive = vi.fn(), submitQueued = vi.fn();
+        const first = drawPreview(m, submitActive, active.signal);
+        await Promise.resolve();
+        expect(submitActive).toHaveBeenCalledOnce();
+        const obsolete = drawPreview(m, submitQueued, queued.signal);
+        active.abort(); queued.abort();
+        const submitNext = vi.fn(() => m.HEAPU8.fill(77));
+        const next = drawPreview(m, submitNext);
+        await Promise.resolve();
+        const overlap = submitNext.mock.calls.length;
+        ready = true;
+        expect(overlap).toBe(0);
+        expect(await first).toBeNull();
+        expect(await obsolete).toBeNull();
+        expect(submitQueued).not.toHaveBeenCalled();
+        expect((await next)!.data[0]).toBe(77);
+        expect(getPixels).toHaveBeenCalledOnce();
+    });
 });

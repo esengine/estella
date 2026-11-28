@@ -109,9 +109,9 @@ export function clearPreviewWorld(app: App): void {
     }
 }
 
-/** Spawn @p scene in the preview world, assets loaded and resolved. @experimental */
-export function loadPreviewScene(app: App, scene: SceneData): Promise<Map<number, Entity>> {
-    return loadOwnedSceneWithAssets(app.world, scene, { assets: app.getResource(Assets) });
+/** Spawn @p scene in the preview world, assets loaded and resolved. A canceled load discards its work. @experimental */
+export function loadPreviewScene(app: App, scene: SceneData, signal?: AbortSignal): Promise<Map<number, Entity>> {
+    return loadOwnedSceneWithAssets(app.world, scene, { assets: app.getResource(Assets), signal });
 }
 
 /** How a picture of a world is framed. @experimental */
@@ -233,7 +233,7 @@ export function aimPreviewWorld(app: App, framing: PreviewFraming, w: number, h:
  * @experimental
  */
 export function renderPreviewWorld(
-    app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean },
+    app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean; signal?: AbortSignal },
 ): Promise<ImageData | null> {
     const module = app.wasmModule as ESEngineModule | null;
     const core = previewCore(module);
@@ -253,5 +253,5 @@ export function renderPreviewWorld(
             free(worldPtr);
             if (screenPtr) free(screenPtr);
         }
-    });
+    }, options?.signal);
 }

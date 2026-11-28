@@ -44,22 +44,26 @@ export function previewCore(m: unknown): PreviewCore | null {
  */
 const previewTails = new WeakMap<PreviewCore, Promise<void>>();
 
-export function drawPreview(m: PreviewCore, draw: () => void): Promise<ImageData | null> {
+export function drawPreview(m: PreviewCore, draw: () => void, signal?: AbortSignal): Promise<ImageData | null> {
+    if (signal?.aborted) return Promise.resolve(null);
     // Draw, poll and copy own one shared buffer as a single operation. Even a
     // ready GL readback yields at await, so a second draw must wait for the copy.
-    const result = (previewTails.get(m) ?? Promise.resolve()).then(() => readPreview(m, draw));
+    const result = (previewTails.get(m) ?? Promise.resolve()).then(() => readPreview(m, draw, signal));
     const tail = result.then(() => {}, () => {});
     previewTails.set(m, tail);
     void tail.then(() => { if (previewTails.get(m) === tail) previewTails.delete(m); });
     return result;
 }
 
-async function readPreview(m: PreviewCore, draw: () => void): Promise<ImageData | null> {
+async function readPreview(m: PreviewCore, draw: () => void, signal?: AbortSignal): Promise<ImageData | null> {
     // An owner can disappear while waiting for another preview's readback.
     // Skip both draw and poll, rather than return the previous task's pixels.
+    if (signal?.aborted) return null;
     const submitted: unknown = draw();
     if (submitted === false) return null;
     if (await awaitReadback(() => m.renderer_pollPreviewReadback()) !== READBACK_READY) return null;
+    // Drain a submitted transfer before releasing the shared surface, even if its pixels are obsolete.
+    if (signal?.aborted) return null;
     const size = m.renderer_getPreviewSize();
     const w = m.renderer_getPreviewWidth();
     const h = m.renderer_getPreviewHeight();

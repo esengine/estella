@@ -18884,7 +18884,7 @@ LifecyclePlugin
 
 ## loadPreviewScene — function @experimental
 ```
-(app: App, scene: SceneData): Promise<Map<number, Entity>>
+(app: App, scene: SceneData, signal?: AbortSignal): Promise<Map<number, Entity>>
 ```
 
 ## loadRuntimeScene — function @experimental
@@ -19919,7 +19919,7 @@ PrefabsPlugin
 
 ## renderPreviewWorld — function @experimental
 ```
-(app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean; }): Promise<ImageData | null>
+(app: App, framing: PreviewFraming, w: number, h: number, options?: { studio?: boolean; signal?: AbortSignal; }): Promise<ImageData | null>
 ```
 
 ## renumberEntityZero — function @experimental
