@@ -62,6 +62,18 @@ export function materialPaintWeights(raw: readonly number[], targets: readonly T
     return out;
 }
 
+/** First material with the greatest weight, or -1 for a missing or unusable sample. */
+export function dominantTerrainLayer(weights: readonly number[] | null): number {
+    if (!weights) return -1;
+    let best = -1, max = -Infinity;
+    for (let i = 0; i < weights.length; i++) {
+        const weight = weights[i];
+        if (weight === undefined || Number.isNaN(weight)) return -1;
+        if (best < 0 || weight > max) { best = i; max = weight; }
+    }
+    return best;
+}
+
 /** Compose into a reusable eight-channel buffer, replacing all previous contributions. */
 export function writeMaterialPaintWeights(raw: readonly number[], targets: readonly TerrainPaintTarget[], out: number[]): void {
     for (let i = 0; i < out.length; i++) out[i] = 0;

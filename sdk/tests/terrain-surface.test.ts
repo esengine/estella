@@ -15,6 +15,7 @@ import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes } from '../src/terra
 import { TerrainSurface, TILE_CELLS } from '../src/terrain/surface';
 import { groundPaintAt } from '../src/terrain/groundQuery';
 import { defaultTerrainLayers } from '../src/terrain/paintLayers';
+import { collisionMaterialGroups } from '../src/terrain/collisionMaterials';
 import { NoiseSource, type NoiseParams } from '../src/terrain/source';
 import { makePage, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from '../src/terrain/pages';
 import { buildPatchMesh } from '../src/terrain/patch';
@@ -65,6 +66,34 @@ describe('ground without end', () => {
 
 describe('the surface', () => {
     const surface = new TerrainSurface(new NoiseSource(params), 2);
+
+    it('groups a clipped terrain tile by its queried paint, keeping triangle and tie order', () => {
+        const source = { infinite: false, bounds: [-1, -0.75, 2.25, 1.75] as const, minHeight: -1, maxHeight: 3,
+            height: (x: number, z: number) => 0.25 * x + z, normal: () => null,
+            paint: (x: number, z: number) => x > 1 ? [0.1, 0.8, 0.1] : z > 1 ? [0, 0, 1] : [0.5, 0.5, 0] };
+        const area = new TerrainSurface(source, 1);
+        const tile = area.tile(0, 0)!;
+        const origin = { x: -1024, y: 15, z: 513 };
+        const refs = ['soil.esphysmat', 'rock.esphysmat', ''];
+        const targets = refs.map((physicalMaterial, materialIndex) => ({ name: `layer${materialIndex}`, info: '',
+            slot: materialIndex, materialIndex, physicalMaterial, blend: 'weight' as const, hardness: 0.5 }));
+        const expected = new Map<string, number[]>();
+        for (let i = 0; i < tile.indices.length; i += 3) {
+            const triangle = [...tile.indices.subarray(i, i + 3)];
+            const x = tile.x0 + triangle.reduce((sum, v) => sum + tile.positions[3 * v]!, 0) / 3;
+            const z = tile.z0 + triangle.reduce((sum, v) => sum + tile.positions[3 * v + 2]!, 0) / 3;
+            const ref = refs[x > 1 ? 1 : z > 1 ? 2 : 0]!;
+            if (!expected.has(ref)) expected.set(ref, []);
+            expected.get(ref)!.push(...triangle);
+        }
+        expect(expected.size).toBe(3);
+        expect([...collisionMaterialGroups(tile, source, area, origin, targets)]).toEqual([...expected]);
+
+        const invalidPaint = { ...source, paint: () => [NaN] };
+        const detached = { ...targets[0]!, materialIndex: -1 };
+        expect([...collisionMaterialGroups(tile, invalidPaint, area, origin, [...targets, detached])])
+            .toEqual([['', [...tile.indices]]]);
+    });
 
     it('paints both triangles from the same four height samples as the surface', () => {
         const heights = new Map([['0,0', 1], ['1,0', 3], ['0,1', 4], ['1,1', 10]]);

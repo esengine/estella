@@ -42,7 +42,8 @@ export { paintWeights };
 import { GroundEdit } from './groundEdit';
 import { LandscapeRenderer } from './landscapeRenderer';
 import type { LandscapeSpline } from './landscapeSpline';
-import { terrainPaintTargets, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
+import { dominantTerrainLayer, terrainPaintTargets, parseTerrainLayerInfo, parseTerrainPhysicalMaterial, type TerrainPhysicalMaterial, type TerrainPaintBinding, type TerrainPaintTarget } from './paintLayers';
+import { collisionMaterialGroups } from './collisionMaterials';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, makePageJob, packPageHeightRange, pageHeightRange, pageRangesFit, pageSampleStep, PageTable,
@@ -526,7 +527,8 @@ export class Terrains {
             if (!(built.source instanceof ModifiedSource) || !built.surface || !built.paintTargets) continue;
             const w = groundPaintAt(built.source, built.surface, built.source.origin, x, z);
             if (!w) continue;
-            return built.paintTargets.find(t => t.materialIndex === w.indexOf(Math.max(...w))) ?? null;
+            const index = dominantTerrainLayer(w);
+            return index < 0 ? null : built.paintTargets.find(t => t.materialIndex === index) ?? null;
         }
         return null;
     }
@@ -1258,17 +1260,7 @@ export class TerrainPlugin implements Plugin {
                     pieces.push(id);
                 };
                 if (!built.physical?.size || !built.source || !built.surface) { publish(key, tile.indices); return; }
-                const groups = new Map<string, number[]>();
-                for (let i = 0; i < tile.indices.length; i += 3) {
-                    const triangle = tile.indices.subarray(i, i + 3);
-                    let x = tile.x0, z = tile.z0;
-                    for (const vertex of triangle) { x += tile.positions[vertex * 3]! / 3; z += tile.positions[vertex * 3 + 2]! / 3; }
-                    const w = groundPaintAt(built.source, built.surface, at, x + at.x, z + at.z);
-                    const index = w ? w.indexOf(Math.max(...w)) : -1;
-                    const ref = built.paintTargets?.find(t => t.materialIndex === index)?.physicalMaterial ?? '';
-                    const group = groups.get(ref) ?? [];
-                    group.push(...triangle); groups.set(ref, group);
-                }
+                const groups = collisionMaterialGroups(tile, built.source, built.surface, at, built.paintTargets);
                 for (const [ref, indices] of groups) publish(key + '/' + ref, Uint32Array.from(indices), built.physical.get(ref));
             },
             release: (_tx, _tz, { pieces }) => { for (const key of pieces) geometry.delete(key); },
