@@ -342,10 +342,8 @@ export async function expandScenePrefabAssets(
     const sources = new AssetScope();
     const check = () => attempt.assertCurrent();
     const read = createPrefabSourceLoader(async ref => {
-        check();
         try {
-            const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
-            check();
+            const lease = await attempt.acquireTemporaryAsset(sources, () => assets.acquireTyped<PrefabResult>('prefab', ref));
             return (lease.value.data as PrefabData) ?? null;
         } catch (error) {
             check();
@@ -353,11 +351,14 @@ export async function expandScenePrefabAssets(
             return null;
         }
     });
+    let completed = false;
     try {
-        return await attempt.waitForShared(() => expandPrefabSources(scene, read, undefined, check));
+        const result = await attempt.waitForShared(() => expandPrefabSources(scene, read, undefined, check));
+        completed = true;
+        return result;
     } finally {
-        // A still-shared read can finish after this scene left. Its late receipt is released by the closed scope.
-        AssetScope.closeAll([sources]);
+        // Close leases already acquired. A shared read can finish after this scene leaves.
+        attempt.closeTemporaryScope(sources, completed);
     }
 }
 

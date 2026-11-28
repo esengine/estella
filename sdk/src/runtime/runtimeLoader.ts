@@ -968,6 +968,7 @@ function createRuntimeSceneConfigWithData(
             document = 'owned';
         }
         let prefabSources: AssetScope | undefined;
+        let completed = false;
         try {
             let publishDocument: (() => void) | undefined;
             const prepareDocument = options.prepareDocument;
@@ -975,11 +976,9 @@ function createRuntimeSceneConfigWithData(
                 const authored = data;
                 const sources = prefabSources = new AssetScope();
                 const readPrefab: PrefabAssetResolver = async ref => {
-                    assertActive();
                     // Keep the typed asset alive until scene expansion acquires its own lease.
-                    const assets = options.app.getResource(AssetsResource);
-                    const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
-                    assertActive();
+                    const lease = await attempt.acquireTemporaryAsset(sources,
+                        () => options.app.getResource(AssetsResource).acquireTyped<PrefabResult>('prefab', ref));
                     return lease.value.data as PrefabData | null;
                 };
                 data = await attempt.waitForShared(() => prepareDocument(authored, assertActive, install => {
@@ -992,9 +991,10 @@ function createRuntimeSceneConfigWithData(
                 ...options, sceneData: data, sceneName: name, onPhase: config.onPhase, gate,
                 onProgress: guardedAssetProgress(assertActive, observer, sceneProgress),
             }, sceneOwned ?? options.app.hasResource(SceneManager), attempt, sceneOwned === undefined ? 'prepare' : 'load', document);
+            completed = true;
             return publishDocument ? { ...ready, publishDocument } : ready;
         } finally {
-            if (prefabSources) AssetScope.closeAll([prefabSources]);
+            if (prefabSources) attempt.closeTemporaryScope(prefabSources, completed);
         }
     };
     const discard = (pending: Preparation): number => {

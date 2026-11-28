@@ -175,7 +175,9 @@ it.each([true, false])('retires a runtime scene preload on core disconnect with 
     expect(unload.mock.calls.map(([value]) => value)).toEqual([{ id: 'waiting' }]);
 });
 
-it.each(['preview', 'runtime'] as const)('cancels %s prefab expansion while a shared read is pending', async door => {
+it.each([
+    ['preview', false], ['runtime', false], ['preview', true], ['runtime', true],
+] as const)('cancels %s prefab expansion while a shared read is pending, cleanup failure %s', async (door, failCleanup) => {
     const { app, assets: initial } = harness();
     connectFakeCpp(app.world);
     const empty: SceneData = { version: '1.0', name: 'empty', entities: [] };
@@ -196,7 +198,10 @@ it.each(['preview', 'runtime'] as const)('cancels %s prefab expansion while a sh
         return { data: document, path };
     });
     const unloaded: string[] = [];
-    assets.register({ type: 'prefab', extensions: [], load, unload: value => unloaded.push(value.path) });
+    assets.register({ type: 'prefab', extensions: [], load, unload: value => {
+        unloaded.push(value.path);
+        if (failCleanup && value.path === 'first.esprefab') throw new Error('Prefab cleanup failed');
+    } });
     const scene = { ...empty, name: 'prefabs', entities: [
         'first.esprefab', 'waiting.esprefab', 'queued.esprefab',
     ].map((prefab, i) => ({ id: i + 1, parent: null, prefab, overrides: [], added: [], removed: [] })) } as unknown as SceneData;

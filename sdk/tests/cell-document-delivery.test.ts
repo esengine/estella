@@ -16,6 +16,7 @@ import type { SceneData } from '../src/scene/scene';
 import { connectFakeCpp } from './helpers/fakeEngine';
 import { reservePromise } from '../src/util/reservePromise';
 import { Assets as AssetsResource } from '../src/asset/AssetPlugin';
+import { log } from '../src/util/logger';
 
 const FETCHED = 'the loader reached for the path';
 
@@ -77,11 +78,15 @@ it('rejects discarded scene preparation while its document fetch is pending', as
   }
 });
 
-it('releases prefab receipts that arrive after a custom scene preparation is discarded', async () => {
+it.each([false, true])('releases late prefab receipts after custom preparation is discarded, cleanup failure %s', async failCleanup => {
   const { app, options } = await runtimeThatRefusesToFetch();
   const assets = app.getResource(AssetsResource);
   const readStarted = reservePromise<void>(), slow = reservePromise<void>(), callbackFinished = reservePromise<void>();
-  const unload = vi.fn();
+  const cleanupError = new Error('late prefab cleanup failed');
+  const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+  const unload = vi.fn((entry: { path: string }) => {
+    if (failCleanup && entry.path === 'slow.esprefab') throw cleanupError;
+  });
   const load = vi.fn(async (path: string) => {
     if (path === 'slow.esprefab') { readStarted.resolve(); await slow.promise; }
     return { path, data: { version: '2', name: path, rootEntityId: 'root', entities: [] } };
@@ -110,9 +115,11 @@ it('releases prefab receipts that arrive after a custom scene preparation is dis
     expect(unload.mock.calls.map(([entry]) => entry.path)).toEqual(['first.esprefab', 'slow.esprefab']);
     expect(assets.sizes().refRows).toBe(0);
     expect(install).not.toHaveBeenCalled();
+    if (failCleanup) expect(warn).toHaveBeenCalledWith('scene', 'Temporary scene asset cleanup failed', cleanupError);
   } finally {
     slow.resolve();
     await cancelled;
+    warn.mockRestore();
     app.quit();
   }
 });

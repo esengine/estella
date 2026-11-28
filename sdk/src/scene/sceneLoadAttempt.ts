@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneAssetResult } from '../asset/Assets';
+import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
@@ -111,6 +112,31 @@ export class SceneLoadAttempt {
 
     discardAssets(): void {
         releaseSceneAssets(this.assets);
+    }
+
+    /** An in-flight read can deliver a receipt after cancellation has closed its scope. */
+    async acquireTemporaryAsset<T>(scope: AssetScope, read: () => Promise<AssetLease<T>>): Promise<AssetLease<T>> {
+        this.assertCurrent();
+        const lease = await read();
+        try { this.assertCurrent(); }
+        catch (error) {
+            try { lease.release(); }
+            catch (cleanupError) { log.warn('scene', 'Temporary scene asset cleanup failed', cleanupError); }
+            throw error;
+        }
+        return scope.add(lease);
+    }
+
+    /** Close temporary prefab receipts without replacing an existing load error. */
+    closeTemporaryScope(scope: AssetScope, completed: boolean): void {
+        try { AssetScope.closeAll([scope]); }
+        catch (error) {
+            if (completed) {
+                this.discardAssets();
+                throw error;
+            }
+            log.warn('scene', 'Temporary scene asset cleanup failed', error);
+        }
     }
 
     discardEntities(): void {
