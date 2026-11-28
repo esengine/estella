@@ -256,17 +256,21 @@ describe('the import settings of one texture request', () => {
         } finally { assets.releaseAll(); }
     });
 
-    it('keeps the reflection atlas and sky panorama full until the environment releases them', async () => {
+    it.each(['art', 'shared'])('keeps the reflection atlas and sky panorama in %s full until the environment releases them', async folder => {
         const heap = new ArrayBuffer(256);
         const core = { HEAPU8: new Uint8Array(heap), HEAPF32: new Float32Array(heap), _malloc: () => 4, _free: vi.fn(),
             environment_create: vi.fn(() => 42), environment_setSky: vi.fn(), environment_release: vi.fn() };
         const assets = installDecoder(Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module: core as unknown as ESEngineModule }));
+        const paths = [`${folder}/specular.png`, `${folder}/sky.png`];
+        const indexed = new Set([...paths, 'specular.png', 'sky.png']);
+        assets.setAssetRefResolver(ref => ref, ref => indexed.has(ref) ? 'texture' : undefined);
+        const prefix = folder === 'shared' ? 'shared/' : '';
         vi.spyOn(assets.backend, 'fetchText').mockResolvedValue(JSON.stringify({
-            irradiance: Array(27).fill(0), specular: 'specular.png', sky: 'sky.png', faceSize: 64, mipCount: 4,
+            irradiance: Array(27).fill(0), specular: `${prefix}specular.png`, sky: `${prefix}sky.png`, faceSize: 64, mipCount: 4,
         }));
         assets.setTextureStreamingStart(64);
         try {
-            const textures = await Promise.all(['art/specular.png', 'art/sky.png'].map(path => {
+            const textures = await Promise.all(paths.map(path => {
                 assets.noteMeshSurface({ texture: path });
                 return assets.acquireTexture(path, false);
             }));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext } from '../AssetLoader';
-import { resolveDocumentRef } from '../documentRef';
+import { resolveIndexedSiblingRef } from '../documentRef';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { marshallingCore } from './engineCore';
 import { withScratch } from '../../wasm/wasmScratch';
@@ -56,6 +56,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         const path = ctx.sourceAddressOf?.(file) ?? file;
         const text = await ctx.loadText(ctx.catalog.getBuildPath(file));
         const data = JSON.parse(text) as EnvironmentAssetData;
+        const imagePath = (ref: string) => resolveIndexedSiblingRef(path, ref, candidate => ctx.assetTypeOf?.(candidate) !== undefined);
         if (!Array.isArray(data.irradiance) || data.irradiance.length !== 27) {
             throw new Error(`${path}: an environment is nine RGB coefficients, got `
                 + `${data.irradiance?.length ?? 0} numbers`);
@@ -70,7 +71,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         // silently took the whole asset down would be the worse answer.
         let specularHandle = 0;
         if (data.specular) {
-            const resolved = resolveDocumentRef(path, data.specular);
+            const resolved = imagePath(data.specular);
             try {
                 // flipY false: the atlas' rows are a layout, not a picture. Row 0
                 // is mip 0, and a load that turned it over would put the mip
@@ -109,7 +110,7 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
 
         // Missing, the sky falls back to the atlas: coarser, never absent.
         if (data.sky && m.environment_setSky) {
-            const resolved = resolveDocumentRef(path, data.sky);
+            const resolved = imagePath(data.sky);
             try {
                 // flipY false for the atlas' reason: row 0 is up, and the shader
                 // reads rows by index.
@@ -125,6 +126,4 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
         this.core_()?.environment_release?.(asset.handle);
     }
 }
-
-/** Resolve the atlas ref relative to the `.esenv`; rooted refs pass through. */
 
