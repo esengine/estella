@@ -19,6 +19,19 @@ export const TILE_CELLS = 32;
 /** A tile's triangles: positions relative to its corner (x0, 0, z0) in the terrain's space, wound counter-clockwise from above. */
 export interface SurfaceTile { x0: number; z0: number; positions: Float32Array; indices: Uint32Array }
 
+type CellSample = [number, number, number, number, number, number];
+
+function triangleHeight([a, b, c, d, fx, fz]: CellSample): number {
+    return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+}
+
+function triangleNormal([a, b, c, d, fx, fz]: CellSample, cell: number): [number, number, number] {
+    const first = fx + fz <= 1;
+    const sx = (first ? b - a : d - c) / cell, sz = (first ? c - a : d - b) / cell;
+    const len = Math.hypot(sx, 1, sz);
+    return [-sx / len, 1 / len, -sz / len];
+}
+
 export class TerrainSurface {
     constructor(readonly source: TerrainSource, readonly cell: number) {}
 
@@ -42,19 +55,19 @@ export class TerrainSurface {
     /** The height at (x, z) on its cell's triangle, or null off the ground or where a corner is not known yet. */
     height(x: number, z: number): number | null {
         const c = this.corners(x, z);
-        if (!c) return null;
-        const [a, b, cc, d, fx, fz] = c;
-        return fx + fz <= 1 ? a + (b - a) * fx + (cc - a) * fz : d + (cc - d) * (1 - fx) + (b - d) * (1 - fz);
+        return c && triangleHeight(c);
     }
 
     /** The normal of the triangle under (x, z), or null where its height is not known. */
     normal(x: number, z: number): [number, number, number] | null {
         const c = this.corners(x, z);
-        if (!c) return null;
-        const [a, b, cc, d, fx, fz] = c;
-        const sx = (fx + fz <= 1 ? b - a : d - cc) / this.cell, sz = (fx + fz <= 1 ? cc - a : d - b) / this.cell;
-        const len = Math.hypot(sx, 1, sz);
-        return [-sx / len, 1 / len, -sz / len];
+        return c && triangleNormal(c, this.cell);
+    }
+
+    /** Read both properties of the same triangle from one set of heights. */
+    sample(x: number, z: number): { height: number; normal: [number, number, number] } | null {
+        const c = this.corners(x, z);
+        return c && { height: triangleHeight(c), normal: triangleNormal(c, this.cell) };
     }
 
     /** Tile (tx, tz)'s triangles, or null while a node of it is not known yet. */
@@ -137,7 +150,7 @@ export class TerrainSurface {
     }
 
     /** The four corners of the cell under (x, z) and where in it the point is, or null. */
-    private corners(x: number, z: number): [number, number, number, number, number, number] | null {
+    private corners(x: number, z: number): CellSample | null {
         if (!this.covers(x, z)) return null;
         const u = x / this.cell, v = z / this.cell;
         const i = Math.floor(u), k = Math.floor(v);

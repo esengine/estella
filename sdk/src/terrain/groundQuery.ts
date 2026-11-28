@@ -29,8 +29,8 @@ export function groundNormalAt(surface: TerrainSurface, origin: GroundOrigin, x:
 /** The weights of the ground's layers at (x, z), or null off the ground. */
 export function groundPaintAt(source: TerrainSource, surface: TerrainSurface, origin: GroundOrigin, x: number, z: number): readonly number[] | null {
     const lx = x - origin.x, lz = z - origin.z;
-    const h = surface.height(lx, lz), n = surface.normal(lx, lz);
-    return h === null || !n ? null : source.paint(lx, lz, h, n[1]);
+    const sample = surface.sample(lx, lz);
+    return sample ? source.paint(lx, lz, sample.height, sample.normal[1]) : null;
 }
 
 /** A terrain's ground as data a worker can rebuild it from. */

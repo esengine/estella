@@ -12,6 +12,7 @@ import type { TransformData } from '../src/ecs/component.generated';
 import { createMockModule } from './mocks/wasm';
 import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes } from '../src/terrain/terrainPlugin';
 import { TerrainSurface, TILE_CELLS } from '../src/terrain/surface';
+import { groundPaintAt } from '../src/terrain/groundQuery';
 import { NoiseSource, type NoiseParams } from '../src/terrain/source';
 import { makePage, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from '../src/terrain/pages';
 import { buildPatchMesh } from '../src/terrain/patch';
@@ -62,6 +63,33 @@ describe('ground without end', () => {
 
 describe('the surface', () => {
     const surface = new TerrainSurface(new NoiseSource(params), 2);
+
+    it('paints both triangles from the same four height samples as the surface', () => {
+        const heights = new Map([['0,0', 1], ['1,0', 3], ['0,1', 4], ['1,1', 10]]);
+        const height = vi.fn((x: number, z: number) => heights.get(`${x},${z}`) ?? null);
+        const paint = vi.fn(() => [0.1, 0.2, 0.3, 0.4] as const);
+        const source = { infinite: false, bounds: [0, 0, 1, 1] as const, minHeight: 1, maxHeight: 10,
+            height, normal: () => null, paint };
+        const area = new TerrainSurface(source, 1);
+        const origin = { x: 10, y: 50, z: -20 };
+        for (const [x, z, expectedHeight, sx, sz] of [
+            [0.25, 0.25, 2.25, 2, 3], [0.75, 0.75, 6.75, 6, 7], [0.25, 0.75, 3.75, 2, 3],
+        ] as const) {
+            const expectedUp = 1 / Math.hypot(sx, 1, sz);
+            expect(area.height(x, z)).toBe(expectedHeight);
+            expect(area.normal(x, z)?.[1]).toBe(expectedUp);
+            height.mockClear();
+            expect(groundPaintAt(source, area, origin, origin.x + x, origin.z + z)).toEqual([0.1, 0.2, 0.3, 0.4]);
+            expect(paint).toHaveBeenLastCalledWith(x, z, expectedHeight, expectedUp);
+            expect(height).toHaveBeenCalledTimes(4);
+        }
+
+        paint.mockClear();
+        expect(groundPaintAt(source, area, origin, 15, -20)).toBeNull();
+        heights.delete('1,1');
+        expect(groundPaintAt(source, area, origin, 10.25, -19.75)).toBeNull();
+        expect(paint).not.toHaveBeenCalled();
+    });
 
     it('picks a distant finite area without sampling empty space or the sky', () => {
         const sample = vi.fn(() => 0);
