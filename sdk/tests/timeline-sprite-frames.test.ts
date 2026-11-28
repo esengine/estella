@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { Assets, type AssetsData } from '../src/asset/AssetPlugin';
 import type { LoadContext } from '../src/asset/AssetLoader';
@@ -11,12 +11,33 @@ import { Timeline } from '../src/timeline/TimelineControl';
 import { TimelinePlayer, TimelinePlugin } from '../src/timeline/TimelinePlugin';
 import { serializeTimelineToJson } from '../src/timeline/TimelineSerializer';
 import { TrackType, WrapMode, type AnimFramesTrack, type PublishedTimeline, type Track } from '../src/timeline/TimelineTypes';
+import { sampleTimelineSpriteFrames } from '../src/timeline/timelineSpriteFrames';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 function track(childPath: string, ...textures: string[]): AnimFramesTrack {
     return { type: TrackType.AnimFrames, name: '', childPath, frames: textures.map(texture => ({ texture })) };
 }
+
+it('reads long frame timings only after their target can accept the frame', () => {
+    const readDuration = vi.fn(() => 0.125);
+    const frames = Array.from({ length: 4096 }, (_, i) => ({ texture: String(i), get duration() { return readDuration(); } }));
+    const tracks: AnimFramesTrack[] = ['missing', 'non-sprite', 'ready'].map(childPath => ({
+        type: TrackType.AnimFrames, name: '', childPath, frames,
+    }));
+    const asset = { version: '1.3', type: 'timeline' as const, duration: 512, wrapMode: WrapMode.Once, tracks };
+    const resolve = (_root: number, path: string) => path === 'missing' ? null : path === 'non-sprite' ? 2 : 3;
+    const texture = vi.fn((ref: string) => ({ texture: Number(ref) + 1 }));
+    const accepts = (entity: number) => entity === 3;
+
+    expect(sampleTimelineSpriteFrames(asset, 400, 1, resolve, texture, accepts).get(3)?.frame).toBe(3200);
+    expect(texture.mock.calls.map(([ref]) => ref)).toEqual(['3200']);
+    expect(readDuration).toHaveBeenCalledTimes(3201);
+
+    const rebound = (_root: number, path: string) => path === 'missing' ? 3 : null;
+    expect(sampleTimelineSpriteFrames(asset, 400, 1, rebound, texture, accepts).get(3)?.track).toBe(tracks[0]);
+    expect(readDuration).toHaveBeenCalledTimes(6402);
+});
 
 describe.skipIf(!HAS_WASM)('timeline sprite frame tracks', () => {
     let engine: ESEngineModule;

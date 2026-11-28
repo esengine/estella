@@ -45,11 +45,11 @@ export function sampleTimelineSpriteFrames(
     const samples = new Map<Entity, TimelineSpriteFrame>();
     const sample = (source: TimelineAsset, targetRoot: Entity, localTime: number, layer?: SequenceLayer) => {
         for (const track of source.tracks ?? []) {
-            if (track.type !== TrackType.AnimFrames || track.muted) continue;
-            const frame = frameIndexAt(track, localTime);
-            if (frame < 0) continue;
+            if (track.type !== TrackType.AnimFrames || track.muted || track.frames.length === 0) continue;
             const target = track.childPath ? resolveChild(targetRoot, track.childPath) : targetRoot;
             if (target === null || !accepts(target)) continue;
+            const frame = frameIndexAt(track, localTime);
+            if (frame < 0) continue;
             const image = textureFor(track.frames[frame].texture, layer);
             if (image?.texture) samples.set(target, { ...image, track, layer: layer?.key ?? '', frame });
         }
