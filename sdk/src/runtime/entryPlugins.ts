@@ -27,6 +27,11 @@ export function addEntryPlugin(id: string, make: () => Plugin): void {
     makers.set(id, make);
 }
 
+/** A fresh instance for an isolated app that needs only one optional subsystem. */
+export function entryPlugin(id: string): Plugin | undefined {
+    return makers.get(id)?.();
+}
+
 /** Fresh instances per app: a plugin carries per-app state once built. */
 export function entryPlugins(): Plugin[] {
     return [...makers.values()].map((make) => make());

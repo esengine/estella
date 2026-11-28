@@ -11,9 +11,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { entityWorldBox, entityBoxCorners, entityBoxRayHit, extendEntityBoxBounds, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
-import { framePreview } from '../src/app/previewApp';
+import { createPreviewApp, framePreview } from '../src/app/previewApp';
 import type { App } from '../src/app/app';
+import { Assets } from '../src/asset/Assets';
+import { HttpBackend } from '../src/asset/Backend';
+import { NodeVisibility } from '../src/imported-scene';
+import { MeshRenderers } from '../src/render/meshRenderer';
 import type { Entity } from '../src/types';
+import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 interface Comp { name: string }
 
@@ -22,6 +27,7 @@ function fakeWorld(rows: Record<number, Record<string, unknown>>) {
     const nameOf = (c: unknown): string => (c as Comp & { _name?: string })._name ?? (c as { name?: string }).name ?? '';
     return {
         valid: (e: Entity) => rows[e as unknown as number] !== undefined,
+        isEntityActive: (e: Entity) => rows[e as unknown as number] !== undefined,
         has: (e: Entity, c: unknown) => rows[e as unknown as number]?.[nameOf(c)] !== undefined,
         get: (e: Entity, c: unknown) => rows[e as unknown as number]?.[nameOf(c)],
     } as never;
@@ -86,6 +92,44 @@ it('frames mixed scene geometry and keeps distant UI in its own preview projecti
             expect(Math.abs(m[1] * x + m[5] * y + m[9] * z + m[13])).toBeLessThan(1);
         }
     }
+});
+
+it.skipIf(!HAS_WASM)('frames the draws left visible in the prefab preview world', async () => {
+    const module = await loadWasmModule();
+    const assets = Assets.create({ backend: new HttpBackend({ baseUrl: '' }), module });
+    const app = createPreviewApp(module, { assets, design: { width: 320, height: 200 } });
+    const world = app.world;
+    try {
+        const root = world.spawn(), mesh = world.spawn(), shape = world.spawn(), sprite = world.spawn();
+        world.insert(root, NodeVisibility, { visible: false });
+        world.insert(mesh, Transform, { position: { x: 500, y: 0, z: 0 } });
+        world.insert(mesh, MeshRenderer);
+        world.setParent(mesh, root);
+        app.getResource(MeshRenderers).setGeometry(mesh, {
+            positions: [-10, -10, 10, -10, 0, 10], indices: [0, 1, 2],
+        });
+        world.insert(shape, Transform);
+        world.insert(shape, ShapeRenderer, { size: { x: 32, y: 16 } });
+        world.insert(sprite, Transform, { position: { x: -500, y: 0, z: 0 } });
+        world.insert(sprite, Sprite, { size: { x: 32, y: 16 }, enabled: false });
+        const frame = (entities: Entity[]) => framePreview(app, entities, 320, 200);
+        const update = async () => {
+            await app.tick(0);
+            module.transform_update(world.getCppRegistry()!);
+        };
+        await update();
+        expect(world.get(mesh, MeshRenderer).enabled).toBe(false);
+        const flat = frame([shape]);
+        expect(flat).not.toBeNull();
+        expect(frame([mesh, shape, sprite])).toEqual(flat);
+
+        world.set(root, NodeVisibility, { visible: true });
+        await update();
+        expect(world.get(mesh, MeshRenderer).enabled).toBe(true);
+        expect(frame([mesh, shape, sprite])).not.toEqual(flat);
+        world.getCppRegistry()!.setEntityEnabled(root, false);
+        expect(frame([mesh, shape, sprite])).toEqual(flat);
+    } finally { app.quit({ keepRenderer: true }); }
 });
 
 describe('an entity world box', () => {

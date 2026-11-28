@@ -37,6 +37,7 @@ import { inlineImagePlugin } from '../ui/text/inline-image-plugin';
 import { uiRenderOrderPlugin } from '../ui/render/render-order';
 import { holdUIHelpersBinding } from '../ui/util/helpers';
 import { meshRendererPlugin } from '../render/meshRenderer';
+import { entryPlugin } from '../runtime/entryPlugins';
 import { ScreenLayout, screenLayoutRect } from '../ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../ui/core/screen-overlay';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
@@ -45,9 +46,9 @@ import { RenderPipeline } from '../render/renderPipeline';
 import { loadOwnedSceneWithAssets } from '../scene/scene';
 import type { SceneData } from '../scene/scene';
 import type { Entity } from '../types';
-import { Transform, MeshRenderer, Sprite } from '../ecs/component';
+import { Transform, MeshRenderer, ShapeRenderer, Sprite } from '../ecs/component';
 import { UINode } from '../ui/core/ui-node';
-import { entityWorldBox, extendEntityBoxBounds, meshWorldBox, uiNodeWorldBox, type EntityBoxBounds } from '../ecs/entityBox';
+import { extendEntityBoxBounds, meshWorldBox, resolveEntityWorldBox, uiNodeWorldBox, type EntityBoxBounds } from '../ecs/entityBox';
 import { ortho, invertViewOrbit, multiply } from '../math/mat4';
 import { drawPreview, previewCore, DEFAULT_PREVIEW_ORBIT, type PreviewOrbit } from '../render/assetPreview';
 
@@ -88,6 +89,8 @@ export function createPreviewApp(module: ESEngineModule, options: PreviewAppOpti
                 textPlugin, inlineImagePlugin, uiRenderOrderPlugin, meshRendererPlugin]) {
                 app.addPlugin(plugin);
             }
+            const importedScene = entryPlugin('importedScene');
+            if (importedScene) app.addPlugin(importedScene);
         });
     } finally {
         // The layout plugin binds the module-wide UI helpers to the registry it
@@ -130,7 +133,7 @@ function flatFraming({ minX, minY, maxX, maxY }: EntityBoxBounds, aspect: number
 /**
  * Frame @p entities for a @p w × @p h picture, the way the asset previews are framed:
  * UI to its laid-out boxes in layout pixels, a mesh from off-axis (or @p orbit) to its
- * bounds, anything flat head-on. Null when nothing among them has an extent.
+ * bounds, anything flat head-on. Null when nothing visible among them has an extent.
  * @experimental
  */
 export function framePreview(app: App, entities: readonly Entity[], w: number, h: number,
@@ -141,17 +144,22 @@ export function framePreview(app: App, entities: readonly Entity[], w: number, h
     let sceneBounds: EntityBoxBounds | null = null;
     let hasMesh = false;
     for (const e of entities) {
-        if (!world.valid(e) || !world.has(e, Transform)) continue;
+        if (!world.isEntityActive(e) || !world.has(e, Transform)) continue;
         if (world.has(e, UINode)) {
             const box = uiNodeWorldBox(world, e);
             if (box) uiBounds = extendEntityBoxBounds(uiBounds, box);
             continue;
         }
-        const mesh = world.has(e, MeshRenderer);
-        const box = mesh ? meshWorldBox(world, e) : world.has(e, Sprite) ? entityWorldBox(world, e) : null;
-        if (box) {
-            sceneBounds = extendEntityBoxBounds(sceneBounds, box);
-            hasMesh ||= mesh;
+        if (world.has(e, MeshRenderer) && world.get(e, MeshRenderer).enabled !== false) {
+            const box = meshWorldBox(world, e);
+            if (box) {
+                sceneBounds = extendEntityBoxBounds(sceneBounds, box);
+                hasMesh = true;
+            }
+        }
+        if (world.has(e, Sprite) || world.has(e, ShapeRenderer)) {
+            const flat = resolveEntityWorldBox(world, e, undefined, {});
+            if (flat) sceneBounds = extendEntityBoxBounds(sceneBounds, flat.box);
         }
     }
     const screen = uiBounds ? flatFraming(uiBounds, aspect, 1e6) : null;

@@ -82,10 +82,10 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
     return resolveEntityWorldBox(world, entity, opts)?.box ?? null;
 }
 
-/** @internal Resolve geometry and its draw order together for visibility-aware picking. */
+/** @internal Resolve geometry and its draw order together, with optional renderer visibility. */
 export function resolveEntityWorldBox(
     world: ReadableWorld, entity: Entity, opts?: EntityBoxOptions,
-    picking?: { hiddenMesh: boolean; iconPickable?: (entity: Entity) => boolean },
+    visibility?: { hiddenMesh?: boolean; iconPickable?: (entity: Entity) => boolean },
 ): { box: EntityBox; drawable: SpriteData | ShapeRendererData | null } | null {
     if (!world.valid(entity) || !world.has(entity, Transform)) return null;
     if (world.has(entity, UINode)) return null;
@@ -94,13 +94,13 @@ export function resolveEntityWorldBox(
     const rot = worldRot(t);
 
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
-    const visibleSprite = sprite && (!picking || sprite.enabled !== false) ? sprite : null;
+    const visibleSprite = sprite && (!visibility || sprite.enabled !== false) ? sprite : null;
     const shape = !visibleSprite && world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
-    const visibleShape = shape && (!picking || shape.enabled !== false) ? shape : null;
+    const visibleShape = shape && (!visibility || shape.enabled !== false) ? shape : null;
     let iconHalf = 0;
     if (!visibleSprite) {
-        const hiddenRenderer = picking && (picking.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
-        const spec = hiddenRenderer && !picking.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
+        const hiddenRenderer = visibility && (visibility.hiddenMesh || sprite?.enabled === false || shape?.enabled === false);
+        const spec = hiddenRenderer && !visibility.iconPickable?.(entity) ? 0 : opts?.iconHalf ?? 0;
         iconHalf = typeof spec === 'function' ? spec(t.worldPosition as Vec3) : spec;
     }
     // An icon is a marker in space rather than a card, so it is a cube: it reads
