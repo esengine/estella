@@ -26,7 +26,7 @@ import { exportGame } from '../src/export/exportGame';
 import { ManifestModel, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
 import { expandScenePrefabs, type SceneData } from '../../sdk/src/scene/scene';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
-import { wechatExportProfile } from '../src/export/miniGameExportProfile';
+import { douyinExportProfile, wechatExportProfile } from '../src/export/miniGameExportProfile';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const TEX = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
@@ -83,6 +83,46 @@ function scaffold(): { root: string; out: string } {
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
   return { root, out: path.join(root, 'dist-wechat') };
 }
+
+describe('exportGame (douyin) — every asset ships under a suffix the developer tool packs', () => {
+  it('restages prefabs and materials and resolves each manifest asset to a staged file', async () => {
+    // Douyin's developer tool drops a file whose suffix it does not know, and the
+    // preview then reports every prefab and material as "File not found".
+    const { root } = scaffold();
+    const out = path.join(root, 'dist-douyin');
+    mkdirSync(path.join(root, '_sdk', 'douyin'), { recursive: true });
+    writeFileSync(path.join(root, '_sdk', 'index.minigame.js'), miniGameSdkStub(douyinExportProfile, ['defineComponent']));
+    writeFileSync(path.join(root, '_sdk', 'douyin', 'index.js'), 'export const douyinProfile = { id: "douyin" };\n');
+    mkdirSync(path.join(root, '_wasm'), { recursive: true });
+    writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.wasm'), 'wasmbytes');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', scriptsEntry: 'src/main.ts',
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: out, platform: 'douyin',
+    });
+    expect(res.ok, res.errors.join('\n')).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8')) as AddressableManifest;
+    const model = ManifestModel.fromJson(manifest);
+    const packs = douyinExportProfile.packerSuffixes!;
+    const refused = Object.values(manifest.groups.main.assets).map((a) => a.path)
+      .filter((p) => !packs.has(path.extname(p).slice(1).toLowerCase()));
+    expect(refused).toEqual([]);
+    expect(model.resolvePath(PREFAB)).toMatch(/\.esprefab\.bin$/);
+    expect(model.resolvePath(MAT)).toMatch(/\.esmaterial\.bin$/);
+
+    const missing: string[] = [];
+    for (const [uuid, asset] of Object.entries(manifest.groups.main.assets)) {
+      for (const ref of [uuid, asset.address ?? asset.path]) {
+        const read = model.resolvePath(ref);
+        if (!existsSync(path.join(out, read))) missing.push(`${ref} → ${read}`);
+      }
+    }
+    expect(missing).toEqual([]);
+    expect(JSON.parse(readFileSync(path.join(out, model.resolvePath(PREFAB)), 'utf8')).name).toBe('Hero');
+  }, 60_000);
+});
 
 describe('exportGame (wechat) — every asset resolves to a file the package carries', () => {
   it('resolves each manifest asset to a staged file', async () => {

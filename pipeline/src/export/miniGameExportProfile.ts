@@ -502,10 +502,13 @@ export const douyinExportProfile: MiniGameExportProfile = {
     // what a mini-game packer compiles itself everywhere this checkout has looked.
     // Wrong here means a staged file the runtime cannot read, on a device.
     nativeSuffixes: new Set(['.js', '.json']),
-    // No published list this checkout can cite, so nothing is restaged: staging a
-    // file under a name the packer does not take is the failure that only shows at
-    // upload, and inventing the list would be that failure with extra steps.
-    packerSuffixes: null,
+    // Douyin's developer tool leaves out of the package every file whose suffix it
+    // does not know — `.esprefab`, `.esmaterial`, `.esmesh` all read back as "File
+    // not found" in a preview — and publishes no list of its own this checkout can
+    // cite. WeChat's published list is the floor: everything outside it ships as
+    // `<name>.<ext>.bin`, which the tool carries and the runtime reads through, so
+    // a suffix Douyin would have taken costs a rename and nothing else.
+    packerSuffixes: WECHAT_PACKER_SUFFIXES,
     // Not claimed until a device says it: `.wasm.br` is WeChat's documented path,
     // and shipping only the compressed file to a host that cannot read it is a
     // package that builds clean and never boots.
