@@ -7,7 +7,8 @@
  * Both are pure functions of (asset, time), so playback, scrubbing and a backwards run all ask the
  * same question and get the same answer: nothing here remembers the previous frame.
  */
-import { TrackType, type CameraClip, type SequenceClip, type TimelineAsset } from './TimelineTypes';
+import { TrackType, WrapMode, type CameraClip, type SequenceClip, type TimelineAsset } from './TimelineTypes';
+import { playheadRuns, type PlayheadRun } from './timelineEvents';
 import type { Entity } from '../types';
 
 /** Timelines nested deeper than this are not played (and the editor refuses to build them). */
@@ -55,23 +56,80 @@ export function collectSequenceLayers(
     asset: TimelineAsset, time: number, root: Entity, resolveChild: ChildResolver, lookup: SequenceLookup,
     chain: readonly string[] = [], keyPrefix = '', depth = 0,
 ): SequenceLayer[] {
-    if (depth >= MAX_SEQUENCE_DEPTH) return [];
     const out: SequenceLayer[] = [];
+    visitSequenceLayers(asset, time, undefined, root, resolveChild, lookup, layer => out.push(layer), chain, keyPrefix, depth);
+    return out;
+}
+
+/** Playback also visits layers fully crossed between the frame's samples. @internal */
+export function collectSequencePlayback(
+    asset: TimelineAsset, time: number, runs: readonly PlayheadRun[] | undefined, root: Entity,
+    resolveChild: ChildResolver, lookup: SequenceLookup,
+): { layer: SequenceLayer; sampled: boolean; traversal: readonly PlayheadRun[] | undefined }[] {
+    const out: { layer: SequenceLayer; sampled: boolean; traversal: readonly PlayheadRun[] | undefined }[] = [];
+    visitSequenceLayers(asset, time, runs, root, resolveChild, lookup,
+        (layer, sampled, traversal) => out.push({ layer, sampled, traversal }), [], '', 0);
+    return out;
+}
+
+function visitSequenceLayers(
+    asset: TimelineAsset, time: number | null, runs: readonly PlayheadRun[] | undefined, root: Entity,
+    resolveChild: ChildResolver, lookup: SequenceLookup,
+    visit: (layer: SequenceLayer, sampled: boolean, traversal: readonly PlayheadRun[] | undefined) => void,
+    chain: readonly string[], keyPrefix: string, depth: number,
+): void {
+    if (depth >= MAX_SEQUENCE_DEPTH) return;
     asset.tracks.forEach((track, ti) => {
         if (track.type !== TrackType.Sequence) return;
         track.clips.forEach((clip, ci) => {
-            if (!clip.timeline || outsideSequenceClip(clip, time) || chain.includes(clip.timeline)) return;
+            if (!clip.timeline || chain.includes(clip.timeline)) return;
+            const sampled = time !== null && !outsideSequenceClip(clip, time);
+            if (!sampled && !runs?.some(run => crossesSequenceClip(run, clip))) return;
             const child = lookup(clip.timeline);
             if (!child) return;
-            const local = timeWithinSequenceClip(clip, time, child.duration);
             const childRoot = clip.root ? resolveChild(root, clip.root) : root;
             if (childRoot == null) return;
             const key = `${keyPrefix}${ti}.${ci}/`;
-            const phase = clip.loop ? (time - clip.start) * clip.speed : local;
-            out.push({ key, asset: child, ref: clip.timeline, time: local, phase, clip, root: childRoot });
-            out.push(...collectSequenceLayers(child, local, childRoot, resolveChild, lookup, [...chain, clip.timeline], key, depth + 1));
+            const traversal = runs && projectSequenceRuns(clip, child.duration, runs);
+            const local = sampled ? timeWithinSequenceClip(clip, time, child.duration) : 0;
+            const phase = sampled && clip.loop ? (time - clip.start) * clip.speed : local;
+            visit({ key, asset: child, ref: clip.timeline, time: local, phase, clip, root: childRoot }, sampled, traversal);
+            visitSequenceLayers(child, sampled ? local : null, traversal, childRoot, resolveChild, lookup,
+                visit, [...chain, clip.timeline], key, depth + 1);
         });
     });
+}
+
+function crossesSequenceClip(run: PlayheadRun, clip: SequenceClip): boolean {
+    return clip.duration > 0 && (run.from !== run.to || run.inclusiveStart)
+        && Math.max(run.from, run.to) >= clip.start && Math.min(run.from, run.to) < clip.start + clip.duration;
+}
+
+/** Project the parent's directed traversal through the clip's placement and clock. */
+function projectSequenceRuns(clip: SequenceClip, length: number, parentRuns: readonly PlayheadRun[]): PlayheadRun[] {
+    const { start, duration, speed, loop } = clip;
+    const end = start + duration;
+    const out: PlayheadRun[] = [];
+    for (const run of parentRuns) {
+        if (!crossesSequenceClip(run, clip)) continue;
+        const entry = Math.max(start, Math.min(end, run.from));
+        const exit = Math.max(start, Math.min(end, run.to));
+        const from = Math.max(0, (entry - start) * speed);
+        const to = Math.max(0, (exit - start) * speed);
+        const inclusiveStart = run.inclusiveStart || entry !== run.from;
+        if (!loop || length <= 0) {
+            out.push({ from: Math.min(from, length), to: Math.min(to, length), inclusiveStart });
+        } else if (to >= from) {
+            out.push(...playheadRuns(from, to, length, WrapMode.Loop, inclusiveStart, 'arrival'));
+        } else {
+            // Mirror the phase to reach time zero before jumping to the previous lap's end.
+            const local = from % length;
+            const mirrored = local === 0 ? 0 : length - local;
+            for (const slice of playheadRuns(mirrored, mirrored + (from - to), length, WrapMode.Loop, inclusiveStart || local === 0)) {
+                out.push({ from: length - slice.from, to: length - slice.to, inclusiveStart: slice.inclusiveStart });
+            }
+        }
+    }
     return out;
 }
 

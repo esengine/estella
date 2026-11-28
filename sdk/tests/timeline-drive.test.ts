@@ -336,6 +336,36 @@ describe('nested sequences', () => {
     };
     const lookup = (ref: string) => (ref === 'child' ? child : undefined);
 
+    it.each([WrapMode.Once, WrapMode.PingPong])('delivers cues from short nested clips crossed between frame samples (%s)', wrap => {
+        const action: TimelineAsset = { ...child, duration: 0.25, tracks: [
+            { type: TrackType.Marker, name: '', childPath: '', markers: [{ time: 0.125, name: 'cue' }] },
+            { type: TrackType.Particle, name: '', childPath: '', events: [{ time: 0.125, action: 'play' }] },
+            { type: TrackType.Spine, name: '', childPath: '', clips: [
+                { start: 0, duration: 0.25, animation: 'transient', loop: false, speed: 1 },
+            ] },
+        ] };
+        const middle: TimelineAsset = { ...parent, duration: 0.5, tracks: [{ type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 0.125, duration: 0.25, timeline: 'action', root: '', speed: 1, loop: false },
+        ] }] };
+        const top: TimelineAsset = { ...parent, duration: 2, tracks: [{ type: TrackType.Sequence, name: '', childPath: '', clips: [
+            { start: 0.5, duration: 0.5, timeline: 'middle', root: '', speed: 1, loop: false },
+        ] }] };
+        const state = createTimelineState(wrap);
+        state.playing = true;
+        const onSignals = vi.fn(), play = vi.fn(), onPropertyApplied = vi.fn();
+        const ctx = { deps, lookup: (ref: string) => ref === 'middle' ? middle : action, onSignals,
+            particle: { play, stop: vi.fn(), reset: vi.fn() }, onPropertyApplied };
+        if (wrap === WrapMode.PingPong) advanceTimelineTS(top, ROOT, state, 2.5, ctx);
+        else advanceTimelineTS(top, ROOT, state, 0.25, ctx);
+        onSignals.mockClear(); play.mockClear(); onPropertyApplied.mockClear();
+        advanceTimelineTS(top, ROOT, state, 1.25, ctx);
+
+        expect(onSignals.mock.calls.flatMap(([signals]) => signals.map(({ name }: { name: string }) => name))).toEqual(['cue']);
+        expect(play.mock.calls).toEqual([[ROOT]]);
+        expect(onPropertyApplied.mock.calls).toEqual([[ROOT, top]]);
+        expect(state.nested).toEqual({});
+    });
+
     it('runs a nested clock, forgets it after the clip and starts it over on re-entry', () => {
         const s = createTimelineState(WrapMode.Once);
         s.playing = true;

@@ -17,7 +17,7 @@ import { applyWrapMode, sampleTimeline, type SampleDeps, type SampleOptions } fr
 import { applyTimelineEvent, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
 import { forEachParticleEvent, playheadRuns, runCrosses, collectSignals, type PlayheadRun, type TimelineSignal } from './timelineEvents';
-import { collectSequenceLayers, resolveActiveShot, type ActiveShot, type SequenceLayer, type SequenceLookup } from './timelineSequences';
+import { collectSequencePlayback, resolveActiveShot, type ActiveShot, type SequenceLayer, type SequenceLookup } from './timelineSequences';
 import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
@@ -71,6 +71,8 @@ export function detectTimelineEvents(
     // a ping-pong return and whether this is the clip's entry instant.
     // Level tracks (Spine, Activation) read `state.time` directly and ignore this.
     segments: ReadonlyArray<readonly [number, number] | PlayheadRun> = [[state.prevTime, state.time]],
+    // A clip crossed between samples contributes only its instantaneous cues.
+    sampleLevels = true,
 ): FiredEvent[] {
     const out: FiredEvent[] = [];
     const { time } = state;
@@ -82,6 +84,7 @@ export function detectTimelineEvents(
     for (let i = 0; i < asset.tracks.length; i++) {
         const track = asset.tracks[i];
         if (track.type === TrackType.Property || track.type === TrackType.AnimFrames) continue;
+        if (!sampleLevels && (track.type === TrackType.Spine || track.type === TrackType.Activation)) continue;
 
         const target = resolveChild(root, track.childPath);
         if (target == null) continue;
@@ -318,73 +321,41 @@ function sampleLayer(asset: TimelineAsset, time: number, root: Entity, ctx: Adva
     ctx.onPropertyApplied?.(root, asset);
 }
 
-/** Project the parent's directed traversal through the clip's placement and clock. */
-function nestedRuns(layer: SequenceLayer, parentRuns: readonly PlayheadRun[]): PlayheadRun[] {
-    const { start, duration, speed, loop } = layer.clip;
-    const end = start + duration;
-    const length = layer.asset.duration;
-    const out: PlayheadRun[] = [];
-    for (const run of parentRuns) {
-        if (Math.max(run.from, run.to) < start || Math.min(run.from, run.to) >= end) continue;
-        const entry = Math.max(start, Math.min(end, run.from));
-        const exit = Math.max(start, Math.min(end, run.to));
-        const from = Math.max(0, (entry - start) * speed);
-        const to = Math.max(0, (exit - start) * speed);
-        const inclusiveStart = run.inclusiveStart || entry !== run.from;
-        if (!loop || length <= 0) {
-            out.push({ from: Math.min(from, length), to: Math.min(to, length), inclusiveStart });
-        } else if (to >= from) {
-            out.push(...playheadRuns(from, to, length, WrapMode.Loop, inclusiveStart, 'arrival'));
-        } else {
-            // In reverse, reach time zero before jumping to the previous lap's end.
-            // Mirror the phase to use the same loop splitter in the opposite direction.
-            const local = from % length;
-            const mirrored = local === 0 ? 0 : length - local;
-            for (const slice of playheadRuns(mirrored, mirrored + (from - to), length, WrapMode.Loop, inclusiveStart || local === 0)) {
-                out.push({ from: length - slice.from, to: length - slice.to, inclusiveStart: slice.inclusiveStart });
-            }
-        }
-    }
-    return out;
-}
-
 /**
- * Play the timelines nested in `asset`: each runs on its own clock, samples its property tracks onto
- * its own root and fires its own events. Entering a layer or starting a new lap includes time zero.
- * Continuing a sampled layer excludes its previous sample, including after a seek.
+ * Sample the nested layers active at the current time and dispatch cues from every traversed layer.
+ * Each layer uses the intervals of its own clock and resolves targets relative to its own root.
  */
 function advanceNested(
     asset: TimelineAsset, root: Entity, state: TimelineState, ctx: AdvanceContext, lookup: SequenceLookup,
     runs?: readonly PlayheadRun[],
 ): SequenceLayer[] | undefined {
     const time = state.time;
-    const layers = collectSequenceLayers(asset, time, root, ctx.deps.resolveChild, lookup);
-    let refresh = !!ctx.onPropertyApplied && layers.length > 0;
+    const playback = collectSequencePlayback(asset, time, runs, root, ctx.deps.resolveChild, lookup);
+    const layers: SequenceLayer[] = [];
+    let refresh = false;
     const live = new Set<string>();
-    const runsByLayer = runs && new Map<string, readonly PlayheadRun[]>([['', runs]]);
-    for (const layer of layers) {
-        live.add(layer.key);
-        sampleLayer(layer.asset, layer.time, layer.root, ctx);
+    for (const { layer, sampled, traversal } of playback) {
+        if (sampled) {
+            layers.push(layer);
+            live.add(layer.key);
+            sampleLayer(layer.asset, layer.time, layer.root, ctx);
+            refresh ||= !!ctx.onPropertyApplied;
+        }
         const before = state.nested[layer.key];
-        const phase = layer.phase ?? layer.time;
         const spineClipIndices = before?.spineClipIndices ?? {};
-        if (runsByLayer) {
-            const prev = before?.time ?? 0;
+        if (traversal) {
             const child = createTimelineState(WrapMode.Once, 1);
             child.time = layer.time;
-            child.prevTime = prev;
             child.spineClipIndices = spineClipIndices;
-            // Keys end in a slash, and the preceding slash ends the owning layer's key.
-            const parentKey = layer.key.slice(0, layer.key.lastIndexOf('/', layer.key.length - 2) + 1);
-            const segments = nestedRuns(layer, runsByLayer.get(parentKey) ?? []);
-            runsByLayer.set(layer.key, segments);
-            const events = detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments);
+            const events = detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, traversal, sampled);
             for (const e of events) {
                 applyEvent(ctx, e);
             }
-            refresh = dispatchSignals(ctx, layer.asset, layer.root, segments) || events.length > 0 || refresh;
+            refresh = dispatchSignals(ctx, layer.asset, layer.root, traversal) || events.length > 0 || refresh;
         }
-        state.nested[layer.key] = { time: layer.time, phase, spineClipIndices };
+        if (sampled) {
+            state.nested[layer.key] = { time: layer.time, phase: layer.phase, spineClipIndices };
+        }
     }
     for (const key of Object.keys(state.nested)) if (!live.has(key)) delete state.nested[key];
     // Script callbacks can seek or rebind before the shot resolves.
