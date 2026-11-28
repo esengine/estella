@@ -463,10 +463,12 @@ async function readRuntimeScene(
         completed += count;
         report(completed, total);
     });
+    let assetResult: SceneAssetResult;
     try {
-        attempt.assets = await sceneAssets.preloadSceneAssets(sceneData, regularProgress, {
+        assetResult = await attempt.preloadAssets(() => sceneAssets.preloadSceneAssets(sceneData, regularProgress, {
             skipSpine: true, summary: options.streamedPiece ? 'debug' : 'info',
             entityOwnership: sceneOwned ? 'auxiliary' : true,
+            assertCurrent: () => attempt.assertCurrent(),
             onDiscover(authored) {
                 // Both skeletal runtimes bind by the spelling still on the component.
                 discovered = authored;
@@ -477,11 +479,10 @@ async function readRuntimeScene(
                     assetsBegan = performance.now();
                 }
             },
-        });
+        }));
     } finally {
         if (onPhase && assetsBegan !== undefined) onPhase('assets', performance.now() - assetsBegan);
     }
-    const assetResult = attempt.assets;
     await turn();
     attempt.assertCurrent();
     const retainEntityAssets = sceneOwned ? undefined

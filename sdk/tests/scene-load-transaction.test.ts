@@ -31,6 +31,7 @@ import type { ShaderHandle } from '../src/render/material';
 import { Text } from '../src/ui/core/text';
 import { reservePromise } from '../src/util/reservePromise';
 import { loadSceneWithAssets, type SceneData } from '../src/scene/scene';
+import { prepareRuntimeScene } from '../src/runtime/runtimeLoader';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn(), invalidateTexturePath: vi.fn(() => false) }),
@@ -116,6 +117,61 @@ it('retires a canceled preview and skips queued loads while preserving a shared 
     }
     expect(load).toHaveBeenCalledOnce();
     expect(progress.mock.calls).toEqual([[0, 2]]);
+});
+
+it.each([true, false])('retires a runtime scene preload on core disconnect with progress reporting %s', async observeProgress => {
+    const app = App.new();
+    connectFakeCpp(app.world);
+    const source = {
+        backend: makeAssets([]).backend,
+        decodePixels: async () => { throw new Error('Unexpected image asset'); },
+    };
+    const options = { app, source, module: null };
+    const empty: SceneData = { version: '1.0', name: 'empty', entities: [] };
+    (await prepareRuntimeScene({ ...options, sceneData: empty })).assetResult.scope.releaseAll();
+    const assets = app.getResource(AssetsResource);
+    const entered = reservePromise<void>(), drained = reservePromise<void>(), download = reservePromise<{ id: string }>();
+    const unload = vi.fn();
+    const load = vi.fn(async (path: string) => {
+        if (path === 'waiting.ttf') {
+            entered.resolve();
+            return download.promise;
+        }
+        return { id: 'queued' };
+    });
+    assets.register({ type: 'font', extensions: [], load, unload });
+    const preload = assets.preloadSceneAssets.bind(assets);
+    vi.spyOn(assets, 'preloadSceneAssets').mockImplementation((data, progress, settings) =>
+        preload(data, progress, { ...settings, maxConcurrent: 1 }).finally(() => drained.resolve()));
+    const scene: SceneData = { ...empty, name: 'obsolete package', entities: ['waiting.ttf', 'queued.ttf'].map((font, i) => ({
+        id: i + 1, name: font, parent: null, children: [], components: [{ type: Text._name, data: { font } }],
+    })) };
+    const progress = vi.fn();
+    const settled = vi.fn();
+    const pending = prepareRuntimeScene({ ...options, sceneData: scene, onProgress: observeProgress ? progress : undefined })
+        .then(() => settled('published'), error => settled(error.name));
+    let shared: ReturnType<typeof assets.acquireTyped> | undefined;
+    try {
+        await entered.promise;
+        shared = assets.acquireTyped('font', 'waiting.ttf');
+        app.world.disconnectCpp();
+        await vi.waitFor(() => expect(settled).toHaveBeenCalledWith('SceneLoadCancelled'));
+        expect(load.mock.calls).toEqual([['waiting.ttf', expect.anything()]]);
+        expect(progress.mock.calls).toEqual(observeProgress ? [[0, 2]] : []);
+    } finally {
+        download.resolve({ id: 'waiting' });
+        await pending;
+        await drained.promise;
+        const held = await shared;
+        try {
+            expect(unload).not.toHaveBeenCalled();
+        } finally {
+            held?.release();
+            app.quit();
+        }
+    }
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(unload.mock.calls.map(([value]) => value)).toEqual([{ id: 'waiting' }]);
 });
 
 /** Something sleep() switches off — the engine's renderables are C++-backed,
