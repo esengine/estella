@@ -71,6 +71,16 @@ A cutscene is a timeline on a `TimelinePlayer`, built with the `timeline` tools 
 5. `save_asset_document`. Start it by setting `TimelinePlayer.playing` true (a script, or a state machine's
    `timeline.play`); `finished` turns true at the end, which is where gameplay takes over again.
 
+## A trailer
+
+A trailer of the game as it plays is not a cutscene: `record_play { shots, fps }` films it to a video with a camera of
+its own and a stand-in at the controls, nothing added to the scene. Each shot is `{ seconds, path, look, follow?, fov?,
+act? }`: a wide establishing view (`path` two points high above, sliding slowly, `look` a landmark, `fov` 30 to 40),
+then shots that ride along with the player (`follow: "player"`, `path` a few metres behind and to one side, `look:
+{ entity: "player", offset: [0, chest height, 0] }`) while `act` walks it somewhere (do "walk_to", with `sprint`) or into
+a fight (do "fight": it attacks the nearest Hunter and rolls from its windup). Three to six shots of 3 to 6 s. The eye
+stays in front of walls on its own (`clear: false` flies through). Look at a few frames before showing the video.
+
 ## Prove it
 
 Pause, step to the moment, and ask which camera is live: `play_probe` with
