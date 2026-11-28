@@ -13,6 +13,7 @@ import { sceneAssetScopeForEntity } from '../scene/sceneManagerResource';
 import type { LoadedTilemapSource, PublishedTilemap, PublishedTileset } from './tilesetCache';
 import { appRegistryAsset } from '../asset/registryLookup';
 import { atlasCells, resolveTilesetModel } from './tilesetResolve';
+import { tilemapLayerTilesetRefs } from './layerTilesetRefs';
 import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
@@ -199,15 +200,7 @@ export class TilemapRuntime {
                 } else {
                     nativeCollisionIds.delete(entity);
                 }
-                // The `.estileset` reference(s): resolved live in the sync (multi-slot
-                // table + collision + animations). Accept the new `tilesetAssets` list;
-                // fall back to the singular `tilesetAsset` (old scenes).
-                const list = outOfBand.tilesetAssets;
-                const single = outOfBand.tilesetAsset;
-                const refs = Array.isArray(list)
-                    ? list.filter((r): r is string => typeof r === 'string' && r !== '')
-                    : (typeof single === 'string' && single !== '' ? [single] : []);
-                applyTilesetRefs(entity, refs);
+                applyTilesetRefs(entity, tilemapLayerTilesetRefs(outOfBand));
             },
         });
 

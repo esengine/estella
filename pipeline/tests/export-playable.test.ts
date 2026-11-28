@@ -736,7 +736,7 @@ describe('exportGame (playable) — side-module embedding', () => {
       JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'RigidBody2D', data: { bodyType: 1 } }] }] }));
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(PSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
-    for (const part of ['physics', 'spine', 'skeletal-animation']) {
+    for (const part of ['physics', 'spine', 'skeletal-animation', 'tilemap']) {
       mkdirSync(path.join(r, '_sdk', part), { recursive: true });
       writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
     }
@@ -804,6 +804,24 @@ describe('exportGame (playable) — side-module embedding', () => {
       const res = await run(r, o);
       expect(res.ok).toBe(false);
       expect(res.errors.join('\n')).toMatch(/physics/);
+    } finally {
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  }, 60_000);
+
+  it('embeds physics for collision tilesets referenced only through the ordered list', async () => {
+    const { r, o } = setupRoot(true);
+    try {
+      const tileset = 'scenes/ground.estileset';
+      writeFileSync(path.join(r, tileset), JSON.stringify({ version: '1', texture: '', tileWidth: 16,
+        tileHeight: 16, columns: 1, tiles: { 1: { collision: { type: 'box' } } } }));
+      writeFileSync(path.join(r, tileset + '.meta'), meta('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'tileset'));
+      writeFileSync(path.join(r, 'scenes/main.esscene'), JSON.stringify({ version: '1.0', name: 'Main',
+        entities: [{ id: 0, components: [{ type: 'TilemapLayer', data: { tilesetAssets: [tileset] } }] }] }));
+      const res = await run(r, o);
+      expect(res.ok, res.errors.join('\n')).toBe(true);
+      const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+      expect(inlinedText(html, '__SIDE_MODULES__', (v) => v['physics'].wasm)).toBe('PHYSWASM');
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

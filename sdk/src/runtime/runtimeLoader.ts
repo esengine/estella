@@ -6,6 +6,7 @@
  */
 
 import { SceneOwner } from '../ecs/component';
+import { tilemapLayerTilesetRefs } from '../tilemap/layerTilesetRefs';
 import { SceneEntityBatch } from '../scene/sceneHierarchy';
 import { SceneAssetProgress } from '../scene/sceneAssetProgress';
 import { requireSupportedSceneDocument } from '../scene/sceneFormat';
@@ -310,7 +311,7 @@ function uses2DPhysics(comp: SceneComponentData): boolean {
     const data = comp.data as Record<string, unknown> | undefined;
     const ids = data?.collidableTileIds;
     return (Array.isArray(ids) && ids.length > 0)
-        || (typeof data?.tilesetAsset === 'string' && data.tilesetAsset !== '');
+        || tilemapLayerTilesetRefs(data).length > 0;
 }
 
 /** True if any entity carries a physics component, or a TilemapLayer that may spawn

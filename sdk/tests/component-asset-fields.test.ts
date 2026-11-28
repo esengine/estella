@@ -58,6 +58,7 @@ describe('component asset fields (single source)', () => {
         } as never);
         expect(refs).toContainEqual({ type: 'texture', path: 'atlas.png' });
         expect(refs).toContainEqual({ type: 'tileset', path: '@uuid:abc' });
+        expect(TilemapLayer.discoverAssets!({ tilesetAssets: [], tilesetAsset: 'old.estileset' })).toEqual([]);
     });
 
     it('the write-back source resolves through the component registry', () => {

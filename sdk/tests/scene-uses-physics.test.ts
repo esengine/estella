@@ -45,4 +45,12 @@ describe('sceneUsesPhysics', () => {
             { type: 'TilemapLayer', data: { collidableTileIds: [], tilesetAsset: '' } },
         ]))).toBe(false);
     });
+
+    it('enables physics when a layer only carries an ordered tileset list', () => {
+        expect(sceneUsesPhysics(scene([{ type: 'TilemapLayer', data: { tilesetAssets: ['assets/ground.estileset'] } }]))).toBe(true);
+    });
+
+    it('ignores a stale legacy tileset when the layer explicitly clears its list', () => {
+        expect(sceneUsesPhysics(scene([{ type: 'TilemapLayer', data: { tilesetAssets: [], tilesetAsset: 'old.estileset' } }]))).toBe(false);
+    });
 });

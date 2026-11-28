@@ -3,6 +3,7 @@
 export { Tilemap, TilemapLayer, type TilemapData, type TilemapLayerData } from './components';
 export { TilemapAPI, Tilemaps, tilemapsForWorld } from './tilemapAPI';
 export { TilemapLiveSync } from './tilemapLiveSync';
+export { tilemapLayerTilesetRefs } from './layerTilesetRefs';
 export { TilemapPlugin, tilemapPlugin, TilemapRuntime } from './tilemapPlugin';
 export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
