@@ -49,25 +49,30 @@ const encode = (linear: number): number =>
     Math.round(Math.min(1, Math.max(0, Math.pow(Math.max(0, linear), 1 / 2.2))) * 255);
 
 /** The sky as the frame turns it: a world direction, in the environment's own frame. */
-function inEnvironment(rotationDeg: number, dx: number, dy: number, dz: number): [number, number, number] {
+function environmentRotation(rotationDeg: number) {
     const yaw = (rotationDeg * Math.PI) / 180;
     const c = Math.cos(yaw), s = Math.sin(yaw);
-    return [c * dx + s * dz, dy, -s * dx + c * dz];
+    return (dx: number, dy: number, dz: number): [number, number, number] => [c * dx + s * dz, dy, -s * dx + c * dz];
 }
 
-/** Bilinear read of the RGBM sky along an environment-frame direction, in linear light. */
-function skyAt(sky: RgbmImage, maxRange: number, x: number, y: number, z: number, out: Float32Array): void {
-    const [u, v] = panoramaUV(x, y, z);
-    const fx = u * sky.width - 0.5, fy = v * sky.height - 0.5;
+function skyTexel(rgba: Uint8Array, offset: number, maxRange: number): [number, number, number] {
+    return decodeRgbm(rgba[offset]!, rgba[offset + 1]!, rgba[offset + 2]!, rgba[offset + 3]!, maxRange);
+}
+
+/** Bilinear read of the RGBM sky in linear light. */
+function sampleSky(sky: RgbmImage, maxRange: number, u: number, v: number, out: Float32Array): void {
+    const { width, height, rgba } = sky;
+    const fx = u * width - 0.5, fy = v * height - 0.5;
     const x0 = Math.floor(fx), y0 = Math.floor(fy);
     const tx = fx - x0, ty = fy - y0;
-    const wrap = (i: number): number => ((i % sky.width) + sky.width) % sky.width;
-    const clamp = (j: number): number => Math.max(0, Math.min(sky.height - 1, j));
-    const texel = (i: number, j: number): [number, number, number] => {
-        const o = (clamp(j) * sky.width + wrap(i)) * 4;
-        return decodeRgbm(sky.rgba[o]!, sky.rgba[o + 1]!, sky.rgba[o + 2]!, sky.rgba[o + 3]!, maxRange);
-    };
-    const a = texel(x0, y0), b = texel(x0 + 1, y0), c = texel(x0, y0 + 1), d = texel(x0 + 1, y0 + 1);
+    const left = ((x0 % width) + width) % width;
+    const right = left + 1 === width ? 0 : left + 1;
+    const top = Math.max(0, Math.min(height - 1, y0)) * width;
+    const bottom = Math.max(0, Math.min(height - 1, y0 + 1)) * width;
+    const a = skyTexel(rgba, (top + left) * 4, maxRange);
+    const b = skyTexel(rgba, (top + right) * 4, maxRange);
+    const c = skyTexel(rgba, (bottom + left) * 4, maxRange);
+    const d = skyTexel(rgba, (bottom + right) * 4, maxRange);
     for (let k = 0; k < 3; k++) {
         out[k] = (a[k]! * (1 - tx) + b[k]! * tx) * (1 - ty) + (c[k]! * (1 - tx) + d[k]! * tx) * ty;
     }
@@ -80,10 +85,17 @@ export function previewPanorama(input: EnvironmentPreviewInput, width: number): 
     const rgba = new Uint8Array(width * height * 4);
     const exposure = input.exposure ?? 1;
     const lin = new Float32Array(3);
+    const rotate = environmentRotation(input.rotationDeg);
+    const { sky, maxRange } = input;
+    // Yaw changes longitude independently of latitude. Project one equatorial
+    // sample per column with the engine's panorama convention, then reuse it.
+    const longitudes = sky ? Float64Array.from({ length: width }, (_, x) =>
+        panoramaUV(...rotate(...panoramaDirection((x + 0.5) / width, 0.5)))[0]) : null;
     for (let y = 0; y < height; y++) {
+        const v = (y + 0.5) / height;
         for (let x = 0; x < width; x++) {
-            const [dx, dy, dz] = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
-            sampleInto(input, dx, dy, dz, lin);
+            if (sky && longitudes) sampleSky(sky, maxRange, longitudes[x]!, v, lin);
+            else sampleIrradiance(input.irradiance, rotate(...panoramaDirection((x + 0.5) / width, v)), lin);
             const o = (y * width + x) * 4;
             rgba[o] = encode(lin[0]! * exposure); rgba[o + 1] = encode(lin[1]! * exposure);
             rgba[o + 2] = encode(lin[2]! * exposure); rgba[o + 3] = 255;
@@ -92,11 +104,8 @@ export function previewPanorama(input: EnvironmentPreviewInput, width: number): 
     return { width, height, rgba };
 }
 
-/** What the environment gives along a WORLD direction: the sky, or its irradiance when there is no image. */
-function sampleInto(input: EnvironmentPreviewInput, dx: number, dy: number, dz: number, out: Float32Array): void {
-    const [x, y, z] = inEnvironment(input.rotationDeg, dx, dy, dz);
-    if (input.sky) { skyAt(input.sky, input.maxRange, x, y, z, out); return; }
-    const [r, g, b] = evalIrradianceSH(input.irradiance, x, y, z);
+function sampleIrradiance(irradiance: readonly number[], direction: [number, number, number], out: Float32Array): void {
+    const [r, g, b] = evalIrradianceSH(irradiance, ...direction);
     out[0] = Math.max(0, r); out[1] = Math.max(0, g); out[2] = Math.max(0, b);
 }
 
@@ -112,6 +121,7 @@ export function previewBall(input: EnvironmentPreviewInput, mode: 'diffuse' | 'm
     const exposure = input.exposure ?? 1;
     const lin = new Float32Array(3);
     const albedo = 0.5;
+    const rotate = environmentRotation(input.rotationDeg);
     for (let py = 0; py < size; py++) {
         for (let px = 0; px < size; px++) {
             const x = ((px + 0.5) / size) * 2 - 1;
@@ -121,12 +131,14 @@ export function previewBall(input: EnvironmentPreviewInput, mode: 'diffuse' | 'm
             const nz = Math.sqrt(1 - r2);
             const o = (py * size + px) * 4;
             if (mode === 'diffuse') {
-                const [r, g, b] = evalIrradianceSH(input.irradiance, ...inEnvironment(input.rotationDeg, x, y, nz));
+                const [r, g, b] = evalIrradianceSH(input.irradiance, ...rotate(x, y, nz));
                 lin[0] = Math.max(0, r) * albedo; lin[1] = Math.max(0, g) * albedo; lin[2] = Math.max(0, b) * albedo;
             } else {
                 // The viewer looks along -Z, so the reflection of the view vector v off normal n is
                 // v - 2(v.n)n, whose z component is 2 nz^2 - 1.
-                sampleInto(input, 2 * nz * x, 2 * nz * y, 2 * nz * nz - 1, lin);
+                const direction = rotate(2 * nz * x, 2 * nz * y, 2 * nz * nz - 1);
+                if (input.sky) sampleSky(input.sky, input.maxRange, ...panoramaUV(...direction), lin);
+                else sampleIrradiance(input.irradiance, direction, lin);
             }
             rgba[o] = encode(lin[0]! * exposure); rgba[o + 1] = encode(lin[1]! * exposure);
             rgba[o + 2] = encode(lin[2]! * exposure); rgba[o + 3] = 255;

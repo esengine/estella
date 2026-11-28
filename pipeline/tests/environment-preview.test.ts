@@ -96,4 +96,15 @@ describe('the sky picture', () => {
         const full = previewPanorama(inputOf(0), 64);
         expect(at(dim, 32, 16)[2]!).toBeLessThan(at(full, 32, 16)[2]!);
     });
+
+    it('wraps a quarter turn through the panorama seam without changing latitude', () => {
+        const input = inputOf(0);
+        const unturned = previewPanorama(input, 64);
+        const turned = previewPanorama({ ...input, rotationDeg: 90 }, 64);
+        for (let y = 0; y < turned.height; y++) {
+            for (let x = 0; x < turned.width; x++) {
+                expect(at(turned, x, y)).toEqual(at(unturned, (x + 48) % 64, y));
+            }
+        }
+    });
 });
