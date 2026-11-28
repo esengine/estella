@@ -8,7 +8,7 @@
  * boxes. They asked it twice, and the two answers had drifted: one knew a mesh's
  * extent and the other boxed a model as a point.
  */
-import type { Entity, Vec3 } from '../types';
+import type { Entity, Vec2, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
 import { Transform, MeshRenderer, ShapeRenderer, Sprite, SortingGroup, Parent, type BuiltinComponentDef, type TransformData } from './component';
@@ -16,7 +16,7 @@ import {
     firstRankedPick, layerOrderOf, layerVisibleToCamera, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, shapeWorldBox, withSpriteBounds,
+    resolveEntityWorldBox, resolveMeshWorldBox, entityBoxRayHit, parallaxOffset, shapeWorldBox, translateBox, withSpriteBounds,
     type EntityBox, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
@@ -86,6 +86,8 @@ export interface EntityPickOptions {
     depthLayers?: number;
     /** Sorting layers drawn by the camera. Defaults to all layers. */
     cullingMask?: number;
+    /** The camera's parallax centre relative to its render origin. */
+    parallaxCenter?: Readonly<Vec2>;
 }
 
 /**
@@ -104,8 +106,8 @@ export function pickEntitiesByRay(
     const opaqueHits: { candidate: PickCandidate<Entity>; distance: number }[] = [];
     const readTransform = pickComponentReader(world, Transform);
     const repeated = visitPickHits(world, opts, rayIntersection(ray), readTransform, {
-        ranked(entity, distance, identity, opaque) {
-            const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, opaque);
+        ranked(entity, distance, identity, offsetY, opaque) {
+            const candidate = rankRayHit(readTransform, opts, entity, hits.length + opaqueHits.length, identity, offsetY, opaque);
             if (opaque) opaqueHits.push({ candidate, distance });
             else hits.push(candidate);
         },
@@ -129,10 +131,10 @@ export function pickEntityByRay(world: PickWorld, ray: WorldRay, opts: EntityPic
     let nearestDistance = Infinity;
     const readTransform = pickComponentReader(world, Transform);
     visitPickHits(world, opts, rayIntersection(ray), readTransform, {
-        ranked(entity, distance, identity, opaque) {
+        ranked(entity, distance, identity, offsetY, opaque) {
             const position = index++;
             if (opaque && distance > nearestDistance) return;
-            const candidate = rankRayHit(readTransform, opts, entity, position, identity, opaque);
+            const candidate = rankRayHit(readTransform, opts, entity, position, identity, offsetY, opaque);
             if (opaque) {
                 nearestOpaque = candidate;
                 nearestDistance = distance;
@@ -157,7 +159,7 @@ function rayIntersection(ray: WorldRay): (box: EntityBox) => number | null {
 
 function rankRayHit(
     readTransform: (entity: Entity) => TransformData, opts: EntityPickOptions, entity: Entity, index: number,
-    identity: ReturnType<typeof sortingIdentity>, opaque?: boolean,
+    identity: ReturnType<typeof sortingIdentity>, offsetY: number, opaque?: boolean,
 ): PickCandidate<Entity> {
     const t = readTransform(entity);
     return {
@@ -169,7 +171,7 @@ function rankRayHit(
             orderInLayer: identity.orderInLayer,
             groupInner: identity.groupInner,
             opaque,
-            worldY: t.worldPosition.y,
+            worldY: t.worldPosition.y + offsetY,
             worldZ: t.worldPosition.z ?? 0,
         },
     };
@@ -186,7 +188,7 @@ export function pickEntitiesByBounds(
 }
 
 type PickHitVisitor =
-    | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, opaque?: boolean): void }
+    | { ranked(entity: Entity, distance: number, identity: ReturnType<typeof sortingIdentity>, offsetY: number, opaque?: boolean): void }
     | { unranked(entity: Entity): void };
 
 function pickComponentReader<T>(world: PickWorld, component: BuiltinComponentDef<T>): (entity: Entity) => T {
@@ -207,8 +209,11 @@ function visitPickHits(
     let groupsOf: ReturnType<typeof createEnclosingGroupReader> | undefined;
     let repeated = false;
     const unranked = 'unranked' in visit;
-    const submit = (entity: Entity, box: EntityBox, drawable: { layer?: number; order?: number } | null, opaque?: boolean) => {
-        const distance = intersect(box, entity);
+    const center = opts.parallaxCenter;
+    const submit = (entity: Entity, box: EntityBox,
+        drawable: { layer?: number; order?: number; parallax?: Vec2 } | null, opaque?: boolean) => {
+        const offset = parallaxOffset(drawable?.parallax, center);
+        const distance = intersect(translateBox(box, offset), entity);
         if (distance === null) return false;
         const needsLayer = cullingMask !== 0xFFFFFFFF && drawable;
         if (unranked && !needsLayer) {
@@ -220,7 +225,7 @@ function visitPickHits(
         const identity = sortingIdentity(groupsOf(entity), drawable ? drawable.layer ?? 0 : unlayered, drawable?.order ?? 0);
         if (needsLayer && !layerVisibleToCamera(identity.layer, cullingMask)) return false;
         if (unranked) visit.unranked(entity);
-        else visit.ranked(entity, distance, identity, opaque);
+        else visit.ranked(entity, distance, identity, offset?.y ?? 0, opaque);
         return true;
     };
     // Use the ECS query's effective activity, including the parent's switch.

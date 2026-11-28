@@ -9,7 +9,7 @@
  * agree until a pivot or a parent scale is involved, and then a selection
  * outline sits beside the sprite it claims to be around.
  */
-import type { Entity, Quat, Vec3 } from '../types';
+import type { Entity, Quat, Vec2, Vec3 } from '../types';
 import type { World } from './world';
 import { Transform, Parent, Sprite, MeshRenderer, ShapeRenderer, type SpriteData, type ShapeRendererData, type TransformData } from './component';
 import { UINode } from '../ui/core/ui-node';
@@ -49,6 +49,8 @@ export interface EntityBox {
 
 /** @experimental */
 export interface EntityBoxOptions {
+    /** The presented camera's parallax centre, relative to its render origin. */
+    parallaxCenter?: Readonly<Vec2>;
     /**
      * World half-size for an entity that draws nothing of its own — a camera, a
      * light, an empty. Zero (the default) reports no box for those; an editor
@@ -90,7 +92,19 @@ function flatWorldRot(t: TransformData): Quat {
  * @experimental
  */
 export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: EntityBoxOptions): EntityBox | null {
-    return resolveEntityWorldBox(world, entity, opts)?.box ?? null;
+    const source = resolveEntityWorldBox(world, entity, opts);
+    return source ? translateBox(source.box, parallaxOffset(source.drawable?.parallax, opts?.parallaxCenter)) : null;
+}
+
+/** @internal The world translation applied by the render collect. */
+export function parallaxOffset(factor?: Readonly<Vec2>, center?: Readonly<Vec2>): Vec2 | undefined {
+    if (!factor || !center || (factor.x === 1 && factor.y === 1)) return undefined;
+    return { x: center.x * (1 - factor.x), y: center.y * (1 - factor.y) };
+}
+
+/** @internal Apply a draw offset without changing the world-space box supplied by the caller. */
+export function translateBox(box: EntityBox, offset?: Readonly<Vec2>): EntityBox {
+    return offset && (offset.x || offset.y) ? { ...box, cx: box.cx + offset.x, cy: box.cy + offset.y } : box;
 }
 
 /** @internal Resolve geometry and its draw order together, with optional renderer visibility. */
@@ -292,8 +306,10 @@ function meshLocalBounds(world: LayoutWorld, entity: Entity): LocalBounds | null
  *
  * @experimental
  */
-export function meshWorldBox(world: LayoutWorld, entity: Entity): EntityBox | null {
-    return resolveMeshWorldBox(world, entity);
+export function meshWorldBox(world: LayoutWorld, entity: Entity, parallaxCenter?: Readonly<Vec2>): EntityBox | null {
+    const box = resolveMeshWorldBox(world, entity);
+    if (!box || !parallaxCenter) return box;
+    return translateBox(box, parallaxOffset(world.get(entity, MeshRenderer).parallax, parallaxCenter));
 }
 
 /** @internal Picking can supply a borrowed transform reader for a single traversal. */

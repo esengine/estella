@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { CameraViewAPI, presentedCameraView } from '../src/camera/Camera';
-import { CameraCommit } from '../src/camera/CameraCommit';
+import { CameraCommit, cameraParallaxCenter } from '../src/camera/CameraCommit';
 import { pickEntityByRay, pickEntitiesByBounds, pickEntitiesByRay, type PickWorld } from '../src/ecs/entityPick';
 import { Transform, Sprite, MeshRenderer, ShapeRenderer, SortingGroup, Parent } from '../src/ecs/component';
 import { q } from '../src/math/quat';
@@ -378,6 +378,33 @@ describe('picking entities by ray', () => {
         }, { 2: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 },
             3: { minX: -2, minY: -2, minZ: -2, maxX: 2, maxY: 2, maxZ: 2 } });
         expect(pickEntitiesByRay(world, down(0, 0), { iconHalf: 24 })).toEqual([ent(3), ent(1), ent(2)]);
+    });
+
+    it('hits parallax-shifted draws and uses their drawn Y for layer order', () => {
+        const bounds = { minX: -5, minY: -5, minZ: -5, maxX: 5, maxY: 5, maxZ: 5 };
+        const world = fakeWorld({
+            1: { Transform: T(0, 0), Sprite: { ...sprite(1), size: { x: 10, y: 10 }, parallax: { x: 0, y: 0 } } },
+            2: { Transform: T(40, 10), ShapeRenderer: { size: { x: 10, y: 10 }, layer: 1 } },
+            3: { Transform: T(70, 0), MeshRenderer: { layer: 1, parallax: { x: 0, y: 0 } } },
+            4: { Transform: T(100, 30), ShapeRenderer: { size: { x: 10, y: 10 }, layer: 1, parallax: { x: 0, y: 0 } } },
+        }, { 3: bounds });
+        const options = { parallaxCenter: { x: 40, y: 12 }, ySortLayers: 1 << 1 };
+        expect(pickEntitiesByRay(world, down(40, 12), options)).toEqual([ent(2), ent(1)]);
+        expect(pickEntityByRay(world, down(110, 12), options)).toBe(ent(3));
+        expect(pickEntityByRay(world, down(70, 0), options)).toBeNull();
+        expect(pickEntityByRay(world, down(140, 42), options)).toBe(ent(4));
+        expect(pickEntitiesByBounds(world, box => box.cx > 100, options)).toEqual([ent(3), ent(4)]);
+    });
+
+    it('gets the renderer-relative parallax centre from the committed camera and override', () => {
+        const viewProjection = ortho(-10, 50, -4, 24, -100, 100).slice();
+        const camera = { valid: true, revision: 1, vpX: 0, vpY: 0, vpW: 240, vpH: 112, viewProjection,
+            rebasedProjection: { origin: { x: 1e8, y: -1e8, z: 0 }, viewProjection } };
+        const center = cameraParallaxCenter(camera);
+        expect(center?.x).toBeCloseTo(20);
+        expect(center?.y).toBeCloseTo(10);
+        expect(cameraParallaxCenter({ ...camera, parallaxAnchor: { x: 1e8 + 7, y: -1e8 + 9 } })).toEqual({ x: 7, y: 9 });
+        expect(cameraParallaxCenter({ ...camera, valid: false })).toBeUndefined();
     });
 
     it('skips disabled draws and uses the remaining visible renderer on the entity', () => {

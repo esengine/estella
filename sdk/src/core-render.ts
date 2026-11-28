@@ -43,7 +43,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // =============================================================================
 
 export { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView, type CameraLens } from './camera/Camera';
-export { CameraCommit, onCameraCommitChanged, cameraCommitChanged,
+export { CameraCommit, onCameraCommitChanged, cameraCommitChanged, cameraParallaxCenter,
          type CameraCommitData, type CameraCommitListener } from './camera/CameraCommit';
 export { EditorView, EditorHiddenEntities, DEFAULT_EDITOR_VIEW, editorViewHalfHeight, editorViewHalfExtent, editorViewWorldPerPixel, setEditorViewHalfHeight, editorViewIsOrbited, editorViewAxes, editorViewAxisAngles, editorViewBasis, editorViewEye, editorViewStandoff, editorViewClipFar, editorViewClipNear, editorViewWorkPlane, editorViewGridPlane, screenWorkAxes, worldAxisVector, moveEditorViewFocus, editorViewBoxExtent } from './camera/EditorView';
 export type { EditorViewData, ScreenAxis, EditorViewBasis, EditorWorkPlane, WorldAxis } from './camera/EditorView';

@@ -20,6 +20,7 @@
 import { defineResource } from '../ecs/resource';
 import type { Vec2 } from '../types';
 import type { RebasedProjection } from '../ui/util/math';
+import { invertMatrix4 } from '../math/mat4';
 
 /** @beta */
 export interface CameraCommitData {
@@ -40,6 +41,21 @@ export interface CameraCommitData {
     vpH: number;
     /** False until a frame has been drawn with a camera at all. */
     valid: boolean;
+}
+
+/** The frame's parallax centre in render coordinates, relative to its render origin. @experimental */
+export function cameraParallaxCenter(camera: Readonly<CameraCommitData>): Vec2 | undefined {
+    if (!camera.valid) return undefined;
+    const rebased = camera.rebasedProjection;
+    const anchor = camera.parallaxAnchor;
+    if (anchor) return { x: anchor.x - (rebased?.origin.x ?? 0), y: anchor.y - (rebased?.origin.y ?? 0) };
+
+    // Match computeCameraView: average the two opposite corners at clip-space z = 0.
+    const m = invertMatrix4(rebased?.viewProjection ?? camera.viewProjection);
+    const bottomW = m[15] - m[3] - m[7], topW = m[15] + m[3] + m[7];
+    const x = ((m[12] - m[0] - m[4]) / bottomW + (m[12] + m[0] + m[4]) / topW) * 0.5;
+    const y = ((m[13] - m[1] - m[5]) / bottomW + (m[13] + m[1] + m[5]) / topW) * 0.5;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined;
 }
 
 /**
