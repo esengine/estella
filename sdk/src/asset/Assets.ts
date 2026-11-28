@@ -83,7 +83,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
-import { runWithConcurrency } from '../util/runWithConcurrency';
+import { normalizeConcurrency, runWithConcurrency } from '../util/runWithConcurrency';
 import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
 import type { MaterialAssetData } from '../render/material';
 
@@ -1790,7 +1790,7 @@ export class Assets {
         let loadedCount = 0;
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
-        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
+        const maxConcurrent = options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency;
         await runWithConcurrency(tasks, maxConcurrent, () => {
             onProgress?.(++loadedCount, totalCount);
         });
@@ -2015,7 +2015,7 @@ export class Assets {
         }
 
         const totalCount = tasks.length;
-        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency);
+        const maxConcurrent = options?.maxConcurrent ?? RuntimeConfig.preloadConcurrency;
         const began = preloadClock();
         try {
             for (const type of ['texture', 'material'] as const) {
@@ -2037,7 +2037,8 @@ export class Assets {
             if (totalCount > 0) {
                 const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
                     .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
-                log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+                const slots = Math.min(normalizeConcurrency(maxConcurrent), totalCount);
+                log[options?.summary ?? 'info']('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, up to ${slots} at a time: ${parts.join(', ')}`);
             }
             warnFailedLoads(missing.filter(m => m.reason === 'load-failed'));
 

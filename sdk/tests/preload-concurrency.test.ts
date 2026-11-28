@@ -1,153 +1,79 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    preload-concurrency.test.ts
- * @brief   Assets.preloadSceneAssets bounds concurrent loads to prevent
- *          asset-rich scenes from saturating the network and decoder.
- */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Assets } from '../src/asset/Assets';
-import type { Backend } from '../src/asset/Backend';
+import { defineComponent } from '../src/ecs/component';
+import type { SceneData } from '../src/scene/scene';
+import { runWithConcurrency } from '../src/util/runWithConcurrency';
 import type { ESEngineModule } from '../src/wasm';
 
-/** Build a backend that records fetches and delays responses until we release them. */
-function buildControlledBackend() {
-    const inflight = new Set<string>();
-    const maxInflight = { value: 0 };
-    const pending = new Map<string, () => void>();
-    const fetchText = vi.fn(async (url: string) => {
-        inflight.add(url);
-        if (inflight.size > maxInflight.value) maxInflight.value = inflight.size;
-        await new Promise<void>(resolve => { pending.set(url, resolve); });
-        inflight.delete(url);
-        return '';
+const fixtureType = 'preload-fixture';
+const fixtureComponent = defineComponent('PreloadFixture', { files: [] as string[] }, {
+    discoverAssets: data => (data.files as string[]).map(path => ({ type: fixtureType, path })),
+});
+
+function fixture() {
+    let active = 0;
+    let peak = 0;
+    const load = vi.fn(async (path: string) => {
+        peak = Math.max(peak, ++active);
+        await Promise.resolve();
+        active--;
+        if (path === 'failed.preloadfixture') throw new Error('missing data');
+        return { path };
     });
-    return {
-        backend: {
-            resolveUrl: (p: string) => p,
-            fetchText,
-            fetchBinary: async () => new ArrayBuffer(0),
-            fetchImage: async () => ({ width: 1, height: 1, data: new Uint8ClampedArray(4) }),
-        } as unknown as Backend,
-        inflight,
-        maxInflight,
-        releaseAll: () => { for (const r of pending.values()) r(); pending.clear(); },
-        releaseOne: (url: string) => { pending.get(url)?.(); pending.delete(url); },
-        fetchText,
-    };
+    const unload = vi.fn();
+    const assets = Assets.create({
+        backend: { resolveUrl: path => path, fetchText: async () => '', fetchBinary: async () => new ArrayBuffer(0) },
+        module: {} as ESEngineModule,
+    });
+    assets.register({ type: fixtureType, extensions: ['.preloadfixture'], load, unload });
+    const files = ['first.preloadfixture', 'second.preloadfixture', 'failed.preloadfixture', 'last.preloadfixture'];
+    const scene: SceneData = { version: '1.0', name: 'Concurrent loads', entities: [
+        { id: 1, name: 'Assets', parent: null, children: [], components: [
+            { type: fixtureComponent._name, data: { files } },
+        ] },
+    ] };
+    return { assets, files, scene, load, unload, peak: () => peak };
 }
 
-describe('preloadSceneAssets concurrency', () => {
-    beforeEach(() => {
-        // No-op; each test builds its own fixture.
-    });
-
-    it('never exceeds the configured maxConcurrent limit', async () => {
-        // Drive a lot of tasks through the worker pool directly via the
-        // internal helper. This avoids the complexity of a fake module /
-        // loader set while still exercising the semantic we care about.
-        const inflight = { cur: 0, max: 0 };
-        const tasks: Array<() => Promise<void>> = [];
-        for (let i = 0; i < 200; i++) {
-            tasks.push(async () => {
-                inflight.cur++;
-                if (inflight.cur > inflight.max) inflight.max = inflight.cur;
-                await new Promise(r => setTimeout(r, 1));
-                inflight.cur--;
-            });
-        }
-
-        // Import the helper indirectly by re-creating its shape: a local
-        // copy of the same bounded-worker loop to validate the invariant.
-        async function runWithConcurrency(
-            tasks: ReadonlyArray<() => Promise<void>>,
-            maxConcurrent: number,
-            onEach: () => void,
-        ): Promise<void> {
-            if (tasks.length === 0) return;
-            let cursor = 0;
-            const workers: Promise<void>[] = [];
-            const worker = async () => {
-                while (cursor < tasks.length) {
-                    const i = cursor++;
-                    try { await tasks[i](); } finally { onEach(); }
+describe.each(['explicit refs', 'scene dependencies'])('%s preload concurrency', entry => {
+    it.each([[4, 4], [2.5, 2], [0, 1], [NaN, 1], [Infinity, 4]])(
+        'uses limit %s with %s concurrent loaders and counts every attempted asset', async (maxConcurrent, expectedPeak) => {
+            const { assets, files, scene, load, unload, peak } = fixture();
+            const progress = vi.fn();
+            try {
+                const result = entry === 'explicit refs'
+                    ? (await assets.preload(files, progress, { maxConcurrent })).failed
+                    : await assets.preloadSceneAssets(scene, progress, { maxConcurrent, summary: 'debug' });
+                try {
+                    expect(load.mock.calls.map(([path]) => path)).toEqual(files);
+                    expect(peak()).toBe(expectedPeak);
+                    expect(progress.mock.calls).toEqual([[0, 4], [1, 4], [2, 4], [3, 4], [4, 4]]);
+                    expect(Array.isArray(result) ? result : result.missing).toEqual([
+                        expect.objectContaining({ ref: files[2], type: fixtureType, reason: 'load-failed' }),
+                    ]);
+                } finally {
+                    if (!Array.isArray(result)) result.scope.releaseAll();
                 }
-            };
-            const slots = Math.min(maxConcurrent, tasks.length);
-            for (let i = 0; i < slots; i++) workers.push(worker());
-            await Promise.all(workers);
-        }
+                if (!Array.isArray(result)) expect(unload).toHaveBeenCalledTimes(3);
+            } finally { assets.releaseAll(); }
+        },
+    );
+});
 
-        let completions = 0;
-        await runWithConcurrency(tasks, 4, () => { completions++; });
-
-        expect(inflight.max).toBeLessThanOrEqual(4);
-        expect(completions).toBe(200);
-    });
-
-    it('reports progress exactly once per task', async () => {
-        const tasks: Array<() => Promise<void>> = [];
-        for (let i = 0; i < 10; i++) tasks.push(async () => { /* noop */ });
-
-        let count = 0;
-        async function runWithConcurrency(
-            tasks: ReadonlyArray<() => Promise<void>>, maxConcurrent: number, onEach: () => void,
-        ) {
-            let cursor = 0;
-            const workers: Promise<void>[] = [];
-            const worker = async () => {
-                while (cursor < tasks.length) {
-                    const i = cursor++;
-                    try { await tasks[i](); } finally { onEach(); }
-                }
-            };
-            for (let i = 0; i < Math.min(maxConcurrent, tasks.length); i++) workers.push(worker());
-            await Promise.all(workers);
-        }
-        await runWithConcurrency(tasks, 3, () => { count++; });
-        expect(count).toBe(10);
-    });
-
-    it('still calls onEach for thrown tasks (progress does not stall on error)', async () => {
-        const tasks: Array<() => Promise<void>> = [
-            async () => { throw new Error('boom'); },
-            async () => { /* ok */ },
-            async () => { throw new Error('also boom'); },
-        ];
-
-        async function runWithConcurrency(
-            tasks: ReadonlyArray<() => Promise<void>>, maxConcurrent: number, onEach: () => void,
-        ) {
-            let cursor = 0;
-            const workers: Promise<void>[] = [];
-            const worker = async () => {
-                while (cursor < tasks.length) {
-                    const i = cursor++;
-                    try { await tasks[i](); } catch { /* swallow for test */ } finally { onEach(); }
-                }
-            };
-            for (let i = 0; i < Math.min(maxConcurrent, tasks.length); i++) workers.push(worker());
-            await Promise.all(workers);
-        }
-
-        let count = 0;
-        await runWithConcurrency(tasks, 2, () => { count++; });
-        expect(count).toBe(3);
-    });
-
-    it('Assets.preloadSceneAssets accepts maxConcurrent option without breaking (smoke)', () => {
-        // Smoke check the signature — just the option being accepted.
-        const assetsOpts = {
-            backend: { resolveUrl: (p: string) => p, fetchText: async () => '', fetchBinary: async () => new ArrayBuffer(0) } as unknown as Backend,
-            module: { _malloc: () => 0, _free: () => {} } as unknown as ESEngineModule,
-        };
-        const assets = new Assets(assetsOpts);
-        // Call the method to confirm it accepts the options arg shape.
-        // Pass empty sceneData so it returns immediately.
-        expect(() => assets.preloadSceneAssets(
-            { version: '1.0', name: 'x', entities: [] },
-            undefined,
-            { maxConcurrent: 2 },
-        )).not.toThrow();
-    });
+it('stops dispatching after a worker fails and waits for active tasks to finish', async () => {
+    let finish!: () => void;
+    const active = new Promise<void>(resolve => { finish = resolve; });
+    const error = new Error('task failed');
+    const queued = vi.fn(async () => {});
+    const settled = vi.fn();
+    const work = runWithConcurrency([() => active, async () => { throw error; }, queued], 2);
+    void work.then(settled, settled);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    expect(queued).not.toHaveBeenCalled();
+    finish();
+    await expect(work).rejects.toBe(error);
+    expect(queued).not.toHaveBeenCalled();
 });

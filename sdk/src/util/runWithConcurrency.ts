@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
+/** Use whole worker slots, with a serial fallback for invalid limits. */
+export function normalizeConcurrency(limit: number): number {
+    const slots = Math.floor(limit);
+    return slots >= 1 ? slots : 1;
+}
+
 /**
  * Start lazy tasks with at most `maxConcurrent` in flight. Report each completion
  * while the batch is running. On error, wait for active tasks before rejecting.
@@ -26,7 +32,7 @@ export async function runWithConcurrency(
             cursor = tasks.length;
         }
     };
-    const slots = Math.min(maxConcurrent, tasks.length);
+    const slots = Math.min(normalizeConcurrency(maxConcurrent), tasks.length);
     for (let i = 0; i < slots; i++) {
         workers.push(worker());
     }
